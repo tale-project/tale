@@ -26,6 +26,9 @@ interface ListConversationsPaginatedArgs {
   status?: 'open' | 'closed' | 'spam' | 'archived';
   priority?: string;
   channel?: string;
+  /** Filter to one connected inbox provider (e.g. `gmail`) — the Inbox
+   *  toolbar's channel filter. */
+  integrationName?: string;
   initialNumItems: number;
 }
 

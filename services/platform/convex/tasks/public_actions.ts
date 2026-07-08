@@ -1,6 +1,5 @@
 import { v } from 'convex/values';
 
-import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
@@ -25,21 +24,12 @@ async function startWorkflowForTask(
   // upstream issue (e.g. the desk pre-check's get_issue) without re-parsing;
   // null for a non-issue/malformed ref, which the workflow guards on.
   const repoRef = parseRepoRef(args.task.externalId);
-  // An app-owned workflow (slug `<app>/<name>`) gets its install's PER-PROJECT
-  // config injected as `input.appConfig`, resolved by THIS task's project so two
-  // projects bound to the same app never see each other's config. Empty for a
-  // non-app workflow or an unconfigured app, so `{{input.appConfig.x}}` resolves
-  // to nothing rather than erroring.
-  const slash = args.workflowSlug.indexOf('/');
-  const appSlug = slash > 0 ? args.workflowSlug.slice(0, slash) : undefined;
-  const appConfig =
-    appSlug && isValidAppSlug(appSlug)
-      ? await ctx.runQuery(internal.apps.config.getProjectAppConfigInternal, {
-          organizationId: args.organizationId,
-          appSlug,
-          projectId: args.task.projectId,
-        })
-      : {};
+  // There is no more install-time app config to inject here — an app no
+  // longer has a `requires.config` concept. A value like a test command or
+  // repo notes now comes from the owning workflow's OWN trigger/schedule
+  // variables (e.g. issue-desk/reconcile's `variables`, set via the
+  // workflow's Triggers tab), read inside the workflow itself rather than
+  // threaded through this action's `input`. (N3 wires that up for issue-desk.)
   try {
     return await ctx.runAction(
       api.workflow_executions.actions.startWorkflowFromFile,
@@ -52,7 +42,6 @@ async function startWorkflowForTask(
           issueNumber,
           owner: repoRef?.owner ?? null,
           repo: repoRef?.repo ?? null,
-          appConfig,
         },
         subject: { type: 'task', id: args.task._id },
       },

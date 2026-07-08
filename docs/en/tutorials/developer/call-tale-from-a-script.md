@@ -61,4 +61,4 @@ The `model` field is the agent's ID; the agent's instructions, knowledge, and to
 
 A script is the path you take when the data plane is JSON, not a screen — cron jobs, CI checks, internal portals. The API key carries your role, the OpenAI-compatible endpoint is the lowest-friction shape, and every list endpoint returns the same `{ resource: [...] }` envelope.
 
-For inbound triggers — your system POSTing into a Tale workflow — see [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). For the full endpoint inventory and error model, the [API reference](/develop/api-reference) is the single source of truth.
+For inbound triggers — your system POSTing into a Tale workflow — see [Trigger a workflow via webhook](/tutorials/developer/trigger-automation-via-webhook). For the full endpoint inventory and error model, the [API reference](/develop/api-reference) is the single source of truth.

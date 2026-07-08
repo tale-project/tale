@@ -117,7 +117,7 @@ describe('save_workflow_definition tool handler', () => {
       expect.objectContaining({
         organizationId: 'org1',
         workflowSlug: 'my-workflow',
-        workflowName: 'My Workflow',
+        workflowName: 'my-workflow',
         workflowVersion: '1.0.0',
         updateSummary: 'Added error handling step',
       }),

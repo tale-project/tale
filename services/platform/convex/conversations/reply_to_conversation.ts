@@ -1,0 +1,155 @@
+/**
+ * Server-side reply to a conversation.
+ *
+ * Derives everything the send path needs from the conversation row itself —
+ * recipient (the customer's email), a `Re:`-prefixed subject, the html/text
+ * body split, and the integration to send through — then delegates to
+ * `sendMessageViaIntegration` (threading headers, reply-from resolution and
+ * audit all live there). The conversation's own `integrationName` is
+ * authoritative: replying without one is an error, never a silent fallback
+ * to a default provider.
+ */
+
+import { ConvexError } from 'convex/values';
+
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import { sendMessageViaIntegration } from './send_message_via_integration';
+import type { BulkOperationResult } from './types';
+
+/** Placeholder email used when a customer record carries no real address. */
+const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
+
+/** Subject used when the conversation itself has none. */
+const FALLBACK_REPLY_SUBJECT = 'Re: Conversation';
+
+/**
+ * Upper bound for one bulk reply call — each reply performs several writes
+ * and schedules an outbound send action, so the batch must stay small enough
+ * for a single mutation transaction.
+ */
+export const BULK_REPLY_CAP = 50;
+
+export interface ReplyToConversationArgs {
+  conversationId: Id<'conversations'>;
+  organizationId: string;
+  content: string;
+  attachments?: Array<{
+    storageId: Id<'_storage'>;
+    fileName: string;
+    contentType: string;
+    size: number;
+  }>;
+}
+
+/** `Re:`-prefix a subject exactly once (case-insensitive, idempotent). */
+export function buildReplySubject(subject: string | undefined): string {
+  const trimmed = subject?.trim();
+  if (!trimmed) return FALLBACK_REPLY_SUBJECT;
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+/** Split composer content into an html body and a tag-stripped text body. */
+export function splitHtmlText(content: string): { html: string; text: string } {
+  return { html: content, text: content.replace(/<[^>]*>/g, '') };
+}
+
+export async function replyToConversation(
+  ctx: MutationCtx,
+  args: ReplyToConversationArgs,
+): Promise<Id<'conversationMessages'>> {
+  const conversation = await ctx.db.get(args.conversationId);
+  if (!conversation) {
+    throw new ConvexError({
+      code: 'conversation_not_found',
+      message: 'Conversation not found',
+    });
+  }
+
+  if (conversation.organizationId !== args.organizationId) {
+    throw new ConvexError({
+      code: 'conversation_org_mismatch',
+      message: 'Conversation does not belong to organization',
+    });
+  }
+
+  const integrationName = conversation.integrationName;
+  if (!integrationName) {
+    throw new ConvexError({
+      code: 'conversation_integration_missing',
+      message:
+        'Conversation has no integration to reply through — reply is unavailable until a sync stamps its integrationName',
+    });
+  }
+
+  const customer = conversation.customerId
+    ? await ctx.db.get(conversation.customerId)
+    : null;
+  const customerEmail = customer?.email;
+  if (!customerEmail || customerEmail === UNKNOWN_CUSTOMER_EMAIL) {
+    throw new ConvexError({
+      code: 'customer_email_not_found',
+      message: 'Conversation has no customer email to reply to',
+    });
+  }
+
+  const subject = buildReplySubject(conversation.subject);
+  const { html, text } = splitHtmlText(args.content);
+
+  return await sendMessageViaIntegration(ctx, {
+    conversationId: args.conversationId,
+    organizationId: args.organizationId,
+    integrationName,
+    content: args.content,
+    to: [customerEmail],
+    subject,
+    html,
+    text,
+    ...(args.attachments?.length ? { attachments: args.attachments } : {}),
+  });
+}
+
+export async function bulkReplyToConversations(
+  ctx: MutationCtx,
+  args: {
+    conversationIds: Array<Id<'conversations'>>;
+    organizationId: string;
+    content: string;
+  },
+): Promise<BulkOperationResult> {
+  if (args.conversationIds.length > BULK_REPLY_CAP) {
+    throw new ConvexError({
+      code: 'bulk_reply_too_many',
+      message: `Cannot reply to more than ${BULK_REPLY_CAP} conversations at once`,
+    });
+  }
+
+  let successCount = 0;
+  const errors: string[] = [];
+
+  // Sequential on purpose: replies are heavier than status patches. A
+  // per-conversation failure is recorded and the rest still go out — the
+  // partial-failure contract of the other bulk_* helpers. This is
+  // transaction-safe because every throw in replyToConversation happens
+  // before its first write.
+  for (const conversationId of args.conversationIds) {
+    try {
+      await replyToConversation(ctx, {
+        conversationId,
+        organizationId: args.organizationId,
+        content: args.content,
+      });
+      successCount++;
+    } catch (error) {
+      errors.push(
+        `Failed to reply to ${conversationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  return {
+    successCount,
+    failedCount: args.conversationIds.length - successCount,
+    errors,
+  };
+}

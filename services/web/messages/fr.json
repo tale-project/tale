@@ -112,9 +112,9 @@
         "title": "Des spécialistes IA\npour chaque équipe",
         "description": "Donne un rôle à un agent, connecte-le à tes données et choisis son modèle IA — il est prêt en quelques minutes. Sans coder.\n\nDu support client aux revues de conformité, crée des spécialistes qui exploitent ta base de connaissances et s'améliorent à chaque conversation."
       },
-      "automations": {
-        "eyebrow": "Automatisations",
-        "title": "L'automatisation\nsans l'ingénierie",
+      "workflows": {
+        "eyebrow": "Workflows",
+        "title": "Des workflows\nsans l'ingénierie",
         "description": "Construis des workflows déclenchés par des événements, qui prennent des décisions avec l'IA et bouclent jusqu'à ce que le travail soit fait. Les changements sont en ligne dès que tu sauvegardes.\n\nDe l'onboarding client aux chaînes d'escalade, automatise le travail répétitif qui ralentit ton équipe."
       }
     },
@@ -493,7 +493,7 @@
     "sendAriaLabel": "Envoyer"
   },
   "productMockOps": {
-    "heading": "Automatisations",
+    "heading": "Workflows",
     "today": "Aujourd'hui",
     "rows": {
       "inventorySync": "Synchronisation quotidienne des stocks",

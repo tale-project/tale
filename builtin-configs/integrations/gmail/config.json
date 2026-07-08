@@ -1,9 +1,7 @@
 {
   "title": "Gmail",
   "description": "Read, send, and organize email in Gmail.",
-  "metadata": {
-    "labels": ["Email"]
-  },
+  "labels": ["Email"],
   "version": 2,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

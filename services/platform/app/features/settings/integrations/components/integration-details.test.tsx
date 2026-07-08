@@ -23,11 +23,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-// Mock IntegrationRelatedAutomations — it uses Convex queries not available in this test
-vi.mock('./integration-manage/integration-related-automations', () => ({
-  IntegrationRelatedAutomations: () => null,
-}));
-
 // Minimal integration fixture matching Doc<'integrations'> shape
 function makeIntegration(
   overrides: Record<string, unknown> = {},
@@ -51,11 +46,11 @@ async function expandSection(label: string) {
 }
 
 describe('IntegrationDetails', () => {
-  it('renders the container even with no operations (automations section always present)', () => {
+  it('renders nothing when the integration has no sections to show', () => {
     const { container } = render(
       <IntegrationDetails integration={makeIntegration()} />,
     );
-    expect(container.firstChild).not.toBeNull();
+    expect(container.firstChild).toBeNull();
   });
 
   it('renders REST operations with names and titles', async () => {

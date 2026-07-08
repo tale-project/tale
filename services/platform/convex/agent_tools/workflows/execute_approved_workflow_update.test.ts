@@ -415,4 +415,90 @@ describe('executeApprovedWorkflowUpdate', () => {
 
     expect(result.success).toBe(true);
   });
+
+  describe('specification (W5b)', () => {
+    it('records specification + specificationMeta synced to the committed graph when supplied', async () => {
+      const handler = await getHandler();
+      const approval = createMockApproval({
+        metadata: {
+          updateType: 'full_save',
+          updateSummary: 'Added error handling',
+          workflowSlug: 'test-workflow',
+          workflowName: 'Test Workflow',
+          workflowVersion: '1.0.0',
+          workflowConfig: {
+            name: 'Test Workflow',
+            description: 'test',
+            specification: 'Start, then send an email, then end.',
+          },
+          stepsConfig: [
+            {
+              stepSlug: 'start',
+              name: 'Start',
+              stepType: 'start',
+              config: {},
+              nextSteps: { success: 'end' },
+            },
+          ],
+        },
+      });
+      const ctx = createMockCtx(approval);
+
+      const result = await handler(ctx, {
+        approvalId: 'approval-1',
+        approvedBy: 'user-1',
+      });
+
+      expect(result.success).toBe(true);
+      const saveCall = ctx.runAction.mock.calls.find(
+        (call) => call[0] === 'mock-saveWorkflowForExecution',
+      );
+      expect(saveCall).toBeDefined();
+      if (!saveCall) throw new Error('Expected saveCall to be defined');
+      const savedConfig = saveCall[1].config;
+      expect(savedConfig.specification).toBe(
+        'Start, then send an email, then end.',
+      );
+      expect(savedConfig.specificationMeta.direction).toBe('graph_to_spec');
+      expect(savedConfig.specificationMeta.sourceHash).toBeTruthy();
+    });
+
+    it('leaves specification/specificationMeta untouched when not supplied (goes stale, not cleared)', async () => {
+      const handler = await getHandler();
+      const approval = createMockApproval();
+      const ctx = createMockCtx(approval);
+      // The existing file already carries a specification from an earlier sync.
+      ctx.runAction = vi.fn().mockImplementation((ref: string) => {
+        if (ref === 'mock-readWorkflowForExecution') {
+          return {
+            ok: true,
+            config: {
+              ...structuredClone(MOCK_WORKFLOW_CONFIG),
+              specification: 'Existing spec.',
+              specificationMeta: {
+                sourceHash: 'old-hash',
+                generatedAt: 1,
+                direction: 'graph_to_spec',
+              },
+            },
+          };
+        }
+        if (ref === 'mock-saveWorkflowForExecution') {
+          return { hash: 'new-hash' };
+        }
+        return null;
+      });
+
+      await handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' });
+
+      const saveCall = ctx.runAction.mock.calls.find(
+        (call) => call[0] === 'mock-saveWorkflowForExecution',
+      );
+      expect(saveCall).toBeDefined();
+      if (!saveCall) throw new Error('Expected saveCall to be defined');
+      const savedConfig = saveCall[1].config;
+      expect(savedConfig.specification).toBe('Existing spec.');
+      expect(savedConfig.specificationMeta.sourceHash).toBe('old-hash');
+    });
+  });
 });

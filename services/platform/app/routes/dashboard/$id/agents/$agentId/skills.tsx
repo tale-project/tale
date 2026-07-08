@@ -67,7 +67,6 @@ function SkillsTab() {
       />
       <SkillsTable
         organizationId={organizationId}
-        hideActionMenu
         excludeSlugs={isExternalAgent ? workflowSlugs : undefined}
         bindingMode={{
           selected: visibleSelected,

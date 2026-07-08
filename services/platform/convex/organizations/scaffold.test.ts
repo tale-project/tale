@@ -99,6 +99,23 @@ function orgDst(orgSlug: string, ...parts: string[]): string {
   return path.join(configRoot, orgSlug, ...parts);
 }
 
+// Minimal but schema-VALID catalog fixtures. The scaffolder now validates
+// each `.json` catalog file against its domain schema before writing it
+// (Phase 3 runtime guard — a corrupt file is skipped, never copied), so a
+// throwaway `{"name":"x"}` fixture would silently be skipped instead of
+// copied. These mirror the domain schemas' own test fixtures
+// (agents.test.ts's baseAgent, providers.test.ts's baseProvider).
+function validAgentJson(displayName: string): string {
+  return JSON.stringify({
+    displayName,
+    systemInstructions: 'You are a test agent.',
+    supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+  });
+}
+const VALID_AGENT_JSON = validAgentJson('x');
+const VALID_PROVIDER_JSON =
+  '{"displayName":"Test Provider","baseUrl":"https://api.example.com/v1","models":[{"id":"test/model-1","displayName":"Test Model 1","tags":["chat"]}]}';
+
 describe('scaffoldNewOrganization (org-first)', () => {
   it('seeds workflows from the catalog into the org-first target', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
@@ -114,57 +131,101 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe(true);
   });
 
+  it('skips (warns, never throws or copies) a catalog file that fails its domain schema, while sibling files still seed', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('providers', 'good.json'), VALID_PROVIDER_JSON);
+    // Missing every required field (displayName, baseUrl, models) — a
+    // corrupt/hand-edited catalog file must never reach a new org's disk.
+    await writeText(catSrc('providers', 'broken.json'), '{"oops":true}');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await scaffoldHandler({} as never, { orgSlug: 'acme' });
+    // Read the recorded calls BEFORE restoring — mockRestore() also clears
+    // `.mock.calls`.
+    const messages = errSpy.mock.calls.map((c) => c.join(' '));
+    errSpy.mockRestore();
+
+    // Never throws, and the `providers` domain itself isn't marked failed —
+    // one bad file inside it doesn't abort the domain (other domains in this
+    // result are `ok:false` too, but only because this test's catalog fixture
+    // seeds `providers` alone; see the other single-domain tests in this file).
+    const providersResult = result.results.find(
+      (r) => r.domain === 'providers',
+    );
+    expect(providersResult?.ok).toBe(true);
+    // The broken file is skipped, not copied.
+    expect(existsSync(orgDst('acme', 'providers', 'broken.json'))).toBe(false);
+    // Its sibling still seeds normally.
+    expect(existsSync(orgDst('acme', 'providers', 'good.json'))).toBe(true);
+    // Warned loudly, naming the file and the field the schema rejected.
+    expect(
+      messages.some(
+        (m) => m.includes('providers/broken.json') && m.includes('displayName'),
+      ),
+    ).toBe(true);
+  });
+
   it('seeds flat domains (providers) per-file from the catalog', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('providers', 'shipped.json'), '{"name":"x"}');
+    await writeText(catSrc('providers', 'shipped.json'), VALID_PROVIDER_JSON);
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
     expect(existsSync(orgDst('acme', 'providers', 'shipped.json'))).toBe(true);
   });
 
-  it('seeds the apps bundle (apps is a first-class config domain)', async () => {
+  it('seeds the automations bundle (automations is a first-class config domain)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     // An app bundle: manifest + a view + an app-scoped agent, all under the slug.
     await writeText(
-      catSrc('apps', 'issue-desk', 'app.json'),
+      catSrc('automations', 'issue-desk', 'automation.json'),
       '{"name":"Desk"}',
     );
     await writeText(
-      catSrc('apps', 'issue-desk', 'views', 'home.json'),
+      catSrc('automations', 'issue-desk', 'views', 'home.json'),
       '{"data":{}}',
     );
     await writeText(
-      catSrc('apps', 'issue-desk', 'agents', 'implementer.json'),
+      catSrc('automations', 'issue-desk', 'agents', 'implementer.json'),
       '{"slug":"implementer"}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'apps', 'issue-desk', 'app.json'))).toBe(
-      true,
-    );
+    expect(
+      existsSync(
+        orgDst('acme', 'automations', 'issue-desk', 'automation.json'),
+      ),
+    ).toBe(true);
     // The whole bundle tree copies, including nested views/ and app-scoped agents/.
     expect(
-      existsSync(orgDst('acme', 'apps', 'issue-desk', 'views', 'home.json')),
+      existsSync(
+        orgDst('acme', 'automations', 'issue-desk', 'views', 'home.json'),
+      ),
     ).toBe(true);
     expect(
       existsSync(
-        orgDst('acme', 'apps', 'issue-desk', 'agents', 'implementer.json'),
+        orgDst(
+          'acme',
+          'automations',
+          'issue-desk',
+          'agents',
+          'implementer.json',
+        ),
       ),
     ).toBe(true);
   });
 
   it('flat domains never recurse into catalog subdirs (defense if the catalog ever ships one)', async () => {
-    // `agents` became a TREE domain (chat/ workforce/ github/ folders) so it
+    // `agents` became a TREE domain (chat/ github/ folders) so it
     // recurses by design — see the workflows recursion test above. This guards
     // the still-flat domains (providers/prompts/governance) against an
     // unexpected subdir leaking cross-tenant content.
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('providers', 'shipped.json'), '{"name":"x"}');
+    await writeText(catSrc('providers', 'shipped.json'), VALID_PROVIDER_JSON);
     await writeText(
       catSrc('providers', 'stray', 'nested.json'),
-      '{"name":"nested"}',
+      VALID_PROVIDER_JSON,
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
@@ -195,7 +256,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('always skips *.secrets.json and .history/ at the catalog source', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('providers', 'openai.json'), '{"name":"openai"}');
+    await writeText(catSrc('providers', 'openai.json'), VALID_PROVIDER_JSON);
     await writeText(
       catSrc('providers', 'openai.secrets.json'),
       '{"key":"redacted"}',
@@ -283,7 +344,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('default org IS scaffold-able under org-first (no longer early-returned)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
+    await writeText(catSrc('agents', 'shipped.json'), VALID_AGENT_JSON);
 
     await scaffoldHandler({} as never, { orgSlug: 'default' });
 
@@ -292,7 +353,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('override:true overwrites flat-domain files while preserving secrets and .history', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"new"}');
+    await writeText(catSrc('agents', 'shipped.json'), validAgentJson('new'));
 
     // Pre-existing org state: user-edited shipped, user-added file, secret, history.
     await writeText(
@@ -317,7 +378,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     // Catalog file overwritten.
     expect(
       await readFile(orgDst('acme', 'agents', 'shipped.json'), 'utf-8'),
-    ).toBe('{"displayName":"new"}');
+    ).toBe(validAgentJson('new'));
     // User-added file survived.
     expect(existsSync(orgDst('acme', 'agents', 'user-added.json'))).toBe(true);
     // Secret + history survived.
@@ -364,6 +425,32 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe(true);
   });
 
+  it('override:true for the automations bundle domain rm-replaces the bundle from the catalog', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    // The catalog shipped a new manifest.
+    await writeText(
+      catSrc('automations', 'issue-desk', 'automation.json'),
+      '{"v":"new"}',
+    );
+    // Org state: the operator-wide reseed runs on an org that already
+    // installed this app.
+    await writeText(
+      orgDst('acme', 'automations', 'issue-desk', 'automation.json'),
+      '{"v":"old"}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme', override: true });
+
+    // The bundle (manifest, which carries the inline workflow) refreshed from
+    // the catalog.
+    expect(
+      await readFile(
+        orgDst('acme', 'automations', 'issue-desk', 'automation.json'),
+        'utf-8',
+      ),
+    ).toBe('{"v":"new"}');
+  });
+
   it('override:true for workflows preserves user-only folders', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
@@ -395,10 +482,12 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('seeds retention.json inside the governance flat domain', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(
-      catSrc('governance', 'retention.json'),
-      '{"version":"v1","categories":{}}',
-    );
+    // retentionDefaultsConfigSchema is `.strict()` with every category
+    // optional (a partial-bounds file is the norm) — one valid category
+    // bound is enough to be schema-valid while still exercising the copy.
+    const retentionJson =
+      '{"documents":{"min":1,"max":365,"default":30,"unit":"days"}}';
+    await writeText(catSrc('governance', 'retention.json'), retentionJson);
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
@@ -407,7 +496,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     );
     expect(
       await readFile(orgDst('acme', 'governance', 'retention.json'), 'utf-8'),
-    ).toBe('{"version":"v1","categories":{}}');
+    ).toBe(retentionJson);
   });
 
   it('refuses to scaffold when TALE_CONFIG_BUILTIN_DIR is unset (no fallback, no fs writes)', async () => {
@@ -452,9 +541,12 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('governance retention.json: override:true overwrites; override:false skips existing', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    // Only the CATALOG-side file is schema-validated before being written; the
+    // pre-existing per-org file below is never re-parsed by the scaffolder, so
+    // it can stay a throwaway marker string.
     await writeText(
       catSrc('governance', 'retention.json'),
-      '{"defaults":"new"}',
+      '{"documents":{"min":1,"max":365,"default":90,"unit":"days"}}',
     );
     // Pre-existing per-org governance file simulates an operator edit. Its
     // presence makes the whole governance domain "already scaffolded" for
@@ -480,7 +572,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     });
     expect(
       await readFile(orgDst('acme', 'governance', 'retention.json'), 'utf-8'),
-    ).toBe('{"defaults":"new"}');
+    ).toBe('{"documents":{"min":1,"max":365,"default":90,"unit":"days"}}');
   });
 
   it('strict:true throws with aggregated per-domain failure detail', async () => {
@@ -537,7 +629,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     // New catalog layout: the agent was renamed + foldered (chat-agent → chat/assistant).
     await writeText(
       catSrc('agents', 'chat', 'assistant.json'),
-      '{"displayName":"Assistant"}',
+      validAgentJson('Assistant'),
     );
     // Leftover org dir from a prior (deleted/dev-wiped) org with the OLD layout:
     // a renamed-away flat agent and a stale secret that must NOT be inherited.
@@ -566,7 +658,10 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('cleanFirst leaves sibling orgs untouched', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'chat', 'assistant.json'), '{}');
+    await writeText(
+      catSrc('agents', 'chat', 'assistant.json'),
+      VALID_AGENT_JSON,
+    );
     await writeText(orgDst('acme', 'agents', 'old.json'), '{"x":1}');
     await writeText(orgDst('other', 'agents', 'keep.json'), '{"keep":true}');
 
@@ -578,7 +673,10 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('cleanFirst refuses to purge the `default` slug (shared-template guard)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('agents', 'chat', 'assistant.json'), '{}');
+    await writeText(
+      catSrc('agents', 'chat', 'assistant.json'),
+      VALID_AGENT_JSON,
+    );
     // Pre-existing default content: the cleanFirst purge must refuse 'default',
     // and the subsequent override:false seed skips the occupied domain — so the
     // operator file survives untouched.

@@ -32,7 +32,7 @@ const sampleItems: NavItemData[] = [
   { label: 'Conversations', icon: Inbox, isActive: true },
   { label: 'Knowledge', icon: BrainIcon },
   { label: 'Approvals', icon: CircleCheck },
-  { label: 'Automations', icon: Network },
+  { label: 'Agents', icon: Network },
 ];
 
 function NavigationItemVisual({ item }: { item: NavItemData }) {
@@ -167,7 +167,7 @@ export const AdminRole: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'All items visible for admin role, including Automations.',
+        story: 'All items visible for admin role, including Agents.',
       },
     },
   },
@@ -176,13 +176,13 @@ export const AdminRole: Story = {
 export const MemberRole: Story = {
   render: () => (
     <SidebarShell
-      items={sampleItems.filter((item) => item.label !== 'Automations')}
+      items={sampleItems.filter((item) => item.label !== 'Agents')}
     />
   ),
   parameters: {
     docs: {
       description: {
-        story: 'Automations item is hidden for non-admin roles.',
+        story: 'Agents item is hidden for non-admin roles.',
       },
     },
   },

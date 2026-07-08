@@ -176,14 +176,6 @@
       "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Dateien, Anweisungen, Konversationen und projektgebundene Agents bündelt. Diese Seite erklärt, wann du zu einem Projekt greifst statt zu einer einzelnen Konversation."
     }
   },
-  "de:platform/projects/workforce-metrics": {
-    "slug": "platform/projects/workforce-metrics",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workforce-Metriken",
-      "description": "Wie Agenten-Arbeit gemessen wird — Workforce-Dashboard, Scorecards pro Agent und Projekt-Metriken, immer Ergebnis mit Eingriff und Kosten gepaart."
-    }
-  },
   "de:platform/projects/discussions": {
     "slug": "platform/projects/discussions",
     "locale": "de",
@@ -206,6 +198,14 @@
     "frontmatter": {
       "title": "Projekt-Agents",
       "description": "Projektgebundene Agents gegenüber Org-Agents — wann du nach welchem greifst, wie Projekt-Agents Org-Agents im Picker überschatten, und wie das Veröffentlichen innerhalb eines Projekts funktioniert."
+    }
+  },
+  "de:platform/projects/backlog": {
+    "slug": "platform/projects/backlog",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Projekt-Backlog",
+      "description": "Der Tab Backlog sammelt Aufgaben, die eine Automatisierung oder ein Teammitglied vorgeschlagen hat, aber noch niemand gesichtet hat — Starten schiebt eine aufs Board, Schließen verwirft sie, und keine der beiden Aktionen rührt die Automatisierungen an, die sie eingespeist haben."
     }
   },
   "de:platform/projects/task-automation": {
@@ -245,7 +245,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, zugewiesene Konversationen und Genehmigungen lesen. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
+      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, im Posteingang einer installierten Automatisierung antworten, auf Genehmigungen reagieren. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
     }
   },
   "de:platform/member/install-as-app": {
@@ -440,6 +440,54 @@
       "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, ist die Skopierungs-Ebene für alles unterhalb der Rollen-Ebene."
     }
   },
+  "de:platform/workflows/workflows": {
+    "slug": "platform/workflows/workflows",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workflows verwalten",
+      "description": "Das Betriebshandbuch zu Workflows — wo ein Workflow lebt, wie du ihn startest, wie du ihn pausierst und deaktivierst, wie du editierst und wie die versionierte Historie funktioniert. Lies das, wenn du Workflows täglich betreibst, nicht wenn du das Modell lernst."
+    }
+  },
+  "de:platform/workflows/approvals-in-workflows": {
+    "slug": "platform/workflows/approvals-in-workflows",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Genehmigungen in Workflows",
+      "description": "Ein Workflow-Schritt kann ein Genehmigungs-Gate sein, das den Lauf anhält, bis ein Mensch entscheidet. Diese Seite behandelt die Zustände des Gates, die Routing-Regeln, was der Rest des Workflows sieht und wie das Gate mit organisationsweiten Genehmigungs-Regeln komponiert."
+    }
+  },
+  "de:platform/workflows/concepts": {
+    "slug": "platform/workflows/concepts",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workflow-Konzepte",
+      "description": "Ein Workflow ist eine Schritt-Definition plus ein Trigger plus eine Ausführungshistorie. Diese Seite benennt die vier Stücke und zeigt, wie ein Tagesbericht hindurchfliesst."
+    }
+  },
+  "de:platform/workflows/execution-logs": {
+    "slug": "platform/workflows/execution-logs",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Ausführungs-Logs",
+      "description": "Die Pro-Workflow-Lauf-Historie — jede Ausführung mit Status, Dauer, Trigger-Quelle, Schritt-Ein- und Ausgaben und dem vollen Journal dessen, was jeder Schritt getan hat. Entwickler und Redakteure lesen das, wenn ein Lauf scheiterte oder sich seltsam verhielt."
+    }
+  },
+  "de:platform/workflows/triggers": {
+    "slug": "platform/workflows/triggers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workflow-Trigger",
+      "description": "Die vier Arten, wie ein Workflow starten kann — manuell, Schedule, Webhook, Event — was jede in den Lauf hineinträgt und wie du zwischen ihnen wechselst, ohne den Workflow neu zu bauen."
+    }
+  },
+  "de:platform/workflows/metrics": {
+    "slug": "platform/workflows/metrics",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workflow-Metriken",
+      "description": "Das Dashboard, das die Lauf-Historie in Erfolgsrate, durchschnittliche Dauer, Gesamtläufe und gescheiterte Läufe über jeden Workflow der Org rollt — über die letzten 7, 30 oder 90 Tage. Redakteure und Entwickler lesen das, wenn ein Workflow abbaut oder um zu sehen, welche Workflows die Last tragen."
+    }
+  },
   "de:platform/agents/conversation-starters": {
     "slug": "platform/agents/conversation-starters",
     "locale": "de",
@@ -520,14 +568,6 @@
       "description": "Vom leeren Create-agent-Dialog zu einem veröffentlichten Agent — Modell wählen, Instructions schreiben, Wissen anbinden, Tools einschalten und im Chat verifizieren."
     }
   },
-  "de:platform/agents/catalog": {
-    "slug": "platform/agents/catalog",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agentenkatalog",
-      "description": "Durchsuche die vorinstallierte KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation."
-    }
-  },
   "de:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "de",
@@ -573,7 +613,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Plattform",
-      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Conversations, Wissen, Genehmigungen, Verwaltung.",
+      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Workflows, Wissen, Genehmigungen, Verwaltung.",
       "kind": "index"
     }
   },
@@ -625,60 +665,36 @@
       "description": "Der Dokumente-Bereich ist der Ort, an dem Redakteure Dateien in die Wissensdatenbank hochladen, sie indexieren sehen und an Agents binden. Diese Seite behandelt das Hochladen, die Indexierungs-Pipeline, unterstützte Formate und den Per-Dokument-Lebenszyklus."
     }
   },
-  "de:platform/conversations/overview": {
-    "slug": "platform/conversations/overview",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Konversationen",
-      "description": "Konversationen ist der vereinte Inbox für alles, was aus einem Kundenkanal ankommt — Slack-Nachrichten, E-Mails, Web-Chats, SMS. Redakteure und Mitglieder arbeiten hier; Agents triagieren und antworten; Admins beobachten die Gesundheit der Warteschlange."
-    }
-  },
-  "de:platform/automations/workflows": {
-    "slug": "platform/automations/workflows",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workflows",
-      "description": "Das Betriebshandbuch zum Workflows-Feature — die Listenansicht, wie du einen Workflow startest, wie du ihn pausierst und deaktivierst, wie du editierst und wie die versionierte Historie funktioniert. Lies das, wenn du Automatisierungen täglich betreibst, nicht wenn du das Modell lernst."
-    }
-  },
-  "de:platform/automations/approvals-in-workflows": {
-    "slug": "platform/automations/approvals-in-workflows",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Genehmigungen in Workflows",
-      "description": "Ein Workflow-Schritt kann ein Genehmigungs-Gate sein, das den Lauf anhält, bis ein Mensch entscheidet. Diese Seite behandelt die Zustände des Gates, die Routing-Regeln, was der Rest des Workflows sieht und wie das Gate mit organisationsweiten Genehmigungs-Regeln komponiert."
-    }
-  },
   "de:platform/automations/concepts": {
     "slug": "platform/automations/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Automatisierungs-Konzepte",
-      "description": "Eine Automatisierung ist eine Workflow-Definition plus ein Trigger plus eine Ausführungshistorie. Diese Seite benennt die vier Stücke und zeigt, wie ein Tagesbericht hindurchfliesst."
+      "title": "Automatisierungskonzepte",
+      "description": "Eine Automatisierung ist das installierbare Bündel aus Integrationen, Agents, Skills, einem Workflow und mitgelieferten Ansichten, das der Katalog in einem Schritt installiert. Diese Seite benennt die Bestandteile und wann du dazu statt zu einem einzelnen Agent oder Workflow greifst."
     }
   },
-  "de:platform/automations/execution-logs": {
-    "slug": "platform/automations/execution-logs",
+  "de:platform/automations/builtin": {
+    "slug": "platform/automations/builtin",
     "locale": "de",
     "frontmatter": {
-      "title": "Ausführungs-Logs",
-      "description": "Die Pro-Workflow-Lauf-Historie — jede Ausführung mit Status, Dauer, Trigger-Quelle, Schritt-Ein- und Ausgaben und dem vollen Journal dessen, was jeder Schritt getan hat. Entwickler und Redakteure lesen das, wenn ein Lauf scheiterte oder sich seltsam verhielt."
+      "title": "Mitgelieferte Automatisierungen",
+      "description": "Was jede der drei mitgelieferten E-Mail-Automatisierungen tut, welche Integration sie braucht, und wie das Bundle GitHub-Issues lösen synchronisierte Issues Ende zu Ende in gemergte Pull Requests verwandelt."
     }
   },
-  "de:platform/automations/triggers": {
-    "slug": "platform/automations/triggers",
+  "de:platform/automations/catalog": {
+    "slug": "platform/automations/catalog",
     "locale": "de",
     "frontmatter": {
-      "title": "Workflow-Trigger",
-      "description": "Die vier Arten, wie ein Workflow starten kann — manuell, Schedule, Webhook, Event — was jede in den Lauf hineinträgt und wie du zwischen ihnen wechselst, ohne den Workflow neu zu bauen."
+      "title": "Automatisierungen durchsuchen und installieren",
+      "description": "Wie der Automatisierungen-Katalog funktioniert — das Seitenpanel, das eine Karte öffnet, der Installations-Assistent mit seiner Vorprüfung, das Neuinstallieren und Deinstallieren, und wie du alle mitgelieferten Automatisierungen auf einmal aktualisierst."
     }
   },
-  "de:platform/automations/metrics": {
-    "slug": "platform/automations/metrics",
+  "de:platform/automations/assistant": {
+    "slug": "platform/automations/assistant",
     "locale": "de",
     "frontmatter": {
-      "title": "Automatisierungs-Metriken",
-      "description": "Das Dashboard, das die Lauf-Historie in Erfolgsrate, durchschnittliche Dauer, Gesamtläufe und gescheiterte Läufe über jeden Workflow der Org rollt — über die letzten 7, 30 oder 90 Tage. Redakteure und Entwickler lesen das, wenn ein Workflow abbaut oder um zu sehen, welche Workflows die Last tragen."
+      "title": "Automatisierungs-Assistent",
+      "description": "Der Chat-Agent, der auf eine Automatisierung fixiert ist — was er direkt editiert, was er für dich entwirft, und wie er bestehende Automatisierungen findet, bevor er eine neue baut."
     }
   },
   "de:platform/approvals/concepts": {
@@ -702,7 +718,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Redakteur",
-      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
+      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Workflows und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
     }
   },
   "de:index": {
@@ -767,7 +783,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
     "frontmatter": {
-      "title": "Eine Automation per Webhook auslösen",
+      "title": "Einen Workflow per Webhook auslösen",
       "description": "Erzeug in einem Tale-Workflow einen Trigger-Schlüssel und POSTe von einem externen System auf die Trigger-URL, um mit Idempotenz einen Lauf zu starten."
     }
   },
@@ -1044,14 +1060,6 @@
       "description": "Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht."
     }
   },
-  "de:self-hosted/operate/workforce-operations": {
-    "slug": "self-hosted/operate/workforce-operations",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workforce-Betrieb",
-      "description": "Runbook für das Task-Ops-Automatisierungspaket — Rollout-Wellen, Kill-Switch, Symptom→Aktion-Tabelle und wohin schauen, wenn die Agenten-Automatisierung klemmt."
-    }
-  },
   "de:self-hosted/operate/upgrades": {
     "slug": "self-hosted/operate/upgrades",
     "locale": "de",
@@ -1312,14 +1320,6 @@
       "description": "Un projet est un espace partagé qui regroupe fichiers, instructions, conversations et agents liés au projet. Cette page donne le modèle mental pour choisir un projet plutôt qu'une conversation isolée."
     }
   },
-  "fr:platform/projects/workforce-metrics": {
-    "slug": "platform/projects/workforce-metrics",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Métriques de la workforce",
-      "description": "Comment le travail des agents est mesuré — tableau de bord workforce, scorecards par agent et métriques par projet, en associant toujours résultats, interventions et coûts."
-    }
-  },
   "fr:platform/projects/discussions": {
     "slug": "platform/projects/discussions",
     "locale": "fr",
@@ -1342,6 +1342,14 @@
     "frontmatter": {
       "title": "Agents de projet",
       "description": "Agents scopés au Projet versus agents d'organisation — quand opter pour chaque, comment les agents de Projet supplantent les agents d'organisation dans le sélecteur, et comment fonctionne la publication dans un Projet."
+    }
+  },
+  "fr:platform/projects/backlog": {
+    "slug": "platform/projects/backlog",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Backlog du projet",
+      "description": "L’onglet Backlog garde les tâches qu’une automatisation ou un coéquipier a proposées mais que personne n’a encore validées — Démarrer en met une sur le tableau, Fermer l’écarte, et ni l’une ni l’autre ne touche aux automatisations qui l’ont alimentée."
     }
   },
   "fr:platform/projects/task-automation": {
@@ -1381,7 +1389,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, lire les conversations et approbations assignées. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
+      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, lire et répondre au courrier client dans la Boîte de réception, agir sur les approbations assignées. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
     }
   },
   "fr:platform/member/install-as-app": {
@@ -1576,6 +1584,54 @@
       "description": "Les équipes sont des groupes nommés de membres qui partagent l'accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu'elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
     }
   },
+  "fr:platform/workflows/workflows": {
+    "slug": "platform/workflows/workflows",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Gérer les workflows",
+      "description": "Le manuel d'exploitation des workflows — où vit un workflow, comment le lancer, comment le mettre en pause et le désactiver, comment l'éditer et comment l'historique versionné fonctionne. Lis ceci quand tu fais tourner des workflows au quotidien, pas quand tu apprends le modèle."
+    }
+  },
+  "fr:platform/workflows/approvals-in-workflows": {
+    "slug": "platform/workflows/approvals-in-workflows",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Approbations dans les workflows",
+      "description": "Une étape de workflow peut être un gate d'approbation qui met l'exécution en pause jusqu'à ce qu'un humain décide. Cette page couvre les états du gate, les règles de routage, ce que voit le reste du workflow, et comment le gate compose avec les règles d'approbation à l'échelle de l'org."
+    }
+  },
+  "fr:platform/workflows/concepts": {
+    "slug": "platform/workflows/concepts",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Concepts de workflow",
+      "description": "Un workflow est une définition d'étapes plus un déclencheur plus un historique d'exécutions. Cette page nomme les quatre pièces et montre comment un rapport quotidien y circule."
+    }
+  },
+  "fr:platform/workflows/execution-logs": {
+    "slug": "platform/workflows/execution-logs",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Journaux d'exécution",
+      "description": "L'historique des exécutions par workflow — chaque exécution avec son statut, sa durée, sa source de déclencheur, les entrées et sorties d'étapes et le journal complet de ce que chaque étape a fait. Les Développeurs et Éditeurs lisent ceci quand une exécution a échoué ou s'est comportée bizarrement."
+    }
+  },
+  "fr:platform/workflows/triggers": {
+    "slug": "platform/workflows/triggers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Déclencheurs de workflow",
+      "description": "Les quatre façons dont un workflow peut démarrer — manuel, planification, webhook, événement — ce que chacun porte dans l'exécution, et comment basculer entre eux sans reconstruire le workflow."
+    }
+  },
+  "fr:platform/workflows/metrics": {
+    "slug": "platform/workflows/metrics",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Métriques de workflow",
+      "description": "Le dashboard qui agrège l'historique des exécutions en taux de succès, durée moyenne, total d'exécutions et exécutions échouées sur chaque workflow de l'org — sur les 7, 30 ou 90 derniers jours. Les Éditeurs et Développeurs lisent ceci quand un workflow se dégrade ou pour repérer quels workflows portent la charge."
+    }
+  },
   "fr:platform/agents/conversation-starters": {
     "slug": "platform/agents/conversation-starters",
     "locale": "fr",
@@ -1656,14 +1712,6 @@
       "description": "Du dialogue Create-agent vide à un agent publié — choisir le modèle, écrire les instructions, lier des connaissances, activer des outils, et vérifier dans Chat."
     }
   },
-  "fr:platform/agents/catalog": {
-    "slug": "platform/agents/catalog",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Catalogue d'agents",
-      "description": "Parcours la main-d'œuvre IA préinstallée par service et installe, active ou désactive les agents de ton organisation."
-    }
-  },
   "fr:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "fr",
@@ -1709,7 +1757,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Plateforme",
-      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, conversations, connaissances, approbations, administration.",
+      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, workflows, connaissances, approbations, administration.",
       "kind": "index"
     }
   },
@@ -1761,60 +1809,36 @@
       "description": "La zone Documents est l'endroit où les Éditeurs téléversent des fichiers dans la base de connaissances, les regardent s'indexer et les lient aux agents. Cette page couvre le téléversement, la pipeline d'indexation, les formats supportés et le cycle de vie par document."
     }
   },
-  "fr:platform/conversations/overview": {
-    "slug": "platform/conversations/overview",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Conversations",
-      "description": "Conversations est l'inbox unifié pour tout ce qui arrive d'un canal client — messages Slack, e-mails, chats web, SMS. Les Éditeurs et Membres travaillent ici ; les agents trient et répondent ; les Administrateurs surveillent la santé de la file."
-    }
-  },
-  "fr:platform/automations/workflows": {
-    "slug": "platform/automations/workflows",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Workflows",
-      "description": "Le manuel d'exploitation de la fonctionnalité workflows — la vue liste, comment lancer un workflow, comment le mettre en pause et le désactiver, comment l'éditer et comment l'historique versionné fonctionne. Lis ceci quand tu fais tourner des automatisations au quotidien, pas quand tu apprends le modèle."
-    }
-  },
-  "fr:platform/automations/approvals-in-workflows": {
-    "slug": "platform/automations/approvals-in-workflows",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Approbations dans les workflows",
-      "description": "Une étape de workflow peut être un gate d'approbation qui met l'exécution en pause jusqu'à ce qu'un humain décide. Cette page couvre les états du gate, les règles de routage, ce que voit le reste du workflow, et comment le gate compose avec les règles d'approbation à l'échelle de l'org."
-    }
-  },
   "fr:platform/automations/concepts": {
     "slug": "platform/automations/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts d'automatisation",
-      "description": "Une automatisation est une définition de workflow plus un déclencheur plus un historique d'exécutions. Cette page nomme les quatre pièces et montre comment un rapport quotidien y circule."
+      "title": "Concepts d’automatisation",
+      "description": "Une automatisation est le bundle installable d’intégrations, d’agents, de compétences, d’un workflow et de vues intégrées que le catalogue des automatisations installe en une seule action. Cette page nomme les pièces et dit quand y recourir plutôt qu’à un agent ou un workflow isolés."
     }
   },
-  "fr:platform/automations/execution-logs": {
-    "slug": "platform/automations/execution-logs",
+  "fr:platform/automations/builtin": {
+    "slug": "platform/automations/builtin",
     "locale": "fr",
     "frontmatter": {
-      "title": "Journaux d'exécution",
-      "description": "L'historique des exécutions par workflow — chaque exécution avec son statut, sa durée, sa source de déclencheur, les entrées et sorties d'étapes et le journal complet de ce que chaque étape a fait. Les Développeurs et Éditeurs lisent ceci quand une exécution a échoué ou s'est comportée bizarrement."
+      "title": "Automatisations livrées",
+      "description": "Ce que fait chacune des quatre automatisations livrées, l’intégration qu’elle requiert, et comment le bundle Résoudre les issues GitHub transforme des issues synchronisées en pull requests fusionnées."
     }
   },
-  "fr:platform/automations/triggers": {
-    "slug": "platform/automations/triggers",
+  "fr:platform/automations/catalog": {
+    "slug": "platform/automations/catalog",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencheurs de workflow",
-      "description": "Les quatre façons dont un workflow peut démarrer — manuel, planification, webhook, événement — ce que chacun porte dans l'exécution, et comment basculer entre eux sans reconstruire le workflow."
+      "title": "Parcourir et installer des automatisations",
+      "description": "Comment fonctionne le catalogue des automatisations — le panneau latéral qu’ouvre une carte, l’assistant d’installation et son contrôle préalable, réinstaller et désinstaller, et mettre à jour toutes les automatisations livrées en une fois."
     }
   },
-  "fr:platform/automations/metrics": {
-    "slug": "platform/automations/metrics",
+  "fr:platform/automations/assistant": {
+    "slug": "platform/automations/assistant",
     "locale": "fr",
     "frontmatter": {
-      "title": "Métriques d'automatisation",
-      "description": "Le dashboard qui agrège l'historique des exécutions en taux de succès, durée moyenne, total d'exécutions et exécutions échouées sur chaque workflow de l'org — sur les 7, 30 ou 90 derniers jours. Les Éditeurs et Développeurs lisent ceci quand un workflow se dégrade ou pour repérer quels workflows portent la charge."
+      "title": "Assistant d’automatisation",
+      "description": "L’agent de chat épinglé à une automatisation — ce qu’il modifie directement, ce qu’il rédige pour que tu l’appliques, et comment il retrouve les automatisations existantes avant d’en construire une nouvelle."
     }
   },
   "fr:platform/approvals/concepts": {
@@ -1838,7 +1862,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Éditeur",
-      "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s'étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
+      "description": "Éditeur est la surface de construction — créer agents, projets, workflows et la connaissance dans laquelle ils s'étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
     }
   },
   "fr:index": {
@@ -1903,7 +1927,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencher une automatisation par webhook",
+      "title": "Déclencher un workflow par webhook",
       "description": "Crée une clé de déclencheur dans un workflow Tale et POSTe sur l'URL de déclencheur depuis un système externe pour démarrer un run avec idempotence."
     }
   },
@@ -2180,14 +2204,6 @@
       "description": "Quel conteneur possède quel travail dans une instance Tale en marche, le chemin de requête d'un message chat, et à quoi ressemble une panne de chaque conteneur."
     }
   },
-  "fr:self-hosted/operate/workforce-operations": {
-    "slug": "self-hosted/operate/workforce-operations",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Exploitation de la workforce",
-      "description": "Runbook du pack d'automatisation task-ops — vagues de déploiement, arrêt d'urgence, table symptôme→action et où regarder quand l'automatisation des agents déraille."
-    }
-  },
   "fr:self-hosted/operate/upgrades": {
     "slug": "self-hosted/operate/upgrades",
     "locale": "fr",
@@ -2448,14 +2464,6 @@
       "description": "A project is a shared workspace that bundles files, instructions, threads, and project-scoped agents. This page hands you the mental model for when to reach for a project over a stand-alone conversation."
     }
   },
-  "en:platform/projects/workforce-metrics": {
-    "slug": "platform/projects/workforce-metrics",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workforce metrics",
-      "description": "How agent work is measured — the workforce dashboard, per-agent scorecards, and per-project metrics, always pairing outcomes with intervention and cost."
-    }
-  },
   "en:platform/projects/discussions": {
     "slug": "platform/projects/discussions",
     "locale": "en",
@@ -2478,6 +2486,14 @@
     "frontmatter": {
       "title": "Project agents",
       "description": "Project-scoped agents versus org agents — when to reach for each, how Project agents shadow org agents in the picker, and how publishing works inside a Project."
+    }
+  },
+  "en:platform/projects/backlog": {
+    "slug": "platform/projects/backlog",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Project Backlog",
+      "description": "The Backlog tab holds tasks an automation or a teammate proposed but nobody has vetted yet — Start moves one onto the board, Close discards it, and neither action touches the automations that fed it."
     }
   },
   "en:platform/projects/task-automation": {
@@ -2517,7 +2533,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Member",
-      "description": "Member is the end-user surface — chat, browse the knowledge base, read assigned conversations and approvals. The pages here are what someone with the Member role does day to day."
+      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox, act on approvals. The pages here are what someone with the Member role does day to day."
     }
   },
   "en:platform/member/install-as-app": {
@@ -2712,6 +2728,54 @@
       "description": "Teams are named groups of members that share access to agents, prompts, projects, and integrations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
     }
   },
+  "en:platform/workflows/workflows": {
+    "slug": "platform/workflows/workflows",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Manage workflows",
+      "description": "The operating manual for workflows — where a workflow lives, how to run one, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running workflows day to day, not when you are learning the model."
+    }
+  },
+  "en:platform/workflows/approvals-in-workflows": {
+    "slug": "platform/workflows/approvals-in-workflows",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Approvals in workflows",
+      "description": "A workflow step can be an approval gate that pauses the run until a human decides. This page covers the gate's states, the routing rules, what the rest of the workflow sees, and how the gate composes with org-wide approval rules."
+    }
+  },
+  "en:platform/workflows/concepts": {
+    "slug": "platform/workflows/concepts",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workflow concepts",
+      "description": "A workflow is a step definition plus a trigger plus a run history. This page names the four pieces and shows how a daily report flows through them."
+    }
+  },
+  "en:platform/workflows/execution-logs": {
+    "slug": "platform/workflows/execution-logs",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Execution logs",
+      "description": "The per-workflow run history — every execution with its status, duration, trigger source, step inputs and outputs, and the full journal of what each step did. Developers and Editors read this when a run failed or behaved oddly."
+    }
+  },
+  "en:platform/workflows/triggers": {
+    "slug": "platform/workflows/triggers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workflow triggers",
+      "description": "The four ways a workflow can start — manual, schedule, webhook, event — what each one carries into the run, and how to switch between them without rebuilding the workflow."
+    }
+  },
+  "en:platform/workflows/metrics": {
+    "slug": "platform/workflows/metrics",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workflow metrics",
+      "description": "The dashboard that rolls run history into success rate, average duration, total runs, and failed runs across every workflow in the org — over the last 7, 30, or 90 days. Editors and Developers read this when a workflow is degrading or to spot which workflows carry the load."
+    }
+  },
   "en:platform/agents/conversation-starters": {
     "slug": "platform/agents/conversation-starters",
     "locale": "en",
@@ -2792,14 +2856,6 @@
       "description": "Walk from an empty Create-agent dialog to a published agent — pick the model, write instructions, bind knowledge, toggle tools, and verify in Chat."
     }
   },
-  "en:platform/agents/catalog": {
-    "slug": "platform/agents/catalog",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent catalog",
-      "description": "Browse the pre-installed AI workforce by department and install, enable, or disable agents for your organization."
-    }
-  },
   "en:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "en",
@@ -2845,7 +2901,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Platform",
-      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, conversations, knowledge, approvals, admin.",
+      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, workflows, knowledge, approvals, admin.",
       "kind": "index"
     }
   },
@@ -2897,60 +2953,36 @@
       "description": "The Documents area is where Editors upload files into the knowledge base, watch them index, and bind them to agents. This page covers uploading, the indexing pipeline, supported formats, and the per-document lifecycle."
     }
   },
-  "en:platform/conversations/overview": {
-    "slug": "platform/conversations/overview",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Conversations",
-      "description": "Conversations is the unified inbox for everything that arrives from a customer channel — Slack messages, emails, web chats, SMS. Editors and Members work here; agents triage and reply; Admins watch the queue health."
-    }
-  },
-  "en:platform/automations/workflows": {
-    "slug": "platform/automations/workflows",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workflows",
-      "description": "The operating manual for the workflows feature — the list view, how to run a workflow, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running automations day to day, not when you are learning the model."
-    }
-  },
-  "en:platform/automations/approvals-in-workflows": {
-    "slug": "platform/automations/approvals-in-workflows",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Approvals in workflows",
-      "description": "A workflow step can be an approval gate that pauses the run until a human decides. This page covers the gate's states, the routing rules, what the rest of the workflow sees, and how the gate composes with org-wide approval rules."
-    }
-  },
   "en:platform/automations/concepts": {
     "slug": "platform/automations/concepts",
     "locale": "en",
     "frontmatter": {
       "title": "Automation concepts",
-      "description": "An automation is a workflow definition plus a trigger plus a run history. This page names the four pieces and shows how a daily report flows through them."
+      "description": "An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views the Automations catalog installs in one action. This page names the pieces and when to reach for one instead of a lone agent or workflow."
     }
   },
-  "en:platform/automations/execution-logs": {
-    "slug": "platform/automations/execution-logs",
+  "en:platform/automations/builtin": {
+    "slug": "platform/automations/builtin",
     "locale": "en",
     "frontmatter": {
-      "title": "Execution logs",
-      "description": "The per-workflow run history — every execution with its status, duration, trigger source, step inputs and outputs, and the full journal of what each step did. Developers and Editors read this when a run failed or behaved oddly."
+      "title": "Built-in automations",
+      "description": "What each of the four shipped automations does, the integration it requires, and how the Resolve GitHub issues bundle turns synced issues into merged pull requests."
     }
   },
-  "en:platform/automations/triggers": {
-    "slug": "platform/automations/triggers",
+  "en:platform/automations/catalog": {
+    "slug": "platform/automations/catalog",
     "locale": "en",
     "frontmatter": {
-      "title": "Workflow triggers",
-      "description": "The four ways a workflow can start — manual, schedule, webhook, event — what each one carries into the run, and how to switch between them without rebuilding the workflow."
+      "title": "Browse and install automations",
+      "description": "How the Automations catalog works — the side panel a card opens, the install wizard and its preflight, reinstalling and uninstalling, and updating every built-in automation at once."
     }
   },
-  "en:platform/automations/metrics": {
-    "slug": "platform/automations/metrics",
+  "en:platform/automations/assistant": {
+    "slug": "platform/automations/assistant",
     "locale": "en",
     "frontmatter": {
-      "title": "Automation metrics",
-      "description": "The dashboard that rolls run history into success rate, average duration, total runs, and failed runs across every workflow in the org — over the last 7, 30, or 90 days. Editors and Developers read this when a workflow is degrading or to spot which workflows carry the load."
+      "title": "Automation assistant",
+      "description": "The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one."
     }
   },
   "en:platform/approvals/concepts": {
@@ -2974,7 +3006,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Editor",
-      "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
+      "description": "Editor is the build surface — creating agents, projects, workflows, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
     }
   },
   "en:index": {
@@ -3039,7 +3071,7 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "en",
     "frontmatter": {
-      "title": "Trigger an automation via webhook",
+      "title": "Trigger a workflow via webhook",
       "description": "Mint a trigger key in a Tale workflow and POST to the trigger URL from an external system to start a run with idempotency."
     }
   },
@@ -3314,14 +3346,6 @@
     "frontmatter": {
       "title": "Container architecture",
       "description": "Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like."
-    }
-  },
-  "en:self-hosted/operate/workforce-operations": {
-    "slug": "self-hosted/operate/workforce-operations",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workforce operations",
-      "description": "Runbook for the task-ops automation pack — rollout waves, the kill switch, symptom→action table, and where to look when agent automation misbehaves."
     }
   },
   "en:self-hosted/operate/upgrades": {

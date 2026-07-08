@@ -1,8 +1,8 @@
 /**
- * Metrics workflow action — read-only workforce aggregates for automations.
+ * Metrics workflow action — read-only task/agent-run aggregates for automations.
  * Currently one operation:
  *
- *  - `get_daily_summary`: the day's workforce numbers (tasks created /
+ *  - `get_daily_summary`: the day's task-ops numbers (tasks created /
  *    completed, review outcomes, agent runs + failures + spend, pending
  *    reviews, queued runs, open circuit breakers) from live domain tables
  *    under hard scan caps. Drives the daily-digest workflow — the digest
@@ -24,7 +24,7 @@ export const metricsAction: ActionDefinition<MetricsActionParams> = {
   type: 'metrics',
   title: 'Metrics Operation',
   description:
-    "Read-only workforce metrics for automations (get_daily_summary: the window's task/run/review/guardrail counts with a `capped` lower-bound flag). organizationId is read from workflow context variables.",
+    "Read-only task metrics for automations (get_daily_summary: the window's task/run/review/guardrail counts with a `capped` lower-bound flag). organizationId is read from workflow context variables.",
   parametersValidator: v.object({
     operation: v.literal('get_daily_summary'),
     windowHours: v.optional(v.union(v.number(), v.string())),

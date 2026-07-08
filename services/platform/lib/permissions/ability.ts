@@ -21,7 +21,7 @@ export type PlatformResource =
   | 'projects'
   | 'vendors'
   | 'websites'
-  | 'wfDefinitions' // file-based automations UI permission subject (DB-backed workflows removed)
+  | 'wfDefinitions' // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   | 'wfExecutions'
   | 'workflowProcessingRecords';
 

@@ -376,7 +376,7 @@ function NavIconSkeleton() {
 }
 
 // The full primary nav (chat, projects, conversations, knowledge, agents,
-// automations, settings). The real list is CASL-gated down to a few items and
+// settings). The real list is CASL-gated down to a few items and
 // the gated count isn't known until access resolves, so the placeholder
 // optimistically renders the whole set — that's a pixel match for the common
 // admin/owner case and only over-draws a slot or two for limited members. The

@@ -1,21 +1,23 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
-interface MockAgent {
-  name: string;
-  displayName: string;
-  folder?: string;
-}
-
-const mockAgents: { current: MockAgent[] } = { current: [] };
-const mockInstalls: {
-  current: { agentSlug: string; enabled: boolean }[];
-} = { current: [] };
+vi.mock('@/lib/i18n/client', () => ({
+  useT: (ns: string) => ({
+    t: (key: string, params?: Record<string, string>) => {
+      if (params) {
+        return Object.entries(params).reduce(
+          (acc, [k, v]) => acc.replace(`{${k}}`, v),
+          `${ns}.${key}`,
+        );
+      }
+      return `${ns}.${key}`;
+    },
+  }),
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
@@ -48,18 +50,52 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ accentColor: undefined, isLoaded: true }),
 }));
 
+const { listHolder } = vi.hoisted(() => ({
+  listHolder: {
+    agents: [] as unknown[],
+    installs: [] as { agentSlug: string; enabled: boolean }[],
+  },
+}));
+
 vi.mock('../hooks/queries', () => ({
-  useListAgents: () => ({ agents: mockAgents.current, isLoading: false }),
+  useListAgents: () => ({ agents: listHolder.agents, isLoading: false }),
   useAgentInstallations: () => ({
-    data: mockInstalls.current,
+    data: listHolder.installs,
     isLoading: false,
   }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteAgent: () => ({ mutateAsync: vi.fn() }),
-  useDuplicateAgent: () => ({ mutateAsync: vi.fn() }),
-  useInstallCatalogAgent: () => ({ mutateAsync: vi.fn() }),
+}));
+
+vi.mock('../hooks/use-agents-table-config', () => ({
+  useAgentsTableConfig: () => ({
+    // One minimal column that surfaces the folder/agent identity AND the
+    // folder `[Automation]` marker the container computes — what the folder-map
+    // tests below assert on.
+    columns: [
+      {
+        id: 'name',
+        header: 'Name',
+        cell: ({
+          row,
+        }: {
+          row: {
+            original:
+              | { type: 'folder'; name: string; automationSlug?: string }
+              | { type: 'agent'; displayName: string };
+          };
+        }) =>
+          row.original.type === 'folder'
+            ? `folder:${row.original.name}${row.original.automationSlug ? ` [automation:${row.original.automationSlug}]` : ''}`
+            : `agent:${row.original.displayName}`,
+      },
+    ],
+    searchPlaceholder: 'Search agents',
+    stickyLayout: undefined,
+    pageSize: 10,
+  }),
 }));
 
 vi.mock('./agents-action-menu', () => ({
@@ -68,20 +104,32 @@ vi.mock('./agents-action-menu', () => ({
 
 import { AgentsTable } from './agents-table';
 
-function setAgents(agents: MockAgent[]) {
-  mockAgents.current = agents;
-  mockInstalls.current = agents.map((a) => ({
-    agentSlug: a.name,
+function agent(
+  name: string,
+  folder: string,
+  automationSlug?: string,
+): Record<string, unknown> {
+  return {
+    name,
+    slug: name,
+    displayName: name,
+    folder,
+    ...(automationSlug !== undefined ? { automationSlug } : {}),
+  };
+}
+
+function seedAgents(rows: Record<string, unknown>[]) {
+  listHolder.agents = rows;
+  listHolder.installs = rows.map((r) => ({
+    agentSlug: String(r.name),
     enabled: true,
   }));
 }
 
 describe('AgentsTable', () => {
   beforeEach(() => {
-    setAgents([
-      { name: 'assistant', displayName: 'Assistant', folder: 'chat' },
-      { name: 'researcher', displayName: 'Researcher', folder: 'chat' },
-    ]);
+    listHolder.agents = [];
+    listHolder.installs = [];
   });
 
   describe('accessibility', () => {
@@ -98,41 +146,63 @@ describe('AgentsTable', () => {
       );
       const caption = container.querySelector('caption');
       expect(caption).not.toBeNull();
-      expect(caption).toHaveTextContent('Installed agents');
+      expect(caption).toHaveTextContent('settings.agents.tableCaption');
     });
   });
 
-  describe('folder rows (#2348)', () => {
-    // Regression for #2348: a folder row aggregates its member agents, so the
-    // footer must count agents (the entity the label names), never the folder
-    // row itself ("Showing all 1 agents" for one folder holding two agents).
-    it('counts agents, not folder rows, in the footer', () => {
-      render(<AgentsTable organizationId="test-org-id" />);
-
-      expect(screen.getByText('Showing all 2 agents')).toBeInTheDocument();
-      expect(
-        screen.queryByText('Showing all 1 agents'),
-      ).not.toBeInTheDocument();
-    });
-
-    // Regression for #2348: the Name cell showed the raw lowercase path
-    // segment ("chat") while the catalog shows the localized folder label.
-    it('shows the localized folder label, not the raw segment', () => {
-      render(<AgentsTable organizationId="test-org-id" />);
-
-      expect(screen.getByText('Chat')).toBeInTheDocument();
-      expect(screen.queryByText('chat')).not.toBeInTheDocument();
-    });
-
-    it('counts every row when nothing is grouped', () => {
-      setAgents([
-        { name: 'alpha', displayName: 'Alpha' },
-        { name: 'beta', displayName: 'Beta' },
+  describe('folder [Automation] marker (folder-path map, not automationSlug set)', () => {
+    it("marks a folder that holds only one automation's agents", () => {
+      // Display folder == app slug (the fallback case).
+      seedAgents([
+        agent('issue-desk/desk-implementer', 'issue-desk', 'issue-desk'),
       ]);
+      const { container } = render(
+        <AgentsTable organizationId="test-org-id" />,
+      );
+      expect(container).toHaveTextContent(
+        'folder:issue-desk [automation:issue-desk]',
+      );
+    });
 
-      render(<AgentsTable organizationId="test-org-id" />);
+    it('does NOT mark a shared parent folder that mixes global and app agents', () => {
+      // The app declares folder `github/issues`; a global agent lives in
+      // `github`. The top-level `github` folder must stay an ordinary folder.
+      seedAgents([
+        agent('github/reviewer', 'github'),
+        agent('issue-desk/desk-implementer', 'github/issues', 'issue-desk'),
+      ]);
+      const { container } = render(
+        <AgentsTable organizationId="test-org-id" />,
+      );
+      expect(container).toHaveTextContent('folder:github');
+      expect(container).not.toHaveTextContent('[automation:');
+    });
 
-      expect(screen.getByText('Showing all 2 agents')).toBeInTheDocument();
+    it('marks the nested app folder when drilled into the shared parent', () => {
+      seedAgents([
+        agent('github/reviewer', 'github'),
+        agent('issue-desk/desk-implementer', 'github/issues', 'issue-desk'),
+      ]);
+      const { container } = render(
+        <AgentsTable organizationId="test-org-id" currentFolder="github" />,
+      );
+      // Inside `github`: the app subfolder is marked, the global agent isn't.
+      expect(container).toHaveTextContent(
+        'folder:issues [automation:issue-desk]',
+      );
+      expect(container).toHaveTextContent('agent:github/reviewer');
+    });
+
+    it('does not mark a folder whose path merely matches an app folder but holds a global agent too', () => {
+      seedAgents([
+        agent('ops/helper', 'ops'),
+        agent('deskbot/runner', 'ops', 'deskbot'),
+      ]);
+      const { container } = render(
+        <AgentsTable organizationId="test-org-id" />,
+      );
+      expect(container).toHaveTextContent('folder:ops');
+      expect(container).not.toHaveTextContent('[automation:');
     });
   });
 });

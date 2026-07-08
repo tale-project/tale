@@ -34,6 +34,13 @@ export interface TabNavigationItem {
   additionalActivePaths?: string[];
   /** Search params to include in the link */
   search?: Record<string, unknown>;
+  /**
+   * Explicit activeness override — for tab strips whose tabs share one
+   * pathname and switch on a search param (the automation detail's `?tab=`),
+   * where path matching alone would light up every tab. When set, it wins
+   * outright over path matching.
+   */
+  isActive?: boolean;
   /** Optional trailing element rendered after the label (e.g. status badge) */
   trailing?: ReactNode;
   /**
@@ -117,6 +124,7 @@ export function TabNavigation({
   // Determine if a path matches an item
   const isPathActive = useCallback(
     (item: TabNavigationItem): boolean => {
+      if (item.isActive !== undefined) return item.isActive;
       const mode = item.matchMode ?? matchMode;
       // Strip query parameters from href for comparison since pathname doesn't include them
       const hrefPath = item.href.split('?')[0];
@@ -356,7 +364,9 @@ export function TabNavigation({
 
           return (
             <Link
-              key={item.href}
+              // Search-param tab strips share one pathname across items, so
+              // the href alone is not unique — the label disambiguates.
+              key={`${item.href}|${item.label}`}
               ref={(el) => {
                 itemRefs.current[index] = el;
               }}

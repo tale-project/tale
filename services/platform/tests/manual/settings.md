@@ -43,7 +43,7 @@ sources, Integrations, Branding, Sandboxes, Governance, Enterprise SSO) and
 `…/api/mcp`; `…/settings/webdav` → `…/api/webdav`; `…/settings/people` →
 `…/teams`; `…/settings/personal` → `…/account`; `…/settings/logs` →
 `…/governance/logs` (covered in [governance.md](governance.md));
-`…/settings/agents` → `/dashboard/{org}/agents/all` (leaves Settings — the org
+`…/settings/agents` → `/dashboard/{org}/agents` (leaves Settings — the org
 agent roster lives under [agents.md](agents.md), not Settings).
 
 ## Prerequisites

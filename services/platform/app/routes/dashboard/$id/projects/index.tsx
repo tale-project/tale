@@ -36,7 +36,7 @@ function ProjectsPage() {
     <PageLayout
       organizationId={organizationId}
       header={
-        <AdaptiveHeaderRoot standalone={false}>
+        <AdaptiveHeaderRoot showBorder standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
         </AdaptiveHeaderRoot>
       }

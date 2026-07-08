@@ -79,14 +79,18 @@ describe('placeholder validation', () => {
 describe('locale fallback', () => {
   it('resolves a region-qualified locale to its base (de-CH → de)', () => {
     expect(
-      renderPrompt('escalation.sectionRoot', {}, { locale: 'de-CH' }),
-    ).toContain('BEFEHLSKETTE');
+      renderPrompt(
+        'jobs.workerPreamble',
+        { name: 'worker' },
+        { locale: 'de-CH' },
+      ),
+    ).toContain('NICHT-INTERAKTIV');
   });
 
   it('falls back to en for an unsupported locale', () => {
     expect(
-      renderPrompt('escalation.sectionRoot', {}, { locale: 'es' }),
-    ).toContain('CHAIN OF COMMAND');
+      renderPrompt('jobs.workerPreamble', { name: 'worker' }, { locale: 'es' }),
+    ).toContain('NON-INTERACTIVELY');
   });
 
   it('falls back to en when no locale given', () => {

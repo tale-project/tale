@@ -1,0 +1,26 @@
+{
+  "name": "Resolve GitHub issues",
+  "description": "Turn open issues into merge-ready pull requests.",
+  "i18n": {
+    "de": {
+      "name": "GitHub-Issues lösen",
+      "description": "Macht aus offenen Issues merge-fertige Pull Requests."
+    },
+    "fr": {
+      "name": "Résoudre les issues GitHub",
+      "description": "Transforme les issues ouvertes en pull requests prêtes à fusionner."
+    }
+  },
+  "icon": "ticket",
+  "folder": "github/issues",
+  "labels": ["GitHub", "GitHub Issues"],
+  "scope": "project",
+  "bundle": {
+    "members": [
+      "triage-github-issues",
+      "sync-github-issues",
+      "create-github-pr",
+      "review-github-pr"
+    ]
+  }
+}

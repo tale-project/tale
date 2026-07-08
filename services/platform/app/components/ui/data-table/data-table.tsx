@@ -838,7 +838,7 @@ export function DataTable<TData, TValue = unknown>({
                     // opts in (via `hasAvatar`/`avatar-text`). Previously the
                     // FIRST column defaulted to this shape, which painted a
                     // phantom avatar on every text-first table (API keys, MCP,
-                    // automations, …) — the "skeleton doesn't match content" bug.
+                    // workflow executions, …) — the "skeleton doesn't match content" bug.
                     cellContent = (
                       <HStack gap={3}>
                         <SkeletonBox>

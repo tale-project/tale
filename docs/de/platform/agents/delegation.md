@@ -39,4 +39,4 @@ Ein Worker läuft im verbleibenden Zug-Budget seines Agenten und kann es nicht v
 | Der Agent inline gut antworten kann                      |        | ✓               |          |
 | Arbeit feste Stufen mit Freigaben dazwischen hat         |        |                 | ✓        |
 
-Die Kosten eines Workers sind ein zusätzlicher Lauf; der Gewinn ist ein sauberer Kontext mit genau den richtigen Fähigkeiten für die Teilaufgabe — und eine Job-Karte, die zeigt, was passiert ist. Sind die Stufen fest und willst du Freigaben oder Zeitpläne dazwischen, ist eine Automation die richtige Form.
+Die Kosten eines Workers sind ein zusätzlicher Lauf; der Gewinn ist ein sauberer Kontext mit genau den richtigen Fähigkeiten für die Teilaufgabe — und eine Job-Karte, die zeigt, was passiert ist. Sind die Stufen fest und willst du Freigaben oder Zeitpläne dazwischen, ist ein Workflow die richtige Form.

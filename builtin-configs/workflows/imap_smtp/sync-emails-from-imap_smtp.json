@@ -1,20 +1,4 @@
 {
-  "name": "Sync emails from IMAP mailbox",
-  "description": "Sync new inbound emails from a private IMAP mailbox into conversations. Each scheduled run reads the most recently delivered inbound message as a cursor, fetches messages newer than it over IMAP, and creates conversations from them.",
-  "i18n": {
-    "en": {
-      "name": "Sync emails from IMAP mailbox",
-      "description": "Imports new IMAP mailbox messages into Tale conversations."
-    },
-    "de": {
-      "name": "E-Mails aus IMAP-Postfach synchronisieren",
-      "description": "Importiert neue Nachrichten aus dem IMAP-Postfach als Tale-Konversationen."
-    },
-    "fr": {
-      "name": "Synchroniser les e-mails depuis la boîte IMAP",
-      "description": "Importe les nouveaux messages de la boîte IMAP dans les conversations Tale."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Email", "IMAP"]

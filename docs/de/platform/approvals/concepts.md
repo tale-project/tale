@@ -15,7 +15,7 @@ Offene Genehmigungen tauchen an zwei Orten auf: inline im Chat, wo die Aktion ve
 
 ## Die vier Auslöser
 
-**Workflow-Gates.** Ein Schritt in einem Workflow ist als Genehmigungs-Gate konfiguriert. Der Lauf pausiert, bis das Gate sich auflöst. Siehe [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
+**Workflow-Gates.** Ein Schritt in einem Workflow ist als Genehmigungs-Gate konfiguriert. Der Lauf pausiert, bis das Gate sich auflöst. Siehe [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows).
 
 **Dokument-Schreibvorgänge.** Ein Agent versucht, in die Wissensdatenbank zu schreiben — ein Dokument, einen Kunden, ein Produkt, einen Lieferanten erstellen oder bearbeiten — und die Governance-Richtlinie auf dieser Ressource verlangt Freigabe. Der Schreibvorgang wird nicht festgeschrieben, bis er genehmigt ist.
 
@@ -46,4 +46,4 @@ Ein Finance-Operations-Team konfiguriert drei Governance-Richtlinien: Workflow-S
 
 ## Wo das hingehört
 
-Genehmigungen sind die Oberfläche, an der Automatisierung und Verantwortlichkeit zusammentreffen — sie lassen dich die Arbeit an Agents und Workflows delegieren, ohne die Aufzeichnung aufzugeben, wer was genehmigt hat. Die natürliche nächste Lektüre ist [Genehmigungen konfigurieren](/de/platform/approvals/configure) für die Felder pro Ressource und [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) für die Gate-Spezifika.
+Genehmigungen sind die Oberfläche, an der Automatisierung und Verantwortlichkeit zusammentreffen — sie lassen dich die Arbeit an Agents und Workflows delegieren, ohne die Aufzeichnung aufzugeben, wer was genehmigt hat. Die natürliche nächste Lektüre ist [Genehmigungen konfigurieren](/de/platform/approvals/configure) für die Felder pro Ressource und [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows) für die Gate-Spezifika.

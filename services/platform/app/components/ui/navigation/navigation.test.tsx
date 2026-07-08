@@ -16,7 +16,7 @@ import { Navigation } from './navigation';
 // Labels are shared between the mocked nav-items hook (read inside the hoisted
 // factory) and the assertions below, so the two can never drift apart.
 const { primaryLabels, externalLabel } = vi.hoisted(() => ({
-  primaryLabels: ['New chat', 'Apps', 'Projects', 'Automations'],
+  primaryLabels: ['New chat', 'Apps', 'Projects', 'Agents'],
   externalLabel: 'Help center',
 }));
 
@@ -71,9 +71,9 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
       },
       {
         label: primaryLabels[1],
-        to: '/dashboard/$id/apps',
+        to: '/dashboard/$id/automations',
         params: { id: 'test-org' },
-        href: '/dashboard/test-org/apps',
+        href: '/dashboard/test-org/automations',
         icon: LayoutGrid,
       },
       {
@@ -85,9 +85,9 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
       },
       {
         label: primaryLabels[3],
-        to: '/dashboard/$id/automations',
+        to: '/dashboard/$id/agents',
         params: { id: 'test-org' },
-        href: '/dashboard/test-org/automations',
+        href: '/dashboard/test-org/agents',
         icon: Network,
       },
       {

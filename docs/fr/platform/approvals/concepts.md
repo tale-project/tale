@@ -15,7 +15,7 @@ Les approbations en attente apparaissent à deux endroits : inline dans la conve
 
 ## Les quatre sources de déclenchement
 
-**Points dans les workflows.** Une étape d'un workflow est configurée comme point d'approbation. L'exécution s'arrête jusqu'à résolution. Voir [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
+**Points dans les workflows.** Une étape d'un workflow est configurée comme point d'approbation. L'exécution s'arrête jusqu'à résolution. Voir [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows).
 
 **Écritures de documents.** Un agent tente d'écrire dans la base de connaissances — créer ou modifier un document, un client, un produit, un fournisseur — et la politique de gouvernance sur cette ressource exige une validation. L'écriture n'est pas validée tant qu'elle n'est pas approuvée.
 
@@ -46,4 +46,4 @@ Une équipe finance-opérations configure trois politiques de gouvernance : les 
 
 ## Où cela s'inscrit
 
-Les approbations sont la surface où automatisation et responsabilité se croisent — elles te laissent déléguer le travail aux agents et workflows sans renoncer à l'enregistrement de qui a approuvé quoi. La lecture suivante naturelle est [Configurer les approbations](/fr/platform/approvals/configure) pour les champs par ressource, et [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) pour les spécificités des points.
+Les approbations sont la surface où automatisation et responsabilité se croisent — elles te laissent déléguer le travail aux agents et workflows sans renoncer à l'enregistrement de qui a approuvé quoi. La lecture suivante naturelle est [Configurer les approbations](/fr/platform/approvals/configure) pour les champs par ressource, et [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows) pour les spécificités des points.

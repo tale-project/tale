@@ -13,7 +13,12 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { atomicWrite, readFileSafe } from '../../../../lib/file_io';
+import {
+  atomicWrite,
+  readFileSafe,
+  removeDirSafe,
+  removeFileSafe,
+} from '../../../../lib/file_io';
 import {
   restoreFsTree,
   snapshotFsTree,
@@ -32,6 +37,8 @@ import {
 const helpers: NodeMigrationHelpers = {
   atomicWrite,
   readFileSafe,
+  removeFileSafe,
+  removeDirSafe,
   snapshotFsTree,
   restoreFsTree,
 };

@@ -28,6 +28,11 @@ export const buttonVariants = cva(
           'bg-accent-base text-accent-fg shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_rgba(3,7,18,1)] hover:opacity-95 ring-1 ring-inset ring-white/20 [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))]',
         destructive:
           'bg-red-600 text-destructive-foreground -outline-offset-1 outline-red-600 shadow-sm hover:bg-red-700',
+        // Solid amber "caution" fill — the yellow counterpart to `destructive`'s
+        // red. Dark text (amber-950) keeps AA contrast on the light-yellow fill
+        // at rest AND on the darker hover, where white would fail.
+        warning:
+          'bg-amber-400 text-amber-950 -outline-offset-1 outline-amber-500 shadow-sm hover:bg-amber-500',
         success:
           'bg-success text-success-foreground -outline-offset-1 outline-success shadow-sm hover:bg-success/90',
         secondary:

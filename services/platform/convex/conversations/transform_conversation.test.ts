@@ -104,3 +104,105 @@ describe('transformConversation customer name fallback', () => {
     expect(result.customer.name).toBe('Ada Lovelace');
   });
 });
+
+// The ConversationList block reads row fields single-level, so the transform
+// flattens the sender heading and the latest message's content onto the row.
+describe('transformConversation flat list-row fields', () => {
+  // Like createMockCtx, but the latest-message query resolves to `message`.
+  function createMockCtxWithMessage(message: Record<string, unknown> | null) {
+    const builder = {
+      withIndex: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      first: vi.fn().mockResolvedValue(message),
+    };
+
+    const ctx = {
+      db: {
+        query: vi.fn().mockReturnValue(builder),
+        get: vi.fn().mockResolvedValue(null),
+      },
+    };
+
+    return ctx as unknown as QueryCtx;
+  }
+
+  function makeMessageDoc(content: string): Record<string, unknown> {
+    return {
+      _id: 'msg_1',
+      _creationTime: 1_700_000_100_000,
+      organizationId: 'org_1',
+      conversationId: 'conv_1',
+      channel: 'email',
+      direction: 'inbound',
+      deliveryState: 'delivered',
+      content,
+      sentAt: 1_700_000_100_000,
+      deliveredAt: 1_700_000_100_000,
+      metadata: {},
+    };
+  }
+
+  it('flattens the customer name onto senderName', async () => {
+    const ctx = createMockCtxWithMessage(null);
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc({ name: 'Ada Lovelace' });
+
+    const result = await transformConversation(ctx, conversation, { customer });
+
+    expect(result.senderName).toBe('Ada Lovelace');
+  });
+
+  it('leaves senderName undefined when the customer has no name (the client renders its own fallback)', async () => {
+    const ctx = createMockCtxWithMessage(null);
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc({ name: undefined });
+
+    const result = await transformConversation(ctx, conversation, { customer });
+
+    expect(result.senderName).toBeUndefined();
+  });
+
+  it('leaves senderName undefined when there is no customer', async () => {
+    const ctx = createMockCtxWithMessage(null);
+    const conversation = makeConversation();
+
+    const result = await transformConversation(ctx, conversation, {
+      customer: null,
+    });
+
+    expect(result.senderName).toBeUndefined();
+  });
+
+  it('carries the latest message content RAW (HTML intact) on lastMessagePreview', async () => {
+    const raw = '<p>Hello <b>there</b></p>';
+    const ctx = createMockCtxWithMessage(makeMessageDoc(raw));
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc();
+
+    const result = await transformConversation(ctx, conversation, { customer });
+
+    // No server-side HTML cleaning — the block strips tags client-side.
+    expect(result.lastMessagePreview).toBe(raw);
+  });
+
+  it('caps lastMessagePreview at 200 characters', async () => {
+    const long = 'x'.repeat(500);
+    const ctx = createMockCtxWithMessage(makeMessageDoc(long));
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc();
+
+    const result = await transformConversation(ctx, conversation, { customer });
+
+    expect(result.lastMessagePreview).toBe('x'.repeat(200));
+  });
+
+  it('leaves lastMessagePreview undefined when the conversation has no messages', async () => {
+    const ctx = createMockCtxWithMessage(null);
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc();
+
+    const result = await transformConversation(ctx, conversation, { customer });
+
+    expect(result.lastMessagePreview).toBeUndefined();
+  });
+});

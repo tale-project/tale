@@ -154,7 +154,7 @@ describe('run_workflow tool handler', () => {
       'mock-createWorkflowRunApproval',
       expect.objectContaining({
         parameters: params,
-        workflowName: 'Test Workflow',
+        workflowName: 'test-workflow',
       }),
     );
   });

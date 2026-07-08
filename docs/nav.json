@@ -73,8 +73,7 @@
               "label": "releaseNotes",
               "pages": ["self-hosted/operate/release-notes/format"]
             },
-            "self-hosted/operate/tale-daemon",
-            "self-hosted/operate/workforce-operations"
+            "self-hosted/operate/tale-daemon"
           ]
         },
         "self-hosted/contributing-docker"
@@ -126,14 +125,13 @@
             "platform/projects/project-agents",
             "platform/projects/discussions",
             "platform/projects/task-automation",
-            "platform/projects/workforce-metrics"
+            "platform/projects/backlog"
           ]
         },
         {
           "label": "agents",
           "pages": [
             "platform/agents/concepts",
-            "platform/agents/catalog",
             "platform/agents/create",
             "platform/agents/tools",
             "platform/agents/skills",
@@ -151,11 +149,20 @@
           "label": "automations",
           "pages": [
             "platform/automations/concepts",
-            "platform/automations/workflows",
-            "platform/automations/triggers",
-            "platform/automations/execution-logs",
-            "platform/automations/metrics",
-            "platform/automations/approvals-in-workflows"
+            "platform/automations/catalog",
+            "platform/automations/builtin",
+            "platform/automations/assistant"
+          ]
+        },
+        {
+          "label": "workflows",
+          "pages": [
+            "platform/workflows/concepts",
+            "platform/workflows/workflows",
+            "platform/workflows/triggers",
+            "platform/workflows/execution-logs",
+            "platform/workflows/metrics",
+            "platform/workflows/approvals-in-workflows"
           ]
         },
         {
@@ -167,10 +174,6 @@
             "platform/knowledge/crawling",
             "platform/knowledge/structured-data"
           ]
-        },
-        {
-          "label": "conversations",
-          "pages": ["platform/conversations/overview"]
         },
         {
           "label": "workspace",

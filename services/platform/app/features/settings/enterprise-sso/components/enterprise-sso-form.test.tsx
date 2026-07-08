@@ -431,7 +431,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     // The toggles are `SettingsToggleRow`s now — the switch's accessible name
     // is the row label. Flip team sync off (the fixture stores it on).
     const teamSync = screen.getByRole('switch', {
-      name: /sync groups to teams/i,
+      name: /sync idp groups to teams/i,
     });
     expect(teamSync).toBeChecked();
     await user.click(teamSync);

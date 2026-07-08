@@ -5,7 +5,7 @@ description: Verdrahte einen Drei-Schritt-Workflow, bei dem eine menschliche Fre
 
 Ein Workflow mit Freigabe ist die Form, zu der du greifst, wenn die Arbeit aus Entwurf, Entscheidung und Aktion besteht — und du einen Menschen zwischen Entwurf und Aktion willst. Das Freigabe-Gate pausiert den Lauf, bis jemand „Genehmigen" klickt; der nächste Schritt feuert nur bei grünem Licht. Dieser Spaziergang baut auf einer frischen Org einen Daily-Summary-Workflow mit einem Freigabe-Gate.
 
-Du brauchst eine Editor-Rolle und einen Agent, der einen Entwurf produziert (der erste nützliche Agent aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) reicht). Die konzeptuelle Seite lebt in [Automations-Konzepte](/de/platform/automations/concepts) und [Freigabe-Konzepte](/de/platform/approvals/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
+Du brauchst eine Editor-Rolle und einen Agent, der einen Entwurf produziert (der erste nützliche Agent aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) reicht). Die konzeptuelle Seite lebt in [Workflow-Konzepte](/de/platform/workflows/concepts) und [Freigabe-Konzepte](/de/platform/approvals/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
 
 ## Bevor du beginnst
 
@@ -13,7 +13,7 @@ Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Workflow-Bearbe
 
 ## Schritt 1 — Das Workflow-Gerüst erstellen
 
-Der erste Zug ist die Workflow-Definition — der geordnete Behälter, in dem die Schritte leben. Öffne **Automationen > Neuer Workflow** und setze:
+Der erste Zug ist die Workflow-Definition — der geordnete Behälter, in dem die Schritte leben. Leg aus der App, der der Workflow gehören soll, einen neuen Workflow an und setze:
 
 - **Name** — `Daily inbox summary`
 - **Trigger** — vorerst **Manuell**; du kannst ihn auf einen Schedule wechseln, sobald der Lauf funktioniert
@@ -56,4 +56,4 @@ Speichern und **Veröffentlichen**. Klick **Ausführen**. Der Entwurfs-Schritt f
 
 Drei Schritte mit einem Gate sind der kleinste nützliche Workflow-mit-Freigabe: Agent entwirft, Mensch entscheidet, System handelt. Dieselbe Form skaliert — Manuell gegen Schedule tauschen, ein zweites Gate vor einem destruktiven Schritt einziehen, bei der Entscheidung verzweigen statt bei Ablehnung zu scheitern.
 
-Für die Zustands-Maschine des Gates und die Routing-Regeln siehe [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows). Für die vier Stücke, aus denen jeder Workflow besteht, siehe [Automations-Konzepte](/de/platform/automations/concepts).
+Für die Zustands-Maschine des Gates und die Routing-Regeln siehe [Freigaben in Workflows](/de/platform/workflows/approvals-in-workflows). Für die vier Stücke, aus denen jeder Workflow besteht, siehe [Workflow-Konzepte](/de/platform/workflows/concepts).

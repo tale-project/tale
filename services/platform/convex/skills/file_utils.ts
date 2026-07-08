@@ -111,6 +111,33 @@ export function resolveSkillsDir(orgSlug: string): string {
   return path.join(getConfigRoot('skills'), orgSlug, 'skills');
 }
 
+const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
+
+/**
+ * The built-in skill catalog dir (`<builtin>/skills`) — the read-only source
+ * the "From template" create flow copies from and the per-domain builtin sync
+ * refreshes against. Mirrors `resolveCatalogAutomationsDir` (`apps/file_utils.ts`):
+ * the catalog root's children are the domains, so skills live at
+ * `<catalog>/skills/<slug>` with no org level and no fallback.
+ */
+export function resolveCatalogSkillsDir(): string {
+  const catalogRoot = process.env[BUILTIN_ENV];
+  if (!catalogRoot) {
+    throw new Error(
+      `${BUILTIN_ENV} is not set; cannot resolve the built-in skill catalog`,
+    );
+  }
+  return path.join(catalogRoot, 'skills');
+}
+
+/** The catalog bundle dir for one skill (`<builtin>/skills/<slug>`). */
+export function resolveCatalogSkillDir(slug: string): string {
+  if (!validateSkillSlug(slug)) {
+    throw new Error(`Invalid skill slug: ${slug}`);
+  }
+  return path.join(resolveCatalogSkillsDir(), slug);
+}
+
 export function resolveSkillDir(orgSlug: string, slug: string): string {
   if (!validateSkillSlug(slug)) {
     throw new Error(`Invalid skill slug: ${slug}`);

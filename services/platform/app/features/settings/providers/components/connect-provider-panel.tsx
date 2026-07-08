@@ -37,7 +37,7 @@ export function ConnectProviderPanel({
   baseUrl,
   onConnected,
 }: ConnectProviderPanelProps) {
-  const { t } = useT('apps');
+  const { t } = useT('automations');
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

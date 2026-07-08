@@ -2,9 +2,9 @@
  * File-system-style folder navigation over a flat item list. Each item exposes
  * a '/'-joined folder path (e.g. 'github/issues'); given the current folder,
  * `buildFolderView` returns the immediate child folders (with nested counts)
- * and the items that live directly in the current folder. Shared by the agents
- * and automations lists so both drill in and out of arbitrarily nested folders
- * identically — like a file explorer.
+ * and the items that live directly in the current folder. Used by the agents
+ * list to drill in and out of arbitrarily nested folders — like a file
+ * explorer.
  */
 
 interface FolderRow {

@@ -1,9 +1,7 @@
 {
   "title": "IMAP / SMTP Mailbox",
   "description": "Connect a private IMAP + SMTP mail server to Conversations — no Gmail or Outlook account required.",
-  "metadata": {
-    "labels": ["Email"]
-  },
+  "labels": ["Email"],
   "version": 1,
   "type": "imap_smtp",
   "bundles": {

@@ -1,20 +1,4 @@
 {
-  "name": "Sync pages from Confluence",
-  "description": "Sync pages from a Confluence space into Tale documents and RAG. Each scheduled run lists the space's current pages (mirroring the page hierarchy under targetFolderPath/<spaceKey>), fetches new or changed pages, converts them to plain text, and upserts documents by page ID. Moves and renames are reflected: a page whose computed folder path drifts (it was reparented, or an ancestor was renamed/moved) is re-homed without re-indexing — this catches descendants of a moved parent even though their own version is unchanged. Deletions are reflected too: documents for pages deleted or trashed in Confluence are removed (RAG entry included). Archived pages are PRESERVED — list_pages collects archived page IDs in a second pass so they remain in the present-set and are never mistaken for deletions; only genuinely removed pages are reconciled away.",
-  "i18n": {
-    "en": {
-      "name": "Sync pages from Confluence",
-      "description": "Mirrors a Confluence space into Tale documents and RAG, reflecting moves, renames, and deletions while preserving archived pages."
-    },
-    "de": {
-      "name": "Seiten aus Confluence synchronisieren",
-      "description": "Spiegelt einen Confluence-Bereich in Tale-Dokumente und RAG, berücksichtigt Verschiebungen, Umbenennungen und Löschungen und bewahrt archivierte Seiten."
-    },
-    "fr": {
-      "name": "Synchroniser les pages depuis Confluence",
-      "description": "Réplique un espace Confluence dans les documents Tale et le RAG, en reflétant déplacements, renommages et suppressions tout en préservant les pages archivées."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Knowledge", "Confluence"]

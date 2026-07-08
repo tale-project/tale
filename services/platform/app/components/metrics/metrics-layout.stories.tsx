@@ -46,7 +46,7 @@ const series = [
 export const FullAnatomy: Story = {
   render: () => (
     <MetricsLayout
-      title="Automation metrics"
+      title="Workflow metrics"
       description="Workflow execution health for the selected period."
       toolbar={
         <MetricSelect

@@ -26,35 +26,34 @@ CI shards the suite across four runners (`--shard=i/4`); each shard boots its ow
 
 ## What runs
 
-| Spec                        | Flow                                                                                                                                      |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.spec.ts`              | Login: wrong-password error; valid login → dashboard                                                                                      |
-| `auth-account.spec.ts`      | Logout, change password, **full 2FA enroll→verify→login**, org switching + cross-org data isolation (throwaway accounts)                  |
-| `onboarding.spec.ts`        | Create-organization wizard → dashboard                                                                                                    |
-| `rbac.spec.ts`              | Owner adds a `member`; the member cannot see the admin-gated "Add member" control                                                         |
-| `chat-threads.spec.ts`      | Thread lifecycle (send → history → reopen → delete); prompt library lists the seeded prompt                                               |
-| `chat-advanced.spec.ts`     | Stop, regenerate branch, edit-message branch, copy-to-clipboard, multi-turn                                                               |
-| `chat-features.spec.ts`     | Feedback, export dialog, save-prompt-from-composer, selection → Quote                                                                     |
-| `chat-depth.spec.ts`        | Text attachment; create + open + revoke a share link                                                                                      |
-| `chat-scenarios.spec.ts`    | **Mock-only**: reasoning disclosure, `[[NEXT_STEPS]]` buttons, `request_human_input` card, arena two-model verdict, **provider-error UI** |
-| `search.spec.ts`            | Chat command palette finds a thread by message content                                                                                    |
-| `agents.spec.ts`            | List + open the seeded agent editor; create + delete a custom agent                                                                       |
-| `agent-editor.spec.ts`      | One throwaway agent (serial): instructions / tuning / starters / knowledge / tools save + reload                                          |
-| `projects.spec.ts`          | Create a project + task (board & list views), then delete                                                                                 |
-| `projects-depth.spec.ts`    | Project settings (rename + instructions); secrets CRUD; task live-edit across board ↔ list                                                |
-| `knowledge.spec.ts`         | CRUD for customer / product / vendor / knowledge-entry; **document upload → "Queued" for indexing**                                       |
-| `settings.spec.ts`          | Account name save/restore, org read-only anchor, providers list + drawer, provider display-name write/restore                             |
-| `settings-depth.spec.ts`    | Org rename, API key create/revoke, branding, personalization toggle, team CRUD                                                            |
-| `governance.spec.ts`        | Voice-output / system-prompt / run-code / content-safety toggles (save + restore); DSAR + legal-hold dialogs; logs tabs                   |
-| `automation.spec.ts`        | Run the seeded `test` workflow to completion                                                                                              |
-| `automation-editor.spec.ts` | Create + configure + save an automation; run via the tester; **webhook-trigger fire → execution appears**                                 |
-| `navigation.spec.ts`        | Side-nav between sections, settings → governance, breadcrumbs, browser back/forward                                                       |
-| `page-loads.spec.ts`        | Render-only routes (changelog, embedded `/docs` Swagger, metrics pages, redirects) in one sequential pass                                 |
-| `validation.spec.ts`        | Negative paths: invalid agent slug, empty project/team names, project cascade-delete typed-phrase gating                                  |
-| `preferences.spec.ts`       | Theme + locale switch (persist + restore), user-menu items                                                                                |
-| `list-behaviors.spec.ts`    | DataTable search-filter, pagination across pages                                                                                          |
-| `responsive.spec.ts`        | Mobile viewport: bottom tab bar + More sheet; mobile Save bar                                                                             |
-| `keyboard.spec.ts`          | Cmd/Ctrl+K command palette                                                                                                                |
+| Spec                      | Flow                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.spec.ts`            | Login: wrong-password error; valid login → dashboard                                                                                      |
+| `auth-account.spec.ts`    | Logout, change password, **full 2FA enroll→verify→login**, org switching + cross-org data isolation (throwaway accounts)                  |
+| `onboarding.spec.ts`      | Create-organization wizard → dashboard                                                                                                    |
+| `rbac.spec.ts`            | Owner adds a `member`; the member cannot see the admin-gated "Add member" control                                                         |
+| `chat-threads.spec.ts`    | Thread lifecycle (send → history → reopen → delete); prompt library lists the seeded prompt                                               |
+| `chat-advanced.spec.ts`   | Stop, regenerate branch, edit-message branch, copy-to-clipboard, multi-turn                                                               |
+| `chat-features.spec.ts`   | Feedback, export dialog, save-prompt-from-composer, selection → Quote                                                                     |
+| `chat-depth.spec.ts`      | Text attachment; create + open + revoke a share link                                                                                      |
+| `chat-scenarios.spec.ts`  | **Mock-only**: reasoning disclosure, `[[NEXT_STEPS]]` buttons, `request_human_input` card, arena two-model verdict, **provider-error UI** |
+| `search.spec.ts`          | Chat command palette finds a thread by message content                                                                                    |
+| `agents.spec.ts`          | List + open the seeded agent editor; create + delete a custom agent                                                                       |
+| `agent-editor.spec.ts`    | One throwaway agent (serial): instructions / tuning / starters / knowledge / tools save + reload                                          |
+| `projects.spec.ts`        | Create a project + task (board & list views), then delete                                                                                 |
+| `projects-depth.spec.ts`  | Project settings (rename + instructions); secrets CRUD; task live-edit across board ↔ list                                                |
+| `knowledge.spec.ts`       | CRUD for customer / product / vendor / knowledge-entry; **document upload → "Queued" for indexing**                                       |
+| `settings.spec.ts`        | Account name save/restore, org read-only anchor, providers list + drawer, provider display-name write/restore                             |
+| `settings-depth.spec.ts`  | Org rename, API key create/revoke, branding, personalization toggle, team CRUD                                                            |
+| `governance.spec.ts`      | Voice-output / system-prompt / run-code / content-safety toggles (save + restore); DSAR + legal-hold dialogs; logs tabs                   |
+| `workflow-editor.spec.ts` | Configure + save the seeded `test` workflow; run via the tester; **webhook-trigger fire → execution appears**                             |
+| `navigation.spec.ts`      | Side-nav between sections, settings → governance, breadcrumbs, browser back/forward                                                       |
+| `page-loads.spec.ts`      | Render-only routes (changelog, embedded `/docs` Swagger, metrics pages, redirects) in one sequential pass                                 |
+| `validation.spec.ts`      | Negative paths: invalid agent slug, empty project/team names, project cascade-delete typed-phrase gating                                  |
+| `preferences.spec.ts`     | Theme + locale switch (persist + restore), user-menu items                                                                                |
+| `list-behaviors.spec.ts`  | DataTable search-filter, pagination across pages                                                                                          |
+| `responsive.spec.ts`      | Mobile viewport: bottom tab bar + More sheet; mobile Save bar                                                                             |
+| `keyboard.spec.ts`        | Cmd/Ctrl+K command palette                                                                                                                |
 
 ## Determinism: the mock gateway
 

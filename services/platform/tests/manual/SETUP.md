@@ -53,9 +53,8 @@ in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 > AI providers → OpenRouter**, store any dummy key and set the **Base URL** to
 > `http://127.0.0.1:4141/v1`; every turn then returns the canned mock reply.
 > Wizard orgs also get **no seeded `test` workflow** and no "E2E Assistant"
-> (they get the builtin `chat/…` agents; prompts do seed) — the automations
-> guide's seeded-run cases need an e2e-minted org, or create a blank automation
-> first. The org's live config lands under
+> (they get the builtin `chat/…` agents; prompts do seed) — the workflows
+> guide's seeded-run cases need an e2e-minted org. The org's live config lands under
 > `tests/e2e/fixtures/config/<org-slug>/`.
 
 ### B. Full local dev (real provider, full feature set)
@@ -150,8 +149,8 @@ dashboard URL (`/dashboard/AbCd…/chat`).
   settings F23 all need two members. Mint one via `POST /api/auth/sign-up/email`
   and add it under Settings → Organization, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
-- **Sample upload artifacts** — an app-bundle zip (zip a copy of
-  `builtin-configs/apps/issue-desk`) for apps F14, an integration config package
+- **Sample upload artifacts** — an automation-bundle zip (zip a copy of
+  `builtin-configs/automations/create-github-pr`) for automations F14, an integration config package
   (zip a copy of `builtin-configs/integrations/tavily`) for integrations F12,
   and a skill bundle for settings F15.
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox
@@ -217,16 +216,11 @@ quick pass; deep coverage lives in the per-area guides.
 | `/log-in`                                             | login form renders                                       |
 | `/dashboard/{org}`                                    | redirects into `/chat`                                   |
 | `/dashboard/{org}/chat`                               | composer + agent/model pickers + starters                |
-| `/dashboard/{org}/apps`                               | **Upload app** button + grid, or empty state             |
+| `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state      |
 | `/dashboard/{org}/projects`                           | list or empty state                                      |
 | `/dashboard/{org}/projects/{projectId}/discussions`   | Discussions tab, list or empty state (needs a project)   |
 | `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)                  |
-| `/dashboard/{org}/agents/catalog`                     | agent catalog grid or empty state                        |
-| `/dashboard/{org}/agents/metrics`                     | workforce dashboard                                      |
-| `/dashboard/{org}/automations`                        | list or empty state                                      |
-| `/dashboard/{org}/automations/catalog`                | search field + template grid or empty state              |
-| `/dashboard/{org}/automations/metrics`                | metrics                                                  |
-| `/dashboard/{org}/conversations/open`                 | inbox list or empty state                                |
+| `/dashboard/{org}/workflows/test`                     | workflow editor canvas (via seeded `test` workflow)      |
 | `/dashboard/{org}/documents`                          | list or empty state                                      |
 | `/dashboard/{org}/knowledge-entries`                  | list or empty state                                      |
 | `/dashboard/{org}/products`                           | list or empty state                                      |

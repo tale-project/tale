@@ -42,6 +42,7 @@ const PREF_FIELD: Record<
   automation_failed: 'automationAlerts',
   budget_alert: 'automationAlerts',
   runtime_offline: 'automationAlerts',
+  // RETIRED type — mapping kept while the schema literal drains (see schema.ts).
   workforce_digest: 'digest',
   conversation_message: 'conversationMessages',
 };

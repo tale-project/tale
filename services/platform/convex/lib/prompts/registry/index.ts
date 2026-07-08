@@ -8,8 +8,6 @@
 
 import { jobWorkerPreambleEntry } from './entries/jobs';
 import {
-  escalationSectionEntry,
-  escalationSectionRootEntry,
   routerScaffoldFooterEntry,
   routerScaffoldHeaderEntry,
 } from './entries/routing';
@@ -29,6 +27,10 @@ import {
   visionAnalyzerEntry,
   workflowTerminationEntry,
 } from './entries/utility';
+import {
+  workflowSpecificationFromGraphEntry,
+  workflowSpecificationToGraphEntry,
+} from './entries/workflows';
 import type { PromptEntry } from './types';
 
 const ENTRIES = [
@@ -46,11 +48,12 @@ const ENTRIES = [
   visionAnalyzerEntry,
   cronGeneratorEntry,
   workflowTerminationEntry,
+  // workflow editor: specification ⇄ graph sync
+  workflowSpecificationToGraphEntry,
+  workflowSpecificationFromGraphEntry,
   // routing / escalation scaffolds
   routerScaffoldHeaderEntry,
   routerScaffoldFooterEntry,
-  escalationSectionEntry,
-  escalationSectionRootEntry,
   // agent-on-demand jobs
   jobWorkerPreambleEntry,
 ] as const;

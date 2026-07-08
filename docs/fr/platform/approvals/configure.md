@@ -19,7 +19,7 @@ Trois surfaces de configuration produisent des règles d'approbation ; chacune �
 
 - **Paramètres > Gouvernance > Règles d'approbation** est la surface à l'échelle de l'org. Les Administrateurs créent des règles qui s'appliquent à une ressource (documents, clients, produits, intégrations, serveurs MCP, création d'agent, installation de skill) et choisissent le motif de déclencheur (n'importe quel acteur, rôles spécifiques, équipes spécifiques, agents spécifiques).
 - **L'onglet Gouvernance de l'éditeur d'agent** laisse un Éditeur attacher une règle spécifique à l'agent. La règle ne se déclenche que pour les appels de cet agent ; elle compose avec toute règle à l'échelle de l'org qui s'applique aussi.
-- **Le gate d'approbation d'une étape de workflow** laisse l'auteur du workflow exiger une approbation à une étape précise. C'est la surface [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) ; le gate écrit une règle ponctuelle cadrée à cette étape.
+- **Le gate d'approbation d'une étape de workflow** laisse l'auteur du workflow exiger une approbation à une étape précise. C'est la surface [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows) ; le gate écrit une règle ponctuelle cadrée à cette étape.
 
 Une ressource peut avoir plusieurs règles en vigueur ; le moteur les exécute toutes et l'action est retenue jusqu'à ce que chaque règle applicable approuve. Un rejet sur n'importe quelle règle termine l'action.
 
@@ -51,4 +51,4 @@ Chaque changement de règle atterrit dans le journal d'audit avec l'acteur, l'ho
 
 ## Où cela s'inscrit
 
-Les règles d'approbation sont le plan de configuration derrière les [Concepts d'approbation](/fr/platform/approvals/concepts) ; la variante gate-de-workflow a sa propre surface sous [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows). La lecture suivante naturelle dépend de ce que tu câbles — pour les gates de workflow la page workflow, pour les approbations d'écriture d'agent la [vue Admin des agents](/fr/platform/admin/agents) où vit la gouvernance par agent.
+Les règles d'approbation sont le plan de configuration derrière les [Concepts d'approbation](/fr/platform/approvals/concepts) ; la variante gate-de-workflow a sa propre surface sous [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows). La lecture suivante naturelle dépend de ce que tu câbles — pour les gates de workflow la page workflow, pour les approbations d'écriture d'agent la [vue Admin des agents](/fr/platform/admin/agents) où vit la gouvernance par agent.

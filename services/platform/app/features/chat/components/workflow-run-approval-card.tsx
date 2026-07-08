@@ -232,11 +232,6 @@ function WorkflowRunApprovalCardComponent({
             <Text as="div" variant="label">
               {metadata.workflowName}
             </Text>
-            {metadata.workflowDescription && (
-              <Text as="div" variant="caption" className="line-clamp-2">
-                {metadata.workflowDescription}
-              </Text>
-            )}
           </div>
         </HStack>
       </HStack>
@@ -416,10 +411,10 @@ function WorkflowRunApprovalCardComponent({
             {(executionStatus?.status === 'completed' ||
               executionStatus?.status === 'failed') && (
               <Link
-                to="/dashboard/$id/automations/$amId/executions"
+                to="/dashboard/$id/workflows/$workflowId/executions"
                 params={{
                   id: organizationId,
-                  amId: slugToUrlParam(metadata.workflowSlug),
+                  workflowId: slugToUrlParam(metadata.workflowSlug),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

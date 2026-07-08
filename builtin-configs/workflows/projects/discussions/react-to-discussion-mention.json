@@ -1,20 +1,4 @@
 {
-  "name": "React to mention in discussion",
-  "description": "@-mentioning an agent in a project discussion puts it to work: the agent reads the discussion and posts its reply in-thread. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, including routing hand-offs) — runaway chains are bounded by the discussion reply-depth guard (an agent→agent chain stops after 3 hops; any human reply resets it), and writes by the automation engine itself ('workflow' actor) are inert and never trigger anyone. An agent never triggers itself. Mirrors the task-board 'react-to-task-mention' workflow.",
-  "i18n": {
-    "en": {
-      "name": "React to mention in discussion",
-      "description": "When an agent is @-mentioned in a project discussion, it reads the thread and replies in-thread."
-    },
-    "de": {
-      "name": "Auf Erwähnung in Diskussion reagieren",
-      "description": "Wird ein Agent in einer Projektdiskussion @-erwähnt, liest er den Thread und antwortet darin."
-    },
-    "fr": {
-      "name": "Réagir à une mention dans une discussion",
-      "description": "Quand un agent est @-mentionné dans une discussion de projet, il lit le fil et y répond."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Discussions", "Automation"],

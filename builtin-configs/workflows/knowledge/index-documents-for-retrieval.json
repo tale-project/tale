@@ -1,20 +1,4 @@
 {
-  "name": "Index documents for retrieval",
-  "description": "Find one unprocessed document and upload it to RAG service",
-  "i18n": {
-    "en": {
-      "name": "Index documents for retrieval",
-      "description": "Finds one unprocessed document and uploads it to the RAG service so it becomes searchable."
-    },
-    "de": {
-      "name": "Dokumente für die Suche indexieren",
-      "description": "Findet ein noch nicht verarbeitetes Dokument und lädt es in den RAG-Dienst hoch, damit es durchsuchbar wird."
-    },
-    "fr": {
-      "name": "Indexer les documents pour la recherche",
-      "description": "Trouve un document non traité et l'envoie au service RAG afin qu'il devienne consultable."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Knowledge"]

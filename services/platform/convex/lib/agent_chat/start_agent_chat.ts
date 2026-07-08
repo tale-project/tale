@@ -461,7 +461,7 @@ export async function startAgentChat(
       return { messageAlreadyExists, streamId };
     }
 
-    // AGENT budget enforcement (workforce guardrails): distinct from the
+    // AGENT budget enforcement (agent guardrails): distinct from the
     // USER budget above — this one pauses a specific agent whose monthly
     // spend crossed its configured threshold, mirroring the user-budget
     // block verbatim. Zero cost for agents without a configured budget.

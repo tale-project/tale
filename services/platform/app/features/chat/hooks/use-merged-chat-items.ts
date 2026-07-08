@@ -55,7 +55,7 @@ interface UseMergedChatItemsParams {
   locationRequests: LocationRequest[] | undefined;
   documentWriteApprovals: DocumentWriteApproval[] | undefined;
   /** Optional — surfaces only on the main chat path (the `knowledge_write`
-   *  tool); arena/automation callers don't pass it. */
+   *  tool); arena/workflow callers don't pass it. */
   knowledgeWriteApprovals?: KnowledgeWriteApproval[];
   /** External-agent plan proposals — rendered INLINE anchored to their source
    *  message and deliberately EXCLUDED from `activeApproval`: a pending plan

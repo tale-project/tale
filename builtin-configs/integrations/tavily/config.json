@@ -1,9 +1,7 @@
 {
   "title": "Tavily",
   "description": "Real-time web search and page extraction for AI research.",
-  "metadata": {
-    "labels": ["Search"]
-  },
+  "labels": ["Search"],
   "version": 1,
   "type": "rest_api",
   "authMethod": "api_key",

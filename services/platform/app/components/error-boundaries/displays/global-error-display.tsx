@@ -91,8 +91,15 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
     <div
       role="alert"
       aria-live="assertive"
+      // A full-viewport cover (like the offline overlay, one z-level below it)
+      // with a solid background — NOT an in-flow `min-h-[80vh]` block. This
+      // component is the router's `defaultErrorComponent`, so it can render as
+      // a sibling above a page shell that is still mounted mid-transition; an
+      // in-flow block let that shell stack below and peek through the remaining
+      // viewport (clipped at 100vh by `#root`). Fixed + opaque takes it out of
+      // flow so nothing shows underneath.
       className={cn(
-        'flex min-h-[80vh] flex-1 flex-col items-center justify-center px-6',
+        'bg-background fixed inset-0 z-100 flex flex-col items-center justify-center px-6',
         'pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
       )}
     >

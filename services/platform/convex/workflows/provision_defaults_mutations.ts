@@ -153,6 +153,76 @@ export const ensureSchedule = internalMutation({
 });
 
 /**
+ * Remove every provisioning row for one workflow slug: event subscriptions,
+ * schedules, the installation, and the `wfDefaultProvisions` marker. The
+ * inverse of the provision path — used when a default workflow is RETIRED
+ * (migration-driven), so orphan triggers can't keep firing into a deleted
+ * file. Re-running `syncDefaultWorkflowInstallations` after restoring the
+ * file recreates everything (the provision marker is gone too).
+ */
+export const removeDefaultProvisioning = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+  },
+  returns: v.object({
+    events: v.number(),
+    schedules: v.number(),
+    installations: v.number(),
+    provisions: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    let events = 0;
+    let schedules = 0;
+    let installations = 0;
+    let provisions = 0;
+    for await (const sub of ctx.db
+      .query('wfEventSubscriptions')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (sub.workflowSlug !== args.workflowSlug) continue;
+      await ctx.db.delete(sub._id);
+      events += 1;
+    }
+    for await (const sched of ctx.db
+      .query('wfSchedules')
+      .withIndex('by_workflowSlug', (q) =>
+        q.eq('workflowSlug', args.workflowSlug),
+      )) {
+      if (sched.organizationId !== args.organizationId) continue;
+      await ctx.db.delete(sched._id);
+      schedules += 1;
+    }
+    const installation = await ctx.db
+      .query('wfInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug),
+      )
+      .first();
+    if (installation) {
+      await ctx.db.delete(installation._id);
+      installations += 1;
+    }
+    const provision = await ctx.db
+      .query('wfDefaultProvisions')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.workflowSlug),
+      )
+      .first();
+    if (provision) {
+      await ctx.db.delete(provision._id);
+      provisions += 1;
+    }
+    return { events, schedules, installations, provisions };
+  },
+});
+
+/**
  * Flip `isActive` on every trigger row belonging to the given workflow
  * slugs — the master-toggle / kill-switch lever. Never touches rows of
  * other workflows; returns counts for the audit trail.

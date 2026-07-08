@@ -30,7 +30,7 @@ describe('NotificationBell', () => {
   // role="dialog"; it must carry an accessible name so screen readers announce
   // it as the "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).
   // Mirrors the [role="dialog"].toHaveAccessibleName(...) pattern in
-  // automation-create-dialog.test.tsx.
+  // other dialog tests.
   it('gives the notifications popover dialog an accessible name', async () => {
     const { user } = render(<NotificationBell organizationId="org-1" />);
 

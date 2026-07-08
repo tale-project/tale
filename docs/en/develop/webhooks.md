@@ -77,4 +77,4 @@ Inbound retries are the caller's responsibility — Tale's response indicates su
 
 ## Where this fits
 
-Webhooks are the seam between Tale and external systems on both sides. The [API reference](/develop/api-reference) covers the synchronous half — the endpoints you call when you want a value back immediately. The [Triggers reference](/platform/automations/triggers) covers the workflow side of inbound webhooks — the configuration that turns a POST into a workflow run.
+Webhooks are the seam between Tale and external systems on both sides. The [API reference](/develop/api-reference) covers the synchronous half — the endpoints you call when you want a value back immediately. The [Triggers reference](/platform/workflows/triggers) covers the workflow side of inbound webhooks — the configuration that turns a POST into a workflow run.

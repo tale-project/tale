@@ -129,5 +129,5 @@ export function bannerText(
   version: string,
   palette: Palette = getPalette(),
 ): string {
-  return `  ${palette.bold}${palette.cyan}Tale${palette.reset} ${palette.dim}v${version}${palette.reset}  ${palette.dim}- your self-hosted AI workforce${palette.reset}`;
+  return `  ${palette.bold}${palette.cyan}Tale${palette.reset} ${palette.dim}v${version}${palette.reset}  ${palette.dim}- your self-hosted AI platform${palette.reset}`;
 }

@@ -255,95 +255,17 @@ class Path2DPolyfill {
   closePath(): void {}
 }
 
-/**
- * ES2025 shims for the modern (non-legacy) pdfjs build on Node 22 — the floor
- * across dev hosts, CI runners, and the upstream convex-backend image (its
- * .nvmrc pins 22.x). pdfjs calls `Promise.try` (MessageHandler — every
- * worker message), `Uint8Array.prototype.toHex` (document fingerprints —
- * every getDocument), `Uint8Array.fromBase64` (XFA / signature data), and
- * `Uint8Array.prototype.toBase64` (data URLs, signature bytes) without
- * feature-testing; all four only land natively in Node 24. The legacy build
- * covered them via ~2 MB of bundled core-js — these few lines replace that.
- * pdfjs passes no options objects to the base64 calls, but `alphabet` costs
- * nothing to honor via Buffer's `base64url` codec.
- */
-/**
- * Install `value` as `target[name]` unless it already exists (native or an
- * earlier shim). `Object.defineProperty` defaults to non-enumerable, matching
- * the native methods, and needs no type assertion on the target.
- */
-function defineShim(target: object, name: string, value: unknown): void {
-  if (name in target) return;
-  Object.defineProperty(target, name, {
-    value,
-    writable: true,
-    configurable: true,
-  });
-}
-
-function installEs2025Shims(): void {
-  defineShim(
-    Promise,
-    'try',
-    function tryShim(
-      fn: (...args: unknown[]) => unknown,
-      ...args: unknown[]
-    ): Promise<unknown> {
-      return new Promise((resolve) => resolve(fn(...args)));
-    },
-  );
-
-  defineShim(
-    Uint8Array,
-    'fromBase64',
-    function fromBase64Shim(
-      base64: string,
-      options?: { alphabet?: 'base64' | 'base64url' },
-    ): Uint8Array {
-      const encoding =
-        options?.alphabet === 'base64url' ? 'base64url' : 'base64';
-      // new Uint8Array(buffer) copies exactly the Buffer's view — never build
-      // a view over buf.buffer, which may be Node's shared allocation pool.
-      return new Uint8Array(Buffer.from(base64, encoding));
-    },
-  );
-
-  defineShim(
-    Uint8Array.prototype,
-    'toBase64',
-    function toBase64Shim(
-      this: Uint8Array,
-      options?: { alphabet?: 'base64' | 'base64url' },
-    ): string {
-      const encoding =
-        options?.alphabet === 'base64url' ? 'base64url' : 'base64';
-      return Buffer.from(
-        this.buffer,
-        this.byteOffset,
-        this.byteLength,
-      ).toString(encoding);
-    },
-  );
-
-  defineShim(
-    Uint8Array.prototype,
-    'toHex',
-    function toHexShim(this: Uint8Array): string {
-      return Buffer.from(
-        this.buffer,
-        this.byteOffset,
-        this.byteLength,
-      ).toString('hex');
-    },
-  );
-}
-
 let installed = false;
 
 /**
- * Idempotently install the DOM globals pdfjs needs, BEFORE pdfjs is imported.
+ * Idempotently install the globals pdfjs needs, BEFORE pdfjs is imported.
  * Only fills gaps so a real browser/runtime global (or @napi-rs/canvas, if it
  * ever does load) still wins.
+ *
+ * Besides the DOM globals, pdfjs 5.x's modern build calls ES2025 APIs
+ * unconditionally — `Promise.try` in its message handler, the `Uint8Array`
+ * base64 codecs on font/signature paths — which Node 22 (V8 12.4) doesn't
+ * ship. Fill those too; removable once the runtime moves to Node ≥24.
  */
 export function installPdfjsDomGlobals(): void {
   if (installed) return;
@@ -352,5 +274,42 @@ export function installPdfjsDomGlobals(): void {
   g.DOMMatrix ??= DOMMatrixPolyfill;
   g.ImageData ??= ImageDataPolyfill;
   g.Path2D ??= Path2DPolyfill;
-  installEs2025Shims();
+
+  // The lib.esnext types declare these, so `typeof` guards compile cleanly;
+  // Object.defineProperty sidesteps matching the full declared signatures
+  // (options bags, overloads) that the simple fills don't implement.
+  if (typeof Promise.try !== 'function') {
+    Object.defineProperty(Promise, 'try', {
+      value: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
+        new Promise((resolve) => resolve(fn(...args))),
+      writable: true,
+      configurable: true,
+    });
+  }
+  if (typeof Uint8Array.fromBase64 !== 'function') {
+    Object.defineProperty(Uint8Array, 'fromBase64', {
+      value: (s: string) => new Uint8Array(Buffer.from(s, 'base64')),
+      writable: true,
+      configurable: true,
+    });
+  }
+  for (const [name, encoding] of [
+    ['toBase64', 'base64'],
+    ['toHex', 'hex'],
+  ] as const) {
+    if (typeof Uint8Array.prototype[name] !== 'function') {
+      // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
+      Object.defineProperty(Uint8Array.prototype, name, {
+        value: function (this: Uint8Array) {
+          return Buffer.from(
+            this.buffer,
+            this.byteOffset,
+            this.byteLength,
+          ).toString(encoding);
+        },
+        writable: true,
+        configurable: true,
+      });
+    }
+  }
 }

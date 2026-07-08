@@ -1,20 +1,4 @@
 {
-  "name": "Retry a queued run when a slot frees",
-  "description": "Starts queued work the moment capacity frees: when an agent run finishes, the guardrails resolve the oldest queued task waiting on that slot and emit agent.slot_freed (at most one wake per freed slot — no thundering herd). Tasks still assigned to the queued agent restart through the standard assignment loop (acknowledge → run → In review); queued mention replies run directly. Every restart passes the normal admission gate, so a lost race simply re-queues. The hourly stale-work sweep re-emits the wake for queue entries a lost event left behind.",
-  "i18n": {
-    "en": {
-      "name": "Retry a queued run when a slot frees",
-      "description": "When an agent slot frees, restarts the oldest queued task through the assignment loop or runs a queued mention reply directly."
-    },
-    "de": {
-      "name": "Wartenden Lauf erneut starten, wenn ein Slot frei wird",
-      "description": "Wird ein Agenten-Slot frei, startet es die älteste wartende Aufgabe über den Zuweisungsablauf neu oder führt eine wartende Erwähnungsantwort direkt aus."
-    },
-    "fr": {
-      "name": "Relancer une exécution en file quand un créneau se libère",
-      "description": "Quand un créneau d'agent se libère, relance la tâche en attente la plus ancienne via le flux d'attribution ou exécute directement une réponse à mention en attente."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

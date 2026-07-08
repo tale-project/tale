@@ -1,253 +1,4 @@
 {
-  "apps": {
-    "title": "Apps",
-    "searchPlaceholder": "Apps durchsuchen…",
-    "searchNoResults": "Keine Apps entsprechen Ihrer Suche.",
-    "addMenu": {
-      "label": "App hinzufügen"
-    },
-    "private": "Privat",
-    "upload": {
-      "uploadApp": "App hochladen",
-      "dialogTitle": "Private App hochladen",
-      "description": "Lade eine private App in diese Organisation hoch. Gib ein .zip des App-Ordners an oder wähle den Ordner direkt aus – sein Name wird zum App-Slug. Das Hochladen installiert die App nicht; du kannst sie danach installieren.",
-      "dropZoneLabel": "App-Bundle hochladen",
-      "dropHere": "Lege das .zip hier ab",
-      "parsing": "Bundle wird gelesen…",
-      "dropOrClick": "Lege ein .zip hier ab oder klicke zum Auswählen",
-      "acceptedFormats": "Ein Ordner mit app.json im Stammverzeichnis",
-      "selectFolder": "Stattdessen Ordner auswählen",
-      "useFolderButton": "Um einen Ordner hochzuladen, nutze den Link unten.",
-      "singleZipOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
-      "zipRequired": "Das Bundle muss eine .zip-Datei sein.",
-      "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
-      "scopeProject": "Projekt-App",
-      "scopeOrg": "Organisations-App",
-      "workflows": "Workflows",
-      "agents": "Agenten",
-      "requiresIntegrations": "Benötigt Integrationen",
-      "bundleFiles": "Bundle-Dateien",
-      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
-      "submit": "App hochladen",
-      "submitting": "Wird hochgeladen…",
-      "uploadSuccess": "App hochgeladen",
-      "installHint": "Installiere sie aus der App-Liste, wenn du bereit bist.",
-      "replaceSuccess": "App ersetzt",
-      "uploadFailed": "App konnte nicht hochgeladen werden",
-      "replaceTitle": "Bestehende App ersetzen?",
-      "replaceDescription": "Eine private App namens „{slug}“ existiert bereits. Beim Hochladen wird ihr aktueller Inhalt überschrieben.",
-      "replaceConfirm": "Ersetzen",
-      "delete": "Hochgeladene App löschen",
-      "deleteMenuLabel": "{name} löschen",
-      "deleteTitle": "Hochgeladene App löschen",
-      "deleteDescription": "Entfernt die hochgeladene App und ihre Dateien aus dieser Organisation. Integrierte Apps lassen sich nicht löschen.",
-      "deleteWarning": "Das App-Bundle wird dauerhaft entfernt. Deinstalliere die App zuerst, falls sie noch installiert ist.",
-      "deleteSuccess": "Hochgeladene App gelöscht",
-      "deleteFailed": "Die hochgeladene App konnte nicht gelöscht werden",
-      "deleteInstalledBlocked": "Deinstalliere die App, bevor du sie löschst."
-    },
-    "empty": {
-      "title": "Noch keine Apps",
-      "description": "Installierte Packs erscheinen hier als Apps."
-    },
-    "notFound": {
-      "title": "App nicht gefunden",
-      "description": "Dieses Pack ist nicht installiert."
-    },
-    "noViews": {
-      "title": "Noch nichts anzuzeigen",
-      "description": "Für dieses Pack sind keine Seiten konfiguriert."
-    },
-    "details": {
-      "scopeOrg": "Organisations-App",
-      "scopeProject": "Projekt-App",
-      "includesTitle": "Enthalten",
-      "pages": "Seiten",
-      "workflows": "Workflows",
-      "agents": "Agenten",
-      "requiresTitle": "Was du brauchst",
-      "requiresHint": "Diese verbindest du bei der Einrichtung."
-    },
-    "install": {
-      "install": "Installieren",
-      "installed": "Installiert",
-      "installFailed": "App konnte nicht installiert werden",
-      "available": "Verfügbar",
-      "open": "Öffnen",
-      "reinstall": "Neu installieren",
-      "setup": "Einrichtung abschließen",
-      "uninstall": "Deinstallieren",
-      "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
-      "chooseProjectDescription": "Diese App läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
-      "projectLabel": "Projekt",
-      "projectPlaceholder": "Projekt auswählen",
-      "projectSearchPlaceholder": "Projekte suchen …",
-      "noProjects": "Keine Projekte gefunden.",
-      "createProject": "Neues Projekt erstellen",
-      "menuLabel": "{name} verwalten",
-      "reinstallTitle": "App neu installieren",
-      "reinstallDescription": "Aktualisiert die Dateien dieser App aus der neuesten Vorlage. Deine Umgebungsvariablen und Secrets bleiben erhalten; eigene Änderungen an den Dateien werden ersetzt.",
-      "reinstalled": "App neu installiert",
-      "reinstallFailed": "App konnte nicht neu installiert werden",
-      "uninstallTitle": "App deinstallieren",
-      "uninstallDescription": "Dadurch werden die App und alles, was sie installiert hat, aus deiner Organisation entfernt.",
-      "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
-      "uninstalled": "App deinstalliert",
-      "uninstallFailed": "App konnte nicht deinstalliert werden",
-      "removeFromProject": "Aus Projekt entfernen",
-      "removedFromProject": "Aus dem Projekt entfernt",
-      "removeFromProjectFailed": "Die App konnte nicht aus diesem Projekt entfernt werden",
-      "removeFromProjectTitle": "Aus diesem Projekt entfernen?",
-      "removeFromProjectDescription": "{name} wird in diesem Projekt nicht mehr angezeigt. Die Agenten, Workflows und andere Projekte bleiben unberührt – du kannst die App jederzeit wieder hinzufügen.",
-      "uninstallBlocked": "Noch in Verwendung von: {projects}. Entferne die App aus diesen Projekten, bevor du sie deinstallierst.",
-      "uninstallBlockedCount": "Entferne die App aus ihren {count} Projekten, bevor du sie deinstallierst."
-    },
-    "readiness": {
-      "title": "Einrichtung abschließen",
-      "description": "Schließe diese Schritte ab, bevor die App laufen kann.",
-      "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
-      "connect": "Verbinde {integration}, um diese App zu nutzen.",
-      "connectButton": "Verbinden",
-      "agentNeedsSetup": "{agent} muss noch eingerichtet werden.",
-      "agentNeedsKeys": "{agent} braucht {keys} in Environment.",
-      "setupButton": "Einrichten",
-      "openAgentFallback": "Agent öffnen"
-    },
-    "config": {
-      "title": "Konfiguration",
-      "description": "Richte diese App auf deine eigenen Ressourcen aus. Diese Werte steuern ihre Seiten und geplanten Abläufe.",
-      "save": "Speichern",
-      "saving": "Wird gespeichert…",
-      "saved": "Konfiguration gespeichert",
-      "saveError": "Konfiguration konnte nicht gespeichert werden",
-      "invalidValue": "{label}: Prüfe das Format und versuche es erneut.",
-      "configure": "Konfigurieren",
-      "setupTitle": "Konfiguration erforderlich",
-      "setupPrompt": "Richte diese App auf deine Ressourcen aus, um sie zu nutzen."
-    },
-    "installWizard": {
-      "title": "{name} einrichten",
-      "progress": "{label} · Schritt {current} von {total}",
-      "stepsAriaLabel": "Einrichtungsschritte",
-      "projectStepLabel": "Projekt",
-      "installStepLabel": "Installieren",
-      "installReady": "Bereit, {name} zu installieren.",
-      "installNeeds": "Diese App nutzt folgende Integrationen: {integrations}.",
-      "doneStepLabel": "Fertig",
-      "doneTitle": "{name} ist bereit",
-      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
-      "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der App abschließen.",
-      "finish": "Fertigstellen",
-      "skipForNow": "Später erledigen",
-      "installFailed": "App konnte nicht installiert werden",
-      "integrationUnavailable": "{integration} ist in dieser Organisation noch nicht verfügbar. Verbinde sie unter Einstellungen → Integrationen.",
-      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut.",
-      "authModeStepLabel": "Agent-Modus",
-      "authModeDescription": "Jeder Automatisierungs-Agent kann den verwalteten Modellzugang der Plattform nutzen oder eigene Zugangsdaten mitbringen.",
-      "authModeManaged": "Verwaltet",
-      "authModeByo": "Eigener Schlüssel",
-      "providerKeyLabel": "{provider}-API-Schlüssel",
-      "connectProvider": "{provider} verbinden",
-      "providerConnectFailed": "Anbieter konnte nicht verbunden werden",
-      "agentNeedsKeys": "{name} braucht diese Zugangsdaten zum Ausführen.",
-      "saveSecrets": "Speichern"
-    },
-    "confirm": "Bist du sicher?",
-    "binding": {
-      "empty": "Noch nichts anzuzeigen.",
-      "blocked": "Diese Ansicht darf {path} nicht aufrufen."
-    },
-    "detail": {
-      "title": "Details"
-    },
-    "review": {
-      "none": "Keine ausstehenden Prüfungen.",
-      "awaiting": "Wartet auf Genehmigung"
-    },
-    "issues": {
-      "createTask": "Aufgabe erstellen"
-    },
-    "list": {
-      "refresh": "Aktualisieren",
-      "error": "Daten konnten nicht geladen werden: {error}",
-      "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
-      "needsConfig": "Konfiguriere diese App, um Daten zu laden.",
-      "loadMore": "Mehr laden",
-      "loadingMore": "Wird geladen…",
-      "created": "Erstellt",
-      "start": "Starten",
-      "markDone": "Als erledigt markieren",
-      "merge": "Pull Request mergen",
-      "all": "Alle",
-      "review": "Prüfen"
-    },
-    "agents": {
-      "none": "Keine Agenten konfiguriert.",
-      "error": "Agenten konnten nicht geladen werden: {error}",
-      "editInstructions": "Anweisungen bearbeiten",
-      "envSecrets": "Env & Secrets",
-      "authMode": {
-        "label": "Auth",
-        "byo": "BYO",
-        "managed": "Verwaltet",
-        "error": "Auth-Modus des Agenten konnte nicht gewechselt werden"
-      },
-      "instructions": {
-        "title": "Anweisungen bearbeiten — {name}",
-        "description": "Der System-Prompt, der diesen Agenten steuert. Änderungen gelten ab dem nächsten Lauf.",
-        "placeholder": "Beschreiben Sie, wie sich dieser Agent verhalten soll…",
-        "save": "Speichern",
-        "saving": "Wird gespeichert…",
-        "cancel": "Abbrechen",
-        "saved": "Anweisungen gespeichert",
-        "saveError": "Anweisungen konnten nicht gespeichert werden",
-        "loadError": "Dieser Agent konnte nicht geladen werden."
-      },
-      "env": {
-        "title": "Umgebung & Secrets — {name}",
-        "description": "Umgebungsvariablen und Secrets für die Läufe dieses Agenten. Secrets werden verschlüsselt gespeichert, maskiert angezeigt und erst zur Laufzeit entschlüsselt.",
-        "none": "Noch keine Umgebungsvariablen.",
-        "keyPlaceholder": "NAME",
-        "valuePlaceholder": "Wert",
-        "secret": "Secret",
-        "secretKept": "•••••••• (unverändert)",
-        "add": "Variable hinzufügen",
-        "remove": "Entfernen",
-        "save": "Speichern",
-        "saving": "Wird gespeichert…",
-        "cancel": "Abbrechen",
-        "saved": "Umgebung gespeichert",
-        "saveError": "Umgebung konnte nicht gespeichert werden",
-        "badKey": "„{key}“ ist kein gültiger Umgebungsvariablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
-        "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
-      }
-    },
-    "workflow": {
-      "none": "Dieser Workflow hat keine Schritte.",
-      "error": "Workflow konnte nicht geladen werden: {error}"
-    },
-    "runs": {
-      "backToApp": "Zurück zur App",
-      "none": "Noch keine Läufe.",
-      "colRun": "Lauf",
-      "colStatus": "Status",
-      "colStarted": "Gestartet",
-      "watchLive": "Live ansehen",
-      "queuedForCapacity": "Wartet auf Kapazität",
-      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
-      "failed": "Fehlgeschlagen",
-      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
-    },
-    "membership": {
-      "title": "Projekte",
-      "addProject": "Zu einem Projekt hinzufügen",
-      "emptyTitle": "Noch in keinem Projekt",
-      "emptyDescription": "Füge diese App zu einem Projekt hinzu, um sie dort zu nutzen.",
-      "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
-      "notInProjectDescription": "Füge diese App zu diesem Projekt hinzu, um sie hier zu nutzen.",
-      "addToThisProject": "Zu diesem Projekt hinzufügen"
-    }
-  },
   "operator": {
     "gate": "Entscheidung",
     "state": {
@@ -327,7 +78,6 @@
   },
   "accessDenied": {
     "title": "Zugriff verweigert",
-    "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
     "integrations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die Integrationseinstellungen zuzugreifen.",
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
@@ -581,7 +331,7 @@
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
       "ssoTitle": "Mit SSO anmelden",
-      "ssoDescription": "Wähle deine Organisation, um mit SSO fortzufahren.",
+      "ssoDescription": "Gib die E-Mail-Adresse deiner Organisation ein — sie bestimmt die passende Anmeldung.",
       "ssoOrgListLabel": "Organisationen",
       "ssoBackToLogin": "Zurück zur Anmeldung",
       "ssoNoOrganizations": "Keine Organisation für die Anmeldung verfügbar. Wende dich an deine Administration.",
@@ -723,437 +473,355 @@
   },
   "automations": {
     "title": "Automatisierungen",
-    "appBadge": "App",
     "tabs": {
-      "list": "Liste",
-      "catalog": "Katalog",
-      "metrics": "Metriken"
-    },
-    "catalog": {
-      "installed": "Automatisierung installiert"
-    },
-    "aria": {
-      "openNamed": "{name} öffnen",
-      "openLoop": "Schleife öffnen"
-    },
-    "metrics": {
-      "link": "Metriken anzeigen",
-      "title": "Workflow-Metriken",
-      "description": "Nutzungs- und Leistungskennzahlen über alle Automatisierungen.",
-      "cappedNotice": "Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.",
-      "period": {
-        "last7Days": "Letzte 7 Tage",
-        "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage",
-        "label": "Zeitraum"
-      },
-      "cards": {
-        "totalRuns": "Ausführungen gesamt",
-        "successRate": "Erfolgsquote",
-        "avgDuration": "Ø Dauer",
-        "failedRuns": "Fehlgeschlagen"
-      },
-      "chart": {
-        "trendTitle": "Ausführungen im Zeitverlauf",
-        "trendTooltip": "Anzahl der Workflow-Ausführungen im gewählten Zeitraum",
-        "statusTitle": "Statusverteilung",
-        "statusTooltip": "Verteilung der Workflow-Ergebnisse",
-        "totalLabel": "Gesamt",
-        "noData": "Keine Daten",
-        "noDataDescription": "Führe einen Workflow aus, um die Verteilung zu sehen",
-        "completed": "Abgeschlossen",
-        "failed": "Fehlgeschlagen",
-        "running": "Läuft",
-        "pending": "Ausstehend"
-      },
-      "table": {
-        "title": "Top-Workflows",
-        "workflow": "Workflow",
-        "runs": "Ausführungen",
-        "successRate": "Erfolgsquote",
-        "avgDuration": "Ø Dauer",
-        "failed": "Fehlgeschlagen",
-        "lastRun": "Letzte Ausführung"
-      },
-      "empty": {
-        "title": "Keine Workflow-Ausführungen",
-        "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt."
-      }
-    },
-    "createButton": "Automatisierung erstellen",
-    "emptyState": {
-      "noSteps": "Keine Automatisierungsschritte vorhanden",
-      "createStepsHint": "Erstelle Schritte, um die Automatisierungsübersicht zu sehen, oder nutze den KI-Assistenten für den Einstieg."
-    },
-    "search": {
-      "placeholder": "Automatisierungen suchen",
-      "noResults": "Keine Automatisierungen entsprechen Ihrer Suche."
-    },
-    "entityLabel": "Automatisierungen",
-    "createWithAI": "Automatisierung mit KI erstellen",
-    "renameTitle": "Automatisierung umbenennen",
-    "navigation": {
+      "installed": "Installiert",
+      "all": "Alle Automatisierungen",
       "editor": "Editor",
-      "history": "Verlauf",
-      "openAssistant": "KI-Assistent öffnen"
-    },
-    "history": {
-      "empty": "Keine Verlaufseinträge",
-      "diffTitle": "Änderungen vergleichen",
-      "diffDescription": "Unterschiede prüfen, bevor der Snapshot vom {date} wiederhergestellt wird",
-      "restore": "Wiederherstellen",
-      "noDifferences": "Keine Unterschiede gefunden",
-      "loadFailed": "Verlauf konnte nicht geladen werden",
-      "restoreSuccess": "Version wiederhergestellt",
-      "restoreFailed": "Version konnte nicht wiederhergestellt werden"
-    },
-    "form": {
-      "name": "Name"
+      "executions": "Ausführungen",
+      "configuration": "Konfiguration",
+      "triggers": "Trigger",
+      "environment": "Umgebung",
+      "integrations": "Integrationen",
+      "ariaLabel": "Bereiche der Automation"
     },
     "configuration": {
-      "title": "Konfiguration",
-      "name": "Name",
-      "namePlaceholder": "Automatisierungsname eingeben",
-      "description": "Beschreibung",
-      "descriptionPlaceholder": "Automatisierungsbeschreibung eingeben",
-      "timeout": "Timeout (ms)",
-      "timeoutHelp": "Maximale Ausführungszeit in Millisekunden",
-      "maxRetries": "Max. Wiederholungen",
-      "maxRetriesHelp": "Anzahl der Wiederholungsversuche bei Fehler",
-      "backoff": "Backoff (ms)",
-      "backoffHelp": "Verzögerung zwischen Wiederholungsversuchen in Millisekunden",
-      "variables": "Variablen (JSON)",
-      "variablesHelp": "Diese Variablen stehen allen Schritten der Automatisierung zur Verfügung",
-      "validation": {
-        "nameRequired": "Name ist erforderlich",
-        "invalidJson": "Ungültiges JSON im Variablen-Feld"
+      "nameLabel": "Name",
+      "descriptionLabel": "Beschreibung",
+      "agentsTitle": "Agenten",
+      "skillsTitle": "Skills",
+      "status": {
+        "ready": "Bereit",
+        "needsSetup": "Einrichtung nötig",
+        "connected": "Verbunden",
+        "notConnected": "Nicht verbunden",
+        "missing": "Fehlt"
       },
-      "env": "Umgebung & Geheimnisse",
-      "envHelp": "Variablen, die in jeden Sandbox-Schritt dieser Automatisierung eingespeist werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben."
+      "namePlaceholder": "Name der Automation",
+      "descriptionPlaceholder": "Was diese Automation tut",
+      "runtimeTitle": "Workflow-Einstellungen",
+      "validation": {
+        "nameRequired": "Name ist erforderlich"
+      }
     },
     "triggers": {
-      "title": "Trigger",
       "errors": {
         "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
         "invalidSlug": "Die Kennung dieser Automatisierung ist ungültig.",
         "notInstalled": "Diese Automatisierung ist noch nicht installiert.",
         "notFound": "Dieser Trigger konnte nicht mehr gefunden werden. Möglicherweise wurde er gelöscht.",
-        "appOwnedWorkflow": "App-Automatisierungen laufen nur innerhalb der App und können daher keine Ereignisse abonnieren.",
         "invalidEventType": "Dieser Ereignistyp ist ungültig.",
         "duplicateSubscription": "Diese Automatisierung hat bereits einen Trigger für dieses Ereignis."
-      },
-      "schedules": {
-        "title": "Zeitpläne",
-        "createButton": "Zeitplan hinzufügen",
-        "emptyTitle": "Keine Zeitpläne",
-        "emptyDescription": "Erstelle einen Zeitplan, um diese Automatisierung regelmäßig automatisch auszulösen.",
-        "columns": {
-          "cronExpression": "Cron-Ausdruck",
-          "active": "Aktiv",
-          "lastTriggered": "Zuletzt ausgelöst",
-          "createdBy": "Erstellt von"
-        },
-        "form": {
-          "title": "Zeitplan erstellen",
-          "editTitle": "Zeitplan bearbeiten",
-          "cronExpression": "Cron-Ausdruck",
-          "cronPlaceholder": "0 * * * *",
-          "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
-          "variablesLabel": "Workflow-Variablen",
-          "variablesDescription": "Eingabeparameter, die bei jedem geplanten Lauf übergeben werden. Vorausgefüllt aus dem Eingabeschema des Workflows.",
-          "variablesInvalid": "Variablen müssen ein gültiges JSON-Objekt sein",
-          "validation": {
-            "cronRequired": "Cron-Ausdruck ist erforderlich",
-            "cronInvalid": "Muss ein gültiger Cron-Ausdruck mit 5 Feldern sein"
-          },
-          "presets": {
-            "every5Minutes": "Alle 5 Minuten",
-            "hourly": "Jede Stunde",
-            "daily": "Täglich",
-            "weekly": "Wöchentlich",
-            "monthly": "Monatlich"
-          },
-          "ai": {
-            "label": "Beschreibe deinen Zeitplan",
-            "placeholder": "z. B. jeden Werktag um 9 Uhr, zweimal täglich um 8 und 18 Uhr",
-            "generateButton": "Generieren",
-            "generateError": "Cron-Ausdruck konnte nicht generiert werden. Bitte versuche es erneut oder gib ihn manuell ein."
-          }
-        },
-        "toast": {
-          "created": "Zeitplan erstellt",
-          "updated": "Zeitplan aktualisiert",
-          "deleted": "Zeitplan gelöscht",
-          "enabled": "Zeitplan aktiviert",
-          "disabled": "Zeitplan deaktiviert",
-          "toggleError": "Zeitplan konnte nicht umgeschaltet werden",
-          "deleteError": "Zeitplan konnte nicht gelöscht werden"
-        },
-        "deleteTitle": "Zeitplan löschen",
-        "deleteDescription": "Dieser Zeitplan wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
-      },
-      "webhooks": {
-        "title": "Webhooks",
-        "createButton": "Webhook hinzufügen",
-        "emptyTitle": "Keine Webhooks",
-        "emptyDescription": "Erstelle einen Webhook, um diese Automatisierung über HTTP-POST-Anfragen auszulösen.",
-        "columns": {
-          "url": "Webhook-URL",
-          "active": "Aktiv",
-          "lastTriggered": "Zuletzt ausgelöst"
-        },
-        "createdTitle": "Webhook erstellt",
-        "urlWarning": "Speichere diese Webhook-URL. Das Token in der URL dient als Authentifizierungsnachweis.",
-        "webhookUrl": "Webhook-URL",
-        "deleteTitle": "Webhook löschen",
-        "deleteDescription": "Dieser Webhook-Endpunkt wird dauerhaft gelöscht. Alle Integrationen, die diese URL verwenden, funktionieren nicht mehr.",
-        "deleteWebhook": "Webhook löschen",
-        "toast": {
-          "created": "Webhook erstellt",
-          "deleted": "Webhook gelöscht",
-          "enabled": "Webhook aktiviert",
-          "disabled": "Webhook deaktiviert",
-          "urlCopied": "Webhook-URL kopiert",
-          "createFailed": "Webhook konnte nicht erstellt werden",
-          "toggleFailed": "Webhook konnte nicht umgeschaltet werden",
-          "deleteFailed": "Webhook konnte nicht gelöscht werden"
-        }
-      },
-      "events": {
-        "title": "Ereignisse",
-        "createButton": "Ereignis-Trigger hinzufügen",
-        "emptyTitle": "Keine Ereignis-Trigger",
-        "emptyDescription": "Abonniere Systemereignisse, um diese Automatisierung bei bestimmten Aktionen automatisch auszulösen.",
-        "columns": {
-          "eventType": "Ereignistyp",
-          "active": "Aktiv",
-          "lastTriggered": "Zuletzt ausgelöst",
-          "createdBy": "Erstellt von"
-        },
-        "form": {
-          "title": "Ereignis-Trigger hinzufügen",
-          "editTitle": "Ereignis-Trigger bearbeiten",
-          "eventType": "Ereignistyp",
-          "eventTypePlaceholder": "Ereignistyp auswählen",
-          "filtersLabel": "Filter",
-          "filterAll": "Alle (kein Filter)",
-          "filterAllPlaceholder": "Filterwert auswählen"
-        },
-        "toast": {
-          "created": "Ereignis-Trigger erstellt",
-          "updated": "Ereignis-Trigger aktualisiert",
-          "deleted": "Ereignis-Trigger gelöscht",
-          "enabled": "Ereignis-Trigger aktiviert",
-          "disabled": "Ereignis-Trigger deaktiviert",
-          "toggleError": "Ereignisabonnement konnte nicht umgeschaltet werden",
-          "deleteError": "Ereignisabonnement konnte nicht gelöscht werden"
-        },
-        "editTitle": "Ereignis-Trigger bearbeiten",
-        "deleteTitle": "Ereignis-Trigger löschen",
-        "deleteDescription": "Dieser Ereignis-Trigger wird dauerhaft gelöscht. Die Automatisierung wird nicht mehr durch dieses Ereignis ausgelöst."
-      },
-      "common": {
-        "never": "Nie",
-        "copied": "Kopiert",
-        "copyFailed": "Kopieren fehlgeschlagen"
       }
     },
-    "executions": {
-      "title": "Ausführungen",
-      "entityLabel": "Ausführungen",
-      "searchPlaceholder": "Nach Ausführungs-ID suchen",
-      "viewOnCanvas": "Auf dem Canvas ansehen"
+    "searchPlaceholder": "Automatisierungen durchsuchen…",
+    "noResults": {
+      "title": "Keine passenden Automatisierungen",
+      "description": "Keine Automatisierungen passen zu deiner Suche. Versuch einen anderen Begriff."
     },
-    "createDialog": {
-      "title": "Automatisierung erstellen",
-      "tabBlank": "Leer",
-      "tabTemplate": "Aus Vorlage",
-      "nameTooltip": "Wird zur ID der Automatisierung in ihrer URL. Füge ein / hinzu, um sie in einem Ordner abzulegen, z. B. marketing/social-posts. Den Anzeigenamen kannst du später ändern.",
-      "namePlaceholder": "z. B. Social-Media-Workflow",
-      "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
-      "creating": "Erstelle...",
-      "continue": "Weiter",
+    "folders": {
+      "general": "Allgemein",
+      "email": "Email",
+      "github": "GitHub"
+    },
+    "addMenu": {
+      "label": "Automatisierung hinzufügen"
+    },
+    "custom": "Benutzerdefiniert",
+    "upload": {
+      "uploadApp": "Paket hochladen",
+      "dialogTitle": "Automatisierungspaket hochladen",
+      "description": "Lade eine private Automatisierung als .zip-Paket in diese Organisation hoch oder wähle den Ordner der Automatisierung direkt aus – sein Name wird zum Slug der Automatisierung. Das Hochladen installiert die Automatisierung nicht; du kannst sie danach installieren.",
+      "dropZoneLabel": "Automatisierungspaket hochladen",
+      "dropHere": "Lege das .zip hier ab",
+      "parsing": "Liest Paket…",
+      "dropOrClick": "Lege ein .zip hier ab oder klicke zum Auswählen",
+      "acceptedFormats": "Ein Ordner mit automation.json im Stammverzeichnis",
+      "selectFolder": "Stattdessen Ordner auswählen",
+      "useFolderButton": "Um einen Ordner hochzuladen, nutze den Link unten.",
+      "singleZipOnly": "Lege ein einzelnes .zip-Paket ab, nicht mehrere Dateien.",
+      "zipRequired": "Das Paket muss eine .zip-Datei sein.",
+      "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
+      "scopeProject": "Projekt-Automatisierung",
+      "scopeOrg": "Organisations-Automatisierung",
+      "workflows": "Workflows",
+      "agents": "Agenten",
+      "requiresIntegrations": "Benötigt Integrationen",
+      "bundleFiles": "Paketdateien",
+      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+      "submit": "Paket hochladen",
+      "submitting": "Wird hochgeladen…",
+      "uploadSuccess": "Automatisierung hochgeladen",
+      "installHint": "Installiere sie aus der Automatisierungsliste, wenn du bereit bist.",
+      "replaceSuccess": "Automatisierung ersetzt",
+      "uploadFailed": "Automatisierung konnte nicht hochgeladen werden",
+      "replaceTitle": "Bestehende Automatisierung ersetzen?",
+      "replaceDescription": "Eine private Automatisierung namens „{slug}“ existiert bereits. Beim Hochladen wird ihr aktueller Inhalt überschrieben.",
+      "replaceConfirm": "Ersetzen",
+      "delete": "Hochgeladene Automatisierung löschen",
+      "deleteMenuLabel": "{name} löschen",
+      "deleteTitle": "Hochgeladene Automatisierung löschen",
+      "deleteDescription": "Entfernt die hochgeladene Automatisierung und ihre Dateien aus dieser Organisation. Integrierte Automatisierungen lassen sich nicht löschen.",
+      "deleteWarning": "Das Automatisierungs-Bundle wird dauerhaft entfernt. Deinstalliere die Automatisierung zuerst, falls sie noch installiert ist.",
+      "deleteSuccess": "Hochgeladene Automatisierung gelöscht",
+      "deleteFailed": "Die hochgeladene Automatisierung konnte nicht gelöscht werden",
+      "deleteInstalledBlocked": "Deinstalliere die Automatisierung, bevor du sie löschst."
+    },
+    "empty": {
+      "title": "Noch keine Automatisierungen",
+      "description": "Installierte Automatisierungen erscheinen hier."
+    },
+    "notFound": {
+      "title": "Automatisierung nicht gefunden",
+      "description": "Dieses Pack ist nicht installiert."
+    },
+    "viewInvalid": {
+      "title": "Diese Seite kann nicht angezeigt werden",
+      "description": "Die Definition der Seite ist ungültig. Installiere die Automatisierung neu, um ihre mitgelieferten Dateien wiederherzustellen.",
+      "reinstall": "Automatisierung neu installieren"
+    },
+    "editor": {
+      "notFoundTitle": "Workflow nicht gefunden",
+      "notFoundDescription": "Der Workflow dieser Automatisierung konnte nicht geladen werden."
+    },
+    "details": {
+      "scopeOrg": "Organisations-Automatisierung",
+      "scopeProject": "Projekt-Automatisierung",
+      "includesTitle": "Enthalten",
+      "pages": "Seiten",
+      "workflows": "Workflows",
+      "agents": "Agenten",
+      "skills": "Skills",
+      "requiresTitle": "Was du brauchst",
+      "requiresHint": "Diese verbindest du bei der Einrichtung."
+    },
+    "panel": {
+      "title": "Automatisierungsdetails",
+      "whatWillBeInstalled": "Was installiert wird",
+      "whatsInstalled": "Was installiert ist",
       "install": "Installieren",
-      "installing": "Wird installiert..."
-    },
-    "uploadDialog": {
-      "menuItem": "Datei hochladen",
-      "title": "Automatisierungen hochladen",
-      "description": "Lege Workflow-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert eine eigene Automatisierung. Für einen Ordner nutze den Link unter der Drop-Zone.",
-      "toastSuccess": "Automatisierungen importiert"
-    },
-    "templates": {
-      "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",
-      "fetching": "Vorlage wird geladen...",
-      "noTemplates": "Keine Vorlagen für diese Integration verfügbar."
-    },
-    "editDialog": {
-      "namePlaceholder": "Automatisierungsname eingeben"
-    },
-    "steps": {
-      "banners": {
-        "hasActiveTriggers": "Diese Automatisierung ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
-      },
-      "toolbar": {
-        "testAutomation": "Automatisierung testen",
-        "addStepUnavailable": "Das Bearbeiten von Schritten auf der Arbeitsfläche ist noch nicht verfügbar — nutze den KI-Assistenten oder bearbeite die Workflow-Konfiguration."
-      },
-      "execution": {
-        "viewingRun": "Lauf {id} wird angezeigt",
-        "clear": "Laufergebnisse ausblenden",
-        "nodeBadgeLabel": "Ausführungsstatus: {status}",
-        "duration": "Dauer: {duration}",
-        "attempts": "{count, plural, one {# Versuch} other {# Versuche}}",
-        "loopProgress": "Durchlauf {current} von {total}",
-        "output": "Ausgabe",
-        "error": "Fehler",
-        "outputTruncated": "Ausgabevorschau gekürzt",
-        "outputUnavailable": "Ausgabe ist zu groß für die Vorschau",
-        "status": {
-          "pending": "Ausstehend",
-          "running": "Läuft",
-          "completed": "Abgeschlossen",
-          "failed": "Fehlgeschlagen",
-          "waiting": "Wartet auf Eingabe",
-          "paused": "Pausiert (Debug)",
-          "success": "Erfolgreich",
-          "canceled": "Abgebrochen"
-        }
+      "sections": {
+        "pages": "Seiten",
+        "workflows": "Workflows",
+        "agents": "Agenten",
+        "skills": "Skills",
+        "integrations": "Integrationen",
+        "folder": "Ordner",
+        "members": "Automatisierungen"
       }
     },
-    "stepTypes": {
-      "start": "Start",
-      "llm": "LLM",
-      "condition": "Bedingung",
-      "loop": "Schleife",
-      "action": "Aktion",
-      "output": "Ausgabe"
+    "bundle": {
+      "memberCount": "Bundle · {count} Automatisierungen",
+      "needsAttention": "Aufmerksamkeit nötig"
     },
-    "edges": {
-      "yes": "Ja",
-      "no": "Nein"
+    "install": {
+      "install": "Installieren",
+      "installed": "Installiert",
+      "installFailed": "Automatisierung konnte nicht installiert werden",
+      "reinstall": "Neu installieren",
+      "setup": "Einrichtung abschließen",
+      "uninstall": "Deinstallieren",
+      "notInstalledDescription": "Installiere diese Automatisierung, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
+      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
+      "projectLabel": "Projekt",
+      "projectPlaceholder": "Projekt auswählen",
+      "projectSearchPlaceholder": "Projekte suchen …",
+      "noProjects": "Keine Projekte gefunden.",
+      "createProject": "Neues Projekt erstellen",
+      "menuLabel": "{name} verwalten",
+      "reinstallOverridesTitle": "Automatisierung neu installieren",
+      "reinstallOverridesDescription": "Das Neuinstallieren ersetzt diese geänderten Dateien durch die neuesten Versionen der Automatisierung. Deine Umgebungsvariablen und Secrets bleiben erhalten.",
+      "reinstallOverridesNoChanges": "Keine ihrer Dateien wurde geändert — das Neuinstallieren aktualisiert die Automatisierung aus der neuesten Vorlage. Deine Umgebungsvariablen und Secrets bleiben erhalten.",
+      "reinstalled": "Automatisierung neu installiert",
+      "reinstallFailed": "Automatisierung konnte nicht neu installiert werden",
+      "uninstallTitle": "Automatisierung deinstallieren",
+      "uninstallDescription": "Dadurch werden die Automatisierung und alles, was sie installiert hat, aus deiner Organisation entfernt.",
+      "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
+      "uninstalled": "Automatisierung deinstalliert",
+      "uninstallFailed": "Automatisierung konnte nicht deinstalliert werden",
+      "removeFromProject": "Aus Projekt entfernen",
+      "removedFromProject": "Aus dem Projekt entfernt",
+      "removeFromProjectFailed": "Die Automatisierung konnte nicht aus diesem Projekt entfernt werden",
+      "removeFromProjectTitle": "Aus diesem Projekt entfernen?",
+      "removeFromProjectDescription": "{name} wird in diesem Projekt nicht mehr angezeigt. Die Agenten, Workflows und andere Projekte bleiben unberührt – du kannst die Automatisierung jederzeit wieder hinzufügen.",
+      "uninstallBlocked": "Noch in Verwendung von: {projects}. Entferne die Automatisierung aus diesen Projekten, bevor du sie deinstallierst.",
+      "uninstallBlockedCount": "Entferne die Automatisierung aus ihren {count} Projekten, bevor du sie deinstallierst.",
+      "export": "Exportieren",
+      "exportFailed": "Automatisierung konnte nicht exportiert werden",
+      "uninstallBundle": "Bundle deinstallieren",
+      "uninstallBundleTitle": "Bundle deinstallieren?",
+      "uninstallBundleDescription": "Entfernt alle {count} Automationen, die dieses Bundle installiert hat, samt ihren Agenten und Einstellungen.",
+      "uninstallContents": "Was dabei entfernt wird",
+      "bundleUninstalled": "Bundle deinstalliert",
+      "bundleUninstallFailed": "Bundle konnte nicht deinstalliert werden"
     },
-    "step": {
-      "openStep": "Schritt {name} öffnen",
-      "openStepDefault": "Schritt öffnen"
-    },
-    "sidePanel": {
-      "aiAssistant": "KI-Assistent",
-      "testAutomation": "Automatisierung testen",
-      "stepTooltip": "{stepType}-Schritt",
-      "end": "Ende",
-      "close": "Panel schließen",
-      "validationErrors": "Validierungsfehler",
-      "validationWarnings": "Warnungen",
-      "stepSaveFailed": "Schritt konnte nicht gespeichert werden",
-      "saving": "Speichern...",
-      "resizePanel": "Panel-Größe ändern",
-      "stepEditor": "Schritt-Editor",
-      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar.",
-      "env": "Umgebung & Geheimnisse",
-      "envHelp": "Variablen, die in die Sandbox dieses Schritts eingespeist werden und bei Namensgleichheit Vorrang vor den Werten auf Automatisierungsebene haben."
-    },
-    "nextSteps": {
-      "endWorkflow": "Workflow beenden",
-      "transitions": {
-        "success": "Nächster Schritt (bei Erfolg)",
-        "failure": "Nächster Schritt (bei Fehler)",
-        "true": "Nächster Schritt (wenn wahr)",
-        "false": "Nächster Schritt (wenn falsch)",
-        "loop": "Nächster Schritt (Schleifeniteration)",
-        "done": "Nächster Schritt (Schleife abgeschlossen)"
+    "readiness": {
+      "title": "Einrichtung abschließen",
+      "summaryBroken": "Installierte Dateien fehlen",
+      "summaryIntegrations": "Nicht verbunden: {names}",
+      "summaryAgents": "Einrichtung nötig: {names}",
+      "mismatch": {
+        "cursorKeyOnClaudeRuntime": "{agent} läuft als Claude Code, in Umgebung steht aber {configuredKeys} — für diese Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle Externe Laufzeit auf Cursor und speichere, oder trage das passende Secret ein.",
+        "claudeKeyOnCursorRuntime": "{agent} läuft als Cursor, in Umgebung steht aber {configuredKeys} — für diese Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle Externe Laufzeit auf Claude Code und speichere, oder trage das passende Secret ein."
       }
     },
-    "createStep": {
-      "title": "Schritt erstellen",
-      "description": "Neuen Schritt zum ausgewählten Workflow hinzufügen",
-      "namePlaceholder": "analyze_data",
-      "creating": "Erstelle...",
-      "createButton": "Schritt erstellen",
-      "type": "Typ",
-      "types": {
-        "action": "Aktion",
-        "llm": "LLM",
-        "condition": "Bedingung",
-        "output": "Ausgabe"
+    "config": {
+      "invalidValue": "{label}: Prüfe das Format und versuche es erneut."
+    },
+    "installWizard": {
+      "title": "{name} einrichten",
+      "progress": "{label} · Schritt {current} von {total}",
+      "stepsAriaLabel": "Einrichtungsschritte",
+      "projectStepLabel": "Projekt",
+      "installStepLabel": "Installieren",
+      "installReady": "Bereit, {name} zu installieren.",
+      "installNeeds": "Diese Automatisierung nutzt folgende Integrationen: {integrations}.",
+      "reviewStepLabel": "Änderungen prüfen",
+      "reviewTitle": "Die Installation überschreibt vorhandene Dateien",
+      "reviewConfirmLabel": "Diese Dateien durch die Versionen der Automatisierung ersetzen",
+      "bundleReviewDescription": "Dieses Bundle installiert mehrere Automatisierungen auf einmal — prüfe die Änderungen jeder einzelnen unten separat.",
+      "bundleInstallReady": "Bereit, {name} zu installieren ({count} Automatisierungen).",
+      "bundleMembersFailed": "{count} Automatisierungen konnten nicht installiert werden",
+      "overridesChanged": "Die Dateien haben sich während der Prüfung geändert. Starte erneut, um die aktuelle Liste zu sehen.",
+      "reviewKind": {
+        "agent": "Agenten",
+        "view": "Seiten",
+        "integration": "Integrationen",
+        "skill": "Skills",
+        "manifest": "Manifest",
+        "icon": "Icon",
+        "asset": "Assets"
       },
-      "configLabel": "Konfiguration (JSON)",
-      "validation": {
-        "nameRequired": "Schrittname ist erforderlich",
-        "nameFormat": "Format: Buchstaben, Zahlen, \"_\", \"-\""
+      "doneStepLabel": "Fertig",
+      "doneTitle": "{name} ist bereit",
+      "doneNeedsSetupTitle": "Einrichtung von {name} abschließen",
+      "doneNeedsSetup": "Eine erforderliche Integration ist noch nicht verbunden — verbinde sie im Integrationen-Tab der Automatisierung, bevor sie laufen kann.",
+      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
+      "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der Automatisierung abschließen.",
+      "finish": "Fertigstellen",
+      "skipForNow": "Später erledigen",
+      "installFailed": "Automatisierung konnte nicht installiert werden",
+      "integrationUnavailable": "{integration} ist in dieser Organisation noch nicht verfügbar. Verbinde sie unter Einstellungen → Integrationen.",
+      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut.",
+      "authModeStepLabel": "Agent-Modus",
+      "authModeDescription": "Jeder Automatisierungs-Agent kann den verwalteten Modellzugang der Plattform nutzen oder eigene Zugangsdaten mitbringen.",
+      "authModeManaged": "Verwaltet",
+      "authModeByo": "Eigener Schlüssel",
+      "providerKeyLabel": "{provider}-API-Schlüssel",
+      "connectProvider": "{provider} verbinden",
+      "providerConnectFailed": "Anbieter konnte nicht verbunden werden",
+      "agentNeedsKeys": "{name} braucht diese Zugangsdaten zum Ausführen.",
+      "saveSecrets": "Speichern"
+    },
+    "confirm": "Bist du sicher?",
+    "binding": {
+      "empty": "Noch nichts anzuzeigen.",
+      "blocked": "Diese Ansicht darf {path} nicht aufrufen.",
+      "awaitingSelection": "Wähle einen Eintrag aus, um ihn hier anzuzeigen."
+    },
+    "detail": {
+      "title": "Details",
+      "activity": "Aktivität",
+      "run": "Workflow-Lauf",
+      "discuss": "Diskussion",
+      "openLink": "Link öffnen",
+      "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…"
+    },
+    "review": {
+      "none": "Keine ausstehenden Prüfungen.",
+      "awaiting": "Wartet auf Genehmigung"
+    },
+    "issues": {
+      "createTask": "Aufgabe erstellen"
+    },
+    "list": {
+      "refresh": "Aktualisieren",
+      "error": "Daten konnten nicht geladen werden: {error}",
+      "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
+      "needsConfig": "Konfiguriere diese Automatisierung, um Daten zu laden.",
+      "created": "Erstellt",
+      "start": "Starten",
+      "markDone": "Als erledigt markieren",
+      "merge": "Pull Request mergen",
+      "all": "Alle"
+    },
+    "agents": {
+      "none": "Keine Agenten konfiguriert.",
+      "error": "Agenten konnten nicht geladen werden: {error}",
+      "editInstructions": "Anweisungen bearbeiten",
+      "envSecrets": "Env & Secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Verwaltet",
+        "error": "Auth-Modus des Agenten konnte nicht gewechselt werden"
+      },
+      "instructions": {
+        "title": "Anweisungen bearbeiten — {name}",
+        "description": "Der System-Prompt, der diesen Agenten steuert. Änderungen gelten ab dem nächsten Lauf.",
+        "placeholder": "Beschreiben Sie, wie sich dieser Agent verhalten soll…",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Anweisungen gespeichert",
+        "saveError": "Anweisungen konnten nicht gespeichert werden",
+        "loadError": "Dieser Agent konnte nicht geladen werden."
+      },
+      "env": {
+        "title": "Umgebung & Secrets — {name}",
+        "description": "Umgebungsvariablen und Secrets für die Läufe dieses Agenten. Secrets werden verschlüsselt gespeichert, maskiert angezeigt und erst zur Laufzeit entschlüsselt.",
+        "none": "Noch keine Umgebungsvariablen.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "Wert",
+        "secret": "Secret",
+        "secretKept": "•••••••• (unverändert)",
+        "add": "Variable hinzufügen",
+        "remove": "Entfernen",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen",
+        "saved": "Umgebung gespeichert",
+        "saveError": "Umgebung konnte nicht gespeichert werden",
+        "badKey": "„{key}“ ist kein gültiger Umgebungsvariablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
+        "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
       }
     },
-    "toast": {
-      "created": "Automatisierung erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden"
+    "workflow": {
+      "none": "Dieser Workflow hat keine Schritte.",
+      "error": "Workflow konnte nicht geladen werden: {error}"
     },
-    "validation": {
-      "duplicateName": "Eine Automatisierung mit einem passenden Bezeichner existiert bereits. Wähle einen eindeutigeren Namen.",
-      "invalidName": "Der Name muss mindestens einen Buchstaben oder eine Ziffer enthalten"
+    "runs": {
+      "backToApp": "Zurück zur Automatisierung",
+      "none": "Noch keine Läufe.",
+      "colRun": "Lauf",
+      "colStatus": "Status",
+      "colStarted": "Gestartet",
+      "watchLive": "Live ansehen",
+      "queuedForCapacity": "Wartet auf Kapazität",
+      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
+      "failed": "Fehlgeschlagen",
+      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
     },
-    "deleteAutomation": {
-      "title": "Automatisierung löschen",
-      "description": "Möchtest du \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+    "membership": {
+      "boundProjectsTitle": "Gebundene Projekte",
+      "boundProjectsDescription": "Führe diese Automatisierung in bestimmten Projekten aus. Füge ein Projekt hinzu, um es zu binden, oder entferne es, um die Bindung zu lösen.",
+      "boundProjectsPlaceholder": "Projekte binden…",
+      "noProjectsAvailable": "Keine Projekte verfügbar.",
+      "saveFailed": "Die Projekte dieser Automatisierung konnten nicht aktualisiert werden.",
+      "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
+      "notInProjectDescription": "Füge diese Automatisierung zu diesem Projekt hinzu, um sie hier zu nutzen.",
+      "addToThisProject": "Zu diesem Projekt hinzufügen"
     },
-    "assistant": {
-      "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
-      "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
+    "board": {
+      "hiddenCards": "{count, plural, one {# Karte ausgeblendet — keine passende Spalte} other {# Karten ausgeblendet — keine passende Spalte}}",
+      "moveTo": "Verschieben nach",
+      "truncated": "Nur die ersten Karten werden angezeigt — die Liste wurde gekürzt."
     },
-    "tester": {
-      "inputLabel": "Testeingabe (JSON)",
-      "inputDescription": "Gib Eingabedaten im JSON-Format für die Automatisierungsausführung an",
-      "validation": {
-        "invalidJson": "Gib gültiges JSON ein, um diese Automatisierung auszuführen.",
-        "missingRequired": "Konfiguriere die erforderlichen Felder, bevor du ausführst: {fields}"
-      },
-      "tip": "Probelauf simuliert die Ausführung ohne Nebeneffekte. Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.",
-      "execute": "Ausführen",
-      "executing": "Wird ausgeführt...",
-      "dryRunning": "Wird simuliert...",
-      "dryRun": {
-        "button": "Probelauf",
-        "success": "Probelauf abgeschlossen",
-        "failed": "Probelauf hat Probleme gefunden",
-        "errors": "Fehler",
-        "warnings": "Warnungen",
-        "executionPath": "Ausführungspfad",
-        "fileBasedUnsupported": "Probelauf ist für dateibasierte Workflows noch nicht verfügbar."
-      },
-      "toast": {
-        "invalidJson": "Ungültiges JSON",
-        "invalidJsonDescription": "Bitte gib gültiges JSON ein",
-        "executionStarted": "Ausführung gestartet",
-        "executionId": "Ausführungs-ID: {id}",
-        "testFailed": "Ausführung fehlgeschlagen",
-        "startFailed": "Ausführung konnte nicht gestartet werden"
-      },
-      "result": {
-        "completed": "Abgeschlossen",
-        "failed": "Ausführung fehlgeschlagen",
-        "running": "Läuft …",
-        "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
-        "runningStep": "Aktueller Schritt: {step}",
-        "stepsHeading": "Ausgeführte Schritte",
-        "openStep": "Einstellungen des fehlgeschlagenen Schritts {step} öffnen",
-        "errorCode": {
-          "start_failure": "Die Ausführung konnte nicht gestartet werden",
-          "step_failure": "Ein Schritt ist fehlgeschlagen",
-          "timeout": "Die Ausführung hat das Zeitlimit überschritten",
-          "canceled": "Die Ausführung wurde abgebrochen",
-          "invalid_input": "Die Eingabe war ungültig"
-        }
-      },
-      "debug": {
-        "button": "Debuggen",
-        "title": "Debug-Sitzung",
-        "pausedAt": "Pausiert vor Schritt: {step}",
-        "step": "Schritt",
-        "continue": "Fortsetzen",
-        "stop": "Stoppen",
-        "variables": "Laufvariablen",
-        "variablesLoading": "Variablen werden geladen …",
-        "variablesError": "Die Laufvariablen konnten nicht geladen werden."
-      }
+    "chat": {
+      "roleUnavailable": "Diese Automatisierung verknüpft die Rolle „{role}“ noch mit keinem Agenten."
+    },
+    "integrationsTab": {
+      "emptyTitle": "Keine Integrationen erforderlich",
+      "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
     }
   },
   "changelog": {
@@ -1329,9 +997,9 @@
       "defaultAgent": "Assistent",
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
-      "addAgent": "Katalog",
       "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
-      "lockedExternalLabel": "Agent: {agent} (für diesen Sandbox-Chat festgelegt)"
+      "lockedExternalLabel": "Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)",
+      "browseAutomations": "Automatisierungen durchsuchen"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -1501,7 +1169,6 @@
       "pinned": "Immer aktiv",
       "pinnedTooltip": "Diese Sandbox ist angepinnt und bleibt immer aktiv."
     },
-    "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
     "audioDurationExceeded": "{names}: Audio länger als das Limit von {maxHours} Stunden. Bitte in kürzere Segmente aufteilen.",
@@ -1950,7 +1617,10 @@
       "fullscreen": "Auf Vollbild erweitern",
       "exitFullscreen": "Vollbild beenden"
     },
-    "kbFolderChipFiles": "{count, plural, one {# Datei} other {# Dateien}}"
+    "kbFolderChipFiles": "{count, plural, one {# Datei} other {# Dateien}}",
+    "embedded": {
+      "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
+    }
   },
   "common": {
     "optional": "optional",
@@ -2010,7 +1680,8 @@
       "import": "Importieren",
       "importing": "Wird importiert...",
       "openMenu": "Menü öffnen",
-      "deleteSelected": "Ausgewählte löschen"
+      "deleteSelected": "Ausgewählte löschen",
+      "export": "Exportieren"
     },
     "unsavedChanges": {
       "title": "Ungespeicherte Änderungen",
@@ -2044,7 +1715,7 @@
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen",
       "dropOrClick": "Lege JSON-Dateien oder .zip hier ab",
-      "acceptHint": "JSON-Dateien oder .zip-Archive",
+      "acceptHint": "JSON-Dateien, Ordner oder.zip-Archive",
       "uploadFolderInstead": "Stattdessen Ordner auswählen",
       "importBlocked": "Nichts zum Importieren bereit. Behebe ungültige Dateien oben oder passe die Überschreiben-Einstellung bei Konflikten an.",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
@@ -2125,8 +1796,8 @@
       "back": "Zurück",
       "backTo": "Zurück zu {page}",
       "breadcrumb": "Brotkrumennavigation",
-      "automationsNavigation": "Automatisierungen-Navigation",
       "agentsNavigation": "Agents-Navigation",
+      "automationsNavigation": "Automatisierungen-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
       "actionsMenu": "Aktionsmenü",
       "moreInfo": "Weitere Informationen",
@@ -2137,7 +1808,8 @@
       "validationStatus": "{message}: {status}",
       "skipToContent": "Zum Hauptinhalt springen",
       "mainNavigation": "Hauptnavigation",
-      "projectsNavigation": "Projektnavigation"
+      "projectsNavigation": "Projektnavigation",
+      "workflowNavigation": "Workflow-Navigation"
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
@@ -2256,9 +1928,10 @@
     "reachingServer": "Verbindung zum Server wird hergestellt"
   },
   "conversations": {
-    "title": "Konversationen",
+    "title": "Inbox",
     "unknownCustomer": "Unbekannter Kunde",
     "messagePlaceholder": "Nachricht eingeben",
+    "searchPlaceholder": "Konversationen durchsuchen",
     "suggestEditsPlaceholder": "Änderungen am Text vorschlagen (optional)",
     "fallbackImageAttachment": "Bildanhang",
     "fallbackAttachment": "Anhang",
@@ -2376,15 +2049,19 @@
       "empty": "Keine Konversationen in diesem Tab"
     },
     "activate": {
-      "title": "Konversationen aktivieren",
-      "description": "Verbinde deine E-Mail, um mit Konversationen zu beginnen",
-      "connectEmail": "E-Mail verbinden"
+      "title": "Noch keine Konversationen",
+      "description": "Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.",
+      "noAutomationTitle": "Richte deine Inbox ein",
+      "noAutomationDescription": "Installiere eine E-Mail-Automatisierung (Gmail, Outlook oder IMAP), um hier Konversationen zu lesen und zu beantworten.",
+      "browseAutomations": "Automatisierungen durchsuchen"
     },
     "filter": {
       "label": "Nach Lesestatus filtern",
       "all": "Alle",
       "read": "Gelesen",
-      "unread": "Ungelesen"
+      "unread": "Ungelesen",
+      "channel": "Kanal",
+      "allChannels": "Alle Kanäle"
     },
     "category": {
       "churnSurvey": "Abwanderungsumfrage",
@@ -2483,7 +2160,6 @@
     "thisMember": "dieses Mitglied",
     "confirmRemoveMember": "Bist du sicher, dass du {name} aus dem Team entfernen möchtest? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.",
     "toSend": "zum Senden",
-    "selectConversation": "Konversation auswählen",
     "vendorInfo": {
       "title": "Lieferanteninformationen"
     },
@@ -2861,10 +2537,6 @@
     "knowledgeEntries": {
       "title": "Noch keine Wissenseinträge",
       "description": "Speichere Fakten aus dem Chat oder füge Einträge hinzu, um deine KI zu verbessern"
-    },
-    "automations": {
-      "title": "Noch keine Automatisierungen",
-      "description": "Erstelle deine erste Automatisierung, um loszulegen"
     },
     "agents": {
       "title": "Noch keine Agents",
@@ -4375,7 +4047,7 @@
     },
     "automations": {
       "title": "Automatisierungen",
-      "description": "deine Automatisierungs-Workflows verwalten."
+      "description": "Installierte Pakete und die Automatisierungen, die sie deiner Organisation hinzufügen."
     },
     "automation": {
       "title": "Automatisierung",
@@ -4572,13 +4244,27 @@
     "enterpriseSso": {
       "title": "Enterprise-SSO",
       "description": "Single Sign-On und SCIM-Bereitstellung konfigurieren."
+    },
+    "workflow": {
+      "title": "Workflow",
+      "description": "Workflow anzeigen und bearbeiten."
+    },
+    "workflowConfiguration": {
+      "title": "Workflow-Konfiguration",
+      "description": "Workflow-Einstellungen konfigurieren."
+    },
+    "workflowExecutions": {
+      "title": "Workflow-Ausführungen",
+      "description": "Ausführungsverlauf des Workflows anzeigen."
+    },
+    "workflowTriggers": {
+      "title": "Trigger",
+      "description": "Workflow-Trigger, Zeitpläne und Webhooks verwalten."
     }
   },
   "navigation": {
     "newChat": "Neuer Chat",
     "chat": "Chat",
-    "apps": "Apps",
-    "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
     "more": "Mehr",
@@ -4779,33 +4465,6 @@
       "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Variablen und Geheimnisse, die in alle deine Agent-Sandboxes eingespeist werden.",
       "note": "Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle deine Sandboxes eingespeist."
-    },
-    "add": {
-      "keyLabel": "Name",
-      "keyPlaceholder": "z. B. MY_API_KEY",
-      "keyInvalid": "Muss mit einem Buchstaben oder Unterstrich beginnen und darf nur Buchstaben, Zahlen und Unterstriche enthalten.",
-      "valueLabel": "Wert",
-      "valuePlaceholder": "Wert",
-      "secretLabel": "Geheimnis",
-      "secretHelp": "Wenn aktiviert, wird der Wert verschlüsselt und ist nur beschreibbar — nach dem Speichern wird er nie wieder angezeigt.",
-      "whitespaceWarning": "Dieser Wert enthält Leerzeichen oder Zeilenumbrüche. Anmeldedaten sollten das nicht — falls du ein Token eingefügt hast, das im Terminal über mehrere Zeilen umgebrochen wurde, entferne sie. (Mehrzeilige Geheimnisse wie PEM-Schlüssel dürfen sie behalten.)",
-      "submit": "Hinzufügen"
-    },
-    "list": {
-      "empty": "Noch keine Umgebungsvariablen.",
-      "secretBadge": "Geheimnis",
-      "updatedHint": "Aktualisiert {when}",
-      "delete": "Löschen",
-      "deleteConfirmTitle": "Variable löschen?",
-      "deleteConfirmDescription": "\"{key}\" löschen? Dadurch wird sie aus allen deinen Sandboxes entfernt."
-    },
-    "toasts": {
-      "saved": "Gespeichert.",
-      "deleted": "Gelöscht."
-    },
-    "errors": {
-      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
-      "deleteFailed": "Löschen fehlgeschlagen. Bitte erneut versuchen."
     }
   },
   "piiConfigPanel": {
@@ -5291,7 +4950,7 @@
     "tokenSources": {
       "editTitle": "Token-Quelle bearbeiten",
       "newTitle": "Neue Token-Quelle",
-      "new": "Neue Token-Quelle",
+      "new": "Neue Quelle",
       "slug": "Slug",
       "displayName": "Anzeigename",
       "endpoint": "Endpunkt-URL",
@@ -5470,10 +5129,6 @@
     },
     "agents": {
       "title": "Agenten",
-      "tabs": {
-        "list": "Liste",
-        "metrics": "Metriken"
-      },
       "entityLabel": "Agenten",
       "tableCaption": "Installierte Agents",
       "createAgent": "Agent erstellen",
@@ -5481,7 +5136,6 @@
         "blank": "Leer",
         "fromTemplate": "Aus Vorlage"
       },
-      "appBadge": "App",
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",
@@ -5519,7 +5173,6 @@
         "webhook": "Webhook",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf",
-        "metrics": "Leistung",
         "environment": "Umgebung"
       },
       "history": {
@@ -5543,7 +5196,7 @@
       "uploadDialog": {
         "menuItem": "Datei hochladen",
         "title": "Agents hochladen",
-        "description": "Lege Agent-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert einen eigenen Agent. Für einen Ordner nutze den Link unter der Drop-Zone.",
+        "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
         "toastSuccess": "Agents importiert"
       },
       "general": {
@@ -5583,11 +5236,11 @@
         "sectionIntegrationBindings": "Gebundene Integrationen",
         "sectionIntegrationBindingsDescription": "Bestimmte Integrationen als dedizierte Tools binden. Der Agent muss den Integrationsnamen nicht angeben.",
         "noIntegrationsAvailable": "Keine aktiven Integrationen verfügbar.",
-        "sectionWorkflowBindings": "Gebundene Workflows",
-        "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
-        "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
+        "sectionAutomationBindings": "Gebundene Automatisierungen",
+        "sectionAutomationBindingsDescription": "Bestimmte Automatisierungen als dedizierte Tools binden. Der Agent muss den Namen der Automatisierung nicht angeben.",
+        "noAutomationsAvailable": "Keine aktiven Automatisierungen verfügbar.",
         "bindIntegrationsPlaceholder": "Integrationen binden…",
-        "bindWorkflowsPlaceholder": "Workflows binden…",
+        "bindAutomationsPlaceholder": "Automatisierungen binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",
@@ -5857,7 +5510,8 @@
       "env": {
         "title": "Umgebung & Geheimnisse",
         "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
-      }
+      },
+      "automationBadge": "Automatisierung"
     },
     "skills": {
       "entityLabel": "Skills",
@@ -5875,11 +5529,14 @@
       "manageInSettings": "In Skill-Einstellungen verwalten",
       "actions": {
         "duplicate": "Duplizieren",
-        "replaceBundle": "Bundle ersetzen"
+        "replaceBundle": "Bundle ersetzen",
+        "viewDetails": "Details anzeigen",
+        "menuLabel": "{name} verwalten"
       },
       "columns": {
         "name": "Skill",
-        "description": "Beschreibung"
+        "description": "Beschreibung",
+        "loadError": "SKILL.md konnte nicht gelesen werden"
       },
       "loadErrorDetail": {
         "fixHint": "Ersetze das Bundle durch ein gültiges Zip oder lösche den Skill.",
@@ -5897,17 +5554,13 @@
         }
       },
       "form": {
-        "slug": "Slug",
         "description": "Beschreibung"
       },
       "section": {
-        "overview": "Übersicht",
         "body": "Anweisungen (Body)",
-        "bundle": "Bundle-Dateien",
         "auditHistory": "Letzte Änderungen"
       },
       "metadata": {
-        "bundleFiles": "Bundle-Dateien",
         "license": "Lizenz"
       },
       "body": {
@@ -5918,7 +5571,8 @@
         "action": {
           "upload_skill": "Hochgeladen",
           "duplicate_skill": "Dupliziert",
-          "delete_skill": "Gelöscht"
+          "delete_skill": "Gelöscht",
+          "update_skill": "Aktualisiert"
         }
       },
       "viewer": {
@@ -5928,14 +5582,12 @@
         "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert.",
         "notFound": "Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem Baum."
       },
-      "bundle": {
-        "empty": "Noch keine Bundle-Dateien."
-      },
       "detail": {
         "descriptionEmpty": "(keine Beschreibung)",
         "tree": {
           "heading": "Bundle",
-          "empty": "Nur SKILL.md — Bundle-Assets liegen unter scripts/, references/ oder assets/."
+          "empty": "Nur SKILL.md — Bundle-Assets liegen unter scripts/, references/ oder assets/.",
+          "headingCount": "Bundle · {fileCount} Dateien"
         }
       },
       "upload": {
@@ -5966,6 +5618,43 @@
         "replaceDescription": "Ein Skill mit dem Namen \"{slug}\" existiert bereits. Das Hochladen überschreibt seinen aktuellen Inhalt.",
         "replaceConfirm": "Ersetzen",
         "replaceSuccess": "Skill-Bundle ersetzt"
+      },
+      "addMenu": {
+        "label": "Skill hinzufügen"
+      },
+      "createMenu": {
+        "blank": "Leer",
+        "fromTemplate": "Aus Vorlage"
+      },
+      "createDialog": {
+        "title": "Skill erstellen",
+        "nameLabel": "Name",
+        "namePlaceholder": "mein-skill",
+        "nameHelp": "Eindeutige ID – Kleinbuchstaben, Zahlen und einzelne Bindestriche. Daraus wird der Slug des Skills.",
+        "namePatternError": "Nutze Kleinbuchstaben, Zahlen und einzelne Bindestriche (z. B. mein-skill).",
+        "submit": "Erstellen",
+        "creating": "Erstelle...",
+        "created": "Skill erstellt",
+        "exists": "Ein Skill mit diesem Namen existiert bereits.",
+        "createFailed": "Skill konnte nicht erstellt werden"
+      },
+      "templateDialog": {
+        "title": "Neuer Skill aus Vorlage",
+        "description": "Starte mit einem mitgelieferten Skill – die Kopie kannst du frei anpassen.",
+        "templateLabel": "Vorlage",
+        "templatePlaceholder": "Vorlage auswählen",
+        "empty": "Keine mitgelieferten Skills verfügbar."
+      },
+      "noResults": {
+        "title": "Keine passenden Skills",
+        "description": "Keine Skills passen zu deiner Suche. Versuch einen anderen Begriff."
+      },
+      "editor": {
+        "saveSuccess": "Skill gespeichert",
+        "saveFailed": "Skill konnte nicht gespeichert werden"
+      },
+      "export": {
+        "failed": "Skill konnte nicht exportiert werden"
       }
     },
     "integrations": {
@@ -6015,9 +5704,7 @@
       },
       "empty": {
         "connectedTitle": "Keine verbundenen Integrationen",
-        "connectedDescription": "Verbundene Integrationen werden hier angezeigt.",
-        "searchTitle": "Keine Ergebnisse gefunden",
-        "searchDescription": "Passe deine Suche an oder fordere eine neue Integration an."
+        "connectedDescription": "Verbundene Integrationen werden hier angezeigt."
       },
       "toast": {
         "disconnected": "Getrennt",
@@ -6125,11 +5812,7 @@
         "updateTypeMismatch": "Pakettyp stimmt nicht mit dieser Integration überein. Ein REST-API-Paket kann nicht auf eine SQL-Integration angewendet werden und umgekehrt.",
         "updatePreview": "Änderungsvorschau",
         "newOperations": "{count} Operationen",
-        "newCodeLines": "{count} Codezeilen",
-        "relatedAutomations": "Automatisierungen",
-        "noRelatedAutomations": "Noch keine Automatisierungen verwenden diese Integration",
-        "createAutomation": "Automatisierung erstellen",
-        "loadingAutomations": "Automatisierungen werden geladen"
+        "newCodeLines": "{count} Codezeilen"
       },
       "panel": {
         "addIntegration": "Integration hinzufügen",
@@ -6186,9 +5869,9 @@
           "editor": "Bearbeiter",
           "member": "Mitglied"
         },
-        "autoRoleLabel": "Rollen automatisch zuweisen",
+        "autoRoleLabel": "Rollen automatisch vom IdP zuweisen",
         "autoRoleDescription": "Weist Plattformrollen bei der Anmeldung anhand der Gruppen, App-Rollen oder Claims des IdP zu.",
-        "autoTeamLabel": "Gruppen mit Teams synchronisieren",
+        "autoTeamLabel": "IdP-Gruppen mit Teams synchronisieren",
         "autoTeamDescription": "Erstellt und aktualisiert Teams aus den Gruppenmitgliedschaften des IdP bei der Anmeldung.",
         "excludeGroupsLabel": "Gruppen ausschließen",
         "excludeGroupsHelp": "Kommagetrennte Gruppennamen, die bei der Team-Synchronisierung übersprungen werden.",
@@ -6282,7 +5965,16 @@
             "s5": "Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu; weichen die Namen ab, tragen Sie die passenden Attributnamen unter „Erweitert\" ein."
           }
         }
-      }
+      },
+      "noResults": {
+        "title": "Keine Ergebnisse gefunden",
+        "description": "Passe deine Suche an oder fordere eine neue Integration an."
+      },
+      "export": {
+        "failed": "Integration konnte nicht exportiert werden"
+      },
+      "viewDetails": "Details anzeigen",
+      "menuLabel": "{name} verwalten"
     },
     "providers": {
       "title": "Anbieter",
@@ -6986,7 +6678,12 @@
       "accentColor": "Akzentfarbe",
       "uploadLogo": "Logo hochladen",
       "uploadFavicon": "Favicon hochladen",
-      "preview": "Branding-Vorschau"
+      "preview": "Branding-Vorschau",
+      "previewStatus": {
+        "open": "Offen",
+        "closed": "Geschlossen",
+        "spam": "Spam"
+      }
     },
     "dataResidency": {
       "readOnly": {
@@ -7125,12 +6822,12 @@
     "taskReviewReminderBody": "Agenten-Arbeit an \"{title}\" wartet weiterhin auf dein Review.",
     "taskReviewEscalated": "Review überfällig",
     "taskReviewEscalatedBody": "Ein Review zu \"{title}\" wartet seit über einem Tag.",
-    "humanInputEscalated": "Automatisierung wartet auf Eingabe",
+    "humanInputEscalated": "Workflow wartet auf Eingabe",
     "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
     "conversationInboundMessage": "Neue Konversationsnachricht",
-    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne Konversationen, um zu antworten.",
+    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne deine Inbox, um zu antworten.",
     "agentEscalation": "Agenten-Eskalation",
     "agentEscalationBody": "{agent} hat eskaliert: {reason}",
     "email": {
@@ -7139,47 +6836,14 @@
     }
   },
   "projectSecrets": {
-    "title": "Secrets",
+    "title": "Umgebung",
     "description": "Verschlüsselte Zugangsdaten, die die Agenten dieses Projekts nutzen können. Werte werden nach dem Speichern nie angezeigt.",
-    "addButton": "Secret hinzufügen",
-    "empty": "Noch keine Secrets.",
     "agentAccessTitle": "Für Agenten verfügbar",
     "agentAccessBody": "Agent-Runtimes (z. B. Hermes, OpenClaw) können diese Secrets nutzen, wenn sie Aufgaben für dieses Projekt ausführen — etwa um sich in deinem Namen bei externen Diensten anzumelden. Werte werden zur Laufzeit eingefügt und niemals dem Chat-Modell gezeigt oder in der Oberfläche angezeigt.",
-    "nameLabel": "Name",
-    "nameInvalid": "Der Name muss mit einem Buchstaben beginnen und darf nur A–Z, 0–9 und Unterstriche enthalten.",
-    "valueLabel": "Wert",
-    "descriptionLabel": "Beschreibung",
-    "typeLabel": "Typ",
-    "typeApiKey": "API-Schlüssel",
-    "typeBearer": "Bearer-Token",
-    "typeBasic": "Benutzername & Passwort",
-    "typeCustom": "Benutzerdefiniert",
-    "apiKeyValueLabel": "API-Schlüssel",
-    "tokenLabel": "Token",
-    "usernameLabel": "Benutzername",
-    "passwordLabel": "Passwort",
-    "basicNameHint": "Wird als zwei Secrets gespeichert — dein Name plus die Suffixe _USERNAME und _PASSWORD.",
-    "nameShapeHint": "Großbuchstaben, Zahlen und Unterstriche; muss mit einem Buchstaben beginnen.",
-    "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
-    "saveSuccess": "Secret gespeichert",
-    "editButton": "Bearbeiten",
-    "editTitle": "Secret bearbeiten",
-    "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
-    "updateSuccess": "Secret aktualisiert",
-    "deleteSuccess": "Secret gelöscht",
-    "overwriteWarningTitle": "Name bereits vergeben",
-    "overwriteWarningBody": "Ein Secret mit dem Namen {names} existiert bereits. Beim Speichern wird sein gespeicherter Wert ersetzt — das kann nicht rückgängig gemacht werden.",
-    "overwriteConfirmLabel": "Vorhandenes Secret überschreiben",
-    "overwriteButton": "Überschreiben",
     "errors": {
       "accessDeniedTitle": "Admin-Zugriff erforderlich",
-      "nameInvalid": "Nur Großbuchstaben, Zahlen und Unterstriche verwenden, beginnend mit einem Buchstaben (max. 64 Zeichen).",
-      "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an und versuche es noch einmal.",
-      "forbidden": "Du hast keine Berechtigung, die Secrets dieses Projekts zu verwalten.",
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf die Secrets dieses Projekts. Nur Projekt-Administratoren können sie ansehen oder verwalten.",
-      "PROJECT_NOT_FOUND": "Dieses Projekt existiert nicht mehr.",
-      "SECRET_NAME_INVALID": "Secret-Namen müssen mit einem Buchstaben beginnen und dürfen nur Großbuchstaben, Zahlen und Unterstriche enthalten (max. 64 Zeichen).",
-      "SECRET_VALUE_INVALID": "Gib einen Secret-Wert mit 1 bis 8192 Zeichen ein."
+      "PROJECT_NOT_FOUND": "Dieses Projekt existiert nicht mehr."
     }
   },
   "tasks": {
@@ -7239,7 +6903,8 @@
       "board": "Board",
       "list": "Liste",
       "table": "Tabelle",
-      "timeline": "Zeitachse"
+      "timeline": "Zeitachse",
+      "backlog": "Backlog"
     },
     "board": {
       "noTasks": "Keine Aufgaben"
@@ -7372,6 +7037,16 @@
       "humanLabel": "Menschen",
       "costTrend": "Tägliche Ausgaben",
       "costLabel": "Ausgaben"
+    },
+    "backlog": {
+      "caption": "Backlog-Aufgaben zur Sichtung",
+      "actions": "Aktionen",
+      "start": "Starten",
+      "close": "Schließen",
+      "empty": {
+        "title": "Keine Aufgaben zu sichten",
+        "description": "Vorgeschlagene Aufgaben landen hier — aus Automatisierungen oder von deinem Team — bis du sie startest oder schließt."
+      }
     }
   },
   "tables": {
@@ -7384,7 +7059,6 @@
       "member": "Mitglied",
       "role": "Rolle",
       "joined": "Beigetreten",
-      "automation": "Automatisierung",
       "document": "Dokument",
       "size": "Größe",
       "ragStatus": "RAG-Status",
@@ -7447,14 +7121,6 @@
         "title": "Mitglied hinzugefügt",
         "description": "Der Benutzer wurde zu deiner Organisation hinzugefügt."
       },
-      "automationDuplicated": {
-        "title": "Automatisierung dupliziert",
-        "description": "Eine Kopie der Automatisierung wurde erstellt."
-      },
-      "automationRenamed": {
-        "title": "Automatisierung umbenannt",
-        "description": "Der neue Name wurde gespeichert."
-      },
       "brandingUpdated": {
         "title": "Branding aktualisiert",
         "description": "Deine Branding-Änderungen wurden gespeichert."
@@ -7491,14 +7157,6 @@
       "imageTypeInvalid": "Ungültiger Bildtyp",
       "addMemberFailed": {
         "title": "Mitglied konnte nicht hinzugefügt werden",
-        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
-      },
-      "automationDuplicateFailed": {
-        "title": "Automatisierung konnte nicht dupliziert werden",
-        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
-      },
-      "automationDeleteFailed": {
-        "title": "Automatisierung konnte nicht gelöscht werden",
         "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
       },
       "generic": {
@@ -8075,8 +7733,6 @@
     "errors": {
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf dieses Projekt.",
       "PROJECT_NOT_FOUND": "Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.",
-      "PROJECT_HAS_BOUND_APPS": "Deinstalliere zuerst die Apps, die dieses Projekt nutzen, dann lösche es.",
-      "PROJECT_HAS_BOUND_APPS_NAMED": "Deinstalliere zuerst die Apps, die dieses Projekt nutzen, dann lösche es: {apps}.",
       "PROJECT_MISMATCH": "Dieser Chat liegt in einem anderen Projekt. Wechsle den Kontext, um fortzufahren.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} ist in diesem Projekt nicht verfügbar. Wähle einen anderen Agenten.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} ist in diesem Projekt nicht verfügbar. Wähle ein anderes Modell.",
@@ -8100,7 +7756,9 @@
       "THREAD_NOT_FOUND": "Chat nicht gefunden.",
       "THREAD_NOT_IN_PROJECT": "Dieser Chat ist in keinem Projekt.",
       "ORG_FORBIDDEN": "Diese Ressource gehört einer anderen Organisation.",
-      "THREAD_NO_ORG": "Dieser Chat ist noch keiner Organisation zugeordnet."
+      "THREAD_NO_ORG": "Dieser Chat ist noch keiner Organisation zugeordnet.",
+      "PROJECT_HAS_BOUND_AUTOMATIONS": "Deinstalliere zuerst die Automatisierungen, die dieses Projekt nutzen, dann lösche es.",
+      "PROJECT_HAS_BOUND_AUTOMATIONS_NAMED": "Deinstalliere zuerst die Automatisierungen, die dieses Projekt nutzen, dann lösche es: {automations}."
     },
     "sharing": {
       "effectiveAudience": "Tatsächliche Reichweite",
@@ -8216,7 +7874,9 @@
       "agents": "Mitgelieferte Agenten aktualisieren",
       "workflows": "Mitgelieferte Automatisierungen aktualisieren",
       "integrations": "Mitgelieferte Integrationen aktualisieren",
-      "apps": "Mitgelieferte Apps aktualisieren"
+      "apps": "Mitgelieferte Apps aktualisieren",
+      "automations": "Mitgelieferte Automatisierungen aktualisieren",
+      "skills": "Mitgelieferte Skills aktualisieren"
     },
     "confirm": {
       "title": "Aus dem integrierten Katalog aktualisieren",
@@ -8231,111 +7891,13 @@
     }
   },
   "agentCatalog": {
-    "folders": {
-      "workforce": "Belegschaft",
-      "chat": "Chat",
-      "github": "GitHub",
-      "general": "Allgemein"
-    },
-    "loadError": {
-      "title": "Katalog konnte nicht geladen werden",
-      "description": "Der Agentenkatalog konnte nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.",
-      "retry": "Erneut versuchen"
-    },
-    "noResults": {
-      "title": "Keine passenden Agenten",
-      "description": "Keine Agenten passen zu deiner Suche. Versuch einen anderen Begriff."
-    },
-    "title": "Agentenkatalog",
-    "subtitle": "Durchsuche die KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation.",
-    "menuItem": "Katalog",
-    "searchPlaceholder": "Agenten suchen…",
-    "install": "Installieren",
-    "enable": "Aktivieren",
-    "disable": "Deaktivieren",
-    "uninstall": "Deinstallieren",
     "installed": "Agent installiert",
     "enabled": "Agent aktiviert",
     "disabled": "Agent deaktiviert",
     "uninstalled": "Agent deinstalliert",
-    "error": "Agentenliste konnte nicht aktualisiert werden",
-    "installedByIntegration": "Installiert von {integration}",
-    "requiresIntegration": "Erfordert {integration}",
     "status": {
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert"
-    },
-    "empty": {
-      "title": "Keine Katalog-Agenten",
-      "description": "Für diese Organisation wurden keine installierbaren Agenten gefunden."
-    }
-  },
-  "workforce": {
-    "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
-    "period": {
-      "label": "Zeitraum",
-      "last7Days": "Letzte 7 Tage",
-      "last30Days": "Letzte 30 Tage",
-      "last90Days": "Letzte 90 Tage"
-    },
-    "cappedNotice": "Einige Zahlen in diesem Zeitraum sind Untergrenzen — der Scan war begrenzt.",
-    "noData": "Keine Daten",
-    "noDataDescription": "Metriken erscheinen nach dem ersten täglichen Rollup.",
-    "toggle": {
-      "title": "Aufgaben-Automatisierung",
-      "onHint": "Das Task-Ops-Paket ist aktiv: Zuweisungen starten Agenten, Reviews schützen den Abschluss.",
-      "offHint": "Pausiert — Agenten übernehmen keine automatisierte Aufgabenarbeit, bis sie wieder aktiviert ist.",
-      "error": "Aufgaben-Automatisierung konnte nicht geändert werden."
-    },
-    "health": {
-      "runs24h": "{count} Läufe (24h)",
-      "failures24h": "{count} fehlgeschlagen/Zeitüberschreitung",
-      "packFailures24h": "{count} Automatisierungs-Fehler",
-      "oldestQueued": "ältester wartender Lauf {age}"
-    },
-    "kpi": {
-      "completed": "Abgeschlossen ({days} T.)",
-      "completedDetail": "{agent} durch Agenten · {human} durch Menschen",
-      "intervention": "Eingriffsquote",
-      "reviewPassRate": "{pct}% der Reviews direkt freigegeben",
-      "noReviews": "Keine Reviews in diesem Zeitraum",
-      "cycleTime": "Ø Durchlaufzeit",
-      "runs": "{started} Läufe · {failed} fehlgeschlagen",
-      "cost": "Ausgaben ({days} T.)",
-      "costDetail": "{perTask} pro abgeschlossener Aufgabe"
-    },
-    "trend": {
-      "title": "Tägliche Aktivität",
-      "completed": "Abgeschlossene Aufgaben",
-      "failedRuns": "Fehlgeschlagene Läufe"
-    },
-    "leaderboard": {
-      "title": "Agenten-Rangliste",
-      "agent": "Agent",
-      "completed": "Abgeschlossen",
-      "runs": "Läufe (fehlgeschl.)",
-      "bounceRate": "Änderungsrate",
-      "cost": "Ausgaben"
-    },
-    "attention": {
-      "pendingReviews": "Wartet auf Review",
-      "staleTasks": "Liegengebliebene Agenten-Arbeit",
-      "queuedRuns": "Wartende Läufe",
-      "trippedBreakers": "Durch Sicherung pausiert",
-      "none": "Nichts vorhanden."
-    },
-    "scorecard": {
-      "title": "Agent-Metriken",
-      "subtitle": "Letzte {days} Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
-      "tasksCompleted": "Abgeschlossene Aufgaben",
-      "reviewOutcome": "Direkt-Freigabequote",
-      "reviewDetail": "{passed} freigegeben · {changes} Änderungswünsche · {escalations} Eskalationen",
-      "avgRun": "Ø Laufzeit",
-      "spend": "Ausgaben",
-      "recentRuns": "Letzte Läufe",
-      "noRuns": "Noch keine Läufe.",
-      "runsCompleted": "Abgeschlossen",
-      "runsFailed": "Fehlgeschlagen"
     }
   },
   "runtimes": {
@@ -8434,5 +7996,334 @@
     "saveError": "Umgebung konnte nicht gespeichert werden",
     "badKey": "„{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
     "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
+  },
+  "workflows": {
+    "title": "Workflows",
+    "notFound": "Workflow nicht gefunden: {{slug}}",
+    "aria": {
+      "openNamed": "{name} öffnen",
+      "openLoop": "Schleife öffnen"
+    },
+    "emptyState": {
+      "noSteps": "Keine Workflow-Schritte vorhanden",
+      "createStepsHint": "Erstelle Schritte, um die Workflow-Übersicht zu sehen, oder nutze den KI-Assistenten für den Einstieg."
+    },
+    "navigation": {
+      "editor": "Editor",
+      "history": "Verlauf",
+      "openAssistant": "KI-Assistent öffnen"
+    },
+    "history": {
+      "empty": "Keine Verlaufseinträge",
+      "diffTitle": "Änderungen vergleichen",
+      "diffDescription": "Unterschiede prüfen, bevor der Snapshot vom {date} wiederhergestellt wird",
+      "restore": "Wiederherstellen",
+      "noDifferences": "Keine Unterschiede gefunden",
+      "loadFailed": "Verlauf konnte nicht geladen werden",
+      "restoreSuccess": "Version wiederhergestellt",
+      "restoreFailed": "Version konnte nicht wiederhergestellt werden"
+    },
+    "configuration": {
+      "title": "Konfiguration",
+      "timeout": "Timeout (ms)",
+      "timeoutHelp": "Maximale Ausführungszeit in Millisekunden",
+      "maxRetries": "Max. Wiederholungen",
+      "maxRetriesHelp": "Anzahl der Wiederholungsversuche bei Fehler",
+      "backoff": "Backoff (ms)",
+      "backoffHelp": "Verzögerung zwischen Wiederholungsversuchen in Millisekunden",
+      "variables": "Variablen (JSON)",
+      "variablesHelp": "Diese Variablen stehen allen Schritten des Workflows zur Verfügung",
+      "validation": {
+        "invalidJson": "Ungültiges JSON im Variablen-Feld"
+      },
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in jeden Sandbox-Schritt dieses Workflows eingespeist werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben."
+    },
+    "triggers": {
+      "title": "Trigger",
+      "errors": {
+        "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
+        "invalidSlug": "Die Kennung dieses Workflows ist ungültig.",
+        "notInstalled": "Dieser Workflow ist noch nicht installiert.",
+        "notFound": "Dieser Trigger konnte nicht mehr gefunden werden. Möglicherweise wurde er gelöscht.",
+        "automationOwnedWorkflow": "Automatisierungs-Workflows laufen nur innerhalb der Automatisierung und können daher keine Ereignisse abonnieren.",
+        "invalidEventType": "Dieser Ereignistyp ist ungültig.",
+        "duplicateSubscription": "Dieser Workflow hat bereits einen Trigger für dieses Ereignis."
+      },
+      "schedules": {
+        "title": "Zeitpläne",
+        "createButton": "Zeitplan hinzufügen",
+        "emptyTitle": "Keine Zeitpläne",
+        "emptyDescription": "Erstelle einen Zeitplan, um diesen Workflow regelmäßig automatisch auszulösen.",
+        "columns": {
+          "cronExpression": "Cron-Ausdruck",
+          "active": "Aktiv",
+          "lastTriggered": "Zuletzt ausgelöst",
+          "createdBy": "Erstellt von"
+        },
+        "form": {
+          "title": "Zeitplan erstellen",
+          "editTitle": "Zeitplan bearbeiten",
+          "cronExpression": "Cron-Ausdruck",
+          "cronPlaceholder": "0 * * * *",
+          "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
+          "variablesLabel": "Workflow-Variablen",
+          "variablesDescription": "Eingabeparameter, die bei jedem geplanten Lauf übergeben werden. Vorausgefüllt aus dem Eingabeschema des Workflows.",
+          "variablesInvalid": "Variablen müssen ein gültiges JSON-Objekt sein",
+          "validation": {
+            "cronRequired": "Cron-Ausdruck ist erforderlich",
+            "cronInvalid": "Muss ein gültiger Cron-Ausdruck mit 5 Feldern sein"
+          },
+          "presets": {
+            "every5Minutes": "Alle 5 Minuten",
+            "hourly": "Jede Stunde",
+            "daily": "Täglich",
+            "weekly": "Wöchentlich",
+            "monthly": "Monatlich"
+          },
+          "ai": {
+            "label": "Beschreibe deinen Zeitplan",
+            "placeholder": "z. B. jeden Werktag um 9 Uhr, zweimal täglich um 8 und 18 Uhr",
+            "generateButton": "Generieren",
+            "generateError": "Cron-Ausdruck konnte nicht generiert werden. Bitte versuche es erneut oder gib ihn manuell ein."
+          }
+        },
+        "toast": {
+          "created": "Zeitplan erstellt",
+          "updated": "Zeitplan aktualisiert",
+          "deleted": "Zeitplan gelöscht",
+          "enabled": "Zeitplan aktiviert",
+          "disabled": "Zeitplan deaktiviert",
+          "toggleError": "Zeitplan konnte nicht umgeschaltet werden",
+          "deleteError": "Zeitplan konnte nicht gelöscht werden"
+        },
+        "deleteTitle": "Zeitplan löschen",
+        "deleteDescription": "Dieser Zeitplan wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "createButton": "Webhook hinzufügen",
+        "emptyTitle": "Keine Webhooks",
+        "emptyDescription": "Erstelle einen Webhook, um diesen Workflow über HTTP-POST-Anfragen auszulösen.",
+        "columns": {
+          "url": "Webhook-URL",
+          "active": "Aktiv",
+          "lastTriggered": "Zuletzt ausgelöst"
+        },
+        "createdTitle": "Webhook erstellt",
+        "urlWarning": "Speichere diese Webhook-URL. Das Token in der URL dient als Authentifizierungsnachweis.",
+        "webhookUrl": "Webhook-URL",
+        "deleteTitle": "Webhook löschen",
+        "deleteDescription": "Dieser Webhook-Endpunkt wird dauerhaft gelöscht. Alle Integrationen, die diese URL verwenden, funktionieren nicht mehr.",
+        "deleteWebhook": "Webhook löschen",
+        "toast": {
+          "created": "Webhook erstellt",
+          "deleted": "Webhook gelöscht",
+          "enabled": "Webhook aktiviert",
+          "disabled": "Webhook deaktiviert",
+          "urlCopied": "Webhook-URL kopiert",
+          "createFailed": "Webhook konnte nicht erstellt werden",
+          "toggleFailed": "Webhook konnte nicht umgeschaltet werden",
+          "deleteFailed": "Webhook konnte nicht gelöscht werden"
+        }
+      },
+      "events": {
+        "title": "Ereignisse",
+        "createButton": "Ereignis-Trigger hinzufügen",
+        "emptyTitle": "Keine Ereignis-Trigger",
+        "emptyDescription": "Abonniere Systemereignisse, um diesen Workflow bei bestimmten Aktionen automatisch auszulösen.",
+        "columns": {
+          "eventType": "Ereignistyp",
+          "active": "Aktiv",
+          "lastTriggered": "Zuletzt ausgelöst",
+          "createdBy": "Erstellt von"
+        },
+        "form": {
+          "title": "Ereignis-Trigger hinzufügen",
+          "editTitle": "Ereignis-Trigger bearbeiten",
+          "eventType": "Ereignistyp",
+          "eventTypePlaceholder": "Ereignistyp auswählen",
+          "filtersLabel": "Filter",
+          "filterAll": "Alle (kein Filter)",
+          "filterAllPlaceholder": "Filterwert auswählen"
+        },
+        "toast": {
+          "created": "Ereignis-Trigger erstellt",
+          "updated": "Ereignis-Trigger aktualisiert",
+          "deleted": "Ereignis-Trigger gelöscht",
+          "enabled": "Ereignis-Trigger aktiviert",
+          "disabled": "Ereignis-Trigger deaktiviert",
+          "toggleError": "Ereignisabonnement konnte nicht umgeschaltet werden",
+          "deleteError": "Ereignisabonnement konnte nicht gelöscht werden"
+        },
+        "editTitle": "Ereignis-Trigger bearbeiten",
+        "deleteTitle": "Ereignis-Trigger löschen",
+        "deleteDescription": "Dieser Ereignis-Trigger wird dauerhaft gelöscht. Der Workflow wird nicht mehr durch dieses Ereignis ausgelöst."
+      },
+      "common": {
+        "never": "Nie",
+        "copied": "Kopiert",
+        "copyFailed": "Kopieren fehlgeschlagen"
+      }
+    },
+    "executions": {
+      "title": "Ausführungen",
+      "entityLabel": "Ausführungen",
+      "searchPlaceholder": "Nach Ausführungs-ID suchen",
+      "viewOnCanvas": "Auf dem Canvas ansehen"
+    },
+    "steps": {
+      "banners": {
+        "hasActiveTriggers": "Dieser Workflow ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
+      },
+      "toolbar": {
+        "testWorkflow": "Workflow testen",
+        "addStepUnavailable": "Das Bearbeiten von Schritten auf der Arbeitsfläche ist noch nicht verfügbar — nutze den KI-Assistenten oder bearbeite die Workflow-Konfiguration."
+      },
+      "execution": {
+        "viewingRun": "Lauf {id} wird angezeigt",
+        "clear": "Laufergebnisse ausblenden",
+        "nodeBadgeLabel": "Ausführungsstatus: {status}",
+        "duration": "Dauer: {duration}",
+        "attempts": "{count, plural, one {# Versuch} other {# Versuche}}",
+        "loopProgress": "Durchlauf {current} von {total}",
+        "output": "Ausgabe",
+        "error": "Fehler",
+        "outputTruncated": "Ausgabevorschau gekürzt",
+        "outputUnavailable": "Ausgabe ist zu groß für die Vorschau",
+        "status": {
+          "pending": "Ausstehend",
+          "running": "Läuft",
+          "completed": "Abgeschlossen",
+          "failed": "Fehlgeschlagen",
+          "waiting": "Wartet auf Eingabe",
+          "paused": "Pausiert (Debug)",
+          "success": "Erfolgreich",
+          "canceled": "Abgebrochen"
+        }
+      }
+    },
+    "stepTypes": {
+      "start": "Start",
+      "llm": "LLM",
+      "condition": "Bedingung",
+      "loop": "Schleife",
+      "action": "Aktion",
+      "output": "Ausgabe"
+    },
+    "edges": {
+      "yes": "Ja",
+      "no": "Nein"
+    },
+    "step": {
+      "openStep": "Schritt {name} öffnen",
+      "openStepDefault": "Schritt öffnen"
+    },
+    "sidePanel": {
+      "aiAssistant": "KI-Assistent",
+      "testWorkflow": "Workflow testen",
+      "stepTooltip": "{stepType}-Schritt",
+      "end": "Ende",
+      "close": "Panel schließen",
+      "validationErrors": "Validierungsfehler",
+      "validationWarnings": "Warnungen",
+      "stepSaveFailed": "Schritt konnte nicht gespeichert werden",
+      "saving": "Speichern...",
+      "resizePanel": "Panel-Größe ändern",
+      "stepEditor": "Schritt-Editor",
+      "fileBasedStepSaveUnsupported": "Schritte speichern ist für dateibasierte Workflows noch nicht verfügbar.",
+      "env": "Umgebung & Geheimnisse",
+      "envHelp": "Variablen, die in die Sandbox dieses Schritts eingespeist werden und bei Namensgleichheit Vorrang vor den Werten auf Workflow-Ebene haben."
+    },
+    "nextSteps": {
+      "endWorkflow": "Workflow beenden",
+      "transitions": {
+        "success": "Nächster Schritt (bei Erfolg)",
+        "failure": "Nächster Schritt (bei Fehler)",
+        "true": "Nächster Schritt (wenn wahr)",
+        "false": "Nächster Schritt (wenn falsch)",
+        "loop": "Nächster Schritt (Schleifeniteration)",
+        "done": "Nächster Schritt (Schleife abgeschlossen)"
+      }
+    },
+    "assistant": {
+      "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
+      "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
+    },
+    "tester": {
+      "inputLabel": "Testeingabe (JSON)",
+      "inputDescription": "Gib Eingabedaten im JSON-Format für die Workflow-Ausführung an",
+      "validation": {
+        "invalidJson": "Gib gültiges JSON ein, um diesen Workflow auszuführen.",
+        "missingRequired": "Konfiguriere die erforderlichen Felder, bevor du ausführst: {fields}"
+      },
+      "tip": "Probelauf simuliert die Ausführung ohne Nebeneffekte. Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.",
+      "execute": "Ausführen",
+      "executing": "Wird ausgeführt...",
+      "dryRunning": "Wird simuliert...",
+      "dryRun": {
+        "button": "Probelauf",
+        "success": "Probelauf abgeschlossen",
+        "failed": "Probelauf hat Probleme gefunden",
+        "errors": "Fehler",
+        "warnings": "Warnungen",
+        "executionPath": "Ausführungspfad",
+        "fileBasedUnsupported": "Probelauf ist für dateibasierte Workflows noch nicht verfügbar."
+      },
+      "toast": {
+        "invalidJson": "Ungültiges JSON",
+        "invalidJsonDescription": "Bitte gib gültiges JSON ein",
+        "executionStarted": "Ausführung gestartet",
+        "executionId": "Ausführungs-ID: {id}",
+        "testFailed": "Ausführung fehlgeschlagen",
+        "startFailed": "Ausführung konnte nicht gestartet werden"
+      },
+      "result": {
+        "completed": "Abgeschlossen",
+        "failed": "Ausführung fehlgeschlagen",
+        "running": "Läuft …",
+        "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
+        "runningStep": "Aktueller Schritt: {step}",
+        "stepsHeading": "Ausgeführte Schritte",
+        "openStep": "Einstellungen des fehlgeschlagenen Schritts {step} öffnen",
+        "errorCode": {
+          "start_failure": "Die Ausführung konnte nicht gestartet werden",
+          "step_failure": "Ein Schritt ist fehlgeschlagen",
+          "timeout": "Die Ausführung hat das Zeitlimit überschritten",
+          "canceled": "Die Ausführung wurde abgebrochen",
+          "invalid_input": "Die Eingabe war ungültig"
+        }
+      },
+      "debug": {
+        "button": "Debuggen",
+        "title": "Debug-Sitzung",
+        "pausedAt": "Pausiert vor Schritt: {step}",
+        "step": "Schritt",
+        "continue": "Fortsetzen",
+        "stop": "Stoppen",
+        "variables": "Laufvariablen",
+        "variablesLoading": "Variablen werden geladen …",
+        "variablesError": "Die Laufvariablen konnten nicht geladen werden."
+      }
+    },
+    "editorView": {
+      "showGraph": "Graph anzeigen",
+      "showSpecification": "Spezifikation anzeigen",
+      "specification": "Spezifikation",
+      "regenerateGraph": "Graph neu generieren",
+      "generateFromGraph": "Spezifikation aus Graph generieren",
+      "emptyState": "Noch keine Spezifikation vorhanden. Schreib eine, oder generiere sie aus dem aktuellen Workflow-Graphen.",
+      "placeholder": "Beschreibe Schritt für Schritt, was dieser Workflow macht…",
+      "generateError": "Vorschau konnte nicht generiert werden. Versuch es erneut.",
+      "diffTitle": "Generierten Graphen überprüfen",
+      "diffDescription": "Vergleiche den aktuellen Graphen mit der aus deiner Spezifikation generierten Version.",
+      "applyGraph": "Graph übernehmen",
+      "validationErrors": "Validierungsfehler",
+      "saveSuccess": "Spezifikation gespeichert",
+      "saveFailed": "Spezifikation konnte nicht gespeichert werden",
+      "specStaleBanner": "Der Graph hat sich geändert, seit diese Spezifikation zuletzt aktualisiert wurde.",
+      "graphStaleBanner": "Die Spezifikation hat sich geändert — der Graph wurde noch nicht neu generiert.",
+      "updateFromGraph": "Aus dem Graphen aktualisieren"
+    }
   }
 }

@@ -73,7 +73,6 @@ import { buildBrandingContext } from './branding_context';
 import { buildHooksFromConfig } from './build_hooks';
 import {
   buildIntegrationTools,
-  buildEscalationTools,
   buildWorkflowTools,
   buildMcpTools,
   buildToolsSummary,
@@ -436,7 +435,6 @@ export async function runGenerationCore(
       mcpExtraTools,
       integrationExtraTools,
       skillSnapshot,
-      escalationResult,
       workflowExtraTools,
       brandingSystemPromptAppend,
       orgLocale,
@@ -450,11 +448,6 @@ export async function runGenerationCore(
       orgSlugPromise.then((s) =>
         buildSkillContext(ctx, s, agentConfig.skillBindings),
       ),
-      args.jobRun
-        ? undefined
-        : Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
-            buildEscalationTools(effectiveConfig, organizationId, s, l),
-          ),
       orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
       // Corporate-identity defaults for presentation generation. Empty unless
       // the agent binds the `pptx` skill AND the org has branding configured.
@@ -464,16 +457,7 @@ export async function runGenerationCore(
       orgLocalePromise,
     ]);
 
-    // Extract escalation tool and chain-of-command instructions append
     let delegationExtraTools: Record<string, unknown> | undefined;
-    let delegationInstructionsAppend = '';
-    if (escalationResult) {
-      delegationExtraTools = escalationResult.tools;
-      delegationInstructionsAppend = escalationResult.instructionsAppend;
-      debugLog('Built escalation tool', {
-        names: Object.keys(delegationExtraTools),
-      });
-    }
 
     // Agent-on-demand: primary chat generations get `spawn_agent` (replaces
     // the org-chart delegate_* tools); a spawned job run gets the
@@ -542,10 +526,7 @@ export async function runGenerationCore(
         }
       : undefined;
 
-    // Combine instructions with delegation agent descriptions
-    let finalInstructions = delegationInstructionsAppend
-      ? agentConfig.instructions + delegationInstructionsAppend
-      : agentConfig.instructions;
+    let finalInstructions = agentConfig.instructions;
 
     // Wrap with mandatory governance system prompt (non-overridable)
     if (mandatoryPrefix) {

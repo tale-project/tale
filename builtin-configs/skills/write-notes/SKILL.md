@@ -1,5 +1,7 @@
 ---
 name: write-notes
+icon: lucide:notebook-pen
+labels: ['Authoring']
 description: "Use this skill whenever you start real work under any other skill — before you implement, fix, refactor, review, test, research, delegate, or author. It makes you write a short note FIRST: answer the active skill's note form (its questions) in a few lines, so your intent, reuse decision, and plan are explicit and reviewable before you act. Load it the moment you pick up implement-feature, make-improvement, fix-bug, review-code, review-pr, create-pr, test-code, deep-research, delegate-work, or an authoring skill. Never start the work before the note exists — thinking on paper is cheaper than a wrong change."
 ---
 

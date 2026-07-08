@@ -1,6 +1,6 @@
 ---
 title: Plateforme
-description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, conversations, connaissances, approbations, administration.
+description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, workflows, connaissances, approbations, administration.
 kind: index
 ---
 
@@ -16,9 +16,9 @@ La section est organisée par domaine, puis par fonctionnalité au sein d'un dom
 
 **[Agents](/fr/platform/agents/concepts)** — instructions, connaissances, outils, modèle, compétences, workers, versionnage, déclencheurs webhook.
 
-**[Automatisations](/fr/platform/automations/concepts)** — workflows, déclencheurs, exécutions, métriques, points d'approbation.
+**[Automatisations](/fr/platform/automations/concepts)** — bundles installables d'intégrations, d'agents, de compétences et d'un workflow ; le catalogue, l'assistant d'installation, les bundles livrés.
 
-**[Conversations](/fr/platform/conversations/overview)** — la boîte de réception des canaux clients ; filtres par statut, recherche.
+**[Workflows](/fr/platform/workflows/concepts)** — définitions, déclencheurs, exécutions, métriques, points d'approbation.
 
 **[Connaissances](/fr/platform/knowledge/overview)** — documents, clients, produits, fournisseurs, sites web, modèle de données structurées.
 
