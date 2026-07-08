@@ -7928,7 +7928,18 @@
       "unknownTitle": "Document sans titre",
       "indexingRetry": "Réessayer l'indexation",
       "indexingRetryQueued": "Indexation relancée",
-      "indexingRetryFailed": "Impossible de relancer l'indexation"
+      "indexingRetryFailed": "Impossible de relancer l'indexation",
+      "treeLabel": "Fichiers du projet",
+      "addToFolder": "Ajouter un fichier à « {folder} »",
+      "folderGone": "Ce dossier n'existe plus.",
+      "folderDeleted": "Dossier supprimé",
+      "folderDeleteFailed": "Impossible de supprimer le dossier",
+      "folderDeleteHeld": "Un fichier de ce dossier est sous conservation légale — levez-la d'abord.",
+      "folderDeleteAction": "Supprimer le dossier",
+      "folderDeleteConfirm": "Supprimer « {folder} » et tout son contenu ? Les fichiers seront retirés du projet et de l'index de connaissances. Cette action est irréversible.",
+      "newSubfolderAction": "Nouveau sous-dossier",
+      "uploadFailedTitle": "Échec de l'envoi",
+      "uploadingIndicator": "Envoi en cours…"
     },
     "threads": {
       "title": "Chats",

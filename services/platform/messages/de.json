@@ -7927,7 +7927,18 @@
       "unknownTitle": "Unbenanntes Dokument",
       "indexingRetry": "Indexierung erneut versuchen",
       "indexingRetryQueued": "Indexierung wird erneut ausgeführt",
-      "indexingRetryFailed": "Indexierung konnte nicht wiederholt werden"
+      "indexingRetryFailed": "Indexierung konnte nicht wiederholt werden",
+      "treeLabel": "Projektdateien",
+      "addToFolder": "Datei zu „{folder}“ hinzufügen",
+      "folderGone": "Dieser Ordner existiert nicht mehr.",
+      "folderDeleted": "Ordner gelöscht",
+      "folderDeleteFailed": "Ordner konnte nicht gelöscht werden",
+      "folderDeleteHeld": "Eine Datei in diesem Ordner unterliegt einem Legal Hold — heben Sie ihn zuerst auf.",
+      "folderDeleteAction": "Ordner löschen",
+      "folderDeleteConfirm": "„{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus dem Projekt und aus dem Wissensindex entfernt. Das lässt sich nicht rückgängig machen.",
+      "newSubfolderAction": "Neuer Unterordner",
+      "uploadFailedTitle": "Hochladen fehlgeschlagen",
+      "uploadingIndicator": "Wird hochgeladen…"
     },
     "threads": {
       "title": "Chats",

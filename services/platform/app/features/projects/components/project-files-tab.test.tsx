@@ -22,18 +22,30 @@ type DocFixture = {
   fileId?: Id<'_storage'>;
   mimeType?: string;
   extension?: string;
+  folderId?: Id<'folders'>;
   indexed?: boolean;
   ragStatus: 'queued' | 'running' | 'completed' | 'failed' | null;
   createdBy?: string;
 };
 
+type FolderFixture = {
+  _id: Id<'folders'>;
+  name: string;
+  parentId?: Id<'folders'>;
+};
+
 let documentsFixture: DocFixture[] = [];
+let foldersFixture: FolderFixture[] = [];
 let projectFixture: { canEdit: boolean } | null = { canEdit: true };
 
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
   useProjectDocuments: () => ({
     documents: documentsFixture,
+    isLoading: false,
+  }),
+  useProjectFolders: () => ({
+    folders: foldersFixture,
     isLoading: false,
   }),
 }));
@@ -43,6 +55,19 @@ vi.mock('../hooks/mutations', () => ({
   useDetachDocumentFromProject: () => ({
     mutateAsync: detachMutateAsync,
   }),
+}));
+
+const deleteFolderMutateAsync = vi.fn().mockResolvedValue(undefined);
+const createFolderMutateAsync = vi.fn().mockResolvedValue('folder-new');
+vi.mock('@/app/features/documents/hooks/mutations', () => ({
+  useDeleteFolder: () => ({ mutateAsync: deleteFolderMutateAsync }),
+  useCreateFolder: () => ({ mutateAsync: createFolderMutateAsync }),
+}));
+
+// FormDialog (inside ProjectCreateFolderDialog) reads the org id off the
+// router params; the component tree here renders without a router.
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
 }));
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
@@ -104,6 +129,7 @@ describe('ProjectFilesTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     documentsFixture = [];
+    foldersFixture = [];
     projectFixture = { canEdit: true };
   });
 
@@ -111,10 +137,10 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [makeDoc()];
     renderTab();
 
-    // The title is a button (opens the preview) and there's an explicit
-    // "Preview file" control.
+    // The title row is an interactive treeitem (opens the preview) and
+    // there's an explicit "Preview file" control.
     expect(
-      screen.getByRole('button', { name: 'Report.pdf' }),
+      screen.getByRole('treeitem', { name: 'Report.pdf' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Preview file' }),
@@ -142,7 +168,7 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [makeDoc()];
     const { user } = renderTab();
 
-    await user.click(screen.getByRole('button', { name: 'Report.pdf' }));
+    await user.click(screen.getByRole('treeitem', { name: 'Report.pdf' }));
 
     await waitFor(() => {
       expect(
@@ -190,5 +216,104 @@ describe('ProjectFilesTab', () => {
         destination: 'organization',
       });
     });
+  });
+
+  // Folder support: the tab renders an expand-in-place tree (shared
+  // file-tree primitives) — folders expand to reveal their files, a header
+  // action creates folders, and folder deletion warns about the cascade.
+  it('renders a folder row and reveals its files on expand', async () => {
+    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    documentsFixture = [
+      makeDoc({
+        _id: 'doc-in-folder' as Id<'documents'>,
+        title: 'Q3.pdf',
+        folderId: 'folder-1' as Id<'folders'>,
+      }),
+    ];
+    const { user } = renderTab();
+
+    const folderRow = screen.getByRole('treeitem', { name: 'Reports' });
+    expect(folderRow).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('treeitem', { name: 'Q3.pdf' })).toBeNull();
+
+    await user.click(folderRow);
+
+    expect(screen.getByRole('treeitem', { name: 'Reports' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(
+      await screen.findByRole('treeitem', { name: 'Q3.pdf' }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the create-folder dialog from the header action', async () => {
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'New folder' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create folder',
+    });
+    expect(within(dialog).getByLabelText(/folder name/i)).toBeInTheDocument();
+  });
+
+  it('creates the folder scoped to the project', async () => {
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'New folder' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create folder',
+    });
+    await user.type(within(dialog).getByLabelText(/folder name/i), 'Specs');
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Create folder' }),
+    );
+
+    await waitFor(() => {
+      expect(createFolderMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          name: 'Specs',
+          projectId: PROJECT_ID,
+          parentId: undefined,
+        }),
+      );
+    });
+  });
+
+  it('warns about the cascade before deleting a folder and deletes on confirm', async () => {
+    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'Delete folder' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete folder',
+    });
+    expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete folder' }),
+    );
+
+    await waitFor(() => {
+      expect(deleteFolderMutateAsync).toHaveBeenCalledWith({
+        folderId: 'folder-1',
+      });
+    });
+  });
+
+  it('hides folder management affordances from read-only members', () => {
+    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    projectFixture = { canEdit: false };
+    renderTab();
+
+    expect(screen.queryByRole('button', { name: 'New folder' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete folder' })).toBeNull();
+    // The tree itself still renders for readers.
+    expect(
+      screen.getByRole('treeitem', { name: 'Reports' }),
+    ).toBeInTheDocument();
   });
 });

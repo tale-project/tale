@@ -54,6 +54,15 @@ export function useProjectDocuments(projectId: Id<'projects'> | undefined) {
   return { documents: data ?? [], isLoading };
 }
 
+export function useProjectFolders(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
+  const { data, isLoading } = useConvexQuery(
+    api.projects.queries.listProjectFolders,
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  );
+  return { folders: data ?? [], isLoading };
+}
+
 export function useProjectThreads(
   projectId: Id<'projects'> | undefined,
   scope: 'mine' | 'shared' | 'all' = 'all',
