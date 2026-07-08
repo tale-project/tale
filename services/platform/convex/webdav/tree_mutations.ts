@@ -22,7 +22,7 @@ import {
   assertWebdavDocNotHeld,
   assertWebdavFolderTreeNotHeld,
 } from './hold_guard';
-import { isWebdavVisibleDocument } from './visibility';
+import { isWebdavVisibleDocument, isWebdavVisibleFolder } from './visibility';
 
 const WEBDAV_SOURCE_PROVIDER = 'webdav';
 
@@ -245,9 +245,31 @@ export const deleteFolderCascade = internalMutation({
     folderId: v.id('folders'),
   },
   async handler(ctx, args) {
+    await assertVisibleFolderSrc(ctx, args.organizationId, args.folderId);
     await cascadeDeleteFolderRecursive(ctx, args.organizationId, args.folderId);
   },
 });
+
+/**
+ * Id-level gate for mutations handed a raw folder id: WebDAV path
+ * resolution can never yield a project folder, so a project (or foreign-org
+ * or missing) folder id here reads as not-found — the folder twin of the
+ * `isWebdavVisibleDocument` guards on the document branches.
+ */
+async function assertVisibleFolderSrc(
+  ctx: MutationCtx,
+  organizationId: string,
+  folderId: Id<'folders'>,
+): Promise<void> {
+  const folder = await ctx.db.get(folderId);
+  if (
+    !folder ||
+    folder.organizationId !== organizationId ||
+    !isWebdavVisibleFolder(folder)
+  ) {
+    throw new ConvexError({ code: 'NOT_FOUND' });
+  }
+}
 
 export const mkcol = internalMutation({
   args: {
@@ -325,6 +347,10 @@ export const moveResource = internalMutation({
     const destName = nfc(args.destName);
     const destParentSegments = args.destParentSegments.map(nfc);
     const srcSegments = args.srcSegments.map(nfc);
+
+    if (args.src.kind === 'folder') {
+      await assertVisibleFolderSrc(ctx, args.organizationId, args.src.id);
+    }
 
     // RFC 4918 §9.8.5 / §9.9.4: destination parent must exist; the
     // server does not auto-vivify intermediate collections.
@@ -487,6 +513,10 @@ export const copyResource = internalMutation({
     const destName = nfc(args.destName);
     const destParentSegments = args.destParentSegments.map(nfc);
 
+    if (args.src.kind === 'folder') {
+      await assertVisibleFolderSrc(ctx, args.organizationId, args.src.id);
+    }
+
     let destFolderId: Id<'folders'> | undefined = undefined;
     if (destParentSegments.length > 0) {
       const found = await findFolderByPath(
@@ -614,11 +644,15 @@ async function findCollision(
   | { kind: 'folder'; id: Id<'folders'> }
   | null
 > {
+  // Hub-exact: a project folder sharing (org, parent, name) is invisible to
+  // WebDAV — treating it as a collision would both leak its existence and
+  // block a legitimate hub create (mirrors the project-doc PUT rule).
   const folder = await ctx.db
     .query('folders')
-    .withIndex('by_org_parent_name', (q) =>
+    .withIndex('by_org_project_parent_name', (q) =>
       q
         .eq('organizationId', organizationId)
+        .eq('projectId', undefined)
         .eq('parentId', parentFolderId ?? undefined)
         .eq('name', name),
     )

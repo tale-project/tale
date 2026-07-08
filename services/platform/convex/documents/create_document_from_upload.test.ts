@@ -257,6 +257,24 @@ describe('createDocumentFromUpload', () => {
     ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_ACCESSIBLE' } });
   });
 
+  it('treats a project folder as not-found for a hub upload', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    ctx.db.get.mockResolvedValueOnce({
+      _id: 'folder_1',
+      organizationId: 'org_1',
+      projectId: 'project_1',
+    });
+    const handler = await getHandler();
+
+    // Opaque: hub callers cannot see project folders, so the upload path
+    // must not confirm one exists.
+    await expect(
+      handler(ctx, { ...baseArgs, folderId: 'folder_1' }),
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_FOUND' } });
+    expect(mockCreateDocument).not.toHaveBeenCalled();
+  });
+
   it('links document to file after document creation', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
@@ -397,8 +415,49 @@ describe('createDocumentFromUpload — project-scoped upload', () => {
     expect(mockCreateDocument).not.toHaveBeenCalled();
   });
 
-  it('rejects a project upload combined with a folder', async () => {
-    const ctx = projectCtx();
+  function projectCtxWithFolder(folder: Record<string, unknown> | null) {
+    const ctx = createMockCtx();
+    ctx.db.get.mockImplementation((id: string) => {
+      if (id === 'project_1') return Promise.resolve(PROJECT);
+      if (id === 'folder_1') return Promise.resolve(folder);
+      return Promise.resolve(null);
+    });
+    return ctx;
+  }
+
+  it('accepts a folder of the same project and threads it into the insert', async () => {
+    const ctx = projectCtxWithFolder({
+      _id: 'folder_1',
+      organizationId: 'org_1',
+      name: 'Reports',
+      projectId: 'project_1',
+    });
+    const handler = await getHandler();
+
+    const result = await handler(ctx, {
+      ...baseArgs,
+      projectId: 'project_1',
+      folderId: 'folder_1',
+    });
+
+    expect(result).toEqual({ success: true, documentId: 'doc_created' });
+    expect(mockCreateDocument).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        projectId: 'project_1',
+        folderId: 'folder_1',
+        // Never a team inherited from a project folder.
+        teamId: undefined,
+      }),
+    );
+  });
+
+  it('rejects a hub folder on a project upload as opaque not-found', async () => {
+    const ctx = projectCtxWithFolder({
+      _id: 'folder_1',
+      organizationId: 'org_1',
+      name: 'Hub folder',
+    });
     const handler = await getHandler();
 
     await expect(
@@ -407,7 +466,26 @@ describe('createDocumentFromUpload — project-scoped upload', () => {
         projectId: 'project_1',
         folderId: 'folder_1',
       }),
-    ).rejects.toMatchObject({ data: { code: 'DOCUMENT_SCOPE_CONFLICT' } });
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_FOUND' } });
+    expect(mockCreateDocument).not.toHaveBeenCalled();
+  });
+
+  it("rejects another project's folder as opaque not-found", async () => {
+    const ctx = projectCtxWithFolder({
+      _id: 'folder_1',
+      organizationId: 'org_1',
+      name: 'Foreign',
+      projectId: 'project_other',
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, {
+        ...baseArgs,
+        projectId: 'project_1',
+        folderId: 'folder_1',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_FOUND' } });
     expect(mockCreateDocument).not.toHaveBeenCalled();
   });
 

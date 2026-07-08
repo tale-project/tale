@@ -3,13 +3,17 @@ title: Manage Project files
 description: Uploading, replacing, deleting, and the per-Project size limits — and how Project files surface in chats inside the Project.
 ---
 
-A Project's **Files** tab is the shared file area every chat inside the Project can reach. Upload a file once and every chat in the Project — and every agent that runs inside it — can read it without re-uploading. This page covers the upload mechanic and the limits.
+A Project's **Files** tab is the shared file area every chat inside the Project can reach. Upload a file once and every chat in the Project — and every agent that runs inside it — can read it without re-uploading. This page covers the folder tree, the upload mechanic, and the limits.
 
-The Files tab is not a knowledge base in the [Knowledge](/platform/knowledge/documents) sense. It is a flat list of files scoped to one Project; deleting the Project deletes the files. For org-wide reference material, use Knowledge and bind it to agents.
+The Files tab is not a knowledge base in the [Knowledge](/platform/knowledge/documents) sense. Its files are scoped to one Project and never appear in the org-wide library, in `@` pickers outside the Project, or over WebDAV; deleting the Project deletes the files. For org-wide reference material, use Knowledge and bind it to agents.
+
+## Folders
+
+Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. Deleting a folder deletes everything in it, including the files' entries in the knowledge index; the confirmation says so before anything happens. Folders here are Project-scoped: a same-named folder in the org-wide Knowledge library is a different folder.
 
 ## A worked upload
 
-Open the Project, click **Files**, and drag a folder onto the drop area. Tale uploads each file individually; the row shows a per-file progress bar and resolves to **Uploaded** once the file lands. The same upload is now reachable from any chat the Project owns: type `@` in the composer and the file appears in the picker, or send a message that references the topic and the agent retrieves it.
+Open the Project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the Project owns: send a message that references the topic and the agent retrieves it, or type `@` in the composer and pin the file — or a whole folder — to the turn.
 
 ## Replacing and deleting
 
@@ -22,6 +26,8 @@ Per-file and per-Project limits are set by the org under [Policies and limits](/
 ## Surfacing in chats
 
 A chat started inside a Project automatically has access to every file in the Project's Files tab. The agent's retrieval tool sees Project files alongside any agent-bound Knowledge sources. Citations from Project files are scoped to the chat that produced them — sharing a chat outside the Project preserves the citations but the viewer cannot click through to the source unless they are also in the Project.
+
+Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the Project's folders inside Project chats, and org-wide Knowledge folders everywhere). Pinned files are also delivered to the agent's sandbox under `/user/uploads`, so coding agents — Claude Code and the other terminal agents included — can open the actual bytes, not just quote retrieval snippets.
 
 ## Where this fits
 

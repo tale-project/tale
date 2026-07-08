@@ -94,6 +94,17 @@ async function getMutation(): Promise<{
   };
 }
 
+async function getAttachMutation(): Promise<{
+  args: Record<string, unknown>;
+  handler: Handler;
+}> {
+  const { attachDocumentToProject } = await import('./mutations');
+  return attachDocumentToProject as unknown as {
+    args: Record<string, unknown>;
+    handler: Handler;
+  };
+}
+
 const AUTH_USER = { userId: 'user_1', email: 'test@example.com' };
 
 const PROJECT = {
@@ -110,12 +121,25 @@ const DOC = {
   projectId: 'project_1',
 };
 
-function createMockCtx(fixtures: Record<string, unknown>) {
+function createMockCtx(
+  fixtures: Record<string, unknown>,
+  opts: { fileMetadata?: Record<string, unknown> | null } = {},
+) {
   return {
     db: {
       get: vi.fn((id: string) => Promise.resolve(fixtures[id] ?? null)),
       patch: vi.fn().mockResolvedValue(undefined),
       insert: vi.fn().mockResolvedValue('row_new'),
+      // Serves the fileMetadata-by-storageId lookup on the detach RAG-sync
+      // branch; the fixture stands in for every .withIndex().first() chain.
+      query: vi.fn(() => ({
+        withIndex: vi.fn(() => ({
+          first: vi.fn().mockResolvedValue(opts.fileMetadata ?? null),
+        })),
+      })),
+    },
+    scheduler: {
+      runAfter: vi.fn().mockResolvedValue(undefined),
     },
   };
 }
@@ -140,7 +164,7 @@ describe('detachDocumentFromProject', () => {
     expect(detach.args).toHaveProperty('destination');
   });
 
-  it('clears projectId and audits the scope transition', async () => {
+  it('clears projectId (and any folder link) and audits the scope transition', async () => {
     const ctx = createMockCtx({ doc_1: DOC, project_1: PROJECT });
     const detach = await getMutation();
 
@@ -149,8 +173,12 @@ describe('detachDocumentFromProject', () => {
       destination: 'organization',
     });
 
+    // Folder fields clear with the project link: a project folder is not a
+    // hub row, so a detached doc must not keep pointing at one.
     expect(ctx.db.patch).toHaveBeenCalledWith('doc_1', {
       projectId: undefined,
+      folderId: undefined,
+      folderPath: undefined,
     });
     expect(mockCreateAuditLog).toHaveBeenCalledWith(
       ctx,
@@ -163,6 +191,76 @@ describe('detachDocumentFromProject', () => {
         }),
       }),
     );
+  });
+
+  it('clears the folder link on the stale-project branch too', async () => {
+    const ctx = createMockCtx({
+      doc_1: { ...DOC, projectId: 'project_gone', folderId: 'folder_1' },
+    });
+    const detach = await getMutation();
+
+    await detach.handler(ctx, {
+      documentId: 'doc_1',
+      destination: 'organization',
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('doc_1', {
+      projectId: undefined,
+      folderId: undefined,
+      folderPath: undefined,
+    });
+  });
+
+  it('syncs the cleared folder path to RAG for an indexed doc', async () => {
+    const ctx = createMockCtx(
+      {
+        doc_1: {
+          ...DOC,
+          folderId: 'folder_1',
+          folderPath: 'Reports',
+          fileId: 'storage_1',
+        },
+        project_1: PROJECT,
+      },
+      { fileMetadata: { ragStatus: 'completed' } },
+    );
+    const detach = await getMutation();
+
+    await detach.handler(ctx, {
+      documentId: 'doc_1',
+      destination: 'organization',
+    });
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org_1',
+        updates: [{ fileId: 'storage_1', folderPath: undefined }],
+      }),
+    );
+  });
+
+  it('skips the RAG folder-path sync for non-indexed docs', async () => {
+    const ctx = createMockCtx(
+      {
+        doc_1: {
+          ...DOC,
+          folderId: 'folder_1',
+          fileId: 'storage_1',
+        },
+        project_1: PROJECT,
+      },
+      { fileMetadata: { ragStatus: 'queued' } },
+    );
+    const detach = await getMutation();
+
+    await detach.handler(ctx, {
+      documentId: 'doc_1',
+      destination: 'organization',
+    });
+
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 
   it('is a no-op for a document not attached to any project', async () => {
@@ -194,5 +292,54 @@ describe('detachDocumentFromProject', () => {
       detach.handler(ctx, { documentId: 'doc_1', destination: 'organization' }),
     ).rejects.toMatchObject({ data: { code: 'RBAC_FORBIDDEN' } });
     expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+});
+
+describe('attachDocumentToProject — hub-scope conflicts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthUserIdentity.mockResolvedValue(AUTH_USER);
+    mockGetOrgMember.mockResolvedValue({
+      _id: 'member_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'editor',
+    });
+  });
+
+  it('rejects a document that lives in a hub folder', async () => {
+    const ctx = createMockCtx({
+      project_1: PROJECT,
+      doc_1: {
+        _id: 'doc_1',
+        organizationId: 'org_1',
+        folderId: 'folder_hub',
+      },
+    });
+    const attach = await getAttachMutation();
+
+    // Same remedy the teamId conflict shows: take the doc out of the hub
+    // library (its folder) before attaching it to a project.
+    await expect(
+      attach.handler(ctx, { documentId: 'doc_1', projectId: 'project_1' }),
+    ).rejects.toMatchObject({ data: { code: 'DOCUMENT_SCOPE_CONFLICT' } });
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('still attaches a folder-less hub document', async () => {
+    const ctx = createMockCtx({
+      project_1: PROJECT,
+      doc_1: { _id: 'doc_1', organizationId: 'org_1' },
+    });
+    const attach = await getAttachMutation();
+
+    await attach.handler(ctx, {
+      documentId: 'doc_1',
+      projectId: 'project_1',
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('doc_1', {
+      projectId: 'project_1',
+    });
   });
 });

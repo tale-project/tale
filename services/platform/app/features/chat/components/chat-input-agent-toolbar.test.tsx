@@ -33,6 +33,12 @@ vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
 vi.mock('./documents-mention-source', () => ({
   createDocumentsMentionSource: () => () => ({ results: [], status: 'idle' }),
 }));
+vi.mock('./folders-mention-source', () => ({
+  createFoldersMentionSource: () => () => ({
+    results: [],
+    status: 'ready',
+  }),
+}));
 vi.mock('@/app/components/ui/forms/file-upload', () => ({
   FileUpload: {
     Root: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

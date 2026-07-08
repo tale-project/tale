@@ -5,6 +5,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import {
   detectMentionTrigger,
+  kbMentionKey,
   MAX_KB_MENTIONS,
   useKbMentions,
   type KbMention,
@@ -12,11 +13,20 @@ import {
 
 function mention(n: number): KbMention {
   return {
+    kind: 'document',
     documentId: `doc_${n}` as Id<'documents'>,
     fileId: `file_${n}` as Id<'_storage'>,
     title: `Document ${n}`,
     fileType: 'application/pdf',
     fileSize: 100 + n,
+  };
+}
+
+function folderMention(n: number): KbMention {
+  return {
+    kind: 'folder',
+    folderId: `folder_${n}` as Id<'folders'>,
+    title: `Folder ${n}`,
   };
 }
 
@@ -82,16 +92,45 @@ describe('useKbMentions', () => {
     expect(result.current.mentions).toHaveLength(MAX_KB_MENTIONS);
   });
 
-  it('removes a mention by documentId', () => {
+  it('removes a mention by its key', () => {
     const { result } = renderHook(() => useKbMentions());
     act(() => {
       result.current.addMention(mention(1));
       result.current.addMention(mention(2));
     });
     act(() => {
-      result.current.removeMention('doc_1' as Id<'documents'>);
+      result.current.removeMention('doc:doc_1');
     });
-    expect(result.current.mentions.map((m) => m.documentId)).toEqual(['doc_2']);
+    expect(result.current.mentions.map((m) => kbMentionKey(m))).toEqual([
+      'doc:doc_2',
+    ]);
+  });
+
+  it('folder pins share the cap and dedupe by folder key', () => {
+    const { result } = renderHook(() => useKbMentions());
+    act(() => {
+      expect(result.current.addMention(folderMention(1))).toBe(true);
+      // Duplicate folder add is a no-op but reports success.
+      expect(result.current.addMention(folderMention(1))).toBe(true);
+      expect(result.current.addMention(mention(1))).toBe(true);
+    });
+    expect(result.current.mentions).toHaveLength(2);
+
+    act(() => {
+      for (let i = 2; i < MAX_KB_MENTIONS; i++) {
+        expect(result.current.addMention(mention(i))).toBe(true);
+      }
+      // Cap counts documents AND folders together.
+      expect(result.current.addMention(folderMention(2))).toBe(false);
+    });
+    expect(result.current.mentions).toHaveLength(MAX_KB_MENTIONS);
+
+    act(() => {
+      result.current.removeMention('folder:folder_1');
+    });
+    expect(result.current.mentions.some((m) => m.kind === 'folder')).toBe(
+      false,
+    );
   });
 
   it('clearMentions returns the snapshot and restoreMentions brings it back', () => {

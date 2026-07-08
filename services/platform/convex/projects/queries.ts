@@ -290,6 +290,7 @@ export const listProjectDocuments = query({
       fileId: v.optional(v.id('_storage')),
       mimeType: v.optional(v.string()),
       extension: v.optional(v.string()),
+      folderId: v.optional(v.id('folders')),
       indexed: v.optional(v.boolean()),
       ragStatus: v.union(
         v.literal('queued'),
@@ -330,11 +331,51 @@ export const listProjectDocuments = query({
         fileId: d.fileId,
         mimeType: d.mimeType,
         extension: d.extension,
+        folderId: d.folderId,
         indexed: proj?.indexed ?? false,
         ragStatus: proj?.status ?? null,
         createdBy: d.createdBy,
       };
     });
+  },
+});
+
+/**
+ * Every folder of a project, flat — the Knowledge tab assembles the tree
+ * client-side (projects hold at most a few hundred folders; no pagination
+ * or lazy loading warranted). Same access rule as `listProjectDocuments`.
+ */
+export const listProjectFolders = query({
+  args: { projectId: v.id('projects'), organizationId: v.string() },
+  returns: v.array(
+    v.object({
+      _id: v.id('folders'),
+      name: v.string(),
+      parentId: v.optional(v.id('folders')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return [];
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
+
+    const folders = await ctx.db
+      .query('folders')
+      .withIndex('by_org_project_parent_name', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .collect();
+
+    return folders.map((f) => ({
+      _id: f._id,
+      name: f.name,
+      parentId: f.parentId,
+    }));
   },
 });
 

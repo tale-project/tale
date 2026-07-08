@@ -13,8 +13,35 @@ import {
 import {
   extractMentions,
   findUnresolvedMentionTokens,
+  parseMentionTokens,
   type ResolvedMention,
 } from '../tasks/mentions';
+
+/**
+ * Drop `@` tokens that were already consumed by a knowledge-base reference
+ * (an `@file.pdf` / `@Folder` pin the composer resolved into
+ * referencedDocumentIds/referencedFolderIds). The actor-mention scanner
+ * re-parses the raw text and would otherwise report those pins as
+ * "did not match anyone in your organization" — a false positive on every
+ * successful file mention. Each reference name is reduced to exactly the
+ * token `MENTION_RE` would capture from `@<name>` so the exclusion matches
+ * what the scanner saw (e.g. `@Q3 Report.pdf` scans as `Q3`).
+ */
+export function excludeKbReferenceTokens(
+  unresolvedTokens: readonly string[],
+  referenceNames: readonly string[],
+): string[] {
+  if (unresolvedTokens.length === 0 || referenceNames.length === 0) {
+    return [...unresolvedTokens];
+  }
+  const excluded = new Set<string>();
+  for (const name of referenceNames) {
+    for (const token of parseMentionTokens(`@${name}`)) {
+      excluded.add(token);
+    }
+  }
+  return unresolvedTokens.filter((token) => !excluded.has(token));
+}
 
 export interface SurfaceMentionResolution {
   mentions: ResolvedMention[];

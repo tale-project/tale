@@ -1,4 +1,5 @@
 import type { FileAttachment } from '../../hooks/use-convex-file-upload';
+import type { KbFolderRef } from '../../hooks/use-message-processing';
 
 export type { FileAttachment };
 
@@ -24,6 +25,8 @@ export interface Message {
   isFailed?: boolean;
   error?: string;
   attachments?: FileAttachment[];
+  /** `@`-pinned folders parsed from the message's folder marker block. */
+  folderRefs?: KbFolderRef[];
   fileParts?: FilePart[];
   threadId?: string;
   /** Raw UIMessage parts (reasoning + tool calls), used to render the

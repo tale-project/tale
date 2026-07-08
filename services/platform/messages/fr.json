@@ -1947,7 +1947,8 @@
       "resizeAria": "Redimensionner le panneau de discussion",
       "fullscreen": "Passer en plein écran",
       "exitFullscreen": "Quitter le plein écran"
-    }
+    },
+    "kbFolderChipFiles": "{count, plural, one {# fichier} other {# fichiers}}"
   },
   "common": {
     "optional": "facultatif",
@@ -2232,12 +2233,14 @@
       "actionBrowseAgents": "Parcourir les agents",
       "actionInviteTeammates": "Inviter des coéquipiers",
       "actionUploadDocuments": "Importer des documents",
-      "documentChipLabel": "Base de connaissances",
+      "documentChipLabel": "Connaissances",
       "agentChipLabel": "Agent",
       "teammateChipLabel": "Coéquipier",
       "removeDocumentMention": "Supprimer la référence à {title}",
       "removeActorMention": "Supprimer la mention de {name}",
-      "limitReached": "Tu peux référencer jusqu’à {max} documents par message"
+      "limitReached": "Tu peux référencer jusqu’à {max} documents par message",
+      "sectionFolders": "Dossiers",
+      "folderChipLabel": "Dossier"
     }
   },
   "connectivity": {
@@ -7928,7 +7931,18 @@
       "unknownTitle": "Document sans titre",
       "indexingRetry": "Réessayer l'indexation",
       "indexingRetryQueued": "Indexation relancée",
-      "indexingRetryFailed": "Impossible de relancer l'indexation"
+      "indexingRetryFailed": "Impossible de relancer l'indexation",
+      "treeLabel": "Fichiers du projet",
+      "addToFolder": "Ajouter un fichier à « {folder} »",
+      "folderGone": "Ce dossier n'existe plus.",
+      "folderDeleted": "Dossier supprimé",
+      "folderDeleteFailed": "Impossible de supprimer le dossier",
+      "folderDeleteHeld": "Un fichier de ce dossier est sous conservation légale — levez-la d'abord.",
+      "folderDeleteAction": "Supprimer le dossier",
+      "folderDeleteConfirm": "Supprimer « {folder} » et tout son contenu ? Les fichiers seront retirés du projet et de l'index de connaissances. Cette action est irréversible.",
+      "newSubfolderAction": "Nouveau sous-dossier",
+      "uploadFailedTitle": "Échec de l'envoi",
+      "uploadingIndicator": "Envoi en cours…"
     },
     "threads": {
       "title": "Chats",

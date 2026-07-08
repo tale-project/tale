@@ -57,6 +57,25 @@ export async function updateDocumentInternal(
         message: 'Folder not found',
       });
     }
+    // Folder and document scopes must match (create_document.ts holds the
+    // same invariant at insert): a project doc moves only within its own
+    // project's folders; a hub doc never moves into a project folder — the
+    // latter is an opaque not-found because hub callers (REST PATCH, sync)
+    // cannot see project folders.
+    if (document.projectId != null) {
+      if (folder.projectId !== document.projectId) {
+        throw new ConvexError({
+          code: 'DOCUMENT_SCOPE_CONFLICT',
+          message:
+            'A project document can only live in a folder of the same project',
+        });
+      }
+    } else if (folder.projectId != null) {
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
+    }
   }
 
   // Check if file content has changed (by comparing hash)

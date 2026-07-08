@@ -106,12 +106,18 @@ export const listCollection = internalQuery({
     const parentId = args.folderId ?? undefined;
     // Bounded like the document scan below: a folder with a very large flat
     // set of subfolders would otherwise .collect() past the single-query
-    // read ceiling and hard-fail the PROPFIND. by_org_parent_name orders by
-    // name (org+parentId fixed); .take(cap+1) lets us detect truncation.
+    // read ceiling and hard-fail the PROPFIND. The hub-exact index pins
+    // projectId=undefined so project folders never surface over WebDAV
+    // (folder twin of isWebdavVisibleDocument, enforced at the index so
+    // .take(cap+1) truncation detection stays exact); name-ordered with
+    // org+projectId+parentId fixed.
     const rawFolders = await ctx.db
       .query('folders')
-      .withIndex('by_org_parent_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('parentId', parentId),
+      .withIndex('by_org_project_parent_name', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('projectId', undefined)
+          .eq('parentId', parentId),
       )
       .take(MAX_CHILDREN_PER_PROPFIND + 1);
     const foldersHitReadCap = rawFolders.length > MAX_CHILDREN_PER_PROPFIND;
@@ -287,11 +293,14 @@ async function resolvePathInner(
   // folder name (collection) or document title (resource).
   if (segments.length === 1) {
     const onlyName = segments[0];
+    // Hub-exact: a project folder sharing the name at root must resolve as
+    // not-found over WebDAV.
     const folder = await ctx.db
       .query('folders')
-      .withIndex('by_org_parent_name', (q) =>
+      .withIndex('by_org_project_parent_name', (q) =>
         q
           .eq('organizationId', organizationId)
+          .eq('projectId', undefined)
           .eq('parentId', undefined)
           .eq('name', onlyName),
       )
@@ -323,12 +332,14 @@ async function resolvePathInner(
   );
   if (!parentFolderId) return { kind: 'not_found', exists: false };
 
-  // Try child folder first
+  // Try child folder first (hub-exact — children of a hub parent are hub
+  // folders by invariant; the pinned index keeps that assumption enforced).
   const childFolder = await ctx.db
     .query('folders')
-    .withIndex('by_org_parent_name', (q) =>
+    .withIndex('by_org_project_parent_name', (q) =>
       q
         .eq('organizationId', organizationId)
+        .eq('projectId', undefined)
         .eq('parentId', parentFolderId)
         .eq('name', leafName),
     )

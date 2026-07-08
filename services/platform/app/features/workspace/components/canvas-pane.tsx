@@ -159,7 +159,15 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   const isActiveStreaming = !!activeLive;
 
   const hasContent = !!threadId && mergedFiles.length > 0;
-  useAutoOpen('canvas', hasContent);
+  // Auto-open only for AGENT-produced content (output/, code/, live writes).
+  // Files the user supplied themselves (uploads — chat attachments and
+  // `@`-pinned knowledge files) are not news to the user, so they must not
+  // grab the screen; the canvas tab stays available to open manually.
+  const hasAgentContent = useMemo(
+    () => mergedFiles.some((f) => f.source !== 'user_upload'),
+    [mergedFiles],
+  );
+  useAutoOpen('canvas', hasContent && hasAgentContent);
 
   const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
     if (!hasContent || !threadId) return null;

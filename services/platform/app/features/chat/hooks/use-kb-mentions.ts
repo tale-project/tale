@@ -6,12 +6,13 @@ import type { Id } from '@/convex/_generated/dataModel';
 export const MAX_KB_MENTIONS = 5;
 
 /**
- * A knowledge-base document pinned to the next message via the composer's
- * `@`-mention picker. The chips (this state) are the source of truth — the
- * inserted `@Title` prose is presentational, so editing it out of the text
- * does not drop the pin (remove the chip instead).
+ * A knowledge-base document or folder pinned to the next message via the
+ * composer's `@`-mention picker. The chips (this state) are the source of
+ * truth — the inserted `@Title` prose is presentational, so editing it out
+ * of the text does not drop the pin (remove the chip instead).
  */
-export interface KbMention {
+export interface KbDocumentMention {
+  kind: 'document';
   documentId: Id<'documents'>;
   fileId: Id<'_storage'>;
   title: string;
@@ -19,6 +20,23 @@ export interface KbMention {
   fileSize: number;
   extension?: string;
   folderPath?: string;
+}
+
+/** A folder pin — expands to its subtree's indexed files at send time. */
+export interface KbFolderMention {
+  kind: 'folder';
+  folderId: Id<'folders'>;
+  title: string;
+  parentPath?: string;
+}
+
+export type KbMention = KbDocumentMention | KbFolderMention;
+
+/** Stable dedupe/removal key across both mention kinds. */
+export function kbMentionKey(mention: KbMention): string {
+  return mention.kind === 'document'
+    ? `doc:${mention.documentId}`
+    : `folder:${mention.folderId}`;
 }
 
 export interface MentionTrigger {
@@ -52,10 +70,10 @@ export function detectMentionTrigger(
 
 interface UseKbMentionsResult {
   mentions: KbMention[];
-  /** Adds a mention (deduped by documentId). Returns false when the per-turn
-   *  cap is reached and nothing was added. */
+  /** Adds a mention (deduped by kind-scoped id). Returns false when the
+   *  per-turn cap is reached and nothing was added. */
   addMention: (mention: KbMention) => boolean;
-  removeMention: (documentId: Id<'documents'>) => void;
+  removeMention: (key: string) => void;
   /** Empties the list and returns the cleared mentions (send-time snapshot
    *  for failure rollback — mirrors `clearAttachments`). */
   clearMentions: () => KbMention[];
@@ -79,7 +97,8 @@ export function useKbMentions(): UseKbMentionsResult {
   const addMention = useCallback(
     (mention: KbMention): boolean => {
       const current = mentionsRef.current;
-      if (current.some((m) => m.documentId === mention.documentId)) {
+      const key = kbMentionKey(mention);
+      if (current.some((m) => kbMentionKey(m) === key)) {
         return true;
       }
       if (current.length >= MAX_KB_MENTIONS) return false;
@@ -90,8 +109,8 @@ export function useKbMentions(): UseKbMentionsResult {
   );
 
   const removeMention = useCallback(
-    (documentId: Id<'documents'>) => {
-      commit(mentionsRef.current.filter((m) => m.documentId !== documentId));
+    (key: string) => {
+      commit(mentionsRef.current.filter((m) => kbMentionKey(m) !== key));
     },
     [commit],
   );

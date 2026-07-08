@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@/tests/utils/render';
 
 import type { MentionActorOption } from '../../tasks/lib/mention-actor-options';
-import type { KbMention } from '../hooks/use-kb-mentions';
+import type { KbDocumentMention, KbMention } from '../hooks/use-kb-mentions';
 import { ChatInput } from './chat-input';
 
 // ChatInput pulls in the whole composer toolbar (agent/model pickers,
@@ -47,6 +47,14 @@ let documentsSourceState: {
 vi.mock('./documents-mention-source', () => ({
   createDocumentsMentionSource: () => () => documentsSourceState,
 }));
+// Folder mention source mirrors the documents one; default to no results so
+// existing picker tests keep their section layout.
+vi.mock('./folders-mention-source', () => ({
+  createFoldersMentionSource: () => () => ({
+    results: [],
+    status: 'ready',
+  }),
+}));
 // FileUpload.DropZone reads a Root context that ChatInput's caller supplies in
 // production; render it (and its overlay) as plain passthroughs here.
 vi.mock('@/app/components/ui/forms/file-upload', () => ({
@@ -87,8 +95,9 @@ const actorOptions: MentionActorOption[] = [
 ];
 
 const kbDocument: KbMention = {
-  documentId: 'doc_1' as KbMention['documentId'],
-  fileId: 'file_1' as KbMention['fileId'],
+  kind: 'document',
+  documentId: 'doc_1' as KbDocumentMention['documentId'],
+  fileId: 'file_1' as KbDocumentMention['fileId'],
   title: 'Quarterly Report',
   fileType: 'application/pdf',
   fileSize: 100,

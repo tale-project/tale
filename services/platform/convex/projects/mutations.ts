@@ -22,6 +22,7 @@ import {
   normalizeProjectKey,
   PROJECT_KEY_MAX,
 } from '../../lib/shared/project_key';
+import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -923,6 +924,13 @@ export const attachDocumentToProject = mutation({
     if (doc.teamId) {
       throw new ConvexError({ code: 'DOCUMENT_SCOPE_CONFLICT' });
     }
+    // A hub folder is as much a hub scope as a team: attaching would leave
+    // the doc referencing a folder its project peers cannot see (and folder
+    // cascades would cross scopes). Same remedy the teamId conflict shows —
+    // take it out of the hub library first.
+    if (doc.folderId) {
+      throw new ConvexError({ code: 'DOCUMENT_SCOPE_CONFLICT' });
+    }
 
     await ctx.db.patch(args.documentId, {
       projectId: args.projectId,
@@ -970,16 +978,50 @@ export const detachDocumentFromProject = mutation({
 
     const project = await ctx.db.get(doc.projectId);
     if (!project) {
-      // Stale link; just clear.
-      await ctx.db.patch(args.documentId, { projectId: undefined });
+      // Stale link; just clear. Project folders are invalid in the hub, so
+      // the folder link goes with the project link.
+      await ctx.db.patch(args.documentId, {
+        projectId: undefined,
+        folderId: undefined,
+        folderPath: undefined,
+      });
       return null;
     }
 
     const auth = await getAuthContext(ctx, project.organizationId);
     assertWritable(project, auth);
 
-    await ctx.db.patch(args.documentId, { projectId: undefined });
+    // Clear the folder alongside the project: the folder (if any) is a
+    // project folder, which is not a hub row — a detached doc keeping it
+    // would point hub surfaces at an invisible folder and re-enter the
+    // folder's cascade delete from outside the project.
+    await ctx.db.patch(args.documentId, {
+      projectId: undefined,
+      folderId: undefined,
+      folderPath: undefined,
+    });
     await ctx.db.patch(project._id, { updatedAt: Date.now() });
+
+    // RAG keeps a denormalized folder_path for folder-scoped search; the
+    // detach cleared folderPath without re-uploading, so sync it explicitly
+    // (the update_document_internal folder-move pattern).
+    const detachedFileId = doc.fileId;
+    if (doc.folderId && detachedFileId) {
+      const fm = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', detachedFileId))
+        .first();
+      if (fm?.ragStatus === 'completed') {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documents.internal_actions.syncRagFolderPaths,
+          {
+            organizationId: project.organizationId,
+            updates: [{ fileId: detachedFileId, folderPath: undefined }],
+          },
+        );
+      }
+    }
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,

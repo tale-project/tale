@@ -77,6 +77,7 @@ import {
   useMessageProcessing,
   stripInternalFileReferences,
   extractFileAttachments,
+  extractKbFolderRefs,
 } from './use-message-processing';
 
 const mockUseUIMessages = vi.mocked(useUIMessages);
@@ -1456,6 +1457,30 @@ describe('useMessageProcessing', () => {
 
     it('appendKbReferenceBlock is a no-op for zero refs', () => {
       expect(appendKbReferenceBlock('hello', [])).toBe('hello');
+    });
+
+    // Folder pins ride their own marker (kbFolderId keys) — it must
+    // round-trip through extractKbFolderRefs, be stripped from the bubble
+    // body, and never be mistaken for a file marker (or vice versa).
+    it('folder markers round-trip and stay disjoint from file markers', () => {
+      const folders = [
+        { folderId: 'kfabc123', name: 'Contracts', fileCount: 3 },
+      ];
+      const userText = 'Check @Contracts';
+      const message = appendKbReferenceBlock(userText, refs, folders);
+
+      expect(extractKbFolderRefs(message)).toEqual([
+        { folderId: 'kfabc123', name: 'Contracts', fileCount: 3 },
+      ]);
+      // File extraction is unaffected by the folder block…
+      expect(extractFileAttachments(message)).toHaveLength(refs.length);
+      // …and the folder marker never parses as a file chip.
+      const folderOnly = appendKbReferenceBlock(userText, [], folders);
+      expect(extractFileAttachments(folderOnly)).toEqual([]);
+      expect(extractKbFolderRefs(folderOnly)).toHaveLength(1);
+      // Both blocks strip from the visible prose.
+      expect(stripInternalFileReferences(message)).toBe(userText);
+      expect(stripInternalFileReferences(folderOnly)).toBe(userText);
     });
   });
 

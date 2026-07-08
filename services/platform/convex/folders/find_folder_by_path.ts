@@ -31,11 +31,15 @@ export async function findFolderByPath(
       return null;
     }
 
+    // Hub-exact lookup: a project folder may share (org, parent, name) at
+    // the root level — path resolution is a Knowledge Hub concept and must
+    // never traverse into a project scope.
     const existing = await ctx.db
       .query('folders')
-      .withIndex('by_org_parent_name', (q) =>
+      .withIndex('by_org_project_parent_name', (q) =>
         q
           .eq('organizationId', organizationId)
+          .eq('projectId', undefined)
           .eq('parentId', parentId)
           .eq('name', validName),
       )

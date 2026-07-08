@@ -13,21 +13,34 @@ interface FakeFileMeta {
 function createCtx(
   docs: Array<Record<string, unknown>>,
   fileMetaByStorageId: Record<string, FakeFileMeta>,
+  projectDocs: Array<Record<string, unknown>> = [],
 ) {
   const paginate = vi.fn().mockResolvedValue({
     page: docs,
     isDone: true,
     continueCursor: '',
   });
-  const documentsBuilder = {
-    withIndex: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    paginate,
-  };
   const ctx = {
     db: {
       query: vi.fn((table: string) => {
-        if (table === 'documents') return documentsBuilder;
+        if (table === 'documents') {
+          // Dispatch on the requested index: the project branch scans
+          // by_organizationId_and_projectId with .take(); the hub search
+          // (runEntitySearch) paginates.
+          return {
+            withIndex: vi.fn((name: string) =>
+              name === 'by_organizationId_and_projectId'
+                ? { take: vi.fn().mockResolvedValue(projectDocs) }
+                : {
+                    order: vi.fn().mockReturnThis(),
+                    paginate,
+                    take: vi.fn().mockResolvedValue(docs),
+                  },
+            ),
+            order: vi.fn().mockReturnThis(),
+            paginate,
+          };
+        }
         // fileMetadata by_storageId point lookup: capture the eq() value the
         // index callback binds and resolve the matching row.
         return {
@@ -249,6 +262,111 @@ describe('searchDocumentsForMention', () => {
         organizationId: 'org_1',
         term: 'doc',
         userTeamIds: ['team_a'],
+      },
+    );
+
+    expect(results.map((r) => r.documentId)).toEqual(['d_hub']);
+  });
+
+  it('offers the thread project files first when projectId is given', async () => {
+    const { ctx } = createCtx(
+      [{ ...baseDoc, _id: 'd_hub', title: 'contract hub', fileId: 'f_hub' }],
+      {
+        f_hub: {
+          fileName: 'hub.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          ragStatus: 'completed',
+        },
+        f_p1: {
+          fileName: 'alpha.txt',
+          contentType: 'text/plain',
+          size: 1,
+          ragStatus: 'completed',
+        },
+        f_p2: {
+          fileName: 'zeta.txt',
+          contentType: 'text/plain',
+          size: 1,
+          ragStatus: 'queued',
+        },
+      },
+      [
+        {
+          ...baseDoc,
+          _id: 'd_proj_a',
+          title: 'contract-alpha.txt',
+          fileId: 'f_p1',
+          projectId: 'proj_1',
+        },
+        // Not indexed — excluded like any other candidate.
+        {
+          ...baseDoc,
+          _id: 'd_proj_z',
+          title: 'contract-zeta.txt',
+          fileId: 'f_p2',
+          projectId: 'proj_1',
+        },
+        // Trashed — excluded.
+        {
+          ...baseDoc,
+          _id: 'd_proj_trashed',
+          title: 'contract-old.txt',
+          fileId: 'f_p1',
+          projectId: 'proj_1',
+          lifecycleStatus: 'trashed',
+        },
+      ],
+    );
+
+    const results = await searchDocumentsForMention(
+      ctx as unknown as QueryCtx,
+      {
+        organizationId: 'org_1',
+        term: 'contract',
+        userTeamIds: [],
+        projectId: 'proj_1' as never,
+      },
+    );
+
+    // Project file ranks before the hub match.
+    expect(results.map((r) => r.documentId)).toEqual(['d_proj_a', 'd_hub']);
+  });
+
+  it('ignores project files entirely without a projectId', async () => {
+    const { ctx } = createCtx(
+      [{ ...baseDoc, _id: 'd_hub', title: 'contract hub', fileId: 'f_hub' }],
+      {
+        f_hub: {
+          fileName: 'hub.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          ragStatus: 'completed',
+        },
+        f_p1: {
+          fileName: 'alpha.txt',
+          contentType: 'text/plain',
+          size: 1,
+          ragStatus: 'completed',
+        },
+      },
+      [
+        {
+          ...baseDoc,
+          _id: 'd_proj_a',
+          title: 'contract-alpha.txt',
+          fileId: 'f_p1',
+          projectId: 'proj_1',
+        },
+      ],
+    );
+
+    const results = await searchDocumentsForMention(
+      ctx as unknown as QueryCtx,
+      {
+        organizationId: 'org_1',
+        term: 'contract',
+        userTeamIds: [],
       },
     );
 

@@ -3,18 +3,35 @@
 import { Button } from '@tale/ui/button';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { Eye, FileText, RotateCcw, Upload } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  RotateCcw,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { useDeleteFolder } from '@/app/features/documents/hooks/mutations';
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@/app/features/workspace/components/file-tree-primitives';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -29,11 +46,43 @@ import {
 } from '@/lib/shared/file-types';
 
 import { useDetachDocumentFromProject } from '../hooks/mutations';
-import { useProject, useProjectDocuments } from '../hooks/queries';
+import {
+  useProject,
+  useProjectDocuments,
+  useProjectFolders,
+} from '../hooks/queries';
+import { ProjectCreateFolderDialog } from './project-create-folder-dialog';
 
 interface ProjectFilesTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
+}
+
+type ProjectDocumentRow = ReturnType<
+  typeof useProjectDocuments
+>['documents'][number];
+type ProjectFolderRow = ReturnType<typeof useProjectFolders>['folders'][number];
+
+/** Client-side tree assembly: projects hold at most a few hundred rows. */
+function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
+  const childFolders = new Map<string, ProjectFolderRow[]>();
+  for (const folder of folders) {
+    const key = folder.parentId ? String(folder.parentId) : '';
+    const list = childFolders.get(key) ?? [];
+    list.push(folder);
+    childFolders.set(key, list);
+  }
+  for (const list of childFolders.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  const filesByFolder = new Map<string, ProjectDocumentRow[]>();
+  for (const doc of docs) {
+    const key = doc.folderId ? String(doc.folderId) : '';
+    const list = filesByFolder.get(key) ?? [];
+    list.push(doc); // listProjectDocuments is already newest-first
+    filesByFolder.set(key, list);
+  }
+  return { childFolders, filesByFolder };
 }
 
 export function ProjectFilesTab({
@@ -41,9 +90,12 @@ export function ProjectFilesTab({
   projectId,
 }: ProjectFilesTabProps) {
   const { t } = useT('projects');
+  const { t: tDocuments } = useT('documents');
   const { project } = useProject(projectId);
   const { documents, isLoading } = useProjectDocuments(projectId);
+  const { folders } = useProjectFolders(projectId);
   const { mutateAsync: detachDocument } = useDetachDocumentFromProject();
+  const { mutateAsync: deleteFolder } = useDeleteFolder();
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -58,10 +110,42 @@ export function ProjectFilesTab({
   const [retryingIds, setRetryingIds] = useState(new Set<string>());
   const [confirmDetachId, setConfirmDetachId] =
     useState<Id<'documents'> | null>(null);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] =
+    useState<ProjectFolderRow | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{
     id: Id<'documents'>;
     title: string;
   } | null>(null);
+  // Expanded folder ids; the selected folder is the upload target.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [selectedFolderId, setSelectedFolderId] =
+    useState<Id<'folders'> | null>(null);
+  const [createFolderParent, setCreateFolderParent] = useState<{
+    parentId?: Id<'folders'>;
+  } | null>(null);
+  const treeRef = useRef<HTMLUListElement | null>(null);
+
+  const { childFolders, filesByFolder } = useMemo(
+    () => buildTree(folders, documents),
+    [folders, documents],
+  );
+
+  const selectedFolderName = useMemo(() => {
+    if (!selectedFolderId) return null;
+    return folders.find((f) => f._id === selectedFolderId)?.name ?? null;
+  }, [folders, selectedFolderId]);
+
+  const toggleFolder = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const uploadOne = useCallback(
     async (file: File): Promise<void> => {
@@ -88,7 +172,7 @@ export function ProjectFilesTab({
       const { storageId } = uploadJson;
       // One mutation, scoped at insert: the former create-then-attach pair
       // left the file org-wide in the Knowledge Hub whenever the attach half
-      // failed (issue #2546).
+      // failed (issue #2546). The selected folder is the upload target.
       await createDocumentFromUpload({
         organizationId,
         fileId: toId<'_storage'>(storageId),
@@ -101,12 +185,18 @@ export function ProjectFilesTab({
           lastModified: file.lastModified,
         },
         teamId: undefined,
-        folderId: undefined,
+        folderId: selectedFolderId ?? undefined,
         fileSize: file.size,
         projectId,
       });
     },
-    [generateUploadUrl, createDocumentFromUpload, organizationId, projectId],
+    [
+      generateUploadUrl,
+      createDocumentFromUpload,
+      organizationId,
+      projectId,
+      selectedFolderId,
+    ],
   );
 
   const handleFilesSelected = useCallback(
@@ -139,9 +229,22 @@ export function ProjectFilesTab({
           console.error('project file upload failed', file.name, error);
           if (error instanceof ConvexError) {
             const code = error.data?.code;
-            if (code === 'DOCUMENT_SCOPE_CONFLICT') {
+            if (
+              code === 'DOCUMENT_SCOPE_CONFLICT' ||
+              code === 'FOLDER_NOT_FOUND'
+            ) {
               toast({
-                title: t('errors.DOCUMENT_SCOPE_CONFLICT'),
+                title: t(
+                  code === 'FOLDER_NOT_FOUND'
+                    ? 'files.folderGone'
+                    : 'errors.DOCUMENT_SCOPE_CONFLICT',
+                  {
+                    defaultValue:
+                      code === 'FOLDER_NOT_FOUND'
+                        ? 'That folder no longer exists.'
+                        : undefined,
+                  },
+                ),
                 description: file.name,
                 variant: 'destructive',
               });
@@ -202,6 +305,36 @@ export function ProjectFilesTab({
     [detachDocument, t],
   );
 
+  const handleDeleteFolder = useCallback(
+    async (folderId: Id<'folders'>) => {
+      try {
+        await deleteFolder({ folderId });
+        if (selectedFolderId === folderId) setSelectedFolderId(null);
+        toast({
+          title: t('files.folderDeleted', { defaultValue: 'Folder deleted' }),
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('deleteFolder failed', error);
+        const code =
+          error instanceof ConvexError ? error.data?.code : undefined;
+        toast({
+          title:
+            code === 'LEGAL_HOLD_ACTIVE'
+              ? t('files.folderDeleteHeld', {
+                  defaultValue:
+                    'A file in this folder is on legal hold — release it first.',
+                })
+              : t('files.folderDeleteFailed', {
+                  defaultValue: "Couldn't delete the folder",
+                }),
+          variant: 'destructive',
+        });
+      }
+    },
+    [deleteFolder, selectedFolderId, t],
+  );
+
   const handleRetryIndexing = useCallback(
     async (documentId: Id<'documents'>) => {
       if (retryingIds.has(String(documentId))) return;
@@ -237,6 +370,169 @@ export function ProjectFilesTab({
     return '';
   };
 
+  const renderFileRow = (doc: ProjectDocumentRow, depth: number) => {
+    const isRetrying = retryingIds.has(String(doc._id));
+    const failed = doc.ragStatus === 'failed';
+    const displayTitle = doc.title ?? doc.extension ?? t('files.unknownTitle');
+    // A file can only be opened/downloaded once its bytes have been stored,
+    // so gate the preview affordance on the storage id per row.
+    const canPreview = doc.fileId != null;
+    const FileIcon = iconForPath(displayTitle);
+    const openPreview = () =>
+      setPreviewDoc({ id: doc._id, title: displayTitle });
+    return (
+      <li key={doc._id} role="none">
+        <HStack gap={1} align="center" className="group">
+          <div className="min-w-0 flex-1">
+            {canPreview ? (
+              <TreeRowButton
+                isActive={previewDoc?.id === doc._id}
+                depth={depth}
+                onClick={openPreview}
+                title={displayTitle}
+                ariaLabel={displayTitle}
+                dataParentPath={doc.folderId ? String(doc.folderId) : null}
+              >
+                <FileIcon
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+                <Text as="span" variant="caption" className="shrink-0">
+                  {statusLabel(doc.ragStatus)}
+                </Text>
+              </TreeRowButton>
+            ) : (
+              // No stored bytes yet — nothing to open, so no treeitem
+              // affordance; a plain row mirrors the pre-tree behaviour.
+              <div
+                className="text-muted-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs"
+                style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
+              >
+                <FileIcon
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+                <Text as="span" variant="caption" className="shrink-0">
+                  {statusLabel(doc.ragStatus)}
+                </Text>
+              </div>
+            )}
+          </div>
+          {canPreview ? (
+            <IconButton
+              icon={Eye}
+              variant="ghost"
+              size="sm"
+              aria-label={t('files.previewAction')}
+              onClick={openPreview}
+            />
+          ) : null}
+          {failed && canEdit ? (
+            <IconButton
+              icon={RotateCcw}
+              variant="ghost"
+              size="sm"
+              aria-label={t('files.indexingRetry')}
+              onClick={() => void handleRetryIndexing(doc._id)}
+              disabled={isRetrying}
+            />
+          ) : null}
+          {canEdit ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setConfirmDetachId(doc._id)}
+            >
+              {t('files.detachAction')}
+            </Button>
+          ) : null}
+        </HStack>
+      </li>
+    );
+  };
+
+  const renderFolder = (folder: ProjectFolderRow, depth: number) => {
+    const id = String(folder._id);
+    const isExpanded = expanded.has(id);
+    const isSelected = selectedFolderId === folder._id;
+    const FolderIcon = isExpanded ? FolderOpen : Folder;
+    const subFolders = childFolders.get(id) ?? [];
+    const files = filesByFolder.get(id) ?? [];
+    return (
+      <li key={folder._id} role="none">
+        <HStack gap={1} align="center" className="group">
+          <div className="min-w-0 flex-1">
+            <TreeRowButton
+              isActive={isSelected}
+              depth={depth}
+              onClick={() => {
+                // Click = select as upload target; toggles expansion too so
+                // the target is always visible.
+                setSelectedFolderId(isSelected ? null : folder._id);
+                if (!isExpanded) toggleFolder(id);
+                else if (isSelected) toggleFolder(id);
+              }}
+              title={folder.name}
+              ariaLabel={folder.name}
+              ariaExpanded={isExpanded}
+              dataDirPath={id}
+              dataParentPath={folder.parentId ? String(folder.parentId) : null}
+            >
+              {isExpanded ? (
+                <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+              ) : (
+                <ChevronRight
+                  className="size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+              )}
+              <FolderIcon
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+            </TreeRowButton>
+          </div>
+          {canEdit ? (
+            <>
+              <IconButton
+                icon={FolderPlus}
+                variant="ghost"
+                size="sm"
+                aria-label={t('files.newSubfolderAction', {
+                  defaultValue: 'New folder inside',
+                })}
+                onClick={() => setCreateFolderParent({ parentId: folder._id })}
+              />
+              <IconButton
+                icon={Trash2}
+                variant="ghost"
+                size="sm"
+                aria-label={t('files.folderDeleteAction', {
+                  defaultValue: 'Delete folder',
+                })}
+                onClick={() => setConfirmDeleteFolder(folder)}
+              />
+            </>
+          ) : null}
+        </HStack>
+        {isExpanded ? (
+          <ul role="group">
+            {subFolders.map((sub) => renderFolder(sub, depth + 1))}
+            {files.map((doc) => renderFileRow(doc, depth + 1))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  };
+
+  const rootFolders = childFolders.get('') ?? [];
+  const rootFiles = filesByFolder.get('') ?? [];
+  const isEmpty = rootFolders.length === 0 && documents.length === 0;
+
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
@@ -245,81 +541,35 @@ export function ProjectFilesTab({
       />
 
       <FormSection>
-        {documents.length > 0 ? (
-          <div className="divide-y rounded-lg border">
-            {documents.map((doc) => {
-              const isRetrying = retryingIds.has(String(doc._id));
-              const failed = doc.ragStatus === 'failed';
-              const displayTitle =
-                doc.title ?? doc.extension ?? t('files.unknownTitle');
-              // A file can only be opened/downloaded once its bytes have been
-              // stored, so gate the preview affordance on the storage id that
-              // `listProjectDocuments` returns per row.
-              const canPreview = doc.fileId != null;
-              const openPreview = () =>
-                setPreviewDoc({ id: doc._id, title: displayTitle });
-              return (
-                <HStack
-                  key={doc._id}
-                  gap={3}
-                  align="center"
-                  className="px-4 py-3"
-                >
-                  <FileText
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <Stack gap={0} className="min-w-0 flex-1">
-                    {canPreview ? (
-                      <button
-                        type="button"
-                        onClick={openPreview}
-                        className="min-w-0 cursor-pointer text-left hover:underline"
-                      >
-                        <Text as="span" variant="body" truncate>
-                          {displayTitle}
-                        </Text>
-                      </button>
-                    ) : (
-                      <Text as="span" variant="body" truncate>
-                        {displayTitle}
-                      </Text>
-                    )}
-                    <Text as="span" variant="caption">
-                      {statusLabel(doc.ragStatus)}
-                    </Text>
-                  </Stack>
-                  {canPreview ? (
-                    <IconButton
-                      icon={Eye}
-                      variant="ghost"
-                      aria-label={t('files.previewAction')}
-                      onClick={openPreview}
-                    />
-                  ) : null}
-                  {failed && canEdit ? (
-                    <Button
-                      variant="ghost"
-                      onClick={() => void handleRetryIndexing(doc._id)}
-                      disabled={isRetrying}
-                      isLoading={isRetrying}
-                    >
-                      <RotateCcw className="size-4" aria-hidden="true" />
-                      {t('files.indexingRetry')}
-                    </Button>
-                  ) : null}
-                  {canEdit ? (
-                    <Button
-                      variant="ghost"
-                      onClick={() => setConfirmDetachId(doc._id)}
-                    >
-                      {t('files.detachAction')}
-                    </Button>
-                  ) : null}
-                </HStack>
-              );
-            })}
-          </div>
+        {canEdit ? (
+          <HStack gap={2} align="center" justify="end">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              onClick={() => setCreateFolderParent({})}
+            >
+              <FolderPlus className="size-4" aria-hidden="true" />
+              {tDocuments('folder.newFolder')}
+            </Button>
+          </HStack>
+        ) : null}
+
+        {!isEmpty ? (
+          <ul
+            ref={treeRef}
+            role="tree"
+            aria-label={t('files.treeLabel', { defaultValue: 'Project files' })}
+            className="rounded-lg border p-2"
+            onKeyDown={(event) =>
+              treeNavigationKeyDown(event, treeRef.current, expanded, (id) =>
+                toggleFolder(id),
+              )
+            }
+          >
+            {rootFolders.map((folder) => renderFolder(folder, 0))}
+            {rootFiles.map((doc) => renderFileRow(doc, 0))}
+          </ul>
         ) : !isLoading ? (
           <EmptyPlaceholder icon={FileText}>
             {t('files.emptyTitle')}
@@ -346,7 +596,12 @@ export function ProjectFilesTab({
                   ? t('files.uploadingIndicator', {
                       defaultValue: 'Uploading…',
                     })
-                  : t('files.addButton')}
+                  : selectedFolderName
+                    ? t('files.addToFolder', {
+                        defaultValue: 'Add file to "{folder}"',
+                        folder: selectedFolderName,
+                      })
+                    : t('files.addButton')}
               </Text>
               <FileUpload.Overlay />
             </FileUpload.DropZone>
@@ -361,6 +616,16 @@ export function ProjectFilesTab({
         }}
         documentId={previewDoc?.id}
         fileName={previewDoc?.title}
+      />
+
+      <ProjectCreateFolderDialog
+        organizationId={organizationId}
+        projectId={projectId}
+        parentFolderId={createFolderParent?.parentId}
+        open={createFolderParent !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreateFolderParent(null);
+        }}
       />
 
       <ConfirmDialog
@@ -380,6 +645,31 @@ export function ProjectFilesTab({
             void handleDetach(confirmDetachId);
           }
           setConfirmDetachId(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteFolder !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteFolder(null);
+        }}
+        title={t('files.folderDeleteAction', {
+          defaultValue: 'Delete folder',
+        })}
+        description={t('files.folderDeleteConfirm', {
+          defaultValue:
+            'Delete "{folder}" and everything inside it? The files are removed from the project and from the knowledge index. This cannot be undone.',
+          folder: confirmDeleteFolder?.name ?? '',
+        })}
+        variant="destructive"
+        confirmText={t('files.folderDeleteAction', {
+          defaultValue: 'Delete folder',
+        })}
+        onConfirm={() => {
+          if (confirmDeleteFolder !== null) {
+            void handleDeleteFolder(confirmDeleteFolder._id);
+          }
+          setConfirmDeleteFolder(null);
         }}
       />
     </ContentArea>

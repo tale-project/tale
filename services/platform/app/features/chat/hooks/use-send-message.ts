@@ -367,21 +367,31 @@ export function useSendMessage({
       // the server's enriched marker block) — they are NOT part of the
       // mutation `attachments` arg, which would re-register the blobs with
       // the agent and duplicate the existing RAG index. The server receives
-      // `referencedDocumentIds` instead and resolves them authoritatively.
-      const kbDisplayAttachments =
-        kbReferences?.map((ref) => ({
-          fileId: ref.fileId,
-          fileName: ref.title,
-          fileType: ref.fileType,
-          fileSize: ref.fileSize,
-        })) ?? [];
+      // `referencedDocumentIds` / `referencedFolderIds` instead and resolves
+      // them authoritatively. Folder pins have no storage blob, so they skip
+      // the optimistic display list — their chip appears with the persisted
+      // swap (parsed from the folder marker block).
+      const kbDocumentRefs =
+        kbReferences?.filter((ref) => ref.kind === 'document') ?? [];
+      const kbFolderRefs =
+        kbReferences?.filter((ref) => ref.kind === 'folder') ?? [];
+      const kbDisplayAttachments = kbDocumentRefs.map((ref) => ({
+        fileId: ref.fileId,
+        fileName: ref.title,
+        fileType: ref.fileType,
+        fileSize: ref.fileSize,
+      }));
       const buildDisplayAttachments = () =>
         kbDisplayAttachments.length > 0
           ? [...mutationAttachments, ...kbDisplayAttachments]
           : mutationAttachments;
       const referencedDocumentIds =
-        kbReferences && kbReferences.length > 0
-          ? kbReferences.map((ref) => ref.documentId)
+        kbDocumentRefs.length > 0
+          ? kbDocumentRefs.map((ref) => ref.documentId)
+          : undefined;
+      const referencedFolderIds =
+        kbFolderRefs.length > 0
+          ? kbFolderRefs.map((ref) => ref.folderId)
           : undefined;
       const rollbackKbMentions = () => {
         if (restoreKbMentions && kbReferences && kbReferences.length > 0) {
@@ -1018,6 +1028,7 @@ export function useSendMessage({
                   : undefined,
               attachments: mutationAttachments,
               referencedDocumentIds,
+              referencedFolderIds,
               userContext: userContextPayload,
               projectId: projectId ? asProjectId(projectId) : undefined,
             }),

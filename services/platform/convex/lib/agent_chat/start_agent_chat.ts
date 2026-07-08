@@ -34,9 +34,11 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import { toId } from '../type_cast_helpers';
 import {
   appendKbReferenceBlock,
   type KbReferencedFile,
+  type KbReferencedFolder,
 } from './kb_reference_block';
 import type {
   SerializableAgentConfig,
@@ -83,6 +85,9 @@ export interface StartAgentChatArgs {
    * per-turn auto-RAG query.
    */
   referencedFiles?: KbReferencedFile[];
+  /** Pinned folders (display metadata; files pre-merged into
+   *  `referencedFiles`). Rendered as their own marker block → folder chip. */
+  referencedFolders?: KbReferencedFolder[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
   /** User environment context (timezone, language, UI locale) for template variables */
@@ -319,18 +324,21 @@ export async function startAgentChat(
     }
   }
   const referencedFiles = prewarm ? [] : (args.referencedFiles ?? []);
+  const referencedFolders = prewarm ? [] : (args.referencedFolders ?? []);
 
   // Build message content with attachment markdown, then append the
-  // knowledge-base reference block for `@`-mentioned documents. The block
-  // reuses the enriched attachment marker format, so the client renders the
-  // refs as file chips and strips the block from the bubble body with zero
-  // new display plumbing (see kb_reference_block.ts).
+  // knowledge-base reference block for `@`-mentioned documents and folders.
+  // The file block reuses the enriched attachment marker format, so the
+  // client renders the refs as file chips and strips the block from the
+  // bubble body with zero new display plumbing; folder pins get their own
+  // marker → folder chip (see kb_reference_block.ts).
   const messageWithAttachments = hasAttachments
     ? await buildMessageWithAttachments(ctx, trimmedMessage, attachments)
     : trimmedMessage;
   const messageContent = appendKbReferenceBlock(
     messageWithAttachments,
     referencedFiles,
+    referencedFolders,
   );
 
   // Save user message if not a duplicate
@@ -686,6 +694,18 @@ export async function startAgentChat(
           actionAttachments.length > 0 && {
             attachments: actionAttachments,
           }),
+        // `@`-pinned knowledge files (folder pins arrive pre-expanded):
+        // external agents run no platform RAG, so the pins are delivered as
+        // real files — staged next to the attachments under /user/uploads.
+        // Access was already resolved + authorized in chatWithAgentTurn.
+        ...(referencedFiles.length > 0 && {
+          referencedFiles: referencedFiles.map((ref) => ({
+            fileId: toId<'_storage'>(ref.fileId),
+            fileName: ref.fileName,
+            fileType: ref.fileType,
+            fileSize: ref.fileSize,
+          })),
+        }),
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
         organizationId,
@@ -731,6 +751,19 @@ export async function startAgentChat(
     pinnedFileIds:
       referencedFiles.length > 0
         ? referencedFiles.map((ref) => ref.fileId)
+        : undefined,
+    // Full pin metadata: runGenerationCore files these into the thread
+    // workspace (/user/uploads) so run_code sessions see the actual bytes,
+    // not just the RAG scope.
+    referencedFiles:
+      !prewarm && referencedFiles.length > 0
+        ? referencedFiles.map((ref) => ({
+            documentId: toId<'documents'>(ref.documentId),
+            fileId: toId<'_storage'>(ref.fileId),
+            fileName: ref.fileName,
+            fileType: ref.fileType,
+            fileSize: ref.fileSize,
+          }))
         : undefined,
     streamId: streamId || undefined,
     promptMessageId: prewarm ? undefined : promptMessageId,

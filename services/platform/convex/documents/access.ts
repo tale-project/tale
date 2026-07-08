@@ -19,12 +19,12 @@
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
+import type { ProjectAccessResult } from '../projects/access';
 import {
-  checkProjectAccess,
-  type ProjectAccessResult,
-} from '../projects/access';
+  NO_PROJECT_ACCESS,
+  resolveProjectAccessForUser,
+} from '../projects/resolve_project_access';
 
 type DocumentScopeFields = Pick<
   Doc<'documents'>,
@@ -56,12 +56,6 @@ export function hasKnowledgeHubDocumentAccess(
   return hasTeamAccess(doc, userTeamIds);
 }
 
-const NO_PROJECT_ACCESS: ProjectAccessResult = {
-  canRead: false,
-  canEdit: false,
-  canAdminister: false,
-};
-
 /**
  * Resolve the caller's access matrix on a project-scoped document's owning
  * project (read for viewing, edit for update/delete — the same standard as
@@ -76,31 +70,7 @@ export async function checkProjectDocumentAccess(
 ): Promise<ProjectAccessResult | null> {
   if (!isProjectScopedDocument(doc) || !doc.projectId) return null;
   if (doc.organizationId !== args.organizationId) return NO_PROJECT_ACCESS;
-
-  const project = await ctx.db.get(doc.projectId);
-  // A dangling projectId (project deleted) keeps the doc locked rather than
-  // silently falling open to org-wide.
-  if (!project || project.organizationId !== args.organizationId) {
-    return NO_PROJECT_ACCESS;
-  }
-
-  try {
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: args.userId,
-      email: undefined,
-      name: undefined,
-    });
-    const userTeamIds = await getUserTeamIds(ctx, member.userId);
-    return checkProjectAccess(project, userTeamIds, member.role);
-  } catch (err) {
-    // Membership resolution failing (user removed mid-request, auth mirror
-    // miss) means no provable access — deny rather than leak.
-    console.warn(
-      '[documents/access] project document membership resolve failed',
-      err instanceof Error ? err.message : err,
-    );
-    return NO_PROJECT_ACCESS;
-  }
+  return resolveProjectAccessForUser(ctx, doc.projectId, args);
 }
 
 /**

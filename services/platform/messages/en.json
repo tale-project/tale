@@ -1946,7 +1946,8 @@
       "resizeAria": "Resize chat panel",
       "fullscreen": "Expand to full screen",
       "exitFullscreen": "Exit full screen"
-    }
+    },
+    "kbFolderChipFiles": "{count, plural, one {# file} other {# files}}"
   },
   "common": {
     "optional": "optional",
@@ -2231,12 +2232,14 @@
       "actionBrowseAgents": "Browse agents",
       "actionInviteTeammates": "Invite teammates",
       "actionUploadDocuments": "Upload documents",
-      "documentChipLabel": "Knowledge base",
+      "documentChipLabel": "Knowledge",
       "agentChipLabel": "Agent",
       "teammateChipLabel": "Teammate",
       "removeDocumentMention": "Remove reference to {title}",
       "removeActorMention": "Remove mention of {name}",
-      "limitReached": "You can reference up to {max} documents per message"
+      "limitReached": "You can reference up to {max} documents per message",
+      "sectionFolders": "Folders",
+      "folderChipLabel": "Folder"
     }
   },
   "connectivity": {
@@ -5307,7 +5310,18 @@
       "unknownTitle": "Untitled document",
       "indexingRetry": "Retry indexing",
       "indexingRetryQueued": "Indexing retry queued",
-      "indexingRetryFailed": "Couldn't retry indexing"
+      "indexingRetryFailed": "Couldn't retry indexing",
+      "treeLabel": "Project files",
+      "addToFolder": "Add file to \"{folder}\"",
+      "folderGone": "That folder no longer exists.",
+      "folderDeleted": "Folder deleted",
+      "folderDeleteFailed": "Couldn't delete the folder",
+      "folderDeleteHeld": "A file in this folder is on legal hold — release it first.",
+      "folderDeleteAction": "Delete folder",
+      "folderDeleteConfirm": "Delete \"{folder}\" and everything inside it? The files are removed from the project and from the knowledge index. This cannot be undone.",
+      "newSubfolderAction": "New folder inside",
+      "uploadFailedTitle": "Upload failed",
+      "uploadingIndicator": "Uploading…"
     },
     "threads": {
       "title": "Chats",

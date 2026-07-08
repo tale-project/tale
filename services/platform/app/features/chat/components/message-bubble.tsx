@@ -3,9 +3,11 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   CopyIcon,
   CheckIcon,
+  Folder as FolderIcon,
   GitFork,
   Info,
   MoreHorizontal,
@@ -1024,6 +1026,40 @@ function MessageBubbleComponent({
                 />
               );
             })}
+          </Row>
+        )}
+
+        {message.folderRefs && message.folderRefs.length > 0 && (
+          <Row gap={1} align="stretch" wrap className="mt-2">
+            {message.folderRefs.map((folder) => (
+              <Row
+                key={folder.folderId}
+                gap={2}
+                align="center"
+                className="bg-muted max-w-[280px] rounded-lg px-3 py-2"
+              >
+                <FolderIcon
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden
+                />
+                <Stack gap={0} className="min-w-0">
+                  <Text as="span" variant="label" truncate>
+                    {folder.name}
+                  </Text>
+                  <Text
+                    as="span"
+                    variant="caption"
+                    className="text-muted-foreground/50"
+                  >
+                    {tChat('kbFolderChipFiles', {
+                      defaultValue:
+                        '{count, plural, one {# file} other {# files}}',
+                      count: folder.fileCount,
+                    })}
+                  </Text>
+                </Stack>
+              </Row>
+            ))}
           </Row>
         )}
         {/* Errored turn: only Show Info is useful — collapse the toolbar.

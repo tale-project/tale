@@ -7,8 +7,10 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { hasTeamAccess } from '../lib/team_access';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
+import { hasKnowledgeHubFolderAccess } from './access';
 import { findFolderByPath } from './find_folder_by_path';
+import { searchFoldersForMention as searchFoldersForMentionHelper } from './search_folders_for_mention';
 
 export const listFolders = query({
   args: {
@@ -35,7 +37,7 @@ export const listFolders = query({
       );
 
     for await (const folder of q) {
-      if (!hasTeamAccess(folder, userTeamIds)) continue;
+      if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) continue;
       folders.push(folder);
     }
 
@@ -88,7 +90,7 @@ export const getFolder = query({
     await getOrganizationMember(ctx, folder.organizationId, authUser);
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-    if (!hasTeamAccess(folder, userTeamIds)) return null;
+    if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) return null;
 
     return {
       _id: folder._id,
@@ -138,7 +140,7 @@ export const listFolderChildrenByPath = query({
     const parent = await ctx.db.get(parentId);
     if (!parent) return null;
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-    if (!hasTeamAccess(parent, userTeamIds)) return null;
+    if (!hasKnowledgeHubFolderAccess(parent, userTeamIds)) return null;
 
     const basePath = segments.join('/');
     const children: { _id: Id<'folders'>; name: string; path: string }[] = [];
@@ -148,7 +150,7 @@ export const listFolderChildrenByPath = query({
         qb.eq('organizationId', args.organizationId).eq('parentId', parentId),
       );
     for await (const folder of q) {
-      if (!hasTeamAccess(folder, userTeamIds)) continue;
+      if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) continue;
       children.push({
         _id: folder._id,
         name: folder.name,
@@ -156,6 +158,48 @@ export const listFolderChildrenByPath = query({
       });
     }
     return children;
+  },
+});
+
+/**
+ * Title search for the chat composer's `@` folder mention picker: hub
+ * folders the user can see, plus the thread project's folders when the
+ * composer sits in a project thread (project read access re-verified here —
+ * an inaccessible or foreign project silently contributes nothing).
+ */
+export const searchFoldersForMention = query({
+  args: {
+    organizationId: v.string(),
+    query: v.string(),
+    projectId: v.optional(v.id('projects')),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return [];
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+
+    let projectId = args.projectId;
+    if (projectId) {
+      const access = await resolveProjectAccessForUser(ctx, projectId, {
+        userId: authUser.userId,
+        organizationId: args.organizationId,
+      });
+      if (!access.canRead) projectId = undefined;
+    }
+
+    return await searchFoldersForMentionHelper(ctx, {
+      organizationId: args.organizationId,
+      term: args.query,
+      userTeamIds,
+      projectId,
+    });
   },
 });
 
@@ -180,7 +224,7 @@ export const getFolderBreadcrumb = query({
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
-    if (folder.teamId && !hasTeamAccess(folder, userTeamIds)) {
+    if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) {
       return [];
     }
 
@@ -189,7 +233,7 @@ export const getFolderBreadcrumb = query({
     const accessibleBreadcrumb: Array<{ _id: Id<'folders'>; name: string }> =
       [];
     for (const item of breadcrumb) {
-      if (!hasTeamAccess(item, userTeamIds)) break;
+      if (!hasKnowledgeHubFolderAccess(item, userTeamIds)) break;
       accessibleBreadcrumb.push({ _id: item._id, name: item.name });
     }
 
@@ -204,6 +248,7 @@ interface BreadcrumbItem {
   name: string;
   teamId?: string | null;
   teamTags?: string[];
+  projectId?: Id<'projects'>;
 }
 
 export async function buildBreadcrumb(
@@ -225,6 +270,7 @@ export async function buildBreadcrumb(
       name: folder.name,
       teamId: folder.teamId,
       teamTags: folder.teamTags,
+      projectId: folder.projectId,
     });
     currentId = folder.parentId;
   }

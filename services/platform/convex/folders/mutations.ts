@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
 import { teamIdsToFields } from '../documents/team_fields';
@@ -13,6 +13,8 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 import { deactivateSyncConfigsForPath } from '../onedrive/deactivate_sync_configs';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
+import { checkProjectFolderAccess, isProjectScopedFolder } from './access';
 import { buildFolderPath } from './queries';
 
 type TeamFields = {
@@ -122,6 +124,37 @@ async function deleteFolderContents(
   }
 }
 
+/**
+ * Rename/delete gate, scope-aware: project folders require edit access to
+ * the owning project (the same standard as project document mutations);
+ * hub folders follow team rules.
+ */
+async function assertFolderMutable(
+  ctx: MutationCtx,
+  folder: Doc<'folders'>,
+  userId: string,
+): Promise<void> {
+  if (isProjectScopedFolder(folder)) {
+    const access = await checkProjectFolderAccess(ctx, folder, {
+      userId,
+      organizationId: folder.organizationId,
+    });
+    if (!access?.canEdit) {
+      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+    }
+    return;
+  }
+  if (folder.teamId || folder.teamTags?.length) {
+    const userTeamIds = await getUserTeamIds(ctx, userId);
+    if (!hasTeamAccess(folder, userTeamIds)) {
+      throw new ConvexError({
+        code: 'FOLDER_ACCESS_DENIED',
+        message: 'Access denied',
+      });
+    }
+  }
+}
+
 const MAX_FOLDER_NAME_LENGTH = 255;
 export const MAX_FOLDER_DEPTH = 20;
 const RESERVED_NAMES = new Set(['.', '..']);
@@ -161,12 +194,16 @@ async function checkDuplicateName(
   parentId: Id<'folders'> | undefined,
   name: string,
   excludeId?: Id<'folders'>,
+  projectId?: Id<'projects'>,
 ) {
+  // Uniqueness is per scope: a hub folder and a project folder (or folders
+  // in two different projects) may share (org, parent, name) at the root.
   const existing = await ctx.db
     .query('folders')
-    .withIndex('by_org_parent_name', (q) =>
+    .withIndex('by_org_project_parent_name', (q) =>
       q
         .eq('organizationId', organizationId)
+        .eq('projectId', projectId)
         .eq('parentId', parentId)
         .eq('name', name),
     )
@@ -186,6 +223,10 @@ export const createFolder = mutation({
     name: v.string(),
     parentId: v.optional(v.id('folders')),
     teamId: v.optional(v.string()),
+    // Create a project-scoped folder. Mutually exclusive with teamId (the
+    // documents.projectId invariant, extended to folders). Requires edit
+    // access to the project.
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.id('folders'),
   handler: async (ctx, args) => {
@@ -200,7 +241,15 @@ export const createFolder = mutation({
 
     const trimmedName = validateFolderName(args.name);
 
+    if (args.projectId && args.teamId) {
+      throw new ConvexError({
+        code: 'FOLDER_SCOPE_CONFLICT',
+        message: 'A project folder cannot also carry a team',
+      });
+    }
+
     let effectiveTeamId = args.teamId;
+    let effectiveProjectId = args.projectId;
 
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
@@ -210,18 +259,30 @@ export const createFolder = mutation({
           message: 'Parent folder not found',
         });
       }
-      if (parent.teamId || parent.teamTags?.length) {
-        const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-        if (!hasTeamAccess(parent, userTeamIds)) {
-          throw new ConvexError({
-            code: 'FOLDER_PARENT_NOT_ACCESSIBLE',
-            message: 'Parent folder not accessible',
-          });
-        }
+      // Scope is inherited from the parent and may not be changed by the
+      // child: a subfolder of a project folder is a folder of that project;
+      // a hub parent cannot hold a project child (and vice versa).
+      if (args.projectId && parent.projectId !== args.projectId) {
+        throw new ConvexError({
+          code: 'FOLDER_SCOPE_CONFLICT',
+          message: 'Parent folder belongs to a different scope',
+        });
       }
+      effectiveProjectId = parent.projectId ?? args.projectId;
+      if (!isProjectScopedFolder(parent)) {
+        if (parent.teamId || parent.teamTags?.length) {
+          const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+          if (!hasTeamAccess(parent, userTeamIds)) {
+            throw new ConvexError({
+              code: 'FOLDER_PARENT_NOT_ACCESSIBLE',
+              message: 'Parent folder not accessible',
+            });
+          }
+        }
 
-      if (parent.teamId) {
-        effectiveTeamId = parent.teamId;
+        if (parent.teamId) {
+          effectiveTeamId = parent.teamId;
+        }
       }
 
       let depth = 1;
@@ -240,7 +301,29 @@ export const createFolder = mutation({
       }
     }
 
-    if (effectiveTeamId) {
+    if (effectiveProjectId) {
+      // Project folders carry no team fields (mutual exclusivity) and are
+      // gated by project edit access — the same standard as adding a file
+      // to the project.
+      effectiveTeamId = undefined;
+      const access = await resolveProjectAccessForUser(
+        ctx,
+        effectiveProjectId,
+        { userId: authUser.userId, organizationId: args.organizationId },
+      );
+      if (!access.canRead) {
+        throw new ConvexError({
+          code: 'PROJECT_FORBIDDEN',
+          message: 'You do not have access to this project',
+        });
+      }
+      if (!access.canEdit) {
+        throw new ConvexError({
+          code: 'RBAC_FORBIDDEN',
+          message: 'You do not have permission to add folders to this project',
+        });
+      }
+    } else if (effectiveTeamId) {
       const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!userTeamIds.includes(effectiveTeamId)) {
         throw new ConvexError({
@@ -255,6 +338,8 @@ export const createFolder = mutation({
       args.organizationId,
       args.parentId,
       trimmedName,
+      undefined,
+      effectiveProjectId,
     );
 
     return ctx.db.insert('folders', {
@@ -262,6 +347,7 @@ export const createFolder = mutation({
       name: trimmedName,
       parentId: args.parentId,
       teamId: effectiveTeamId,
+      projectId: effectiveProjectId,
       createdBy: authUser.userId,
     });
   },
@@ -295,15 +381,7 @@ export const renameFolder = mutation({
       folder.organizationId,
     );
 
-    if (folder.teamId || folder.teamTags?.length) {
-      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-      if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new ConvexError({
-          code: 'FOLDER_ACCESS_DENIED',
-          message: 'Access denied',
-        });
-      }
-    }
+    await assertFolderMutable(ctx, folder, authUser.userId);
 
     const trimmedName = validateFolderName(args.name);
 
@@ -313,6 +391,7 @@ export const renameFolder = mutation({
       folder.parentId,
       trimmedName,
       args.folderId,
+      folder.projectId,
     );
 
     await ctx.db.patch(args.folderId, { name: trimmedName });
@@ -347,15 +426,7 @@ export const deleteFolder = mutation({
       folder.organizationId,
     );
 
-    if (folder.teamId || folder.teamTags?.length) {
-      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-      if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new ConvexError({
-          code: 'FOLDER_ACCESS_DENIED',
-          message: 'Access denied',
-        });
-      }
-    }
+    await assertFolderMutable(ctx, folder, authUser.userId);
 
     // Hold gate: refuse the whole cascade up-front. Org-level holds throw
     // immediately; per-document holds throw after a synchronous descendant
@@ -421,6 +492,15 @@ export const updateFolderTeams = mutation({
       'folder:mutate',
       folder.organizationId,
     );
+
+    // Team assignment is a Knowledge Hub concept — a project folder never
+    // carries teams (projectId/teamId mutual exclusivity).
+    if (isProjectScopedFolder(folder)) {
+      throw new ConvexError({
+        code: 'FOLDER_SCOPE_CONFLICT',
+        message: 'A project folder cannot be assigned to teams',
+      });
+    }
 
     if (folder.parentId) {
       const parent = await ctx.db.get(folder.parentId);
