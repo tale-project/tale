@@ -113,23 +113,51 @@ const NON_RETRYABLE_FINISH_REASONS = new Set([
 ]);
 
 /**
- * Determine whether the generation result should be retried based on
- * `finishReason`. Only `"stop"` (and other non-retryable custom reasons)
- * counts as a successful completion. All other finish reasons — `"length"`,
- * `"tool-calls"`, `"content-filter"`, `"unknown"`, `undefined`, etc. —
- * trigger a single retry without tools.
+ * How many step-cap continuation rounds a single turn may run after the
+ * initial generation. Each round gets a fresh `maxSteps` budget, so this
+ * bounds a runaway tool loop at (1 + MAX) × maxSteps LLM steps; the turn's
+ * absolute deadline bounds it in time.
+ */
+export const MAX_STEP_CAP_CONTINUES = 3;
+
+/**
+ * Why a continuation is (or is not) warranted.
+ * - 'step-cap': the loop ended mid-tool-work because `stepCountIs(maxSteps)`
+ *   fired — an EXPECTED capacity stop on tool-heavy turns (pptx generation
+ *   and the like), continued neutrally for up to {@link MAX_STEP_CAP_CONTINUES}
+ *   rounds.
+ * - 'anomaly': the provider ended the generation abnormally ('length',
+ *   'unknown', `undefined`, or DeepSeek's 'stop' with empty text after tool
+ *   calls) — retried ONCE with the [RESPONSE_INTERRUPTED] marker.
+ */
+export type ContinueKind = 'step-cap' | 'anomaly';
+
+export interface ContinueAttempts {
+  /** An anomaly retry already ran this turn (single-shot). */
+  anomalyRetried: boolean;
+  /** Step-cap continuation rounds already run this turn. */
+  stepCapRounds: number;
+}
+
+/**
+ * Determine whether the generation result should be continued, and in which
+ * mode. Only `"stop"` (and other non-retryable custom reasons) counts as a
+ * successful completion.
+ *
+ * `"tool-calls"` means the step cap cut the loop mid-work (the deliberate
+ * `request_human_input` halt is excluded first) — a capacity stop, not an
+ * error: it may continue for multiple rounds. Every other retryable reason
+ * is an anomaly and gets one retry.
  *
  * Special case: `finishReason === "stop"` with empty text after tool calls
- * (known DeepSeek edge case) still triggers a retry.
+ * (known DeepSeek edge case) still triggers an anomaly retry.
  */
 export function shouldRetryGeneration(
   finishReason: string | undefined,
   text: string | undefined,
   steps: unknown[] | undefined,
-  alreadyRetried: boolean,
-): { retry: boolean; reason: string } {
-  if (alreadyRetried) return { retry: false, reason: 'already-retried' };
-
+  attempts: ContinueAttempts,
+): { retry: boolean; reason: string; kind?: ContinueKind } {
   // The approval gate (`request_human_input`) halts the loop on purpose — the
   // turn must wait for the user, not auto-continue. Treat it as terminal no
   // matter the finishReason ('tool-calls' when stopWhen fires, or 'stop' with
@@ -138,9 +166,28 @@ export function shouldRetryGeneration(
     return { retry: false, reason: 'awaiting-human-input' };
   }
 
+  if (finishReason === 'tool-calls') {
+    if (attempts.stepCapRounds >= MAX_STEP_CAP_CONTINUES) {
+      return {
+        retry: false,
+        reason: 'step-cap-rounds-exhausted',
+        kind: 'step-cap',
+      };
+    }
+    return { retry: true, reason: 'step-cap-continue', kind: 'step-cap' };
+  }
+
+  if (attempts.anomalyRetried) {
+    return { retry: false, reason: 'already-retried' };
+  }
+
   if (finishReason && NON_RETRYABLE_FINISH_REASONS.has(finishReason)) {
     if (finishReason === 'stop' && needsToolResultRetry(text, steps)) {
-      return { retry: true, reason: 'stop-with-empty-tool-result' };
+      return {
+        retry: true,
+        reason: 'stop-with-empty-tool-result',
+        kind: 'anomaly',
+      };
     }
     return { retry: false, reason: 'non-retryable-finish-reason' };
   }
@@ -148,5 +195,6 @@ export function shouldRetryGeneration(
   return {
     retry: true,
     reason: `finish-reason-${finishReason ?? 'undefined'}`,
+    kind: 'anomaly',
   };
 }

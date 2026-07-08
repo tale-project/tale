@@ -1900,6 +1900,9 @@
     "modelFallbackUnknown": "le modèle précédent",
     "generationIncomplete": "La réponse n'a pas pu être terminée. Merci de réessayer.",
     "generationIncompleteWithTools": "La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.",
+    "stepLimitContinued": "Limite d'étapes de ce tour atteinte — la génération continue automatiquement.",
+    "stepLimitContinuedRound": "Limite d'étapes de ce tour atteinte — la génération continue automatiquement (tour {round}).",
+    "stepLimitReached": "Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",

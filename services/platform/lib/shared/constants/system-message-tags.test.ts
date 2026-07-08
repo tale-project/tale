@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   SYSTEM_MSG_TAG,
   formatGenerationIncompleteBody,
+  formatStepLimitBody,
   getSystemMessageDisplay,
   parseGenerationIncompleteBody,
+  parseStepLimitBody,
   parseSystemMessageTag,
 } from './system-message-tags';
 
@@ -119,6 +121,15 @@ describe('getSystemMessageDisplay', () => {
       'warning',
     );
   });
+
+  it('returns info for step-limit tags — capacity stops are not failures', () => {
+    expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.STEP_LIMIT_CONTINUED)).toBe(
+      'info',
+    );
+    expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.STEP_LIMIT_REACHED)).toBe(
+      'info',
+    );
+  });
 });
 
 describe('generation-incomplete body round-trip', () => {
@@ -136,5 +147,22 @@ describe('generation-incomplete body round-trip', () => {
   it('formats an empty tool list to an empty body and parses it back', () => {
     expect(formatGenerationIncompleteBody({})).toBe('');
     expect(parseGenerationIncompleteBody('').tools).toBeUndefined();
+  });
+});
+
+describe('step-limit body round-trip', () => {
+  it('round-trips the continuation round', () => {
+    expect(parseStepLimitBody(formatStepLimitBody({ round: 2 })).round).toBe(2);
+  });
+
+  it('formats a missing/zero round to an empty body and parses it back', () => {
+    expect(formatStepLimitBody({})).toBe('');
+    expect(formatStepLimitBody({ round: 0 })).toBe('');
+    expect(parseStepLimitBody('').round).toBeUndefined();
+  });
+
+  it('ignores malformed round values', () => {
+    expect(parseStepLimitBody('round=abc').round).toBeUndefined();
+    expect(parseStepLimitBody('rounds=3').round).toBeUndefined();
   });
 });

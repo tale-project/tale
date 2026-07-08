@@ -6,6 +6,7 @@ import {
   shouldRetryGeneration,
   needsToolResultRetry,
 } from './generate_response';
+import { MAX_STEP_CAP_CONTINUES } from './retry_policy';
 
 // Helper to create step-like objects matching AI SDK shape
 function makeStep(opts: {
@@ -15,10 +16,13 @@ function makeStep(opts: {
   return opts;
 }
 
+/** First evaluation of a turn: nothing retried, no continuation rounds yet. */
+const FRESH = { anomalyRetried: false, stepCapRounds: 0 };
+
 describe('shouldRetryGeneration', () => {
   describe('non-retryable finish reasons', () => {
     it('returns false for finishReason "stop" with text', () => {
-      const result = shouldRetryGeneration('stop', 'Hello world', [], false);
+      const result = shouldRetryGeneration('stop', 'Hello world', [], FRESH);
       expect(result).toEqual({
         retry: false,
         reason: 'non-retryable-finish-reason',
@@ -26,7 +30,7 @@ describe('shouldRetryGeneration', () => {
     });
 
     it('returns false for finishReason "cancelled"', () => {
-      const result = shouldRetryGeneration('cancelled', '', [], false);
+      const result = shouldRetryGeneration('cancelled', '', [], FRESH);
       expect(result).toEqual({
         retry: false,
         reason: 'non-retryable-finish-reason',
@@ -38,7 +42,7 @@ describe('shouldRetryGeneration', () => {
         'timeout-recovery',
         'Recovered text',
         [],
-        false,
+        FRESH,
       );
       expect(result).toEqual({
         retry: false,
@@ -51,7 +55,7 @@ describe('shouldRetryGeneration', () => {
         'timeout-recovery-failed',
         'Fallback',
         [],
-        false,
+        FRESH,
       );
       expect(result).toEqual({
         retry: false,
@@ -60,7 +64,7 @@ describe('shouldRetryGeneration', () => {
     });
 
     it('returns false for finishReason "content-filter"', () => {
-      const result = shouldRetryGeneration('content-filter', '', [], false);
+      const result = shouldRetryGeneration('content-filter', '', [], FRESH);
       expect(result).toEqual({
         retry: false,
         reason: 'non-retryable-finish-reason',
@@ -68,35 +72,23 @@ describe('shouldRetryGeneration', () => {
     });
   });
 
-  describe('retryable finish reasons', () => {
+  describe('anomaly retries', () => {
     it('retries for finishReason "length"', () => {
       const result = shouldRetryGeneration(
         'length',
         'Partial text...',
         [],
-        false,
+        FRESH,
       );
       expect(result).toEqual({
         retry: true,
         reason: 'finish-reason-length',
-      });
-    });
-
-    it('retries for finishReason "tool-calls"', () => {
-      const result = shouldRetryGeneration(
-        'tool-calls',
-        'Let me check...',
-        [makeStep({ toolCalls: [{ toolName: 'search' }] })],
-        false,
-      );
-      expect(result).toEqual({
-        retry: true,
-        reason: 'finish-reason-tool-calls',
+        kind: 'anomaly',
       });
     });
 
     it('does not retry for finishReason "error"', () => {
-      const result = shouldRetryGeneration('error', '', [], false);
+      const result = shouldRetryGeneration('error', '', [], FRESH);
       expect(result).toEqual({
         retry: false,
         reason: 'non-retryable-finish-reason',
@@ -104,23 +96,85 @@ describe('shouldRetryGeneration', () => {
     });
 
     it('retries for finishReason "unknown"', () => {
-      const result = shouldRetryGeneration('unknown', 'Some text', [], false);
+      const result = shouldRetryGeneration('unknown', 'Some text', [], FRESH);
       expect(result).toEqual({
         retry: true,
         reason: 'finish-reason-unknown',
+        kind: 'anomaly',
       });
     });
 
     it('retries for finishReason "other"', () => {
-      const result = shouldRetryGeneration('other', '', [], false);
-      expect(result).toEqual({ retry: true, reason: 'finish-reason-other' });
+      const result = shouldRetryGeneration('other', '', [], FRESH);
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-other',
+        kind: 'anomaly',
+      });
     });
 
     it('retries for undefined finishReason', () => {
-      const result = shouldRetryGeneration(undefined, 'Text', [], false);
+      const result = shouldRetryGeneration(undefined, 'Text', [], FRESH);
       expect(result).toEqual({
         retry: true,
         reason: 'finish-reason-undefined',
+        kind: 'anomaly',
+      });
+    });
+  });
+
+  describe('step-cap continuation ("tool-calls")', () => {
+    // Regression: chat turns capped by `stepCountIs(maxSteps)` end with
+    // finishReason 'tool-calls' mid-work. That is an expected capacity stop —
+    // it continues as kind 'step-cap' for up to MAX_STEP_CAP_CONTINUES
+    // rounds, independent of the single anomaly-retry slot.
+    it('continues a step-capped turn as kind step-cap', () => {
+      const result = shouldRetryGeneration(
+        'tool-calls',
+        'Let me check...',
+        [makeStep({ toolCalls: [{ toolName: 'search' }] })],
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: true,
+        reason: 'step-cap-continue',
+        kind: 'step-cap',
+      });
+    });
+
+    it('keeps continuing while rounds remain', () => {
+      const result = shouldRetryGeneration('tool-calls', '', [], {
+        anomalyRetried: false,
+        stepCapRounds: MAX_STEP_CAP_CONTINUES - 1,
+      });
+      expect(result).toEqual({
+        retry: true,
+        reason: 'step-cap-continue',
+        kind: 'step-cap',
+      });
+    });
+
+    it('stops once the continuation rounds are exhausted', () => {
+      const result = shouldRetryGeneration('tool-calls', '', [], {
+        anomalyRetried: false,
+        stepCapRounds: MAX_STEP_CAP_CONTINUES,
+      });
+      expect(result).toEqual({
+        retry: false,
+        reason: 'step-cap-rounds-exhausted',
+        kind: 'step-cap',
+      });
+    });
+
+    it('continues a step-capped turn even after an anomaly retry was used', () => {
+      const result = shouldRetryGeneration('tool-calls', '', [], {
+        anomalyRetried: true,
+        stepCapRounds: 0,
+      });
+      expect(result).toEqual({
+        retry: true,
+        reason: 'step-cap-continue',
+        kind: 'step-cap',
       });
     });
   });
@@ -133,10 +187,11 @@ describe('shouldRetryGeneration', () => {
           text: 'Let me check...',
         }),
       ];
-      const result = shouldRetryGeneration('stop', '', steps, false);
+      const result = shouldRetryGeneration('stop', '', steps, FRESH);
       expect(result).toEqual({
         retry: true,
         reason: 'stop-with-empty-tool-result',
+        kind: 'anomaly',
       });
     });
 
@@ -149,7 +204,7 @@ describe('shouldRetryGeneration', () => {
         'stop',
         'Here are the results...',
         steps,
-        false,
+        FRESH,
       );
       expect(result).toEqual({
         retry: false,
@@ -168,7 +223,7 @@ describe('shouldRetryGeneration', () => {
         makeStep({ toolCalls: [{ toolName: 'update_todos' }] }),
         makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
       ];
-      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      const result = shouldRetryGeneration('tool-calls', '', steps, FRESH);
       expect(result).toEqual({ retry: false, reason: 'awaiting-human-input' });
     });
 
@@ -179,25 +234,26 @@ describe('shouldRetryGeneration', () => {
           text: '',
         }),
       ];
-      const result = shouldRetryGeneration('stop', '', steps, false);
+      const result = shouldRetryGeneration('stop', '', steps, FRESH);
       expect(result).toEqual({ retry: false, reason: 'awaiting-human-input' });
     });
 
-    it('still retries when request_human_input is only an EARLIER step', () => {
+    it('still continues when request_human_input is only an EARLIER step', () => {
       // The model called the gate, then kept going on its own — that is NOT a
-      // stopWhen halt, so the incomplete trailing tool call stays retryable.
+      // stopWhen halt, so the incomplete trailing tool call stays continuable.
       const steps = [
         makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
         makeStep({ toolCalls: [{ toolName: 'web' }] }),
       ];
-      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      const result = shouldRetryGeneration('tool-calls', '', steps, FRESH);
       expect(result).toEqual({
         retry: true,
-        reason: 'finish-reason-tool-calls',
+        reason: 'step-cap-continue',
+        kind: 'step-cap',
       });
     });
 
-    it('still retries when the gate call failed input validation', () => {
+    it('still continues when the gate call failed input validation', () => {
       // Regression: a call the SDK marked `invalid: true` never executed, so
       // no approval card exists. Treating it as the gate halt suppressed the
       // retry and stranded the turn on a question the user could never see.
@@ -206,28 +262,38 @@ describe('shouldRetryGeneration', () => {
           toolCalls: [{ toolName: 'request_human_input', invalid: true }],
         }),
       ];
-      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      const result = shouldRetryGeneration('tool-calls', '', steps, FRESH);
       expect(result).toEqual({
         retry: true,
-        reason: 'finish-reason-tool-calls',
+        reason: 'step-cap-continue',
+        kind: 'step-cap',
       });
     });
   });
 
-  describe('already-retried guard', () => {
+  describe('already-retried guard (anomalies only)', () => {
     it('returns false when already retried, even for retryable finishReason', () => {
-      const result = shouldRetryGeneration('length', 'Partial...', [], true);
+      const result = shouldRetryGeneration('length', 'Partial...', [], {
+        anomalyRetried: true,
+        stepCapRounds: 0,
+      });
       expect(result).toEqual({ retry: false, reason: 'already-retried' });
     });
 
     it('returns false when already retried with undefined finishReason', () => {
-      const result = shouldRetryGeneration(undefined, '', [], true);
+      const result = shouldRetryGeneration(undefined, '', [], {
+        anomalyRetried: true,
+        stepCapRounds: 0,
+      });
       expect(result).toEqual({ retry: false, reason: 'already-retried' });
     });
 
     it('returns false when already retried even for "stop" with empty tool result', () => {
       const steps = [makeStep({ toolCalls: [{ toolName: 'search' }] })];
-      const result = shouldRetryGeneration('stop', '', steps, true);
+      const result = shouldRetryGeneration('stop', '', steps, {
+        anomalyRetried: true,
+        stepCapRounds: 0,
+      });
       expect(result).toEqual({ retry: false, reason: 'already-retried' });
     });
   });

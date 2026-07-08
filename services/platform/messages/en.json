@@ -1918,6 +1918,9 @@
     "modelFallbackUnknown": "the previous model",
     "generationIncomplete": "The response couldn't be completed. Please try again.",
     "generationIncompleteWithTools": "The response couldn't be completed after running {tools}. Please try again.",
+    "stepLimitContinued": "Step limit for this round reached — continuing automatically.",
+    "stepLimitContinuedRound": "Step limit for this round reached — continuing automatically (round {round}).",
+    "stepLimitReached": "Stopped here — this turn reached its step limit. Send a message to continue.",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",

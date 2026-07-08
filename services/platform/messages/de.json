@@ -1899,6 +1899,9 @@
     "modelFallbackUnknown": "das vorherige Modell",
     "generationIncomplete": "Die Antwort konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
     "generationIncompleteWithTools": "Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Bitte versuche es erneut.",
+    "stepLimitContinued": "Schrittlimit dieser Runde erreicht — es geht automatisch weiter.",
+    "stepLimitContinuedRound": "Schrittlimit dieser Runde erreicht — es geht automatisch weiter (Runde {round}).",
+    "stepLimitReached": "Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.",
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",
