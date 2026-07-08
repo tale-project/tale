@@ -33,6 +33,8 @@ import {
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
 import {
+  type EditorController,
+  useComposedEditor,
   useFormEditor,
   useRegisterActiveEditor,
 } from '@/app/components/ui/editor';
@@ -53,7 +55,9 @@ import {
   type AutomationSummary,
   useInvalidateAutomations,
 } from '../hooks/use-automations';
+import { useProjectBindingsEditor } from '../hooks/use-project-bindings-editor';
 import { useUpdateAutomationIdentity } from '../hooks/use-update-automation-identity';
+import { AutomationProjectsSection } from './automation-projects-section';
 
 /** A labelled group of resource rows; hidden entirely when it has no rows. */
 function ConfigurationSection({
@@ -155,11 +159,15 @@ function ConfigurationEditor({
   automationSlug,
   automation,
   workflowSlug,
+  extraController,
 }: {
   organizationId: string;
   automationSlug: string;
   automation: AutomationSummary;
   workflowSlug?: string;
+  /** Composed into the tab strip's Save/Discard alongside this identity form
+   *  (the project-bindings editor for a project-scoped automation). */
+  extraController?: EditorController;
 }) {
   const { t } = useT('automations');
   const { t: tWorkflows } = useT('workflows');
@@ -299,7 +307,10 @@ function ConfigurationEditor({
   );
 
   const editor = useFormEditor<ConfigurationForm>({ data, schema, save });
-  useRegisterActiveEditor(editor);
+  // One tab-strip Save/Discard drives both the identity form and (for a
+  // project-scoped automation) the project bindings.
+  const composed = useComposedEditor(editor, extraController);
+  useRegisterActiveEditor(composed);
 
   const {
     form: {
@@ -421,6 +432,13 @@ export function AutomationConfiguration({
   const ability = useAbility();
   const isDeveloper = ability.can('read', 'developerSettings');
   const workflowSlug = automation.workflows[0];
+  const isProjectScoped = automation.scope === 'project';
+  // Which project(s) a project-scoped automation runs in — a draft editor whose
+  // controller is composed into the tab strip's single Save/Discard.
+  const projectsEditor = useProjectBindingsEditor(
+    organizationId,
+    automationSlug,
+  );
   const { agents: agentReadiness } = useAutomationAgentReadiness(
     organizationId,
     automationSlug,
@@ -458,9 +476,19 @@ export function AutomationConfiguration({
           automationSlug={automationSlug}
           automation={automation}
           workflowSlug={workflowSlug}
+          extraController={
+            isProjectScoped ? projectsEditor.controller : undefined
+          }
         />
       ) : (
-        <IdentitySection automation={automation} />
+        <>
+          <IdentitySection automation={automation} />
+          {/* No identity form to compose into, so the bindings editor drives
+              the tab strip's Save/Discard on its own. */}
+          {isProjectScoped && (
+            <ActiveEditorRegistrar controller={projectsEditor.controller} />
+          )}
+        </>
       )}
 
       {agentRows.length > 0 && (
@@ -516,6 +544,28 @@ export function AutomationConfiguration({
           ))}
         </ConfigurationSection>
       )}
+
+      {isProjectScoped && (
+        <AutomationProjectsSection
+          options={projectsEditor.options}
+          selection={projectsEditor.selection}
+          onSelectionChange={projectsEditor.setSelection}
+          hasProjects={projectsEditor.hasProjects}
+          disabled={projectsEditor.controller.isSaving}
+        />
+      )}
     </VStack>
   );
+}
+
+/** Registers a controller as the tab's active editor without rendering UI —
+ *  used where the section owning the controller isn't itself the registrar
+ *  (the non-developer identity view, which has no form of its own). */
+function ActiveEditorRegistrar({
+  controller,
+}: {
+  controller: EditorController;
+}) {
+  useRegisterActiveEditor(controller);
+  return null;
 }

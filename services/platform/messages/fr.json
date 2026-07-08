@@ -803,10 +803,11 @@
       "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
     },
     "membership": {
-      "title": "Projets",
-      "addProject": "Ajouter à un projet",
-      "emptyTitle": "Dans aucun projet pour l'instant",
-      "emptyDescription": "Ajoutez cette automatisation à un projet pour l'utiliser.",
+      "boundProjectsTitle": "Projets liés",
+      "boundProjectsDescription": "Exécutez cette automatisation dans des projets spécifiques. Ajoutez un projet pour le lier ou retirez-le pour le délier.",
+      "boundProjectsPlaceholder": "Lier des projets…",
+      "noProjectsAvailable": "Aucun projet disponible.",
+      "saveFailed": "Impossible de mettre à jour les projets de cette automatisation.",
       "notInProjectTitle": "Pas ajoutée à ce projet",
       "notInProjectDescription": "Ajoutez cette automatisation à ce projet pour l'utiliser ici.",
       "addToThisProject": "Ajouter à ce projet"
@@ -4950,7 +4951,7 @@
     "tokenSources": {
       "editTitle": "Modifier la source de jetons",
       "newTitle": "Nouvelle source de jetons",
-      "new": "Nouvelle source de jetons",
+      "new": "Nouvelle source",
       "slug": "Identifiant",
       "displayName": "Nom affiché",
       "endpoint": "URL du point de terminaison",

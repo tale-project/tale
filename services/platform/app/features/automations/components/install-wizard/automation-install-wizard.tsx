@@ -479,6 +479,24 @@ function AutomationInstallWizardBody({
   const skippedCount =
     unconnectedRequired.length + providersToConnect.length + byoAgents.length;
 
+  // connect-only loads agent readiness up front (effect above), and the agent
+  // steps sit ahead of the integration-connect steps. Rendering before it
+  // resolves would commit a steps array missing those agent steps, so step 0
+  // shows the connect-integration step for a frame, then flips to the agent
+  // step once the snapshot lands. Hold the skeleton until it's ready.
+  if (mode === 'connect-only' && agentSnapshot === null) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={t('installWizard.title', { name: automationName })}
+        size="md"
+      >
+        <WizardLoadingSkeleton />
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog
       open={open}

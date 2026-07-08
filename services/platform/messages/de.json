@@ -802,10 +802,11 @@
       "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
     },
     "membership": {
-      "title": "Projekte",
-      "addProject": "Zu einem Projekt hinzufügen",
-      "emptyTitle": "Noch in keinem Projekt",
-      "emptyDescription": "Füge diese Automatisierung zu einem Projekt hinzu, um sie dort zu nutzen.",
+      "boundProjectsTitle": "Gebundene Projekte",
+      "boundProjectsDescription": "Führe diese Automatisierung in bestimmten Projekten aus. Füge ein Projekt hinzu, um es zu binden, oder entferne es, um die Bindung zu lösen.",
+      "boundProjectsPlaceholder": "Projekte binden…",
+      "noProjectsAvailable": "Keine Projekte verfügbar.",
+      "saveFailed": "Die Projekte dieser Automatisierung konnten nicht aktualisiert werden.",
       "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
       "notInProjectDescription": "Füge diese Automatisierung zu diesem Projekt hinzu, um sie hier zu nutzen.",
       "addToThisProject": "Zu diesem Projekt hinzufügen"
@@ -4949,7 +4950,7 @@
     "tokenSources": {
       "editTitle": "Token-Quelle bearbeiten",
       "newTitle": "Neue Token-Quelle",
-      "new": "Neue Token-Quelle",
+      "new": "Neue Quelle",
       "slug": "Slug",
       "displayName": "Anzeigename",
       "endpoint": "Endpunkt-URL",

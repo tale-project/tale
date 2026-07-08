@@ -75,7 +75,6 @@ import { AutomationDeleteAction } from './automation-delete-action';
 import { AutomationDetailShell } from './automation-detail-shell';
 import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
-import { AutomationProjectsSection } from './automation-projects-section';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
 
@@ -387,24 +386,15 @@ function InstalledAutomationBody({
   });
 
   // Configuration = the automation's identity + its workflow's runtime settings
-  // (both already combined in `AutomationConfiguration`) and — for a
-  // project-scoped automation — the projects it runs in. That last section is
-  // what the standalone membership-hub page used to be.
+  // and — for a project-scoped automation — the projects it runs in (that last
+  // section is what the standalone membership-hub page used to be); all combined
+  // in `AutomationConfiguration` under one tab-strip Save/Discard.
   const configuration = (
-    <VStack gap={6}>
-      <AutomationConfiguration
-        organizationId={organizationId}
-        automationSlug={automationSlug}
-        automation={automation}
-      />
-      {automation.scope === 'project' && (
-        <AutomationProjectsSection
-          organizationId={organizationId}
-          automationSlug={automationSlug}
-          automation={automation}
-        />
-      )}
-    </VStack>
+    <AutomationConfiguration
+      organizationId={organizationId}
+      automationSlug={automationSlug}
+      automation={automation}
+    />
   );
 
   // Tab values come from view ids; the automation-owned tab values are

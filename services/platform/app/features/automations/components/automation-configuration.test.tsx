@@ -75,6 +75,26 @@ vi.mock('@/app/features/workflows/components/workflow-env-editor', () => ({
   WorkflowEnvEditor: () => <div data-testid="env-editor" />,
 }));
 
+// The project-bindings editor talks to Convex; stub it (no project-scoped
+// cases here, so the picker never renders and the controller isn't composed).
+vi.mock('../hooks/use-project-bindings-editor', () => ({
+  useProjectBindingsEditor: () => ({
+    controller: {
+      isDirty: false,
+      isSaving: false,
+      isValid: true,
+      isLoading: false,
+      dirtyKeys: new Set<string>(),
+      save: vi.fn(),
+      reset: vi.fn(),
+    },
+    options: [],
+    selection: [],
+    setSelection: vi.fn(),
+    hasProjects: false,
+  }),
+}));
+
 function catalogAutomation(
   overrides: Partial<AutomationSummary> = {},
 ): AutomationSummary {

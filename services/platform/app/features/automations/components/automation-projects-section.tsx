@@ -1,106 +1,55 @@
 'use client';
 
 /**
- * The bound-projects manager for a PROJECT-SCOPED automation, rendered inside
- * its Configuration tab. Which project(s) an automation runs in is
- * configuration, so it lives with the automation's other settings. Each bound
- * project links through and carries its own "Remove from this project" action;
- * a `SearchableSelect` combobox (the same control the other settings pages use)
- * adds a project by binding the already-installed automation to it.
+ * The bound-projects picker for a PROJECT-SCOPED automation, rendered inside its
+ * Configuration tab. Which project(s) an automation runs in is configuration, so
+ * it lives with the automation's other settings. Purely presentational: the
+ * selection is a LOCAL DRAFT owned by `useProjectBindingsEditor`, whose
+ * controller is composed into the tab strip's single Save/Discard — so nothing
+ * is bound or unbound until the operator saves. The same "bound X" MultiSelect
+ * the agent form uses for its bindings.
  */
-import { Card } from '@tale/ui/card';
-import { EmptyState } from '@tale/ui/empty-state';
-import { HStack, VStack } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
-import { Link } from '@tanstack/react-router';
-import { LayoutGrid } from 'lucide-react';
+import { Text } from '@tale/ui/text';
 
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import { FormSection } from '@/app/components/ui/forms/form-section';
+import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useT } from '@/lib/i18n/client';
 
-import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
-import { useAutomationDisplay } from '../hooks/use-automation-text';
-import type { AutomationSummary } from '../hooks/use-automations';
-import {
-  useAutomationBindings,
-  useAutomationInstallActions,
-} from '../hooks/use-install-state';
-import { AutomationLifecycleActions } from './automation-lifecycle-actions';
-
 export function AutomationProjectsSection({
-  organizationId,
-  automationSlug,
-  automation,
+  options,
+  selection,
+  onSelectionChange,
+  hasProjects,
+  disabled,
 }: {
-  organizationId: string;
-  automationSlug: string;
-  automation: AutomationSummary;
+  options: Array<{ value: string; label: string }>;
+  selection: string[];
+  onSelectionChange: (next: string[]) => void;
+  hasProjects: boolean;
+  disabled?: boolean;
 }) {
   const { t } = useT('automations');
-  const display = useAutomationDisplay()(automation);
-  const { bindings } = useAutomationBindings(organizationId, automationSlug);
-  const { projects } = useProjects(organizationId);
-  const { install } = useAutomationInstallActions(organizationId);
-
-  // Only projects the automation isn't already bound to are addable.
-  const boundIds = new Set(bindings.map((b) => b.projectId));
-  const available = projects.filter((p) => !boundIds.has(p._id));
-
   return (
-    <VStack gap={3}>
-      <SectionHeader as="h3" size="sm" title={t('membership.title')} />
-      {bindings.length === 0 ? (
-        <EmptyState
-          icon={LayoutGrid}
-          title={t('membership.emptyTitle')}
-          description={t('membership.emptyDescription')}
+    <FormSection
+      label={t('membership.boundProjectsTitle')}
+      description={t('membership.boundProjectsDescription')}
+    >
+      {hasProjects ? (
+        <MultiSelect
+          value={selection}
+          onValueChange={onSelectionChange}
+          options={options}
+          placeholder={t('membership.boundProjectsPlaceholder')}
+          searchPlaceholder={t('install.projectSearchPlaceholder')}
+          emptyText={t('install.noProjects')}
+          aria-label={t('membership.boundProjectsTitle')}
+          disabled={disabled}
         />
       ) : (
-        <VStack gap={2}>
-          {bindings.map((binding) => (
-            <Card key={binding.projectId} className="py-3">
-              <HStack className="items-center justify-between gap-3">
-                <Link
-                  to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
-                  params={{
-                    id: organizationId,
-                    projectId: binding.projectId,
-                    automationSlug,
-                  }}
-                  className="min-w-0 truncate font-medium hover:underline"
-                >
-                  {binding.projectName}
-                </Link>
-                <AutomationLifecycleActions
-                  automationSlug={automationSlug}
-                  automationName={display.name}
-                  organizationId={organizationId}
-                  context="project"
-                  projectId={binding.projectId}
-                />
-              </HStack>
-            </Card>
-          ))}
-        </VStack>
+        <Text variant="caption" className="italic">
+          {t('membership.noProjectsAvailable')}
+        </Text>
       )}
-
-      {/* Add a project by selecting it — binds the already-installed automation
-          to that project (org-level integrations are already connected). */}
-      <SearchableSelect
-        label={t('membership.addProject')}
-        placeholder={t('install.projectPlaceholder')}
-        searchPlaceholder={t('install.projectSearchPlaceholder')}
-        emptyText={t('install.noProjects')}
-        value={null}
-        onValueChange={(projectId) =>
-          notifyOnInstallFailure(
-            install(automationSlug, projectId),
-            t('install.installFailed'),
-          )
-        }
-        options={available.map((p) => ({ value: p._id, label: p.name }))}
-      />
-    </VStack>
+    </FormSection>
   );
 }

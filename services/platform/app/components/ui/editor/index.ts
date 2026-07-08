@@ -4,6 +4,7 @@ export {
   useClearActiveEditor,
   useRegisterActiveEditor,
 } from './active-editor-context';
+export { useComposedEditor } from './compose-editors';
 export {
   DirtyBlockerProvider,
   useDirtyBlockerControl,

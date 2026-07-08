@@ -5,7 +5,13 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Copy, Download, Eye, Search, Sparkles, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
 import {
@@ -33,6 +39,9 @@ interface SkillsCatalogProps {
   organizationId: string;
   /** Pre-opens the detail panel for this slug on mount (used by ?slug= deep-link). */
   initialDetailSlug?: string | null;
+  /** The "Add skill" control, hosted beside the toolbar search (and in the
+   *  empty state, so a first skill is still one click away). */
+  action?: ReactNode;
 }
 
 /** Search matches a skill's name, slug, or description. */
@@ -189,6 +198,7 @@ function SkillCatalogMenu({
 export function SkillsCatalog({
   organizationId,
   initialDetailSlug,
+  action,
 }: SkillsCatalogProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
@@ -235,6 +245,7 @@ export function SkillsCatalog({
               }),
               disabled: true,
             }}
+            action={action}
           />
           <CatalogGridSkeleton menu />
         </Stack>
@@ -251,6 +262,7 @@ export function SkillsCatalog({
           defaultValue:
             'Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts.',
         })}
+        action={action}
       />
     );
   }
@@ -265,6 +277,7 @@ export function SkillsCatalog({
             defaultValue: 'Search skills…',
           }),
         }}
+        action={action}
       />
       {filtered.length === 0 ? (
         <EmptyState

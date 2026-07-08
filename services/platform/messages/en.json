@@ -802,10 +802,11 @@
       "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
     "membership": {
-      "title": "Projects",
-      "addProject": "Add to a project",
-      "emptyTitle": "Not in any project yet",
-      "emptyDescription": "Add this automation to a project to start using it there.",
+      "boundProjectsTitle": "Bound projects",
+      "boundProjectsDescription": "Run this automation in specific projects. Add a project to bind it; remove one to unbind it there.",
+      "boundProjectsPlaceholder": "Bind projects…",
+      "noProjectsAvailable": "No projects available.",
+      "saveFailed": "Couldn't update this automation's projects.",
       "notInProjectTitle": "Not added to this project",
       "notInProjectDescription": "Add this automation to this project to use it here.",
       "addToThisProject": "Add to this project"
@@ -5226,7 +5227,7 @@
     "tokenSources": {
       "editTitle": "Edit token source",
       "newTitle": "New token source",
-      "new": "New token source",
+      "new": "New source",
       "slug": "Slug",
       "displayName": "Display name",
       "endpoint": "Endpoint URL",

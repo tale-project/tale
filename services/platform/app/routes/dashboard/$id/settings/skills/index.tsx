@@ -42,26 +42,26 @@ function SkillsPage() {
       <SettingsSection
         title={tNav('skills')}
         description={tSettings('menu.skills.description')}
-        action={
-          <SkillsActionMenu
-            organizationId={organizationId}
-            // Deep-link the fresh bundle's detail panel via ?slug= — the same
-            // mechanism the catalog uses for external links to a skill.
-            onUploaded={(newSlug) =>
-              void navigate({
-                from: Route.fullPath,
-                search: { slug: newSlug },
-                replace: true,
-              })
-            }
-            extraMenuItems={syncMenuItem ? [syncMenuItem] : []}
-          />
-        }
       >
         {syncDialog}
         <SkillsCatalog
           organizationId={organizationId}
           initialDetailSlug={slug ?? null}
+          action={
+            <SkillsActionMenu
+              organizationId={organizationId}
+              // Deep-link the fresh bundle's detail panel via ?slug= — the same
+              // mechanism the catalog uses for external links to a skill.
+              onUploaded={(newSlug) =>
+                void navigate({
+                  from: Route.fullPath,
+                  search: { slug: newSlug },
+                  replace: true,
+                })
+              }
+              extraMenuItems={syncMenuItem ? [syncMenuItem] : []}
+            />
+          }
         />
       </SettingsSection>
     </SettingsPage>

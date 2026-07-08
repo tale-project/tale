@@ -25,7 +25,9 @@ function TokenSourcesLayout() {
   const { t: tSettings } = useT('settings');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const [createOpen, setCreateOpen] = useState(false);
+  // null = closed; { slug: null } = create; { slug } = edit. Owned here so the
+  // "New source" action can sit in the section header.
+  const [panel, setPanel] = useState<{ slug: string | null } | null>(null);
 
   if (!abilityLoading && ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
@@ -37,7 +39,7 @@ function TokenSourcesLayout() {
         title={tNav('tokenSources')}
         description={tSettings('menu.tokenSources.description')}
         action={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setPanel({ slug: null })}>
             <Plus className="mr-1.5 size-4" />
             {tSettings('tokenSources.new')}
           </Button>
@@ -45,8 +47,8 @@ function TokenSourcesLayout() {
       >
         <TokenSourcesManager
           organizationId={id}
-          createOpen={createOpen}
-          onCreateOpenChange={setCreateOpen}
+          panel={panel}
+          onPanelChange={setPanel}
         />
       </SettingsSection>
     </SettingsPage>
