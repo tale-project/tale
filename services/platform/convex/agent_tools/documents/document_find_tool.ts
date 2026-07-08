@@ -85,6 +85,7 @@ export const documentFindArgs = z.object({
 export const documentFindTool: ToolDefinition = {
   name: 'document_find',
   availability: 'any',
+  sandboxBridge: true,
   tool: createTool({
     description: `Find and filter documents in the knowledge base.
 

@@ -10,6 +10,24 @@ import { SKILL_NAME_REGEX } from './skills';
  */
 export const MAX_SKILL_BINDINGS_PER_AGENT = 10;
 
+/**
+ * Platform tools an `external-agent` may carry in `toolNames` — the sandbox
+ * workspace-tool bridge subset. The coding agent brings its own file/shell
+ * tools, and the loop-coupled registry tools (human input, spawn_agent,
+ * progress, …) cannot run without the platform tool loop, so only
+ * request/response data-plane tools are bridgeable. Enforced by the
+ * superRefine below; the convex-side tool registry marks the same tools with
+ * `sandboxBridge: true`, and a drift test keeps the two lists identical (the
+ * config-snapshot fingerprint cannot see refine rules, so the unit tests are
+ * this rule's only guard).
+ */
+export const EXTERNAL_AGENT_TOOL_NAMES = [
+  'rag_search',
+  'document_find',
+  'document_retrieve',
+  'document_write',
+] as const;
+
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
 
@@ -184,10 +202,14 @@ export const agentJsonSchema = z
     /**
      * Root behavior this agent runs. Omitted = 'chat' (default tool-calling chat
      * loop). 'image-generation' routes the user message straight to an image
-     * model. 'external-agent' routes the whole turn to a coding agent (Claude
+     * model (toolNames/integrationBindings/workflows are all ignored there).
+     * 'external-agent' routes the whole turn to a coding agent (Claude
      * Code / Cursor) running in a sandbox session — the thread IS that
-     * session. In the non-chat cases toolNames/integrationBindings/workflows
-     * are ignored (the agent's tools are its own).
+     * session. Its file/shell tools are the runtime's own; two platform grant
+     * sets still apply, dispatched from inside the container over the sandbox
+     * MCP bridge: `integrationBindings` (connected integrations) and
+     * `toolNames` (the workspace tools in EXTERNAL_AGENT_TOOL_NAMES).
+     * `workflows` remains loop-only.
      */
     primaryBehavior: primaryBehaviorSchema.optional(),
     /**
@@ -421,18 +443,19 @@ export const agentJsonSchema = z
     // tripping schema validation.
 
     // image-generation and external-agent both bypass the platform tool loop,
-    // so the loop-only fields are meaningless for them — with one exception:
-    // an external-agent reuses `integrationBindings` as the grant set for the
-    // sandbox MCP integration bridge (the coding agent dispatches any bound
-    // integration from inside its container), so it stays allowed there.
-    // `toolNames`/`workflows` remain loop-only and disallowed for both.
+    // so the loop-only fields are meaningless for them — with two exceptions,
+    // both dispatched from inside the container over the sandbox MCP bridge:
+    // an external-agent reuses `integrationBindings` as the integration-bridge
+    // grant set, and `toolNames` as the workspace-tool grant set (restricted
+    // to EXTERNAL_AGENT_TOOL_NAMES below — loop-coupled registry tools cannot
+    // run without the loop). `workflows` remains loop-only for both.
     if (
       data.primaryBehavior === 'image-generation' ||
       data.primaryBehavior === 'external-agent'
     ) {
       const disallowed: Array<keyof typeof data> =
         data.primaryBehavior === 'external-agent'
-          ? ['toolNames', 'workflows']
+          ? ['workflows']
           : ['toolNames', 'integrationBindings', 'workflows'];
       for (const key of disallowed) {
         const value = data[key];
@@ -443,6 +466,31 @@ export const agentJsonSchema = z
             message: `${String(key)} is not supported when primaryBehavior is "${data.primaryBehavior}" — the agent bypasses the platform tool loop.`,
           });
         }
+      }
+    }
+
+    // An external-agent's `toolNames` is the sandbox workspace-tool grant
+    // set; only the bridgeable subset is valid. Schema-level (not a silent
+    // runtime drop) so a config author hears about a loop-coupled tool at
+    // authoring time, not via a mysteriously missing tool in the sandbox.
+    if (
+      data.primaryBehavior === 'external-agent' &&
+      Array.isArray(data.toolNames)
+    ) {
+      const invalid = data.toolNames.filter(
+        (name) =>
+          !(EXTERNAL_AGENT_TOOL_NAMES as readonly string[]).includes(name),
+      );
+      if (invalid.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['toolNames'],
+          message:
+            `not available to an external agent: ${invalid.join(', ')} — ` +
+            `the sandbox bridge supports only ` +
+            `${EXTERNAL_AGENT_TOOL_NAMES.join(', ')} (loop-coupled tools ` +
+            'cannot run outside the platform tool loop).',
+        });
       }
     }
 

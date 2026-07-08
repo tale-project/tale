@@ -5577,7 +5577,7 @@
         "sectionModelDescription": "Configure les modèles IA pour cet agent. Le premier modèle est le modèle principal utilisé pour la génération. Les modèles supplémentaires servent de modèles de secours ordonnés — si le modèle principal est indisponible, l'agent essaie automatiquement le modèle suivant dans la liste.",
         "sectionTools": "Outils",
         "sectionToolsDescription": "Sélectionne les outils que cet agent peut utiliser",
-        "sectionToolsExternalDescription": "Les agents externes s'exécutent dans un bac à sable et n'utilisent que les intégrations liées. Les outils de la plateforme et les workflows ne s'appliquent pas.",
+        "sectionToolsExternalDescription": "Les agents externes s'exécutent dans un bac à sable et utilisent ce qui est lié ici : les intégrations et les outils de la plateforme autorisés (recherche dans les connaissances, documents). Les workflows ne s'appliquent pas.",
         "sectionIntegrationBindings": "Intégrations liées",
         "sectionIntegrationBindingsDescription": "Lie des intégrations spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de l'intégration.",
         "noIntegrationsAvailable": "Aucune intégration active disponible.",

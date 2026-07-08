@@ -8,8 +8,12 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { TOOL_NAMES } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
-import { isRetrievalMode } from '@/lib/shared/schemas/agents';
+import {
+  EXTERNAL_AGENT_TOOL_NAMES,
+  isRetrievalMode,
+} from '@/lib/shared/schemas/agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents/$agentId/tools')({
@@ -24,10 +28,13 @@ function ToolsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
 
-  // Only chat agents run the platform tool loop. External agents keep just
-  // their integration bindings (the sandbox MCP grant set); the platform-tool,
-  // workflow, and web-search controls are no-ops for them, so hide them.
+  // Only chat agents run the platform tool loop. An external agent still
+  // binds two grant sets here — integrations and the sandbox-bridgeable
+  // platform tools (EXTERNAL_AGENT_TOOL_NAMES), both dispatched from its
+  // container over the MCP bridge — while the workflow and web-search
+  // controls stay chat-only no-ops.
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
+  const isExternal = config.primaryBehavior === 'external-agent';
 
   const webSearchMode =
     config.webSearchMode ??
@@ -35,10 +42,20 @@ function ToolsTab() {
 
   const hiddenTools = useMemo(() => {
     const hidden = new Set<string>();
+    if (isExternal) {
+      // The picker offers only the sandbox-bridgeable subset (the schema
+      // rejects everything else for external agents anyway).
+      const bridgeable: readonly string[] = EXTERNAL_AGENT_TOOL_NAMES;
+      for (const name of TOOL_NAMES) {
+        if (!bridgeable.includes(name)) hidden.add(name);
+      }
+      return hidden;
+    }
+    // Chat agents govern these two via the knowledge / web-search modes.
     hidden.add('rag_search');
     hidden.add('web');
     return hidden;
-  }, []);
+  }, [isExternal]);
 
   const webModeOptions = useMemo(
     () => [
@@ -121,7 +138,7 @@ function ToolsTab() {
         onWorkflowBindingsChange={(workflows) => updateConfig({ workflows })}
         organizationId={organizationId}
         hiddenTools={hiddenTools}
-        showPlatformTools={isChat}
+        showPlatformTools={isChat || isExternal}
         showWorkflows={isChat}
       />
     </ContentArea>
