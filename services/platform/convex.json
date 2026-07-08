@@ -10,8 +10,7 @@
       "mysql2",
       "pg",
       "postgres",
-      "jsdom",
-      "canvas"
+      "jsdom"
     ]
   },
   "aiFiles": {
