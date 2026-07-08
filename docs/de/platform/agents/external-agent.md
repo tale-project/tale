@@ -61,6 +61,19 @@ Runden externer Agenten können lang sein und das Modell viele Male aufrufen, da
 
 Diese Abrechnung gilt nur für den **gateway-verwalteten** Pfad — also verwaltete Claude-Code-, OpenCode-, Hermes-Agent-, Gemini-CLI-, Codex-, Pi- und OpenClaw-Runden. Env-verwaltete und BYO-Agenten laufen auf Anmeldedaten außerhalb des Gateways: Ihre Runden fließen nicht in die Nutzungsanalyse ein und die Ausgabengrenzen der Organisation greifen nicht; Kosten und Ratenlimits liegen bei deinem Provider-Konto.
 
+## Coding-Agenten auf dem Task-Board
+
+In den Einstellungen ist **Coding-Agent** das Produktlabel für Agenten, deren Chat in einer Sandbox-CLI (Claude Code oder Cursor) läuft, oder deren Task-Dispatch in JSON über **`runtime`** (tale-daemon auf deinem Rechner) oder **`preferDurableStepForTasks`** (durable Sandbox-Schritt) konfiguriert ist. Das Label allein ändert nicht, wie Board-Tasks laufen — der Dispatch folgt diesen JSON-Feldern, nicht der Chat-Sandbox.
+
+Wenn du einen Coding-Agenten einem Board-Task zuweist, hängt das Ergebnis von der Konfiguration ab:
+
+- **Agent** (Plattform-Tool-Schleife, keine Sandbox-CLI, kein Task-Runtime) — nutzt Plattform-Tools und postet Ergebnisse als Task-Kommentare.
+- **Coding-Agent + `runtime`** — Tasks laufen auf deinem Rechner (tale-daemon) in einem Git-Workspace.
+- **Coding-Agent + `preferDurableStepForTasks`** — Tasks laufen in einem Sandbox-Container; das Ergebnis ist eine Summary-Datei.
+- **Coding-Agent, nur Sandbox** (external-agent-Chat, ohne Runtime oder Durable-Flag) — Chat läuft in einer Sandbox; **Board-Tasks nutzen die Plattform-Schleife**, bis du einen Daemon bindest oder durable Tasks im Agent-JSON aktivierst.
+
+Der Assignee-Picker zeigt diese Hinweise beim Auswählen. Für Recherche, Texte oder persönliche Deliverables weise eine Person oder einen Plattform-**Agent** zu, nicht einen Coding-Agenten für Repo-Arbeit.
+
 ## Wo das hineinpasst
 
 Ein externer Agent verwandelt einen Chat-Thread in eine Live-Sitzung mit einem Coding-Werkzeug in einer Sandbox — du steuerst ihn in normaler Sprache, er arbeitet in einem isolierten Arbeitsbereich, und die Sitzung bleibt für Folgefragen bestehen, bis du den Thread schließt. Die Anmeldedaten sind die Achse, die entscheidet, wie viel davon unter der Kontrolle der Organisation läuft: Ein gateway-verwalteter Agent bleibt am Plattform-Gateway unter den Grenzen und der Erfassung der Organisation, während ein env-verwalteter oder BYO-Agent mit den Schlüsseln läuft, die du unter [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment) hinterlegst, und deinem eigenen Provider-Konto gegenüber rechenschaftspflichtig ist. Die Drift-Kandidaten hier sind die Agenten- und Modellnamen; kombiniere diese Seite mit der laufenden [Provider-Liste](/de/platform/admin/providers), statt dir bestimmte Modellzeichenketten zu merken, und mit [Integrationen](/de/platform/integrations/overview) für die verbundenen Integrationen, die der Agent erreichen kann — von GitHub für einen echten Pull-Request-Workflow bis zu einer Such- oder Datenintegration, die externe Fakten in die Arbeit holt. Wenn Claude Code oder Codex statt in der verwalteten Sandbox auf eigener Hardware laufen sollen — für Board-Aufgaben statt Chat —, sieh dir [tale-daemon](/de/self-hosted/operate/tale-daemon) an.

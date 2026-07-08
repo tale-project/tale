@@ -128,6 +128,41 @@ export const isAgentLiveInternal = internalQuery({
   },
 });
 
+/** Slugs with an enabled install row — shared roster gate for triage, mentions. */
+export const getEnabledAgentSlugsInternal = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.array(v.string()),
+  handler: async (ctx, args): Promise<string[]> => {
+    const slugs: string[] = [];
+    for await (const row of ctx.db
+      .query('agentInstallations')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.enabled) slugs.push(row.agentSlug);
+    }
+    return slugs;
+  },
+});
+
+/**
+ * Task assignee gate: refuse agent assignees that are not installed and
+ * enabled. User assignees pass through unchanged.
+ */
+export async function assertAgentAssigneeLive(
+  ctx: QueryCtx,
+  organizationId: string,
+  assignee: { assigneeType: 'user' | 'agent'; assigneeId: string } | null,
+): Promise<void> {
+  if (!assignee || assignee.assigneeType !== 'agent') return;
+  const row = await findInstallation(ctx, organizationId, assignee.assigneeId);
+  if (row?.enabled) return;
+  throw new ConvexError({
+    code: 'AGENT_NOT_LIVE',
+    message: `Agent "${assignee.assigneeId}" is not installed or is disabled.`,
+  });
+}
+
 export const getInstallationInternal = internalQuery({
   args: { organizationId: v.string(), agentSlug: v.string() },
   // `v.any()` already admits null; the handler's typed return is the contract.

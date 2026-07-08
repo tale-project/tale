@@ -63,6 +63,19 @@ External-agent turns can be long and call the model many times, so they cost mor
 
 This accounting is a property of the **gateway-managed** path, so it covers Claude Code, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, and OpenClaw managed turns. Env-managed and bring-your-own agents run on credentials outside the gateway: their turns are not metered into Usage analytics and the org's spend caps do not apply, and the cost and any rate limits live with your provider account instead.
 
+## Coding agents on the task board
+
+In settings, **Coding agent** is the product label for agents whose chat runs in a sandbox CLI (Claude Code or Cursor), or whose task dispatch is configured in JSON with a **`runtime`** (tale-daemon on your machine) or **`preferDurableStepForTasks`** (durable sandbox step). That label does not by itself change how board tasks run — dispatch follows those JSON fields, not the chat sandbox.
+
+When you assign a coding agent to a board task, what happens depends on its configuration:
+
+- **Agent** (platform tool loop, no sandbox CLI, no task runtime) — uses platform tools and posts results as task comments.
+- **Coding agent + `runtime`** — tasks run on your machine (tale-daemon) in a git workspace.
+- **Coding agent + `preferDurableStepForTasks`** — tasks run in a sandbox container; the result is a summary file.
+- **Coding agent, sandbox only** (external-agent chat, no runtime or durable flag) — chat runs in a sandbox; **board tasks use the platform loop** unless you bind a daemon or enable durable tasks in the agent JSON.
+
+The assignee picker surfaces these hints when you pick an agent. For research, writing, or personal deliverables, assign a person or a platform **Agent** rather than a coding agent tuned for repository work.
+
 ## Where this fits
 
 An external agent turns a chat thread into a live session with a coding tool in a sandbox — you drive it in plain language, it works in an isolated workspace, and the session persists for follow-ups until you close the thread. Credentials are the axis that decides how much of that runs under the org's control: a managed agent stays on the platform gateway under the org's caps and metering, while a bring-your-own agent runs on the keys you keep under [Environment variables & secrets](/platform/member/environment) and answers to your own provider account. The drift candidates here are the agent and model names; pair this page with the running [Providers](/platform/admin/providers) list rather than memorising specific model strings, and with [Integrations](/platform/integrations/overview) for the connected integrations the agent can reach — from GitHub for a real pull-request workflow to a search or data integration that pulls outside facts into the work. To run Claude Code or Codex on hardware you control instead of the managed sandbox — for board tasks rather than chat — see [tale-daemon](/self-hosted/operate/tale-daemon).

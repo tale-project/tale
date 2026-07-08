@@ -1,26 +1,8 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 
 export type NotificationsFilter = 'all' | 'unread';
-
-/**
- * Return-loop summary for the current user: unread actionable count, tasks
- * waiting on me, and pending reviews routed to me. Powers the board
- * "Waiting on me" filter; scope to a project with `projectId`.
- */
-export function useMyAttentionSummary(
-  organizationId: string | undefined,
-  projectId?: Id<'projects'>,
-) {
-  return useConvexQuery(
-    api.collab.attention.getMyAttentionSummary,
-    organizationId
-      ? { organizationId, ...(projectId ? { projectId } : {}) }
-      : 'skip',
-  );
-}
 
 // The Unread/All filter is applied client-side (see `NotificationListPanel`),
 // so it is intentionally NOT a query argument — toggling it must not change the

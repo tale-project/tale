@@ -13,6 +13,10 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
+import {
+  getAgentDisplayCategory,
+  type AgentDisplayCategory,
+} from '@/lib/shared/agents/display-category';
 import { PROTECTED_AGENT_NAMES } from '@/lib/shared/constants/agents';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { buildFolderView, isInFolder } from '@/lib/utils/folder-tree';
@@ -36,6 +40,7 @@ export interface AgentRow {
   toolNames?: string[];
   visibleInChat?: boolean;
   roleRestriction?: string;
+  displayCategory?: AgentDisplayCategory;
   status?: string;
   message?: string;
 }
@@ -115,6 +120,7 @@ export function AgentsTable({
         toolNames: agent.toolNames,
         visibleInChat: agent.visibleInChat,
         roleRestriction: agent.roleRestriction,
+        displayCategory: getAgentDisplayCategory(agent),
       });
     }
     return validAgents;

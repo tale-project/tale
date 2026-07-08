@@ -145,6 +145,7 @@ function ModelSelectorBase({
         searchPlaceholder={t('agents.form.searchModels')}
         emptyText={t('agents.form.noModelsFound')}
         aria-label={t('agents.form.addModel')}
+        contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
         trigger={
           <Button type="button" variant="link" icon={Plus}>
             {t('agents.form.addModel')}

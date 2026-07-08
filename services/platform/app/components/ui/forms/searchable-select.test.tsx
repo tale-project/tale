@@ -52,10 +52,12 @@ describe('SearchableSelect', () => {
       expect(opts).toHaveLength(4);
     });
 
-    it('renders option descriptions', async () => {
+    it('renders option descriptions clamped to two lines', async () => {
       const { user } = renderSelect();
       await user.click(screen.getByText('Open select'));
-      expect(screen.getByText('A red fruit')).toBeInTheDocument();
+      const description = screen.getByText('A red fruit');
+      expect(description).toBeInTheDocument();
+      expect(description.className).toContain('line-clamp-2');
       expect(screen.getByText('A yellow fruit')).toBeInTheDocument();
     });
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
+import { assertAgentAssigneeLive } from './installations';
 
 // convex-test module map keyed relative to the convex/ root. This file lives at
 // convex/agents/, so resolve glob keys against that base.
@@ -22,7 +23,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
   modules[toConvexRootKey(key)] = loader;
 }
 
-const ORG = 'org_appagents';
+const APP_AGENTS_ORG = 'org_appagents';
 type T = TestConvex<typeof schema>;
 
 function rowFor(t: T, agentSlug: string) {
@@ -30,7 +31,7 @@ function rowFor(t: T, agentSlug: string) {
     ctx.db
       .query('agentInstallations')
       .withIndex('by_org_slug', (q) =>
-        q.eq('organizationId', ORG).eq('agentSlug', agentSlug),
+        q.eq('organizationId', APP_AGENTS_ORG).eq('agentSlug', agentSlug),
       )
       .first(),
   );
@@ -46,7 +47,7 @@ describe('agent installations — app ownership stamp', () => {
     const SLUG = 'issue-desk/desk-implementer';
 
     await t.mutation(internal.agents.installations.upsertInstallation, {
-      organizationId: ORG,
+      organizationId: APP_AGENTS_ORG,
       agentSlug: SLUG,
       installedBy: 'system',
       contentHash: 'h1',
@@ -61,7 +62,7 @@ describe('agent installations — app ownership stamp', () => {
 
     // Re-install (the patch path) re-stamps content but keeps the owner.
     await t.mutation(internal.agents.installations.upsertInstallation, {
-      organizationId: ORG,
+      organizationId: APP_AGENTS_ORG,
       agentSlug: SLUG,
       installedBy: 'system',
       contentHash: 'h2',
@@ -74,7 +75,7 @@ describe('agent installations — app ownership stamp', () => {
 
     // A global agent install carries no owner.
     await t.mutation(internal.agents.installations.upsertInstallation, {
-      organizationId: ORG,
+      organizationId: APP_AGENTS_ORG,
       agentSlug: 'global-helper',
       installedBy: 'system',
       contentHash: 'g1',
@@ -83,7 +84,7 @@ describe('agent installations — app ownership stamp', () => {
 
     // App uninstall deregisters the app agent's row.
     await t.mutation(internal.agents.installations.deleteInstallation, {
-      organizationId: ORG,
+      organizationId: APP_AGENTS_ORG,
       agentSlug: SLUG,
     });
     expect(await rowFor(t, SLUG)).toBeNull();
@@ -189,5 +190,109 @@ describe('agent liveness gate — installed && enabled, no fail-open', () => {
     );
     expect(states.provisioned).toBe(true);
     expect(states.states).toEqual([]);
+  });
+});
+
+describe('assertAgentAssigneeLive', () => {
+  const ORG = 'org_assignee_gate';
+
+  function seedInstall(t: TestConvex<typeof schema>, agentSlug: string) {
+    return t.run((ctx) =>
+      ctx.db.insert('agentInstallations', {
+        organizationId: ORG,
+        agentSlug,
+        installedAt: 0,
+        installedBy: 'user',
+        contentHash: 'h',
+        enabled: true,
+      }),
+    );
+  }
+
+  it('passes for user assignees and null', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await assertAgentAssigneeLive(ctx, ORG, null);
+      await assertAgentAssigneeLive(ctx, ORG, {
+        assigneeType: 'user',
+        assigneeId: 'user-1',
+      });
+    });
+  });
+
+  it('throws AGENT_NOT_LIVE when the agent has no install row', async () => {
+    const t = convexTest(schema, modules);
+    await expect(
+      t.run(async (ctx) => {
+        await assertAgentAssigneeLive(ctx, ORG, {
+          assigneeType: 'agent',
+          assigneeId: 'software-developer',
+        });
+      }),
+    ).rejects.toThrow(/AGENT_NOT_LIVE|not installed or is disabled/);
+  });
+
+  it('throws AGENT_NOT_LIVE when the install row is disabled', async () => {
+    const t = convexTest(schema, modules);
+    await t.run((ctx) =>
+      ctx.db.insert('agentInstallations', {
+        organizationId: ORG,
+        agentSlug: 'dev',
+        installedAt: 0,
+        installedBy: 'user',
+        contentHash: 'h',
+        enabled: false,
+      }),
+    );
+    await expect(
+      t.run(async (ctx) => {
+        await assertAgentAssigneeLive(ctx, ORG, {
+          assigneeType: 'agent',
+          assigneeId: 'dev',
+        });
+      }),
+    ).rejects.toThrow(/AGENT_NOT_LIVE|not installed or is disabled/);
+  });
+
+  it('passes when the agent is installed and enabled', async () => {
+    const t = convexTest(schema, modules);
+    await seedInstall(t, 'software-developer');
+    await t.run(async (ctx) => {
+      await assertAgentAssigneeLive(ctx, ORG, {
+        assigneeType: 'agent',
+        assigneeId: 'software-developer',
+      });
+    });
+  });
+});
+
+describe('getEnabledAgentSlugsInternal', () => {
+  const ORG = 'org_enabled_slugs';
+
+  it('returns only enabled install rows', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('agentInstallations', {
+        organizationId: ORG,
+        agentSlug: 'live',
+        installedAt: 0,
+        installedBy: 'user',
+        contentHash: 'h',
+        enabled: true,
+      });
+      await ctx.db.insert('agentInstallations', {
+        organizationId: ORG,
+        agentSlug: 'off',
+        installedAt: 0,
+        installedBy: 'user',
+        contentHash: 'h',
+        enabled: false,
+      });
+    });
+    const slugs = await t.query(
+      internal.agents.installations.getEnabledAgentSlugsInternal,
+      { organizationId: ORG },
+    );
+    expect(slugs).toEqual(['live']);
   });
 });

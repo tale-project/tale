@@ -20,16 +20,22 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import type { TFunction } from 'i18next';
 import { Bot, TriangleAlert } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   CatalogCard,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import {
+  displayCategoryI18nSuffix,
+  getAgentDisplayCategory,
+  type AgentDisplayCategory,
+} from '@/lib/shared/agents/display-category';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import {
@@ -54,6 +60,7 @@ interface CatalogEntry {
   slug: string;
   displayName: string;
   description?: string;
+  displayCategory: AgentDisplayCategory;
   /** Top-level folder (chat/workforce/github) — the catalog's visual section. */
   folder: string;
   /** Flat, equal catalog tags; matched by search, used for icon heuristics. */
@@ -80,6 +87,14 @@ type InstallStateRow = NonNullable<
 /** Number of placeholder cards rendered while the catalog roster loads. */
 const PLACEHOLDER_CARD_COUNT = 6;
 
+type CategoryFilter = 'all' | AgentDisplayCategory;
+
+const CATEGORY_FILTERS: CategoryFilter[] = [
+  'all',
+  'agent',
+  'coding-agent',
+  'image-agent',
+];
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');
   const { i18n } = useTranslation();
@@ -92,6 +107,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   } = useListAgents(organizationId);
   const installStates = useAgentInstallations(organizationId);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   // Track slugs with an in-flight roster write so the card's buttons disable
   // until the reactive install-state query settles — prevents a double-click
   // firing install/enable twice. The mutations themselves are not optimistic
@@ -139,6 +155,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
         slug: agent.name,
         displayName: resolved.displayName,
         description: resolved.description,
+        displayCategory: getAgentDisplayCategory(agent),
         folder: agent.folder ?? '',
         labels: agentLabels(agent),
         agentKind: agent.agentKind,
@@ -156,14 +173,18 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
-      (e) =>
+    return entries.filter((e) => {
+      if (categoryFilter !== 'all' && e.displayCategory !== categoryFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
         e.displayName.toLowerCase().includes(q) ||
         (e.description ?? '').toLowerCase().includes(q) ||
-        e.labels.some((l) => l.toLowerCase().includes(q)),
-    );
-  }, [entries, search]);
+        e.labels.some((l) => l.toLowerCase().includes(q))
+      );
+    });
+  }, [entries, search, categoryFilter]);
 
   const byFolder = useMemo(() => {
     const groups = new Map<string, CatalogEntry[]>();
@@ -174,6 +195,35 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
     }
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
+
+  // Hooks must run unconditionally — declared before the error/loading/empty
+  // early returns below.
+  const handleCategoryFilterChange = useCallback((values: string[]) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of this filter's own CategoryFilter options
+    setCategoryFilter((values[0] as CategoryFilter | undefined) ?? 'all');
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setCategoryFilter('all');
+  }, []);
+
+  const categoryFilterConfigs = useMemo(
+    () => [
+      {
+        key: 'category',
+        title: t('categoryFilter.title'),
+        options: CATEGORY_FILTERS.filter((filter) => filter !== 'all').map(
+          (filter) => ({
+            value: filter,
+            label: t(`categoryFilter.${displayCategoryI18nSuffix(filter)}`),
+          }),
+        ),
+        selectedValues: categoryFilter === 'all' ? [] : [categoryFilter],
+        onChange: handleCategoryFilterChange,
+      },
+    ],
+    [categoryFilter, handleCategoryFilterChange, t],
+  );
 
   const run = async (
     slug: string,
@@ -250,16 +300,25 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
 
   // Search resolved to nothing — keep the search box so the user can clear it,
   // and explain why the grid is empty rather than showing a bare page.
-  const noSearchResults = filtered.length === 0 && search.trim().length > 0;
+  const noSearchResults =
+    filtered.length === 0 &&
+    (search.trim().length > 0 || categoryFilter !== 'all');
 
   return (
     <Stack gap={6}>
-      <SearchInput
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('searchPlaceholder')}
-        className="w-64"
-      />
+      <Row gap={3} wrap className="items-end">
+        <SearchInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('searchPlaceholder')}
+          className="w-64"
+        />
+        <DataTableFilters
+          filters={categoryFilterConfigs}
+          onClearAll={handleClearFilters}
+          className="w-auto"
+        />
+      </Row>
       {noSearchResults ? (
         <EmptyState
           icon={Bot}
@@ -369,6 +428,13 @@ function AgentCatalogCard({
       title={entry.displayName}
       description={entry.description}
       meta={provenanceBadge ?? undefined}
+      badge={
+        <Badge variant="outline">
+          {t(
+            `categoryBadge.${displayCategoryI18nSuffix(entry.displayCategory)}`,
+          )}
+        </Badge>
+      }
       actions={
         !entry.installed ? (
           <Button

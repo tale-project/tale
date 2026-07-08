@@ -17,6 +17,12 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.searchPlaceholder': 'Search agents...',
         'agentSelector.noResults': 'No agents found',
         'agentSelector.addAgent': 'Catalog',
+        'agentSelector.auto': 'Auto',
+        'agentSelector.autoDescription':
+          'Auto picks the best agent per message.',
+        'agentSelector.sectionAgents': 'Agents',
+        'agentSelector.sectionCodingAgents': 'Coding agents',
+        'agentSelector.sectionImageAgents': 'Image agents',
         'agentSelector.lockedExternalLabel':
           'Agent: {agent} (pinned for this sandbox chat)',
       };
@@ -50,6 +56,7 @@ interface MockAgent {
   name: string;
   displayName: string;
   description: string;
+  primaryBehavior?: 'chat' | 'external-agent' | 'image-generation';
 }
 
 const defaultAgents: MockAgent[] = [
@@ -242,6 +249,30 @@ describe('AgentSelector', () => {
     expect(screen.getByText('Catalog')).toBeInTheDocument();
   });
 
+  it('groups platform and coding agents under section headers', async () => {
+    mockAgents = [
+      {
+        name: 'assistant',
+        displayName: 'Assistant',
+        description: 'General help',
+        primaryBehavior: 'chat',
+      },
+      {
+        name: 'software-developer',
+        displayName: 'Software Developer',
+        description: 'Writes code in a sandbox',
+        primaryBehavior: 'external-agent',
+      },
+    ];
+
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+    await user.click(screen.getByLabelText('Select agent'));
+
+    expect(screen.getByText('Agents')).toBeInTheDocument();
+    expect(screen.getByText('Coding agents')).toBeInTheDocument();
+    expect(screen.getByText('Software Developer')).toBeInTheDocument();
+  });
+
   it('hides the "Catalog" button when user lacks write permission', async () => {
     mockCanWrite = false;
 
@@ -264,7 +295,7 @@ describe('AgentSelector', () => {
     // The Auto option (a pseudo-agent) has no details link.
     const autoOption = screen
       .getAllByRole('option')
-      .find((el) => el.textContent?.includes('agentSelector.auto'));
+      .find((el) => el.textContent?.includes('Auto'));
     expect(autoOption).toBeDefined();
     expect(
       within(autoOption as HTMLElement).queryByRole('link'),

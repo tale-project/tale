@@ -18,6 +18,7 @@ import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussi
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
+import { assertAgentAssigneeLive } from '../agents/installations';
 import { createAuditLog } from '../audit_logs/helpers';
 import {
   notifyTaskAssigned,
@@ -44,6 +45,7 @@ import {
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
   truncateImportedTitle,
+  workflowActivityContext,
 } from './helpers';
 import {
   extractMentions,
@@ -52,10 +54,13 @@ import {
 } from './mentions';
 import {
   type CommentEventComment,
+  taskActivityAttributionValidator,
   taskActorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
+
+const optionalAttribution = v.optional(taskActivityAttributionValidator);
 
 /**
  * Actor attribution for task-domain events. Workflow-engine writes pass the
@@ -143,6 +148,7 @@ export const agentCreateTask = internalMutation({
     priority: v.optional(taskPriorityValidator),
     labels: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id('tasks')),
+    attribution: optionalAttribution,
   },
   handler: async (ctx, args): Promise<{ taskId: Id<'tasks'> }> => {
     const project = await loadProjectInOrg(
@@ -201,6 +207,7 @@ export const agentCreateTask = internalMutation({
         actorId: args.actorId,
         action: 'created',
         toValue: status,
+        context: workflowActivityContext(args.actorId, args.attribution),
       });
       await emitEvent(ctx, {
         organizationId: args.organizationId,
@@ -329,6 +336,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *    closes/reopens tasks already on the board, never materializing a task
      *    for every issue, and so can run org-scoped without a `projectId`. */
     createIfMissing: v.optional(v.boolean()),
+    attribution: optionalAttribution,
   },
   handler: async (
     ctx,
@@ -428,6 +436,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
           action: 'status.changed',
           fromValue: statusFrom,
           toValue: patch.status,
+          context: workflowActivityContext(args.actorId, args.attribution),
         });
       }
       await agentAudit(ctx, {
@@ -501,6 +510,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         actorId: args.actorId,
         action: 'created',
         toValue: status,
+        context: workflowActivityContext(args.actorId, args.attribution),
       });
       await emitEvent(ctx, {
         organizationId: args.organizationId,
@@ -531,6 +541,7 @@ export const agentUpdateTaskStatus = internalMutation({
     actorId: v.string(),
     taskId: v.id('tasks'),
     status: taskStatusValidator,
+    attribution: optionalAttribution,
   },
   handler: async (ctx, args): Promise<{ ok: boolean; reason?: string }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
@@ -570,6 +581,7 @@ export const agentUpdateTaskStatus = internalMutation({
       action: 'status.changed',
       fromValue: task.status,
       toValue: args.status,
+      context: workflowActivityContext(args.actorId, args.attribution),
     });
     await agentAudit(ctx, {
       organizationId: args.organizationId,
@@ -665,6 +677,7 @@ export const agentAssignTask = internalMutation({
     taskId: v.id('tasks'),
     assigneeType: v.optional(taskActorTypeValidator),
     assigneeId: v.optional(v.string()),
+    attribution: optionalAttribution,
   },
   handler: async (ctx, args): Promise<{ ok: boolean }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
@@ -672,6 +685,7 @@ export const agentAssignTask = internalMutation({
       assigneeType: args.assigneeType,
       assigneeId: args.assigneeId,
     });
+    await assertAgentAssigneeLive(ctx, args.organizationId, assignee);
     const previousAssigneeId = task.assigneeId ?? null;
     await ctx.db.patch(args.taskId, {
       assigneeType: assignee?.assigneeType,
@@ -685,6 +699,7 @@ export const agentAssignTask = internalMutation({
       action: 'assignee.changed',
       fromValue: previousAssigneeId ?? undefined,
       toValue: assignee?.assigneeId,
+      context: workflowActivityContext(args.actorId, args.attribution),
     });
     await agentAudit(ctx, {
       organizationId: args.organizationId,
@@ -848,6 +863,7 @@ export const agentAddComment = internalMutation({
     actorId: v.string(),
     taskId: v.id('tasks'),
     body: v.string(),
+    attribution: optionalAttribution,
   },
   handler: async (
     ctx,
@@ -886,6 +902,7 @@ export const agentAddComment = internalMutation({
       actorType: 'agent',
       actorId: args.actorId,
       action: 'comment.added',
+      context: workflowActivityContext(args.actorId, args.attribution),
     });
     await agentAudit(ctx, {
       organizationId: args.organizationId,
@@ -1502,6 +1519,7 @@ export const agentArchiveTask = internalMutation({
     organizationId: v.string(),
     actorId: v.string(),
     taskId: v.id('tasks'),
+    attribution: optionalAttribution,
   },
   returns: v.object({ ok: v.boolean(), reason: v.optional(v.string()) }),
   handler: async (ctx, args) => {
@@ -1517,6 +1535,7 @@ export const agentArchiveTask = internalMutation({
       actorType: 'agent',
       actorId: args.actorId,
       action: 'archived',
+      context: workflowActivityContext(args.actorId, args.attribution),
     });
     await agentAudit(ctx, {
       organizationId: args.organizationId,
