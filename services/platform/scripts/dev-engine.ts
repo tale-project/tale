@@ -69,6 +69,9 @@ import {
   viteClassifier,
   warnLine,
 } from './dev-output';
+import {
+  runConvexLocalMaintenance,
+} from './convex-local-maintenance';
 import { deriveDevSecrets } from './dev-secrets';
 
 const platformRoot = join(import.meta.dir, '..');
@@ -1063,6 +1066,23 @@ export async function runDevFleet() {
       } catch (err) {
         warnLine(
           `Failed to link Convex external packages; the push may fail. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // Convex never GCs old function-bundle blobs locally; prune or reset
+      // before the pre-warm so cold starts stay inside the CLI's 30s window.
+      // Non-essential: a maintenance failure must never block backend bring-up.
+      try {
+        const maintenance = runConvexLocalMaintenance(platformRoot);
+        if (maintenance.warning) {
+          warnLine(maintenance.warning);
+        }
+        if (maintenance.message) {
+          infoLine(maintenance.message);
+        }
+      } catch (err) {
+        warnLine(
+          `Convex local maintenance skipped (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 

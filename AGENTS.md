@@ -48,7 +48,7 @@ faster than prose. **When you add a rule, add its guard** — a rule no test enf
 
 Safety and architecture invariants — they hold even where no linter covers them:
 
-- **Never destroy state without explicit permission** — local DBs, Convex state, caches, config files, seed data. Assume every file on disk is the user's in-progress work.
+- **Never destroy state without explicit permission** — local DBs, Convex state, caches, config files, seed data. Assume every file on disk is the user's in-progress work. **Never run `bun run setup:clean`** (wipes `services/platform/.convex/local/`) unless the user explicitly asked to delete their local Convex dev data — automatic dev maintenance handles module bloat; the clean script requires typing `delete local convex` on purpose.
 - **Secrets live in environment variables only** — never hardcode or commit them; scrub logs.
 - **Validate at every boundary** — user input, external APIs, webhooks; parameterized queries only, never string-built SQL or shell.
 - **Org configuration is files, not tables** — per-org config is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a Convex table or DB row.

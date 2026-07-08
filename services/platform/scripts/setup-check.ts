@@ -15,6 +15,7 @@
     - Port 3000 free        (the Vite dev server binds it)
     - Port 3210 free        (the local Convex backend binds it)
     - Convex CLI reachable  (`bunx convex --version`)
+    - Convex module storage (soft warn when function-bundle blobs are bloated)
 
   The core lives in `runSetupChecks(deps)`, which takes injected probes so a
   unit test can pass fakes and assert on structured results. `main()` wires
@@ -22,8 +23,19 @@
   command runner) and renders the output.
 */
 
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { join } from 'node:path';
 import process from 'node:process';
+
+import {
+  convexLocalPaths,
+  formatBytes,
+  listModuleBlobEntries,
+  MODULE_BLOB_PRUNE_BYTES_THRESHOLD,
+  MODULE_BLOB_PRUNE_COUNT_THRESHOLD,
+  summarizeModuleBlobs,
+} from './convex-local-maintenance';
 
 /** A single check's outcome. `ok` gates the exit code; `hard` failures exit
  *  non-zero, soft ones only warn. */
@@ -49,6 +61,13 @@ export interface SetupCheckDeps {
   bunVersion: string;
   commandVersion: (cmd: string, args: string[]) => Promise<string | null>;
   portInUse: (port: number) => Promise<boolean>;
+  /** Optional probe for local Convex module blob bloat. Tests omit this. */
+  convexModuleStats?: () => ModuleBlobStats | null;
+}
+
+interface ModuleBlobStats {
+  count: number;
+  totalBytes: number;
 }
 
 const MIN_BUN_MAJOR = 1;
@@ -137,6 +156,32 @@ async function checkConvexCli(
   };
 }
 
+async function checkConvexModuleStorage(
+  stats: ModuleBlobStats | null,
+): Promise<CheckResult> {
+  if (!stats) {
+    return {
+      name: 'Convex module storage lean',
+      ok: true,
+      hard: false,
+      detail: 'no local deployment yet',
+    };
+  }
+  const overCount = stats.count > MODULE_BLOB_PRUNE_COUNT_THRESHOLD;
+  const overBytes = stats.totalBytes > MODULE_BLOB_PRUNE_BYTES_THRESHOLD;
+  const ok = !overCount && !overBytes;
+  const detail = `${stats.count} blob(s), ${formatBytes(stats.totalBytes)}`;
+  return {
+    name: 'Convex module storage lean',
+    ok,
+    hard: false,
+    detail,
+    remediation: ok
+      ? undefined
+      : '`bun run dev` prunes stale module blobs automatically. If cold start still fails, see contributor-setup (resetting local Convex dev data) — do not delete `.convex/local/` unless you intend to lose all local tables and uploads.',
+  };
+}
+
 /**
  * Run every pre-flight check with the injected probes and return the
  * structured results in display order. Pure: no I/O of its own, no
@@ -152,7 +197,10 @@ export async function runSetupChecks(
     checkPort(CONVEX_PORT, 'Convex backend', deps.portInUse),
     checkConvexCli(deps.commandVersion),
   ]);
-  return [checkBun(deps.bunVersion), appPort, convexPort, convexCli];
+  const moduleStorage = await checkConvexModuleStorage(
+    deps.convexModuleStats?.() ?? null,
+  );
+  return [checkBun(deps.bunVersion), appPort, convexPort, convexCli, moduleStorage];
 }
 
 /** True when no hard check failed — the gate `main()` uses for its exit code. */
@@ -234,10 +282,17 @@ async function realCommandVersion(
 }
 
 async function main() {
+  const platformRoot = join(import.meta.dir, '..');
+  const paths = convexLocalPaths(platformRoot);
+  const moduleEntries = existsSync(paths.modulesDir)
+    ? listModuleBlobEntries(readdirSync, (path) => statSync(path), paths.modulesDir)
+    : [];
   const results = await runSetupChecks({
     bunVersion: Bun.version,
     commandVersion: realCommandVersion,
     portInUse: realPortInUse,
+    convexModuleStats: () =>
+      moduleEntries.length > 0 ? summarizeModuleBlobs(moduleEntries) : null,
   });
   console.log(renderResults(results));
   process.exit(allHardChecksPassed(results) ? 0 : 1);
