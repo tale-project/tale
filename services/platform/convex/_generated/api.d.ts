@@ -362,6 +362,7 @@ import type * as discussions_internal_queries from "../discussions/internal_quer
 import type * as discussions_mutations from "../discussions/mutations.js";
 import type * as discussions_queries from "../discussions/queries.js";
 import type * as documents__helpers from "../documents/_helpers.js";
+import type * as documents_access from "../documents/access.js";
 import type * as documents_actions from "../documents/actions.js";
 import type * as documents_check_membership from "../documents/check_membership.js";
 import type * as documents_compare_documents from "../documents/compare_documents.js";
@@ -1389,6 +1390,7 @@ import type * as webdav_lock_queries from "../webdav/lock_queries.js";
 import type * as webdav_org_queries from "../webdav/org_queries.js";
 import type * as webdav_tree_mutations from "../webdav/tree_mutations.js";
 import type * as webdav_tree_queries from "../webdav/tree_queries.js";
+import type * as webdav_visibility from "../webdav/visibility.js";
 import type * as websites_actions from "../websites/actions.js";
 import type * as websites_bulk_create_websites from "../websites/bulk_create_websites.js";
 import type * as websites_create_website from "../websites/create_website.js";
@@ -2049,6 +2051,7 @@ declare const fullApi: ApiFromModules<{
   "discussions/mutations": typeof discussions_mutations;
   "discussions/queries": typeof discussions_queries;
   "documents/_helpers": typeof documents__helpers;
+  "documents/access": typeof documents_access;
   "documents/actions": typeof documents_actions;
   "documents/check_membership": typeof documents_check_membership;
   "documents/compare_documents": typeof documents_compare_documents;
@@ -3076,6 +3079,7 @@ declare const fullApi: ApiFromModules<{
   "webdav/org_queries": typeof webdav_org_queries;
   "webdav/tree_mutations": typeof webdav_tree_mutations;
   "webdav/tree_queries": typeof webdav_tree_queries;
+  "webdav/visibility": typeof webdav_visibility;
   "websites/actions": typeof websites_actions;
   "websites/bulk_create_websites": typeof websites_bulk_create_websites;
   "websites/create_website": typeof websites_create_website;

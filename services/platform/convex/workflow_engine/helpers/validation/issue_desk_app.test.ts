@@ -297,7 +297,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(workflow.success).toBe(true);
     if (!workflow.success) return;
     const steps = workflow.data.steps as Array<Record<string, unknown>>;
-    for (const slug of ['advise', 'execute', 'grade', 'dream_pass']) {
+    for (const slug of ['advise', 'execute', 'grade', 'dream']) {
       const step = steps.find((s) => s.stepSlug === slug);
       expect(step?.stepType, `${slug} stepType`).toBe('sandbox');
       const run = (
@@ -320,72 +320,110 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(vars?.roles?.dreamer).toBe('issue-desk/desk-dreamer');
   });
 
-  it('NEEDS_HUMAN pauses for in-workflow plan review instead of ending at to_review', () => {
+  it('NEEDS_HUMAN pauses at a round-keyed plan review instead of ending the run', () => {
     expect(workflow.success).toBe(true);
     if (!workflow.success) return;
     const steps = workflow.data.steps as Array<Record<string, unknown>>;
     const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
 
+    // The gate bumps the round BEFORE bounding + requesting, so the round
+    // read is always seeded and every cycle mints a FRESH approval (the
+    // request is idempotent per execution+step+ROUND — without the round key
+    // a recorded round-0 decision would replay forever).
     const adviseGate = bySlug('advise_gate') as {
       nextSteps?: Record<string, string>;
     };
-    expect(adviseGate.nextSteps?.true).toBe('human_needed_comment');
+    expect(adviseGate.nextSteps?.true).toBe('bump_plan_review_round');
 
-    const humanComment = bySlug('human_needed_comment') as {
+    const bumpRound = bySlug('bump_plan_review_round') as {
+      config?: {
+        parameters?: { variables?: Array<{ name?: string; value?: string }> };
+      };
       nextSteps?: Record<string, string>;
     };
-    expect(humanComment.nextSteps?.success).toBe('plan_review_pick');
-    expect(humanComment.nextSteps?.success).not.toBe('to_review');
+    expect(bumpRound.config?.parameters?.variables?.[0]?.name).toBe(
+      'planReviewRound',
+    );
+    expect(bumpRound.config?.parameters?.variables?.[0]?.value).toContain(
+      '(variables.planReviewRound || 0)',
+    );
+    expect(bumpRound.nextSteps?.success).toBe('plan_review_gate');
+
+    const bound = bySlug('plan_review_gate') as {
+      stepType?: string;
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(bound.stepType).toBe('condition');
+    expect(bound.config?.expression).toContain('variables.planReviewRound');
+    expect(bound.config?.expression).toContain('config.maxReworkLoops');
+    expect(bound.nextSteps?.true).toBe('request_plan_review');
+    expect(bound.nextSteps?.false).toBe('plan_review_exhausted');
 
     const planReview = bySlug('request_plan_review') as {
       stepType?: string;
       ui?: { render?: string; labelKey?: string };
-      config?: { type?: string; parameters?: { operation?: string } };
+      config?: {
+        type?: string;
+        parameters?: { operation?: string; round?: string };
+      };
       nextSteps?: Record<string, string>;
     };
     expect(planReview.stepType).toBe('action');
     expect(planReview.config?.type).toBe('approval');
     expect(planReview.config?.parameters?.operation).toBe('request_review');
+    expect(planReview.config?.parameters?.round).toBe(
+      '{{variables.planReviewRound}}',
+    );
     expect(planReview.ui?.render).toBe('review');
     expect(planReview.ui?.labelKey).toBe('issueDesk.planReview');
     expect(planReview.nextSteps?.success).toBe('plan_review_decide');
 
+    // Approve proceeds; Request changes captures the feedback into a variable
+    // (advise sits EARLIER in step order, so the validator forbids it from
+    // templating this step's output directly) and replans.
     const decide = bySlug('plan_review_decide') as {
       config?: { expression?: string };
       nextSteps?: Record<string, string>;
     };
     expect(decide.config?.expression).toContain("'approve'");
-    // Round-aware: only THIS round's gate decides — a stale approve recorded on
-    // an earlier round must never auto-pass a later NEEDS_HUMAN cycle.
-    expect(decide.config?.expression).toContain('variables.planReviewRound');
-    expect(decide.nextSteps?.true).toBe('plan_approved_comment');
+    expect(decide.nextSteps?.true).toBe('assign_implementer');
     expect(decide.nextSteps?.false).toBe('capture_plan_feedback');
 
-    // BOTH outcomes advance the round counter, so a later NEEDS_HUMAN cycle
-    // always reaches a FRESH approval gate (the request is idempotent per
-    // (execution, step) — re-running a responded slug replays its decision).
-    const approved = bySlug('plan_approved_comment') as {
+    const capture = bySlug('capture_plan_feedback') as {
+      config?: {
+        parameters?: { variables?: Array<{ name?: string; value?: string }> };
+      };
       nextSteps?: Record<string, string>;
     };
-    expect(approved.nextSteps?.success).toBe('bump_plan_round_approved');
-    const bumpApproved = bySlug('bump_plan_round_approved') as {
-      config?: { parameters?: { variables?: Array<{ name?: string }> } };
-      nextSteps?: Record<string, string>;
-    };
-    expect(bumpApproved.config?.parameters?.variables?.[0]?.name).toBe(
-      'planReviewRound',
+    expect(capture.config?.parameters?.variables?.[0]?.name).toBe(
+      'planReviewFeedback',
     );
-    expect(bumpApproved.nextSteps?.success).toBe('assign_implementer');
+    expect(capture.config?.parameters?.variables?.[0]?.value).toContain(
+      'steps.request_plan_review.output.data.feedback',
+    );
+    expect(capture.nextSteps?.success).toBe('assign_advisor');
 
-    const feedback = bySlug('plan_feedback_comment') as {
+    const advise = bySlug('advise') as {
+      config?: { run?: { instructions?: string } };
+    };
+    expect(advise.config?.run?.instructions).toContain(
+      'variables.planReviewFeedback',
+    );
+
+    // Exhaustion parks at In review in ONE step (status change + comment).
+    const exhausted = bySlug('plan_review_exhausted') as {
+      config?: {
+        type?: string;
+        parameters?: { operation?: string; status?: string; comment?: string };
+      };
       nextSteps?: Record<string, string>;
     };
-    expect(feedback.nextSteps?.success).toBe('bump_plan_review_round');
-
-    const bumpPlanReview = bySlug('bump_plan_review_round') as {
-      nextSteps?: Record<string, string>;
-    };
-    expect(bumpPlanReview.nextSteps?.success).toBe('assign_advisor');
+    expect(exhausted.config?.type).toBe('task');
+    expect(exhausted.config?.parameters?.operation).toBe('update_status');
+    expect(exhausted.config?.parameters?.status).toBe('in_review');
+    expect(typeof exhausted.config?.parameters?.comment).toBe('string');
+    expect(exhausted.nextSteps?.success).toBe('done');
   });
 
   it('a failed advisor run rolls back instead of executing without a plan', () => {
@@ -407,12 +445,19 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       'steps.advise.output.data.ok == true',
     );
     expect(check.nextSteps?.true).toBe('advise_gate');
-    expect(check.nextSteps?.false).toBe('advise_failed_comment');
+    expect(check.nextSteps?.false).toBe('advise_failed_rollback');
 
-    const failed = bySlug('advise_failed_comment') as {
+    // Rollback is ONE step: the To do status change carries the explanation.
+    const failed = bySlug('advise_failed_rollback') as {
+      config?: {
+        parameters?: { operation?: string; status?: string; comment?: string };
+      };
       nextSteps?: Record<string, string>;
     };
-    expect(failed.nextSteps?.success).toBe('rollback');
+    expect(failed.config?.parameters?.operation).toBe('update_status');
+    expect(failed.config?.parameters?.status).toBe('todo');
+    expect(typeof failed.config?.parameters?.comment).toBe('string');
+    expect(failed.nextSteps?.success).toBe('done');
   });
 
   it('a failed grade run parks for a human instead of judging an empty grade', () => {
@@ -434,33 +479,53 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       'steps.grade.output.data.ok == true',
     );
     expect(check.nextSteps?.true).toBe('judge');
-    expect(check.nextSteps?.false).toBe('grade_failed_comment');
+    expect(check.nextSteps?.false).toBe('grade_failed_park');
 
-    const failed = bySlug('grade_failed_comment') as {
+    // The park is ONE step: the In review status change carries the message.
+    const failed = bySlug('grade_failed_park') as {
+      config?: {
+        parameters?: { operation?: string; status?: string; comment?: string };
+      };
       nextSteps?: Record<string, string>;
     };
-    expect(failed.nextSteps?.success).toBe('to_review');
+    expect(failed.config?.parameters?.operation).toBe('update_status');
+    expect(failed.config?.parameters?.status).toBe('in_review');
+    expect(typeof failed.config?.parameters?.comment).toBe('string');
+    expect(failed.nextSteps?.success).toBe('done');
   });
 
-  it('plan-review round gates read the variables namespace with an unseeded-safe guard', () => {
+  it('every counter read that can precede its first bump is unseeded-safe', () => {
     expect(workflow.success).toBe(true);
     if (!workflow.success) return;
     const steps = workflow.data.steps as Array<Record<string, unknown>>;
-    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
     // `variables.*` entries exist only after a set_variables step wrote them —
-    // config.variables seeds `config.*`, NOT `variables.*` — so every read
-    // that can run before the first bump must guard with `|| 0`, or the first
-    // NEEDS_HUMAN would fall straight through to the exhausted path.
+    // config.variables seeds `config.*`, NOT `variables.*`. Every bump guards
+    // its own read with `|| 0`; the loop GATES are safe by construction (each
+    // runs strictly after its bump), which this asserts via the graph edges.
     for (const slug of [
-      'plan_review_pick',
-      'plan_review_pick_2',
-      'plan_review_decide',
+      'bump_plan_review_round',
+      'bump_replan',
+      'bump_rework',
     ]) {
-      const step = bySlug(slug) as { config?: { expression?: string } };
+      const step = steps.find((s) => s.stepSlug === slug) as {
+        config?: { parameters?: { variables?: Array<{ value?: string }> } };
+        nextSteps?: Record<string, string>;
+      };
       expect(
-        step.config?.expression,
-        `${slug} guards planReviewRound`,
-      ).toContain('(variables.planReviewRound || 0)');
+        step.config?.parameters?.variables?.[0]?.value,
+        `${slug} guards its read`,
+      ).toContain('|| 0)');
+    }
+    const edges: Array<[string, string]> = [
+      ['bump_plan_review_round', 'plan_review_gate'],
+      ['bump_replan', 'replan_gate'],
+      ['bump_rework', 'rework_gate'],
+    ];
+    for (const [bump, gate] of edges) {
+      const step = steps.find((s) => s.stepSlug === bump) as {
+        nextSteps?: Record<string, string>;
+      };
+      expect(step.nextSteps?.success, `${bump} feeds ${gate}`).toBe(gate);
     }
   });
 
@@ -477,16 +542,26 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(typeof vars?.maxReworkLoops).toBe('number');
     expect(vars?.maxReworkLoops as number).toBeGreaterThan(0);
 
+    // EVERY judge verdict routes through the single shared Dream step first;
+    // the verdict conditions trail it (step outputs are persisted).
+    const judge = bySlug('judge') as { nextSteps?: Record<string, string> };
+    expect(judge.nextSteps?.success).toBe('dream');
+    const dream = bySlug('dream') as {
+      config?: { run?: { instructions?: string } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(dream.config?.run?.instructions).toContain(
+      'steps.judge.output.data',
+    );
+    expect(dream.nextSteps?.success).toBe('judge_wrong_approach');
+
     // The wrong_approach replan loop is bounded like the rework loop — a judge
     // that keeps ruling wrong_approach must escalate, not loop until timeout.
     const judgeWrong = bySlug('judge_wrong_approach') as {
       nextSteps?: Record<string, string>;
     };
-    expect(judgeWrong.nextSteps?.true).toBe('dream_wrong');
-    const dreamWrong = bySlug('dream_wrong') as {
-      nextSteps?: Record<string, string>;
-    };
-    expect(dreamWrong.nextSteps?.success).toBe('bump_replan');
+    expect(judgeWrong.nextSteps?.true).toBe('bump_replan');
+    expect(judgeWrong.nextSteps?.false).toBe('judge_pass');
     const bumpReplan = bySlug('bump_replan') as {
       config?: { parameters?: { variables?: Array<{ name?: string }> } };
       nextSteps?: Record<string, string>;
@@ -504,11 +579,26 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(replanGate.config?.expression).toContain('variables.replanCount');
     expect(replanGate.config?.expression).toContain('config.maxReworkLoops');
     expect(replanGate.nextSteps?.true).toBe('assign_advisor');
-    expect(replanGate.nextSteps?.false).toBe('replan_exhausted_comment');
-    const replanExhausted = bySlug('replan_exhausted_comment') as {
+    expect(replanGate.nextSteps?.false).toBe('replan_exhausted');
+    const replanExhausted = bySlug('replan_exhausted') as {
+      config?: { parameters?: { operation?: string; status?: string } };
       nextSteps?: Record<string, string>;
     };
-    expect(replanExhausted.nextSteps?.success).toBe('to_review');
+    expect(replanExhausted.config?.parameters?.operation).toBe('update_status');
+    expect(replanExhausted.config?.parameters?.status).toBe('in_review');
+    expect(replanExhausted.nextSteps?.success).toBe('done');
+
+    // The approved park is one status+comment step sharing the markInReview
+    // lane label with every other park.
+    const parkApproved = bySlug('park_approved') as {
+      ui?: { labelKey?: string };
+      config?: { parameters?: { operation?: string; status?: string } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(parkApproved.ui?.labelKey).toBe('issueDesk.markInReview');
+    expect(parkApproved.config?.parameters?.operation).toBe('update_status');
+    expect(parkApproved.config?.parameters?.status).toBe('in_review');
+    expect(parkApproved.nextSteps?.success).toBe('done');
 
     // bump_rework increments reworkCount via set_variables.
     const bump = bySlug('bump_rework') as {
@@ -537,14 +627,19 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(gate.nextSteps?.true).toBe('execute');
     expect(gate.nextSteps?.false).toBe('loops_exhausted');
 
-    // The escalation path comments on the task, then parks it for a human
-    // (reuses the existing to_review terminal).
+    // The escalation park is ONE step: the In review status change carries
+    // the explanation comment.
     const exhausted = bySlug('loops_exhausted') as {
-      config?: { type?: string; parameters?: { operation?: string } };
+      config?: {
+        type?: string;
+        parameters?: { operation?: string; status?: string; comment?: string };
+      };
       nextSteps?: Record<string, string>;
     };
     expect(exhausted.config?.type).toBe('task');
-    expect(exhausted.config?.parameters?.operation).toBe('comment');
-    expect(exhausted.nextSteps?.success).toBe('to_review');
+    expect(exhausted.config?.parameters?.operation).toBe('update_status');
+    expect(exhausted.config?.parameters?.status).toBe('in_review');
+    expect(typeof exhausted.config?.parameters?.comment).toBe('string');
+    expect(exhausted.nextSteps?.success).toBe('done');
   });
 });

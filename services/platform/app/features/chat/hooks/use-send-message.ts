@@ -232,6 +232,16 @@ interface UseSendMessageParams {
    * `unmarkJobsSent` for video-link chips.
    */
   restoreKbMentions?: (mentions: KbMention[]) => void;
+  /**
+   * Working directory staged from the Sandbox pill BEFORE the thread exists
+   * (the caller gates it to external-agent sends). Applied to the freshly
+   * created thread's metadata right after `createThread` — ahead of the first
+   * turn, which reads it at sandbox session start — then cleared via
+   * `clearPendingSandboxWorkdir`. Best-effort: a failed apply falls back to
+   * the workspace root rather than failing the send.
+   */
+  pendingSandboxWorkdir?: string;
+  clearPendingSandboxWorkdir?: () => void;
 }
 
 /**
@@ -258,6 +268,8 @@ export function useSendMessage({
   scrollIntentRef,
   unmarkJobsSent,
   restoreKbMentions,
+  pendingSandboxWorkdir,
+  clearPendingSandboxWorkdir,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
@@ -278,6 +290,12 @@ export function useSendMessage({
   // callback (matches the arena-param pattern above).
   const inputGuardrailsActiveRef = useRef(inputGuardrailsActive);
   inputGuardrailsActiveRef.current = inputGuardrailsActive;
+  // Same ref pattern for the staged pre-thread workdir: it changes whenever
+  // the user edits the Sandbox pill, and must not churn sendMessage.
+  const pendingSandboxWorkdirRef = useRef(pendingSandboxWorkdir);
+  pendingSandboxWorkdirRef.current = pendingSandboxWorkdir;
+  const clearPendingSandboxWorkdirRef = useRef(clearPendingSandboxWorkdir);
+  clearPendingSandboxWorkdirRef.current = clearPendingSandboxWorkdir;
 
   // Simple ref guard to prevent double-send during the async gap
   const sendingRef = useRef(false);
@@ -858,6 +876,27 @@ export function useSendMessage({
             });
             currentThreadId = newThreadId;
             isFirstMessage = true;
+
+            // Apply the workdir staged from the Sandbox pill before the
+            // thread existed — must land BEFORE the turn dispatches below,
+            // because runExternalAgentTurn reads it at session start. Best-
+            // effort: on failure the turn falls back to the workspace root,
+            // never the send failing over a workdir nicety.
+            const stagedWorkdir = pendingSandboxWorkdirRef.current;
+            if (stagedWorkdir) {
+              try {
+                await convexClient.mutation(
+                  api.threads.mutations.setSandboxWorkdir,
+                  { threadId: newThreadId, workdir: stagedWorkdir },
+                );
+              } catch (err) {
+                console.error(
+                  '[use-send-message] staged workdir apply failed:',
+                  err instanceof Error ? err.message : err,
+                );
+              }
+              clearPendingSandboxWorkdirRef.current?.();
+            }
 
             // Update pending state synchronously (high priority) so that
             // ThreadGate sees pendingThreadId immediately and skips the

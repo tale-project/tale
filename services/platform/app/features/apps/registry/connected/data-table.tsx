@@ -248,7 +248,14 @@ export function DataTable({
               {isExpanded && subjectId && expansion && (
                 <TableRow>
                   <TableCell colSpan={colCount} className="bg-muted/30">
-                    {expansion.render(subjectId)}
+                    {/* w-0 + min-w-full: the expansion's content (an embedded
+                        run with long unwrappable tool lines) must not feed the
+                        table's auto column sizing — width:0 excludes it from
+                        the intrinsic measurement while min-width:100% still
+                        stretches it to the row the OTHER cells sized. */}
+                    <div className="w-0 min-w-full">
+                      {expansion.render(subjectId)}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

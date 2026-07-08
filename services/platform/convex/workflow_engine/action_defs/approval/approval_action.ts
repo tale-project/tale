@@ -44,6 +44,9 @@ type ApprovalActionParams =
       taskId: string;
       question?: string;
       agentSlug?: string;
+      /** Review round, folded into the request's idempotency key so a loop
+       *  that re-enters the SAME gate step can mint a fresh request. */
+      round?: number;
     }
   | {
       operation: 'sweep_pending';
@@ -82,6 +85,7 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
       taskId: v.id('tasks'),
       question: v.optional(v.string()),
       agentSlug: v.optional(v.string()),
+      round: v.optional(v.number()),
     }),
     // sweep_pending: reminder/escalation pass over pending approvals of one
     // resource type. Atomic mark-and-return (metadata.remindedAt/escalatedAt
@@ -135,6 +139,7 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
             stepSlug: extras.stepSlug ?? 'request_review',
             question: params.question,
             agentSlug: params.agentSlug,
+            round: params.round,
           },
         );
         // `taskId` rides along for the run view: the `review` render kind

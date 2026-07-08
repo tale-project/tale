@@ -49,6 +49,10 @@ type TaskActionParams =
         | 'in_review'
         | 'done'
         | 'cancelled';
+      /** Optional comment posted (as the workflow actor) just before the
+       *  status change — folds the ubiquitous comment→update_status step
+       *  pair into one step. */
+      comment?: string;
     }
   | {
       operation: 'assign';
@@ -133,6 +137,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       operation: v.literal('update_status'),
       taskId: v.id('tasks'),
       status: taskStatusValidator,
+      comment: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('assign'),
@@ -401,6 +406,17 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       }
 
       case 'update_status': {
+        if (params.comment !== undefined && params.comment.trim() !== '') {
+          await ctx.runMutation(
+            internal.tasks.internal_mutations.agentAddComment,
+            {
+              organizationId,
+              actorId: WORKFLOW_ACTOR_ID,
+              taskId: toId<'tasks'>(params.taskId),
+              body: params.comment,
+            },
+          );
+        }
         return await ctx.runMutation(
           internal.tasks.internal_mutations.agentUpdateTaskStatus,
           {

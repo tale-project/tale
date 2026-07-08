@@ -23,6 +23,22 @@ describe('derivePartState', () => {
     expect(derivePartState(undefined, 'read_only', false)).toBe('upcoming');
   });
 
+  it('maps a bypassed un-run lane to skipped (marked, never hidden)', () => {
+    expect(derivePartState(undefined, 'read_only', false, true)).toBe(
+      'skipped',
+    );
+  });
+
+  it('a loop routing back onto a bypassed lane wins as loading', () => {
+    expect(derivePartState(undefined, 'read_only', true, true)).toBe('loading');
+  });
+
+  it('a bypassed lane with a node shows its real state, not skipped', () => {
+    expect(
+      derivePartState(node({ status: 'running' }), 'read_only', false),
+    ).toBe('running');
+  });
+
   it('maps running through directly', () => {
     expect(derivePartState(node({ status: 'running' }), 'read_only')).toBe(
       'running',

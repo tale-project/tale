@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bypassedLaneIndexes,
   dedupeSpineLanes,
   isStepVisible,
   stepTreatment,
@@ -9,9 +10,10 @@ import {
 } from './step_display';
 
 describe('stepTreatment', () => {
-  // The issue-desk v2 workflow's representative steps — the ground-truth table
-  // both the friendly map and the run view must agree on. Spine = advise →
-  // execute → grade → judge (gate) → to_review; plumbing collapses out.
+  // The issue-desk v2.1 workflow's representative steps — the ground-truth
+  // table both the friendly map and the run view must agree on. Spine =
+  // advise → review gate → execute → grade → judge (gate) → dream → park;
+  // plumbing collapses out.
   const deskSteps: {
     slug: string;
     stepType: string;
@@ -46,7 +48,7 @@ describe('stepTreatment', () => {
       expected: 'hidden',
     },
     {
-      slug: 'execute_failed',
+      slug: 'execute_failed_rollback',
       stepType: 'action',
       hasUi: false,
       expected: 'hidden',
@@ -66,12 +68,17 @@ describe('stepTreatment', () => {
       expected: 'hidden',
     },
     {
-      slug: 'to_review',
+      slug: 'park_approved',
       stepType: 'action',
       hasUi: true,
       expected: 'normal',
     },
-    { slug: 'rollback', stepType: 'action', hasUi: false, expected: 'hidden' },
+    {
+      slug: 'advise_failed_rollback',
+      stepType: 'action',
+      hasUi: false,
+      expected: 'hidden',
+    },
     { slug: 'done', stepType: 'output', hasUi: false, expected: 'hidden' },
   ];
 
@@ -100,7 +107,7 @@ describe('stepTreatment', () => {
       'execute',
       'grade',
       'judge',
-      'to_review',
+      'park_approved',
     ]);
   });
 
@@ -120,20 +127,23 @@ describe('stepTreatment', () => {
 });
 
 describe('dedupeSpineLanes', () => {
-  // The issue-desk v2 pattern: two review-gate variants share one labelKey,
-  // three dream variants share another; the work steps are singletons.
+  // The issue-desk v2.1 pattern: four park variants (approved / exhausted /
+  // failed-grade / replan-exhausted) share the markInReview labelKey; the
+  // work steps are singletons.
   const lane = (labelKey: string | undefined, hasRun: boolean) =>
     ({ ...(labelKey !== undefined && { labelKey }), hasRun }) as SpineLaneInput;
   const desk = (ran: string[]) => {
     const slugs = [
       ['advise', 'issueDesk.advise'],
       ['request_plan_review', 'issueDesk.planReview'],
-      ['request_plan_re_review', 'issueDesk.planReview'],
       ['execute', 'issueDesk.implement'],
       ['grade', 'issueDesk.review'],
-      ['dream_wrong', 'issueDesk.dream'],
-      ['dream_pass', 'issueDesk.dream'],
-      ['dream_rework', 'issueDesk.dream'],
+      ['dream', 'issueDesk.dream'],
+      ['plan_review_exhausted', 'issueDesk.markInReview'],
+      ['grade_failed_park', 'issueDesk.markInReview'],
+      ['replan_exhausted', 'issueDesk.markInReview'],
+      ['park_approved', 'issueDesk.markInReview'],
+      ['loops_exhausted', 'issueDesk.markInReview'],
     ] as const;
     return {
       slugs: slugs.map(([slug]) => slug),
@@ -149,29 +159,25 @@ describe('dedupeSpineLanes', () => {
       'request_plan_review',
       'execute',
       'grade',
-      'dream_wrong',
+      'dream',
+      'plan_review_exhausted',
     ]);
   });
 
   it('a ran variant replaces the placeholder and hides its siblings', () => {
-    const { slugs, lanes } = desk(['advise', 'request_plan_review']);
+    const { slugs, lanes } = desk(['advise', 'park_approved']);
     const kept = dedupeSpineLanes(lanes).map((i) => slugs[i]);
-    expect(kept).toContain('request_plan_review');
-    expect(kept).not.toContain('request_plan_re_review');
-    // The dream lane still shows exactly one upcoming placeholder.
-    expect(kept.filter((s) => s.startsWith('dream'))).toEqual(['dream_wrong']);
+    expect(kept).toContain('park_approved');
+    expect(kept).not.toContain('plan_review_exhausted');
+    expect(kept).not.toContain('loops_exhausted');
   });
 
-  it('keeps every variant the run actually touched (two review rounds)', () => {
-    const { slugs, lanes } = desk([
-      'request_plan_review',
-      'request_plan_re_review',
-      'dream_pass',
-    ]);
+  it('keeps every variant the run actually touched', () => {
+    const { slugs, lanes } = desk(['grade_failed_park', 'park_approved']);
     const kept = dedupeSpineLanes(lanes).map((i) => slugs[i]);
-    expect(kept).toContain('request_plan_review');
-    expect(kept).toContain('request_plan_re_review');
-    expect(kept.filter((s) => s.startsWith('dream'))).toEqual(['dream_pass']);
+    expect(kept).toContain('grade_failed_park');
+    expect(kept).toContain('park_approved');
+    expect(kept).not.toContain('plan_review_exhausted');
   });
 
   it('never groups steps without a labelKey', () => {
@@ -181,5 +187,49 @@ describe('dedupeSpineLanes', () => {
       lane(undefined, true),
     ]);
     expect(kept).toEqual([0, 1, 2]);
+  });
+});
+
+describe('bypassedLaneIndexes', () => {
+  const lanes = (entries: Array<[hasRun: boolean, defIndex: number]>) =>
+    entries.map(([hasRun, defIndex]) => ({ hasRun, defIndex }));
+
+  it('flags a skipped gate the run already moved past', () => {
+    // advise(2) ran, review gate(4) skipped, execute(6) running →
+    // lastTouched = 6; the gate is neither run nor ahead.
+    const bypassed = bypassedLaneIndexes(
+      lanes([
+        [true, 2],
+        [false, 4],
+        [true, 6],
+        [false, 9],
+      ]),
+      6,
+    );
+    expect(bypassed).toEqual([1]);
+  });
+
+  it('flags nothing before anything ran (full preview stays "up next")', () => {
+    const bypassed = bypassedLaneIndexes(
+      lanes([
+        [false, 2],
+        [false, 4],
+        [false, 6],
+      ]),
+      -1,
+    );
+    expect(bypassed).toEqual([]);
+  });
+
+  it('never flags steps that ran, wherever progress sits', () => {
+    const bypassed = bypassedLaneIndexes(
+      lanes([
+        [true, 2],
+        [true, 4],
+        [false, 3],
+      ]),
+      8,
+    );
+    expect(bypassed).toEqual([2]);
   });
 });

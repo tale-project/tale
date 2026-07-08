@@ -255,6 +255,89 @@ class Path2DPolyfill {
   closePath(): void {}
 }
 
+/**
+ * ES2025 shims for the modern (non-legacy) pdfjs build on Node 22 — the floor
+ * across dev hosts, CI runners, and the upstream convex-backend image (its
+ * .nvmrc pins 22.x). pdfjs calls `Promise.try` (MessageHandler — every
+ * worker message), `Uint8Array.prototype.toHex` (document fingerprints —
+ * every getDocument), `Uint8Array.fromBase64` (XFA / signature data), and
+ * `Uint8Array.prototype.toBase64` (data URLs, signature bytes) without
+ * feature-testing; all four only land natively in Node 24. The legacy build
+ * covered them via ~2 MB of bundled core-js — these few lines replace that.
+ * pdfjs passes no options objects to the base64 calls, but `alphabet` costs
+ * nothing to honor via Buffer's `base64url` codec.
+ */
+/**
+ * Install `value` as `target[name]` unless it already exists (native or an
+ * earlier shim). `Object.defineProperty` defaults to non-enumerable, matching
+ * the native methods, and needs no type assertion on the target.
+ */
+function defineShim(target: object, name: string, value: unknown): void {
+  if (name in target) return;
+  Object.defineProperty(target, name, {
+    value,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function installEs2025Shims(): void {
+  defineShim(
+    Promise,
+    'try',
+    function tryShim(
+      fn: (...args: unknown[]) => unknown,
+      ...args: unknown[]
+    ): Promise<unknown> {
+      return new Promise((resolve) => resolve(fn(...args)));
+    },
+  );
+
+  defineShim(
+    Uint8Array,
+    'fromBase64',
+    function fromBase64Shim(
+      base64: string,
+      options?: { alphabet?: 'base64' | 'base64url' },
+    ): Uint8Array {
+      const encoding =
+        options?.alphabet === 'base64url' ? 'base64url' : 'base64';
+      // new Uint8Array(buffer) copies exactly the Buffer's view — never build
+      // a view over buf.buffer, which may be Node's shared allocation pool.
+      return new Uint8Array(Buffer.from(base64, encoding));
+    },
+  );
+
+  defineShim(
+    Uint8Array.prototype,
+    'toBase64',
+    function toBase64Shim(
+      this: Uint8Array,
+      options?: { alphabet?: 'base64' | 'base64url' },
+    ): string {
+      const encoding =
+        options?.alphabet === 'base64url' ? 'base64url' : 'base64';
+      return Buffer.from(
+        this.buffer,
+        this.byteOffset,
+        this.byteLength,
+      ).toString(encoding);
+    },
+  );
+
+  defineShim(
+    Uint8Array.prototype,
+    'toHex',
+    function toHexShim(this: Uint8Array): string {
+      return Buffer.from(
+        this.buffer,
+        this.byteOffset,
+        this.byteLength,
+      ).toString('hex');
+    },
+  );
+}
+
 let installed = false;
 
 /**
@@ -269,4 +352,5 @@ export function installPdfjsDomGlobals(): void {
   g.DOMMatrix ??= DOMMatrixPolyfill;
   g.ImageData ??= ImageDataPolyfill;
   g.Path2D ??= Path2DPolyfill;
+  installEs2025Shims();
 }
