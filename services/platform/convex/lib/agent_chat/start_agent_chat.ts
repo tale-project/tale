@@ -243,8 +243,13 @@ export async function startAgentChat(
   } = args;
   const prewarm = args.prewarm === true;
 
-  // Use caller's maxSteps if provided, otherwise use agent config's maxSteps
-  const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 20;
+  // Use caller's maxSteps if provided, otherwise use agent config's maxSteps.
+  // Fallback 40 matches the system-wide step cap (create_agent_config.ts,
+  // spawn jobs, generate_response's stopWhen fallback). The previous 20 cut
+  // tool-heavy turns (pptx generation ≈ 20+ tool steps) mid-loop, ending them
+  // with finishReason 'tool-calls' and firing the [RESPONSE_INTERRUPTED]
+  // continue-retry on virtually every such turn.
+  const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 40;
 
   // When markGenerating was called earlier (pre-allocated stream), reuse its
   // streamId and skip the generationStatus patch (already committed).
