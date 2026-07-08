@@ -12,7 +12,7 @@
  * failed run can never skip records.
  */
 
-import { get } from 'lodash';
+import get from 'lodash/get';
 
 import { isRecord } from '../../../../../lib/utils/type-utils';
 import { internal } from '../../../../_generated/api';
