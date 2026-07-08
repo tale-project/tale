@@ -18,8 +18,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import {
@@ -37,7 +35,6 @@ import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
-import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;

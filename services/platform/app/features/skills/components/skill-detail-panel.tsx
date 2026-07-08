@@ -123,7 +123,7 @@ export function SkillDetailPanel({
   // File selection in the bundle tree. SKILL.md is the root file, so it opens
   // selected (the overview IS its rendering); an asset path shows that file.
   // Lives in component state — no URL mirror, since the panel has no route.
-  const [selectedFile, setSelectedFile] = useState<string>(SKILL_MD);
+  const [selectedFile, setSelectedFile] = useState(SKILL_MD);
 
   // SKILL.md editor (item 13): edits the frontmatter description + markdown
   // body in place. Only meaningful on the overview; selecting an asset exits it.

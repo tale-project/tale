@@ -32,6 +32,7 @@ import {
   isValidAutomationSlug,
   manifestDeclaresBundle,
 } from '../../lib/shared/schemas/automations';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -680,7 +681,7 @@ export const updateAutomationIdentity = action({
         message: `Automation "${args.slug}" has an unparsable manifest`,
       });
     }
-    if (typeof raw !== 'object' || raw === null) {
+    if (!isRecord(raw)) {
       throw new ConvexError({
         code: 'INVALID_MANIFEST',
         message: `Automation "${args.slug}" has an invalid manifest`,
@@ -688,7 +689,7 @@ export const updateAutomationIdentity = action({
     }
 
     const next: Record<string, unknown> = {
-      ...(raw as Record<string, unknown>),
+      ...raw,
       name,
     };
     if (description === undefined) {
@@ -697,15 +698,11 @@ export const updateAutomationIdentity = action({
       next.description = description;
     }
     // Drop per-locale overrides of the two edited fields (see doc above).
-    if (typeof next.i18n === 'object' && next.i18n !== null) {
-      const i18n: Record<string, unknown> = {
-        ...(next.i18n as Record<string, unknown>),
-      };
+    if (isRecord(next.i18n)) {
+      const i18n: Record<string, unknown> = { ...next.i18n };
       for (const [locale, entry] of Object.entries(i18n)) {
-        if (typeof entry !== 'object' || entry === null) continue;
-        const rest: Record<string, unknown> = {
-          ...(entry as Record<string, unknown>),
-        };
+        if (!isRecord(entry)) continue;
+        const rest: Record<string, unknown> = { ...entry };
         delete rest.name;
         delete rest.description;
         if (Object.keys(rest).length === 0) {

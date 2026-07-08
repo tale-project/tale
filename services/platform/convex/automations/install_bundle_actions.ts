@@ -362,7 +362,7 @@ export const uninstallBundle = action({
       ok: boolean;
       error?: string;
     }> = [];
-    for (const memberSlug of [...bundle.bundle.members].reverse()) {
+    for (const memberSlug of bundle.bundle.members.toReversed()) {
       if (!installed.has(memberSlug)) continue;
       try {
         const bindings = await ctx.runQuery(

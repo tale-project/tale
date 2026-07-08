@@ -185,7 +185,7 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(
       screen
@@ -218,7 +218,7 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     // One card for the slug, carrying the installed entry's data.
     expect(screen.getAllByText(/Shared/)).toHaveLength(1);
@@ -247,9 +247,7 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     // Exactly one "Custom" marker — on the uploaded automation, not the built-in one.
     expect(screen.getByText('Custom')).toBeInTheDocument();
@@ -286,7 +284,7 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(
       screen.getAllByText(/Apple|Mango|Zebra/).map((el) => el.textContent),
@@ -312,9 +310,7 @@ describe('AutomationsGrid card click behaviour', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.queryByTestId('automation-panel')).not.toBeInTheDocument();
     await user.click(
@@ -363,9 +359,7 @@ describe('AutomationsGrid card click behaviour', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     await user.click(
       screen.getByRole('button', { name: 'Manage Quick Automation' }),
@@ -395,9 +389,7 @@ describe('AutomationsGrid card click behaviour', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     await user.click(
       screen.getByRole('button', { name: 'Manage Project Automation' }),
@@ -450,9 +442,7 @@ describe('AutomationsGrid tabs + badges', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.queryByText('Available')).not.toBeInTheDocument();
     await user.click(
@@ -534,7 +524,7 @@ describe('AutomationsGrid tabs + badges', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     const sections = screen.getAllByRole('heading', { level: 3 });
     // Top-level manifest folder segment first, the General bucket trailing.
@@ -556,7 +546,7 @@ describe('AutomationsGrid tabs + badges', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
     expect(screen.getByText('Sample Automation')).toBeInTheDocument();
@@ -574,7 +564,7 @@ describe('AutomationsGrid tabs + badges', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     const label = screen.getByText('GitHub');
     expect(label).toBeInTheDocument();
@@ -607,7 +597,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.getByText('Bundle · 2 automations')).toBeInTheDocument();
   });
@@ -628,9 +618,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       ['reply-gmail-emails', installState('reply-gmail-emails')],
     ]);
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     await user.click(screen.getByRole('button', { name: 'Email' }));
     expect(navigateMock).not.toHaveBeenCalled();
@@ -652,7 +640,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       ['reply-gmail-emails', installState('reply-gmail-emails')],
     ]);
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
   });
@@ -673,7 +661,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       ['reply-outlook-emails', installState('reply-outlook-emails')],
     ]);
 
-    await renderAllTab(<AutomationsGrid organizationId="org_1" />);
+    renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     // Only the bundle card's DERIVED badge says "Installed" — the tab label
     // moved to the page header's `AutomationsNavigation`.
@@ -692,9 +680,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
 
-    const { user } = await renderAllTab(
-      <AutomationsGrid organizationId="org_1" />,
-    );
+    const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
     await user.click(screen.getByRole('button', { name: 'Manage Email' }));
     await user.click(screen.getByRole('menuitem', { name: 'Install' }));

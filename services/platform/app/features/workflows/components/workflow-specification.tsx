@@ -136,31 +136,36 @@ export function WorkflowSpecification({
   liveRef.current = { draft, syncedFrom, config, hash };
 
   const handleSave = useCallback(async () => {
-    const { draft, syncedFrom, config, hash } = liveRef.current;
-    if (!config || hash === undefined) return;
-    const trimmed = draft.trim();
+    const {
+      draft: liveDraft,
+      syncedFrom: liveSyncedFrom,
+      config: liveConfig,
+      hash: liveHash,
+    } = liveRef.current;
+    if (!liveConfig || liveHash === undefined) return;
+    const trimmed = liveDraft.trim();
     // A draft that still matches a just-run "Update from graph" records that
     // fresh sync; any other save carries the stored record and lets the
     // server-side reconcile keep it honest.
     const specificationMeta =
-      trimmed && syncedFrom && syncedFrom.text === draft
+      trimmed && liveSyncedFrom && liveSyncedFrom.text === liveDraft
         ? {
-            sourceHash: syncedFrom.sourceHash,
+            sourceHash: liveSyncedFrom.sourceHash,
             generatedAt: Date.now(),
             direction: 'graph_to_spec' as const,
           }
-        : config.specificationMeta;
+        : liveConfig.specificationMeta;
 
     try {
       await saveWorkflow.mutateAsync({
         organizationId,
         workflowSlug,
         config: {
-          ...config,
-          specification: trimmed ? draft : undefined,
+          ...liveConfig,
+          specification: trimmed ? liveDraft : undefined,
           specificationMeta,
         },
-        expectedHash: hash,
+        expectedHash: liveHash,
       });
       toast({ title: t('editorView.saveSuccess'), variant: 'success' });
       await refetch();

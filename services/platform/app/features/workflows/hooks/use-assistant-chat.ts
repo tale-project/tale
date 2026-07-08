@@ -110,7 +110,7 @@ export function useAssistantChat({
       name: workflowSlug,
       metadata: readResult.config.metadata,
     };
-  }, [readResult]);
+  }, [readResult, workflowSlug]);
 
   // ---- Main-chat message pipeline ----------------------------------------
   const {
