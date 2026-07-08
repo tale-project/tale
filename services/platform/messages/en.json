@@ -5381,6 +5381,7 @@
       "owningTeamHelp": "Members of this team get full access. Admins of the org always have access.",
       "alsoSharedWith": "Also shared with",
       "alsoSharedWithHelp": "Pick additional teams that should see this project.",
+      "noAdditionalTeams": "No additional teams",
       "visibility": "Visibility",
       "visibilityTeam": "Team-only",
       "visibilityShared": "Specific teams",
