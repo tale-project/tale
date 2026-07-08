@@ -89,11 +89,11 @@ function AgentDetailLayout() {
         : '',
     [agentConfig, i18nCtx.language],
   );
-  // The agent's folder (e.g. `workforce`) is metadata on the roster row, NOT
-  // part of the slug — a global agent at `agents/workforce/software-developer`
-  // still has the flat slug `software-developer`. So resolve the folder from the
+  // The agent's folder (e.g. `github`) is metadata on the roster row, NOT
+  // part of the slug — a global agent at `agents/github/issue-triager` still
+  // has the flat slug `issue-triager`. So resolve the folder from the
   // agent list (already cached from the List view) and break it into clickable
-  // segments: "Agents / Workforce / <Name>" jumps back to the rest of the
+  // segments: "Agents / GitHub / <Name>" jumps back to the rest of the
   // folder. No folder (root agent) → [] → breadcrumb unchanged.
   const { agents: rawAgents } = useListAgents(organizationId);
   const folderSegments = useMemo(() => {
@@ -161,7 +161,7 @@ function AgentDetailLayout() {
                   /
                 </span>
                 <Link
-                  to="/dashboard/$id/agents/all"
+                  to="/dashboard/$id/agents"
                   params={{ id: organizationId }}
                   search={{ folder: path }}
                   className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
@@ -238,11 +238,6 @@ function AgentDetailLayout() {
                   {
                     label: t('agents.navigation.knowledge'),
                     href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/knowledge`,
-                    matchMode: 'exact',
-                  },
-                  {
-                    label: t('agents.navigation.metrics'),
-                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/metrics`,
                     matchMode: 'exact',
                   },
                   {

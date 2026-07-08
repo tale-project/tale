@@ -3,7 +3,7 @@ title: Diskussionen
 description: Mehrstimmige Diskussionsstränge innerhalb eines Projekts — Fragen klären und Entscheidungen treffen, mit Agenten, die per @Erwähnung dazukommen.
 ---
 
-**Diskussionen** (im Reiter „Diskussionen“ eines Projekts) sind Gesprächsstränge, die zum Projekt gehören — neben dessen Aufgaben und Chats. Nutze sie wie ein Team ein Diskussionsforum: ein Thema eröffnen, es durchsprechen und abschließen — mit der KI-Belegschaft nur eine @Erwähnung entfernt.
+**Diskussionen** (im Reiter „Diskussionen“ eines Projekts) sind Gesprächsstränge, die zum Projekt gehören — neben dessen Aufgaben und Chats. Nutze sie wie ein Team ein Diskussionsforum: ein Thema eröffnen, es durchsprechen und abschließen — mit deinen Agenten nur eine @Erwähnung entfernt.
 
 Sie verwenden dieselbe Chat-Oberfläche, eine Diskussion liest und verfasst sich also wie ein Chat — gehört aber zum Projekt und ist für jedes Projektmitglied sichtbar, nicht nur für die verfassende Person.
 

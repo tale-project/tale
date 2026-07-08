@@ -1,6 +1,6 @@
 {
   "name": "Auto-archive closed tasks",
-  "description": "Nightly board hygiene: tasks done or cancelled for more than 30 days are archived. Archiving is terminal and emits NO events (it can never wake other automations), and each archive re-checks the task is still closed — a task reopened between sweep and archive is left alone. Tune olderThanDays on the sweep step or deactivate the schedule in Automations.",
+  "description": "Nightly board hygiene: tasks done or cancelled for more than 30 days are archived. Archiving is terminal and emits NO events (it can never wake other workflows), and each archive re-checks the task is still closed — a task reopened between sweep and archive is left alone. Tune olderThanDays on the sweep step or deactivate the schedule on the workflow's Triggers tab.",
   "i18n": {
     "en": {
       "name": "Auto-archive closed tasks",

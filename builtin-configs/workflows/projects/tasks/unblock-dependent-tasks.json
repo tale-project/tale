@@ -1,6 +1,6 @@
 {
   "name": "Unblock dependent tasks",
-  "description": "Keeps blocked work moving: when a task closes, every task it was blocking gets a comment with its remaining blocker count. Fully unblocked tasks restart automatically — agent-assigned ones (waiting in To do/Backlog) are re-triggered through the standard execution loop under the agent's own guardrails; human-assigned ones get an inbox notification. The automation's own comments are inert (workflow actor), so unblock chains only continue through real work.",
+  "description": "Keeps blocked work moving: when a task closes, every task it was blocking gets a comment with its remaining blocker count. Fully unblocked tasks restart automatically — agent-assigned ones (waiting in To do/Backlog) are re-triggered through the standard execution loop under the agent's own guardrails; human-assigned ones get an inbox notification. The workflow's own comments are inert (workflow actor), so unblock chains only continue through real work.",
   "i18n": {
     "en": {
       "name": "Unblock dependent tasks",

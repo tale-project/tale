@@ -132,7 +132,22 @@ export const startChat = internalMutation({
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
-    if (!threadMeta || threadMeta.userId !== args.userId) {
+    if (!threadMeta) {
+      throw new Error('Thread not found');
+    }
+    // Owner-only, EXCEPT app-discussion threads (the AgentChat block's shared
+    // per-subject surface): a non-owner member of the thread's org may drive
+    // turns. Org membership for `args.userId` was already verified above (the
+    // `resolvedRole` lookup throws for non-members), so requiring the thread
+    // to belong to that same org completes the gate — a defense-in-depth
+    // mirror of `chatWithAgentTurn`'s public-entry check.
+    if (
+      threadMeta.userId !== args.userId &&
+      !(
+        threadMeta.kind === 'automation_discussion' &&
+        threadMeta.organizationId === args.organizationId
+      )
+    ) {
       throw new Error('Thread not found');
     }
 

@@ -1317,29 +1317,29 @@ export const deleteProject = mutation({
 
     // A project-scoped app bound here would be orphaned (its tasks/runs + nav
     // entry point reference this project). Block the delete and name the app(s)
-    // so the operator removes the app from this project first. appProjectBindings
+    // so the operator removes the app from this project first. automationProjectBindings
     // has no delete cascade, so this must be an explicit guard.
-    const boundAppNames: string[] = [];
-    const seenAppSlugs = new Set<string>();
+    const boundAutomationNames: string[] = [];
+    const seenAutomationSlugs = new Set<string>();
     for await (const binding of ctx.db
-      .query('appProjectBindings')
+      .query('automationProjectBindings')
       .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
-      if (seenAppSlugs.has(binding.appSlug)) continue;
-      seenAppSlugs.add(binding.appSlug);
+      if (seenAutomationSlugs.has(binding.automationSlug)) continue;
+      seenAutomationSlugs.add(binding.automationSlug);
       const org = await ctx.db
-        .query('appInstallations')
+        .query('automationInstallations')
         .withIndex('by_org_slug', (q) =>
           q
             .eq('organizationId', binding.organizationId)
-            .eq('appSlug', binding.appSlug),
+            .eq('automationSlug', binding.automationSlug),
         )
         .first();
-      boundAppNames.push(org?.appName ?? binding.appSlug);
+      boundAutomationNames.push(org?.automationName ?? binding.automationSlug);
     }
-    if (boundAppNames.length > 0) {
+    if (boundAutomationNames.length > 0) {
       throw new ConvexError({
-        code: 'PROJECT_HAS_BOUND_APPS',
-        apps: boundAppNames,
+        code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+        automations: boundAutomationNames,
       });
     }
 

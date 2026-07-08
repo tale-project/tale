@@ -3,7 +3,7 @@ title: Corbeille
 description: La vue de récupération soft-delete pour les enregistrements mis à la corbeille par la rétention — threads de chat, documents, prompts, exécutions de workflow — avant suppression définitive à la fin de la fenêtre de grâce. Les Administrateurs et Propriétaires lisent ceci quand quelqu'un a besoin de récupérer un artefact supprimé.
 ---
 
-Corbeille est la surface de récupération pour les lignes que la rétention a soft-supprimées sans encore les avoir hard-supprimées. Quand un thread de chat, un document, un modèle de prompt ou une exécution de workflow dépasse sa fenêtre de rétention, il se déplace ici pour la fenêtre de grâce configurée avant que la prochaine passe de nettoyage ne le retire pour de bon. Les Administrateurs et Propriétaires lisent cette page quand un membre redemande un artefact supprimé, quand une automatisation a supprimé le mauvais élément, ou quand un audit doit savoir si une ligne est encore récupérable.
+Corbeille est la surface de récupération pour les lignes que la rétention a soft-supprimées sans encore les avoir hard-supprimées. Quand un thread de chat, un document, un modèle de prompt ou une exécution de workflow dépasse sa fenêtre de rétention, il se déplace ici pour la fenêtre de grâce configurée avant que la prochaine passe de nettoyage ne le retire pour de bon. Les Administrateurs et Propriétaires lisent cette page quand un membre redemande un artefact supprimé, quand un workflow a supprimé le mauvais élément, ou quand un audit doit savoir si une ligne est encore récupérable.
 
 ## Une restauration mise en pratique
 

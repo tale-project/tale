@@ -13,5 +13,5 @@ export const SEEDED_AGENT_DISPLAY_NAME = 'E2E Assistant';
 /** Seeded autoInstall prompt — `fixtures/config/default/prompts/summarize-text.json`. */
 export const SEEDED_PROMPT_TITLE = 'Summarize Text';
 
-/** Seeded start-only workflow template — `fixtures/config/default/workflows/test.json`. */
+/** Seeded start-only workflow — `fixtures/config/default/workflows/test.json`. */
 export const SEEDED_WORKFLOW_NAME = 'test';

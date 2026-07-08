@@ -3,6 +3,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import type {
   TokenSource,
   TokenSourceSecrets,
@@ -70,7 +71,9 @@ export function parseTokenSourceSecrets(
 ): TokenSourceSecrets {
   const result = tokenSourceSecretsSchema.safeParse(data);
   if (!result.success) {
-    throw new Error(`Invalid token source secrets: ${result.error.message}`);
+    throw new Error(
+      zodErrorMessage('Invalid token source secrets', result.error),
+    );
   }
   return result.data;
 }
@@ -129,7 +132,7 @@ export function parseTokenSourceJson(content: string): TokenSource {
   const parsed = JSON.parse(content) as unknown;
   const result = tokenSourceSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid token source JSON: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid token source JSON', result.error));
   }
   return result.data;
 }

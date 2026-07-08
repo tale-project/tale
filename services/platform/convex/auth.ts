@@ -68,7 +68,7 @@ const platformResourceStatements = {
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
@@ -100,7 +100,7 @@ const admin = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -123,7 +123,7 @@ const developer = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -147,7 +147,7 @@ const editor = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
@@ -157,7 +157,7 @@ const editor = ac.newRole({
   promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
   mcpServers: ['read'],
-  // No access to: settings, automations (frontend menu restricted)
+  // No access to: settings, workflows (frontend menu restricted)
 });
 
 const member = ac.newRole({
@@ -171,7 +171,7 @@ const member = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
-  wfDefinitions: ['read'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read'],
@@ -181,7 +181,7 @@ const member = ac.newRole({
   promptTemplates: ['read'],
   messageFeedback: ['read', 'write'],
   mcpServers: ['read'],
-  // No access to: settings, automations (frontend menu restricted)
+  // No access to: settings, workflows (frontend menu restricted)
 });
 
 const disabled = ac.newRole({
@@ -195,7 +195,7 @@ const disabled = ac.newRole({
   onedriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
-  wfDefinitions: [], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: [], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: [],
   workflowProcessingRecords: [],
   approvals: [],
@@ -220,7 +220,7 @@ const owner = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'], // file-based automations UI permission subject (DB-backed workflows removed)
+  wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -823,7 +823,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                     ),
                   },
                 );
-                // Auto-install the AI-workforce agents (metadata.autoInstall):
+                // Auto-install the default agents (metadata.autoInstall):
                 // create their enabled `agentInstallations` rows so the roster
                 // gate treats them as live. Same self-retry/deferral rationale
                 // as the workflow + prompt provisioners above.

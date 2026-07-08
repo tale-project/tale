@@ -132,7 +132,7 @@ interface ProjectMetricsPageProps {
 }
 
 /**
- * The project's dedicated metrics page (mirrors the automations metrics page):
+ * The project's dedicated metrics page:
  * period switcher, paired-KPI stat cards honoring the KPI pairing contract
  * with period-over-period deltas, and the task charts — cumulative flow,
  * created-vs-completed throughput, the cycle-time trend, agent-vs-human

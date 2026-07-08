@@ -1,18 +1,18 @@
 {
   "name": "Enforce task SLAs",
-  "description": "Hourly due-date watchdog with a four-level escalation ladder, each level firing AT MOST ONCE per task (levels are stamped atomically in the sweep): (1) due within 24h → inbox warning to the owner; (2) past due → nudge comment on the task; (3) overdue 24h+ with an agent assignee → the assignee's MANAGER agent is run directly against the task (budget-checked, never via mention); (4) overdue 72h+ → inbox escalation to the project creator and org admins. Pushing the due date out resets the ladder. Tune thresholds on the sweep steps or deactivate the schedule in Automations.",
+  "description": "Hourly due-date watchdog with an escalation ladder, each level firing AT MOST ONCE per task (levels are stamped atomically in the sweep): (1) due within 24h → inbox warning to the owner; (2) past due → nudge comment on the task; (3) overdue 24h+ → inbox escalation to the project creator and org admins; (4) overdue 72h+ → the same human escalation fires again as a reminder. Pushing the due date out resets the ladder. Tune thresholds on the sweep steps or deactivate the schedule on the workflow's Triggers tab.",
   "i18n": {
     "en": {
       "name": "Enforce task SLAs",
-      "description": "Hourly due-date watchdog with a four-level escalation ladder from owner warnings up to manager runs and admin escalation."
+      "description": "Hourly due-date watchdog with an escalation ladder from owner warnings up to human escalation."
     },
     "de": {
       "name": "Aufgaben-SLAs durchsetzen",
-      "description": "Stündlicher Fälligkeitswächter mit vierstufiger Eskalationsleiter, von Eigentümerwarnungen über Manager-Läufe bis zur Admin-Eskalation."
+      "description": "Stündlicher Fälligkeitswächter mit Eskalationsleiter, von Eigentümerwarnungen bis zur Eskalation an Menschen."
     },
     "fr": {
       "name": "Appliquer les SLA des tâches",
-      "description": "Surveillance horaire des échéances avec une échelle d'escalade à quatre niveaux, des alertes au propriétaire jusqu'aux exécutions manager et à l'escalade admin."
+      "description": "Surveillance horaire des échéances avec une échelle d'escalade, des alertes au propriétaire jusqu'à l'escalade humaine."
     }
   },
   "version": "1.0.0",
@@ -210,7 +210,7 @@
       },
       "nextSteps": {
         "true": "nudge_comment",
-        "false": "is_level_3_managed"
+        "false": "escalate_has_creator"
       }
     },
     {
@@ -230,43 +230,12 @@
       }
     },
     {
-      "stepSlug": "is_level_3_managed",
-      "name": "Level 3 with a manager on the chart?",
-      "stepType": "condition",
-      "config": {
-        "expression": "loop.item.newLevel == 3 && loop.item.assigneeManagerSlug",
-        "description": "Level 3 escalates to the agent assignee's manager as a DIRECT budget-checked run — never a mention, so the escalation itself can't start comment chains. Level-3 tasks without a manager fall through to the level-4 human escalation."
-      },
-      "nextSteps": {
-        "true": "escalate_manager",
-        "false": "escalate_has_creator"
-      }
-    },
-    {
-      "stepSlug": "escalate_manager",
-      "name": "Run the assignee's manager",
-      "stepType": "action",
-      "config": {
-        "type": "agent",
-        "parameters": {
-          "operation": "run_on_task",
-          "agentSlug": "{{loop.item.assigneeManagerSlug}}",
-          "taskId": "{{loop.item.taskId}}",
-          "trigger": "sla_escalation",
-          "instructions": "A task assigned to your direct report {{loop.item.assigneeId}} is significantly overdue. Review the task context and recent comments, then act as its manager: unblock it, re-plan it, or reassign it. Post a comment stating your assessment and what you decided. Keep it short and operational."
-        }
-      },
-      "nextSteps": {
-        "success": "loop_overdue"
-      }
-    },
-    {
       "stepSlug": "escalate_has_creator",
       "name": "Project creator known?",
       "stepType": "condition",
       "config": {
         "expression": "loop.item.projectCreatorId",
-        "description": "Levels 3 (no manager) and 4 reach humans: the project creator (when known) and the org admins."
+        "description": "Levels 3 and 4 reach humans: the project creator (when known) and the org admins."
       },
       "nextSteps": {
         "true": "escalate_creator",

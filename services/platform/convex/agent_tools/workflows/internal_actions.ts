@@ -1,3 +1,5 @@
+'use node';
+
 import { v, type Infer } from 'convex/values';
 
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
@@ -14,6 +16,7 @@ import type {
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
+import { computeGraphFingerprint } from '../../workflows/specification_fingerprint';
 import { sanitizeWorkflowName } from './create_bound_workflow_tool';
 
 const VALID_STEP_TYPES = new Set<StepType>([
@@ -118,7 +121,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       const workflowSlug =
         metadata.workflowSlug || sanitizeWorkflowName(metadata.workflowName);
 
-      const config: WorkflowJsonConfig = {
+      const baseConfig: WorkflowJsonConfig = {
         name: metadata.workflowConfig.name,
         description: metadata.workflowConfig.description,
         version: metadata.workflowConfig.version,
@@ -132,6 +135,21 @@ export const executeApprovedWorkflowCreation = internalAction({
           order: index,
         })),
       };
+
+      // The agent may have supplied a text specification alongside the graph
+      // (e.g. the user handed it a spec to build from) — record it as synced
+      // against the graph it was created with (W5b).
+      const config: WorkflowJsonConfig = metadata.workflowConfig.specification
+        ? {
+            ...baseConfig,
+            specification: metadata.workflowConfig.specification,
+            specificationMeta: {
+              sourceHash: computeGraphFingerprint(baseConfig),
+              generatedAt: Date.now(),
+              direction: 'graph_to_spec',
+            },
+          }
+        : baseConfig;
 
       const orgSlug = await resolveOrgSlug(ctx, approval.organizationId);
 
@@ -167,7 +185,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       if (approval.threadId) {
         const siteUrl = process.env.SITE_URL || '';
         const basePath = process.env.BASE_PATH || '';
-        const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
+        const workflowUrl = `${siteUrl}${basePath}/workflows/${workflowSlug}`;
         const messageContent = `[WORKFLOW_CREATED]
 The user has approved the workflow creation request.
 
@@ -464,6 +482,24 @@ export const executeApprovedWorkflowUpdate = internalAction({
             order: index,
           })),
         };
+
+        // A supplied specification replaces the prior one and is recorded as
+        // synced against the just-committed graph. Omitted → carry the
+        // existing specification/specificationMeta forward unchanged (a step
+        // change with no accompanying spec update naturally goes `stale` —
+        // `computeSpecSyncStatus` detects that dynamically, nothing to do
+        // here) (W5b).
+        if (metadata.workflowConfig.specification !== undefined) {
+          updatedConfig = {
+            ...updatedConfig,
+            specification: metadata.workflowConfig.specification,
+            specificationMeta: {
+              sourceHash: computeGraphFingerprint(updatedConfig),
+              generatedAt: Date.now(),
+              direction: 'graph_to_spec',
+            },
+          };
+        }
       } else if (metadata.updateType === 'step_patch') {
         if (!metadata.stepSlug || !metadata.stepUpdates) {
           throw new Error(
@@ -549,7 +585,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
         try {
           const siteUrl = process.env.SITE_URL || '';
           const basePath = process.env.BASE_PATH || '';
-          const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
+          const workflowUrl = `${siteUrl}${basePath}/workflows/${workflowSlug}`;
           const updateDetail =
             metadata.updateType === 'full_save'
               ? `All steps replaced (${metadata.stepsConfig?.length ?? 0} steps)`

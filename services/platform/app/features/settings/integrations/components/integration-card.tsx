@@ -1,13 +1,17 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Puzzle, type LucideIcon } from 'lucide-react';
+import { Download, Eye, Puzzle, type LucideIcon } from 'lucide-react';
 
 import {
   CatalogCard,
   CatalogCardIcon,
 } from '@/app/components/catalog/catalog-grid';
 import { Image } from '@/app/components/ui/data-display/image';
+import {
+  EntityRowActions,
+  type EntityRowAction,
+} from '@/app/components/ui/entity/entity-row-actions';
 import { useT } from '@/lib/i18n/client';
 
 interface IntegrationCardProps {
@@ -19,6 +23,8 @@ interface IntegrationCardProps {
   iconUrl?: string;
   icon?: LucideIcon;
   onClick?: () => void;
+  /** Download this integration's files as a zip (fills the ⋯ Export action). */
+  onExport?: () => void;
 }
 
 export function IntegrationCard({
@@ -30,8 +36,10 @@ export function IntegrationCard({
   iconUrl,
   icon: Icon = Puzzle,
   onClick,
+  onExport,
 }: IntegrationCardProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
 
   const badge =
     status === 'error' ? (
@@ -67,6 +75,36 @@ export function IntegrationCard({
       onClick={onClick}
       disabled={disabled}
       ariaLabel={title}
+      // A trailing ⋯ menu so integration cards align with the automations and
+      // skills catalogs. Disconnect/Delete are intentionally NOT wired here:
+      // they live in the detail panel's `useIntegrationManage` hook + Convex
+      // actions (out of scope for the card). "View details" opens the same
+      // panel a card click does — the shared quick action until Export lands.
+      menu={
+        onClick ? (
+          <EntityRowActions
+            actions={[
+              {
+                key: 'view',
+                label: t('integrations.viewDetails'),
+                icon: Eye,
+                onClick,
+              },
+              ...(onExport
+                ? [
+                    {
+                      key: 'export',
+                      label: tCommon('actions.export'),
+                      icon: Download,
+                      onClick: onExport,
+                    } satisfies EntityRowAction,
+                  ]
+                : []),
+            ]}
+            ariaLabel={t('integrations.menuLabel', { name: title })}
+          />
+        ) : undefined
+      }
     />
   );
 }

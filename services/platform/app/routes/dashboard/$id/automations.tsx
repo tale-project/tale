@@ -1,20 +1,33 @@
+import { Heading } from '@tale/ui/heading';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   createFileRoute,
+  Link,
   Outlet,
-  useMatch,
-  useNavigate,
+  useParams,
 } from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { AutomationsListNavigation } from '@/app/features/automations/components/automations-list-navigation';
+import { useAutomations } from '@/app/features/automations/hooks/use-automations';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
+/**
+ * "Automations" is the product name. Phase R renamed module paths
+ * (`api.automations.*`), schema (`lib/shared/schemas/automations.ts`), config
+ * domain (`CONFIG_DOMAINS` `'automations'`), on-disk dirs
+ * (`builtin-configs/automations/` + `<org>/automations/`, dual-read against
+ * legacy `apps`-named paths — see `convex/automations/file_utils.ts`), Convex
+ * tables (`automationInstallations`, `automationProjectBindings`,
+ * `automationUpload*`), `automationSlug` fields, and `threadMetadata.kind`
+ * `automation_discussion`. The `pack://` asset scheme was never renamed.
+ */
 export const Route = createFileRoute('/dashboard/$id/automations')({
   head: () => ({
     meta: seo('automations'),
@@ -22,78 +35,69 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
   component: AutomationsLayout,
 });
 
+/** On an automation's detail route, the header becomes a clickable breadcrumb
+ *  back to Automations (mirrors the project detail breadcrumb) —
+ *  `Automations / <automation name>`. */
+function AutomationBreadcrumb({
+  organizationId,
+  automationSlug,
+  automationsTitle,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  automationsTitle: string;
+}) {
+  const { automations, isLoading } = useAutomations(organizationId);
+  const app = automations.find((a) => a.slug === automationSlug);
+  return (
+    <Heading level={1} size="base" truncate>
+      <Link
+        to="/dashboard/$id/automations"
+        params={{ id: organizationId }}
+        className={cn(
+          'hidden md:inline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+          'text-muted-foreground cursor-pointer',
+        )}
+      >
+        {automationsTitle}&nbsp;&nbsp;
+      </Link>
+      <span className="text-foreground inline-flex items-center gap-2">
+        <span className="hidden md:inline">/&nbsp;</span>
+        <Skeletonize loading={isLoading && !app} label={automationsTitle}>
+          {app ? (
+            app.name
+          ) : (
+            <SkeletonBox>
+              <span className="inline-block h-4 w-32 align-middle" />
+            </SkeletonBox>
+          )}
+        </Skeletonize>
+      </span>
+    </Heading>
+  );
+}
+
 function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
+  // Non-strict: `automationSlug` is present only on the nested detail route, absent on
+  // the hub index — exactly when we want the breadcrumb vs. the plain title.
+  const { automationSlug } = useParams({ strict: false });
   const { t } = useT('automations');
-  const navigate = useNavigate();
-
-  const isSpecificAutomation = useMatch({
-    from: '/dashboard/$id/automations/$amId',
-    shouldThrow: false,
-  });
-
-  const indexMatch = useMatch({
-    from: '/dashboard/$id/automations/',
-    shouldThrow: false,
-  });
-  // Folder drill-down (List view) shows a file-system breadcrumb of clickable
-  // path segments. Catalog/Metrics are tabs, so they need no breadcrumb leaf.
-  const currentFolder = indexMatch?.search?.folder ?? '';
-  const segments = currentFolder ? currentFolder.split('/') : [];
-
-  const goToFolder = (folder: string) =>
-    void navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      search: folder ? { folder } : {},
-    });
-
   return (
     <PageLayout
       organizationId={organizationId}
       header={
-        !isSpecificAutomation ? (
-          <>
-            <AdaptiveHeaderRoot standalone={false}>
-              <AdaptiveHeaderTitle>
-                {segments.length > 0 ? (
-                  <span className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => goToFolder('')}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {t('title')}
-                    </button>
-                    {segments.map((segment, i) => {
-                      const path = segments.slice(0, i + 1).join('/');
-                      const isLast = i === segments.length - 1;
-                      return (
-                        <span key={path} className="flex items-center gap-1">
-                          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                          {isLast ? (
-                            <span>{segment}</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => goToFolder(path)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {segment}
-                            </button>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </span>
-                ) : (
-                  t('title')
-                )}
-              </AdaptiveHeaderTitle>
-            </AdaptiveHeaderRoot>
-            <AutomationsListNavigation organizationId={organizationId} />
-          </>
-        ) : undefined
+        <AdaptiveHeaderRoot standalone={false}>
+          {automationSlug ? (
+            <AutomationBreadcrumb
+              organizationId={organizationId}
+              automationSlug={automationSlug}
+              automationsTitle={t('title')}
+            />
+          ) : (
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          )}
+        </AdaptiveHeaderRoot>
       }
     >
       <Outlet />

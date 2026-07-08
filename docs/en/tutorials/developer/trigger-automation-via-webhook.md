@@ -1,5 +1,5 @@
 ---
-title: Trigger an automation via webhook
+title: Trigger a workflow via webhook
 description: Mint a trigger key in a Tale workflow and POST to the trigger URL from an external system to start a run with idempotency.
 ---
 
@@ -50,6 +50,6 @@ The source system must use a stable, deterministic key per logical event. A comm
 
 ## Where this fits
 
-Webhook triggers are the inbound half of Tale's automation API — the seam your CRM, your order system, or your monitoring tool POSTs into. Use them for "this happened in our world, please run a Tale workflow about it"; reach for the [API reference](/develop/api-reference) when you want a synchronous reply instead.
+Webhook triggers are the inbound half of Tale's workflow API — the seam your CRM, your order system, or your monitoring tool POSTs into. Use them for "this happened in our world, please run a Tale workflow about it"; reach for the [API reference](/develop/api-reference) when you want a synchronous reply instead.
 
-For the outbound half — Tale POSTing to your URL when a Tale event happens — and for the full signing and retry contract, see [Webhooks](/develop/webhooks). The workflow-side configuration of the trigger lives on the [Automation concepts](/platform/automations/concepts) page.
+For the outbound half — Tale POSTing to your URL when a Tale event happens — and for the full signing and retry contract, see [Webhooks](/develop/webhooks). The workflow-side configuration of the trigger lives on the [Workflow concepts](/platform/workflows/concepts) page.

@@ -24,9 +24,13 @@
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
  *     flat: per-file atomicWrite (providers/prompts/governance —
  *     governance also carries the `retention.json` bounds catalog as a
- *     flat file); dir-bundle (skills/integrations): `rm -rf <per-bundle>`
- *     then copy bundle; tree (agents/workflows/branding): per-file overwrite
- *     recursing into subdirs (agents chat/workforce/github folders, workflows
+ *     flat file); dir-bundle (skills/integrations/apps): a staged copy
+ *     atomic-renamed over `<per-bundle>` (`replaceBundleDir`) — for the
+ *     `apps` domain specifically, an installed app's `workflows/` subtree is
+ *     write-once (an installed workflow is user-owned/editable), so it's
+ *     overlaid back onto the fresh copy before the rename (see
+ *     `keepInstalledWorkflows`); tree (agents/workflows/branding): per-file
+ *     overwrite recursing into subdirs (agents chat/github folders, workflows
  *     per-provider folders, user-only folders / images preserved).
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
@@ -51,10 +55,12 @@ import path from 'node:path';
 
 import { v } from 'convex/values';
 
+import { domainCatalogFileSchema } from '../../lib/shared/config/catalog_validator';
 import {
   CONFIG_DOMAINS,
   type ConfigDomain,
 } from '../../lib/shared/config/registry';
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import { internalAction } from '../_generated/server';
 import { resolveDomainDir } from '../lib/config_store/resolvers';
 import {
@@ -149,14 +155,59 @@ export async function pathsOverlap(a: string, b: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * A single `.json` catalog file that fails its domain schema is SKIPPED
+ * (warn + return false) rather than copied — corrupt bytes must never reach
+ * a new org's disk. `jsonSchemaDomain` is optional so callers with no domain
+ * context (or domains `domainCatalogFileSchema` doesn't cover) keep copying
+ * unchecked, matching this guard's narrower "catch the common case" scope
+ * (the CI gate, `configs:validate`, is the exhaustive one).
+ */
+function catalogJsonFileIsValid(
+  domain: string,
+  fileName: string,
+  text: string,
+): boolean {
+  const schema = domainCatalogFileSchema(domain, fileName);
+  if (!schema) return true; // no reusable schema for this domain/filename — unchecked.
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    console.error(
+      `[scaffold] skipping corrupt ${domain}/${fileName}: not valid JSON — ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
+    return false;
+  }
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    console.error(
+      `[scaffold] ${zodErrorMessage(`skipping corrupt ${domain}/${fileName}`, result.error)}`,
+    );
+    return false;
+  }
+  return true;
+}
+
 export async function writeFileFromCatalog(
   src: string,
   dst: string,
+  jsonSchemaDomain?: string,
 ): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
-  if (
-    name.endsWith('.json') ||
+  if (name.endsWith('.json')) {
+    const text = buf.toString('utf-8');
+    if (
+      jsonSchemaDomain &&
+      !catalogJsonFileIsValid(jsonSchemaDomain, name, text)
+    ) {
+      return;
+    }
+    await atomicWrite(dst, text);
+  } else if (
     name.endsWith('.ts') ||
     name.endsWith('.svg') ||
     name.endsWith('.md')
@@ -176,11 +227,17 @@ export async function writeFileFromCatalog(
  * any subdir found in the source. The catalog for flat domains has no
  * subdirs, so a subdir indicates a fallback workspace with leaked
  * cross-tenant content — skip with a warning rather than recurse.
+ *
+ * `jsonSchemaDomain` (the domain name, e.g. `'providers'`) is threaded down
+ * to `writeFileFromCatalog` so each `.json` file is schema-checked before
+ * being written — omit it (as the admin resync path in
+ * `organizations/builtin_sync.ts` still does) to copy unchecked.
  */
 export async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,
+  jsonSchemaDomain?: string,
 ): Promise<void> {
   let entries: string[];
   try {
@@ -221,12 +278,46 @@ export async function copyTree(
         );
         continue;
       }
-      await copyTree(src, dst, allowSubdirs);
+      await copyTree(src, dst, allowSubdirs, jsonSchemaDomain);
       continue;
     }
 
     if (!info.isFile()) continue;
-    await writeFileFromCatalog(src, dst);
+    await writeFileFromCatalog(src, dst, jsonSchemaDomain);
+  }
+}
+
+/**
+ * Copy `sourceDir` into `targetDir` verbatim — unlike {@link copyTree}, this
+ * keeps `*.secrets.json` and any `.history/` trail (dotfiles included): its
+ * job is to preserve everything a destructive bundle replace would otherwise
+ * destroy. Skips symlinks (never dereference). Shared by the per-domain admin
+ * sync's bundle backup (`organizations/builtin_sync.ts`, org bundle → its
+ * `.history/` backup) and {@link keepInstalledWorkflows} (org `workflows/` →
+ * the freshly-staged copy) — same "copy everything as-is" primitive, two
+ * directions.
+ */
+export async function copyTreeVerbatim(
+  sourceDir: string,
+  targetDir: string,
+): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(sourceDir, { withFileTypes: true });
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return;
+    throw err;
+  }
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const src = path.join(sourceDir, entry.name);
+    const dst = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyTreeVerbatim(src, dst);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    await atomicWriteBuffer(dst, await readFile(src));
   }
 }
 
@@ -240,10 +331,16 @@ export async function copyTree(
 export async function replaceBundleDir(
   bundleSrc: string,
   bundleDst: string,
+  jsonSchemaDomain?: string,
 ): Promise<void> {
   const staging = `${bundleDst}.staging-${randomUUID().slice(0, 8)}`;
   try {
-    await copyTree(bundleSrc, staging, /* allowSubdirs */ true);
+    await copyTree(
+      bundleSrc,
+      staging,
+      /* allowSubdirs */ true,
+      jsonSchemaDomain,
+    );
     // Best-effort old-dir removal before rename. If the old dir exists and is
     // non-empty, `rename` will fail on most platforms — surface that.
     await rm(bundleDst, { recursive: true }).catch((err) => {
@@ -340,7 +437,12 @@ export async function seedDomain(
       // files at the same dir survive (e.g., an org's custom agent). Dir-level
       // `.history`/secrets survive (copyTree skips them at the source side,
       // and per-file write doesn't touch siblings).
-      await copyTree(sourceDir, targetDir, /* allowSubdirs */ false);
+      await copyTree(
+        sourceDir,
+        targetDir,
+        /* allowSubdirs */ false,
+        domain.name,
+      );
     } else if (domain.scaffoldKind === 'bundle') {
       // For each catalog bundle subdir, rm -rf the corresponding target
       // bundle (if override) then copy. Domain-root siblings (.history/,
@@ -370,16 +472,26 @@ export async function seedDomain(
         });
         if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
         if (override) {
-          await replaceBundleDir(bundleSrc, bundleDst);
+          await replaceBundleDir(bundleSrc, bundleDst, domain.name);
         } else {
-          await copyTree(bundleSrc, bundleDst, /* allowSubdirs */ true);
+          await copyTree(
+            bundleSrc,
+            bundleDst,
+            /* allowSubdirs */ true,
+            domain.name,
+          );
         }
       }
     } else {
       // 'tree' — workflows + branding. Per-file overwrite, no rm. User-only
       // subdirs / files survive intact (e.g. an org's custom workflow folder,
       // an uploaded branding/images/logo.png).
-      await copyTree(sourceDir, targetDir, /* allowSubdirs */ true);
+      await copyTree(
+        sourceDir,
+        targetDir,
+        /* allowSubdirs */ true,
+        domain.name,
+      );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

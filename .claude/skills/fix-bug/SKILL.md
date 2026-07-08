@@ -1,5 +1,6 @@
 ---
 name: fix-bug
+icon: lucide:bug
 description: Use this skill whenever you investigate or fix a defect — a failing test, a reported bug, flaky behaviour, a crash, or an error you don't yet understand. It forces you to reproduce it, prove the cause with evidence, make the minimal fix, and lock it shut with a regression test. Load it the moment a task says "fix", "broken", "doesn't work", "regression", or pastes a stack trace or error message. Never patch a symptom without it — a guess just relocates the bug.
 ---
 

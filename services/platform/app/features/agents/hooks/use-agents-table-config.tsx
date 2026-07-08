@@ -32,7 +32,7 @@ interface AgentsTableConfigOptions {
   onDuplicated?: (newAgentName: string) => void;
   onDeleted?: () => void;
   /**
-   * Prefix each agent's name with its folder path (e.g. "workforce / Analyst").
+   * Prefix each agent's name with its folder path (e.g. "github / Reviewer").
    * Used when the list is flattened across folders (search), so it stays clear
    * which folder a result belongs to.
    */
@@ -64,10 +64,11 @@ export function useAgentsTableConfig({
         size: 250,
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
-            const isApp = row.original.appSlug !== undefined;
+            const isAutomationFolder =
+              row.original.automationSlug !== undefined;
             return (
               <Row gap={3} className="min-h-8">
-                {isApp ? (
+                {isAutomationFolder ? (
                   <Package className="text-muted-foreground size-4 shrink-0" />
                 ) : (
                   <Folder className="text-muted-foreground size-4 shrink-0" />
@@ -75,7 +76,9 @@ export function useAgentsTableConfig({
                 <Text as="span" variant="label" truncate>
                   {folderLabel(tCatalog, row.original.name)}
                 </Text>
-                {isApp && <Badge variant="slate">{t('agents.appBadge')}</Badge>}
+                {isAutomationFolder && (
+                  <Badge variant="slate">{t('agents.automationBadge')}</Badge>
+                )}
                 <Badge variant="outline">{row.original.agentCount}</Badge>
               </Row>
             );
@@ -151,7 +154,7 @@ export function useAgentsTableConfig({
                 organizationId={organizationId}
                 onDuplicated={onDuplicated}
                 onDeleted={onDeleted}
-                isAppOwned={row.original.appSlug !== undefined}
+                isAutomationOwned={row.original.automationSlug !== undefined}
               />
             </HStack>
           );

@@ -18,7 +18,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { useProjectApps } from '@/app/features/apps/hooks/use-install-state';
+import { useProjectAutomations } from '@/app/features/automations/hooks/use-install-state';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
@@ -49,8 +49,10 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
   // Apps bound to this project surface as their own nav tab — the in-context
-  // entry point for a project-scoped app (Apps hub installs; the project uses it).
-  const { apps: projectApps } = useProjectApps(asProjectId(projectId));
+  // entry point for a project-scoped automation (installed from Automations; the project uses it).
+  const { automations: projectAutomations } = useProjectAutomations(
+    asProjectId(projectId),
+  );
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
@@ -118,10 +120,10 @@ function ProjectDetailLayout() {
       // on the projects list page.
       // Project-scoped apps installed here each get their own tab (active across
       // the app's sub-routes via `startsWith`).
-      ...projectApps.map(
+      ...projectAutomations.map(
         (app): TabNavigationItem => ({
-          label: app.appName,
-          href: `/dashboard/${organizationId}/projects/${projectId}/apps/${app.appSlug}`,
+          label: app.automationName,
+          href: `/dashboard/${organizationId}/projects/${projectId}/automations/${app.automationSlug}`,
           matchMode: 'startsWith',
         }),
       ),
@@ -133,7 +135,7 @@ function ProjectDetailLayout() {
       tDiscussions,
       organizationId,
       projectId,
-      projectApps,
+      projectAutomations,
       project?.canAdminister,
     ],
   );

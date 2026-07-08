@@ -1,8 +1,8 @@
 /**
  * Convex Tool: Agent Write
  *
- * Manage the AI workforce roster: install / enable / disable / uninstall
- * agents. ALL operations are gated TWICE (changing the workforce's structure
+ * Manage the org's agent roster: install / enable / disable / uninstall
+ * agents. ALL operations are gated TWICE (changing the roster's structure
  * is admin-only):
  *  1. Config: only manager/admin agents carry `agent_write` in their toolNames.
  *  2. Server-side: the acting USER behind the run must be an org admin/developer
@@ -11,9 +11,7 @@
  *
  * Roster ops refuse to flip integration-bundled agents (cascade-owned,
  * `bundledBy` set) without `force`. Editing an agent's model/instructions/full
- * config stays HUMAN-ONLY (never a tool). The `set_delegates` operation was
- * removed with the organigram editor — agent-on-demand (`spawn_agent`)
- * replaced delegation, and the legacy `delegates` edges are read-only.
+ * config stays HUMAN-ONLY (never a tool).
  *
  * The privilege gate uses the `developerSettings` CASL capability
  * (`lib/auth/require_org_admin_or_developer`) rather than a hardcoded role
@@ -63,14 +61,14 @@ export const agentWriteTool: ToolDefinition = {
   name: 'agent_write',
   availability: 'any',
   tool: createTool({
-    description: `Manage the AI workforce roster.
+    description: `Manage the org's agent roster.
 
 OPERATIONS:
 • 'install': Install a catalog agent so it can be mentioned/routed to (admin only).
 • 'enable' / 'disable': Toggle whether an installed agent is live (admin only).
 • 'uninstall': Remove an agent installation (admin only).
 
-All operations require an organization admin behind the request (changing the workforce's structure is admin-only); integration-bundled agents require force to change. Editing an agent's model/instructions is done by a human in the agent editor.`,
+All operations require an organization admin behind the request (changing the roster's structure is admin-only); integration-bundled agents require force to change. Editing an agent's model/instructions is done by a human in the agent editor.`,
     inputSchema: agentWriteArgs,
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);
@@ -91,7 +89,7 @@ All operations require an organization admin behind the request (changing the wo
           ok: false,
           error: 'FORBIDDEN',
           message:
-            'Managing the AI workforce requires organization administrator permissions.',
+            'Managing the agent roster requires organization administrator permissions.',
         };
       }
 

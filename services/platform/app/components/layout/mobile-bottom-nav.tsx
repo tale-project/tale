@@ -6,11 +6,10 @@ import {
   Bot,
   BrainIcon,
   Folder,
-  Inbox,
+  LayoutGrid,
   MessageCircle,
   MoreHorizontal,
   Settings as SettingsIcon,
-  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -56,7 +55,7 @@ interface OverflowItem {
  *
  * Layout: a row of primary nav destinations followed by a "More" tab that
  * opens a bottom sheet listing the destinations that don't fit (Knowledge,
- * Automations) — the standard iOS overflow pattern. Each tab highlights only
+ * Automations, Settings) — the standard iOS overflow pattern. Each tab highlights only
  * when its route is active.
  */
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
@@ -77,26 +76,19 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const tabs = useMemo<PrimaryTab[]>(
     () => [
       {
+        key: 'chat',
+        label: tNav('chat'),
+        icon: MessageCircle,
+        to: `/dashboard/${organizationId}/chat`,
+        activePrefix: `/dashboard/${organizationId}/chat`,
+      },
+      {
         key: 'projects',
         label: tProjects('title'),
         icon: Folder,
         to: `/dashboard/${organizationId}/projects`,
         activePrefix: `/dashboard/${organizationId}/projects`,
         gate: () => ability.can('read', 'projects'),
-      },
-      {
-        key: 'conversations',
-        label: tNav('conversations'),
-        icon: Inbox,
-        to: `/dashboard/${organizationId}/conversations/open`,
-        activePrefix: `/dashboard/${organizationId}/conversations`,
-      },
-      {
-        key: 'chat',
-        label: tNav('chat'),
-        icon: MessageCircle,
-        to: `/dashboard/${organizationId}/chat`,
-        activePrefix: `/dashboard/${organizationId}/chat`,
       },
       {
         key: 'agents',
@@ -122,7 +114,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       {
         key: 'automations',
         label: tNav('automations'),
-        icon: Workflow,
+        icon: LayoutGrid,
         to: `/dashboard/${organizationId}/automations`,
         activePrefix: `/dashboard/${organizationId}/automations`,
       },

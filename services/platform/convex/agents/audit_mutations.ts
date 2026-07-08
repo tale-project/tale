@@ -3,7 +3,7 @@
  *
  * Mirrors `convex/skills/audit_mutations.ts`. Agent writes touch
  * capability-bearing fields (tool names, integration bindings, workflow
- * bindings, skill bindings, delegates) — they must be auditable so an
+ * bindings, skill bindings) — they must be auditable so an
  * operator can reconstruct who widened an agent's grants and when.
  *
  * `file_actions.ts` runs in the Node environment (`'use node'`), so it

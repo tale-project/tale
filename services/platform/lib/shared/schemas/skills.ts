@@ -1,6 +1,8 @@
 import { parseDocument } from 'yaml';
 import { z } from 'zod/v4';
 
+import { zodErrorMessage } from './format-error';
+
 /**
  * Schema for a Skill's `SKILL.md` YAML frontmatter, aligned with the
  * agentskills.io open standard so community skills authored for
@@ -103,6 +105,20 @@ const rawFrontmatterSchema = z
      * keeping it available to `expand_skill` for explicit recall.
      */
     'disable-model-invocation': z.boolean().optional(),
+    /**
+     * Optional Iconify icon name (e.g. `lucide:book-open`, `mdi:robot`) shown
+     * on the skill's catalog card. Rendered offline from a bundled icon set; an
+     * unrecognized set falls back to a default glyph. Same `set:name` shape as
+     * every Iconify id.
+     */
+    icon: z
+      .string()
+      .max(128)
+      .regex(/^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/, {
+        message:
+          'icon must be an Iconify name like "lucide:book-open" (a "set:name" pair of lowercase letters/digits/hyphens)',
+      })
+      .optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
@@ -132,6 +148,11 @@ export interface SkillFrontmatter {
    * `expand_skill` for explicit/UX-driven recall.
    */
   disableModelInvocation?: boolean;
+  /**
+   * Optional Iconify icon name (`set:name`, e.g. `lucide:book-open`) rendered
+   * on the skill's catalog card. Absent → a default glyph.
+   */
+  icon?: string;
   metadata?: Record<string, unknown>;
   /**
    * Verbatim copy of frontmatter keys not covered by the known fields above.
@@ -147,6 +168,7 @@ const KNOWN_KEBAB_KEYS = new Set<string>([
   'recommended-packages',
   'license',
   'disable-model-invocation',
+  'icon',
   'metadata',
 ]);
 
@@ -169,6 +191,7 @@ function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
   if (raw['disable-model-invocation'] !== undefined) {
     out.disableModelInvocation = raw['disable-model-invocation'];
   }
+  if (raw.icon !== undefined) out.icon = raw.icon;
   if (raw.metadata !== undefined) out.metadata = raw.metadata;
   return out;
 }
@@ -243,11 +266,8 @@ export function parseSkillMd(content: string): {
 
   const result = rawFrontmatterSchema.safeParse(parsed);
   if (!result.success) {
-    const first = result.error.issues[0];
-    const pathStr =
-      first && first.path.length > 0 ? first.path.join('.') : '(root)';
     throw new SkillFrontmatterError(
-      `Invalid frontmatter at ${pathStr}: ${first?.message ?? 'validation failed'}`,
+      zodErrorMessage('Invalid frontmatter', result.error),
     );
   }
 
@@ -290,6 +310,7 @@ export function frontmatterToRaw(
   if (meta.disableModelInvocation !== undefined) {
     raw['disable-model-invocation'] = meta.disableModelInvocation;
   }
+  if (meta.icon !== undefined) raw.icon = meta.icon;
   if (meta.metadata !== undefined) raw.metadata = meta.metadata;
   for (const [k, v] of Object.entries(meta.unknown)) {
     if (!(k in raw)) raw[k] = v;

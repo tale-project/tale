@@ -14,7 +14,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { buildRecord } from '@/lib/utils/type-utils';
 
-interface EntityRowAction {
+export interface EntityRowAction {
   /** Unique key for the action */
   key: string;
   /** Display label for the action */

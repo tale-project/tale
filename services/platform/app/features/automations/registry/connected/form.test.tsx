@@ -1,0 +1,310 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { AutomationConfigField } from '@/lib/shared/schemas/automation_views';
+
+import type { BoundActionSpec } from './bound-button';
+import { Form } from './form';
+
+// i18n → echo `<ns>.<key>` (params interpolated) so assertions read clearly.
+vi.mock('@/lib/i18n/client', () => ({
+  useT: (ns: string) => ({
+    t: (
+      key: string,
+      params?: Record<string, string> & { defaultValue?: string },
+    ) => {
+      if (params && Object.keys(params).length === 1 && params.defaultValue) {
+        // BoundButton-style dynamic labelKey lookup: echo the key.
+        return `${ns}.${key}`;
+      }
+      return params
+        ? Object.entries(params).reduce(
+            (acc, [k, v]) => acc.replace(`{${k}}`, v),
+            `${ns}.${key}`,
+          )
+        : `${ns}.${key}`;
+    },
+  }),
+}));
+
+// The runtime carries the allowlist the REAL isFunctionAllowed gate checks,
+// plus config for resolving `$config:` sentinels in `initial` via the REAL
+// resolver.
+vi.mock('../../runtime/automation-runtime', () => ({
+  useAutomationRuntime: () => ({
+    organizationId: 'org1',
+    automationSlug: 'demo',
+    allowlist: [{ path: 'tasks/mutations:createTask', mode: 'mutation' }],
+    config: { repo: 'tale-repo' },
+  }),
+}));
+
+// View-authored fields carry literals only — no i18n override, so
+// `useConfigFieldText` humanizes each fixture's (deprecated) `labelKey` down
+// to its last dotted segment, start-cased (e.g. `fields.title` → `Title`).
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
+vi.mock('../../runtime/view-state', () => ({
+  useOptionalViewState: () => null,
+}));
+
+// The bound dispatch — captured per test.
+const dispatch = vi.fn<
+  (
+    args: unknown,
+    selected?: Record<string, unknown>,
+    ctx?: { input?: Record<string, unknown> },
+  ) => Promise<unknown>
+>(async () => ({ id: 'created1' }));
+let isPending = false;
+vi.mock('../../hooks/use-bound-action', () => ({
+  useBoundAction: () => ({ dispatch, isPending }),
+}));
+
+const applyEffect = vi.fn();
+vi.mock('../../runtime/action-effects', () => ({
+  useActionEffect: () => applyEffect,
+}));
+
+// Stand in for the Radix select (portals are flaky in jsdom): one button per
+// option firing onValueChange.
+vi.mock('@/app/components/ui/forms/select', () => ({
+  Select: ({
+    options,
+    onValueChange,
+    value,
+  }: {
+    options: { value: string; label: string }[];
+    onValueChange?: (v: string) => void;
+    value?: string;
+  }) => (
+    <div data-testid="select" data-value={value ?? ''}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onValueChange?.(o.value)}
+        >
+          {`opt:${o.label}`}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+const SUBMIT: BoundActionSpec = {
+  label: 'Create',
+  path: 'tasks/mutations:createTask',
+  mode: 'mutation',
+  args: { title: '$input.title' },
+};
+
+const TITLE_FIELD: AutomationConfigField = {
+  key: 'title',
+  type: 'string',
+  labelKey: 'fields.title',
+};
+
+afterEach(() => {
+  dispatch.mockClear();
+  applyEffect.mockClear();
+  isPending = false;
+});
+
+describe('Form — rendering and initial values', () => {
+  it('prefills fields from initial, resolving $config sentinels', () => {
+    render(
+      <Form
+        fields={[TITLE_FIELD]}
+        initial={{ title: '$config:repo' }}
+        submit={SUBMIT}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue(
+      'tale-repo',
+    );
+  });
+
+  it('renders a textarea for multiline fields and a checkbox for booleans', () => {
+    render(
+      <Form
+        fields={[
+          {
+            key: 'body',
+            type: 'string',
+            labelKey: 'fields.body',
+            multiline: true,
+          },
+          { key: 'urgent', type: 'boolean', labelKey: 'fields.urgent' },
+        ]}
+        submit={SUBMIT}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Body' }).tagName).toBe(
+      'TEXTAREA',
+    );
+    expect(
+      screen.getByRole('checkbox', { name: 'Urgent' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Form — required validation', () => {
+  it('blocks dispatch and wires the inline error accessibly', async () => {
+    render(
+      <Form fields={[{ ...TITLE_FIELD, required: true }]} submit={SUBMIT} />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(dispatch).not.toHaveBeenCalled();
+    const error = screen.getByRole('alert');
+    expect(error).toHaveTextContent('common.validation.required');
+    const input = screen.getByRole('textbox', { name: /Title/ });
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input.getAttribute('aria-describedby')).toContain(
+      error.getAttribute('id'),
+    );
+  });
+
+  it('clears the error and dispatches once the field is filled', async () => {
+    render(
+      <Form fields={[{ ...TITLE_FIELD, required: true }]} submit={SUBMIT} />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Title/ }),
+      'Ship it',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Form — submit', () => {
+  it('dispatches submit.args with the entered values as $input context', async () => {
+    render(
+      <Form
+        fields={[
+          TITLE_FIELD,
+          { key: 'count', type: 'number', labelKey: 'fields.count' },
+          {
+            key: 'priority',
+            type: 'select',
+            labelKey: 'fields.priority',
+            options: [
+              { value: 'low', labelKey: 'fields.low' },
+              { value: 'high', labelKey: 'fields.high' },
+            ],
+          },
+        ]}
+        submit={SUBMIT}
+        onSuccess={{ kind: 'toast', titleKey: 'form.done' }}
+      />,
+    );
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Title' }),
+      'Ship it',
+    );
+    await userEvent.type(
+      screen.getByRole('spinbutton', { name: 'Count' }),
+      '5',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'opt:High' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(dispatch).toHaveBeenCalledWith(SUBMIT.args, undefined, {
+      input: { title: 'Ship it', count: 5, priority: 'high' },
+    });
+    expect(applyEffect).toHaveBeenCalledWith(
+      { kind: 'toast', titleKey: 'form.done' },
+      { id: 'created1' },
+    );
+  });
+
+  it('splits derive fields into stored sub-keys before dispatch', async () => {
+    render(
+      <Form
+        fields={[
+          {
+            key: 'repo',
+            type: 'string',
+            labelKey: 'fields.repo',
+            derive: { pattern: '^([^/]+)/([^/]+)$', into: ['owner', 'name'] },
+          },
+        ]}
+        submit={SUBMIT}
+      />,
+    );
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Repo' }),
+      'tale/platform',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(dispatch).toHaveBeenCalledWith(SUBMIT.args, undefined, {
+      input: { repo: 'tale/platform', owner: 'tale', name: 'platform' },
+    });
+  });
+
+  it('refuses a derive value the rule cannot split', async () => {
+    render(
+      <Form
+        fields={[
+          {
+            key: 'repo',
+            type: 'string',
+            labelKey: 'fields.repo',
+            derive: { pattern: '^([^/]+)/([^/]+)$', into: ['owner', 'name'] },
+          },
+        ]}
+        submit={SUBMIT}
+      />,
+    );
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Repo' }),
+      'no-slash',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'automations.config.invalidValue',
+    );
+  });
+
+  it('disables the submit button while the action is pending', () => {
+    isPending = true;
+
+    render(<Form fields={[TITLE_FIELD]} submit={SUBMIT} />);
+
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+  });
+});
+
+describe('Form — blocked path', () => {
+  it('shows the blocked notice instead of the form', () => {
+    render(
+      <Form
+        fields={[TITLE_FIELD]}
+        submit={{ ...SUBMIT, path: 'tasks/mutations:notAllowed' }}
+      />,
+    );
+
+    expect(screen.getByText('automations.binding.blocked')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+});

@@ -29,7 +29,7 @@ import { dismissReviewRequestNotifications } from '../collab/dismiss_review_noti
 import {
   notifyTaskReviewRequested,
   notifyTaskReviewResolved,
-} from '../collab/notify_workforce';
+} from '../collab/notify_task_reviews';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';

@@ -1,0 +1,618 @@
+import type { ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { render, screen } from '@/tests/utils/render';
+
+import type { AutomationSummary } from '../hooks/use-automations';
+import { AutomationPage } from './automation-page';
+
+/**
+ * Regression net for #1979: a not-yet-installed automation discovered through the
+ * built-in catalog must resolve to its pre-install AutomationDetails page (full
+ * description + Install CTA), NOT the "Automation not found" dead-end. The hub's union
+ * surfaces catalog-only automations and links each card to this page, so the page has
+ * to fall back to the catalog when the org's installed list doesn't carry the
+ * slug — otherwise every discovery card contradicts itself with "Automation not found".
+ */
+
+const {
+  useAutomationsMock,
+  useAutomationCatalogMock,
+  useAutomationInstallStatesMock,
+} = vi.hoisted(() => ({
+  useAutomationsMock: vi.fn(),
+  useAutomationCatalogMock: vi.fn(),
+  useAutomationInstallStatesMock: vi.fn(),
+}));
+
+vi.mock('../hooks/use-automations', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/use-automations')>()),
+  useAutomations: useAutomationsMock,
+  useAutomationCatalog: useAutomationCatalogMock,
+}));
+
+vi.mock('../hooks/use-install-state', () => ({
+  useAutomationInstallStates: useAutomationInstallStatesMock,
+  useAutomationBindings: () => ({ bindings: [], isLoading: false }),
+  useAutomationInstallActions: () => ({
+    install: vi.fn(),
+    uninstall: vi.fn(),
+    verify: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+// The installed header's lifecycle ⋯ menu wires an Export action through
+// useExportAutomation → useConvexAction → convex/react's useAction, which needs
+// a ConvexProvider no test mounts. Stub it to the real `{ mutateAsync }` shape,
+// mirroring the sibling useExportSkill / useExportIntegration test mocks.
+vi.mock('../hooks/use-export-automation', () => ({
+  useExportAutomation: () => ({ mutateAsync: vi.fn() }),
+}));
+
+// Probe the wizard as a lightweight open/closed marker so the test asserts the
+// details page keeps hosting it across the install-state transition, without
+// pulling in the wizard's Convex/integration machinery.
+vi.mock('./install-wizard/automation-install-wizard', () => ({
+  AutomationInstallWizard: ({ open }: { open: boolean }) =>
+    open ? <div>wizard step probe</div> : null,
+}));
+
+// The installed views (MembershipHub/InstalledAutomationBody) reach into Convex-backed
+// readiness; stub them so the #2341 test observes a clean assertion (the wizard
+// disappearing on the old code) rather than a Convex-provider crash.
+vi.mock('../hooks/use-automation-agent-readiness', () => ({
+  useAutomationAgentReadiness: () => ({ agents: [], refetch: vi.fn() }),
+}));
+vi.mock('../hooks/use-required-integrations', () => ({
+  useRequiredIntegrations: () => ({
+    required: [],
+    blockedSlugs: [],
+    isLoading: false,
+  }),
+}));
+
+// Tab selection rides the URL (`?tab=`) through the house useUrlState hook,
+// which needs a live TanStack router — stub it with a presettable record so
+// tests can deep-link a tab and observe writes.
+const { urlStateMock, setUrlStateMock } = vi.hoisted(() => ({
+  urlStateMock: { tab: null as string | null },
+  setUrlStateMock: vi.fn(),
+}));
+vi.mock('@/app/hooks/use-url-state', () => ({
+  useUrlState: () => ({
+    state: { tab: urlStateMock.tab },
+    setState: setUrlStateMock,
+    setStates: vi.fn(),
+    clearState: vi.fn(),
+    clearAll: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+// Developer-gated tabs (Editor/Executions/Triggers) key off this ability
+// check; default to a non-developer so existing tests keep their prior
+// behavior unless a test opts in.
+const { abilityMock } = vi.hoisted(() => ({
+  abilityMock: { can: vi.fn(() => false) },
+}));
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => abilityMock,
+}));
+
+// Overview rows and the header render router Links; no router mounts here.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    className,
+    to,
+  }: {
+    children?: ReactNode;
+    className?: string;
+    to?: string;
+  }) => (
+    <a className={className} href={to}>
+      {children}
+    </a>
+  ),
+  useNavigate: () => vi.fn(),
+  redirect: vi.fn(),
+}));
+
+// Puck's <Render> stack is irrelevant to the page's tab plumbing.
+vi.mock('../registry/automation-view', () => ({
+  AutomationView: () => <div data-testid="automation-view" />,
+}));
+
+// The assistant panel pulls the chat/Convex stack; a marker keeps the
+// developer-gate assertion cheap (the panel only mounts for developers).
+vi.mock('./automation-assistant-panel', () => ({
+  AutomationAssistantPanel: () => <div data-testid="assistant-panel" />,
+}));
+
+// The Editor/Executions/Triggers tab bodies pull the workflow canvas,
+// executions table, and triggers sections' own Convex/ReactFlow machinery —
+// irrelevant to this page's tab plumbing (order, gating, default selection).
+vi.mock('./automation-workflow-editor-tab', () => ({
+  AutomationWorkflowEditorTab: () => <div data-testid="editor-tab" />,
+}));
+vi.mock('@/app/features/workflows/executions/executions-table', () => ({
+  ExecutionsTable: () => <div data-testid="executions-table" />,
+}));
+vi.mock('@/app/features/workflows/triggers/triggers', () => ({
+  Triggers: () => <div data-testid="triggers-tab" />,
+}));
+
+function catalogAutomation(
+  overrides: Partial<AutomationSummary> = {},
+): AutomationSummary {
+  return {
+    slug: 'sample-automation',
+    name: 'Sample Automation',
+    description: 'A discoverable automation from the built-in catalog.',
+    scope: 'org',
+    kind: 'automation',
+    workflows: [],
+    agents: [],
+    skills: [],
+    functions: [],
+    requiredIntegrations: [],
+    views: [],
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  abilityMock.can.mockReturnValue(false);
+  // Default: nothing installed, so an automation resolves to its pre-install details.
+  useAutomationInstallStatesMock.mockReturnValue({
+    bySlug: new Map(),
+    isLoading: false,
+  });
+});
+
+describe('AutomationPage catalog discovery (#1979)', () => {
+  it('renders the pre-install AutomationDetails for a catalog-only automation instead of "Automation not found"', () => {
+    // The org has nothing installed; the catalog carries the discovered automation.
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [catalogAutomation()],
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    expect(screen.getByText('Sample Automation')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Install' })).toBeInTheDocument();
+    expect(screen.queryByText('Automation not found')).not.toBeInTheDocument();
+  });
+
+  it('resolves the installed entry over a same-slug catalog entry (installed wins)', () => {
+    // The same slug exists in both the org's installed list and the catalog;
+    // the page must resolve the installed entry (it carries the full per-install
+    // data) rather than the catalog projection.
+    useAutomationsMock.mockReturnValue({
+      automations: [
+        catalogAutomation({
+          name: 'Installed Sample',
+          description: 'Org install.',
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [
+        catalogAutomation({ name: 'Catalog Sample', description: 'Catalog.' }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    expect(screen.getByText('Installed Sample')).toBeInTheDocument();
+    expect(screen.queryByText('Catalog Sample')).not.toBeInTheDocument();
+  });
+
+  it('still shows "Automation not found" for a slug in neither the org nor the catalog', () => {
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [catalogAutomation()],
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="missing-automation"
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Automation not found', level: 3 }),
+    ).toBeInTheDocument();
+  });
+});
+
+function installSampleAutomation(overrides: Partial<AutomationSummary> = {}) {
+  useAutomationsMock.mockReturnValue({
+    automations: [catalogAutomation(overrides)],
+    isLoading: false,
+    error: null,
+  });
+  useAutomationCatalogMock.mockReturnValue({
+    automations: [],
+    isLoading: false,
+    error: null,
+  });
+  useAutomationInstallStatesMock.mockReturnValue({
+    bySlug: new Map([
+      ['sample-automation', { status: 'active', blockedIntegrations: [] }],
+    ]),
+    isLoading: false,
+  });
+}
+
+/**
+ * An installed automation with no views and no workflow (a non-developer, or
+ * a developer without dev-tab access to anything else) collapses to the
+ * Configuration tab's content DIRECTLY — no tab strip, ever a dead end.
+ */
+describe('AutomationPage renders an installed automation with nothing else to show', () => {
+  it('renders the header and the Configuration content with no tab strip', () => {
+    installSampleAutomation({ views: [] });
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    // Stable header: automation name + description (Configuration repeats
+    // both further down, so there are two of each on the page).
+    expect(screen.getAllByText('Sample Automation')).toHaveLength(2);
+    expect(
+      screen.getAllByText(
+        'A discoverable automation from the built-in catalog.',
+      ),
+    ).toHaveLength(2);
+    // No views, no workflow → Configuration is the only tab → no tab strip;
+    // its entity sections are empty, so the localized empty state shows.
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Nothing to manage yet', level: 3 }),
+    ).toBeInTheDocument();
+  });
+
+  it('lists the manifest cast in the Configuration sections', () => {
+    installSampleAutomation({
+      views: [],
+      agents: ['sample-automation-helper'],
+      workflows: ['github/issue-fix'],
+      skills: ['browse-web'],
+    });
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    // Not a developer, so the workflow doesn't earn Editor/Executions/
+    // Triggers tabs — Configuration still lists it as an entity row.
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByText('Agents')).toBeInTheDocument();
+    expect(screen.getByText('Sample Automation Helper')).toBeInTheDocument();
+    expect(screen.getByText('Workflows')).toBeInTheDocument();
+    // Workflow rows humanize the slug's base name; the raw slug stays muted.
+    expect(screen.getByText('Issue Fix')).toBeInTheDocument();
+    expect(screen.getByText('github/issue-fix')).toBeInTheDocument();
+    expect(screen.getByText('Skills')).toBeInTheDocument();
+    expect(screen.getByText('Browse Web')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The installed page's ONE top-level tab strip: any builtin/JSON view tabs
+ * first (invalid ones as repair-stub tabs), then Configuration — the
+ * Editor/Executions/Triggers tabs stay off the strip entirely for a
+ * non-developer. Selection writes the `tab` search param.
+ */
+describe('AutomationPage tab strip (views + Configuration)', () => {
+  const viewAutomation = () =>
+    catalogAutomation({
+      views: [
+        {
+          id: 'desk',
+          title: 'Desk',
+          data: { content: [], root: { props: {} } },
+        },
+      ] as AutomationSummary['views'],
+    });
+
+  it('renders a tab per view plus a trailing Configuration tab, first view active', () => {
+    installSampleAutomation(viewAutomation());
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Desk',
+      'Configuration',
+    ]);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    // The active view tab renders the view body.
+    expect(screen.getByTestId('automation-view')).toBeInTheDocument();
+  });
+
+  it('writes the tab search param when a tab is selected', async () => {
+    installSampleAutomation(viewAutomation());
+
+    const { user } = render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Configuration' }));
+    expect(setUrlStateMock).toHaveBeenCalledWith('tab', 'configuration');
+  });
+
+  it('deep-links ?tab=configuration to the Configuration panel', () => {
+    urlStateMock.tab = 'configuration';
+    try {
+      installSampleAutomation(viewAutomation());
+
+      render(
+        <AutomationPage
+          organizationId="org_1"
+          automationSlug="sample-automation"
+        />,
+      );
+
+      expect(
+        screen.getByRole('tab', { name: 'Configuration' }),
+      ).toHaveAttribute('aria-selected', 'true');
+      expect(
+        screen.getByRole('heading', {
+          name: 'Nothing to manage yet',
+          level: 3,
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      urlStateMock.tab = null;
+    }
+  });
+
+  it('surfaces an invalid view as a repair-stub tab with the reinstall affordance', () => {
+    installSampleAutomation(
+      catalogAutomation({
+        views: [
+          {
+            id: 'broken-view',
+            error: { code: 'INVALID_VIEW', message: 'bad json' },
+          },
+        ] as AutomationSummary['views'],
+      }),
+    );
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    // The stub claims a tab (humanized id) and, being first, renders active.
+    expect(
+      screen.getByRole('tab', { name: 'Broken View' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('bad json')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Reinstall automation' }),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The 1:1 automation↔workflow tabs (N3): Editor/Executions/Triggers are
+ * gated on developer access AND the automation having a workflow
+ * (`manifest.workflows[0]`); Configuration always shows. A developer with a
+ * workflow lands on Editor by default.
+ */
+describe('AutomationPage developer tabs (Editor/Executions/Configuration/Triggers)', () => {
+  const workflowAutomation = () =>
+    catalogAutomation({ workflows: ['sample-automation/main'], views: [] });
+
+  it('renders no dev tabs for a non-developer even with a workflow', () => {
+    installSampleAutomation(workflowAutomation());
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    // Nothing else to show a non-developer here (no views) → Configuration
+    // collapses to direct content, no tab strip — Editor/Executions/Triggers
+    // are never RENDERED (not just hidden).
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('executions-table')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('triggers-tab')).not.toBeInTheDocument();
+  });
+
+  it('renders no dev tabs for a developer without a workflow', () => {
+    abilityMock.can.mockReturnValue(true);
+    installSampleAutomation(catalogAutomation({ workflows: [], views: [] }));
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
+  });
+
+  it('orders Editor, Executions, Configuration, Triggers for a developer with a workflow', () => {
+    abilityMock.can.mockReturnValue(true);
+    installSampleAutomation(workflowAutomation());
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Editor',
+      'Executions',
+      'Configuration',
+      'Triggers',
+    ]);
+  });
+
+  it('defaults to the Editor tab for a developer with a workflow', () => {
+    abilityMock.can.mockReturnValue(true);
+    installSampleAutomation(workflowAutomation());
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('editor-tab')).toBeInTheDocument();
+  });
+
+  it('puts builtin/JSON view tabs before the developer tabs', () => {
+    abilityMock.can.mockReturnValue(true);
+    installSampleAutomation(
+      catalogAutomation({
+        workflows: ['sample-automation/main'],
+        views: [
+          {
+            id: 'desk',
+            title: 'Desk',
+            data: { content: [], root: { props: {} } },
+          },
+        ] as AutomationSummary['views'],
+      }),
+    );
+
+    render(
+      <AutomationPage
+        organizationId="org_1"
+        automationSlug="sample-automation"
+      />,
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Desk',
+      'Editor',
+      'Executions',
+      'Configuration',
+      'Triggers',
+    ]);
+    // Views lead the strip, but a developer with a workflow still defaults
+    // to Editor rather than the leading view tab.
+    expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+});
+
+/**
+ * Regression net for #2341: the pre-install details page hosts the install
+ * wizard. The wizard's Install step installs the automation, which flips the reactive
+ * install state to defined — and AutomationPage keys the details page on `!state`.
+ * Before the fix that transition unmounted the details page (and its open
+ * wizard) mid-flow, so a project-scoped install closed silently after Install
+ * instead of continuing to its integration/Done steps.
+ */
+describe('AutomationPage keeps the install wizard mounted across install (#2341)', () => {
+  const projectAutomation = () =>
+    catalogAutomation({
+      slug: 'issue-desk',
+      name: 'Resolve GitHub issues',
+      scope: 'project',
+    });
+
+  it('keeps hosting the wizard after the install lands install state', async () => {
+    useAutomationsMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [projectAutomation()],
+      isLoading: false,
+      error: null,
+    });
+
+    const { user, rerender } = render(
+      <AutomationPage organizationId="org_1" automationSlug="issue-desk" />,
+    );
+
+    // Open the wizard from the pre-install details page.
+    await user.click(screen.getByRole('button', { name: 'Install' }));
+    expect(screen.getByText('wizard step probe')).toBeInTheDocument();
+
+    // The Install step installs the automation: its reactive state now resolves. The
+    // details page must survive this so the wizard reaches its later steps.
+    useAutomationInstallStatesMock.mockReturnValue({
+      bySlug: new Map([
+        ['issue-desk', { status: 'active', blockedIntegrations: [] }],
+      ]),
+      isLoading: false,
+    });
+    rerender(
+      <AutomationPage organizationId="org_1" automationSlug="issue-desk" />,
+    );
+
+    expect(screen.getByText('wizard step probe')).toBeInTheDocument();
+  });
+});

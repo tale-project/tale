@@ -58,6 +58,10 @@ test-results/
 # creates; only the seed template (default/) is source-controlled.
 tests/e2e/fixtures/config/*/
 !tests/e2e/fixtures/config/default/
+# The QA-guides org ships pinned Issue Desk app bundles (a verbatim builtin
+# copy + the slug-renamed private-upload variant); a drift test keeps them in
+# lockstep with builtin-configs/apps/issue-desk.
+!tests/e2e/fixtures/config/qa-guides-org/
 
 # Storybook
 storybook-static/

@@ -42,10 +42,6 @@ export const POLICY_TYPES = [
   // per-admin daily filing rate limit. See `dsarGovernanceConfigSchema`
   // for the config shape and defaults.
   'dsar_governance',
-  // Org-wide workforce guardrail defaults (concurrency caps, per-task
-  // circuit breaker, budget-pause behaviour). See
-  // `agentWorkforceConfigSchema`.
-  'agent_workforce',
   // Agent-on-demand job guardrails (spawn_agent): org concurrency cap,
   // terminal-row TTL, stuck-run threshold. Missing row ⇒ schema defaults.
   // See `agentJobsConfigSchema`.
@@ -68,26 +64,6 @@ export const POLICY_TYPES = [
   'sandbox_quota',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
-
-/**
- * Org-wide workforce guardrails. Missing row ⇒ these schema defaults.
- * Per-agent `budget`/`maxConcurrentTasks` live in the agent JSON config;
- * this policy holds the org-level caps and fleet defaults.
- */
-export const agentWorkforceConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  /** Org-wide cap on concurrently RUNNING agent task runs (internal + external). */
-  maxConcurrentRunsOrg: z.number().int().min(1).max(500).default(25),
-  /** Per-task circuit breaker: max agent runs per task per rolling hour. */
-  maxRunsPerTaskPerHour: z.number().int().min(1).max(100).default(10),
-  /** Fleet default when an agent omits maxConcurrentTasks (absent = unlimited). */
-  defaultAgentMaxConcurrentTasks: z.number().int().min(1).max(50).optional(),
-  /** What a budget pause does to the paused agent's open assigned tasks. */
-  budgetPauseAction: z
-    .enum(['reassign_to_manager', 'unassign'])
-    .default('reassign_to_manager'),
-});
-export type AgentWorkforceConfig = z.infer<typeof agentWorkforceConfigSchema>;
 
 /**
  * Agent-on-demand job guardrails (the `spawn_agent` tool). Missing row ⇒
@@ -360,7 +336,7 @@ export const retentionPolicyConfigSchema = z.object({
    */
   notificationsEnabled: z.boolean().optional(),
   notificationsRetentionDays: z.number().int().nonnegative().optional(),
-  /** Retention for `taskAgentRuns` (workforce run records). Running rows
+  /** Retention for `taskAgentRuns` (task-run records). Running rows
    * are never deleted regardless of age — the sweep targets terminal
    * states only. */
   agentRunsEnabled: z.boolean().optional(),
@@ -786,7 +762,6 @@ export const POLICY_SCHEMAS = {
   voice_output: voiceOutputConfigSchema,
   data_classification_notice: dataNoticeConfigSchema,
   dsar_governance: dsarGovernanceConfigSchema,
-  agent_workforce: agentWorkforceConfigSchema,
   agent_jobs: agentJobsConfigSchema,
   task_automation: taskAutomationConfigSchema,
   run_code: runCodePolicyConfigSchema,
@@ -807,7 +782,7 @@ export function isFilePolicyType(value: string): value is FilePolicyType {
 }
 
 /**
- * Policy types are snake_case internal identifiers (`agent_workforce`), but
+ * Policy types are snake_case internal identifiers (`password_policy`), but
  * on-disk filenames are kebab-case to match the rest of the file-based config
  * (`agents/`, `prompts/`, `workflows/`). Policy types never contain `-`, so
  * the `_`↔`-` mapping is unambiguous and round-trips losslessly.

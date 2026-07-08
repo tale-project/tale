@@ -11,12 +11,12 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-/** The config domain a catalog page syncs (UI "automations" ⇒ `workflows`). */
+/** The config domain a catalog page syncs. */
 export type CatalogSyncDomain =
   | 'agents'
-  | 'workflows'
   | 'integrations'
-  | 'apps';
+  | 'automations'
+  | 'skills';
 
 interface UseCatalogSyncOptions {
   organizationId: string;
@@ -26,8 +26,8 @@ interface UseCatalogSyncOptions {
 }
 
 /**
- * Shared "Update from catalog" action for the four catalog pages (agents,
- * automations, integrations, apps): refreshes the org's builtin-named config
+ * Shared "Update from catalog" action for the catalog pages (agents,
+ * integrations, apps): refreshes the org's builtin-named config
  * entries from the built-in catalog, after a confirm step that spells out the
  * overwrite. Replaced versions land in the domain's `.history/` trail, so a
  * sync is recoverable.

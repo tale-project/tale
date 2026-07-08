@@ -151,8 +151,8 @@ function configuredMismatchedKeys(
 
 /**
  * Detect when Environment credentials don't match the saved external runtime.
- * Returns a stable code plus key names the app pack maps to user-facing copy via
- * `<messageNamespace>.readiness.mismatch.<code>` — no platform i18n here.
+ * Returns a stable code plus key names the client maps to user-facing copy via
+ * the platform catalog (`automations.readiness.mismatch.<code>`) — no i18n here.
  */
 export function detectCredentialRuntimeMismatch(args: {
   agentKind?:

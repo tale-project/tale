@@ -13,7 +13,7 @@ Die Reiter unten sind nach Rolle indiziert: wähl die Rolle, in der du arbeitest
 
 **[Redakteurs-Tutorials](/de/tutorials/editor/first-agent-end-to-end)** — einen ersten Agent von Anfang bis Ende bauen, Wissen anbinden, Workflows mit Genehmigungen aufsetzen, zwischen Agents delegieren.
 
-**[Entwickler-Tutorials](/de/tutorials/developer/call-tale-from-a-script)** — Tale aus einem Skript aufrufen, Automatisierungen per Webhook triggern, eigene Tools bauen, einen MCP-Server aufsetzen.
+**[Entwickler-Tutorials](/de/tutorials/developer/call-tale-from-a-script)** — Tale aus einem Skript aufrufen, Workflows per Webhook triggern, eigene Tools bauen, einen MCP-Server aufsetzen.
 
 **[Verwaltungs-Tutorials](/de/tutorials/admin/office-add-in)** — das Office-Add-in installieren, Meeting-Transkription verdrahten, einen lokalen Anbieter verbinden, SSO mit OIDC, Modelle pro Team einschränken.
 

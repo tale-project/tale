@@ -1,5 +1,6 @@
 ---
 name: web-research
+icon: lucide:telescope
 description: Operating method for open-ended web research with cited sources — live planning via a progress checklist, per-question search budgets, cross-checked claims, and a structured deliverable. Grant as the methodology of a spawned research worker (spawn_agent), or load it when a task says "research", "investigate", "compare options", or "fact-check" and the answer must cite the web.
 ---
 

@@ -36,14 +36,14 @@ La conversation se déroule alors : message utilisateur → instructions encadre
 
 ## Quand y recourir
 
-Un seul agent est la bonne forme quand la conversation reste dans un domaine et une voix. Va vers une [automatisation](/fr/platform/automations/concepts) quand le travail est multi-étapes et que tu veux des approbations ou de la planification entre les étapes ; va vers un chat brut (sans agent) quand tu explores une réponse toi-même et que les valeurs par défaut du modèle suffisent.
+Un seul agent est la bonne forme quand la conversation reste dans un domaine et une voix. Va vers un [workflow](/fr/platform/workflows/concepts) quand le travail est multi-étapes et que tu veux des approbations ou de la planification entre les étapes ; va vers un chat brut (sans agent) quand tu explores une réponse toi-même et que les valeurs par défaut du modèle suffisent.
 
-| Utilise … quand                                       | Agent | Chat brut | Automatisation |
-| ----------------------------------------------------- | ----- | --------- | -------------- |
-| La même question revient                              | ✓     |           |                |
-| La voix ou les contraintes comptent                   | ✓     |           |                |
-| Tu as besoin d'approbations ou de planification entre |       |           | ✓              |
-| Tu explores une réponse une seule fois                |       | ✓         |                |
+| Utilise … quand                                       | Agent | Chat brut | Workflow |
+| ----------------------------------------------------- | ----- | --------- | -------- |
+| La même question revient                              | ✓     |           |          |
+| La voix ou les contraintes comptent                   | ✓     |           |          |
+| Tu as besoin d'approbations ou de planification entre |       |           | ✓        |
+| Tu explores une réponse une seule fois                |       | ✓         |          |
 
 ## Construis-en un
 

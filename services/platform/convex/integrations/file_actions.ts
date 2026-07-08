@@ -12,6 +12,7 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
+import JSZip from 'jszip';
 
 import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integrations';
 import { internal } from '../_generated/api';
@@ -20,6 +21,7 @@ import { action, internalAction } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
+  readFileBufferSafe,
   readFileSafe,
   readJsonFile,
   sha256,
@@ -31,6 +33,7 @@ import {
   parseIntegrationJson,
   resolveConfigPath,
   resolveConnectorPath,
+  resolveIconPath,
   resolveIntegrationDir,
   resolveIntegrationsDir,
   serializeIntegrationJson,
@@ -455,6 +458,69 @@ export const writeIntegrationFiles = action({
     }
 
     return { hash: sha256(configContent) };
+  },
+});
+
+/**
+ * Package an installed integration's on-disk files (config.json + optional
+ * connector.ts + optional icon.svg) into a downloadable `.zip`, returned
+ * base64-encoded. The inverse of the custom-upload path. Gated on the same
+ * developer-settings capability as the other integration writes, since the
+ * connector code it bundles is capability-bearing.
+ */
+export const exportIntegration = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+  },
+  returns: v.object({
+    ok: v.literal(true),
+    filename: v.string(),
+    dataBase64: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ ok: true; filename: string; dataBase64: string }> => {
+    if (!validateIntegrationSlug(args.slug)) {
+      throw new Error(`Invalid integration slug: ${args.slug}`);
+    }
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+
+    const configBuf = await readFileBufferSafe(
+      resolveConfigPath(orgSlug, args.slug),
+    );
+    if (configBuf === null) {
+      throw new Error(`Integration "${args.slug}" does not exist`);
+    }
+
+    const zip = new JSZip();
+    zip.file('config.json', configBuf);
+
+    // connector.ts and icon.svg are absent for SQL/IMAP integrations and for
+    // integrations that never uploaded an icon — both are optional in the zip.
+    const connectorBuf = await readFileBufferSafe(
+      resolveConnectorPath(orgSlug, args.slug),
+    );
+    if (connectorBuf !== null) {
+      zip.file('connector.ts', connectorBuf);
+    }
+    const iconBuf = await readFileBufferSafe(
+      resolveIconPath(orgSlug, args.slug),
+    );
+    if (iconBuf !== null) {
+      zip.file('icon.svg', iconBuf);
+    }
+
+    const dataBase64 = await zip.generateAsync({ type: 'base64' });
+    return {
+      ok: true as const,
+      filename: `${args.slug}.zip`,
+      dataBase64,
+    };
   },
 });
 

@@ -12,7 +12,12 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
-import { atomicWrite, readFileSafe } from '../../lib/file_io';
+import {
+  atomicWrite,
+  readFileSafe,
+  removeDirSafe,
+  removeFileSafe,
+} from '../../lib/file_io';
 import { NODE_MIGRATIONS } from './registry.node';
 import { restoreFsTree, snapshotFsTree } from './snapshot_store';
 import type { NodeMigrationHelpers } from './types';
@@ -20,6 +25,8 @@ import type { NodeMigrationHelpers } from './types';
 const helpers: NodeMigrationHelpers = {
   atomicWrite,
   readFileSafe,
+  removeFileSafe,
+  removeDirSafe,
   snapshotFsTree,
   restoreFsTree,
 };

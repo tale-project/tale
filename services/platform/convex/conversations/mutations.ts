@@ -5,6 +5,10 @@ import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
 import * as ConversationsHelpers from './helpers';
 import {
+  bulkReplyToConversations as bulkReplyToConversationsHelper,
+  replyToConversation as replyToConversationHelper,
+} from './reply_to_conversation';
+import {
   bulkOperationResultValidator,
   conversationStatusValidator,
   conversationPriorityValidator,
@@ -71,6 +75,40 @@ export const sendMessageViaIntegration = mutationWithRLS({
   returns: v.id('conversationMessages'),
   handler: async (ctx, args) => {
     return await ConversationsHelpers.sendMessageViaIntegration(ctx, args);
+  },
+});
+
+export const replyToConversation = mutationWithRLS({
+  args: {
+    conversationId: v.id('conversations'),
+    organizationId: v.string(),
+    content: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id('_storage'),
+          fileName: v.string(),
+          contentType: v.string(),
+          size: v.number(),
+        }),
+      ),
+    ),
+  },
+  returns: v.id('conversationMessages'),
+  handler: async (ctx, args) => {
+    return await replyToConversationHelper(ctx, args);
+  },
+});
+
+export const bulkReplyToConversations = mutationWithRLS({
+  args: {
+    conversationIds: v.array(v.id('conversations')),
+    organizationId: v.string(),
+    content: v.string(),
+  },
+  returns: bulkOperationResultValidator,
+  handler: async (ctx, args) => {
+    return await bulkReplyToConversationsHelper(ctx, args);
   },
 });
 
@@ -210,7 +248,17 @@ export const downloadAttachments = mutationWithRLS({
       });
     }
 
-    const integrationName = conversation.integrationName ?? 'outlook';
+    const integrationName = conversation.integrationName;
+    if (!integrationName) {
+      // Fail closed rather than silently routing through Outlook — a Gmail/IMAP
+      // (or unstamped) conversation would otherwise dispatch to the wrong
+      // provider. Mirrors `reply_to_conversation`'s no-silent-fallback rule.
+      throw new ConvexError({
+        code: 'conversation_integration_missing',
+        message:
+          'Conversation has no integration to download attachments through — unavailable until a sync stamps its integrationName',
+      });
+    }
 
     await ctx.scheduler.runAfter(
       0,

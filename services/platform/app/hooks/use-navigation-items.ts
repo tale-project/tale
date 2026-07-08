@@ -2,10 +2,8 @@
 
 import {
   MessageCircle,
-  Inbox,
   BrainIcon,
-  LayoutGrid,
-  Network,
+  Workflow,
   Bot,
   Folder,
   Settings as SettingsIcon,
@@ -56,7 +54,6 @@ export interface NavigationItems {
 export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
-  const { t: tConversations } = useT('conversations');
   const { t: tProjects } = useT('projects');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
@@ -72,52 +69,12 @@ export function useNavigationItems(businessId: string): NavigationItems {
           shortcut: newChatShortcut,
         },
         {
-          label: tNav('apps'),
-          to: '/dashboard/$id/apps',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/apps`,
-          icon: LayoutGrid,
-        },
-        {
           label: tProjects('title'),
           to: '/dashboard/$id/projects',
           params: { id: businessId },
           href: `/dashboard/${businessId}/projects`,
           icon: Folder,
           can: ['read', 'projects'],
-        },
-        {
-          label: tNav('conversations'),
-          to: '/dashboard/$id/conversations/$status',
-          params: { id: businessId, status: 'open' },
-          href: `/dashboard/${businessId}/conversations/open`,
-          icon: Inbox,
-          subItems: [
-            {
-              label: tConversations('status.open'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'open' },
-              href: `/dashboard/${businessId}/conversations/open`,
-            },
-            {
-              label: tConversations('status.closed'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'closed' },
-              href: `/dashboard/${businessId}/conversations/closed`,
-            },
-            {
-              label: tConversations('status.spam'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'spam' },
-              href: `/dashboard/${businessId}/conversations/spam`,
-            },
-            {
-              label: tConversations('status.archived'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'archived' },
-              href: `/dashboard/${businessId}/conversations/archived`,
-            },
-          ],
         },
         {
           label: tNav('knowledge'),
@@ -171,8 +128,7 @@ export function useNavigationItems(businessId: string): NavigationItems {
           to: '/dashboard/$id/automations',
           params: { id: businessId },
           href: `/dashboard/${businessId}/automations`,
-          icon: Network,
-          can: ['write', 'wfDefinitions'],
+          icon: Workflow,
         },
         {
           // Single Settings entry. The index route redirects to the
@@ -189,6 +145,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
       ],
       pinned: [],
     }),
-    [businessId, tNav, tKnowledge, tConversations, tProjects, newChatShortcut],
+    [businessId, tNav, tKnowledge, tProjects, newChatShortcut],
   );
 }

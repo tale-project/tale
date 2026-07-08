@@ -273,25 +273,36 @@ export const deleteWorkflowEnvInternal = internalMutation({
 });
 
 /**
- * Delete every env/secret entry for an installed app's workflows. Internal —
- * called by app uninstall. Sweeps the WHOLE `<appSlug>/` workflow namespace (a
- * prior app version may have installed a workflow since renamed/removed, whose
- * env would otherwise orphan and silently reattach on a later reinstall). The
- * `/` delimiter scopes the sweep to exactly this app — a sibling app
- * (`<appSlug>-2/…`) or a global workflow (`<name>`) sorts outside the range.
- * Mirrors `agents/agent_env.ts::deleteAppAgentEnvInternal`.
+ * Delete every env/secret entry for an installed automation's workflow(s).
+ * Internal — called by automation uninstall. An automation's single workflow
+ * now lives INLINE and its slug IS the automation slug (bare), so sweep the
+ * EXACT bare slug; ALSO sweep the legacy `<automationSlug>/` scoped namespace (a
+ * prior version's `<slug>/<name>` workflow env would otherwise orphan and
+ * silently reattach on a later reinstall). A sibling automation
+ * (`<automationSlug>-2`) sorts outside both. Mirrors
+ * `agents/agent_env.ts::deleteAutomationAgentEnvInternal`.
  */
-export const deleteAppWorkflowEnvInternal = internalMutation({
-  args: { organizationId: v.string(), appSlug: v.string() },
+export const deleteAutomationWorkflowEnvInternal = internalMutation({
+  args: { organizationId: v.string(), automationSlug: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Exclusive upper bound = the code point right after '/' (0x2F -> 0x30):
-    // ['<app>/', '<app>' + next) is exactly this app's workflow namespace.
-    const prefix = `${args.appSlug}/`;
-    const prefixEnd = `${args.appSlug}${String.fromCharCode(
+    // The inline workflow, keyed by the bare automation slug.
+    const exactRows = await ctx.db
+      .query('workflowEnv')
+      .withIndex('by_org_workflow', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', args.automationSlug),
+      )
+      .collect();
+    // Legacy scoped namespace `<automationSlug>/…`. Exclusive upper bound = the
+    // code point right after '/' (0x2F -> 0x30), so ['<app>/', '<app>' + next)
+    // is exactly this automation's old scoped workflows.
+    const prefix = `${args.automationSlug}/`;
+    const prefixEnd = `${args.automationSlug}${String.fromCharCode(
       '/'.charCodeAt(0) + 1,
     )}`;
-    const rows = await ctx.db
+    const scopedRows = await ctx.db
       .query('workflowEnv')
       .withIndex('by_org_workflow', (q) =>
         q
@@ -300,7 +311,9 @@ export const deleteAppWorkflowEnvInternal = internalMutation({
           .lt('workflowSlug', prefixEnd),
       )
       .collect();
-    for (const row of rows) await ctx.db.delete(row._id);
+    for (const row of [...exactRows, ...scopedRows]) {
+      await ctx.db.delete(row._id);
+    }
     return null;
   },
 });

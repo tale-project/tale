@@ -2,53 +2,32 @@
 
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useQueryClient } from '@tanstack/react-query';
-import type { Row, RowSelectionState } from '@tanstack/react-table';
+import type { Row } from '@tanstack/react-table';
 import { Sparkles } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteSkill } from '../hooks/mutations';
 import { useListSkills } from '../hooks/queries';
 import {
   useSkillsTableConfig,
   type SkillsTableBindingMode,
 } from '../hooks/use-skills-table-config';
+import { toSkillRows, type SkillRow } from '../lib/skill-rows';
 import { SkillDetailPanel } from './skill-detail-panel';
-import { SkillsActionMenu } from './skills-action-menu';
-
-export interface SkillRow {
-  slug: string;
-  name: string;
-  description: string;
-  /** SHA-256 of SKILL.md at list-time, forwarded to deleteSkill for CAS. */
-  hash?: string;
-  status?: string;
-  message?: string;
-}
 
 interface SkillsTableProps {
   organizationId: string;
   /**
-   * Enables a leading checkbox column wired to the supplied selection state.
-   * Also flips the detail panel into read-only mode (no Replace/Duplicate/Delete)
-   * since the agent-binding context has no business managing the bundle.
+   * The agent-binding selection this table exists for: a leading checkbox
+   * column wired to the supplied selection state. The detail panel opens
+   * read-only (no Replace/Duplicate/Delete) since the agent-binding context
+   * has no business managing the bundle — org-level skill management lives in
+   * the Skills settings catalog (`SkillsCatalog`).
    */
-  bindingMode?: SkillsTableBindingMode;
-  /** Hides the trailing action menu (e.g. Upload skill). Settings keeps it; agent context drops it. */
-  hideActionMenu?: boolean;
-  /** Pre-opens the detail panel for this slug on mount (used by ?slug= deep-link). */
-  initialDetailSlug?: string | null;
+  bindingMode: SkillsTableBindingMode;
   /**
    * Replaces the default empty-state description (and optionally the title)
    * when the org has 0 skills. Used by the agent Skills tab to point users to
@@ -62,19 +41,12 @@ interface SkillsTableProps {
 export function SkillsTable({
   organizationId,
   bindingMode,
-  hideActionMenu,
-  initialDetailSlug,
   emptyStateOverride,
   excludeSlugs,
 }: SkillsTableProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
-  const queryClient = useQueryClient();
-  const [detailSlug, setDetailSlug] = useState(initialDetailSlug ?? null);
-  // Re-sync when the URL param changes (e.g. nav between two ?slug= URLs).
-  useEffect(() => {
-    if (initialDetailSlug != null) setDetailSlug(initialDetailSlug);
-  }, [initialDetailSlug]);
+  const [detailSlug, setDetailSlug] = useState<string | null>(null);
   const {
     skills: rawSkills,
     isLoading,
@@ -82,87 +54,15 @@ export function SkillsTable({
     refetch,
   } = useListSkills(organizationId);
 
-  const skills = useMemo<SkillRow[]>(() => {
-    if (!Array.isArray(rawSkills)) return [];
-    const rows: SkillRow[] = [];
-    for (const s of rawSkills) {
-      if (!s || typeof s.slug !== 'string') continue;
-      // Skills with read errors come back with `status`/`message` and no
-      // name. Render them as rows with a warning indicator so admins can
-      // find and fix them instead of having broken SKILL.md files vanish
-      // silently from the list.
-      if ('status' in s && typeof s.status === 'string') {
-        rows.push({
-          slug: s.slug,
-          name: s.slug,
-          description: '',
-          status: s.status,
-          message: typeof s.message === 'string' ? s.message : undefined,
-        });
-        continue;
-      }
-      if (typeof s.name !== 'string' || typeof s.description !== 'string') {
-        continue;
-      }
-      rows.push({
-        slug: s.slug,
-        name: s.name,
-        description: s.description,
-        hash: typeof s.hash === 'string' ? s.hash : undefined,
-      });
-    }
-    return rows;
-  }, [rawSkills]);
+  const skills = useMemo(() => toSkillRows(rawSkills), [rawSkills]);
 
   const filteredSkills = useMemo(() => {
     if (!excludeSlugs || excludeSlugs.size === 0) return skills;
     return skills.filter((s) => !excludeSlugs.has(s.slug));
   }, [skills, excludeSlugs]);
 
-  const invalidateSkills = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ['config', 'skills'] });
-  }, [queryClient]);
-
-  // Bulk delete is only offered in the settings context (no `bindingMode`),
-  // where rows aren't already claimed by the agent-binding checkbox column.
-  const bulkDeletable = bindingMode == null;
-  const { mutateAsync: deleteSkill } = useDeleteSkill();
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const handleClearSelection = useCallback(() => {
-    setRowSelection({});
-  }, []);
-
-  // SKILL.md hash observed at list time, keyed by slug — forwarded to the
-  // delete mutation's CAS guard so a concurrently-edited skill isn't deleted
-  // from a stale view (mirrors the single-row delete dialog).
-  const skillHashBySlug = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of skills) {
-      if (s.hash) map.set(s.slug, s.hash);
-    }
-    return map;
-  }, [skills]);
-
-  const handleBulkDeleteItem = useCallback(
-    // Reuses the single-row delete mutation; the bar batches + toasts.
-    async (slug: string) => {
-      await deleteSkill({
-        organizationId,
-        slug,
-        expectedHash: skillHashBySlug.get(slug),
-      });
-    },
-    [deleteSkill, organizationId, skillHashBySlug],
-  );
-
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useSkillsTableConfig({
-      organizationId,
-      onDeleted: invalidateSkills,
-      onDuplicated: setDetailSlug,
-      bindingMode,
-    });
+    useSkillsTableConfig({ bindingMode });
 
   const handleRowClick = useCallback((row: Row<SkillRow>) => {
     setDetailSlug(row.original.slug);
@@ -183,7 +83,7 @@ export function SkillsTable({
     entityLabel: t('skills.entityLabel'),
   });
 
-  const bindingCaption = bindingMode ? (
+  const bindingCaption = (
     <HStack justify="end" align="center" className="px-1" aria-live="polite">
       <Text variant="caption">
         {t('agents.form.skillBindingsCounter', {
@@ -193,11 +93,11 @@ export function SkillsTable({
         })}
       </Text>
     </HStack>
-  ) : null;
+  );
 
   // Shared anchor for at-cap rows' aria-describedby; matches the id used in
-  // use-skills-table-config.tsx. Only rendered when bindings are active.
-  const atCapReason = bindingMode ? (
+  // use-skills-table-config.tsx.
+  const atCapReason = (
     <Text
       as="span"
       id="skill-binding-at-cap-reason"
@@ -209,7 +109,7 @@ export function SkillsTable({
         max: bindingMode.max,
       })}
     </Text>
-  ) : null;
+  );
 
   return (
     <Stack gap={4}>
@@ -219,32 +119,7 @@ export function SkillsTable({
         {...list.tableProps}
         columns={columns}
         stickyLayout={stickyLayout}
-        enableRowSelection={bulkDeletable}
-        rowSelection={bulkDeletable ? rowSelection : undefined}
-        onRowSelectionChange={bulkDeletable ? setRowSelection : undefined}
-        getRowId={bulkDeletable ? (row) => row.slug : undefined}
-        footer={
-          bulkDeletable ? (
-            <BulkDeleteBar
-              rowSelection={rowSelection}
-              onClearSelection={handleClearSelection}
-              onDeleteItem={handleBulkDeleteItem}
-              onDeleteComplete={() => {
-                handleClearSelection();
-                invalidateSkills();
-              }}
-            />
-          ) : undefined
-        }
         onRowClick={handleRowClick}
-        actionMenu={
-          hideActionMenu ? undefined : (
-            <SkillsActionMenu
-              organizationId={organizationId}
-              onUploaded={setDetailSlug}
-            />
-          )
-        }
         error={error ?? undefined}
         onRetry={() => void refetch()}
         emptyState={{
@@ -268,16 +143,12 @@ export function SkillsTable({
             if (!open) setDetailSlug(null);
           }}
           onSwitchSlug={setDetailSlug}
-          readOnly={bindingMode != null}
-          manageLink={
-            bindingMode != null
-              ? {
-                  to: '/dashboard/$id/settings/skills',
-                  params: { id: organizationId },
-                  search: { slug: detailSlug },
-                }
-              : undefined
-          }
+          readOnly
+          manageLink={{
+            to: '/dashboard/$id/settings/skills',
+            params: { id: organizationId },
+            search: { slug: detailSlug },
+          }}
         />
       )}
     </Stack>

@@ -264,20 +264,34 @@ export const threadMetadataTable = defineTable({
   sandboxWorkdir: v.optional(v.string()),
   /**
    * Discussions reuse this thread/message store. `kind` distinguishes a normal
-   * chat (absent or 'chat') from a GitHub-Discussions-style project discussion
-   * or a task discussion. Project/task discussions are accessible to project
-   * members (see `can_access_thread`), not just the owner. The fields below are
-   * all optional + additive — a `chat` thread behaves exactly as before.
+   * chat (absent or 'chat') from a GitHub-Discussions-style project discussion,
+   * a task discussion, or an app-embedded discussion (the AgentChat block's
+   * shared thread). Discussion kinds are accessible to org members (see
+   * `can_access_thread`), not just the owner. The fields below are all
+   * optional + additive — a `chat` thread behaves exactly as before.
    */
   kind: v.optional(
     v.union(
       v.literal('chat'),
       v.literal('project_discussion'),
       v.literal('task_discussion'),
+      v.literal('automation_discussion'),
     ),
   ),
   /** Task a `task_discussion` is attached to. */
   taskId: v.optional(v.id('tasks')),
+  /**
+   * Automation-embedded discussion scoping (`kind: 'automation_discussion'`): the ONE shared
+   * thread per (organizationId, automationSlug, subjectType, subjectId) that an
+   * installed automation's AgentChat block resolves via `by_org_automation_subject` (see
+   * `threads/get_or_create_automation_thread.ts`). Access is org-membership-gated
+   * like the other discussion kinds — an automation thread may carry no `projectId`.
+   * `subjectType`/`subjectId` are host-defined (e.g. ('task', <taskId>)); an
+   * install-scoped chat uses ('automation', <automationSlug>).
+   */
+  automationSlug: v.optional(v.string()),
+  subjectType: v.optional(v.string()),
+  subjectId: v.optional(v.string()),
   /** Discussion lifecycle (orthogonal to the retention `status` field). */
   discussionStatus: v.optional(
     v.union(v.literal('open'), v.literal('resolved'), v.literal('locked')),
@@ -339,6 +353,15 @@ export const threadMetadataTable = defineTable({
   // Discussions: list a project's discussions, and a task's discussion(s).
   .index('by_kind_projectId', ['kind', 'projectId'])
   .index('by_kind_taskId', ['kind', 'taskId'])
+  // Automation-embedded chat (AgentChat block): resolve the one shared
+  // `automation_discussion` thread for a (org, automation, subject) triplet without
+  // scanning the org's threads (threads/get_or_create_automation_thread.ts).
+  .index('by_org_automation_subject', [
+    'organizationId',
+    'automationSlug',
+    'subjectType',
+    'subjectId',
+  ])
   // Deploy drain + recovery watchdog: enumerate the (small) set of threads
   // currently `generating` without scanning every thread. Used by
   // `control/drain.ts:countActiveGenerations` and

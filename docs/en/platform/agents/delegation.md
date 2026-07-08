@@ -39,4 +39,4 @@ A worker runs inside its agent's remaining turn budget and cannot extend it; if 
 | The agent can answer well inline                        |        | ✓            |          |
 | Work has explicit stages with approvals between them    |        |              | ✓        |
 
-The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, an automation is the right shape instead.
+The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, a workflow is the right shape instead.

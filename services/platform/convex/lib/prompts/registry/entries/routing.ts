@@ -1,9 +1,8 @@
 /**
- * Router + escalation scaffold text.
+ * Router scaffold text.
  *
  * Only the FIXED scaffold is registry-owned; the dynamic roster/examples/hints
- * (router) are assembled at the call site. Escalation chrome is localized
- * (en/de/fr) with `en` fallback.
+ * are assembled at the call site.
  */
 
 import type { PromptEntry } from '../types';
@@ -30,31 +29,4 @@ Guidance:
 - "effort": how much step-by-step reasoning THIS message needs — "low" for greetings, lookups, simple rewrites; "medium" for typical multi-part questions; "high" for genuinely hard analysis, debugging, multi-step problem-solving, or careful reworks (even when phrased briefly). Omit when unsure.
 - "creativity": "precise" for factual/code/extraction answers, "creative" for brainstorming/writing/ideation, "balanced" otherwise. Omit when unsure.
 - "capabilities": list only the capability slugs the chosen assistant needs for THIS message (from the assistant's tools above); omit when none are needed.`,
-};
-
-export const escalationSectionEntry: PromptEntry = {
-  key: 'escalation.section',
-  required: ['manager'],
-  usedBy: ['lib/agent_chat/build_tools.ts:buildEscalationTools'],
-  localized: {
-    en: `CHAIN OF COMMAND
-You report to {{manager}}. When you are blocked, lack a needed permission or tool, or face a decision above your authority, use the \`escalate\` tool — state the reason, what blocks you, and what you need. Escalate instead of guessing or silently giving up; do NOT escalate work you can do yourself.`,
-    de: `BEFEHLSKETTE
-Du berichtest an {{manager}}. Wenn du blockiert bist, dir eine Berechtigung oder ein Werkzeug fehlt oder eine Entscheidung über deiner Befugnis ansteht, nutze das \`escalate\`-Werkzeug — nenne den Grund, was dich blockiert und was du brauchst. Eskaliere, statt zu raten oder still aufzugeben; eskaliere KEINE Arbeit, die du selbst erledigen kannst.`,
-    fr: `CHAÎNE HIÉRARCHIQUE
-Vous rendez compte à {{manager}}. Si vous êtes bloqué, qu'il vous manque une permission ou un outil, ou qu'une décision dépasse votre autorité, utilisez l'outil \`escalate\` — indiquez la raison, ce qui vous bloque et ce dont vous avez besoin. Escaladez plutôt que de deviner ou d'abandonner en silence ; n'escaladez PAS un travail que vous pouvez faire vous-même.`,
-  },
-};
-
-export const escalationSectionRootEntry: PromptEntry = {
-  key: 'escalation.sectionRoot',
-  usedBy: ['lib/agent_chat/build_tools.ts:buildEscalationTools'],
-  localized: {
-    en: `CHAIN OF COMMAND
-You are a top-level agent: you report to the humans of this organization. When you are blocked, lack a needed permission or tool, or face a decision above your authority, use the \`escalate\` tool to surface it to them — state the reason, what blocks you, and what you need. Do NOT escalate work you can do yourself.`,
-    de: `BEFEHLSKETTE
-Du bist ein Agent auf oberster Ebene: du berichtest an die Menschen dieser Organisation. Wenn du blockiert bist, dir eine Berechtigung oder ein Werkzeug fehlt oder eine Entscheidung über deiner Befugnis ansteht, nutze das \`escalate\`-Werkzeug, um es ihnen vorzulegen — nenne den Grund, was dich blockiert und was du brauchst. Eskaliere KEINE Arbeit, die du selbst erledigen kannst.`,
-    fr: `CHAÎNE HIÉRARCHIQUE
-Vous êtes un agent de premier niveau : vous rendez compte aux humains de cette organisation. Si vous êtes bloqué, qu'il vous manque une permission ou un outil, ou qu'une décision dépasse votre autorité, utilisez l'outil \`escalate\` pour le leur signaler — indiquez la raison, ce qui vous bloque et ce dont vous avez besoin. N'escaladez PAS un travail que vous pouvez faire vous-même.`,
-  },
 };

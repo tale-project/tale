@@ -13,10 +13,16 @@
  *    written to the entry's existing `.history/` trail first, so the standard
  *    history-restore UI can undo the sync per entry. Then the domain is
  *    reseeded with the scaffold's `override:true` per-file overwrite.
- *  - bundle domains (integrations/apps): only bundles that actually differ
- *    are replaced (staging + atomic rename); the previous bundle is copied to
- *    `<domainDir>/.history/<bundle>/<timestamp>/` first. Untouched bundles
- *    keep their internal `.history/` trails.
+ *  - bundle domains (integrations/automations/skills): only bundles that
+ *    actually differ are replaced (staging + atomic rename); the previous
+ *    bundle is copied to `<domainDir>/.history/<bundle>/<timestamp>/` first.
+ *    Untouched bundles keep their internal `.history/` trails. For
+ *    `automations` specifically, an installed app's `workflows/` subtree is
+ *    write-once (an installed workflow is user-owned/editable — see
+ *    `automations/install_fs.ts`'s `isWorkflowShellPath`): a workflow-only
+ *    change doesn't count as "the bundle differs", and the replace overlays
+ *    the org's existing `workflows/` back onto the fresh copy before the
+ *    atomic rename.
  *
  * Post-sync, the same provisioning hooks the org-create flow uses run again:
  * the default-agent/workflow provisioners pick up new `autoInstall` entries,
@@ -38,11 +44,14 @@ import {
 } from '../agents/file_utils';
 import { invalidateAgentListCache } from '../agents/internal_actions';
 import { agentSlugFromFileName, validateAgentSlug } from '../agents/validators';
-import { ensureOrgResources, prepareInstall } from '../apps/install_actions';
+import {
+  ensureOrgResources,
+  prepareInstall,
+} from '../automations/install_actions';
+import { invalidateSkillContextCache } from '../lib/agent_chat/skill_context_cache';
 import { resolveDomainDir } from '../lib/config_store/resolvers';
 import {
   atomicWrite,
-  atomicWriteBuffer,
   errnoCode,
   generateHistoryTimestamp,
   pruneHistory,
@@ -53,14 +62,20 @@ import {
   resolveHistoryDir as resolveWorkflowHistoryDir,
   workflowSlugFromRelativePath,
 } from '../workflows/file_utils';
-import { pathsOverlap, replaceBundleDir, seedDomain } from './scaffold';
+import {
+  copyTreeVerbatim,
+  pathsOverlap,
+  replaceBundleDir,
+  seedDomain,
+} from './scaffold';
 
-/** The catalog-page domains the sync button covers (UI "automations" ⇒ `workflows`). */
+/** The catalog-page domains the sync button covers. */
 const SYNCABLE_DOMAINS = [
   'agents',
   'workflows',
   'integrations',
-  'apps',
+  'automations',
+  'skills',
 ] as const;
 type SyncableDomain = (typeof SYNCABLE_DOMAINS)[number];
 
@@ -190,36 +205,6 @@ async function backupChangedTreeEntries(
   return { updated, backedUp };
 }
 
-/**
- * Copy `sourceDir` into `targetDir` for a bundle backup. Unlike the scaffold
- * `copyTree`, this keeps `*.secrets.json` and the bundle's internal
- * `.history/` trails — the backup's job is to preserve everything the bundle
- * replace destroys. Skips symlinks (never dereference into the backup).
- */
-async function copyBundleForBackup(
-  sourceDir: string,
-  targetDir: string,
-): Promise<void> {
-  let entries;
-  try {
-    entries = await readdir(sourceDir, { withFileTypes: true });
-  } catch (err) {
-    if (errnoCode(err) === 'ENOENT') return;
-    throw err;
-  }
-  for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue;
-    const src = path.join(sourceDir, entry.name);
-    const dst = path.join(targetDir, entry.name);
-    if (entry.isDirectory()) {
-      await copyBundleForBackup(src, dst);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    await atomicWriteBuffer(dst, await readFile(src));
-  }
-}
-
 /** Keep only the most recent `MAX_BUNDLE_BACKUPS` timestamp dirs per bundle. */
 async function pruneBundleBackups(bundleHistoryDir: string): Promise<void> {
   let entries: string[];
@@ -270,10 +255,10 @@ async function bundleDiffers(
 }
 
 /**
- * Diff + backup + replace for a bundle domain (integrations/apps). Only
- * bundles that actually differ are touched, so unchanged bundles keep their
- * internal `.history/` trails. Returns the changed bundle names for the apps
- * post-sync reinstall pass.
+ * Diff + backup + replace for a bundle domain (integrations/apps/skills).
+ * Only bundles that actually differ are touched, so unchanged bundles keep
+ * their internal `.history/` trails. Returns the changed bundle names for the
+ * apps post-sync reinstall pass.
  */
 async function syncBundleDomain(
   sourceDir: string,
@@ -297,20 +282,22 @@ async function syncBundleDomain(
     if (entry.isSymbolicLink() || !entry.isDirectory()) continue;
     const bundleSrc = path.join(sourceDir, entry.name);
     const bundleDst = path.join(targetDir, entry.name);
-    if (!(await bundleDiffers(bundleSrc, bundleDst))) continue;
+    if (!(await bundleDiffers(bundleSrc, bundleDst))) {
+      continue;
+    }
 
     const hadPrevious =
       (await lstat(bundleDst).catch(() => null))?.isDirectory() ?? false;
     if (hadPrevious) {
       const bundleHistoryDir = path.join(targetDir, '.history', entry.name);
-      await copyBundleForBackup(
+      await copyTreeVerbatim(
         bundleDst,
         path.join(bundleHistoryDir, generateHistoryTimestamp()),
       );
       await pruneBundleBackups(bundleHistoryDir);
       backedUp++;
     }
-    await replaceBundleDir(bundleSrc, bundleDst);
+    await replaceBundleDir(bundleSrc, bundleDst, undefined);
     updated++;
     changedBundles.push(entry.name);
   }
@@ -324,7 +311,8 @@ export const syncDomainFromBuiltin = action({
       v.literal('agents'),
       v.literal('workflows'),
       v.literal('integrations'),
-      v.literal('apps'),
+      v.literal('automations'),
+      v.literal('skills'),
     ),
   },
   returns: v.object({
@@ -404,30 +392,48 @@ export const syncDomainFromBuiltin = action({
         internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
         { organizationId: args.organizationId, orgSlug },
       );
-    } else if (domainName === 'apps') {
+    } else if (domainName === 'skills') {
+      // Drop the org's cached skill snapshot so the next chat send rebuilds
+      // with the refreshed bundles immediately (same invalidation the skill
+      // upload/create/delete paths run).
+      invalidateSkillContextCache(orgSlug);
+    } else if (domainName === 'automations') {
       // Re-run the reinstall pipeline for installed apps whose bundle changed:
       // re-registers agent/workflow rows with the new hashes, refreshes the
       // resource ledger, and reconciles schedules. Never touches env/secrets.
+      //
+      // KNOWN GAP (R4): this app-domain refresh BYPASSES the install-override
+      // confirmation the public `installAutomation`/`reinstallAutomation` enforce — it calls
+      // `ensureOrgResources` directly, so a changed builtin bundle overwrites
+      // org-dir edits without a per-file confirmation. The sync is itself an
+      // explicit, admin-gated "refresh from builtins" action, which is why
+      // this is tolerated rather than fixed here.
       const installed: string[] = await ctx.runQuery(
-        internal.apps.install_mutations.listAppInstallationsInternal,
+        internal.automations.install_mutations
+          .listAutomationInstallationsInternal,
         { organizationId: args.organizationId },
       );
       const changed = new Set(changedBundles);
-      for (const appSlug of installed) {
-        if (!changed.has(appSlug)) continue;
+      for (const automationSlug of installed) {
+        if (!changed.has(automationSlug)) continue;
         try {
           const install = await prepareInstall(
             ctx,
             args.organizationId,
-            appSlug,
+            automationSlug,
           );
-          await ensureOrgResources(ctx, args.organizationId, appSlug, install);
+          await ensureOrgResources(
+            ctx,
+            args.organizationId,
+            automationSlug,
+            install,
+          );
         } catch (err) {
           // A single app's re-registration failure must not roll back the
           // file sync of the others; the app page's integrity check still
           // surfaces a broken install with its own reinstall prompt.
           console.warn(
-            `[builtinSync] apps: reinstall pipeline failed for "${appSlug}":`,
+            `[builtinSync] apps: reinstall pipeline failed for "${automationSlug}":`,
             err instanceof Error ? err.message : err,
           );
         }

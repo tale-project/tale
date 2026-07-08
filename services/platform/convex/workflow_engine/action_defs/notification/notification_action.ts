@@ -2,12 +2,12 @@
  * Notification workflow action — lets automations reach HUMANS through the
  * in-app inbox (the human half of human-in-the-loop). Used across the
  * task-ops pack: due-date warnings, SLA escalations, review reminders,
- * unblock pings, the daily digest.
+ * unblock pings.
  *
  * Operations:
  *  - `notify_users`: per-user inbox rows to a declarative audience
  *    (`task_assignee` | `task_subscribers` | `project_creator` |
- *    `org_admins` | `org_members` | explicit `user_ids`). Preferences respected, repeated
+ *    `org_admins` | explicit `user_ids`). Preferences respected, repeated
  *    cron firings deduped — see `collab/internal_mutations.ts`.
  *  - `notify_org_channel`: one org-wide notification-bell entry (the
  *    admin-facing operational feed), severity-tagged.
@@ -34,8 +34,7 @@ type NotificationActionParams =
         | 'task_assignee'
         | 'task_subscribers'
         | 'project_creator'
-        | 'org_admins'
-        | 'org_members';
+        | 'org_admins';
       type:
         | 'task_assigned'
         | 'task_status_changed'
@@ -46,15 +45,12 @@ type NotificationActionParams =
         | 'agent_escalation'
         | 'automation_failed'
         | 'budget_alert'
-        | 'runtime_offline'
-        | 'workforce_digest'
-        | 'conversation_message';
+        | 'runtime_offline';
       titleKey: string;
       bodyKey: string;
       params?: ConvexJsonRecord;
       taskId?: string;
       projectId?: string;
-      conversationId?: string;
       userIds?: string[];
     }
   | {
@@ -71,7 +67,6 @@ const audienceValidator = v.union(
   v.literal('task_subscribers'),
   v.literal('project_creator'),
   v.literal('org_admins'),
-  v.literal('org_members'),
 );
 
 const userNotificationTypeValidator = v.union(
@@ -85,15 +80,13 @@ const userNotificationTypeValidator = v.union(
   v.literal('automation_failed'),
   v.literal('budget_alert'),
   v.literal('runtime_offline'),
-  v.literal('workforce_digest'),
-  v.literal('conversation_message'),
 );
 
 export const notificationAction: ActionDefinition<NotificationActionParams> = {
   type: 'notification',
   title: 'Notification Operation',
   description:
-    'Notify humans from an automation: notify_users writes per-user inbox notifications to a declarative audience (task_assignee, task_subscribers, project_creator, org_admins, org_members, user_ids) with preference + dedupe handling; notify_org_channel writes one org-wide bell entry. titleKey/bodyKey are i18n keys with params interpolation. organizationId is read from workflow context variables.',
+    'Notify humans from an automation: notify_users writes per-user inbox notifications to a declarative audience (task_assignee, task_subscribers, project_creator, org_admins, user_ids) with preference + dedupe handling; notify_org_channel writes one org-wide bell entry. titleKey/bodyKey are i18n keys with params interpolation. organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('notify_users'),
@@ -104,7 +97,6 @@ export const notificationAction: ActionDefinition<NotificationActionParams> = {
       params: v.optional(jsonRecordValidator),
       taskId: v.optional(v.id('tasks')),
       projectId: v.optional(v.id('projects')),
-      conversationId: v.optional(v.id('conversations')),
       userIds: v.optional(v.array(v.string())),
     }),
     v.object({
@@ -141,9 +133,6 @@ export const notificationAction: ActionDefinition<NotificationActionParams> = {
             taskId: params.taskId ? toId<'tasks'>(params.taskId) : undefined,
             projectId: params.projectId
               ? toId<'projects'>(params.projectId)
-              : undefined,
-            conversationId: params.conversationId
-              ? toId<'conversations'>(params.conversationId)
               : undefined,
             userIds: params.userIds,
           },

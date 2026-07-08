@@ -99,6 +99,7 @@ export const createWorkflowCreationApproval = internalMutation({
       version: v.optional(v.string()),
       workflowType: v.optional(v.literal('predefined')),
       config: v.optional(jsonRecordValidator),
+      specification: v.optional(v.string()),
     }),
     stepsConfig: v.array(
       v.object({
@@ -133,6 +134,7 @@ export const createWorkflowCreationApproval = internalMutation({
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
+        specification: args.workflowConfig.specification,
       },
       stepsConfig: args.stepsConfig.map((step) => ({
         stepSlug: step.stepSlug,
@@ -241,6 +243,7 @@ export const createWorkflowUpdateApproval = internalMutation({
       version: v.optional(v.string()),
       workflowType: v.optional(v.literal('predefined')),
       config: v.optional(jsonRecordValidator),
+      specification: v.optional(v.string()),
     }),
     stepsConfig: v.array(
       v.object({
@@ -278,6 +281,7 @@ export const createWorkflowUpdateApproval = internalMutation({
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
+        specification: args.workflowConfig.specification,
       },
       stepsConfig: args.stepsConfig.map((step) => ({
         stepSlug: step.stepSlug,

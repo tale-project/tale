@@ -6,10 +6,10 @@ import { t } from '../helpers/i18n';
 
 /**
  * Render-smoke breadth for the remaining top-level routes (changelog, embedded
- * API docs, the redirecting agent entry points, and the metrics dashboards).
- * One sequential test on a shared page asserts a stable anchor per route, so
- * the whole breadth costs a single worker fixture instead of one cold paint per
- * route. Read-only — only navigates and asserts.
+ * API docs, and a legacy tab-suffix redirect). One sequential test on a shared
+ * page asserts a stable anchor per route, so the whole breadth costs a single
+ * worker fixture instead of one cold paint per route. Read-only — only
+ * navigates and asserts.
  */
 
 /**
@@ -50,42 +50,29 @@ function routeCases(): readonly RouteCase[] {
           .first(),
     },
     {
-      // `beforeLoad` redirect to `/agents`; the layout title proves the landing.
-      key: 'custom-agents-redirect',
-      path: (id) => `/dashboard/${id}/custom-agents`,
+      // Legacy `/automations/{slug}/{tab}` (a workflow detail tab from before
+      // the Workflows rename — the segment can't be an automation page, so it
+      // still redirects): lands on `/workflows/{slug}/executions`; the
+      // executions search input proves the tab mounted for the seeded
+      // workflow.
+      key: 'automation-tab-legacy-redirect',
+      path: (id) => `/dashboard/${id}/automations/test/executions`,
       anchor: (page) =>
-        page
-          .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
-          .first(),
+        page.getByPlaceholder(t('workflows.executions.searchPlaceholder')),
     },
     {
-      // Agents → Metrics dashboard. The section title is an <h2> (the route's
-      // <h1> is the adaptive-header "Agents" layout title, dual-rendered for
-      // desktop/mobile — so the single-render section header is the stable,
-      // unambiguous anchor). Charts paint behind their own loaders.
-      key: 'agents-metrics',
-      path: (id) => `/dashboard/${id}/agents/metrics`,
+      // D3: a bare `/automations/{slug}` predates the Automations rename too
+      // (when this URL space belonged to a workflow directly). `test` isn't a
+      // real automation (only the seeded email/GitHub automations are),
+      // so `automations/$automationSlug`'s `beforeLoad` falls back to the standalone
+      // workflow route; the Editor nav tab proves the workflow detail page
+      // mounted for the seeded workflow. A REAL automation slug would win
+      // instead (never reaching this fallback) — covered by the automation
+      // detail unit/component tests, not this render-smoke spec.
+      key: 'automation-bare-slug-legacy-redirect',
+      path: (id) => `/dashboard/${id}/automations/test`,
       anchor: (page) =>
-        page
-          .getByRole('heading', {
-            name: t('settings.agents.tabs.metrics'),
-            level: 2,
-          })
-          .first(),
-    },
-    {
-      // WorkflowMetricsPage title block — an <h2> section header (same h1/h2
-      // split as agents-metrics above). Owner has `write wfDefinitions`, so the
-      // AccessDenied branch never renders.
-      key: 'automations-metrics',
-      path: (id) => `/dashboard/${id}/automations/metrics`,
-      anchor: (page) =>
-        page
-          .getByRole('heading', {
-            name: t('automations.metrics.title'),
-            level: 2,
-          })
-          .first(),
+        page.getByRole('link', { name: t('workflows.navigation.editor') }),
     },
     {
       // `/docs` embeds Swagger UI (no redirect, no translated heading); the

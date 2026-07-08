@@ -38,7 +38,7 @@ import {
   taskStatusValidator,
 } from './schema';
 
-const TASK_BOARD_CAP = 2000;
+export const TASK_BOARD_CAP = 2000;
 const TASK_ACTIVITY_CAP = 500;
 
 async function getAuthContext(
@@ -57,7 +57,7 @@ async function getAuthContext(
   return { userId: member.userId, role: member.role, teamIds };
 }
 
-async function loadAccessibleProject(
+export async function loadAccessibleProject(
   ctx: QueryCtx,
   projectId: Id<'projects'>,
   activeOrgId: string,
@@ -169,6 +169,11 @@ export const listTasksByProject = query({
     organizationId: v.string(),
     includeArchived: v.optional(v.boolean()),
     status: v.optional(taskStatusValidator),
+    // Multi-status scope: only tasks whose status is IN this set. The Board and
+    // List pass the triaged statuses (everything but `backlog`) while the
+    // Backlog triage tab passes `['backlog']` — one query, view-scoped
+    // server-side instead of client filtering. Omitted ⇒ all statuses.
+    statuses: v.optional(v.array(taskStatusValidator)),
     assigneeId: v.optional(v.string()),
     // Scope to tasks linked to an external system (e.g. 'github') — lets an
     // app surface (the issue-desk Tasks tab) show only the tasks IT derived
@@ -198,6 +203,7 @@ export const listTasksByProject = query({
       .withIndex('by_project', (q) => q.eq('projectId', project._id))) {
       if (!args.includeArchived && task.archivedAt) continue;
       if (args.status && task.status !== args.status) continue;
+      if (args.statuses && !args.statuses.includes(task.status)) continue;
       if (args.assigneeId && task.assigneeId !== args.assigneeId) continue;
       if (args.externalSystem && task.externalSystem !== args.externalSystem)
         continue;
@@ -751,7 +757,7 @@ export const mentionTriggerPreview = query({
     const slugs = [...new Set(args.slugs)].slice(0, 10);
     if (slugs.length === 0) return [];
 
-    // Workforce agent gate (mirrors `buildMentionDirectory`): 'restricted'
+    // Project agent gate (mirrors `buildMentionDirectory`): 'restricted'
     // projects limit mentionable agents to their explicit lists; the default
     // 'all' mode exposes every org agent. The roster itself is file-based and
     // not enumerable here, so in 'all' mode existence isn't verified — the

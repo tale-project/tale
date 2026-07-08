@@ -46,7 +46,7 @@ const AGENT_LIST_CACHE_TTL_MS = 60_000;
 interface AgentIndex {
   /** Projected roster entries (consumed by router / chart / settings). */
   entries: unknown[];
-  /** slug → relative file path (`workforce/ceo.json`) for read/write resolution. */
+  /** slug → relative file path (`github/reviewer.json`) for read/write resolution. */
   slugToPath: Map<string, string>;
   expiresAt: number;
 }
@@ -252,7 +252,7 @@ export const deleteKnowledgeFileFromRag = internalAction({
 // REST API helpers — internal actions for listing/reading agent configs
 // ---------------------------------------------------------------------------
 
-/** Read + parse one agent file at a known relative path (`workforce/ceo.json`). */
+/** Read + parse one agent file at a known relative path (`github/reviewer.json`). */
 async function readAgentByRelPath(
   orgSlug: string,
   relativePath: string,
@@ -272,7 +272,7 @@ async function readAgentByRelPath(
 /**
  * Build (or return cached) the org's agent index: the projected roster entries
  * AND the slug→relativePath map. ONE recursive scan over the folder tree
- * (chat/, workforce/, github/, …); identity is the config's explicit `slug`
+ * (chat/, github/, …); identity is the config's explicit `slug`
  * (basename fallback). Duplicate slugs are dropped (first wins) with a warning —
  * a misauthored catalog should never silently shadow an agent. The 60s TTL +
  * write-through `invalidateAgentListCache` keep this off the disk on warm turns.
@@ -322,8 +322,7 @@ async function buildAgentIndex(orgSlug: string): Promise<AgentIndex> {
             isRouter: result.config.isRouter,
             uiConfigurable: result.config.uiConfigurable,
             i18n: result.config.i18n,
-            // Workforce projections (org chart + guardrails) shared via this cache.
-            delegates: result.config.delegates,
+            // Guardrail projections shared via this cache.
             budget: result.config.budget,
             maxConcurrentTasks: result.config.maxConcurrentTasks,
             // Install/catalog/cascade metadata (autoInstall, group, requires, …).
@@ -399,7 +398,7 @@ export async function listInstalledAgentsForOrg(
 }
 
 /**
- * Resolve a slug → relative file path (`workforce/ceo.json`) via the index, so
+ * Resolve a slug → relative file path (`github/reviewer.json`) via the index, so
  * reads/writes/history locate the backing file wherever it lives in the folder
  * tree. Returns undefined for an unknown slug (caller falls back to the flat
  * `<slug>.json` path for new-file creation).
@@ -414,7 +413,7 @@ export async function resolveAgentRelativePath(
 /**
  * Absolute path of the file backing an EXISTING agent slug — located through
  * the folder-aware index so an edit/delete/history/delegation op writes back to
- * wherever the file lives (chat/, workforce/, github/, …). Falls back to the
+ * wherever the file lives (chat/, github/, …). Falls back to the
  * flat `<slug>.json` path when the slug isn't indexed (a brand-new agent, or a
  * file written in this isolate before the 60s cache refreshed). Shared by every
  * read/write path so file location is resolved in exactly one place.

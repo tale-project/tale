@@ -14,7 +14,7 @@ export type TaskActorType = NonNullable<Doc<'tasks'>['assigneeType']>;
  *  app slug). A task can't be ASSIGNED to an app, so this is distinct. */
 export type TaskCreatorType = NonNullable<Doc<'tasks'>['createdByType']>;
 
-/** Board column order (left → right). */
+/** Canonical status order (status pickers, full-status surfaces). */
 export const TASK_STATUS_ORDER: TaskStatus[] = [
   'backlog',
   'todo',
@@ -23,6 +23,16 @@ export const TASK_STATUS_ORDER: TaskStatus[] = [
   'done',
   'cancelled',
 ];
+
+/**
+ * The statuses the Board renders as lanes and the List as sections (left →
+ * right / top → bottom). `backlog` is deliberately absent: backlog tasks are
+ * PROPOSED work (populated by automations such as the GitHub issue sync) and
+ * live on the Backlog triage tab until a human starts or closes them.
+ */
+export const TRIAGED_TASK_STATUSES: TaskStatus[] = TASK_STATUS_ORDER.filter(
+  (status) => status !== 'backlog',
+);
 
 const TASK_STATUS_SET = new Set<string>(TASK_STATUS_ORDER);
 

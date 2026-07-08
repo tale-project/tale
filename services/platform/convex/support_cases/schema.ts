@@ -14,7 +14,7 @@ import { v } from 'convex/values';
  *
  * Polymorphic single assignee mirrors `tasks`: a case is assigned to exactly
  * one actor that is EITHER a human user OR an AI agent (e.g. the builtin
- * customer-support-agent). `assigneeType` + `assigneeId` are set/cleared
+ * a support agent). `assigneeType` + `assigneeId` are set/cleared
  * together (invariant enforced in the mutation layer). `assigneeId` is a
  * `string` — not a typed Id — because it polymorphically holds either a Better
  * Auth userId or an agent slug.

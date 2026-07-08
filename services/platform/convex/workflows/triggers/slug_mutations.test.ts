@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import schema from '../../schema';
 import {
-  appOwnerOfWorkflowSlug,
-  isAppOwnedWorkflowSlug,
+  automationOwnerOfWorkflowSlug,
+  isAutomationOwnedWorkflowSlug,
 } from './slug_mutations';
 
 // convex-test module map, keyed relative to the convex/ root. This file lives at
@@ -27,28 +27,28 @@ for (const [key, loader] of Object.entries(rawModules)) {
 }
 
 // Pure db-level test of the app-ownership resolver used by
-// createEventSubscriptionBySlug (the manual/Automations path). Ownership is the
-// RECORDED `appSlug` on the wfInstallations row — not a slug-prefix heuristic —
-// so these tests seed install rows, not appInstallations. Uses t.run only (no
+// createEventSubscriptionBySlug (the manual/Workflows path). Ownership is the
+// RECORDED `automationSlug` on the wfInstallations row — not a slug-prefix heuristic —
+// so these tests seed install rows, not automationInstallations. Uses t.run only (no
 // auth-gated calls) to sidestep the convex-test betterAuth/org limitation.
 const ORG = 'org_slugguard';
 
-describe('appOwnerOfWorkflowSlug / isAppOwnedWorkflowSlug', () => {
+describe('automationOwnerOfWorkflowSlug / isAutomationOwnedWorkflowSlug', () => {
   it('reports the recorded owner, never derives it from the slug', async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      const insert = (workflowSlug: string, appSlug?: string) =>
+      const insert = (workflowSlug: string, automationSlug?: string) =>
         ctx.db.insert('wfInstallations', {
           organizationId: ORG,
           workflowSlug,
           installedAt: 0,
           installedBy: 'system',
           contentHash: 'h',
-          ...(appSlug !== undefined ? { appSlug } : {}),
+          ...(automationSlug !== undefined ? { automationSlug } : {}),
         });
       // An app workflow — its install row records the owning app.
       await insert('issue-desk/desk-process', 'issue-desk');
-      // Global/bundle workflows — install rows with NO appSlug.
+      // Global/bundle workflows — install rows with NO automationSlug.
       await insert('tasks/unassigned-triage');
       await insert('standalone');
       // The reliability case the old slug-prefix heuristic got WRONG: a global
@@ -59,35 +59,57 @@ describe('appOwnerOfWorkflowSlug / isAppOwnedWorkflowSlug', () => {
     await t.run(async (ctx) => {
       // Recorded owner is returned verbatim.
       expect(
-        await appOwnerOfWorkflowSlug(ctx, ORG, 'issue-desk/desk-process'),
+        await automationOwnerOfWorkflowSlug(
+          ctx,
+          ORG,
+          'issue-desk/desk-process',
+        ),
       ).toBe('issue-desk');
       expect(
-        await isAppOwnedWorkflowSlug(ctx, ORG, 'issue-desk/desk-process'),
+        await isAutomationOwnedWorkflowSlug(
+          ctx,
+          ORG,
+          'issue-desk/desk-process',
+        ),
       ).toBe(true);
 
       // Global workflows: no recorded owner.
       expect(
-        await appOwnerOfWorkflowSlug(ctx, ORG, 'tasks/unassigned-triage'),
+        await automationOwnerOfWorkflowSlug(
+          ctx,
+          ORG,
+          'tasks/unassigned-triage',
+        ),
       ).toBeNull();
-      expect(await appOwnerOfWorkflowSlug(ctx, ORG, 'standalone')).toBeNull();
+      expect(
+        await automationOwnerOfWorkflowSlug(ctx, ORG, 'standalone'),
+      ).toBeNull();
 
-      // Folder name collides with an app slug, but the row has no appSlug → NOT
+      // Folder name collides with an app slug, but the row has no automationSlug → NOT
       // owned (the bug the old heuristic had).
       expect(
-        await appOwnerOfWorkflowSlug(ctx, ORG, 'issue-desk/legacy-global'),
+        await automationOwnerOfWorkflowSlug(
+          ctx,
+          ORG,
+          'issue-desk/legacy-global',
+        ),
       ).toBeNull();
       expect(
-        await isAppOwnedWorkflowSlug(ctx, ORG, 'issue-desk/legacy-global'),
+        await isAutomationOwnedWorkflowSlug(
+          ctx,
+          ORG,
+          'issue-desk/legacy-global',
+        ),
       ).toBe(false);
 
       // No install row at all → not owned.
       expect(
-        await appOwnerOfWorkflowSlug(ctx, ORG, 'never/installed'),
+        await automationOwnerOfWorkflowSlug(ctx, ORG, 'never/installed'),
       ).toBeNull();
 
       // Ownership is per-org: another org's lookup sees no row.
       expect(
-        await appOwnerOfWorkflowSlug(
+        await automationOwnerOfWorkflowSlug(
           ctx,
           'org_other',
           'issue-desk/desk-process',

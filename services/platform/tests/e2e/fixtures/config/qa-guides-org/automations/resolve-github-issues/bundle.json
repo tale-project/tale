@@ -1,0 +1,26 @@
+{
+  "name": "Resolve GitHub issues",
+  "description": "Syncs open GitHub issues onto a project's backlog and drives each one to a merge-ready pull request, end to end.",
+  "i18n": {
+    "de": {
+      "name": "GitHub-Issues lösen",
+      "description": "Übernimmt offene GitHub-Issues ins Backlog eines Projekts und treibt jedes durchgängig bis zu einem merge-fertigen Pull Request."
+    },
+    "fr": {
+      "name": "Résoudre les issues GitHub",
+      "description": "Synchronise les issues GitHub ouvertes dans le backlog d'un projet et mène chacune de bout en bout jusqu'à une pull request prête à fusionner."
+    }
+  },
+  "icon": "ticket",
+  "folder": "github/issues",
+  "labels": ["GitHub", "GitHub Issues"],
+  "scope": "project",
+  "bundle": {
+    "members": [
+      "triage-github-issues",
+      "sync-github-issues",
+      "create-github-pr",
+      "review-github-pr"
+    ]
+  }
+}

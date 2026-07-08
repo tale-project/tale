@@ -108,7 +108,7 @@ export type AgentRoutingConfig = z.infer<typeof agentRoutingSchema>;
  * Canonical agent slug — a flat, file-location-INDEPENDENT identity stored in
  * the config itself (the `slug` field below). Because identity lives in the
  * file rather than the path, an agent file can be moved between folders
- * (`chat/` → `workforce/`) or renamed without breaking delegates, mentions,
+ * (`chat/` → `github/`) or renamed without breaking mentions,
  * installations, or thread references. Folders are organizational only; the
  * slug stays a flat single segment (no `/`), so routes need no URL-encoding.
  * Reserved slugs (`auto`, `organigram`) still apply.
@@ -121,7 +121,7 @@ const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
  * file with no `metadata` behaves exactly as before.
  *
  *  - `autoInstall`     — seed an enabled installation row into every org at
- *                        creation (the workforce default-on set).
+ *                        creation (the default-on roster).
  *  - `templateCatalog` — visible in the agent catalog UI (default true);
  *                        `false` hides integration-bundled agents.
  *  - `labels`          — catalog tags (e.g. ["Engineering", "Security"]). The
@@ -300,25 +300,11 @@ export const agentJsonSchema = z
     conversationStarters: z.array(z.string().max(200)).max(4).optional(),
     visibleInChat: z.boolean().optional(),
     /**
-     * @deprecated Organigram edges: the slugs of this agent's direct
-     * reports. The `delegate_*` chat tools these edges used to produce were
-     * replaced by `spawn_agent` (agent-on-demand jobs) — a config carrying
-     * `delegates` still loads WITHOUT error, and the edges still feed the
-     * org chart for the task-domain manager behaviors (`escalate`, epic
-     * decompose, SLA hand-up) until the workforce follow-up replaces the
-     * chart with explicit project settings. Shape-only validation here —
-     * dangling targets are dropped with a warning at read time.
-     */
-    delegates: z
-      .array(z.string().min(1).max(64).regex(AGENT_SLUG_REGEX))
-      .max(100)
-      .optional(),
-    /**
      * Monthly spend guardrail (Paperclip-style). Month-to-date spend comes
      * from the usageLedger per agentSlug; at `warnPct` the agent gets an
      * economy instruction injected and admins are notified once; at
-     * `pausePct` new runs are refused and queued work is reassigned by the
-     * budget-reassign automation. Resets at the calendar-month rollover.
+     * `pausePct` new runs are refused. Resets at the calendar-month
+     * rollover.
      */
     budget: z
       .object({
@@ -332,8 +318,7 @@ export const agentJsonSchema = z
       .optional(),
     /**
      * Max concurrent task runs for this agent (internal + external). Omitted
-     * falls back to the org `agent_workforce` policy default; both absent =
-     * unlimited. Enforced at run admission (`startTaskAgentRun`) and at
+     * = unlimited. Enforced at run admission (`startTaskAgentRun`) and at
      * external-run claim time — never on interactive chat turns.
      */
     maxConcurrentTasks: z.number().int().min(1).max(50).optional(),
@@ -364,7 +349,7 @@ export const agentJsonSchema = z
      * container (bash/files, `output/summary.md` handoff) and the run spans the
      * action ceiling via the durable-step re-entry. Mutually exclusive with
      * `runtime` (external daemon dispatch); the superRefine below enforces it.
-     * For code/file task agents (e.g. an issue-desk implementer).
+     * For code/file task agents (e.g. an automation's implementer agent).
      */
     preferDurableStepForTasks: z.boolean().optional(),
     /**

@@ -25,7 +25,7 @@ import { DEFAULT_DOCS_SITE_URL } from '../site-url';
 
 export const DOCS_SITE_TITLE = 'Tale';
 export const DOCS_SITE_DESCRIPTION =
-  'The orchestration layer for AI agents — local AI models, agents, skills, and automations on your own infrastructure.';
+  'The orchestration layer for AI agents — local AI models, agents, skills, and workflows on your own infrastructure.';
 const BASE_LOCALES = ['en', 'de', 'fr'] as const;
 
 /** Site-relative URL for a (locale, slug) pair. English has no prefix. */

@@ -18,7 +18,6 @@ import { Text } from '@tale/ui/text';
 import { Bot, ChevronDown } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
-import { usePackLabel } from '@/app/features/apps/runtime/app-runtime';
 import { useT } from '@/lib/i18n/client';
 import type { PartState } from '@/lib/shared/platform/part_state';
 import { cn } from '@/lib/utils/cn';
@@ -71,14 +70,15 @@ export function PartEnvelope({
   children: ReactNode;
 }) {
   const { t } = useT('operator');
-  const packLabel = usePackLabel();
+  // A step's `labelKey` is a PLATFORM `automations` catalog key (the same
+  // convention `boundActionSchema.labelKey` resolves through in
+  // `bound-button.tsx`), never a retired bundle label; the raw step name is
+  // the fallback when the step carries no key.
+  const { t: tAutomations } = useT('automations');
   const [collapsed, setCollapsed] = useState(false);
-  // Pack-authored Tier-2 label wins; the operator structural i18n key (or the
-  // raw step name) is the fallback — parity with the Overview map.
-  const title = packLabel(
-    part.labelKey,
-    part.labelKey ? t(part.labelKey, { defaultValue: part.title }) : part.title,
-  );
+  const title = part.labelKey
+    ? tAutomations(part.labelKey, { defaultValue: part.title })
+    : part.title;
   const showBody = !BODY_SUPPRESSED.has(part.partState);
   const isGate = part.treatment === 'gate';
 

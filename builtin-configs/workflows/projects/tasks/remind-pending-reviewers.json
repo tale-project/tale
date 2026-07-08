@@ -1,6 +1,6 @@
 {
   "name": "Remind reviewers of pending reviews",
-  "description": "Keeps the human gate from starving: every 30 minutes, pending task reviews and human-input requests are swept — after 4h the designated reviewer gets a reminder, after 24h the wait escalates to org admins (and stops repeating: each stage fires once per approval, stamped atomically in the sweep). Tune the hour thresholds on the sweep steps or deactivate the schedule in Automations.",
+  "description": "Keeps the human gate from starving: every 30 minutes, pending task reviews and human-input requests are swept — after 4h the designated reviewer gets a reminder, after 24h the wait escalates to org admins (and stops repeating: each stage fires once per approval, stamped atomically in the sweep). Tune the hour thresholds on the sweep steps or deactivate the schedule on the workflow's Triggers tab.",
   "i18n": {
     "en": {
       "name": "Remind reviewers of pending reviews",
@@ -223,7 +223,7 @@
     },
     {
       "stepSlug": "escalate_input",
-      "name": "Tell admins an automation is waiting",
+      "name": "Tell admins a workflow is waiting",
       "stepType": "action",
       "config": {
         "type": "notification",

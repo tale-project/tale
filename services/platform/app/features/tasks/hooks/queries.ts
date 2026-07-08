@@ -3,17 +3,21 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
+type TaskStatusFilter =
+  | 'backlog'
+  | 'todo'
+  | 'in_progress'
+  | 'in_review'
+  | 'done'
+  | 'cancelled';
+
 export function useTasksByProject(
   projectId: Id<'projects'> | undefined,
   options?: {
     includeArchived?: boolean;
-    status?:
-      | 'backlog'
-      | 'todo'
-      | 'in_progress'
-      | 'in_review'
-      | 'done'
-      | 'cancelled';
+    status?: TaskStatusFilter;
+    /** Only tasks whose status is in this set (server-side view scoping). */
+    statuses?: TaskStatusFilter[];
     assigneeId?: string;
   },
 ) {
@@ -26,6 +30,7 @@ export function useTasksByProject(
           organizationId,
           includeArchived: options?.includeArchived,
           status: options?.status,
+          statuses: options?.statuses,
           assigneeId: options?.assigneeId,
         }
       : 'skip',

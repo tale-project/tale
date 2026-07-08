@@ -39,4 +39,4 @@ Un worker tourne dans le budget de tour restant de son agent et ne peut pas l'é
 | L'agent peut bien répondre directement                   |        | ✓          |          |
 | Le travail a des étapes fixes avec des validations entre |        |            | ✓        |
 
-Le coût d'un worker est une exécution de plus ; le gain, un contexte propre avec exactement les bonnes capacités pour la sous-tâche — et une carte de job qui montre ce qui s'est passé. Quand les étapes sont fixes et que tu veux des validations ou de la planification entre elles, une automatisation est la bonne forme.
+Le coût d'un worker est une exécution de plus ; le gain, un contexte propre avec exactement les bonnes capacités pour la sous-tâche — et une carte de job qui montre ce qui s'est passé. Quand les étapes sont fixes et que tu veux des validations ou de la planification entre elles, un workflow est la bonne forme.

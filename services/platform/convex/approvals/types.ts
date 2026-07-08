@@ -39,6 +39,7 @@ export interface WorkflowCreationMetadata {
     version?: string;
     workflowType?: 'predefined';
     config?: Record<string, unknown>;
+    specification?: string;
   };
   stepsConfig: Array<{
     stepSlug: string;
@@ -76,6 +77,7 @@ export interface WorkflowUpdateMetadata {
     version?: string;
     workflowType?: 'predefined';
     config?: Record<string, unknown>;
+    specification?: string;
   };
   stepsConfig?: Array<{
     stepSlug: string;

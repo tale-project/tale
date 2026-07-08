@@ -1,6 +1,6 @@
 {
   "name": "Sweep stale in-progress work",
-  "description": "Hourly health check for agent work: agent-assigned tasks sitting In progress with no movement for 24h are rolled back to To do with an explanatory comment, so the board itself shows 'this needs another look' instead of work silently rotting. One-shot per stall by construction — the rollback restarts the staleness clock. Also re-emits the slot-freed wake for queued runs older than 15 minutes (the lost-event backstop for the queued-run-retry workflow). Tune the threshold by editing the sweep step's staleAfterHours, or deactivate the schedule in Automations.",
+  "description": "Hourly health check for agent work: agent-assigned tasks sitting In progress with no movement for 24h are rolled back to To do with an explanatory comment, so the board itself shows 'this needs another look' instead of work silently rotting. One-shot per stall by construction — the rollback restarts the staleness clock. Also re-emits the slot-freed wake for queued runs older than 15 minutes (the lost-event backstop for the queued-run-retry workflow). Tune the threshold by editing the sweep step's staleAfterHours, or deactivate the schedule on the workflow's Triggers tab.",
   "i18n": {
     "en": {
       "name": "Sweep stale in-progress work",

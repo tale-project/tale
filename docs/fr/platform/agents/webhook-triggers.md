@@ -5,7 +5,7 @@ description: La surface Workers — un endpoint HTTP par agent vers lequel des s
 
 L'onglet **Workers** d'un agent expose un endpoint HTTP vers lequel un autre système peut POSTer. Le POST exécute l'agent contre la charge utile et retourne la réponse ; rien dans l'UI n'est impliqué. Va-y quand quelque chose hors de Tale a besoin que l'agent réponde à une question — un bot Slack, un gestionnaire de formulaire, un travail planifié.
 
-Cette page couvre uniquement la surface Workers. Pour l'équivalent côté développeur (appeler Tale depuis des scripts quelconques), voir [Develop → API reference](/fr/develop/api-reference) ; pour des déclencheurs d'automatisation entrants qui exécutent un workflow plutôt qu'un agent, voir [Automatisations → déclencheurs](/fr/platform/automations/triggers).
+Cette page couvre uniquement la surface Workers. Pour l'équivalent côté développeur (appeler Tale depuis des scripts quelconques), voir [Develop → API reference](/fr/develop/api-reference) ; pour des déclencheurs entrants qui exécutent un workflow plutôt qu'un agent, voir [Workflows → déclencheurs](/fr/platform/workflows/triggers).
 
 ## Un Worker déroulé
 
@@ -21,4 +21,4 @@ La charge par défaut est `{"message": "…"}`. Des champs supplémentaires que 
 
 ## Où ça s'inscrit
 
-Les Workers sont l'équivalent léger, par-agent, de l'API. Ils sont utiles quand l'intégration est « cet agent unique fait cette chose unique » ; pour des flux plus riches, modélise l'appel comme une [Automatisation](/fr/platform/automations/concepts) et pointe l'intégration vers le déclencheur webhook de l'automatisation. Le tutoriel [Déclencher une automatisation via un webhook](/fr/tutorials/developer/trigger-automation-via-webhook) parcourt la forme automatisation de bout en bout.
+Les Workers sont l'équivalent léger, par-agent, de l'API. Ils sont utiles quand l'intégration est « cet agent unique fait cette chose unique » ; pour des flux plus riches, modélise l'appel comme un [workflow](/fr/platform/workflows/concepts) et pointe l'intégration vers le déclencheur webhook du workflow. Le tutoriel [Déclencher un workflow par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) parcourt la forme workflow de bout en bout.

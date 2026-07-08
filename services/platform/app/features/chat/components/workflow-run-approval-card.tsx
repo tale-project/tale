@@ -416,10 +416,10 @@ function WorkflowRunApprovalCardComponent({
             {(executionStatus?.status === 'completed' ||
               executionStatus?.status === 'failed') && (
               <Link
-                to="/dashboard/$id/automations/$amId/executions"
+                to="/dashboard/$id/workflows/$workflowId/executions"
                 params={{
                   id: organizationId,
-                  amId: slugToUrlParam(metadata.workflowSlug),
+                  workflowId: slugToUrlParam(metadata.workflowSlug),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

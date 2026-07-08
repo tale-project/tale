@@ -1,18 +1,18 @@
 {
   "name": "Sync issues from GitHub",
-  "description": "Sync issues from a GitHub repository onto a Tale project board. Each scheduled run lists the repository's issues via the GitHub connector and upserts each one onto the board, keyed by a stable external reference (\"owner/repo#number\") so re-runs update the existing task instead of creating duplicates. Pull requests are skipped — GitHub's issues endpoint returns PRs alongside issues, and only real issues become tasks. The open/closed lifecycle is owned by GitHub (a closed issue moves its task to 'done'; reopening an issue pulls a terminal task back to 'backlog'), while everything in between is owned by local triage and is never clobbered by a sync. Configure `state: \"all\"` (the default) so closing an issue is reflected; narrow to `state: \"open\"` if you only want a one-way intake of active work. This workflow is the GitHub counterpart of the Google Drive / Gmail / Shopify sync automations: provider access lives in the `github` integration connector, and the sync logic lives here as data — there is no GitHub-specific backend code.",
+  "description": "Sync issues from a GitHub repository into a Tale project's backlog. Each scheduled run lists the repository's issues via the GitHub connector and upserts each one as a task, keyed by a stable external reference (\"owner/repo#number\") so re-runs update the existing task instead of creating duplicates. A synced task is a triage proposal: it lands in the backlog (title \"#<number> <title>\", description = the issue body, labels = the issue's label names) and a human starts or closes it from there. Pull requests are skipped — GitHub's issues endpoint returns PRs alongside issues, and only real issues become tasks. The open/closed lifecycle is owned by GitHub (a closed issue moves its task to 'done'; reopening an issue pulls a terminal task back to 'backlog'), while everything in between is owned by local triage and is never clobbered by a sync. Configure `state: \"all\"` (the default) so closing an issue is reflected; narrow to `state: \"open\"` if you only want a one-way intake of active work. This workflow is the GitHub counterpart of the Google Drive / Gmail / Shopify sync workflows: provider access lives in the `github` integration connector, and the sync logic lives here as data — there is no GitHub-specific backend code.",
   "i18n": {
     "en": {
       "name": "Sync issues from GitHub",
-      "description": "Pulls a GitHub repository's issues onto a Tale project board, upserting each by a stable external reference and skipping pull requests."
+      "description": "Pulls a GitHub repository's issues into a Tale project's backlog for triage, upserting each by a stable external reference and skipping pull requests."
     },
     "de": {
       "name": "Issues aus GitHub synchronisieren",
-      "description": "Übernimmt die Issues eines GitHub-Repositorys auf ein Tale-Projektboard, aktualisiert jedes über eine stabile externe Referenz und überspringt Pull Requests."
+      "description": "Übernimmt die Issues eines GitHub-Repositorys zur Sichtung ins Backlog eines Tale-Projekts, aktualisiert jedes über eine stabile externe Referenz und überspringt Pull Requests."
     },
     "fr": {
-      "name": "Synchroniser les tickets depuis GitHub",
-      "description": "Importe les tickets d'un dépôt GitHub sur un tableau de projet Tale, en mettant à jour chacun via une référence externe stable et en ignorant les pull requests."
+      "name": "Synchroniser les issues depuis GitHub",
+      "description": "Importe les issues d'un dépôt GitHub dans le backlog d'un projet Tale pour le tri, en mettant à jour chacune via une référence externe stable et en ignorant les pull requests."
     }
   },
   "version": "1.0.0",
@@ -147,8 +147,9 @@
           "externalSystem": "github",
           "externalId": "{{input.owner + '/' + input.repo + '#' + loop.item.number}}",
           "externalUrl": "{{loop.item.html_url}}",
-          "title": "{{loop.item.title}}",
+          "title": "#{{loop.item.number}} {{loop.item.title}}",
           "description": "{{loop.item.body || ''}}",
+          "labels": "{{loop.item.labels | map('name')}}",
           "externalState": "{{loop.item.state}}"
         }
       },

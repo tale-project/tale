@@ -1,6 +1,6 @@
 {
   "name": "test",
-  "description": "Trivial start-only workflow used by the automation E2E spec",
+  "description": "Trivial start-only workflow used by the workflow E2E spec",
   "steps": [
     {
       "stepSlug": "start",

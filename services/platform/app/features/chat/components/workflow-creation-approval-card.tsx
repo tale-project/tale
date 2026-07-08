@@ -479,10 +479,12 @@ function WorkflowCreationApprovalCardComponent({
             </HStack>
             {metadata.createdWorkflowSlug && (
               <Link
-                to="/dashboard/$id/automations/$amId"
+                to="/dashboard/$id/workflows/$workflowId"
                 params={{
                   id: organizationId,
-                  amId: slugToUrlParam(metadata.createdWorkflowSlug ?? ''),
+                  workflowId: slugToUrlParam(
+                    metadata.createdWorkflowSlug ?? '',
+                  ),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

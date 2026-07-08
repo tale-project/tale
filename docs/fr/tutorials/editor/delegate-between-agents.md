@@ -31,4 +31,4 @@ Un worker à court de temps ou frappé par une erreur se termine avec un statut 
 
 ## Où cela s'inscrit
 
-Une demande, un worker, une carte : c'est la plus petite forme utile. La même mécanique passe à l'échelle avec plusieurs workers dans un tour — chacun a sa carte, sa progression et sa transcription. Pour des étapes fixes avec validations ou planification entre elles, prends plutôt une [automatisation](/platform/automations/concepts).
+Une demande, un worker, une carte : c'est la plus petite forme utile. La même mécanique passe à l'échelle avec plusieurs workers dans un tour — chacun a sa carte, sa progression et sa transcription. Pour des étapes fixes avec validations ou planification entre elles, prends plutôt un [workflow](/fr/platform/workflows/concepts).

@@ -31,4 +31,4 @@ Ein Worker, dem die Zeit ausgeht oder der auf einen Fehler stößt, endet mit si
 
 ## Wo das hingehört
 
-Eine Anfrage, ein Worker, eine Karte ist die kleinste nützliche Form. Dieselbe Mechanik skaliert auf mehrere Worker in einem Zug — jeder bekommt seine eigene Karte, seinen eigenen Fortschritt und sein eigenes Protokoll. Für feste Stufen mit Freigaben oder Zeitplänen dazwischen greif stattdessen zu einer [Automation](/platform/automations/concepts).
+Eine Anfrage, ein Worker, eine Karte ist die kleinste nützliche Form. Dieselbe Mechanik skaliert auf mehrere Worker in einem Zug — jeder bekommt seine eigene Karte, seinen eigenen Fortschritt und sein eigenes Protokoll. Für feste Stufen mit Freigaben oder Zeitplänen dazwischen greif stattdessen zu einem [Workflow](/de/platform/workflows/concepts).

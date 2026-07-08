@@ -36,14 +36,14 @@ The conversation then flows: user message → instructions frame the reply → k
 
 ## When to reach for it
 
-A single agent is the right shape when the conversation stays in one domain and one voice. Reach for an [automation](/platform/automations/concepts) when the work is multi-step and you want approvals or scheduling in between; reach for a raw chat (no agent) when you are exploring an answer yourself and the model's defaults are fine.
+A single agent is the right shape when the conversation stays in one domain and one voice. Reach for a [workflow](/platform/workflows/concepts) when the work is multi-step and you want approvals or scheduling in between; reach for a raw chat (no agent) when you are exploring an answer yourself and the model's defaults are fine.
 
-| Use … when                                     | Agent | Raw chat | Automation |
-| ---------------------------------------------- | ----- | -------- | ---------- |
-| Same question recurs                           | ✓     |          |            |
-| The voice or constraints matter                | ✓     |          |            |
-| You need approvals or scheduling between steps |       |          | ✓          |
-| You are exploring an answer one time           |       | ✓        |            |
+| Use … when                                     | Agent | Raw chat | Workflow |
+| ---------------------------------------------- | ----- | -------- | -------- |
+| Same question recurs                           | ✓     |          |          |
+| The voice or constraints matter                | ✓     |          |          |
+| You need approvals or scheduling between steps |       |          | ✓        |
+| You are exploring an answer one time           |       | ✓        |          |
 
 ## Build one
 

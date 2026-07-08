@@ -26,9 +26,9 @@ async function appInstalled(
   organizationId: string,
   appSlug: string,
 ): Promise<boolean> {
-  const row = await ctx.db
+  const row = await (ctx.db as any)
     .query('appInstallations')
-    .withIndex('by_org_slug', (q) =>
+    .withIndex('by_org_slug', (q: any) =>
       q.eq('organizationId', organizationId).eq('appSlug', appSlug),
     )
     .first();
@@ -45,9 +45,9 @@ export const migration: DbMigration = {
     const appSlug = appSlugOf(str(doc.workflowSlug));
     if (!organizationId || !appSlug) return;
     if (!(await appInstalled(ctx, organizationId, appSlug))) return;
-    const binding = await ctx.db
+    const binding = await (ctx.db as any)
       .query('appProjectBindings')
-      .withIndex('by_org_slug_project', (q) =>
+      .withIndex('by_org_slug_project', (q: any) =>
         q.eq('organizationId', organizationId).eq('appSlug', appSlug),
       )
       .first();

@@ -24,10 +24,16 @@ const EXAMPLES_DIR = path.resolve(
 );
 
 describe('builtin-configs/agents/*.json invariants', () => {
-  const files = readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith('.json'));
+  // Recursive: agents moved to a tree layout (chat/, github/), and
+  // a non-recursive listing silently shrank this gate to router.json only.
+  const files = readdirSync(EXAMPLES_DIR, { recursive: true })
+    .map(String)
+    .filter((f) => f.endsWith('.json'))
+    .sort();
 
-  it('discovered at least one example agent', () => {
-    expect(files.length).toBeGreaterThan(0);
+  it('discovered the agent tree, not just the domain root', () => {
+    expect(files.length).toBeGreaterThan(1);
+    expect(files.some((f) => f.includes('/'))).toBe(true);
   });
 
   for (const file of files) {

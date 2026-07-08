@@ -355,7 +355,7 @@
         },
         "optional": false
       },
-      "appSlug": {
+      "automationSlug": {
         "ft": {
           "type": "string"
         },
@@ -412,6 +412,389 @@
           "type": "string"
         },
         "optional": false
+      }
+    },
+    "agentJobs": {
+      "activeProgressId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "completedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "costCents": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "description": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "durationMs": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "failureReason": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "generation_error"
+            },
+            {
+              "type": "literal",
+              "value": "deadline_exceeded"
+            },
+            {
+              "type": "literal",
+              "value": "budget_exhausted"
+            },
+            {
+              "type": "literal",
+              "value": "orphaned"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "inputTokens": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "jobThreadId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "messageId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "name": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "outputTokens": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "parentAgentSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "progress": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "content": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "createdAt": {
+                "fieldType": {
+                  "type": "number"
+                },
+                "optional": false
+              },
+              "id": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "note": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": true
+              },
+              "status": {
+                "fieldType": {
+                  "type": "union",
+                  "value": [
+                    {
+                      "type": "literal",
+                      "value": "pending"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "in_progress"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "done"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "failed"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "cancelled"
+                    }
+                  ]
+                },
+                "optional": false
+              },
+              "updatedAt": {
+                "fieldType": {
+                  "type": "number"
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": false
+      },
+      "recentOpIds": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "string"
+          }
+        },
+        "optional": false
+      },
+      "resultText": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "spec": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "effectiveTools": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": false
+            },
+            "input": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "instructions": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "integrations": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": false
+            },
+            "methodologySlug": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "methodologyVersionHash": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "model": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "modelTier": {
+              "fieldType": {
+                "type": "union",
+                "value": [
+                  {
+                    "type": "literal",
+                    "value": "fast"
+                  },
+                  {
+                    "type": "literal",
+                    "value": "capable"
+                  }
+                ]
+              },
+              "optional": true
+            },
+            "narrowed": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "integrations": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "optional": false
+                  },
+                  "methodology": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  },
+                  "skills": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "optional": false
+                  },
+                  "tools": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "optional": false
+                  }
+                }
+              },
+              "optional": false
+            },
+            "provider": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "renderedMethodology": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "requestedTools": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": false
+            },
+            "skills": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": false
+            }
+          }
+        },
+        "optional": false
+      },
+      "specVersion": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "startedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "running"
+            },
+            {
+              "type": "literal",
+              "value": "completed"
+            },
+            {
+              "type": "literal",
+              "value": "failed"
+            },
+            {
+              "type": "literal",
+              "value": "timed_out"
+            },
+            {
+              "type": "literal",
+              "value": "cancelled"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "threadId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "toolCallId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "userId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
       }
     },
     "agentRunCounters": {
@@ -799,196 +1182,6 @@
         "optional": false
       },
       "token": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      }
-    },
-    "appInstallations": {
-      "appName": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "appSlug": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "config": {
-        "ft": {
-          "type": "any"
-        },
-        "optional": true
-      },
-      "installedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "installedBy": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "requiredIntegrations": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "string"
-          }
-        },
-        "optional": false
-      },
-      "resources": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "object",
-            "value": {
-              "contentHash": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              },
-              "domain": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              },
-              "path": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              }
-            }
-          }
-        },
-        "optional": false
-      },
-      "status": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "active"
-            },
-            {
-              "type": "literal",
-              "value": "broken"
-            }
-          ]
-        },
-        "optional": false
-      },
-      "uninstalling": {
-        "ft": {
-          "type": "boolean"
-        },
-        "optional": true
-      }
-    },
-    "appProjectBindings": {
-      "appSlug": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "boundAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "boundBy": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "config": {
-        "ft": {
-          "type": "any"
-        },
-        "optional": true
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "projectId": {
-        "ft": {
-          "tableName": "projects",
-          "type": "id"
-        },
-        "optional": false
-      }
-    },
-    "appUploadClaims": {
-      "claimedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "expiresAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "slug": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      }
-    },
-    "appUploadIntents": {
-      "createdAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "storageId": {
-        "ft": {
-          "tableName": "_storage",
-          "type": "id"
-        },
-        "optional": false
-      },
-      "userId": {
         "ft": {
           "type": "string"
         },
@@ -1787,6 +1980,190 @@
         "optional": true
       }
     },
+    "automationInstallations": {
+      "automationName": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "automationSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "installedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "installedBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "requiredIntegrations": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "string"
+          }
+        },
+        "optional": false
+      },
+      "resources": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "adopted": {
+                "fieldType": {
+                  "type": "boolean"
+                },
+                "optional": true
+              },
+              "contentHash": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "domain": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "path": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": false
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "active"
+            },
+            {
+              "type": "literal",
+              "value": "broken"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "uninstalling": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      }
+    },
+    "automationProjectBindings": {
+      "automationSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "boundAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "boundBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "projectId": {
+        "ft": {
+          "tableName": "projects",
+          "type": "id"
+        },
+        "optional": false
+      }
+    },
+    "automationUploadClaims": {
+      "claimedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "expiresAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "slug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      }
+    },
+    "automationUploadIntents": {
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "storageId": {
+        "ft": {
+          "tableName": "_storage",
+          "type": "id"
+        },
+        "optional": false
+      },
+      "userId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      }
+    },
     "backendControl": {
       "drainExpiresAt": {
         "ft": {
@@ -2261,6 +2638,12 @@
         },
         "optional": false
       },
+      "deferredPersist": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
       "deliveredAt": {
         "ft": {
           "type": "number"
@@ -2306,6 +2689,12 @@
           "type": "string"
         },
         "optional": false
+      },
+      "savedMessageId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
       },
       "status": {
         "ft": {
@@ -4337,6 +4726,26 @@
           "type": "string"
         },
         "optional": false
+      },
+      "smtpAuth": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "passwordEncrypted": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "username": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            }
+          }
+        },
+        "optional": true
       },
       "sqlConnectionConfig": {
         "ft": {
@@ -6636,6 +7045,10 @@
             {
               "type": "literal",
               "value": "agent_workforce"
+            },
+            {
+              "type": "literal",
+              "value": "agent_jobs"
             },
             {
               "type": "literal",
@@ -10837,6 +11250,12 @@
         },
         "optional": true
       },
+      "automationSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "branchSelections": {
         "ft": {
           "type": "string"
@@ -11070,6 +11489,10 @@
             {
               "type": "literal",
               "value": "task_discussion"
+            },
+            {
+              "type": "literal",
+              "value": "automation_discussion"
             }
           ]
         },
@@ -11557,6 +11980,18 @@
         "optional": true
       },
       "streamId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "subjectId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "subjectType": {
         "ft": {
           "type": "string"
         },
@@ -12088,6 +12523,12 @@
     },
     "usageLedger": {
       "agentSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "apiKeyId": {
         "ft": {
           "type": "string"
         },
@@ -13876,7 +14317,7 @@
       }
     },
     "wfInstallations": {
-      "appSlug": {
+      "automationSlug": {
         "ft": {
           "type": "string"
         },

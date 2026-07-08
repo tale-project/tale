@@ -50,6 +50,42 @@ import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_
 import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
 import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
+import { meta as threadMetadataAppDiscussionMeta } from '../versions/v0_2_90/01_thread_metadata_app_discussion/meta';
+import { migration as backfillConversationIntegrationName } from '../versions/v0_2_90/02_backfill_conversation_integration_name';
+import { meta as backfillConversationIntegrationNameMeta } from '../versions/v0_2_90/02_backfill_conversation_integration_name/meta';
+import { meta as installEmailAppsMeta } from '../versions/v0_2_90/03_install_email_apps/meta';
+// 04/05/07 are `node` workforce-retirement migrations — meta only (handlers in
+// registry.node.ts); 06/08 are `db` snapshot-deletes — meta + handler here.
+import { meta as dropAgentWorkforcePolicyMeta } from '../versions/v0_2_90/04_drop_agent_workforce_policy/meta';
+import { meta as removeWorkforceAgentsMeta } from '../versions/v0_2_90/05_remove_workforce_agents/meta';
+import { migration as dropWorkforceAgentInstallations } from '../versions/v0_2_90/06_drop_workforce_agent_installations';
+import { meta as dropWorkforceAgentInstallationsMeta } from '../versions/v0_2_90/06_drop_workforce_agent_installations/meta';
+import { meta as removeRetiredTaskWorkflowsMeta } from '../versions/v0_2_90/07_remove_retired_task_workflows/meta';
+import { migration as deleteWorkforceDigestNotifications } from '../versions/v0_2_90/08_delete_workforce_digest_notifications';
+import { meta as deleteWorkforceDigestNotificationsMeta } from '../versions/v0_2_90/08_delete_workforce_digest_notifications/meta';
+import { migration as appConfigToScheduleVariables } from '../versions/v0_2_91/01_app_config_to_schedule_variables';
+import { meta as appConfigToScheduleVariablesMeta } from '../versions/v0_2_91/01_app_config_to_schedule_variables/meta';
+// 01 is a `node` retirement migration — meta only (handler in
+// registry.node.ts); 02 is a `db` additive trigger backfill.
+import { meta as retireIssueDeskMeta } from '../versions/v0_2_92/01_retire_issue_desk/meta';
+import { migration as triageBacklogStartTrigger } from '../versions/v0_2_92/02_triage_backlog_start_trigger';
+import { meta as triageBacklogStartTriggerMeta } from '../versions/v0_2_92/02_triage_backlog_start_trigger/meta';
+import { migration as automationSlugFields } from '../versions/v0_2_93/01_automation_slug_fields';
+import { meta as automationSlugFieldsMeta } from '../versions/v0_2_93/01_automation_slug_fields/meta';
+import { migration as appProjectBindingsAutomationSlug } from '../versions/v0_2_93/02_app_project_bindings_automation_slug';
+import { meta as appProjectBindingsAutomationSlugMeta } from '../versions/v0_2_93/02_app_project_bindings_automation_slug/meta';
+import { migration as threadMetadataAutomationSlug } from '../versions/v0_2_93/03_thread_metadata_automation_slug';
+import { meta as threadMetadataAutomationSlugMeta } from '../versions/v0_2_93/03_thread_metadata_automation_slug/meta';
+import { migration as appInstallationsTable } from '../versions/v0_2_93/04_app_installations_table';
+import { meta as appInstallationsTableMeta } from '../versions/v0_2_93/04_app_installations_table/meta';
+import { migration as appProjectBindingsTable } from '../versions/v0_2_93/05_app_project_bindings_table';
+import { meta as appProjectBindingsTableMeta } from '../versions/v0_2_93/05_app_project_bindings_table/meta';
+import { migration as appUploadClaimsTable } from '../versions/v0_2_93/06_app_upload_claims_table';
+import { meta as appUploadClaimsTableMeta } from '../versions/v0_2_93/06_app_upload_claims_table/meta';
+import { migration as appUploadIntentsTable } from '../versions/v0_2_93/07_app_upload_intents_table';
+import { meta as appUploadIntentsTableMeta } from '../versions/v0_2_93/07_app_upload_intents_table/meta';
+import { migration as threadMetadataAutomationDiscussion } from '../versions/v0_2_93/08_thread_metadata_automation_discussion';
+import { meta as threadMetadataAutomationDiscussionMeta } from '../versions/v0_2_93/08_thread_metadata_automation_discussion/meta';
 import { migration as normalizeAuthUserEmails } from '../versions/v0_3_3/01_normalize_auth_user_emails';
 import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_3_3/01_normalize_auth_user_emails/meta';
 // `node` file-rewrite migration — only its meta lives here (handler in
@@ -90,6 +126,25 @@ export const ALL_META: readonly MigrationMeta[] = [
   agentKindOpencodeMeta,
   normalizeAuthUserEmailsMeta,
   brandingSingleAccentColorMeta,
+  threadMetadataAppDiscussionMeta,
+  backfillConversationIntegrationNameMeta,
+  installEmailAppsMeta,
+  dropAgentWorkforcePolicyMeta,
+  removeWorkforceAgentsMeta,
+  dropWorkforceAgentInstallationsMeta,
+  removeRetiredTaskWorkflowsMeta,
+  deleteWorkforceDigestNotificationsMeta,
+  appConfigToScheduleVariablesMeta,
+  retireIssueDeskMeta,
+  triageBacklogStartTriggerMeta,
+  automationSlugFieldsMeta,
+  appProjectBindingsAutomationSlugMeta,
+  threadMetadataAutomationSlugMeta,
+  appInstallationsTableMeta,
+  appProjectBindingsTableMeta,
+  appUploadClaimsTableMeta,
+  appUploadIntentsTableMeta,
+  threadMetadataAutomationDiscussionMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
@@ -101,6 +156,22 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [appConfigToBindings.meta.id]: appConfigToBindings,
   [appSchedulesPerProject.meta.id]: appSchedulesPerProject,
   [threadFilesAbsPaths.meta.id]: threadFilesAbsPaths,
+  [backfillConversationIntegrationName.meta.id]:
+    backfillConversationIntegrationName,
+  [dropWorkforceAgentInstallations.meta.id]: dropWorkforceAgentInstallations,
+  [deleteWorkforceDigestNotifications.meta.id]:
+    deleteWorkforceDigestNotifications,
+  [appConfigToScheduleVariables.meta.id]: appConfigToScheduleVariables,
+  [triageBacklogStartTrigger.meta.id]: triageBacklogStartTrigger,
+  [automationSlugFields.meta.id]: automationSlugFields,
+  [appProjectBindingsAutomationSlug.meta.id]: appProjectBindingsAutomationSlug,
+  [threadMetadataAutomationSlug.meta.id]: threadMetadataAutomationSlug,
+  [appInstallationsTable.meta.id]: appInstallationsTable,
+  [appProjectBindingsTable.meta.id]: appProjectBindingsTable,
+  [appUploadClaimsTable.meta.id]: appUploadClaimsTable,
+  [appUploadIntentsTable.meta.id]: appUploadIntentsTable,
+  [threadMetadataAutomationDiscussion.meta.id]:
+    threadMetadataAutomationDiscussion,
 };
 
 /** Runnable `component` migrations, keyed by `meta.id`. */

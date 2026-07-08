@@ -50,7 +50,7 @@ import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
-import { resolveAppAssetPathChecked } from '../../apps/file_utils';
+import { resolveAutomationAssetPathChecked } from '../../automations/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
@@ -613,12 +613,12 @@ export const runSandboxScript = internalAction({
       const slash = rest.indexOf('/');
       if (slash <= 0) return fail(`invalid pack:// reference "${args.script}"`);
       // `pack://<app>/<path>` resolves against the APP bundle (apps/<app>/...).
-      const appSlug = rest.slice(0, slash);
+      const automationSlug = rest.slice(0, slash);
       const relPath = rest.slice(slash + 1);
       const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const scriptPath = await resolveAppAssetPathChecked(
+      const scriptPath = await resolveAutomationAssetPathChecked(
         orgSlug,
-        appSlug,
+        automationSlug,
         relPath,
       );
       const scriptContent = await readFile(scriptPath, 'utf8');

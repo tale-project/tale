@@ -74,7 +74,9 @@ describe('IntegrationCard', () => {
         onClick={handleClick}
       />,
     );
-    await user.click(screen.getByRole('button'));
+    // The card renders both its own button (aria-label = title) and the ⋯ menu
+    // trigger, so target the card button by its accessible name.
+    await user.click(screen.getByRole('button', { name: 'Shopify' }));
     expect(handleClick).toHaveBeenCalledOnce();
   });
 
@@ -88,7 +90,7 @@ describe('IntegrationCard', () => {
         onClick={handleClick}
       />,
     );
-    screen.getByRole('button').focus();
+    screen.getByRole('button', { name: 'Shopify' }).focus();
     await user.keyboard('{Enter}');
     expect(handleClick).toHaveBeenCalledOnce();
   });
@@ -126,7 +128,7 @@ describe('IntegrationCard', () => {
         onClick={handleClick}
       />,
     );
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Shopify' })).toBeDisabled();
   });
 
   describe('accessibility', () => {

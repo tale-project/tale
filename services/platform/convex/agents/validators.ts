@@ -4,7 +4,7 @@
  * Runtime-agnostic — safe to import from both Node.js and edge runtimes.
  */
 
-import { isValidAppSlug } from '../../lib/shared/schemas/apps';
+import { isValidAutomationSlug } from '../../lib/shared/schemas/automations';
 
 const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 
@@ -32,7 +32,7 @@ export function agentSlugFromFileName(relativePath: string): string {
 
 /**
  * An agent identity. Either a flat GLOBAL name (`coder`) or an app-owned
- * COMPOSITE `<appSlug>/<name>` (`issue-desk/desk-coordinator`). The composite
+ * COMPOSITE `<automationSlug>/<name>` (`issue-desk/desk-coordinator`). The composite
  * carries its owning app so the slug stays a globally-unique, self-describing
  * identity; app-owned agents live under the app's bundle, invisible to the
  * global agent surfaces. At most one `/`, each segment validated independently
@@ -41,7 +41,7 @@ export function agentSlugFromFileName(relativePath: string): string {
 export function validateAgentName(name: string): boolean {
   const slash = name.indexOf('/');
   if (slash === -1) return AGENT_NAME_REGEX.test(name);
-  const appSlug = name.slice(0, slash);
+  const automationSlug = name.slice(0, slash);
   const rest = name.slice(slash + 1);
-  return isValidAppSlug(appSlug) && AGENT_NAME_REGEX.test(rest);
+  return isValidAutomationSlug(automationSlug) && AGENT_NAME_REGEX.test(rest);
 }
