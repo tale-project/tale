@@ -52,10 +52,11 @@ export function resolveCatalogAppDir(slug: string): string {
 }
 
 /**
- * Slugs of the apps installed in this org, by scanning `org/apps/` subdirectories.
- * The on-disk bundle is the source of truth for which app owns a resource, so the
- * global agent/workflow lists use this to know which app dirs to also scan and
- * tag. A missing `org/apps/` root means no installed apps.
+ * Slugs of every app BUNDLE present on disk under `org/apps/` (uploaded private
+ * apps and installed shells). NOT the install signal — `appInstallations` is
+ * authoritative for which apps are live. Used where all bundles must be
+ * discovered (e.g. hub listing); agent/workflow pickers must query
+ * `listAppInstallationsInternal` instead. A missing `org/apps/` root → `[]`.
  */
 export async function listInstalledAppSlugsFromDisk(
   orgSlug: string,

@@ -25,7 +25,6 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -303,9 +302,13 @@ export const listAgents = action({
     );
 
     // App-owned agents (org/apps/<app>/agents/) — invisible to the global walk
-    // above. Surface them too, grouped under their app (folder = app slug) and
-    // tagged with appSlug so the global agents list can mark the group.
-    const appSlugs = await listInstalledAppSlugsFromDisk(orgSlug);
+    // above. Surface only INSTALLED apps: uploaded private bundles also live
+    // under org/apps/ but must not contribute agents until install (and private
+    // uploads keep the bundle on disk after uninstall, so a disk scan is wrong).
+    const appSlugs = await ctx.runQuery(
+      internal.apps.install_mutations.listAppInstallationsInternal,
+      { organizationId: args.organizationId },
+    );
     const appResults = (
       await Promise.all(
         appSlugs.map(async (app) => {

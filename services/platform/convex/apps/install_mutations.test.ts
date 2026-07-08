@@ -517,3 +517,27 @@ describe('reconcileAppSchedules', () => {
     });
   });
 });
+
+describe('listAppInstallationsInternal (#2564)', () => {
+  it('returns only app slugs with an appInstallations row', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appInstallations', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: 'tester',
+        status: 'active',
+        requiredIntegrations: [],
+        resources: [],
+      });
+    });
+
+    const slugs = await t.query(
+      internal.apps.install_mutations.listAppInstallationsInternal,
+      { organizationId: ORG },
+    );
+
+    expect(slugs).toEqual(['issue-desk']);
+  });
+});
