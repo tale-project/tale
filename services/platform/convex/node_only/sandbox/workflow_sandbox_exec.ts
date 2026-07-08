@@ -11,8 +11,8 @@
  * never produced an outcome; see `isRetryableExecutionError`), so the Convex
  * workflow step retries and, if it keeps failing, fails the workflow at that
  * step rather than laundering the failure into a synthesized "success" that
- * marches downstream. (This extends the existing `SessionNotFoundError`
- * resume-retry seam.)
+ * marches downstream. (`SessionNotFoundError` — the session/container is gone —
+ * escapes the same way on EVERY segment; see `sandboxAgentThrowDisposition`.)
  *
  *  - runSandboxScript: deterministic frozen-script run. Reuses the existing
  *    `executeCode` spawner path (no hot-path refactor); the workflow
@@ -188,14 +188,54 @@ const TOKEN_REFETCH_BACKOFF_MS = 3000;
 /**
  * Thrown by `runSandboxAgent` for an infrastructure/execution failure (the agent
  * never produced a legible outcome — see `isRetryableExecutionError`). The outer
- * `catch` re-throws it (like `SessionNotFoundError` on resume) so it escapes to
- * the Convex workflow step's retry rather than being converted to `{ok:false}`.
+ * `catch` re-throws it (like `SessionNotFoundError`) so it escapes to the
+ * Convex workflow step's retry rather than being converted to `{ok:false}`.
+ * Exported for the `sandboxAgentThrowDisposition` unit test only.
  */
-class SandboxAgentExecutionError extends Error {
+export class SandboxAgentExecutionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SandboxAgentExecutionError';
   }
+}
+
+/** How `runSandboxAgent`'s catch treats an error thrown mid-segment. */
+export type SandboxAgentThrowDisposition =
+  | 'session-gone'
+  | 'rethrow'
+  | 'park'
+  | 'fail';
+
+/**
+ * Classify an error thrown during a sandbox agent segment — a pure seam
+ * (mirrors `agent_run_outcome.ts`) so the precedence is unit-testable.
+ *
+ *  - 'session-gone': the spawner's definitive 404 — the session/container is
+ *    GONE. Retryable on EVERY segment, not just resume: a resume's exec died
+ *    past the runnerd detach-grace, or a FRESH segment's container vanished
+ *    out-of-band mid-setup/mid-run (observed 2026-07-08: an externally removed
+ *    container turned a desk step into a laundered
+ *    `{ok:false, error:'session … not found'}` — the very next step proved the
+ *    state recoverable by re-creating against the preserved workspace). The
+ *    caller drops the step's checkpoint (workflow scope; a no-op on fresh) and
+ *    re-throws so the engine's retry restarts FRESH.
+ *  - 'rethrow': an infrastructure/execution error (`SandboxAgentExecutionError`)
+ *    or token-source exhaustion (`TokenSourceError`) — escape to the workflow
+ *    step's retry; a persistent failure fails the execution loudly instead of
+ *    laundering into a business `{ok:false}` that flows downstream.
+ *  - 'park': WAIT_FIFO / spawner 429 — not a failure; the step parks as
+ *    `awaiting_capacity` and the durable handler re-enters it.
+ *  - 'fail': everything else — a terminal business failure returned as
+ *    `{ok:false}` for a following condition to branch on.
+ */
+export function sandboxAgentThrowDisposition(
+  e: unknown,
+): SandboxAgentThrowDisposition {
+  if (e instanceof SessionNotFoundError) return 'session-gone';
+  if (e instanceof SandboxAgentExecutionError) return 'rethrow';
+  if (e instanceof TokenSourceError) return 'rethrow';
+  if (isWaitFifoError(e) || e instanceof SpawnerBusyError) return 'park';
+  return 'fail';
 }
 
 /**
@@ -2084,16 +2124,20 @@ export const runSandboxAgent = internalAction({
         }),
       };
     } catch (e) {
-      // A RESUME whose session/container is GONE (a hard kill took it down past
-      // the runnerd detach-grace): the checkpoint now points at a dead exec.
-      // RE-THROW so the step's retry restarts FRESH (the `finally` below tears
-      // down + deletes the checkpoint first, so the retry finds none and
-      // re-creates) — re-cloning + continuing from the already-pushed branch —
-      // instead of giving up with ok:false on a checkpoint it can never resume.
-      if (resuming && e instanceof SessionNotFoundError) {
+      const disposition = sandboxAgentThrowDisposition(e);
+      // The session/container is GONE — on resume the checkpoint points at a
+      // dead exec (a hard kill past the runnerd detach-grace); on a FRESH
+      // segment the container vanished out-of-band mid-setup/mid-run. Either
+      // way RE-THROW so the step's retry restarts FRESH against the preserved
+      // workspace (for step scope, the `finally` below tears down first so the
+      // retry re-creates) — instead of giving up on a checkpoint it can never
+      // resume, or laundering an infrastructure loss into an `ok:false`
+      // business outcome that flows downstream.
+      if (disposition === 'session-gone') {
         // Workflow scope skips the finally-teardown, so drop the dead
         // checkpoint HERE — otherwise every retry would re-load it, re-attach
         // the dead exec, and loop until the engine's retry budget exhausts.
+        // (A fresh segment has no checkpoint; the delete is a no-op.)
         if (preserveSessionAfterStep) {
           try {
             await ctx.runMutation(
@@ -2109,20 +2153,12 @@ export const runSandboxAgent = internalAction({
         }
         throw e;
       }
-      // An infrastructure/execution error: propagate to the workflow step's
-      // retry (re-throw, don't launder into {ok:false} that flows downstream).
+      // An infrastructure/execution error (SandboxAgentExecutionError) or
+      // token-source exhaustion (TokenSourceError): propagate to the workflow
+      // step's retry — see `sandboxAgentThrowDisposition` for the rationale.
       // The re-throw paths deliberately do NOT finalize — the orphaned 'running'
       // row is reclaimed by recoverStuckTaskRuns so the fresh retry re-admits.
-      if (e instanceof SandboxAgentExecutionError) {
-        throw e;
-      }
-      // Token-source exhaustion (all cached tokens + the in-sandbox broker
-      // re-fetches still 401/429): an operational exception, NOT a business
-      // outcome. RE-THROW so the engine's COLD retry restarts FRESH (destroy
-      // sandbox, re-resolve the pool) and, if it keeps failing, the execution
-      // fails loudly — instead of laundering a dead credential into a quiet
-      // `ok:false` that the desk-process would route to a rollback-as-done.
-      if (e instanceof TokenSourceError) {
+      if (disposition === 'rethrow') {
         throw e;
       }
       // Park-on-capacity (NOT a failure): WAIT_FIFO (lost the per-org slot race
@@ -2134,7 +2170,7 @@ export const runSandboxAgent = internalAction({
       // 429 (the inner create-catch marked the reserved row failed). The poll
       // pre-gates the common case, so a WAIT_FIFO race here is rare; sustained
       // GLOBAL saturation can still churn one timed_out run per retry seam.
-      if (isWaitFifoError(e) || e instanceof SpawnerBusyError) {
+      if (disposition === 'park') {
         await finalizeRunMetric(
           'timed_out',
           'error',
