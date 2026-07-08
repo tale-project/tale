@@ -245,6 +245,21 @@ describe('checkPackagesAgainstPolicy', () => {
     );
     expect(allowed.ok).toBe(true);
   });
+
+  it('strips the unscoped npm name@version form before matching', () => {
+    // Found via E2E: `Sharp@1.2.3` sailed past a `sharp` deny entry — the
+    // base-name splitter only knew scoped `@scope/pkg@ver` specs.
+    const res = checkPackagesAgainstPolicy(policy({ nodeDeny: ['sharp'] }), {
+      node: ['Sharp@1.2.3'],
+    });
+    expect(res.ok).toBe(false);
+
+    const scoped = checkPackagesAgainstPolicy(
+      policy({ nodeDeny: ['@img/sharp'] }),
+      { node: ['@img/sharp@0.34.0'] },
+    );
+    expect(scoped.ok).toBe(false);
+  });
 });
 
 const baseRun = {

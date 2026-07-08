@@ -222,6 +222,7 @@ export function refinePackagesObject(
  * Extract the base package name from a pip/npm spec for allowlist matching.
  *   `python-pptx==1.0.2` → `python-pptx`
  *   `pypdf>=5.1,<6`     → `pypdf`
+ *   `sharp@1.2.3`       → `sharp`
  *   `@scope/pkg@1.2.3`  → `@scope/pkg`
  */
 export function packageBaseName(spec: string): string {
@@ -232,8 +233,10 @@ export function packageBaseName(spec: string): string {
     const at = trimmed.indexOf('@', 1);
     return at === -1 ? trimmed : trimmed.slice(0, at);
   }
-  // Strip first occurrence of any version delimiter.
-  const delim = trimmed.search(/[<>=!~ \t]/);
+  // Strip first occurrence of any version delimiter — `@` included, so the
+  // unscoped npm `name@version` form matches its policy entry too (pip's
+  // PEP 508 `name @ url` form is already split at the space).
+  const delim = trimmed.search(/[<>=!~ \t@]/);
   return delim === -1 ? trimmed : trimmed.slice(0, delim);
 }
 
