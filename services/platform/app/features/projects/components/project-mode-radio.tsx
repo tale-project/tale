@@ -2,6 +2,7 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useId } from 'react';
 
 import {
   RadioGroup,
@@ -42,19 +43,25 @@ export function ProjectModeRadio({
   disabled,
   legend,
 }: ProjectModeRadioProps) {
+  const groupId = useId();
   return (
     <RadioGroup
       value={value}
-      onValueChange={(next) => onChange(next as ProjectModeRadioValue)}
+      onValueChange={(next) => {
+        const match = options.find((opt) => opt.value === next);
+        if (match) onChange(match.value);
+      }}
       disabled={disabled}
       aria-label={legend}
       className="gap-2"
     >
       {options.map((opt) => {
         const checked = opt.value === value;
+        const optionId = `${groupId}-${opt.value}`;
         return (
           <label
             key={opt.value}
+            htmlFor={optionId}
             className={cn(
               'border-border flex cursor-pointer items-start gap-3 rounded-md border p-3',
               checked && 'border-primary bg-primary/5',
@@ -62,6 +69,7 @@ export function ProjectModeRadio({
             )}
           >
             <RadioGroupItem
+              id={optionId}
               value={opt.value}
               disabled={disabled}
               className="mt-1"
