@@ -165,6 +165,8 @@ export function ChatInterface({
     insertedPrompt,
     setInsertedPrompt,
     selectedAgent: globalSelectedAgent,
+    pendingSandboxWorkdir,
+    setPendingSandboxWorkdir,
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
@@ -835,6 +837,14 @@ export function ChatInterface({
     // `undefined` while flags load → hook runs precheck (safe default).
     inputGuardrailsActive: featureFlags?.inputGuardrailsActive,
     projectId: projectIdFromUrl,
+    // Workdir staged from the Sandbox pill before the thread exists — gated
+    // to external-agent sends (the only consumers of `sandboxWorkdir`), so a
+    // value staged then abandoned for a normal chat never lands as junk
+    // metadata on a thread that can't use or clear it.
+    pendingSandboxWorkdir: isExternalAgentThread
+      ? pendingSandboxWorkdir
+      : undefined,
+    clearPendingSandboxWorkdir: () => setPendingSandboxWorkdir(''),
     // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
     // so the force-snap intent is fresh when the MutationObserver picks
     // up the new bubble. Previously this was set here in

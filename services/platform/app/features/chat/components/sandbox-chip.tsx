@@ -1,5 +1,6 @@
 'use client';
 
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
@@ -62,8 +63,11 @@ type SandboxBadgeVariant = 'green' | 'slate' | 'orange';
  *
  * Self-gating: renders only when the composer's active agent is an external
  * agent (Claude Code OR OpenCode — the sandbox fact is CLI-agnostic, unlike
- * the claude-code-only Plan/Act toggle). Before the thread exists (or while
- * the composer is disabled) the pill stays purely informational.
+ * the claude-code-only Plan/Act toggle). Before the thread exists the popover
+ * edits the layout context's STAGED workdir (`pendingSandboxWorkdir`), which
+ * `useSendMessage` applies to the thread it creates — so the first turn
+ * already runs there. Only while the composer is disabled (mid-turn) does the
+ * pill fall back to purely informational.
  */
 export function SandboxChip({
   threadId,
@@ -74,7 +78,8 @@ export function SandboxChip({
   const { toast } = useToast();
   const inputId = useId();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const { selectedAgent } = useChatLayout();
+  const { selectedAgent, pendingSandboxWorkdir, setPendingSandboxWorkdir } =
+    useChatLayout();
   const { agents } = useChatAgents(organizationId);
 
   // The thread's bound agent wins over the global per-user selection — a
@@ -103,7 +108,11 @@ export function SandboxChip({
     api.node_only.sandbox.workspace_files.listWorkspaceDir,
   );
 
-  const workdir = meta?.sandboxWorkdir ?? '';
+  // Pre-thread the pill edits the STAGED workdir (applied at thread creation
+  // by useSendMessage); once the thread exists the server value is the truth.
+  const workdir = threadId
+    ? (meta?.sandboxWorkdir ?? '')
+    : pendingSandboxWorkdir;
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +140,15 @@ export function SandboxChip({
 
   const persist = useCallback(
     async (rel: string) => {
-      if (!threadId) return;
+      if (!threadId) {
+        // No thread yet: stage in the layout context — useSendMessage applies
+        // it to the thread the first send creates. No existence probe either
+        // (there is no workspace to probe yet; the missing-folder fallback is
+        // surfaced by the post-create save path and the turn itself).
+        setPendingSandboxWorkdir(rel);
+        setOpen(false);
+        return;
+      }
       setSaving(true);
       try {
         await setWorkdir({ threadId, workdir: rel });
@@ -169,7 +186,14 @@ export function SandboxChip({
         setSaving(false);
       }
     },
-    [threadId, setWorkdir, listWorkspaceDir, toast, t],
+    [
+      threadId,
+      setPendingSandboxWorkdir,
+      setWorkdir,
+      listWorkspaceDir,
+      toast,
+      t,
+    ],
   );
 
   const handleSave = useCallback(() => {
@@ -249,11 +273,11 @@ export function SandboxChip({
   const identity = t('sandbox.label');
   const accessibleLabel = stateLabel ? `${identity} · ${stateLabel}` : identity;
 
-  // Settings need a thread to hang off (`threadMetadata`); mid-turn the
-  // composer disables its controls (`attachDisabled`) — in both cases keep the
+  // Mid-turn the composer disables its controls (`attachDisabled`) — keep the
   // state display alive as a plain informational pill (a disabled button would
-  // also swallow the tooltip).
-  const interactive = !!threadId && !disabled;
+  // also swallow the tooltip). Pre-thread stays interactive: the popover then
+  // edits the staged workdir the first send applies.
+  const interactive = !disabled;
   // If a turn starts while the popover is open (queued send picking up), the
   // interactive branch unmounts with `open` stuck true — which would pop the
   // popover back open unprompted when the turn ends. Reset during render.
@@ -283,85 +307,106 @@ export function SandboxChip({
   return (
     <Row gap={1}>
       {interactive ? (
-        <Popover
-          open={open}
-          onOpenChange={handleOpenChange}
-          align="start"
-          side="top"
-          contentClassName="w-80 max-w-80 p-3"
-          trigger={
-            <Tooltip
-              content={tooltipContent}
+        // Raw tooltip primitives, NOT the app `Tooltip` wrapper: the popover
+        // trigger slots its props (onClick, aria) onto its child via Radix
+        // `asChild`, and a plain function component like the wrapper drops
+        // them — the pill would render but never open. Nesting
+        // `TooltipPrimitive.Trigger asChild` inside the popover trigger keeps
+        // both Slot chains on forwarding components (the `user-button`
+        // precedent for exactly this trigger+tooltip composition).
+        <TooltipPrimitive.Provider delayDuration={300}>
+          <TooltipPrimitive.Root>
+            <Popover
+              open={open}
+              onOpenChange={handleOpenChange}
+              align="start"
               side="top"
-              contentClassName="max-w-xs"
-            >
-              <button
-                type="button"
-                aria-label={accessibleLabel}
-                className="inline-flex shrink-0 rounded-full"
-              >
-                {badge}
-              </button>
-            </Tooltip>
-          }
-        >
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold">
-              {t('sandbox.settingsTitle')}
-            </h3>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleSave();
-              }}
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor={inputId}
-                className="text-muted-foreground text-xs font-medium"
-              >
-                {t('workdir.label')}
-              </label>
-              <Input
-                id={inputId}
-                value={draft}
-                onChange={(event) => {
-                  setDraft(event.target.value);
-                  setError(null);
-                }}
-                placeholder={t('workdir.placeholder')}
-                className="h-8 font-mono text-xs"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {error !== null ? (
-                <p role="alert" className="text-destructive text-xs">
-                  {error}
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  {t('workdir.helper')}
-                </p>
-              )}
-              <Row gap={2} className="justify-end">
-                {isCustomWorkdir && (
-                  <Button
+              contentClassName="w-80 max-w-80 p-3"
+              trigger={
+                <TooltipPrimitive.Trigger asChild>
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleReset}
-                    disabled={saving}
+                    aria-label={accessibleLabel}
+                    className="inline-flex shrink-0 cursor-pointer rounded-full"
                   >
-                    {t('workdir.reset')}
-                  </Button>
-                )}
-                <Button type="submit" size="sm" disabled={saving}>
-                  {t('workdir.save')}
-                </Button>
-              </Row>
-            </form>
-          </div>
-        </Popover>
+                    {badge}
+                  </button>
+                </TooltipPrimitive.Trigger>
+              }
+            >
+              <div className="flex flex-col gap-2">
+                <h3 className="text-xs font-semibold">
+                  {t('sandbox.settingsTitle')}
+                </h3>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleSave();
+                  }}
+                  className="flex flex-col gap-2"
+                >
+                  <label
+                    htmlFor={inputId}
+                    className="text-muted-foreground text-xs font-medium"
+                  >
+                    {t('workdir.label')}
+                  </label>
+                  <Input
+                    id={inputId}
+                    value={draft}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      setError(null);
+                    }}
+                    placeholder={t('workdir.placeholder')}
+                    className="h-8 font-mono text-xs"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  {error !== null ? (
+                    <p role="alert" className="text-destructive text-xs">
+                      {error}
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground text-xs">
+                      {t('workdir.helper')}
+                    </p>
+                  )}
+                  <Row gap={2} className="justify-end">
+                    {isCustomWorkdir && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleReset}
+                        disabled={saving}
+                      >
+                        {t('workdir.reset')}
+                      </Button>
+                    )}
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={saving || draft === workdir}
+                    >
+                      {t('workdir.save')}
+                    </Button>
+                  </Row>
+                </form>
+              </div>
+            </Popover>
+            <TooltipPrimitive.Portal>
+              <TooltipPrimitive.Content
+                side="top"
+                sideOffset={4}
+                collisionPadding={8}
+                className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] max-w-xs overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+              >
+                {tooltipContent}
+              </TooltipPrimitive.Content>
+            </TooltipPrimitive.Portal>
+          </TooltipPrimitive.Root>
+        </TooltipPrimitive.Provider>
       ) : (
         <Tooltip
           content={tooltipContent}

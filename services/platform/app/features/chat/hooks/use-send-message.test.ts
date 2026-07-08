@@ -328,3 +328,77 @@ describe('useSendMessage — error handling', () => {
     expect(params.clearChatState).not.toHaveBeenCalled();
   });
 });
+
+describe('useSendMessage — staged pre-thread sandbox workdir', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockChatWithAgent.mockResolvedValue({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+    });
+    mockUpdateThread.mockResolvedValue(undefined);
+    mockCreateThread.mockResolvedValue('thread_new');
+    mockConvexAction.mockResolvedValue({ blocked: false });
+    mockConvexMutation.mockResolvedValue(null);
+  });
+
+  it('applies the staged workdir to the created thread BEFORE dispatching the turn', async () => {
+    const clear = vi.fn();
+    const params = createParams({
+      threadId: undefined,
+      pendingSandboxWorkdir: 'tale',
+      clearPendingSandboxWorkdir: clear,
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockConvexMutation).toHaveBeenCalledWith(expect.anything(), {
+      threadId: 'thread_new',
+      workdir: 'tale',
+    });
+    expect(clear).toHaveBeenCalledOnce();
+    // The turn reads the workdir at sandbox session start — the apply must
+    // land first.
+    const applyOrder = mockConvexMutation.mock.invocationCallOrder[0];
+    const sendOrder = mockChatWithAgent.mock.invocationCallOrder[0];
+    expect(applyOrder).toBeLessThan(sendOrder);
+  });
+
+  it('does not touch the workdir on an existing-thread send', async () => {
+    const clear = vi.fn();
+    const params = createParams({
+      pendingSandboxWorkdir: 'tale',
+      clearPendingSandboxWorkdir: clear,
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockConvexMutation).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+  });
+
+  it('a failed workdir apply never fails the send (falls back to root)', async () => {
+    mockConvexMutation.mockRejectedValue(new Error('metadata race'));
+    const clear = vi.fn();
+    const params = createParams({
+      threadId: undefined,
+      pendingSandboxWorkdir: 'tale',
+      clearPendingSandboxWorkdir: clear,
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockChatWithAgent).toHaveBeenCalledOnce();
+    expect(params.clearChatState).not.toHaveBeenCalled();
+    expect(clear).toHaveBeenCalledOnce();
+  });
+});

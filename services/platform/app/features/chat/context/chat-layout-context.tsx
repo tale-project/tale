@@ -121,6 +121,16 @@ interface ChatLayoutContextType {
    */
   dismissedImageKey: string | null;
   setDismissedImageKey: (key: string | null) => void;
+  /**
+   * Working directory staged from the composer's Sandbox pill BEFORE the
+   * thread exists (an external-agent new chat). Consumed by `useSendMessage`:
+   * applied to the thread it creates right after creation — ahead of the
+   * first turn, which reads it at sandbox session start — then cleared.
+   * Deliberately session state, not persisted: a workdir is a
+   * per-conversation choice, not a durable preference.
+   */
+  pendingSandboxWorkdir: string;
+  setPendingSandboxWorkdir: (workdir: string) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -161,6 +171,7 @@ export function ChatLayoutProvider({
   const [dismissedImageKey, setDismissedImageKey] = useState<string | null>(
     null,
   );
+  const [pendingSandboxWorkdir, setPendingSandboxWorkdir] = useState('');
   const agentKey = user?.userId
     ? `selected-agent-${user.userId}-${organizationId}`
     : `selected-agent-${organizationId}`;
@@ -266,6 +277,8 @@ export function ChatLayoutProvider({
       setEditingImageRef,
       dismissedImageKey,
       setDismissedImageKey,
+      pendingSandboxWorkdir,
+      setPendingSandboxWorkdir,
     }),
     [
       pendingThreadId,
@@ -283,6 +296,7 @@ export function ChatLayoutProvider({
       quotedText,
       editingImageRef,
       dismissedImageKey,
+      pendingSandboxWorkdir,
     ],
   );
 
