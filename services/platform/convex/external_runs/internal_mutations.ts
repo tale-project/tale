@@ -25,6 +25,7 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { checkAgentRunAllowedHelper } from '../agents/guardrails/budget_guard';
+import { toId } from '../lib/type_cast_helpers';
 import { taskAgentRunTriggerValidator } from '../task_metrics/schema';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import {
@@ -48,6 +49,27 @@ function logRun(stage: string, fields: Record<string, unknown>): void {
         .map(([key, value]) => `${key}=${String(value)}`)
         .join(' '),
   );
+}
+
+async function workflowAttributionForRun(
+  ctx: MutationCtx,
+  run: Doc<'externalRuns'>,
+): Promise<
+  { workflowSlug?: string; wfExecutionId?: Id<'wfExecutions'> } | undefined
+> {
+  let workflowSlug = run.workflowSlug;
+  let wfExecutionId = run.wfExecutionId
+    ? toId<'wfExecutions'>(run.wfExecutionId)
+    : undefined;
+  if (run.runId) {
+    const taskRun = await ctx.db.get(run.runId);
+    if (taskRun) {
+      workflowSlug = taskRun.workflowSlug ?? workflowSlug;
+      wfExecutionId = taskRun.wfExecutionId ?? wfExecutionId;
+    }
+  }
+  if (!workflowSlug && !wfExecutionId) return undefined;
+  return { workflowSlug, wfExecutionId };
 }
 
 const guardBudgetValidator = v.object({
@@ -420,6 +442,7 @@ export const completeExternalRun = internalMutation({
         actorId: WORKFLOW_ACTOR_ID,
         taskId: run.taskId,
         status: 'in_review',
+        attribution: await workflowAttributionForRun(ctx, run),
       },
     );
     logRun('completed', {
@@ -478,11 +501,13 @@ async function failRun(
     failReason: args.reason,
     completedAt: now,
   });
+  const attribution = await workflowAttributionForRun(ctx, run);
   await ctx.runMutation(internal.tasks.internal_mutations.agentAddComment, {
     organizationId: run.organizationId,
     actorId: WORKFLOW_ACTOR_ID,
     taskId: run.taskId,
     body: `[automated] ⚠️ External run on ${run.adapterType} failed (${args.reason})${args.error ? `: ${args.error.slice(0, 300)}` : ''} — returned to To do.`,
+    attribution,
   });
   await ctx.runMutation(
     internal.tasks.internal_mutations.agentUpdateTaskStatus,
@@ -491,6 +516,7 @@ async function failRun(
       actorId: WORKFLOW_ACTOR_ID,
       taskId: run.taskId,
       status: 'todo',
+      attribution,
     },
   );
   await emitEvent(ctx, {

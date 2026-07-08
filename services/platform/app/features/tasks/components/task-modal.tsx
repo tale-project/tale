@@ -10,7 +10,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { Plus } from 'lucide-react';
+import { Archive, ArchiveRestore, Plus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
@@ -37,11 +37,9 @@ import {
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
-import { useSubtasks, useTask, useTaskActivity } from '../hooks/queries';
+import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
-  isTaskStatus,
-  TASK_ACTIVITY_LABEL_KEY,
   type TaskActorType,
   type TaskPriority,
   type TaskStatus,
@@ -55,13 +53,15 @@ import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
 import { StatusPicker } from './status-picker';
-import { TaskAgentRuns } from './task-agent-runs';
+import { TaskArchiveDialog } from './task-archive-dialog';
+import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskReviewCard } from './task-review-card';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskTimeline } from './task-timeline';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
  *  strict `attachments` validator. Always an array (an empty array sent to
@@ -126,7 +126,11 @@ export function TaskModal({
           {t('detail.overview')}
         </ResponsiveDialogDescription>
         {taskId ? (
-          <EditTaskBody taskId={taskId} onOpenTask={onOpenTask} />
+          <EditTaskBody
+            taskId={taskId}
+            onOpenTask={onOpenTask}
+            onClose={() => onOpenChange(false)}
+          />
         ) : (
           <CreateTaskBody
             organizationId={organizationId}
@@ -355,6 +359,9 @@ function CreateTaskBody({
               projectId={projectId}
               assigneeType={assignee?.type}
               assigneeId={assignee?.id}
+              taskTitle={title}
+              taskDescription={description}
+              taskLabels={labels}
               align="end"
               onAssign={(type, id) => setAssignee({ type, id })}
               onUnassign={() => setAssignee(null)}
@@ -398,9 +405,11 @@ function CreateTaskBody({
 function EditTaskBody({
   taskId,
   onOpenTask,
+  onClose,
 }: {
   taskId: Id<'tasks'>;
   onOpenTask?: (taskId: Id<'tasks'>) => void;
+  onClose: () => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -408,14 +417,13 @@ function EditTaskBody({
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const projectKey = project?.key ?? null;
-  const { activity } = useTaskActivity(taskId);
   const { subtasks } = useSubtasks(taskId);
   const { data: me } = useCurrentMemberContext(task?.organizationId);
   const { resolveActor } = useActorDirectory(
     task?.organizationId ?? '',
     task?.projectId,
   );
-  const { formatRelative, formatDate } = useFormatDate();
+  const { formatDate } = useFormatDate();
 
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
@@ -429,6 +437,7 @@ function EditTaskBody({
   );
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const onMutationError = (error: unknown) => {
     if (
@@ -445,6 +454,9 @@ function EditTaskBody({
   if (!task) {
     return <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>;
   }
+
+  const isArchived = task.archivedAt != null;
+  const canMutate = canEdit && !isArchived;
 
   const assigneeName =
     task.assigneeType && task.assigneeId
@@ -497,342 +509,332 @@ function EditTaskBody({
   };
 
   return (
-    <ModalLayout
-      header={
-        <Stack gap={2}>
-          {identifier && (
-            <Text
-              as="span"
-              variant="muted"
-              className="font-mono text-xs tracking-wide"
-            >
-              {identifier}
-            </Text>
-          )}
-          <ResponsiveDialogTitle className="sr-only">
-            {task.title}
-          </ResponsiveDialogTitle>
-          {canEdit ? (
-            <EditableTitle
-              key={task._id}
-              value={task.title}
-              ariaLabel={t('fields.title')}
-              onSave={(title) =>
-                void updateTask
-                  .mutateAsync({ taskId: task._id, title })
-                  .catch(onMutationError)
-              }
-            />
-          ) : (
-            <h2 className="text-foreground text-lg leading-snug font-semibold">
+    <>
+      <ModalLayout
+        header={
+          <Stack gap={2}>
+            {identifier && (
+              <Text
+                as="span"
+                variant="muted"
+                className="font-mono text-xs tracking-wide"
+              >
+                {identifier}
+              </Text>
+            )}
+            {isArchived && <TaskArchivedBadge />}
+            <ResponsiveDialogTitle className="sr-only">
               {task.title}
-            </h2>
-          )}
-        </Stack>
-      }
-      main={
-        <>
-          <TaskReviewCard taskId={task._id} />
-          <section className="flex flex-col gap-1.5">
-            <Text as="h3" variant="label">
-              {t('fields.description')}
-            </Text>
-            {canEdit ? (
-              <EditableDescription
+            </ResponsiveDialogTitle>
+            {canMutate ? (
+              <EditableTitle
                 key={task._id}
-                taskId={task._id}
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                value={task.description ?? ''}
-                placeholder={t('detail.addDescription')}
-                onSave={(description) =>
+                value={task.title}
+                ariaLabel={t('fields.title')}
+                onSave={(title) =>
                   void updateTask
-                    .mutateAsync({
-                      taskId: task._id,
-                      description: description.length ? description : null,
-                    })
+                    .mutateAsync({ taskId: task._id, title })
                     .catch(onMutationError)
                 }
-              />
-            ) : task.description ? (
-              <MentionText
-                body={task.description}
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                className="whitespace-pre-wrap"
               />
             ) : (
-              <Text as="p" variant="muted">
-                {t('detail.noDescription')}
-              </Text>
-            )}
-          </section>
-
-          <TaskAttachments
-            attachments={task.attachments ?? []}
-            uploadingFiles={uploadingFiles}
-            canEdit={canEdit}
-            organizationId={task.organizationId}
-            onUpload={onUploadAttachments}
-            onRemove={onRemoveAttachment}
-          />
-
-          <TaskAgentRuns taskId={task._id} />
-
-          <Stack as="section" gap={2}>
-            <Row gap={2}>
-              <Text as="h3" variant="label">
-                {t('detail.subtasks')}
-              </Text>
-              {subtasksTotal > 0 && (
-                <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
-              )}
-            </Row>
-            {subtasks.length > 0 && (
-              <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-                {subtasks.map((sub) => {
-                  const subIdentifier = formatTaskIdentifier(
-                    projectKey,
-                    sub.number,
-                  );
-                  const subAssignee =
-                    sub.assigneeType && sub.assigneeId
-                      ? resolveActor(sub.assigneeType, sub.assigneeId)
-                      : null;
-                  return (
-                    <li key={sub._id}>
-                      <button
-                        type="button"
-                        onClick={() => onOpenTask?.(sub._id)}
-                        disabled={!onOpenTask}
-                        className={cn(
-                          'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-                          !onOpenTask && 'cursor-default hover:bg-transparent',
-                        )}
-                      >
-                        <TaskStatusBadge status={sub.status} />
-                        {subIdentifier && (
-                          <Text
-                            as="span"
-                            variant="caption"
-                            className="shrink-0 font-mono text-[11px] tracking-wide"
-                          >
-                            {subIdentifier}
-                          </Text>
-                        )}
-                        <span
-                          className={cn(
-                            'flex-1 truncate',
-                            sub.status === 'done' &&
-                              'text-muted-foreground line-through',
-                          )}
-                        >
-                          {sub.title}
-                        </span>
-                        {subAssignee && (
-                          <AssigneeAvatar
-                            assigneeType={subAssignee.type}
-                            assigneeId={subAssignee.id}
-                            name={subAssignee.name}
-                          />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {canEdit && (
-              <Row gap={2}>
-                <Textarea
-                  id="new-subtask"
-                  rows={1}
-                  value={subtaskTitle}
-                  onChange={(e) => setSubtaskTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void addSubtask();
-                    }
-                  }}
-                  placeholder={t('detail.addSubtask')}
-                  className="min-h-0"
-                />
-                <Button
-                  icon={Plus}
-                  variant="secondary"
-                  disabled={subtaskTitle.trim().length === 0}
-                  onClick={() => void addSubtask()}
-                >
-                  {t('actions.add')}
-                </Button>
-              </Row>
+              <h2 className="text-foreground text-lg leading-snug font-semibold">
+                {task.title}
+              </h2>
             )}
           </Stack>
+        }
+        main={
+          <>
+            <TaskReviewCard taskId={task._id} />
+            <section className="flex flex-col gap-1.5">
+              <Text as="h3" variant="label">
+                {t('fields.description')}
+              </Text>
+              {canMutate ? (
+                <EditableDescription
+                  key={task._id}
+                  taskId={task._id}
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  value={task.description ?? ''}
+                  placeholder={t('detail.addDescription')}
+                  onSave={(description) =>
+                    void updateTask
+                      .mutateAsync({
+                        taskId: task._id,
+                        description: description.length ? description : null,
+                      })
+                      .catch(onMutationError)
+                  }
+                />
+              ) : task.description ? (
+                <MentionText
+                  body={task.description}
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  className="whitespace-pre-wrap"
+                />
+              ) : (
+                <Text as="p" variant="muted">
+                  {t('detail.noDescription')}
+                </Text>
+              )}
+            </section>
 
-          <TaskComments
-            taskId={task._id}
-            organizationId={task.organizationId}
-            projectId={task.projectId}
-            canComment={canComment}
-            currentUserId={me?.userId}
-            isAdmin={me?.isAdmin}
-          />
+            <TaskAttachments
+              attachments={task.attachments ?? []}
+              uploadingFiles={uploadingFiles}
+              canEdit={canMutate}
+              organizationId={task.organizationId}
+              onUpload={onUploadAttachments}
+              onRemove={onRemoveAttachment}
+            />
 
-          <section>
-            <Text as="h3" variant="label">
-              {t('detail.activity')}
-            </Text>
-            <Stack as="ul" gap={3} className="mt-3">
-              {activity.map((entry) => {
-                const labelKey = TASK_ACTIVITY_LABEL_KEY[entry.action];
-                const label = labelKey ? t(labelKey) : entry.action;
-                const actor = resolveActor(entry.actorType, entry.actorId);
-                const from =
-                  entry.fromValue && isTaskStatus(entry.fromValue)
-                    ? t(`status.${entry.fromValue}`)
-                    : entry.fromValue;
-                const to =
-                  entry.toValue && isTaskStatus(entry.toValue)
-                    ? t(`status.${entry.toValue}`)
-                    : entry.toValue;
-                const detail = from && to ? `${from} → ${to}` : (to ?? from);
-                return (
-                  <li key={entry._id} className="flex items-center gap-2">
-                    <AssigneeAvatar
-                      assigneeType={entry.actorType}
-                      assigneeId={entry.actorId}
-                      name={actor.name}
-                    />
-                    <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
-                      <span className="text-foreground font-medium">
-                        {actor.name}
-                      </span>
-                      <span>
-                        {label.toLowerCase()}
-                        {detail ? `: ${detail}` : ''}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <time
-                        dateTime={new Date(entry.createdAt).toISOString()}
-                        title={formatDate(new Date(entry.createdAt), 'long')}
-                      >
-                        {formatRelative(new Date(entry.createdAt))}
-                      </time>
-                    </div>
-                  </li>
-                );
-              })}
+            <Stack as="section" gap={2}>
+              <Row gap={2}>
+                <Text as="h3" variant="label">
+                  {t('detail.subtasks')}
+                </Text>
+                {subtasksTotal > 0 && (
+                  <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
+                )}
+              </Row>
+              {subtasks.length > 0 && (
+                <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+                  {subtasks.map((sub) => {
+                    const subIdentifier = formatTaskIdentifier(
+                      projectKey,
+                      sub.number,
+                    );
+                    const subAssignee =
+                      sub.assigneeType && sub.assigneeId
+                        ? resolveActor(sub.assigneeType, sub.assigneeId)
+                        : null;
+                    return (
+                      <li key={sub._id}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenTask?.(sub._id)}
+                          disabled={!onOpenTask}
+                          className={cn(
+                            'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                            !onOpenTask &&
+                              'cursor-default hover:bg-transparent',
+                          )}
+                        >
+                          <TaskStatusBadge status={sub.status} />
+                          {subIdentifier && (
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="shrink-0 font-mono text-[11px] tracking-wide"
+                            >
+                              {subIdentifier}
+                            </Text>
+                          )}
+                          <span
+                            className={cn(
+                              'flex-1 truncate',
+                              sub.status === 'done' &&
+                                'text-muted-foreground line-through',
+                            )}
+                          >
+                            {sub.title}
+                          </span>
+                          {subAssignee && (
+                            <AssigneeAvatar
+                              assigneeType={subAssignee.type}
+                              assigneeId={subAssignee.id}
+                              name={subAssignee.name}
+                            />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {canMutate && (
+                <Row gap={2}>
+                  <Textarea
+                    id="new-subtask"
+                    rows={1}
+                    value={subtaskTitle}
+                    onChange={(e) => setSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void addSubtask();
+                      }
+                    }}
+                    placeholder={t('detail.addSubtask')}
+                    className="min-h-0"
+                  />
+                  <Button
+                    icon={Plus}
+                    variant="secondary"
+                    disabled={subtaskTitle.trim().length === 0}
+                    onClick={() => void addSubtask()}
+                  >
+                    {t('actions.add')}
+                  </Button>
+                </Row>
+              )}
             </Stack>
-          </section>
-        </>
-      }
-      panel={
-        <>
-          <PropertyField label={t('fields.status')}>
-            <StatusPicker
-              status={task.status}
-              disabled={!canEdit}
-              align="end"
-              onChange={(status) =>
-                void updateStatus
-                  .mutateAsync({ taskId: task._id, status })
-                  .catch(onMutationError)
-              }
-            />
-          </PropertyField>
-          <PropertyField label={t('fields.priority')}>
-            <PriorityPicker
-              priority={task.priority ?? null}
-              disabled={!canEdit}
-              align="end"
-              onChange={(priority) =>
-                void updateTask
-                  .mutateAsync({ taskId: task._id, priority })
-                  .catch(onMutationError)
-              }
-            />
-          </PropertyField>
-          <PropertyField label={t('fields.assignee')}>
-            <div className="flex min-w-0 items-center gap-1.5">
-              <AssigneePicker
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                assigneeType={task.assigneeType}
-                assigneeId={task.assigneeId}
-                disabled={!canEdit}
-                align="end"
-                onAssign={(assigneeType, assigneeId) =>
-                  void assignTask
-                    .mutateAsync({ taskId: task._id, assigneeType, assigneeId })
-                    .catch(onMutationError)
-                }
-                onUnassign={() =>
-                  void assignTask
-                    .mutateAsync({ taskId: task._id })
-                    .catch(onMutationError)
-                }
-              />
-              <span className="text-foreground min-w-0 truncate text-sm">
-                {assigneeName}
-              </span>
-            </div>
-          </PropertyField>
-          <PropertyField label={t('dueDate.label')}>
-            <DatePicker
-              value={task.dueDate}
-              disabled={!canEdit}
-              onChange={(dueDate) =>
-                void updateTask
-                  .mutateAsync({ taskId: task._id, dueDate })
-                  .catch(onMutationError)
-              }
-            />
-          </PropertyField>
 
-          <PanelDivider />
-          <PropertyField label={t('fields.labels')} stacked>
-            <LabelEditor
-              labels={task.labels ?? []}
-              disabled={!canEdit}
+            <TaskComments
+              taskId={task._id}
+              organizationId={task.organizationId}
               projectId={task.projectId}
-              onChange={(labels) =>
-                void updateTask
-                  .mutateAsync({ taskId: task._id, labels })
-                  .catch(onMutationError)
-              }
+              canComment={canComment}
+              currentUserId={me?.userId}
+              isAdmin={me?.isAdmin}
             />
-          </PropertyField>
 
-          <PanelDivider />
-          <TaskDependencies
-            task={task}
-            canEdit={canEdit}
-            projectKey={projectKey}
-            onOpenTask={onOpenTask}
-          />
-
-          <PanelDivider />
-          <PropertyField label={t('fields.author')}>
-            <div className="flex min-w-0 items-center gap-1.5">
-              <AssigneeAvatar
-                assigneeType={task.createdByType}
-                assigneeId={task.createdBy}
-                name={author.name}
+            <TaskTimeline
+              taskId={task._id}
+              organizationId={task.organizationId}
+              projectId={task.projectId}
+            />
+          </>
+        }
+        panel={
+          <>
+            <PropertyField label={t('fields.status')}>
+              <StatusPicker
+                status={task.status}
+                disabled={!canMutate}
+                align="end"
+                onChange={(status) =>
+                  void updateStatus
+                    .mutateAsync({ taskId: task._id, status })
+                    .catch(onMutationError)
+                }
               />
-              <span className="text-foreground min-w-0 truncate text-sm">
-                {author.name}
+            </PropertyField>
+            <PropertyField label={t('fields.priority')}>
+              <PriorityPicker
+                priority={task.priority ?? null}
+                disabled={!canMutate}
+                align="end"
+                onChange={(priority) =>
+                  void updateTask
+                    .mutateAsync({ taskId: task._id, priority })
+                    .catch(onMutationError)
+                }
+              />
+            </PropertyField>
+            <PropertyField label={t('fields.assignee')}>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <AssigneePicker
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  assigneeType={task.assigneeType}
+                  assigneeId={task.assigneeId}
+                  taskTitle={task.title}
+                  taskDescription={task.description}
+                  taskLabels={task.labels}
+                  disabled={!canMutate}
+                  align="end"
+                  onAssign={(assigneeType, assigneeId) =>
+                    void assignTask
+                      .mutateAsync({
+                        taskId: task._id,
+                        assigneeType,
+                        assigneeId,
+                      })
+                      .catch(onMutationError)
+                  }
+                  onUnassign={() =>
+                    void assignTask
+                      .mutateAsync({ taskId: task._id })
+                      .catch(onMutationError)
+                  }
+                />
+                <span className="text-foreground min-w-0 truncate text-sm">
+                  {assigneeName}
+                </span>
+              </div>
+            </PropertyField>
+            <PropertyField label={t('dueDate.label')}>
+              <DatePicker
+                value={task.dueDate}
+                disabled={!canMutate}
+                onChange={(dueDate) =>
+                  void updateTask
+                    .mutateAsync({ taskId: task._id, dueDate })
+                    .catch(onMutationError)
+                }
+              />
+            </PropertyField>
+
+            <PanelDivider />
+            <PropertyField label={t('fields.labels')} stacked>
+              <LabelEditor
+                labels={task.labels ?? []}
+                disabled={!canMutate}
+                projectId={task.projectId}
+                onChange={(labels) =>
+                  void updateTask
+                    .mutateAsync({ taskId: task._id, labels })
+                    .catch(onMutationError)
+                }
+              />
+            </PropertyField>
+
+            <PanelDivider />
+            <TaskDependencies
+              task={task}
+              canEdit={canMutate}
+              projectKey={projectKey}
+              onOpenTask={onOpenTask}
+            />
+
+            <PanelDivider />
+            <PropertyField label={t('fields.author')}>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <AssigneeAvatar
+                  assigneeType={task.createdByType}
+                  assigneeId={task.createdBy}
+                  name={author.name}
+                />
+                <span className="text-foreground min-w-0 truncate text-sm">
+                  {author.name}
+                </span>
+              </div>
+            </PropertyField>
+            <PropertyField label={t('fields.created')}>
+              <span className="text-foreground text-sm">
+                {formatDate(new Date(task.createdAt), 'medium')}
               </span>
-            </div>
-          </PropertyField>
-          <PropertyField label={t('fields.created')}>
-            <span className="text-foreground text-sm">
-              {formatDate(new Date(task.createdAt), 'medium')}
-            </span>
-          </PropertyField>
-        </>
-      }
-    />
+            </PropertyField>
+            {canEdit && (
+              <>
+                <PanelDivider />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  icon={isArchived ? ArchiveRestore : Archive}
+                  onClick={() => setArchiveOpen(true)}
+                >
+                  {isArchived ? t('actions.restore') : t('actions.archive')}
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
+      <TaskArchiveDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        taskId={task._id}
+        taskTitle={task.title}
+        isArchived={isArchived}
+        onArchived={onClose}
+      />
+    </>
   );
 }
 

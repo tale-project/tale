@@ -232,3 +232,46 @@ describe('agentUpsertTaskByExternalRef — title coercion', () => {
     expect(await taskTitle(t, res.taskId)).toBe('github owner/repo#1');
   });
 });
+
+describe('agentUpdateTaskStatus — workflow activity context', () => {
+  it('stores workflow attribution on activity rows when actorId is workflow', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+    const taskId = await t.run(async (ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Review me',
+        status: 'backlog',
+        rank: 'a0',
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        statusChangedAt: 0,
+      }),
+    );
+
+    await t.mutation(internal.tasks.internal_mutations.agentUpdateTaskStatus, {
+      organizationId: ORG,
+      actorId: 'workflow',
+      taskId,
+      status: 'in_progress',
+      attribution: {
+        workflowSlug: 'task-ops/assignment',
+        wfExecutionId: undefined,
+      },
+    });
+
+    const activity = await t.run(async (ctx) =>
+      ctx.db
+        .query('taskActivity')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    expect(activity).toHaveLength(1);
+    expect(activity[0]?.context).toEqual({
+      workflowSlug: 'task-ops/assignment',
+    });
+  });
+});

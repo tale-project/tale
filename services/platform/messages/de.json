@@ -7257,8 +7257,20 @@
     "board": {
       "noTasks": "Keine Aufgaben"
     },
-    "filters": {
-      "waitingOnMe": "Wartet auf mich"
+    "list": {
+      "showArchived": "Archivierte anzeigen"
+    },
+    "archived": {
+      "badge": "Archiviert"
+    },
+    "archive": {
+      "confirmTitle": "Aufgabe archivieren?",
+      "confirmDescription": "Die Aufgabe verschwindet aus Board und Liste. Mit „Archivierte anzeigen“ kannst du sie jederzeit wiederherstellen.",
+      "restoreDescription": "Die Aufgabe erscheint wieder in Board und Liste.",
+      "success": "Aufgabe archiviert",
+      "error": "Aufgabe konnte nicht archiviert werden",
+      "restoreSuccess": "Aufgabe wiederhergestellt",
+      "restoreError": "Aufgabe konnte nicht wiederhergestellt werden"
     },
     "detail": {
       "overview": "Übersicht",
@@ -7289,9 +7301,18 @@
       "unassigned": "Nicht zugewiesen",
       "assignToMe": "Mir zuweisen",
       "agents": "Agenten",
+      "codingAgents": "Coding-Agenten",
+      "codingAgentsInfo": "Der Board-Dispatch hängt vom Agenten ab — tale-daemon auf deinem Rechner, durable Sandbox oder die Plattform-Schleife, wenn nur der Chat eine Sandbox nutzt.",
       "unassign": "Zuweisung aufheben",
       "you": "Du",
-      "search": "Personen suchen…"
+      "search": "Personen suchen…",
+      "dispatchHints": {
+        "agentPlatform": "Nutzt Plattform-Tools und postet einen Task-Kommentar.",
+        "codingDaemon": "Läuft auf deinem Rechner in einem Git-Workspace.",
+        "codingDurable": "Läuft in einer Sandbox; schreibt eine Summary-Datei.",
+        "codingSandboxOnly": "Chat nutzt eine Sandbox; Board-Tasks nutzen die Plattform-Schleife."
+      },
+      "nonCodeWarning": "Dieser Coding-Agent ist für Repo-Arbeit optimiert. Für Recherche, Texte oder persönliche Deliverables weise eine Person oder einen Agent zu."
     },
     "activity": {
       "created": "Erstellt",
@@ -7337,6 +7358,13 @@
         "manual": "manuell"
       }
     },
+    "timeline": {
+      "runLabel": "Agentenlauf",
+      "systemActor": "System",
+      "unresolvedWorkflow": "Workflow",
+      "viewAgent": "Agent anzeigen",
+      "viewWorkflow": "Workflow anzeigen"
+    },
     "dueDate": {
       "label": "Fälligkeitsdatum",
       "overdue": "Überfällig",
@@ -7347,7 +7375,8 @@
       "willQueue": "{slug} wird antworten (wartet — Parallelitätslimit erreicht)",
       "packDisabled": "{slug} antwortet nicht — Aufgaben-Automatisierung ist aus",
       "breakerPaused": "{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert",
-      "budgetPaused": "{slug} antwortet nicht — Monatsbudget aufgebraucht"
+      "budgetPaused": "{slug} antwortet nicht — Monatsbudget aufgebraucht",
+      "agentNotLive": "{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert"
     },
     "mentionPicker": {
       "title": "Mitglied oder Agent erwähnen",
