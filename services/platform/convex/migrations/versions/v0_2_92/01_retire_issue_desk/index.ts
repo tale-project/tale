@@ -9,8 +9,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { internal } from '../../../../_generated/api';
-import { resolveAutomationDir } from '../../../../automations/file_utils';
-import { sha256 } from '../../../../lib/file_io';
+import {
+  getConfigRoot,
+  sha256,
+  validateOrgSlug,
+} from '../../../../lib/file_io';
 import type {
   NodeMigration,
   NodeMigrationCtx,
@@ -42,6 +45,19 @@ export const RETIRE_MARKER = 'migration:v0_2_92_retire_issue_desk';
 interface BoundProject {
   projectId: string;
   name: string;
+}
+
+/**
+ * The pre-rename layout this migration retires: `<config>/<org>/apps/<slug>`.
+ * `resolveAutomationDir` points at the renamed `automations/` domain and must
+ * NOT be used here — the legacy `apps/` tree is exactly what `up` snapshots
+ * away and `down` restores.
+ */
+function legacyAppDir(orgSlug: string): string {
+  if (!validateOrgSlug(orgSlug)) {
+    throw new Error(`Invalid org slug: ${orgSlug}`);
+  }
+  return path.join(getConfigRoot('apps'), orgSlug, 'apps', APP_SLUG);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,7 +92,7 @@ export const migration: NodeMigration = {
       return;
     }
 
-    const dir = resolveAutomationDir(org.slug, APP_SLUG);
+    const dir = legacyAppDir(org.slug);
 
     const bindings: Array<{ projectId: string }> = await ctx.runQuery(
       internal.automations.install_mutations.listAutomationBindingsInternal,
@@ -143,7 +159,7 @@ export const migration: NodeMigration = {
     org: { id: string; slug: string },
     helpers: NodeMigrationHelpers,
   ) {
-    const dir = resolveAutomationDir(org.slug, APP_SLUG);
+    const dir = legacyAppDir(org.slug);
     await helpers.restoreFsTree(meta.id, org.slug, dir);
 
     const sidecarPath = path.join(dir, BINDINGS_SIDECAR);
