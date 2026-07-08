@@ -180,6 +180,10 @@ export const sandboxSessionOpsTable = defineTable({
    * staged into a lingering exec would sit unconsumed: no tool/stop
    * boundaries fire while the model idles). Cleared when activity resumes. */
   agentIdleAt: v.optional(v.number()),
+  /** Background-task ledger depth while running (task_started minus settled).
+   * Lets the chat UI distinguish steer-ready linger (0) from parked-on-work
+   * linger (>0) without inferring from silence alone. */
+  pendingBackgroundTasks: v.optional(v.number()),
   /** Resume cursor: highest runnerd event seq consumed (for the continuation
    * action to re-attach without missing/duplicating events). */
   lastSeq: v.optional(v.number()),

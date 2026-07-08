@@ -350,6 +350,31 @@ export function useSessionProgress(threadId: string | null | undefined) {
   return data ?? null;
 }
 
+export type SessionProgress = NonNullable<
+  ReturnType<typeof useSessionProgress>
+>;
+
+/** Active-work affordances (Working pill, stop, streaming) — false during
+ * steer-ready linger, true while background tasks still run. */
+export function isAgentActivelyWorking(
+  isGenerating: boolean | undefined,
+  progress: SessionProgress | null,
+): boolean {
+  if (!isGenerating) return false;
+  if (progress?.agentIdleAt == null) return true;
+  return (progress.pendingBackgroundTasks ?? 0) > 0;
+}
+
+/** Linger with no background work — steer/next message can go through stdin. */
+export function isAgentLingeringSteerReady(
+  progress: SessionProgress | null,
+): boolean {
+  return (
+    progress?.agentIdleAt != null &&
+    (progress.pendingBackgroundTasks ?? 0) === 0
+  );
+}
+
 /**
  * The thread's live sandbox-session lifecycle state (creating/active/degraded/
  * stopped + pinned), for the ambient "Sandbox" status pill. Null for normal

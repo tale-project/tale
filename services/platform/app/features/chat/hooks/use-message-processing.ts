@@ -22,7 +22,7 @@ import {
   sameParts,
 } from '../utils/message-equality';
 import { hasInFlightTool } from '../utils/thought-predicates';
-import { useSessionProgress } from './queries';
+import { isAgentActivelyWorking, useSessionProgress } from './queries';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -251,8 +251,10 @@ export function useMessageProcessing(
   // agree. `useSessionProgress` is null for normal-chat threads (no sandbox
   // op), so `effectiveGenerating` collapses to plain `isGenerating` there.
   const sessionProgress = useSessionProgress(threadId);
-  const agentLingering = sessionProgress?.agentIdleAt != null;
-  const effectiveGenerating = !!isGenerating && !agentLingering;
+  const effectiveGenerating = isAgentActivelyWorking(
+    isGenerating,
+    sessionProgress,
+  );
 
   // Client-side pending-send signal. When the user has just clicked send
   // but the new user message hasn't been persisted yet, `pendingMessage` is

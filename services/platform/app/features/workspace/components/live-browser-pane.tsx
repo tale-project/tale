@@ -466,7 +466,9 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
   const state = useThreadSandboxState(threadId);
   const progress = useSessionProgress(threadId);
   const running =
-    progress?.status === 'running' && progress?.agentIdleAt == null;
+    progress?.status === 'running' &&
+    (progress.agentIdleAt == null ||
+      (progress.pendingBackgroundTasks ?? 0) > 0);
   const sessionActive = running || state?.status === 'active';
 
   // Manual "Reset browser" — the last-resort recovery for a wedged browser the
