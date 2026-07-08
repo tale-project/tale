@@ -81,8 +81,11 @@ export function sanitizeAttachmentName(raw: string): string {
   return cleaned;
 }
 
-/** Make `name` unique within `used` by inserting `-N` before the extension. */
-function dedupeName(name: string, used: Set<string>): string {
+/** Make `name` unique within `used` by inserting `-N` before the extension.
+ * Shared with the native-chat workspace filer (`lib/attachments/
+ * workspace_uploads.ts`), which batches uploads under the same naming
+ * contract. */
+export function dedupeName(name: string, used: Set<string>): string {
   if (!used.has(name)) {
     used.add(name);
     return name;

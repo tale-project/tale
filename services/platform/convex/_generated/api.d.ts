@@ -735,6 +735,7 @@ import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_process_attachments from "../lib/attachments/process_attachments.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
+import type * as lib_attachments_workspace_uploads from "../lib/attachments/workspace_uploads.js";
 import type * as lib_auth_e2e_harness from "../lib/auth/e2e_harness.js";
 import type * as lib_auth_find_user_by_normalized_email from "../lib/auth/find_user_by_normalized_email.js";
 import type * as lib_auth_merge_auth_email_duplicates from "../lib/auth/merge_auth_email_duplicates.js";
@@ -2424,6 +2425,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/process_attachments": typeof lib_attachments_process_attachments;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
+  "lib/attachments/workspace_uploads": typeof lib_attachments_workspace_uploads;
   "lib/auth/e2e_harness": typeof lib_auth_e2e_harness;
   "lib/auth/find_user_by_normalized_email": typeof lib_auth_find_user_by_normalized_email;
   "lib/auth/merge_auth_email_duplicates": typeof lib_auth_merge_auth_email_duplicates;
