@@ -205,10 +205,10 @@ export const createDocumentFromUpload = mutation({
     // `assertWritable` in convex/projects/mutations.ts.
     const project = args.projectId ? await ctx.db.get(args.projectId) : null;
     if (args.projectId) {
-      if (args.teamId || args.folderId) {
+      if (args.teamId) {
         throw new ConvexError({
           code: 'DOCUMENT_SCOPE_CONFLICT',
-          message: 'A project document cannot also carry a team or folder',
+          message: 'A project document cannot also carry a team',
         });
       }
       if (!project) {
@@ -236,6 +236,24 @@ export const createDocumentFromUpload = mutation({
           code: 'RBAC_FORBIDDEN',
           message: 'You do not have permission to add files to this project',
         });
+      }
+      // Upload into a project folder: the folder must belong to THIS
+      // project. Anything else — missing, foreign org, hub folder, another
+      // project's folder — is an opaque not-found (the caller cannot probe
+      // other scopes through the upload path). Project edit access was
+      // already established above.
+      if (args.folderId) {
+        const folder = await ctx.db.get(args.folderId);
+        if (
+          !folder ||
+          folder.organizationId !== args.organizationId ||
+          folder.projectId !== args.projectId
+        ) {
+          throw new ConvexError({
+            code: 'FOLDER_NOT_FOUND',
+            message: 'Folder not found',
+          });
+        }
       }
     }
 
@@ -271,9 +289,17 @@ export const createDocumentFromUpload = mutation({
 
     let effectiveTeamId = args.teamId;
 
-    if (args.folderId) {
+    // Hub upload into a folder (project uploads validated their folder in
+    // the project branch above — no team inheritance applies there).
+    if (args.folderId && !args.projectId) {
       const folder = await ctx.db.get(args.folderId);
-      if (!folder || folder.organizationId !== args.organizationId) {
+      // A project folder reads as not-found for hub uploads, mirroring the
+      // WebDAV/REST posture (isProjectScopedFolder — folders/access.ts).
+      if (
+        !folder ||
+        folder.organizationId !== args.organizationId ||
+        folder.projectId != null
+      ) {
         throw new ConvexError({
           code: 'FOLDER_NOT_FOUND',
           message: 'Folder not found',

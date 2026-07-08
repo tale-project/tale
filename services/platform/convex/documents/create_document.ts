@@ -5,6 +5,7 @@
 import { ConvexError } from 'convex/values';
 
 import type { MutationCtx } from '../_generated/server';
+import { isProjectScopedFolder } from '../folders/access';
 import { buildFolderPath } from '../folders/queries';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
@@ -27,6 +28,24 @@ export async function createDocument(
   if (args.folderId) {
     const folder = await ctx.db.get(args.folderId);
     if (!folder || folder.organizationId !== args.organizationId) {
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
+    }
+    // Folder and document scopes must match: a project document may only
+    // live in a folder of its own project; a hub document must never land
+    // inside a project folder (opaque not-found — hub writers cannot see
+    // project folders, so they cannot learn one exists).
+    if (args.projectId) {
+      if (folder.projectId !== args.projectId) {
+        throw new ConvexError({
+          code: 'DOCUMENT_SCOPE_CONFLICT',
+          message:
+            'A project document can only live in a folder of the same project',
+        });
+      }
+    } else if (isProjectScopedFolder(folder)) {
       throw new ConvexError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
