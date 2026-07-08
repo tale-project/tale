@@ -49,7 +49,9 @@ describe('imap_smtp sync workflow', () => {
     expect(json).toContain('"integrationName":"imap_smtp"');
     expect(json).toContain('"operation":"create_from_email"');
     expect(json).toContain('"operation":"create_from_sent_email"');
-    expect(json).toContain('"operation":"query_latest_outbound_message_for_sync"');
+    expect(json).toContain(
+      '"operation":"query_latest_outbound_message_for_sync"',
+    );
     expect(json).toContain('"operation":"list_messages"');
     expect(json).toContain('"mailbox":"sent"');
   });

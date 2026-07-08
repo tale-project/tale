@@ -32,7 +32,11 @@ vi.mock('imapflow', () => {
       // UID fetch: an explicit array of UIDs.
       if (Array.isArray(range)) {
         for (const uid of range) {
-          yield { uid, flags: new Set<string>(), source: Buffer.from(`uid-${uid}`) };
+          yield {
+            uid,
+            flags: new Set<string>(),
+            source: Buffer.from(`uid-${uid}`),
+          };
         }
         return;
       }
@@ -90,7 +94,11 @@ describe('fetchMessages — sent folder recent fetch', () => {
   it('first run: requests a valid `start:*` range, never `*:-N`', async () => {
     h.sentExists = 3;
 
-    const result = await fetchMessages({ imap, mailbox: 'sent', maxResults: 25 });
+    const result = await fetchMessages({
+      imap,
+      mailbox: 'sent',
+      maxResults: 25,
+    });
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(3);
@@ -104,7 +112,11 @@ describe('fetchMessages — sent folder recent fetch', () => {
   it('first run: caps to the last maxResults on a large folder', async () => {
     h.sentExists = 30;
 
-    const result = await fetchMessages({ imap, mailbox: 'sent', maxResults: 25 });
+    const result = await fetchMessages({
+      imap,
+      mailbox: 'sent',
+      maxResults: 25,
+    });
 
     expect(result.data).toHaveLength(25);
     // start = 30 - 25 + 1 = 6
@@ -114,7 +126,11 @@ describe('fetchMessages — sent folder recent fetch', () => {
   it('first run: empty Sent folder fetches nothing (no invalid range sent)', async () => {
     h.sentExists = 0;
 
-    const result = await fetchMessages({ imap, mailbox: 'sent', maxResults: 25 });
+    const result = await fetchMessages({
+      imap,
+      mailbox: 'sent',
+      maxResults: 25,
+    });
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([]);

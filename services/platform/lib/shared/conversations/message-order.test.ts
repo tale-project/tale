@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareConversationMessages,
+  type ConversationMessageSortable,
   getConversationMessageSortTime,
 } from './message-order';
 
@@ -37,7 +38,7 @@ describe('getConversationMessageSortTime', () => {
 
 describe('compareConversationMessages', () => {
   it('orders by sentAt when deliveredAt would scramble the thread', () => {
-    const messages = [
+    const messages: ConversationMessageSortable[] = [
       {
         _id: 'inbound_latest',
         _creationTime: 4,

@@ -18,36 +18,38 @@ describe('queryLatestOutboundMessageForEmailSync', () => {
   });
 
   it('returns the newest outbound row across delivered and sent states', async () => {
-    queryLatestMessageByDeliveryState.mockImplementation(async (_ctx, params) => {
-      if (params.deliveryState === 'delivered') {
+    queryLatestMessageByDeliveryState.mockImplementation(
+      async (_ctx, params) => {
+        if (params.deliveryState === 'delivered') {
+          return {
+            message: {
+              _id: 'msg_delivered',
+              _creationTime: 1,
+              organizationId: 'org',
+              conversationId: 'conv',
+              channel: 'email',
+              direction: 'outbound',
+              deliveryState: 'delivered',
+              content: 'old import',
+              deliveredAt: 1000,
+            },
+          };
+        }
         return {
           message: {
-            _id: 'msg_delivered',
-            _creationTime: 1,
+            _id: 'msg_sent',
+            _creationTime: 2,
             organizationId: 'org',
             conversationId: 'conv',
             channel: 'email',
             direction: 'outbound',
-            deliveryState: 'delivered',
-            content: 'old import',
-            deliveredAt: 1000,
+            deliveryState: 'sent',
+            content: 'native send',
+            sentAt: 2000,
           },
         };
-      }
-      return {
-        message: {
-          _id: 'msg_sent',
-          _creationTime: 2,
-          organizationId: 'org',
-          conversationId: 'conv',
-          channel: 'email',
-          direction: 'outbound',
-          deliveryState: 'sent',
-          content: 'native send',
-          sentAt: 2000,
-        },
-      };
-    });
+      },
+    );
 
     const ctx = {} as ActionCtx;
     const result = await queryLatestOutboundMessageForEmailSync(ctx, {
