@@ -162,7 +162,8 @@ function assertTaskWritable(project: Doc<'projects'>, auth: AuthContext): void {
  * row server-side, matching the UI's `canMutate = canEdit && !isArchived` gate.
  */
 function assertTaskNotArchived(task: Doc<'tasks'>): void {
-  if (task.archivedAt !== undefined) throw new ConvexError({ code: 'TASK_ARCHIVED' });
+  if (task.archivedAt !== undefined)
+    throw new ConvexError({ code: 'TASK_ARCHIVED' });
 }
 
 function validateTitle(title: string): string {

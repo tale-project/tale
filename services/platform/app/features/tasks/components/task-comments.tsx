@@ -22,10 +22,10 @@ import { useTaskDiscussion } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { isPreviewableTaskActor } from '../utils/task-actor-preview';
 import { AssigneeAvatar } from './assignee-avatar';
-import { TaskActorName } from './task-actor-preview-popover';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
+import { TaskActorName } from './task-actor-preview-popover';
 
 /**
  * A task comment in the unified model: a `task_discussion` message joined with

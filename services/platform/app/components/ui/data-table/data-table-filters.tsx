@@ -246,118 +246,120 @@ export function DataTableFilters({
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {filters.map((filter) => (
-                <FilterSection
-                  key={filter.key}
-                  title={filter.title}
-                  isExpanded={expandedSections[filter.key] ?? false}
-                  onToggle={() =>
-                    setExpandedSections((prev) => ({
-                      ...prev,
-                      [filter.key]: !prev[filter.key],
-                    }))
-                  }
-                  selectedCount={
-                    filter.multiSelect ? filter.selectedValues.length : 0
-                  }
-                  hasSelection={
-                    !filter.multiSelect && filter.selectedValues.length > 0
-                  }
-                >
-                  {filter.multiSelect ? (
-                    <div
-                      className={cn(
-                        'flex flex-col gap-1',
-                        filter.columns === 2 && 'grid grid-cols-2',
-                      )}
-                    >
-                      {filter.options.map((option) => {
-                        const checkboxId = `filter-${filter.key}-${option.value}`;
-                        const isChecked = filter.selectedValues.includes(
-                          option.value,
-                        );
-                        return (
-                          <label
-                            key={option.value}
-                            htmlFor={checkboxId}
-                            className={cn(
-                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
-                              isChecked ? 'bg-muted' : 'hover:bg-muted/70',
-                            )}
-                          >
-                            <Checkbox
-                              id={checkboxId}
-                              checked={isChecked}
-                              onCheckedChange={(checked) =>
-                                handleFilterChange(
-                                  filter,
-                                  option.value,
-                                  !!checked,
+                  <FilterSection
+                    key={filter.key}
+                    title={filter.title}
+                    isExpanded={expandedSections[filter.key] ?? false}
+                    onToggle={() =>
+                      setExpandedSections((prev) => ({
+                        ...prev,
+                        [filter.key]: !prev[filter.key],
+                      }))
+                    }
+                    selectedCount={
+                      filter.multiSelect ? filter.selectedValues.length : 0
+                    }
+                    hasSelection={
+                      !filter.multiSelect && filter.selectedValues.length > 0
+                    }
+                  >
+                    {filter.multiSelect ? (
+                      <div
+                        className={cn(
+                          'flex flex-col gap-1',
+                          filter.columns === 2 && 'grid grid-cols-2',
+                        )}
+                      >
+                        {filter.options.map((option) => {
+                          const checkboxId = `filter-${filter.key}-${option.value}`;
+                          const isChecked = filter.selectedValues.includes(
+                            option.value,
+                          );
+                          return (
+                            <label
+                              key={option.value}
+                              htmlFor={checkboxId}
+                              className={cn(
+                                'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                                isChecked ? 'bg-muted' : 'hover:bg-muted/70',
+                              )}
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isChecked}
+                                onCheckedChange={(checked) =>
+                                  handleFilterChange(
+                                    filter,
+                                    option.value,
+                                    !!checked,
+                                  )
+                                }
+                              />
+                              <Text
+                                as="span"
+                                variant="muted"
+                                className="font-medium"
+                              >
+                                {option.label}
+                              </Text>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        role="radiogroup"
+                        aria-label={filter.title}
+                        className={cn(
+                          'flex flex-col gap-1',
+                          filter.columns === 2 && 'grid grid-cols-2',
+                        )}
+                      >
+                        {filter.options.map((option) => {
+                          const isSelected =
+                            filter.selectedValues[0] === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={isSelected}
+                              onClick={() =>
+                                filter.onChange(
+                                  isSelected ? [] : [option.value],
                                 )
                               }
-                            />
-                            <Text
-                              as="span"
-                              variant="muted"
-                              className="font-medium"
-                            >
-                              {option.label}
-                            </Text>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div
-                      role="radiogroup"
-                      aria-label={filter.title}
-                      className={cn(
-                        'flex flex-col gap-1',
-                        filter.columns === 2 && 'grid grid-cols-2',
-                      )}
-                    >
-                      {filter.options.map((option) => {
-                        const isSelected =
-                          filter.selectedValues[0] === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            role="radio"
-                            aria-checked={isSelected}
-                            onClick={() =>
-                              filter.onChange(isSelected ? [] : [option.value])
-                            }
-                            className={cn(
-                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
-                              isSelected ? 'bg-muted' : 'hover:bg-muted/70',
-                            )}
-                          >
-                            <span
                               className={cn(
-                                'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
-                                isSelected
-                                  ? 'border-blue-600 text-blue-600'
-                                  : 'border-primary',
+                                'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                                isSelected ? 'bg-muted' : 'hover:bg-muted/70',
                               )}
-                              aria-hidden="true"
                             >
-                              {isSelected && (
-                                <Circle className="size-2.5 fill-current" />
-                              )}
-                            </span>
-                            <Text
-                              as="span"
-                              variant="muted"
-                              className="font-medium"
-                            >
-                              {option.label}
-                            </Text>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </FilterSection>
+                              <span
+                                className={cn(
+                                  'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+                                  isSelected
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-primary',
+                                )}
+                                aria-hidden="true"
+                              >
+                                {isSelected && (
+                                  <Circle className="size-2.5 fill-current" />
+                                )}
+                              </span>
+                              <Text
+                                as="span"
+                                variant="muted"
+                                className="font-medium"
+                              >
+                                {option.label}
+                              </Text>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </FilterSection>
                 ))}
               </div>
             </Popover>

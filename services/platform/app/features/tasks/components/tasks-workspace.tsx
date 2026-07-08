@@ -20,6 +20,7 @@ import {
   useTasksByProject,
 } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { TASK_PRIORITY_ORDER, TRIAGED_TASK_STATUSES } from '../lib/display';
 import {
   ALL_ASSIGNEE_FILTER,
   ALL_PRIORITY_FILTER,
@@ -29,7 +30,6 @@ import {
   resolveAssigneeQueryFilter,
   type TaskPriorityFilter,
 } from '../lib/filter-tasks';
-import { TASK_PRIORITY_ORDER, TRIAGED_TASK_STATUSES } from '../lib/display';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
 import { TaskBoardProvider } from './task-board-context';
@@ -86,14 +86,15 @@ export function TasksWorkspace({
   // rows (proposed tasks), and the backlog tab receives only them. Archive +
   // assignee narrowing are applied on top; priority/assignee facets filter
   // the loaded rows client-side.
-  const { tasks: loadedTasks, canEdit, isLoading } = useTasksByProject(
-    typedProjectId,
-    {
-      statuses: view === 'backlog' ? BACKLOG_STATUSES : TRIAGED_TASK_STATUSES,
-      includeArchived,
-      assigneeId: assigneeQueryFilter,
-    },
-  );
+  const {
+    tasks: loadedTasks,
+    canEdit,
+    isLoading,
+  } = useTasksByProject(typedProjectId, {
+    statuses: view === 'backlog' ? BACKLOG_STATUSES : TRIAGED_TASK_STATUSES,
+    includeArchived,
+    assigneeId: assigneeQueryFilter,
+  });
   const tasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {

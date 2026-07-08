@@ -161,7 +161,14 @@ export function AssigneePicker({
     }
 
     return [...memberOptions, ...agentSections];
-  }, [members, platformAgents, codingAgents, currentUserId, t, sectionInfoButton]);
+  }, [
+    members,
+    platformAgents,
+    codingAgents,
+    currentUserId,
+    t,
+    sectionInfoButton,
+  ]);
 
   if (disabled) {
     return (

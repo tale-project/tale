@@ -24,10 +24,7 @@ export function resolveAssigneeQueryFilter(
   filter: TaskAssigneeFilter,
   currentUserId?: string,
 ): string | undefined {
-  if (
-    filter === ALL_ASSIGNEE_FILTER ||
-    filter === ASSIGNEE_FILTER_UNASSIGNED
-  ) {
+  if (filter === ALL_ASSIGNEE_FILTER || filter === ASSIGNEE_FILTER_UNASSIGNED) {
     return undefined;
   }
   if (filter === ASSIGNEE_FILTER_ME) {
