@@ -221,17 +221,15 @@ export function DataTableFilters({
               modal={false}
               align="start"
               onOpenAutoFocus={(e) => e.preventDefault()}
-              contentClassName="bg-card p-0"
+              contentClassName="bg-card flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col overflow-hidden p-0"
               trigger={
-                <div>
-                  <FilterButton
-                    hasActiveFilters={totalActiveFilters > 0}
-                    isLoading={isLoading}
-                  />
-                </div>
+                <FilterButton
+                  hasActiveFilters={totalActiveFilters > 0}
+                  isLoading={isLoading}
+                />
               }
             >
-              <div className="border-border flex items-center justify-between p-3">
+              <div className="border-border flex shrink-0 items-center justify-between border-b p-3">
                 <Text as="span" variant="label" className="text-sm">
                   {t('labels.filters')}
                 </Text>
@@ -246,7 +244,8 @@ export function DataTableFilters({
                 )}
               </div>
 
-              {filters.map((filter) => (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                {filters.map((filter) => (
                 <FilterSection
                   key={filter.key}
                   title={filter.title}
@@ -359,7 +358,8 @@ export function DataTableFilters({
                     </div>
                   )}
                 </FilterSection>
-              ))}
+                ))}
+              </div>
             </Popover>
           )}
         </div>

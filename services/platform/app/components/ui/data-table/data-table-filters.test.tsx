@@ -140,6 +140,29 @@ describe('DataTableFilters', () => {
     });
   });
 
+  describe('scrollable panel', () => {
+    it('caps the popover height and scrolls long option lists', async () => {
+      const manyOptions = Array.from({ length: 30 }, (_, index) => ({
+        value: `option-${index}`,
+        label: `Option ${index}`,
+      }));
+      const filter = createFilter({
+        key: 'assignee',
+        title: 'Assignee',
+        options: manyOptions,
+      });
+
+      const { user } = render(<DataTableFilters filters={[filter]} />);
+
+      await openFilterPanel(user);
+      await expandSection(user, 'Assignee');
+
+      const scrollRegion = document.querySelector('.overflow-y-auto');
+      expect(scrollRegion).not.toBeNull();
+      expect(scrollRegion?.parentElement).toHaveClass('overflow-hidden');
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with radio filters expanded', async () => {
       const filter = createFilter({ selectedValues: ['active'] });

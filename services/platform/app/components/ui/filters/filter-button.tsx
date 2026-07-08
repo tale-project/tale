@@ -1,7 +1,7 @@
 import { Button } from '@tale/ui/button';
 import { ListFilter } from 'lucide-react';
 import { Loader2Icon } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import { forwardRef, type ComponentProps } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -14,35 +14,36 @@ type FilterButtonProps = ComponentProps<typeof Button> & {
   isLoading?: boolean;
 };
 
-export function FilterButton({
-  hasActiveFilters,
-  isLoading = false,
-  className,
-  ...restProps
-}: FilterButtonProps) {
-  const { t } = useT('common');
+export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
+  function FilterButton(
+    { hasActiveFilters, isLoading = false, className, ...restProps },
+    ref,
+  ) {
+    const { t } = useT('common');
 
-  return (
-    <Button
-      variant="secondary"
-      aria-label={t('labels.filter')}
-      className={cn(
-        'hover:bg-muted relative gap-2 h-9',
-        hasActiveFilters && 'border-primary',
-        isLoading && 'opacity-75',
-        className,
-      )}
-      {...restProps}
-    >
-      {isLoading ? (
-        <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
-      ) : (
-        <ListFilter className="text-muted-foreground size-4" />
-      )}
-      {t('labels.filter')}
-      {hasActiveFilters && !isLoading && (
-        <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
-      )}
-    </Button>
-  );
-}
+    return (
+      <Button
+        ref={ref}
+        variant="secondary"
+        aria-label={t('labels.filter')}
+        className={cn(
+          'hover:bg-muted relative gap-2 h-9',
+          hasActiveFilters && 'border-primary',
+          isLoading && 'opacity-75',
+          className,
+        )}
+        {...restProps}
+      >
+        {isLoading ? (
+          <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
+        ) : (
+          <ListFilter className="text-muted-foreground size-4" />
+        )}
+        {t('labels.filter')}
+        {hasActiveFilters && !isLoading && (
+          <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
+        )}
+      </Button>
+    );
+  },
+);
