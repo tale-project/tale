@@ -7258,8 +7258,20 @@
     "board": {
       "noTasks": "Aucune tâche"
     },
-    "filters": {
-      "waitingOnMe": "En attente de moi"
+    "list": {
+      "showArchived": "Afficher les archivées"
+    },
+    "archived": {
+      "badge": "Archivée"
+    },
+    "archive": {
+      "confirmTitle": "Archiver la tâche ?",
+      "confirmDescription": "La tâche disparaît du board et de la liste. Active « Afficher les archivées » pour la restaurer plus tard.",
+      "restoreDescription": "La tâche réapparaît dans le board et la liste.",
+      "success": "Tâche archivée",
+      "error": "Impossible d'archiver la tâche",
+      "restoreSuccess": "Tâche restaurée",
+      "restoreError": "Impossible de restaurer la tâche"
     },
     "detail": {
       "overview": "Aperçu",
@@ -7290,9 +7302,18 @@
       "unassigned": "Non assigné",
       "assignToMe": "M’assigner",
       "agents": "Agents",
+      "codingAgents": "Agents de code",
+      "codingAgentsInfo": "Le dispatch sur le board dépend de chaque agent — tale-daemon sur ta machine, bac à sable durable, ou boucle plateforme quand seul le chat utilise un bac à sable.",
       "unassign": "Désassigner",
       "you": "Vous",
-      "search": "Rechercher des personnes…"
+      "search": "Rechercher des personnes…",
+      "dispatchHints": {
+        "agentPlatform": "Utilise les outils de la plateforme et publie un commentaire de tâche.",
+        "codingDaemon": "S'exécute sur ta machine dans un workspace git.",
+        "codingDurable": "S'exécute dans un bac à sable ; écrit un fichier de synthèse.",
+        "codingSandboxOnly": "Le chat utilise un bac à sable ; les tâches du board utilisent la boucle plateforme."
+      },
+      "nonCodeWarning": "Cet agent de code est optimisé pour le travail sur dépôt. Pour la recherche, la rédaction ou des livrables personnels, assigne une personne ou un Agent."
     },
     "activity": {
       "created": "Créé",
@@ -7338,6 +7359,13 @@
         "manual": "manuel"
       }
     },
+    "timeline": {
+      "runLabel": "Exécution d'agent",
+      "systemActor": "Système",
+      "unresolvedWorkflow": "Workflow",
+      "viewAgent": "Voir l'agent",
+      "viewWorkflow": "Voir le workflow"
+    },
     "dueDate": {
       "label": "Échéance",
       "overdue": "En retard",
@@ -7348,7 +7376,8 @@
       "willQueue": "{slug} va répondre (en file — limite de simultanéité atteinte)",
       "packDisabled": "{slug} ne répondra pas — l'automatisation des tâches est désactivée",
       "breakerPaused": "{slug} ne répondra pas — les exécutions d'agents sont en pause sur cette tâche",
-      "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé"
+      "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé",
+      "agentNotLive": "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
     },
     "mentionPicker": {
       "title": "Mentionner un membre ou un agent",

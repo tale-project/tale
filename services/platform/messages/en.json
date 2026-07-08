@@ -7536,8 +7536,20 @@
     "board": {
       "noTasks": "No tasks"
     },
-    "filters": {
-      "waitingOnMe": "Waiting on me"
+    "list": {
+      "showArchived": "Show archived"
+    },
+    "archived": {
+      "badge": "Archived"
+    },
+    "archive": {
+      "confirmTitle": "Archive task?",
+      "confirmDescription": "The task leaves the board and list. Turn on Show archived to restore it later.",
+      "restoreDescription": "The task returns to the board and list.",
+      "success": "Task archived",
+      "error": "Couldn't archive task",
+      "restoreSuccess": "Task restored",
+      "restoreError": "Couldn't restore task"
     },
     "detail": {
       "overview": "Overview",
@@ -7568,9 +7580,18 @@
       "unassigned": "Unassigned",
       "assignToMe": "Assign to me",
       "agents": "Agents",
+      "codingAgents": "Coding agents",
+      "codingAgentsInfo": "Board dispatch depends on each agent — tale-daemon on your machine, a durable sandbox, or the platform loop when only chat uses a sandbox.",
       "unassign": "Unassign",
       "you": "You",
-      "search": "Search people…"
+      "search": "Search people…",
+      "dispatchHints": {
+        "agentPlatform": "Uses platform tools and posts a task comment.",
+        "codingDaemon": "Runs on your machine in a git workspace.",
+        "codingDurable": "Runs in a sandbox container; writes a summary file.",
+        "codingSandboxOnly": "Chat uses a sandbox; board tasks use the platform loop."
+      },
+      "nonCodeWarning": "This coding agent is optimized for repo work. For research, writing, or personal deliverables, assign a person or an Agent."
     },
     "activity": {
       "created": "Created",
@@ -7616,6 +7637,13 @@
         "manual": "manual"
       }
     },
+    "timeline": {
+      "runLabel": "Agent run",
+      "systemActor": "System",
+      "unresolvedWorkflow": "Workflow",
+      "viewAgent": "View agent",
+      "viewWorkflow": "View workflow"
+    },
     "dueDate": {
       "label": "Due date",
       "overdue": "Overdue",
@@ -7626,7 +7654,8 @@
       "willQueue": "{slug} will respond (queued — at its concurrency limit)",
       "packDisabled": "{slug} won't respond — task automation is off",
       "breakerPaused": "{slug} won't respond — agent runs are paused on this task",
-      "budgetPaused": "{slug} won't respond — monthly budget exhausted"
+      "budgetPaused": "{slug} won't respond — monthly budget exhausted",
+      "agentNotLive": "{slug} won't respond — agent is not installed or is disabled"
     },
     "mentionPicker": {
       "title": "Mention a member or agent",

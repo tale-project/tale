@@ -78,6 +78,8 @@ export function MentionTriggerChips({
         return t('mentionPreview.breakerPaused', { slug: name });
       case 'budget_paused':
         return t('mentionPreview.budgetPaused', { slug: name });
+      case 'agent_not_live':
+        return t('mentionPreview.agentNotLive', { slug: name });
       default:
         return name;
     }

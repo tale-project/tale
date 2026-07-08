@@ -77,6 +77,22 @@ export async function hasOpenChildren(
   return false;
 }
 
+export type TaskActivityAttribution = {
+  workflowSlug?: string;
+  wfExecutionId?: Id<'wfExecutions'>;
+};
+
+/** Build stored context for workflow-sentinel activity rows. */
+export function workflowActivityContext(
+  actorId: string,
+  attribution?: TaskActivityAttribution,
+): TaskActivityAttribution | undefined {
+  if (actorId !== 'workflow' || !attribution) return undefined;
+  const { workflowSlug, wfExecutionId } = attribution;
+  if (!workflowSlug && !wfExecutionId) return undefined;
+  return { workflowSlug, wfExecutionId };
+}
+
 /** Append a row to the per-task product activity timeline. */
 export async function recordActivity(
   ctx: MutationCtx,
@@ -87,6 +103,7 @@ export async function recordActivity(
     action: string;
     fromValue?: string;
     toValue?: string;
+    context?: TaskActivityAttribution;
   },
 ): Promise<void> {
   await ctx.db.insert('taskActivity', {
@@ -98,6 +115,7 @@ export async function recordActivity(
     action: args.action,
     fromValue: args.fromValue,
     toValue: args.toValue,
+    context: args.context,
     createdAt: Date.now(),
   });
 }
