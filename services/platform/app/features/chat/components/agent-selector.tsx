@@ -193,13 +193,13 @@ export const AgentSelector = memo(function AgentSelector({
     [allAgents, readiness, navigate, organizationId, setSelectedAgent],
   );
 
-  // The footer "Catalog" button sends the user to the agent catalog — the
-  // browse-and-install surface — rather than a bare create-agent dialog, so
-  // they can pick from the available agents (or create a new one from there).
+  // The footer "Browse automations" button sends the user to the Automations
+  // catalog — agents are installed via automations now, so that's the
+  // browse-and-install surface — rather than a bare create-agent dialog.
   const handleAddAgentClick = useCallback(() => {
     setOpen(false);
     void navigate({
-      to: '/dashboard/$id/agents/catalog',
+      to: '/dashboard/$id/automations',
       params: { id: organizationId },
     });
   }, [navigate, organizationId]);
@@ -207,7 +207,8 @@ export const AgentSelector = memo(function AgentSelector({
   // Right-side action per row: a link to that agent's detail page, mirroring
   // the model selector's provider link. Skipped for the "Auto" pseudo-option
   // (no agent to view) and only shown to users who can manage agents — the
-  // detail page is the same `agents` write gate as the Catalog footer button.
+  // detail page is the same `agents` write gate as the "Browse automations"
+  // footer button.
   const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
       if (!canManageAgents || option.value === AUTO_AGENT_SLUG) return null;
@@ -316,7 +317,7 @@ export const AgentSelector = memo(function AgentSelector({
             icon={LayoutGrid}
             onClick={handleAddAgentClick}
           >
-            {t('agentSelector.addAgent')}
+            {t('agentSelector.browseAutomations')}
           </Button>
         ) : undefined
       }

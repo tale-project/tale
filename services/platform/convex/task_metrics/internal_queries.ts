@@ -1,6 +1,6 @@
 /**
  * Internal metrics reads for automations — currently the daily-digest
- * workflow's one query. Computes the day's workforce summary from LIVE
+ * workflow's one query. Computes the day's task/agent-run summary from LIVE
  * domain tables with hard scan caps (the snapshot rollups of the metrics
  * milestone will take over the long-window aggregations; a one-day window
  * fits comfortably under these caps for any realistic org).

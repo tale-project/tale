@@ -30,15 +30,14 @@ export interface IntegrationOperationMetadata {
 }
 
 export interface WorkflowCreationMetadata {
+  /** Card display label — the workflow's slug (its only identity). */
   workflowName: string;
-  workflowSlug?: string;
-  workflowDescription?: string;
+  workflowSlug: string;
   workflowConfig: {
-    name: string;
-    description?: string;
     version?: string;
     workflowType?: 'predefined';
     config?: Record<string, unknown>;
+    specification?: string;
   };
   stepsConfig: Array<{
     stepSlug: string;
@@ -71,11 +70,10 @@ export interface WorkflowUpdateMetadata {
   workflowName: string;
   workflowVersion: string;
   workflowConfig?: {
-    name: string;
-    description?: string;
     version?: string;
     workflowType?: 'predefined';
     config?: Record<string, unknown>;
+    specification?: string;
   };
   stepsConfig?: Array<{
     stepSlug: string;
@@ -101,7 +99,6 @@ export interface WorkflowUpdateMetadata {
 export interface WorkflowRunMetadata {
   workflowSlug: string;
   workflowName: string;
-  workflowDescription?: string;
   parameters?: Record<string, unknown>;
   requestedAt: number;
   executedAt?: number;

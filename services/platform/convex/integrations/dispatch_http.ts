@@ -22,19 +22,8 @@ import { internal } from '../_generated/api';
 import { httpAction } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';
 import { wrapUntrusted } from '../lib/untrusted_content';
+import { authSessionToken } from '../sandbox/dispatch_auth';
 import { isUsable, type IntegrationAvailability } from './availability';
-
-const BEARER_PREFIX = 'Bearer ';
-
-async function sha256Hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(input),
-  );
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -43,42 +32,8 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-interface SessionAuth {
-  organizationId: string;
-  sessionId: string;
-  grantedSlugs: string[];
-}
-
-/**
- * Resolve the session from the bearer token. Returns null on ANY auth failure
- * (missing/garbage header, unknown hash, revoked, expired) — callers map null
- * to 401. organizationId + grants are read from the token row, never the body.
- */
-async function authSession(
-  ctx: Parameters<Parameters<typeof httpAction>[0]>[0],
-  req: Request,
-): Promise<SessionAuth | null> {
-  const header = req.headers.get('authorization') ?? '';
-  if (!header.startsWith(BEARER_PREFIX)) return null;
-  const token = header.slice(BEARER_PREFIX.length).trim();
-  if (!token) return null;
-  const tokenHash = await sha256Hex(token);
-  const row = await ctx.runQuery(
-    internal.sandbox.session_queries.getSessionTokenByHash,
-    { tokenHash },
-  );
-  if (!row) return null;
-  if (row.revokedAt !== undefined) return null;
-  if (row.expiresAt <= Date.now()) return null;
-  return {
-    organizationId: row.organizationId,
-    sessionId: row.sessionId,
-    grantedSlugs: row.scope.integrationGrants,
-  };
-}
-
 export const executeIntegrationHandler = httpAction(async (ctx, req) => {
-  const auth = await authSession(ctx, req);
+  const auth = await authSessionToken(ctx, req);
   if (!auth) return json(401, { status: 'error', message: 'unauthorized' });
 
   let parsed: unknown;
@@ -134,7 +89,7 @@ export const executeIntegrationHandler = httpAction(async (ctx, req) => {
       {
         organizationId: auth.organizationId,
         slug,
-        grantedSlugs: auth.grantedSlugs,
+        grantedSlugs: auth.integrationGrants,
       },
     );
   } catch (err) {
@@ -230,13 +185,16 @@ export const executeIntegrationHandler = httpAction(async (ctx, req) => {
 });
 
 export const integrationStatusHandler = httpAction(async (ctx, req) => {
-  const auth = await authSession(ctx, req);
+  const auth = await authSessionToken(ctx, req);
   if (!auth) return json(401, { status: 'error', message: 'unauthorized' });
   let integrations: IntegrationAvailability[];
   try {
     integrations = await ctx.runAction(
       internal.integrations.dispatch_internal.getIntegrationStatuses,
-      { organizationId: auth.organizationId, grantedSlugs: auth.grantedSlugs },
+      {
+        organizationId: auth.organizationId,
+        grantedSlugs: auth.integrationGrants,
+      },
     );
   } catch (err) {
     console.error('[integrations/dispatch] status listing failed:', err);

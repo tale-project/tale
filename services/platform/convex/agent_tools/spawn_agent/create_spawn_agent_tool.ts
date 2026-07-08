@@ -2,10 +2,11 @@
  * The `spawn_agent` tool — agent-on-demand jobs (design: agent-on-demand.md).
  *
  * The primary chat agent composes an ephemeral worker for exactly one task:
- * capabilities are resolved as a SUBSET of the parent's own grants
- * (`resolve_job_spec.ts`), the methodology skill is eagerly rendered into the
- * worker prompt, and the run is job-backed (`agentJobs` row = source of
- * truth, rendered as a live job card in the chat).
+ * capabilities are resolved as a SUBSET of the parent's own grants plus the
+ * always-on workspace READ baseline (`resolve_job_spec.ts`), the methodology
+ * skill is eagerly rendered into the worker prompt, and the run is job-backed
+ * (`agentJobs` row = source of truth, rendered as a live job card in the
+ * chat).
  *
  * M1 executes the fast path: the job runs inside the parent's turn via the
  * injected `runGeneration` (in-process `runGenerationCore` — injected to
@@ -46,6 +47,7 @@ import {
   describeNarrowing,
   resolveJobSpec,
   WORKER_BASELINE_TOOLS,
+  WORKER_WORKSPACE_READ_TOOLS,
 } from './resolve_job_spec';
 
 const spawnAgentArgs = z.object({
@@ -78,7 +80,7 @@ const spawnAgentArgs = z.object({
     .array(z.string())
     .max(16)
     .describe(
-      'EXPLICIT tool grant for this job, chosen from YOUR OWN tools (see the "grantable tools" list below). Fewer tools = a more focused worker. Requests outside your grants are silently dropped and reported back.',
+      'EXPLICIT tool grant for this job, chosen from YOUR OWN tools (see the "grantable tools" list below). Fewer tools = a more focused worker. Requests outside your grants are silently dropped and reported back. Workspace READ tools (file_read, file_list) are always included automatically — never list them.',
     ),
   skills: z
     .array(z.string())
@@ -164,16 +166,16 @@ export interface SpawnAgentDeps {
 const TIER_TO_DIFFICULTY = { fast: 'easy', capable: 'hard' } as const;
 
 /**
- * Tools that touch the shared thread workspace. When a job is granted any of
- * these, the spawn result carries the post-job `sandboxState` so the parent
- * sees the files the worker produced instead of recreating them.
+ * Tools that can CHANGE the shared thread workspace. When a job is granted
+ * any of these, the spawn result carries the post-job `sandboxState` so the
+ * parent sees the files the worker produced instead of recreating them.
+ * The read-side tools (`WORKER_WORKSPACE_READ_TOOLS`) are baseline on every
+ * job and cannot alter the workspace, so they don't trigger the snapshot.
  */
-const WORKSPACE_TOOLS: ReadonlySet<string> = new Set([
+const WORKSPACE_MUTATING_TOOLS: ReadonlySet<string> = new Set([
   'file_write',
   'file_edit',
   'file_delete',
-  'file_read',
-  'file_list',
   'run_code',
 ]);
 
@@ -218,9 +220,12 @@ const isToolName = (name: string): name is ToolName =>
 
 function grantableToolLines(deps: SpawnAgentDeps): string {
   const registry = getToolRegistryMap();
+  const implicit = new Set<string>(WORKER_WORKSPACE_READ_TOOLS);
   const names = (deps.parentConfig.convexToolNames ?? []).filter(
     (name) =>
-      isToolName(name) && registry[name].availability !== 'primary-only',
+      isToolName(name) &&
+      !implicit.has(name) &&
+      registry[name].availability !== 'primary-only',
   );
   return names.join(', ') || '(none)';
 }
@@ -242,7 +247,7 @@ export function createSpawnAgentTool(deps: SpawnAgentDeps) {
     // primary-only: jobs must not spawn jobs (recursion guard, design §6.1).
     availability: 'primary-only' as const,
     tool: createTool({
-      description: `Spawn a focused worker agent for ONE well-scoped task and get its result back. The worker runs non-interactively with EXACTLY the capabilities you grant it (a subset of your own), and its progress is shown to the user as a live job card.
+      description: `Spawn a focused worker agent for ONE well-scoped task and get its result back. The worker runs non-interactively with EXACTLY the capabilities you grant it (a subset of your own, plus baseline workspace READ access), and its progress is shown to the user as a live job card.
 
 **When to use:** a sub-task that benefits from isolation — open-ended research, bulk extraction, drafting a long document — where a focused context beats doing it inline. For quick answers, just act yourself.
 
@@ -251,7 +256,8 @@ export function createSpawnAgentTool(deps: SpawnAgentDeps) {
 • The worker cannot talk to the user. If its result says it needs user input, ask the user yourself (request_human_input) — ask each question at most ONCE; never re-ask something the user already answered.
 • Out-of-grant requests are silently dropped — the result includes what was narrowed so you can adapt (e.g. a missing integration → tell the user to connect it, or do that part yourself).
 • If the job fails or is cut off, its partial progress is visible to the user; summarize honestly and continue yourself if you can.
-• The worker shares YOUR thread workspace. When you grant workspace tools (file_write, run_code, …) the result carries \`sandboxState\` — the workspace after the job. Files listed there ALREADY EXIST (the user sees them on the canvas): reference them by path, NEVER rewrite them from the worker's text reply.
+• The worker shares YOUR thread workspace and can ALWAYS read it: \`file_read\` and \`file_list\` are granted automatically (don't list them), and \`file_list\` resolves a workspace path to the \`fileId\` other tools take (e.g. \`image\` — grant it when the job must analyze workspace images). Tools that WRITE the workspace (file_write, file_edit, file_delete, run_code) are granted only when you list them.
+• When you grant a write-side workspace tool, the result carries \`sandboxState\` — the workspace after the job. Files listed there ALREADY EXIST (the user sees them on the canvas): reference them by path, NEVER rewrite them from the worker's text reply.
 
 **Grantable tools:** ${grantableToolLines(deps)}
 **Grantable methodologies:**
@@ -448,11 +454,13 @@ ${grantableMethodologyLines(deps)}`,
             );
           }
         }
-        // Workspace ground truth for the parent: when the worker could touch
+        // Workspace ground truth for the parent: when the worker could CHANGE
         // the shared workspace, report its state after the job (success OR
         // failure — a failed job may still have written partial files).
         // spawn_agent is primary-only, so ctx.threadId IS the workspace owner.
-        if (resolved.effectiveTools.some((t) => WORKSPACE_TOOLS.has(t))) {
+        if (
+          resolved.effectiveTools.some((t) => WORKSPACE_MUTATING_TOOLS.has(t))
+        ) {
           try {
             outcome = {
               ...outcome,

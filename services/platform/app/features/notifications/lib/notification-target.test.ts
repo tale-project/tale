@@ -21,24 +21,6 @@ describe('personalNotificationTarget', () => {
     });
   });
 
-  it('builds a conversation deep-link when conversationId is present', () => {
-    const target = personalNotificationTarget({
-      organizationId: ORG,
-      taskId: undefined,
-      params: {
-        conversationId: 'conv_abc',
-        conversationStatus: 'open',
-        subject: 'Help',
-        sender: 'customer@example.com',
-      },
-    });
-    expect(target).toEqual({
-      to: '/dashboard/$id/conversations/$status',
-      params: { id: ORG, status: 'open' },
-      search: { conversation: 'conv_abc' },
-    });
-  });
-
   it('builds a chat deep-link when chat + threadId are present', () => {
     const target = personalNotificationTarget({
       organizationId: ORG,
@@ -114,7 +96,7 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('falls back to the automations hub for a linkless system/workflow alert', () => {
+  it('falls back to Automations for a linkless system/workflow alert', () => {
     expect(orgNotificationTarget(ORG, undefined, 'system')).toEqual({
       to: '/dashboard/$id/automations',
       params: { id: ORG },

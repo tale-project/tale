@@ -199,7 +199,7 @@ interface ChatInputProps extends Omit<
    * `@`-mention knowledge-base references (from `useKbMentions`, owned by the
    * caller so a failed send can restore the chips). The picker only renders
    * when ALL four are provided — surfaces without the feature (shared chat
-   * view, automation assistant) simply omit them. Hidden in arena mode.
+   * view, workflow assistant) simply omit them. Hidden in arena mode.
    */
   kbMentions?: KbMention[];
   addKbMention?: (mention: KbMention) => boolean;
@@ -218,7 +218,7 @@ interface ChatInputProps extends Omit<
   actorMentionOptions?: MentionActorOption[];
   /**
    * Which composer controls to render. `'full'` (default) is the main chat.
-   * `'assistant'` is the editor AI panels (the automations editor), where
+   * `'assistant'` is the editor AI panels (the workflow editor), where
    * the agent is pinned server-side — the agent/model pickers, capability
    * pills (image generation etc.) and the voice-mode toggle would be
    * decorative at best and misleading at worst, so they're hidden.

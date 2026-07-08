@@ -273,34 +273,26 @@ export const deleteWorkflowEnvInternal = internalMutation({
 });
 
 /**
- * Delete every env/secret entry for an installed app's workflows. Internal —
- * called by app uninstall. Sweeps the WHOLE `<appSlug>/` workflow namespace (a
- * prior app version may have installed a workflow since renamed/removed, whose
- * env would otherwise orphan and silently reattach on a later reinstall). The
- * `/` delimiter scopes the sweep to exactly this app — a sibling app
- * (`<appSlug>-2/…`) or a global workflow (`<name>`) sorts outside the range.
- * Mirrors `agents/agent_env.ts::deleteAppAgentEnvInternal`.
+ * Delete every env/secret entry for an installed automation's workflow.
+ * Internal — called by automation uninstall. An automation's single workflow
+ * lives INLINE and its slug IS the automation slug (bare), so sweep exactly
+ * that slug. Mirrors `agents/agent_env.ts::deleteAutomationAgentEnvInternal`.
  */
-export const deleteAppWorkflowEnvInternal = internalMutation({
-  args: { organizationId: v.string(), appSlug: v.string() },
+export const deleteAutomationWorkflowEnvInternal = internalMutation({
+  args: { organizationId: v.string(), automationSlug: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Exclusive upper bound = the code point right after '/' (0x2F -> 0x30):
-    // ['<app>/', '<app>' + next) is exactly this app's workflow namespace.
-    const prefix = `${args.appSlug}/`;
-    const prefixEnd = `${args.appSlug}${String.fromCharCode(
-      '/'.charCodeAt(0) + 1,
-    )}`;
     const rows = await ctx.db
       .query('workflowEnv')
       .withIndex('by_org_workflow', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .gte('workflowSlug', prefix)
-          .lt('workflowSlug', prefixEnd),
+          .eq('workflowSlug', args.automationSlug),
       )
       .collect();
-    for (const row of rows) await ctx.db.delete(row._id);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
     return null;
   },
 });

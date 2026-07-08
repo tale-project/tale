@@ -19,7 +19,7 @@ A worker can hold at most what its spawning agent holds. Three layers decide the
 
 - **Org configuration** — the agent's own tools, skills, and integrations, as configured by your admins. Nothing new to manage per worker.
 - **The per-job grant** — the agent picks the smallest set from its own capabilities for this task (fewer tools = a more focused worker).
-- **Platform exceptions** — a few tools never transfer, most importantly the ask-the-user tool: a worker's questions must flow through the agent, so answering never dead-ends. Workers also cannot spawn workers.
+- **Platform exceptions** — a few tools never transfer, most importantly the ask-the-user tool: a worker's questions must flow through the agent, so answering never dead-ends. Workers also cannot spawn workers. One exception runs the other way: every worker can always list and read the thread's files (uploads, generated outputs) — writing files or running code stays an explicit grant.
 
 Anything requested outside those bounds is silently skipped and reported — the job card shows what was narrowed away, and the agent adapts (for example, telling you an integration needs connecting).
 
@@ -39,4 +39,4 @@ A worker runs inside its agent's remaining turn budget and cannot extend it; if 
 | The agent can answer well inline                        |        | ✓            |          |
 | Work has explicit stages with approvals between them    |        |              | ✓        |
 
-The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, an automation is the right shape instead.
+The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, a workflow is the right shape instead.

@@ -190,13 +190,13 @@ export async function createOrgViaWizard(page: Page): Promise<string> {
  * `afterCreateOrganization` hook copies `fixtures/config/default/` into the new
  * org's config dir asynchronously). Waiting for the seeded agent to appear on
  * the agents page is the deterministic "scaffold complete" gate — chat and
- * automation specs depend on the seeded provider/agent/workflow existing.
+ * workflow specs depend on the seeded provider/agent/workflow existing.
  */
 export async function waitForSeededOrg(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/agents/all`);
+  await page.goto(`/dashboard/${organizationId}/agents`);
 
   // The agents list loads via a NON-reactive Convex action (`file_actions:
   // listAgents`), so it fires once on mount and never refetches on its own. On

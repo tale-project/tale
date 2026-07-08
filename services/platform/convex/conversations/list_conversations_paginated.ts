@@ -20,6 +20,7 @@ interface ListConversationsPaginatedArgs {
   status?: ConversationStatus;
   priority?: string;
   channel?: string;
+  integrationName?: string;
 }
 
 interface PaginatedConversationResult {
@@ -31,14 +32,31 @@ interface PaginatedConversationResult {
 /**
  * Build a query ordered by lastMessageAt descending.
  *
- * When filtering by status, uses `by_org_status_lastMessageAt` so both
- * filter and sort are index-backed. Otherwise uses `by_org_lastMessageAt`.
+ * When filtering by integration AND status (the per-provider email-app inbox),
+ * uses `by_org_integration_status_lastMessageAt` so both filters and the sort
+ * are index-backed. When filtering by status alone, uses
+ * `by_org_status_lastMessageAt`. Otherwise uses `by_org_lastMessageAt` —
+ * an integration-only filter is applied as a residual `.filter()` there,
+ * since the compound index would order by status before recency.
  */
 function buildOrderedQuery(
   ctx: QueryCtx,
   organizationId: string,
   status: ConversationStatus | undefined,
+  integrationName: string | undefined,
 ) {
+  if (integrationName !== undefined && status !== undefined) {
+    return ctx.db
+      .query('conversations')
+      .withIndex('by_org_integration_status_lastMessageAt', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('integrationName', integrationName)
+          .eq('status', status),
+      )
+      .order('desc');
+  }
+
   if (status !== undefined) {
     return ctx.db
       .query('conversations')
@@ -60,8 +78,21 @@ export async function listConversationsPaginated(
   ctx: QueryCtx,
   args: ListConversationsPaginatedArgs,
 ): Promise<PaginatedConversationResult> {
-  let query = buildOrderedQuery(ctx, args.organizationId, args.status);
+  let query = buildOrderedQuery(
+    ctx,
+    args.organizationId,
+    args.status,
+    args.integrationName,
+  );
 
+  // Residual integration filter — only when the compound index above did not
+  // already consume it (integrationName without status).
+  if (args.integrationName !== undefined && args.status === undefined) {
+    const integrationName = args.integrationName;
+    query = query.filter((q) =>
+      q.eq(q.field('integrationName'), integrationName),
+    );
+  }
   if (args.priority !== undefined) {
     const priority = args.priority;
     query = query.filter((q) => q.eq(q.field('priority'), priority));

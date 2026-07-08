@@ -6,6 +6,55 @@ import { cn } from '@/lib/utils/cn';
 
 import { useWizard } from './use-wizard';
 
+/** One cell of the numbered step rail: a real step, or a collapsed "…" gap. */
+export type WizardRailItem =
+  | { kind: 'step'; index: number }
+  | { kind: 'ellipsis'; key: string };
+
+/** Rails this length or shorter render every step; longer ones collapse to at
+ *  most this many numbered circles + "…" gaps (owner ask: never show >4). */
+export const RAIL_FULL_MAX = 4;
+
+/**
+ * Collapse a long step rail so at most ~4 numbered circles show at once:
+ * always the first, last, and current step (plus the next, for context), with
+ * each run of hidden steps replaced by a single "…". A rail of
+ * {@link RAIL_FULL_MAX} steps or fewer renders in full. Presentational only —
+ * navigation still targets the real step indices, so a collapsed step is never
+ * unreachable (you reach it by advancing through the flow).
+ */
+export function windowWizardSteps(
+  total: number,
+  activeIndex: number,
+): WizardRailItem[] {
+  if (total <= RAIL_FULL_MAX) {
+    return Array.from({ length: total }, (_, index) => ({
+      kind: 'step' as const,
+      index,
+    }));
+  }
+  const shown = new Set<number>([0, total - 1, activeIndex]);
+  // One step of look-ahead (or look-behind on the last step) for context.
+  if (activeIndex + 1 < total) shown.add(activeIndex + 1);
+  else if (activeIndex - 1 >= 0) shown.add(activeIndex - 1);
+
+  const items: WizardRailItem[] = [];
+  let i = 0;
+  while (i < total) {
+    if (shown.has(i)) {
+      items.push({ kind: 'step', index: i });
+      i += 1;
+    } else {
+      // Collapse the whole run of hidden steps into one ellipsis cell.
+      let j = i;
+      while (j < total && !shown.has(j)) j += 1;
+      items.push({ kind: 'ellipsis', key: `gap-${i}` });
+      i = j;
+    }
+  }
+  return items;
+}
+
 export interface WizardProgressProps {
   /** Accessible name for the step list (translated by caller). */
   ariaLabel: string;
@@ -52,6 +101,9 @@ export function WizardProgress({
   const { steps, activeIndex, activeStep, maxVisitedIndex, goTo } = useWizard();
   const total = steps.length;
   const pct = total > 0 ? ((activeIndex + 1) / total) * 100 : 0;
+  // Long rails collapse to first / current(+next) / last with "…" gaps so the
+  // strip never grows too wide; short rails show every step.
+  const railItems = windowWizardSteps(total, activeIndex);
 
   // ── Segmented bar: one pill per step, filled through the active step ────
   if (segmented) {
@@ -120,12 +172,49 @@ export function WizardProgress({
           aria-label={ariaLabel}
           className="hidden items-start sm:flex"
         >
-          {steps.map((step, index) => {
+          {railItems.map((item, railIndex) => {
+            const isFirstRail = railIndex === 0;
+            const isLastRail = railIndex === railItems.length - 1;
+
+            // A collapsed "…" cell — the same width/height as a step column so
+            // the rail stays evenly distributed, but carries no button/label.
+            if (item.kind === 'ellipsis') {
+              return (
+                <li
+                  key={item.key}
+                  className="flex min-w-0 flex-1 flex-col items-center"
+                >
+                  <div className="flex w-full items-center">
+                    <span
+                      aria-hidden="true"
+                      className="bg-border-strong h-px flex-1"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="text-fg-muted flex size-7 shrink-0 items-center justify-center text-xs"
+                    >
+                      …
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="bg-border-strong h-px flex-1"
+                    />
+                  </div>
+                  {/* Blank label keeps the ellipsis column the same height as
+                      the labelled step columns. */}
+                  <span aria-hidden="true" className="mt-2 px-1 text-xs">
+                    &#8203;
+                  </span>
+                </li>
+              );
+            }
+
+            const { index } = item;
+            const step = steps[index];
+            if (!step) return null;
             const isActive = index === activeIndex;
             const isComplete = index < activeIndex;
             const isReachable = index <= maxVisitedIndex && !isActive;
-            const isFirst = index === 0;
-            const isLast = index === total - 1;
 
             return (
               <li
@@ -137,7 +226,7 @@ export function WizardProgress({
                     aria-hidden="true"
                     className={cn(
                       'h-px flex-1',
-                      isFirst
+                      isFirstRail
                         ? 'bg-transparent'
                         : isComplete || isActive
                           ? 'bg-accent-base/40'
@@ -166,7 +255,7 @@ export function WizardProgress({
                     aria-hidden="true"
                     className={cn(
                       'h-px flex-1',
-                      isLast
+                      isLastRail
                         ? 'bg-transparent'
                         : isComplete
                           ? 'bg-accent-base/40'

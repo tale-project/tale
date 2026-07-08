@@ -60,7 +60,7 @@ export const ACTIONS: AnyActionDefinition[] = [
   taskAction,
   agentAction, // Run org agents against tasks (task-ops automation pack)
   notificationAction, // Inbox / org-bell fan-out from automations
-  metricsAction, // Read-only workforce aggregates (daily digest)
+  metricsAction, // Read-only task/agent-run aggregates
 ];
 
 // Map for O(1) lookups by type

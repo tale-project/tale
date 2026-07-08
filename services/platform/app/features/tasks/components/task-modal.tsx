@@ -131,7 +131,10 @@ export function TaskModal({
           <CreateTaskBody
             organizationId={organizationId}
             projectId={projectId}
-            defaultStatus={defaultStatus ?? 'backlog'}
+            // `todo`, not `backlog`: the board/list no longer render backlog
+            // tasks (they live on the Backlog triage tab), so a default-status
+            // create must land visibly on the view it was started from.
+            defaultStatus={defaultStatus ?? 'todo'}
             onClose={() => onOpenChange(false)}
           />
         )}

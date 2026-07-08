@@ -1330,7 +1330,7 @@ async function cleanupNotifications(
 }
 
 /**
- * Workforce run records: hard-delete TERMINAL `taskAgentRuns` rows older
+ * Task-run records: hard-delete TERMINAL `taskAgentRuns` rows older
  * than the configured window (running rows are never touched). Aggregated
  * daily rollups are unaffected — they carry no per-run linkage.
  */

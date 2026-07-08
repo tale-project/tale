@@ -6,7 +6,7 @@ import { useT } from '@/lib/i18n/client';
 
 const easeOut: readonly [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-type FeatureKey = 'chat' | 'conversations' | 'agents' | 'automations';
+type FeatureKey = 'chat' | 'conversations' | 'agents' | 'workflows';
 
 interface FeatureConfig {
   key: FeatureKey;
@@ -31,7 +31,9 @@ const FEATURES: readonly FeatureConfig[] = [
     dark: '/marketing/feature-agents-dark.png',
   },
   {
-    key: 'automations',
+    // The screenshots still ship under their original asset filenames; only
+    // the message key moved to the workflows vocabulary.
+    key: 'workflows',
     light: '/marketing/feature-automations.png',
     dark: '/marketing/feature-automations-dark.png',
   },

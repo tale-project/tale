@@ -46,7 +46,6 @@ interface Step {
 
 interface PackWorkflow {
   file: string;
-  name: string;
   workflowId: string;
   events: Array<{ eventType: string; eventFilter?: Record<string, string> }>;
   schedules: Array<{ cron: string }>;
@@ -65,7 +64,7 @@ function asString(value: unknown): string {
 
 function loadPack(): PackWorkflow[] {
   const files = readdirSync(PACK_DIR).filter((f) => f.endsWith('.json'));
-  expect(files.length).toBeGreaterThanOrEqual(13);
+  expect(files.length).toBeGreaterThanOrEqual(11);
   return files.map((file) => {
     const raw: unknown = JSON.parse(
       readFileSync(path.join(PACK_DIR, file), 'utf-8'),
@@ -86,7 +85,6 @@ function loadPack(): PackWorkflow[] {
       : '';
     return {
       file,
-      name: doc.name,
       workflowId,
       events: doc.triggers?.events ?? [],
       schedules: doc.triggers?.schedules ?? [],

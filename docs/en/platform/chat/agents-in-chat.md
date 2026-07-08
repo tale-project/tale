@@ -13,7 +13,7 @@ Click **Select agent** on the composer (or the chip showing the currently picked
 
 ## "Visible in chat"
 
-Every agent has a **Visible in chat** toggle on its instructions page. Turning it off does not disable the agent — automations and workflows can still call it; sub-agent calls from other agents still work — it just hides the agent from the chat picker. The reasoning: organisations end up with dozens of agents the average user never picks (utility agents called by other agents, agents bound to a specific workflow), and surfacing them all would drown the everyday picks.
+Every agent has a **Visible in chat** toggle on its instructions page. Turning it off does not disable the agent — workflows can still call it; sub-agent calls from other agents still work — it just hides the agent from the chat picker. The reasoning: organisations end up with dozens of agents the average user never picks (utility agents called by other agents, agents bound to a specific workflow), and surfacing them all would drown the everyday picks.
 
 ## One-shot versus sticky
 

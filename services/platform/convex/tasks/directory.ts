@@ -5,7 +5,7 @@
  * (humans) and the agents the project exposes. Used by the task mutations to
  * resolve `@token` mentions to `{type,id}` refs (see `tasks/mentions.ts`).
  *
- * Agent scoping follows the workforce semantics (`workforce_ops.ts`):
+ * Agent scoping follows the project agent gates (`task_ops.ts`):
  * `agentMode: 'restricted'` limits mentionable agents to the project's
  * `allowedAgentSlugs`; the default `'all'` exposes every org agent. The agent
  * roster is file-based and only enumerable from the Node runtime, so in 'all'

@@ -61,7 +61,9 @@ describe('config-domain registry', () => {
 
   it('governance fileBaseFor maps snake_case → kebab-case', () => {
     const spec = getV8SyncSpec('governance');
-    expect(spec.fileBaseFor('agent_workforce')).toBe('agent-workforce');
+    expect(spec.fileBaseFor('session_idle_timeout')).toBe(
+      'session-idle-timeout',
+    );
     expect(spec.fileBaseFor('password_policy')).toBe('password-policy');
   });
 

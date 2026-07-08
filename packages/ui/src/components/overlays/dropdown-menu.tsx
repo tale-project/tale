@@ -112,6 +112,9 @@ interface DropdownMenuProps {
   tooltip?: ReactNode;
   /** Side the tooltip opens on. @default 'top' */
   tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
+  /** Disables the trigger at the Radix level so the menu can't open — a
+   *  disabled child <button> alone doesn't stop keyboard/pointer activation. */
+  disabled?: boolean;
 }
 
 function RadioIndicator() {
@@ -338,9 +341,14 @@ export function DropdownMenu({
   onOpenChange,
   tooltip,
   tooltipSide = 'top',
+  disabled,
 }: DropdownMenuProps) {
   const triggerEl = (
-    <DropdownMenuPrimitive.Trigger asChild onClick={(e) => e.stopPropagation()}>
+    <DropdownMenuPrimitive.Trigger
+      asChild
+      disabled={disabled}
+      onClick={(e) => e.stopPropagation()}
+    >
       {trigger}
     </DropdownMenuPrimitive.Trigger>
   );

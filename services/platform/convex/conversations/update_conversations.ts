@@ -3,7 +3,8 @@
  */
 
 import { ConvexError } from 'convex/values';
-import { set, merge } from 'lodash';
+import merge from 'lodash/merge';
+import set from 'lodash/set';
 
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';

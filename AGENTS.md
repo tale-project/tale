@@ -62,7 +62,7 @@ Safety and architecture invariants — they hold even where no linter covers the
 ## Skills and guides index
 
 Adding, renaming, or removing a skill updates this table and runs `bun run skills:sync`; the authoring
-standard is [`write-skill`](.agents/skills/write-skill/SKILL.md). **Two homes:** workflow skills are
+standard is [`author-skill`](.agents/skills/author-skill/SKILL.md). **Two homes:** workflow skills are
 generic and portable — their source of truth is [`builtin-configs/skills/<name>/`](builtin-configs/skills/)
 (shipped to product org agents), projected via the `WORKFLOW_SKILLS` allowlist in
 [`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into [`.agents/skills/`](.agents/skills/); authoring
@@ -87,7 +87,8 @@ skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are pro
 | [`create-pr`](.agents/skills/create-pr/SKILL.md)                   | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                        |
 | [`create-issue`](.agents/skills/create-issue/SKILL.md)             | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels        |
 | [`test-code`](.agents/skills/test-code/SKILL.md)                   | writing tests, or proving behaviour by observing the real outcome                                 |
-| [`write-skill`](.agents/skills/write-skill/SKILL.md)               | adding, editing, or moving a skill                                                                |
+| [`validate-configs`](.agents/skills/validate-configs/SKILL.md)     | editing builtin-configs/ or fixture config JSON, a config-domain schema, or a red config gate     |
+| [`author-skill`](.agents/skills/author-skill/SKILL.md)             | adding, editing, or moving a skill                                                                |
 | [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing a docs page, or running the docs test suite                                       |
 | [`write-translations`](.agents/skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                              |
 

@@ -90,21 +90,25 @@ export function ProjectDeleteDialog({
           });
           return;
         }
-        if (code === 'PROJECT_HAS_BOUND_APPS') {
-          // The backend names the bound app(s) in error.data.apps so the
-          // operator knows exactly what to uninstall first; surface them when
-          // present, otherwise fall back to the generic actionable message.
-          const rawApps: unknown = error.data?.apps;
-          const apps = Array.isArray(rawApps)
-            ? rawApps.filter((app): app is string => typeof app === 'string')
+        if (code === 'PROJECT_HAS_BOUND_AUTOMATIONS') {
+          // The backend names the bound automation(s) in error.data.automations
+          // so the operator knows exactly what to uninstall first; surface
+          // them when present, otherwise fall back to the generic actionable
+          // message.
+          const rawAutomations: unknown = error.data?.automations;
+          const automations = Array.isArray(rawAutomations)
+            ? rawAutomations.filter(
+                (automation): automation is string =>
+                  typeof automation === 'string',
+              )
             : [];
           toast({
             title:
-              apps.length > 0
-                ? t('errors.PROJECT_HAS_BOUND_APPS_NAMED', {
-                    apps: apps.join(', '),
+              automations.length > 0
+                ? t('errors.PROJECT_HAS_BOUND_AUTOMATIONS_NAMED', {
+                    automations: automations.join(', '),
                   })
-                : t('errors.PROJECT_HAS_BOUND_APPS'),
+                : t('errors.PROJECT_HAS_BOUND_AUTOMATIONS'),
             variant: 'destructive',
           });
           return;

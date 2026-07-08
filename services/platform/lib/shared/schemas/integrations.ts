@@ -95,6 +95,9 @@ const bundlesSchema = z.object({
 export const integrationJsonSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  /** Catalog chips (literal display strings, e.g. "Developer") — rendered on
+   *  the integration's catalog card, mirroring automation manifest `labels`. */
+  labels: z.array(z.string().min(1).max(40)).max(8).optional(),
   version: z.number().int().optional(),
   type: z.enum(['rest_api', 'sql', 'imap_smtp']).optional(),
   exposeAsCapability: exposeAsCapabilitySchema.optional(),

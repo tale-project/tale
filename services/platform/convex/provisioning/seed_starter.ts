@@ -22,7 +22,7 @@ const EXAMPLE_TASKS = [
   {
     title: 'Welcome — meet your assistant',
     description:
-      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog — a coder, a researcher, and a whole AI workforce (CEO, CTO, CMO and their teams) — and install the ones you want. Then @mention any installed agent in a task or discussion to put them to work.',
+      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog and install the agents you want. Then @mention any installed agent in a task or discussion to put them to work.',
     priority: 'p2' as const,
   },
   {
@@ -58,7 +58,7 @@ export const seedStarterContent = internalAction({
           actorId: 'system',
           name: 'Getting started',
           description:
-            'A starter project to explore tasks, discussions, and your AI workforce. Feel free to rename or delete it.',
+            'A starter project to explore tasks, discussions, and your agents. Feel free to rename or delete it.',
           instructions:
             'This is an example project. Agents working here should be concise and welcoming, and explain what they did.',
         },

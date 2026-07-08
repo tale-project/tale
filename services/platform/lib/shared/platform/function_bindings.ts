@@ -60,47 +60,89 @@ function isRec(v: unknown): v is Record<string, unknown> {
 
 type CollectedBinding = { path: string; mode: FunctionMode };
 
-/** Collect bindings from one Puck Data document's `content` (block props). */
+/**
+ * Named single-action props the collector walks — each a `{path, mode}` bound
+ * action, collected exactly like an `actions[]` entry: `Board.move`,
+ * `Form`/`MessageComposer` `submit`, `MessageComposer.improve`,
+ * `ConversationList.onOpen`, `ConversationThread.attachmentAction`,
+ * `Collection.addAction` (the header create affordance).
+ */
+const SINGLE_ACTION_PROPS = [
+  'move',
+  'submit',
+  'improve',
+  'onOpen',
+  'attachmentAction',
+  'addAction',
+] as const;
+
+/** Push one `{path, mode}` bound-action record (skips malformed shapes). */
+function pushBoundAction(a: unknown, out: CollectedBinding[]): void {
+  if (
+    isRec(a) &&
+    typeof a.path === 'string' &&
+    typeof a.mode === 'string' &&
+    isFunctionMode(a.mode)
+  ) {
+    out.push({ path: a.path, mode: a.mode });
+  }
+}
+
+/** Collect bindings from one block node's props. */
+function collectFromNode(node: unknown, out: CollectedBinding[]): void {
+  if (!isRec(node) || !isRec(node.props)) return;
+  const props = node.props;
+  if (isRec(props.query) && typeof props.query.path === 'string') {
+    out.push({ path: props.query.path, mode: 'query' });
+  }
+  // A list block may cross-reference a second reactive query under `excludeBy`
+  // (hide rows already materialized elsewhere); collect it so the cross-ref
+  // query is allowlist-checked like any other binding.
+  if (
+    isRec(props.excludeBy) &&
+    isRec(props.excludeBy.query) &&
+    typeof props.excludeBy.query.path === 'string'
+  ) {
+    out.push({ path: props.excludeBy.query.path, mode: 'query' });
+  }
+  // An action-sourced list (`ExternalList`) declares its data fetch under
+  // `source`, not `query`; collect it so it's allowlist-checked like the rest.
+  if (isRec(props.source) && typeof props.source.path === 'string') {
+    const mode =
+      typeof props.source.mode === 'string' && isFunctionMode(props.source.mode)
+        ? props.source.mode
+        : 'action';
+    out.push({ path: props.source.path, mode });
+  }
+  if (Array.isArray(props.actions)) {
+    for (const a of props.actions) pushBoundAction(a, out);
+  }
+  // Named single-action props (Board `move`, Form/Composer `submit`, …).
+  for (const key of SINGLE_ACTION_PROPS) pushBoundAction(props[key], out);
+  // A secondary read binding (`ConversationList.count`) — a query like
+  // `props.query` (per-status totals for tab badges).
+  if (isRec(props.count) && typeof props.count.path === 'string') {
+    out.push({ path: props.count.path, mode: 'query' });
+  }
+  // Multi-select bulk actions (args bind ids via `$selection.ids`) — the same
+  // shape as `actions[]`.
+  if (Array.isArray(props.bulkActions)) {
+    for (const a of props.bulkActions) pushBoundAction(a, out);
+  }
+}
+
+/** Collect bindings from one Puck Data document — its `content` array plus
+ *  every dropzone array under `zones` (Puck stores zone children per zone id
+ *  at the document level, siblings of `content`). */
 function collectFromData(data: unknown, out: CollectedBinding[]): void {
-  const content =
-    isRec(data) && Array.isArray(data.content) ? data.content : [];
-  for (const node of content) {
-    if (!isRec(node) || !isRec(node.props)) continue;
-    const props = node.props;
-    if (isRec(props.query) && typeof props.query.path === 'string') {
-      out.push({ path: props.query.path, mode: 'query' });
-    }
-    // A list block may cross-reference a second reactive query under `excludeBy`
-    // (hide rows already materialized elsewhere); collect it so the cross-ref
-    // query is allowlist-checked like any other binding.
-    if (
-      isRec(props.excludeBy) &&
-      isRec(props.excludeBy.query) &&
-      typeof props.excludeBy.query.path === 'string'
-    ) {
-      out.push({ path: props.excludeBy.query.path, mode: 'query' });
-    }
-    // An action-sourced list (`ExternalList`) declares its data fetch under
-    // `source`, not `query`; collect it so it's allowlist-checked like the rest.
-    if (isRec(props.source) && typeof props.source.path === 'string') {
-      const mode =
-        typeof props.source.mode === 'string' &&
-        isFunctionMode(props.source.mode)
-          ? props.source.mode
-          : 'action';
-      out.push({ path: props.source.path, mode });
-    }
-    if (Array.isArray(props.actions)) {
-      for (const a of props.actions) {
-        if (
-          isRec(a) &&
-          typeof a.path === 'string' &&
-          typeof a.mode === 'string' &&
-          isFunctionMode(a.mode)
-        ) {
-          out.push({ path: a.path, mode: a.mode });
-        }
-      }
+  if (!isRec(data)) return;
+  if (Array.isArray(data.content)) {
+    for (const node of data.content) collectFromNode(node, out);
+  }
+  if (isRec(data.zones)) {
+    for (const zone of Object.values(data.zones)) {
+      if (!Array.isArray(zone)) continue;
+      for (const node of zone) collectFromNode(node, out);
     }
   }
 }
@@ -162,13 +204,21 @@ export function validateViewBindings(
  *    `ctx.config`, e.g. a configured github `owner`/`repo`); undefined if unset.
  *    This is what keeps an app repo-agnostic — the operator's target is data, not
  *    a hardcoded literal.
+ *  - `$state.<key>` → a cross-block view-state value (from `ctx.state`, the
+ *    view's `ViewStateProvider` — e.g. a master-detail `conversationId`);
+ *  - `$selection.ids` → the invoking block's multi-select ids
+ *    (`ctx.selectionIds`, for bulk actions);
+ *  - `$input.<field>` → a Form/Composer submit value (`ctx.input`);
+ *  - `$lane` → the Board drop-target lane (`ctx.lane`).
+ *    These four resolve to `undefined` when the referenced value is unavailable
+ *    (state key unset, nothing selected, …) — the `$config:` posture — so
+ *    `bindingArgsResolved` gates the call and the block shows its awaiting
+ *    placeholder instead of firing a malformed request.
  * Prefix templates (interpolated over the row MERGED WITH config, `{field}`
  * syntax; row fields win a name clash):
  *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over
  *    `{...config, ...selected}`, so one arg can mix config + row fields (e.g.
- *    `"$tpl:{owner}/{repo}#{number}"` — owner/repo from config, number from the row);
- *  - `$label:<key>` → the pack label `key` (from `ctx.labels`, else the key
- *    itself) interpolated over the same merged context — a localized string.
+ *    `"$tpl:{owner}/{repo}#{number}"` — owner/repo from config, number from the row).
  */
 export function resolveBindingArgs(
   args: unknown,
@@ -178,9 +228,16 @@ export function resolveBindingArgs(
     projectId?: string;
     selected?: Record<string, unknown>;
     result?: Record<string, unknown>;
-    labels?: Record<string, string>;
     /** The app's per-install config values (`$config:`/template `{key}`). */
     config?: Record<string, unknown>;
+    /** Cross-block view state (`$state.<key>`) — the view's `ViewStateProvider`. */
+    state?: Record<string, unknown>;
+    /** The invoking block's multi-select ids (`$selection.ids`). */
+    selectionIds?: string[];
+    /** Form/Composer submit values (`$input.<field>`). */
+    input?: Record<string, unknown>;
+    /** Board drop-target lane (`$lane`). */
+    lane?: string;
   },
 ): unknown {
   // Templates can reference both per-install config and the selected row; row
@@ -205,12 +262,19 @@ export function resolveBindingArgs(
     if (args.startsWith('$config:')) {
       return ctx.config?.[args.slice('$config:'.length)];
     }
+    // View-state sentinels: resolve to `undefined` (NOT the literal) when the
+    // referenced value is unavailable — the `$config:` posture — so
+    // `bindingArgsResolved` returns false and the caller gates the call.
+    if (args === '$lane') return ctx.lane;
+    if (args === '$selection.ids') return ctx.selectionIds;
+    if (args.startsWith('$state.')) {
+      return ctx.state?.[args.slice('$state.'.length)];
+    }
+    if (args.startsWith('$input.')) {
+      return ctx.input?.[args.slice('$input.'.length)];
+    }
     if (args.startsWith('$tpl:')) {
       return interpolateTemplate(args.slice('$tpl:'.length), templateScope);
-    }
-    if (args.startsWith('$label:')) {
-      const key = args.slice('$label:'.length);
-      return interpolateTemplate(ctx.labels?.[key] ?? key, templateScope);
     }
     return args;
   }
@@ -229,8 +293,9 @@ export function resolveBindingArgs(
 
 /**
  * Whether a resolved args tree is fully bound — i.e. holds no `undefined`. A
- * `$config:<key>` (or `$selected.`/`$result.`) reference whose value is absent
- * resolves to `undefined`; a literal/`$orgId`/`$projectId` never does. So an
+ * `$config:<key>` (or `$selected.`/`$result.`/`$state.`/`$input.`/`$lane`/
+ * `$selection.ids`) reference whose value is absent resolves to `undefined`;
+ * a literal/`$orgId`/`$projectId` never does. So an
  * `undefined` anywhere means a binding the live context couldn't satisfy yet —
  * typically an app whose `requires.config` hasn't been filled in. Callers gate
  * the actual call on this so an unconfigured view shows an empty state instead
@@ -245,4 +310,25 @@ export function bindingArgsResolved(resolved: unknown): boolean {
     );
   }
   return true;
+}
+
+/**
+ * Whether an authored args tree references cross-block view state — i.e. the
+ * block is wired to a selection a sibling block writes (`$state.<key>`). Scans
+ * the RAW args (before resolution), matching `resolveBindingArgs`' string
+ * grammar: only whole values starting with `$state.` are state reads. The
+ * bound hooks report every unresolved binding as `needsConfig`; a block whose
+ * args bind view state reads that as "awaiting selection" instead (the
+ * `BindingStates.awaitingState` flavor) — e.g. a ConversationThread before
+ * any conversation is selected.
+ */
+export function argsReferenceViewState(args: unknown): boolean {
+  if (typeof args === 'string') return args.startsWith('$state.');
+  if (Array.isArray(args)) return args.some(argsReferenceViewState);
+  if (args !== null && typeof args === 'object') {
+    return Object.values(args as Record<string, unknown>).some(
+      argsReferenceViewState,
+    );
+  }
+  return false;
 }

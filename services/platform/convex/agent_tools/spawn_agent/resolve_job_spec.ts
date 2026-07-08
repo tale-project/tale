@@ -4,7 +4,7 @@
  * Three-layer tool authorization (design: agent-on-demand §3.1) — grants are
  * allowlists, exceptions are a tiny structural denylist:
  *
- *   effective = WORKER_BASELINE ∪ (requested ∩ parent.allowed − PRIMARY_ONLY)
+ *   effective = WORKER_BASELINE ∪ WORKSPACE_READ ∪ (requested ∩ parent.allowed − PRIMARY_ONLY)
  *
  * Boundary violations are silently NARROWED, never errors: the parent
  * shouldn't need to know the org's config to spawn. The narrowing report is
@@ -17,6 +17,18 @@ import type { ToolAvailability } from '../types';
 
 /** Worker plumbing every job gets — not part of the request surface. */
 export const WORKER_BASELINE_TOOLS = ['update_progress'] as const;
+
+/**
+ * Read-side workspace tools every worker gets automatically — like the
+ * baseline, not part of the request surface. The job shares the parent
+ * thread's workspace and its instructions reference files by path or fileId;
+ * a worker that cannot list or read the workspace cannot ground those
+ * references (e.g. resolve a path to the `fileId` the `image` tool takes).
+ * Reads are safe to hand out unconditionally: they are thread-scoped and the
+ * files are already user-visible on the canvas. WRITE-side workspace tools
+ * (file_write, file_edit, file_delete, run_code) stay explicit parent grants.
+ */
+export const WORKER_WORKSPACE_READ_TOOLS = ['file_read', 'file_list'] as const;
 
 export interface ResolveJobSpecInput {
   requested: {
@@ -56,9 +68,15 @@ export function resolveJobSpec(
   const parentSkills = new Set(input.parent.skillBindings);
   const parentIntegrations = new Set(input.parent.integrationBindings);
 
+  const implicitTools = new Set<string>([
+    ...WORKER_BASELINE_TOOLS,
+    ...WORKER_WORKSPACE_READ_TOOLS,
+  ]);
   const narrowedTools: string[] = [];
   const grantedTools: string[] = [];
   for (const tool of dedupe(input.requested.tools)) {
+    // Implicitly granted anyway — requesting one is a no-op, not a narrowing.
+    if (implicitTools.has(tool)) continue;
     const availability = input.availability.get(tool);
     const isGrantable =
       parentTools.has(tool) &&
@@ -103,7 +121,11 @@ export function resolveJobSpec(
   }
 
   return {
-    effectiveTools: [...WORKER_BASELINE_TOOLS, ...grantedTools],
+    effectiveTools: [
+      ...WORKER_BASELINE_TOOLS,
+      ...WORKER_WORKSPACE_READ_TOOLS,
+      ...grantedTools,
+    ],
     skills,
     integrations,
     methodology,

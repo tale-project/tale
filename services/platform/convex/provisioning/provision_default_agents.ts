@@ -1,14 +1,14 @@
 'use node';
 
 /**
- * Provision the default (autoInstall) AI-workforce agents to EXISTING
+ * Provision the default (autoInstall) agents to EXISTING
  * organizations (new orgs get them from the org-creation hook). Idempotent —
  * per-agent `agentDefaultProvisions` rows make re-runs no-ops, and orgs that
  * disabled/uninstalled a seeded agent are never re-provisioned behind their
  * back. Mirrors `provision_default_prompts.ts`.
  *
  *  - `provisionDefaultAgentsAllOrgs` — registered in `provisioning.ts:provisionAll`,
- *    so the workforce comes PREINSTALLED for every org on every deploy.
+ *    so the default roster comes PREINSTALLED for every org on every deploy.
  *  - `provisionDefaultAgents` — single-org ops tool:
  *    bunx convex run provisioning/provision_default_agents:provisionDefaultAgents \
  *      '{ "organizationId": "<org-id>", "orgSlug": "<org-slug>" }'

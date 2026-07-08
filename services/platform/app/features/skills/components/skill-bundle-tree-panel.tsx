@@ -42,9 +42,17 @@ interface SkillBundleTreePanelProps {
   assets: ReadonlyArray<BundleAsset>;
   /** Skill slug — used as the per-bundle localStorage key for expansion state. */
   slug: string;
-  /** Path of the file selected in the viewer ('SKILL.md' or an asset path). */
-  selectedPath: string;
+  /**
+   * Selected file — 'SKILL.md', an asset path, or `null` when the panel shows
+   * the skill overview (no file selected). No tree row is highlighted for null.
+   */
+  selectedPath: string | null;
   onSelectPath: (path: string) => void;
+  /**
+   * Total files in the bundle (SKILL.md + assets), rendered inline in the pane
+   * header as "Bundle · N files". Omitted while loading (shows just "Bundle").
+   */
+  fileCount?: number;
   loading?: boolean;
 }
 
@@ -150,6 +158,7 @@ export function SkillBundleTreePanel({
   slug,
   selectedPath,
   onSelectPath,
+  fileCount,
   loading,
 }: SkillBundleTreePanelProps) {
   const { t } = useT('settings');
@@ -286,7 +295,15 @@ export function SkillBundleTreePanel({
     }
   };
 
-  const heading = t('skills.detail.tree.heading', { defaultValue: 'Bundle' });
+  // Inline "Bundle · N files" header (replaces the old separate boxed
+  // "Bundle files" stat) — falls back to just "Bundle" while the count loads.
+  const heading =
+    fileCount != null
+      ? t('skills.detail.tree.headingCount', {
+          defaultValue: 'Bundle · {fileCount} files',
+          fileCount,
+        })
+      : t('skills.detail.tree.heading', { defaultValue: 'Bundle' });
 
   return (
     <Skeletonize
@@ -360,7 +377,8 @@ interface TreeNodeRowProps {
   depth: number;
   parentPath: string | null;
   expanded: Set<string>;
-  selectedPath: string;
+  /** Selected file path, or `null` when the overview (no file) is shown. */
+  selectedPath: string | null;
   onSelectPath: (path: string) => void;
   onToggleDir: (path: string) => void;
 }

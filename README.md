@@ -22,7 +22,7 @@ Pool their knowledge, delegate tasks, and build your swarm of agents.
 
 ---
 
-Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI, then two commands to get started.
+Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated team. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, workflows, and a unified inbox, all running on your own infrastructure. Install the CLI, then two commands to get started.
 
 **Pick your path:**
 
@@ -75,16 +75,16 @@ For detailed setup instructions, see the [self-hosted quickstart](https://tale.d
 
 ## What can you do?
 
-| Goal                        | How                                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------------------- |
-| **Create custom agents**    | Edit JSON files in `agents/` — define instructions, tools, and models                     |
-| **Build automations**       | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps                   |
-| **Add integrations**        | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors               |
-| **Use AI to build configs** | Open the project in your AI editor — `AGENTS.md` and `.tale/reference/` carry the schemas |
-| **Chat with AI assistants** | Built into the platform — start chatting immediately                                      |
-| **Build a knowledge base**  | Upload documents, crawl websites, manage products and customers                           |
-| **Manage conversations**    | Unified inbox for customer conversations with AI-assisted replies                         |
-| **View backend data**       | Run `tale convex admin` and open the Convex Dashboard                                     |
+| Goal                        | How                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Create custom agents**    | Edit JSON files in `agents/` — define instructions, tools, and models                               |
+| **Build workflows**         | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps                             |
+| **Add integrations**        | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors                         |
+| **Use AI to build configs** | Open the project in your AI editor — `AGENTS.md` and `.tale/reference/` carry the schemas           |
+| **Chat with AI assistants** | Built into the platform — start chatting immediately                                                |
+| **Build a knowledge base**  | Upload documents, crawl websites, manage products and customers                                     |
+| **Reply to customer email** | Install an email automation (Gmail, Outlook, IMAP/SMTP) for a shared inbox with AI-assisted replies |
+| **View backend data**       | Run `tale convex admin` and open the Convex Dashboard                                               |
 
 All files in `agents/`, `workflows/`, and `integrations/` are live-reloaded — edit and see changes instantly.
 
@@ -187,13 +187,13 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 </details>
 
 <details>
-<summary><strong>For builders (agents, automations, integrations)</strong></summary>
+<summary><strong>For builders (agents, workflows, integrations)</strong></summary>
 
 - **[Agent concepts](https://tale.dev/docs/platform/agents/concepts)** — the four-knob model behind every agent
 - **[Create an agent](https://tale.dev/docs/platform/agents/create)** — specialised AI assistants end to end
 - **[Agent tools](https://tale.dev/docs/platform/agents/tools)** — the built-in tool families
 - **[Projects](https://tale.dev/docs/platform/projects/overview)** — shared workspace for files, chats, project agents
-- **[Automation concepts](https://tale.dev/docs/platform/automations/concepts)** — workflows, triggers, approval gates
+- **[Workflow concepts](https://tale.dev/docs/platform/workflows/concepts)** — definitions, triggers, approval gates
 - **[Integrations overview](https://tale.dev/docs/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
 - **[Models out of the box](https://tale.dev/docs/platform/models)** — OpenRouter as the single default provider, plus the shipped model lists
 

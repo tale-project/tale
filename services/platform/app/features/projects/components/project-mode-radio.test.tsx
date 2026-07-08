@@ -42,10 +42,14 @@ describe('ProjectModeRadio', () => {
         options={OPTIONS}
       />,
     );
-    const recommended = screen.getByRole('radio', {
-      name: /Recommended/,
-    }) as HTMLInputElement;
-    expect(recommended.checked).toBe(true);
+    expect(screen.getByRole('radio', { name: /Recommended/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByRole('radio', { name: /Restricted/ })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
   });
 
   it('fires onChange with the new value when a different option is clicked', () => {
@@ -72,8 +76,7 @@ describe('ProjectModeRadio', () => {
       />,
     );
     fireEvent.click(screen.getByRole('radio', { name: /Recommended/ }));
-    // jsdom fires change only on transition; clicking the already-checked
-    // radio does not produce a synthetic onChange.
+    // Radix RadioGroup only emits onValueChange when the value changes.
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -86,8 +89,8 @@ describe('ProjectModeRadio', () => {
         disabled
       />,
     );
-    const radios = screen.getAllByRole('radio') as HTMLInputElement[];
-    for (const r of radios) expect(r.disabled).toBe(true);
+    const radios = screen.getAllByRole('radio');
+    for (const r of radios) expect(r).toBeDisabled();
   });
 
   it('groups the radios via role="radiogroup" and exposes the legend', () => {

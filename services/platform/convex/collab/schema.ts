@@ -17,8 +17,8 @@ export const notificationTypeValidator = v.union(
   v.literal('task_status_changed'),
   v.literal('task_commented'),
   v.literal('mention'),
-  // --- Workforce (task-ops automation) types. Schema ships one release
-  // ahead of the emitters (closed-union deploy-order constraint). ---
+  // --- Task-ops automation types. Schema ships one release ahead of the
+  // emitters (closed-union deploy-order constraint). ---
   // Agent work awaits human review (the in_review gate). Actionable.
   v.literal('task_review_requested'),
   // A review the user was watching was approved / sent back.
@@ -31,7 +31,11 @@ export const notificationTypeValidator = v.union(
   v.literal('budget_alert'),
   // An external agent runtime went offline (admins).
   v.literal('runtime_offline'),
-  // Daily/weekly workforce digest.
+  // RETIRED — no emitter writes this type anymore (the digest automation was
+  // removed) and migration 0.2.90/08 deletes the stored rows. The literal
+  // stays one release because the closed union validates EXISTING rows at
+  // schema push time (same deploy-order constraint as adding a type, in
+  // reverse); drop it in the next release.
   v.literal('workforce_digest'),
   // Inbound customer message in Conversations (automation-driven).
   v.literal('conversation_message'),
@@ -54,7 +58,7 @@ export const userNotificationsTable = defineTable({
     v.literal('task'),
     v.literal('comment'),
     v.literal('thread'),
-    // Workforce resources (deep-link targets for the new types above).
+    // Task-ops resources (deep-link targets for the types above).
     v.literal('task_review'),
     v.literal('wf_execution'),
     v.literal('runtime'),
@@ -104,7 +108,7 @@ export const notificationPreferencesTable = defineTable({
   taskStatusChanged: v.optional(v.boolean()),
   taskCommented: v.optional(v.boolean()),
   mention: v.optional(v.boolean()),
-  // Workforce preference groups. `taskReview` and `escalation` are
+  // Task-ops preference groups. `taskReview` and `escalation` are
   // human-in-the-loop safety signals: the fan-out skips the pref check for
   // the designated reviewer so the review gate can never starve silently.
   taskReview: v.optional(v.boolean()),

@@ -5,7 +5,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Loader2, Trash2, X } from 'lucide-react';
+import { Download, Loader2, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -30,6 +30,10 @@ interface IntegrationPanelProps {
   onOpenChange: (open: boolean) => void;
   integration: Integration;
   organizationId: string;
+  /** Download this integration's files as a zip (footer Export action). */
+  onExport?: () => void;
+  /** Parent-owned export in-flight state, reflected on the Export button. */
+  isExporting?: boolean;
 }
 
 export function IntegrationPanel({
@@ -37,6 +41,8 @@ export function IntegrationPanel({
   onOpenChange,
   integration,
   organizationId,
+  onExport,
+  isExporting,
 }: IntegrationPanelProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -136,7 +142,7 @@ export function IntegrationPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
-          <Stack gap={3}>
+          <Stack gap={4}>
             <IntegrationIconUpload
               iconUrl={manage.iconUrl}
               title={integration.title}
@@ -181,7 +187,7 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <Stack gap={3}>
+            <Stack gap={4}>
               <IntegrationActiveView
                 integration={integration}
                 isSql={manage.isSql}
@@ -213,7 +219,7 @@ export function IntegrationPanel({
 
       <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isDetailsMode ? (
-          <HStack justify="between" align="center">
+          <HStack justify="between" align="center" gap={2}>
             <Button
               type="button"
               onClick={() => setConfirmDisconnect(true)}
@@ -229,6 +235,21 @@ export function IntegrationPanel({
                 t('integrations.disconnect')
               )}
             </Button>
+            {onExport ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onExport}
+                disabled={manage.busy || isExporting}
+              >
+                {isExporting ? (
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
+                ) : (
+                  <Download className="mr-2 size-3.5" />
+                )}
+                {tCommon('actions.export')}
+              </Button>
+            ) : null}
             <Button
               type="button"
               onClick={() => manage.setConfirmDelete(true)}

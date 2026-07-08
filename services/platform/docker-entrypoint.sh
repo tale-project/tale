@@ -465,6 +465,22 @@ deploy_convex_functions() {
       log_error "Convex data migrations failed (exit code: $migrations_exit) — platform will continue; legacy data may need manual backfill."
     fi
 
+    # Validate the deployed built-in config catalog against its Zod schemas.
+    # Non-fatal like provisioning/migrations above: a broken catalog is a
+    # build-time regression `configs:validate` + CI should already have
+    # caught before this image shipped — this is the last-mile safety net for
+    # a mismatched image or a hand-edited builtin catalog volume.
+    log_info "Validating builtin config catalog..."
+    local validate_catalog_exit=0
+    timeout 120 bunx convex run lib/config_store/validate_builtin_catalog:validateBuiltinCatalog \
+      --url "$CONVEX_URL" \
+      --admin-key "$ADMIN_KEY" 2>&1 || validate_catalog_exit=$?
+    if [ $validate_catalog_exit -eq 0 ]; then
+      log_ok "Builtin config catalog validation complete"
+    else
+      log_error "Builtin config catalog validation failed (exit code: $validate_catalog_exit) — platform will continue; see issues logged above."
+    fi
+
     # Dev-only: seed a ready-to-log-in account + organization so a fresh
     # docker:dev stack is testable without a manual /setup pass. Idempotent
     # (re-runs no-op) and non-fatal like provisioning: a failure logs, the

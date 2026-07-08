@@ -16,8 +16,9 @@ import {
   type AgentMetadata,
   type AgentRoutingConfig,
 } from '../../lib/shared/schemas/agents';
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
-import { resolveAppDir } from '../apps/file_utils';
+import { resolveAutomationDir } from '../automations/file_utils';
 import {
   errnoCode,
   getConfigRoot,
@@ -48,7 +49,7 @@ export interface AgentJsonConfig {
   /**
    * Canonical, file-location-independent identity. Stored in the config so
    * moving the file between folders or renaming it never breaks
-   * delegates/mentions/installations/thread refs. When absent, the loader
+   * mentions/installations/thread refs. When absent, the loader
    * falls back to the file basename. Mirrors `agentJsonSchema.slug`.
    */
   slug?: string;
@@ -146,15 +147,6 @@ export interface AgentJsonConfig {
   conversationStarters?: string[];
   visibleInChat?: boolean;
   /**
-   * @deprecated Legacy org-chart delegation edges: slugs of the agents THIS
-   * agent delegates to (its direct reports). READ-ONLY since the organigram
-   * editor was removed (agent-on-demand `spawn_agent` replaced delegation);
-   * `saveAgent` preserves the on-disk value so nothing can re-wire the edges.
-   * They still drive manager escalation routing until the workforce rework
-   * (M4) retires them. Mirrors `agentJsonSchema.delegates`.
-   */
-  delegates?: string[];
-  /**
    * Monthly spend guardrail: warn at `warnPct` (default 80), refuse new runs
    * at `pausePct` (default 100) of `monthlyCents`, measured against the
    * usageLedger's month-to-date spend for this agentSlug. Mirrors
@@ -165,8 +157,8 @@ export interface AgentJsonConfig {
     warnPct?: number;
     pausePct?: number;
   };
-  /** Max concurrent task runs; falls back to the org `agent_workforce`
-   *  policy default. Mirrors `agentJsonSchema.maxConcurrentTasks`. */
+  /** Max concurrent task runs; omitted = unlimited. Mirrors
+   *  `agentJsonSchema.maxConcurrentTasks`. */
   maxConcurrentTasks?: number;
   /** Opt-in: run task runs as a durable sandbox step (container, not the
    *  inline LLM loop). Mutually exclusive with `runtime`. Mirrors
@@ -211,7 +203,7 @@ export function parseAgentJson(content: string): AgentJsonConfig {
   const parsed: unknown = JSON.parse(content);
   const result = agentJsonSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid agent JSON: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid agent JSON', result.error));
   }
   return result.data;
 }
@@ -224,12 +216,15 @@ export function resolveAgentsDir(orgSlug: string): string {
 }
 
 /**
- * App-owned agents live under the app's OWN bundle dir (`org/apps/<app>/agents/`),
+ * App-owned agents live under the automation's OWN bundle dir (`org/automations/<slug>/agents/`),
  * NOT the global `org/agents/`. This is what keeps them out of the global agent
  * surfaces (chat picker, `/agents`, org-chart) by construction.
  */
-export function resolveAppAgentsDir(orgSlug: string, appSlug: string): string {
-  return path.join(resolveAppDir(orgSlug, appSlug), 'agents');
+export function resolveAutomationAgentsDir(
+  orgSlug: string,
+  automationSlug: string,
+): string {
+  return path.join(resolveAutomationDir(orgSlug, automationSlug), 'agents');
 }
 
 /**
@@ -237,11 +232,14 @@ export function resolveAppAgentsDir(orgSlug: string, appSlug: string): string {
  * agent; `<app>/<name>` is APP-owned. `validateAgentName` has already proven the
  * shape, so a single `indexOf('/')` is enough.
  */
-function splitAgentName(agentName: string): { appSlug?: string; name: string } {
+function splitAgentName(agentName: string): {
+  automationSlug?: string;
+  name: string;
+} {
   const slash = agentName.indexOf('/');
   if (slash === -1) return { name: agentName };
   return {
-    appSlug: agentName.slice(0, slash),
+    automationSlug: agentName.slice(0, slash),
     name: agentName.slice(slash + 1),
   };
 }
@@ -253,9 +251,9 @@ export function resolveAgentFilePath(
   if (!validateAgentName(agentName)) {
     throw new Error(`Invalid agent name: ${agentName}`);
   }
-  const { appSlug, name } = splitAgentName(agentName);
-  const dir = appSlug
-    ? resolveAppAgentsDir(orgSlug, appSlug)
+  const { automationSlug, name } = splitAgentName(agentName);
+  const dir = automationSlug
+    ? resolveAutomationAgentsDir(orgSlug, automationSlug)
     : resolveAgentsDir(orgSlug);
   return safeJoinWithinDir(dir, `${name}.json`);
 }
@@ -273,9 +271,9 @@ export function resolveHistoryDir(orgSlug: string, agentName: string): string {
   // App-owned history lives under the app's own agents dir, so it travels with
   // the bundle (and is removed by the shell `rm` on uninstall). The final
   // segment is the bare local name — never the composite (no `/` in it).
-  const { appSlug, name } = splitAgentName(agentName);
-  const baseDir = appSlug
-    ? resolveAppAgentsDir(orgSlug, appSlug)
+  const { automationSlug, name } = splitAgentName(agentName);
+  const baseDir = automationSlug
+    ? resolveAutomationAgentsDir(orgSlug, automationSlug)
     : resolveAgentsDir(orgSlug);
   return safeJoinWithinDir(safeJoinWithinDir(baseDir, '.history'), name);
 }
@@ -285,8 +283,8 @@ const SKIP_AGENT_DIRS = new Set(['.history', '_archive', 'old']);
 
 /**
  * Recursively list agent JSON file paths RELATIVE to the org's agents dir
- * (posix-style, e.g. `workforce/chief-executive-officer.json` or a flat
- * `chat-agent.json`). One real level of nesting is expected (chat/, workforce/,
+ * (posix-style, e.g. `github/issue-triager.json` or a flat
+ * `chat-agent.json`). One real level of nesting is expected (chat/,
  * github/) but the walk is depth-general. Skips `.history/`, dotfiles, and any
  * `_archive`/`old` dir (superseded catalog that must never load). Returns [] if
  * the dir is missing.
@@ -330,7 +328,7 @@ export async function walkAgentRelativePaths(
 
 /**
  * Safe-join a relative agent path (possibly foldered, e.g.
- * `workforce/ceo.json`) within the org's agents dir, validating every segment.
+ * `github/reviewer.json`) within the org's agents dir, validating every segment.
  * Used to read/write a file at the location the slug→path index resolved.
  */
 export function resolveAgentFilePathFromRelative(

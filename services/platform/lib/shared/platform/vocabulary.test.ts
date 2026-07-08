@@ -12,7 +12,6 @@ import {
   STREAM_ENTRY_KINDS,
   isRenderKind,
 } from './render_kinds';
-import { STRUCTURAL_ROLES, isStructuralRole } from './roles';
 import { STEP_MODES, isStepMode } from './step_modes';
 
 const noDuplicates = (arr: readonly string[]) =>
@@ -111,11 +110,5 @@ describe('platform state / mode / field / role vocabularies', () => {
     expect(noDuplicates(FIELD_TYPES)).toBe(true);
     expect(isFieldType('currency')).toBe(true);
     expect(isFieldType('nope')).toBe(false);
-  });
-
-  it('freezes structural role tokens', () => {
-    expect([...STRUCTURAL_ROLES]).toEqual(['manager', 'report', 'self']);
-    expect(isStructuralRole('manager')).toBe(true);
-    expect(isStructuralRole('some-agent-slug')).toBe(false);
   });
 });

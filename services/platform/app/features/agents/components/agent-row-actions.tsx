@@ -24,7 +24,7 @@ interface AgentRowActionsProps {
    * App-owned agents can't be individually deleted from the global roster — they
    * go away only with their app's uninstall — so the delete action is hidden.
    */
-  isAppOwned?: boolean;
+  isAutomationOwned?: boolean;
 }
 
 export function AgentRowActions({
@@ -32,7 +32,7 @@ export function AgentRowActions({
   organizationId,
   onDuplicated,
   onDeleted,
-  isAppOwned = false,
+  isAutomationOwned = false,
 }: AgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
@@ -117,7 +117,7 @@ export function AgentRowActions({
       label: tCommon('actions.delete'),
       icon: Trash2,
       destructive: true,
-      visible: !isProtected && !isAppOwned,
+      visible: !isProtected && !isAutomationOwned,
       onClick: () => dialogs.open.delete(),
     },
   ];

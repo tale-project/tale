@@ -260,7 +260,7 @@ cron(
   { maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
 );
 
-// Workforce metrics rollup — recompute yesterday's per-project and per-agent
+// Task metrics rollup — recompute yesterday's per-project and per-agent
 // daily aggregates for every org (cursor-chained pages), heal stuck task
 // runs, and prune rollups past the fixed 400-day aggregate retention.
 cron(

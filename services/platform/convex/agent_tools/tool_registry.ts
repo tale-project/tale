@@ -7,6 +7,7 @@
 
 import { agentReadTool } from './agents/agent_read_tool';
 import { agentWriteTool } from './agents/agent_write_tool';
+import { automationSearchTool } from './automations/automation_search_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { conversationWriteTool } from './conversations/conversation_write_tool';
 import { customerReadTool } from './customers/customer_read_tool';
@@ -111,6 +112,7 @@ export const TOOL_REGISTRY = [
   projectReadTool,
   projectWriteTool,
   secretReadTool,
+  automationSearchTool,
 ] as const;
 
 /**

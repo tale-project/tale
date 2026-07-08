@@ -16,7 +16,7 @@ const DASHBOARD_ORG_ROUTE_ID = '/dashboard/$id';
 // the identical "Page not found" title. `RouteNotFound` is a plain component, not
 // a route, so it carries no `head`: the title for a nested miss otherwise comes
 // from the deepest matched route's `head`, and several dashboard sub-layouts
-// (e.g. `projects/$projectId`, `apps/$appSlug`) set none — leaving the title to
+// (e.g. `projects/$projectId`, `automations/$automationSlug`) set none — leaving the title to
 // fall back to the marketing default (issue #2097). Sourcing it here keeps 404
 // titles consistent across every dashboard subtree.
 function notFoundTitle(): string | undefined {

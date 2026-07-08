@@ -253,8 +253,7 @@ export function createBoundWorkflowTool(
           {
             organizationId,
             workflowSlug: wfDefinition.workflowSlug,
-            workflowName: config.name,
-            workflowDescription: config.description,
+            workflowName: wfDefinition.workflowSlug,
             parameters: normalizedArgs,
             threadId,
             messageId,
@@ -266,8 +265,8 @@ export function createBoundWorkflowTool(
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${config.name}". The user must approve this before execution begins. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
-          message: `Workflow "${config.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${wfDefinition.workflowSlug}". The user must approve this before execution begins. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+          message: `Workflow "${wfDefinition.workflowSlug}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
         };
       } catch (error) {
         return {

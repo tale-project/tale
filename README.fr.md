@@ -22,7 +22,7 @@ Mets en commun leurs connaissances, délègue des tâches et construis ton essai
 
 ---
 
-Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, automatisations et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI, puis deux commandes suffisent pour démarrer.
+Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, workflows et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI, puis deux commandes suffisent pour démarrer.
 
 **Choisis ta voie :**
 
@@ -75,16 +75,16 @@ Pour les instructions détaillées d'installation, voir le [démarrage rapide au
 
 ## Que peux-tu faire ?
 
-| Objectif                            | Comment                                                                                      |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Créer des agents personnalisés**  | Modifier les fichiers JSON dans `agents/` — instructions, outils et modèles                  |
-| **Construire des automatisations**  | Modifier les fichiers JSON dans `workflows/` — déclencheurs, conditions, boucles, étapes IA  |
-| **Ajouter des intégrations**        | Modifier les fichiers dans `integrations/` — APIs REST, bases SQL, connecteurs sur mesure    |
-| **Construire des configs avec IA**  | Ouvrir le projet dans ton éditeur IA — `AGENTS.md` et `.tale/reference/` portent les schémas |
-| **Discuter avec l'IA**              | Intégré dans la plateforme — disponible immédiatement                                        |
-| **Bâtir une base de connaissances** | Téléverser des documents, crawler des sites, gérer produits et clients                       |
-| **Gérer les conversations**         | Inbox unifié pour les conversations clients avec réponses assistées par IA                   |
-| **Voir les données backend**        | Lancer `tale convex admin` et ouvrir le Convex Dashboard                                     |
+| Objectif                            | Comment                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Créer des agents personnalisés**  | Modifier les fichiers JSON dans `agents/` — instructions, outils et modèles                                                         |
+| **Construire des workflows**        | Modifier les fichiers JSON dans `workflows/` — déclencheurs, conditions, boucles, étapes IA                                         |
+| **Ajouter des intégrations**        | Modifier les fichiers dans `integrations/` — APIs REST, bases SQL, connecteurs sur mesure                                           |
+| **Construire des configs avec IA**  | Ouvrir le projet dans ton éditeur IA — `AGENTS.md` et `.tale/reference/` portent les schémas                                        |
+| **Discuter avec l'IA**              | Intégré dans la plateforme — disponible immédiatement                                                                               |
+| **Bâtir une base de connaissances** | Téléverser des documents, crawler des sites, gérer produits et clients                                                              |
+| **Répondre aux e-mails clients**    | Installer une automatisation e-mail (Gmail, Outlook, IMAP/SMTP) pour une boîte de réception partagée avec réponses assistées par IA |
+| **Voir les données backend**        | Lancer `tale convex admin` et ouvrir le Convex Dashboard                                                                            |
 
 Tous les fichiers dans `agents/`, `workflows/` et `integrations/` sont rechargés à chaud — modifie et vois les changements immédiatement.
 
@@ -187,13 +187,13 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 </details>
 
 <details>
-<summary><strong>Pour les bâtisseurs (agents, automatisations, intégrations)</strong></summary>
+<summary><strong>Pour les bâtisseurs (agents, workflows, intégrations)</strong></summary>
 
 - **[Concepts d'agent](https://tale.dev/docs/fr/platform/agents/concepts)** — le modèle à quatre boutons derrière chaque agent
 - **[Créer un agent](https://tale.dev/docs/fr/platform/agents/create)** — assistants IA spécialisés de bout en bout
 - **[Outils d'agent](https://tale.dev/docs/fr/platform/agents/tools)** — les familles d'outils intégrées
 - **[Projets](https://tale.dev/docs/fr/platform/projects/overview)** — espace de travail partagé pour fichiers, chats et agents de Projet
-- **[Concepts d'automatisation](https://tale.dev/docs/fr/platform/automations/concepts)** — workflows, déclencheurs, portes d'approbation
+- **[Concepts de workflow](https://tale.dev/docs/fr/platform/workflows/concepts)** — définitions, déclencheurs, portes d'approbation
 - **[Aperçu des intégrations](https://tale.dev/docs/fr/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
 - **[Modèles livrés en standard](https://tale.dev/docs/fr/platform/models)** — OpenRouter comme unique fournisseur par défaut, plus les listes de modèles livrées
 

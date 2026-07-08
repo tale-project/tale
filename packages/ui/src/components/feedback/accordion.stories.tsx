@@ -16,7 +16,7 @@ const items = [
   {
     id: 'what',
     q: 'What is Tale?',
-    a: 'An AI workforce platform for your company.',
+    a: 'An AI platform for your company.',
   },
   {
     id: 'who',

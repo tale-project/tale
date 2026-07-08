@@ -92,13 +92,12 @@ export const createWorkflowCreationApproval = internalMutation({
   args: {
     organizationId: v.string(),
     workflowName: v.string(),
-    workflowDescription: v.optional(v.string()),
+    workflowSlug: v.string(),
     workflowConfig: v.object({
-      name: v.string(),
-      description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(v.literal('predefined')),
       config: v.optional(jsonRecordValidator),
+      specification: v.optional(v.string()),
     }),
     stepsConfig: v.array(
       v.object({
@@ -123,16 +122,15 @@ export const createWorkflowCreationApproval = internalMutation({
   handler: async (ctx, args): Promise<Id<'approvals'>> => {
     const metadata: WorkflowCreationMetadata = {
       workflowName: args.workflowName,
-      workflowDescription: args.workflowDescription,
+      workflowSlug: args.workflowSlug,
       workflowConfig: {
-        name: args.workflowConfig.name,
-        description: args.workflowConfig.description,
         version: args.workflowConfig.version,
         workflowType: args.workflowConfig.workflowType,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
+        specification: args.workflowConfig.specification,
       },
       stepsConfig: args.stepsConfig.map((step) => ({
         stepSlug: step.stepSlug,
@@ -148,9 +146,9 @@ export const createWorkflowCreationApproval = internalMutation({
     const approvalId = await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_creation',
-      resourceId: `workflow:${args.workflowName}`,
+      resourceId: `workflow:${args.workflowSlug}`,
       priority: 'high',
-      description: `Create workflow: ${args.workflowName}${args.workflowDescription ? ` - ${args.workflowDescription}` : ''}`,
+      description: `Create workflow: ${args.workflowSlug}`,
       threadId: args.threadId,
       messageId: args.messageId,
       metadata,
@@ -165,7 +163,7 @@ export const createWorkflowRunApproval = internalMutation({
     organizationId: v.string(),
     workflowSlug: v.string(),
     workflowName: v.string(),
-    workflowDescription: v.optional(v.string()),
+
     parameters: v.optional(jsonRecordValidator),
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
@@ -176,7 +174,6 @@ export const createWorkflowRunApproval = internalMutation({
     const metadata: WorkflowRunMetadata = {
       workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
-      workflowDescription: args.workflowDescription,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; parameters is always Record<string, unknown>
       parameters: args.parameters as Record<string, unknown> | undefined,
       requestedAt: Date.now(),
@@ -187,7 +184,7 @@ export const createWorkflowRunApproval = internalMutation({
       resourceType: 'workflow_run',
       resourceId: `workflow_run:${args.workflowSlug}`,
       priority: 'high',
-      description: `Run workflow: ${args.workflowName}${args.workflowDescription ? ` - ${args.workflowDescription}` : ''}`,
+      description: `Run workflow: ${args.workflowName}`,
       threadId: args.threadId,
       messageId: args.messageId,
       metadata,
@@ -236,11 +233,10 @@ export const createWorkflowUpdateApproval = internalMutation({
     workflowVersion: v.string(),
     updateSummary: v.string(),
     workflowConfig: v.object({
-      name: v.string(),
-      description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(v.literal('predefined')),
       config: v.optional(jsonRecordValidator),
+      specification: v.optional(v.string()),
     }),
     stepsConfig: v.array(
       v.object({
@@ -270,14 +266,13 @@ export const createWorkflowUpdateApproval = internalMutation({
       workflowName: args.workflowName,
       workflowVersion: args.workflowVersion,
       workflowConfig: {
-        name: args.workflowConfig.name,
-        description: args.workflowConfig.description,
         version: args.workflowConfig.version,
         workflowType: args.workflowConfig.workflowType,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
+        specification: args.workflowConfig.specification,
       },
       stepsConfig: args.stepsConfig.map((step) => ({
         stepSlug: step.stepSlug,

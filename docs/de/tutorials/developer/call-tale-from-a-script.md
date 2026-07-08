@@ -61,4 +61,4 @@ Das Feld `model` ist die ID des Agenten; die Instruktionen, das Wissen und die T
 
 Ein Skript ist der Pfad, den du nimmst, wenn die Daten-Ebene JSON ist, kein Bildschirm — Cronjobs, CI-Checks, interne Portale. Der API-Schlüssel führt deine Rolle, der OpenAI-kompatible Endpoint ist die reibungsärmste Form, und jeder List-Endpoint gibt denselben `{ resource: [...] }`-Umschlag zurück.
 
-Für eingehende Trigger — dein System POSTet in einen Tale-Workflow — siehe [Eine Automation per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). Für die volle Endpoint-Liste und das Fehler-Modell ist die [API-Referenz](/de/develop/api-reference) die einzige Quelle der Wahrheit.
+Für eingehende Trigger — dein System POSTet in einen Tale-Workflow — siehe [Einen Workflow per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). Für die volle Endpoint-Liste und das Fehler-Modell ist die [API-Referenz](/de/develop/api-reference) die einzige Quelle der Wahrheit.

@@ -6,37 +6,48 @@ import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
+import {
+  SectionRow,
+  SectionRowBody,
+  SectionRowGroup,
+} from '@tale/ui/section-row';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import {
   ArrowUpRight,
   Copy,
+  AlertTriangle,
+  Download,
+  Pencil,
   RotateCw,
   Trash2,
   X,
-  AlertTriangle,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import {
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/chat/components/message-bubble/markdown-renderer';
-import { useDuplicateSkill } from '@/app/features/skills/hooks/mutations';
+import {
+  useDuplicateSkill,
+  useExportSkill,
+  useUpdateSkillMd,
+} from '@/app/features/skills/hooks/mutations';
 import {
   useGetSkillAuditHistory,
   useReadSkill,
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { formatBytes } from '@/lib/utils/format-bytes';
+import { downloadBase64File } from '@/lib/utils/download';
 
 import {
   resolveSkillLoadErrorPresentation,
@@ -60,13 +71,15 @@ interface SkillDetailPanelProps {
   /** Re-point the panel at a different skill (used after duplicate). */
   onSwitchSlug: (slug: string) => void;
   /**
-   * Hides the management actions (Replace / Duplicate / Delete) and routes
-   * users to the canonical Skills settings page via `manageLink` instead.
+   * Hides the management actions (Edit / Replace / Duplicate / Export / Delete)
+   * and routes users to the canonical Skills settings page via `manageLink`.
    */
   readOnly?: boolean;
   /** Routing target for the "Manage in Skills settings" header link. */
   manageLink?: ManageLink;
 }
+
+const SKILL_MD = 'SKILL.md';
 
 /**
  * Placeholder audit rows rendered (masked) while the real audit history is
@@ -97,35 +110,82 @@ export function SkillDetailPanel({
   const { locale } = useLocale();
 
   const { data, isLoading } = useReadSkill(organizationId, slug);
-
   const { data: auditRows } = useGetSkillAuditHistory(organizationId, slug);
   const { mutateAsync: duplicateSkill } = useDuplicateSkill();
+  const { mutateAsync: updateSkillMd } = useUpdateSkillMd();
+  const { mutateAsync: exportSkill } = useExportSkill();
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  // File selection in the bundle tree. Lives in component state — no URL
-  // mirror, since the panel itself has no route.
-  const [selectedFile, setSelectedFile] = useState('SKILL.md');
+  // File selection in the bundle tree. SKILL.md is the root file, so it opens
+  // selected (the overview IS its rendering); an asset path shows that file.
+  // Lives in component state — no URL mirror, since the panel has no route.
+  const [selectedFile, setSelectedFile] = useState(SKILL_MD);
+
+  // SKILL.md editor (item 13): edits the frontmatter description + markdown
+  // body in place. Only meaningful on the overview; selecting an asset exits it.
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDescription, setEditDescription] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  // Collapsed section keys — default empty, so overview sections start expanded.
+  const [collapsedSections, setCollapsedSections] = useState(new Set<string>());
 
   const skill = data?.ok ? data : null;
   const hash = skill?.hash;
+  const errorMessage = data && !data.ok ? data.message : undefined;
+  const description = skill?.meta.description ?? '';
+  const body = skill?.body ?? '';
+  const license = skill?.meta.license;
 
-  // Reset selected file whenever the panel is re-pointed at a different
-  // skill — otherwise switching from skill-A?file=scripts/x.py to skill-B
-  // would render skill-B through the asset viewer with skill-A's path.
+  // While loading, `skill` is null. Render the real detail tree with
+  // placeholder values masked in place rather than swapping in a separate
+  // skeleton component. A genuine not-found state keeps its own alternate UI.
+  const notFound = !isLoading && !skill;
+  const assets = skill?.assets ?? [];
+  const placeholderAssets: Array<{ path: string; size: number }> = isLoading
+    ? Array.from({ length: 5 }, (_, idx) => ({
+        path: `placeholder/file-${idx}.txt`,
+        size: 0,
+      }))
+    : assets;
+  // Files in the bundle = SKILL.md + every asset (undefined while loading).
+  const fileCount = skill ? assets.length + 1 : undefined;
+
+  // The overview (description + instructions) stands in for SKILL.md itself;
+  // a real asset path shows the read-only viewer.
+  const showOverview = selectedFile === SKILL_MD;
+
+  // Reset selection + editor whenever the panel is re-pointed at a different
+  // skill — otherwise switching skills would carry over the wrong file/edit.
   useEffect(() => {
-    setSelectedFile('SKILL.md');
+    setSelectedFile(SKILL_MD);
+    setIsEditing(false);
   }, [slug]);
+
+  const handleSelectPath = useCallback((path: string) => {
+    setSelectedFile(path);
+    // Leaving the overview cancels any in-progress edit.
+    setIsEditing(false);
+  }, []);
+
+  const toggleSection = useCallback((key: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const handleDuplicate = useCallback(async () => {
     if (!skill || isDuplicating) return;
     setIsDuplicating(true);
     try {
-      const { newSlug } = await duplicateSkill({
-        organizationId,
-        slug,
-      });
+      const { newSlug } = await duplicateSkill({ organizationId, slug });
       toast({
         title: t('skills.skillDuplicated', {
           defaultValue: 'Skill duplicated as {slug}',
@@ -157,25 +217,77 @@ export function SkillDetailPanel({
 
   const skillDisplayName = skill?.meta.name ?? slug;
   const loadError = !isLoading && data && !data.ok ? data : null;
-  const errorMessage = loadError?.message;
   const errorPresentation = loadError
     ? resolveSkillLoadErrorPresentation(loadError.error, loadError.message)
     : null;
-  const description = skill?.meta.description ?? '';
-  const body = skill?.body ?? '';
-
-  // While loading, `skill` is null. Render the real detail tree with
-  // placeholder values masked in place rather than swapping in a separate
-  // skeleton component. A load failure (missing or corrupt SKILL.md) keeps
-  // its own error UI below.
+  // A load failure (missing or corrupt SKILL.md) keeps its own error UI below;
+  // `errorMessage`, `description`, `body`, `assets`, and `placeholderAssets`
+  // are already derived above.
   const showLoadError = Boolean(loadError);
-  const assets = skill?.assets ?? [];
-  const placeholderAssets: Array<{ path: string; size: number }> = isLoading
-    ? Array.from({ length: 5 }, (_, idx) => ({
-        path: `placeholder/file-${idx}.txt`,
-        size: 0,
-      }))
-    : assets;
+
+  const handleExport = useCallback(async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const result = await exportSkill({ organizationId, slug });
+      downloadBase64File(result.filename, result.dataBase64, 'application/zip');
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('skills.export.failed', {
+          defaultValue: 'Failed to export skill',
+        }),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting, exportSkill, organizationId, slug, t]);
+
+  const startEditing = useCallback(() => {
+    setEditDescription(description);
+    setEditBody(body);
+    setIsEditing(true);
+  }, [description, body]);
+
+  const handleSave = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await updateSkillMd({
+        organizationId,
+        slug,
+        description: editDescription,
+        body: editBody,
+        ...(hash ? { expectedHash: hash } : {}),
+      });
+      toast({
+        title: t('skills.editor.saveSuccess', { defaultValue: 'Skill saved' }),
+        variant: 'success',
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('skills.editor.saveFailed', {
+          defaultValue: 'Failed to save skill',
+        }),
+        description: extractErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    isSaving,
+    updateSkillMd,
+    organizationId,
+    slug,
+    editDescription,
+    editBody,
+    hash,
+    t,
+  ]);
 
   return (
     <>
@@ -207,56 +319,6 @@ export function SkillDetailPanel({
             {skillDisplayName}
           </Heading>
           <HStack gap={1} align="center" className="shrink-0">
-            {skill && !readOnly ? (
-              <>
-                <Button
-                  variant="ghost"
-                  icon={RotateCw}
-                  onClick={() => setReplaceDialogOpen(true)}
-                  disabled={isDuplicating}
-                >
-                  {t('skills.actions.replaceBundle', {
-                    defaultValue: 'Replace bundle',
-                  })}
-                </Button>
-                <Button
-                  variant="ghost"
-                  icon={Copy}
-                  onClick={() => void handleDuplicate()}
-                  isLoading={isDuplicating}
-                  disabled={isDuplicating}
-                >
-                  {t('skills.actions.duplicate', { defaultValue: 'Duplicate' })}
-                </Button>
-                <Button
-                  variant="ghost"
-                  icon={Trash2}
-                  onClick={() => setDeleteDialogOpen(true)}
-                  disabled={isDuplicating}
-                >
-                  {tCommon('actions.delete')}
-                </Button>
-              </>
-            ) : loadError && !readOnly ? (
-              <>
-                <Button
-                  variant="ghost"
-                  icon={RotateCw}
-                  onClick={() => setReplaceDialogOpen(true)}
-                >
-                  {t('skills.actions.replaceBundle', {
-                    defaultValue: 'Replace bundle',
-                  })}
-                </Button>
-                <Button
-                  variant="ghost"
-                  icon={Trash2}
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  {tCommon('actions.delete')}
-                </Button>
-              </>
-            ) : null}
             {readOnly && manageLink ? (
               <Link
                 to={manageLink.to}
@@ -327,207 +389,275 @@ export function SkillDetailPanel({
                 assets={placeholderAssets}
                 slug={slug}
                 selectedPath={selectedFile}
-                onSelectPath={setSelectedFile}
+                onSelectPath={handleSelectPath}
+                fileCount={fileCount}
                 loading={isLoading}
               />
             </div>
             <div className="min-w-0 flex-1 overflow-y-auto">
-              {!isLoading && selectedFile !== 'SKILL.md' ? (
+              {!showOverview ? (
                 <SkillAssetViewer
                   organizationId={organizationId}
                   skillSlug={slug}
                   assetPath={selectedFile}
                 />
+              ) : isEditing ? (
+                <Stack gap={4} className="p-4">
+                  <Stack gap={1}>
+                    <Text variant="caption">
+                      {t('skills.form.description', {
+                        defaultValue: 'Description',
+                      })}
+                    </Text>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      disabled={isSaving}
+                    />
+                  </Stack>
+                  <Stack gap={1}>
+                    <Text variant="caption">
+                      {t('skills.section.body', {
+                        defaultValue: 'Instructions (body)',
+                      })}
+                    </Text>
+                    <Textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      rows={18}
+                      disabled={isSaving}
+                      className="font-mono text-sm"
+                    />
+                  </Stack>
+                </Stack>
               ) : (
                 <Skeletonize loading={isLoading} className="contents">
                   <Stack gap={6} className="p-4">
-                    <HStack
-                      gap={4}
-                      align="center"
-                      className="border-border bg-muted/30 rounded-md border px-4 py-2"
-                    >
-                      <Stack gap={0}>
-                        <Text variant="caption">
-                          {t('skills.metadata.bundleFiles', {
-                            defaultValue: 'Bundle files',
+                    {!readOnly ? (
+                      <HStack justify="end">
+                        <Button
+                          variant="ghost"
+                          icon={Pencil}
+                          onClick={startEditing}
+                          disabled={!skill}
+                        >
+                          {tCommon('actions.edit')}
+                        </Button>
+                      </HStack>
+                    ) : null}
+
+                    <Stack gap={2}>
+                      {isLoading ? (
+                        <SkeletonText lines={2} />
+                      ) : description ? (
+                        <Text
+                          variant="body"
+                          className="leading-relaxed whitespace-pre-wrap"
+                        >
+                          {description}
+                        </Text>
+                      ) : (
+                        <Text variant="muted">
+                          {t('skills.detail.descriptionEmpty', {
+                            defaultValue: '(no description)',
                           })}
                         </Text>
-                        <Text variant="label">
-                          <SkeletonBox>{assets.length}</SkeletonBox>
-                        </Text>
-                      </Stack>
-                      {isLoading || skill?.meta.license ? (
-                        <Stack gap={0}>
+                      )}
+                      {license ? (
+                        <HStack gap={2} align="center">
                           <Text variant="caption">
                             {t('skills.metadata.license', {
                               defaultValue: 'License',
                             })}
                           </Text>
-                          <Text variant="label">
-                            <SkeletonBox>
-                              {skill?.meta.license ?? 'MIT'}
-                            </SkeletonBox>
+                          <Text as="span" variant="label">
+                            {license}
                           </Text>
-                        </Stack>
+                        </HStack>
                       ) : null}
-                    </HStack>
+                    </Stack>
 
-                    <FormSection
-                      label={t('skills.section.overview', {
-                        defaultValue: 'Overview',
-                      })}
-                    >
-                      <Stack gap={3}>
-                        <Stack gap={1}>
-                          <Text variant="caption">
-                            {t('skills.form.slug', { defaultValue: 'Slug' })}
-                          </Text>
-                          <Text as="span" variant="code">
-                            <SkeletonBox>
-                              {skill?.meta.name ?? slug}
-                            </SkeletonBox>
-                          </Text>
-                        </Stack>
-                        <Stack gap={1}>
-                          <Text variant="caption">
-                            {t('skills.form.description', {
-                              defaultValue: 'Description',
-                            })}
-                          </Text>
-                          <Text variant="body" className="whitespace-pre-wrap">
+                    <SectionRowGroup>
+                      <SectionRow
+                        label={t('skills.section.body', {
+                          defaultValue: 'Instructions (body)',
+                        })}
+                        expanded={!collapsedSections.has('body')}
+                        onToggle={() => toggleSection('body')}
+                      >
+                        <SectionRowBody>
+                          <div className={markdownWrapperStyles}>
                             {isLoading ? (
-                              <SkeletonText lines={2} />
-                            ) : description ? (
-                              description
-                            ) : (
-                              <Text as="span" variant="muted">
-                                {t('skills.detail.descriptionEmpty', {
-                                  defaultValue: '(no description)',
+                              <SkeletonText lines={6} />
+                            ) : body.trim().length === 0 ? (
+                              <Text variant="muted">
+                                {t('skills.body.previewEmpty', {
+                                  defaultValue: '(Body is empty)',
                                 })}
                               </Text>
-                            )}
-                          </Text>
-                        </Stack>
-                      </Stack>
-                    </FormSection>
-
-                    <FormSection
-                      label={t('skills.section.body', {
-                        defaultValue: 'Instructions (body)',
-                      })}
-                    >
-                      <div
-                        className={
-                          markdownWrapperStyles +
-                          ' border-border bg-background rounded-md border p-4'
-                        }
-                      >
-                        {isLoading ? (
-                          <SkeletonText lines={6} />
-                        ) : body.trim().length === 0 ? (
-                          <Text variant="muted">
-                            {t('skills.body.previewEmpty', {
-                              defaultValue: '(Body is empty)',
-                            })}
-                          </Text>
-                        ) : (
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={markdownComponents}
-                          >
-                            {body}
-                          </ReactMarkdown>
-                        )}
-                      </div>
-                    </FormSection>
-
-                    <FormSection
-                      label={t('skills.section.bundle', {
-                        defaultValue: 'Bundle files',
-                      })}
-                    >
-                      <SkillBundleAssetsList assets={placeholderAssets} />
-                    </FormSection>
-
-                    <FormSection
-                      label={t('skills.section.auditHistory', {
-                        defaultValue: 'Recent changes',
-                      })}
-                    >
-                      {Array.isArray(auditRows) && auditRows.length === 0 ? (
-                        <Text variant="muted">
-                          {t('skills.auditHistory.empty', {
-                            defaultValue:
-                              'No audit entries yet for this skill.',
-                          })}
-                        </Text>
-                      ) : (
-                        <Skeletonize
-                          loading={!Array.isArray(auditRows)}
-                          className="contents"
-                        >
-                          <Stack gap={2}>
-                            {(Array.isArray(auditRows)
-                              ? auditRows
-                              : AUDIT_PLACEHOLDER_ROWS
-                            ).map((row) => (
-                              <HStack
-                                key={row._id}
-                                gap={3}
-                                align="center"
-                                className="border-border rounded-md border px-3 py-2"
+                            ) : (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={markdownComponents}
                               >
-                                <Badge
-                                  variant={
-                                    row.status === 'failure'
-                                      ? 'destructive'
-                                      : 'outline'
-                                  }
-                                >
-                                  <SkeletonBox>
-                                    {t(
-                                      `skills.auditHistory.action.${row.action}`,
-                                      { defaultValue: row.action },
-                                    )}
-                                  </SkeletonBox>
-                                </Badge>
-                                <Stack gap={0} className="flex-1">
-                                  <Text
-                                    variant="body"
-                                    className="font-mono text-xs"
+                                {body}
+                              </ReactMarkdown>
+                            )}
+                          </div>
+                        </SectionRowBody>
+                      </SectionRow>
+
+                      <SectionRow
+                        label={t('skills.section.auditHistory', {
+                          defaultValue: 'Recent changes',
+                        })}
+                        expanded={!collapsedSections.has('audit')}
+                        onToggle={() => toggleSection('audit')}
+                        isLast
+                      >
+                        <SectionRowBody>
+                          {Array.isArray(auditRows) &&
+                          auditRows.length === 0 ? (
+                            <Text variant="muted">
+                              {t('skills.auditHistory.empty', {
+                                defaultValue:
+                                  'No audit entries yet for this skill.',
+                              })}
+                            </Text>
+                          ) : (
+                            <Skeletonize
+                              loading={!Array.isArray(auditRows)}
+                              className="contents"
+                            >
+                              <Stack gap={2}>
+                                {(Array.isArray(auditRows)
+                                  ? auditRows
+                                  : AUDIT_PLACEHOLDER_ROWS
+                                ).map((row) => (
+                                  <HStack
+                                    key={row._id}
+                                    gap={3}
+                                    align="center"
+                                    className="border-border bg-background rounded-md border px-3 py-2"
                                   >
-                                    <SkeletonBox>
-                                      {new Intl.DateTimeFormat(locale, {
-                                        dateStyle: 'medium',
-                                        timeStyle: 'short',
-                                      }).format(new Date(row.timestamp))}
-                                    </SkeletonBox>
-                                  </Text>
-                                  <Text variant="muted" className="text-xs">
-                                    <SkeletonBox>
-                                      {row.actorEmail ?? row.actorId}
-                                      {row.actorRole
-                                        ? ` · ${row.actorRole}`
-                                        : ''}
-                                      {row.status === 'failure' &&
-                                      row.errorMessage
-                                        ? ` · ${row.errorMessage}`
-                                        : ''}
-                                    </SkeletonBox>
-                                  </Text>
-                                </Stack>
-                              </HStack>
-                            ))}
-                          </Stack>
-                        </Skeletonize>
-                      )}
-                    </FormSection>
+                                    <Badge
+                                      variant={
+                                        row.status === 'failure'
+                                          ? 'destructive'
+                                          : 'outline'
+                                      }
+                                    >
+                                      <SkeletonBox>
+                                        {t(
+                                          `skills.auditHistory.action.${row.action}`,
+                                          { defaultValue: row.action },
+                                        )}
+                                      </SkeletonBox>
+                                    </Badge>
+                                    <Stack gap={0} className="flex-1">
+                                      <Text
+                                        variant="body"
+                                        className="font-mono text-xs"
+                                      >
+                                        <SkeletonBox>
+                                          {new Intl.DateTimeFormat(locale, {
+                                            dateStyle: 'medium',
+                                            timeStyle: 'short',
+                                          }).format(new Date(row.timestamp))}
+                                        </SkeletonBox>
+                                      </Text>
+                                      <Text variant="muted" className="text-xs">
+                                        <SkeletonBox>
+                                          {row.actorEmail ?? row.actorId}
+                                          {row.actorRole
+                                            ? ` · ${row.actorRole}`
+                                            : ''}
+                                          {row.status === 'failure' &&
+                                          row.errorMessage
+                                            ? ` · ${row.errorMessage}`
+                                            : ''}
+                                        </SkeletonBox>
+                                      </Text>
+                                    </Stack>
+                                  </HStack>
+                                ))}
+                              </Stack>
+                            </Skeletonize>
+                          )}
+                        </SectionRowBody>
+                      </SectionRow>
+                    </SectionRowGroup>
                   </Stack>
                 </Skeletonize>
               )}
             </div>
           </div>
         )}
+
+        {!readOnly && !notFound ? (
+          <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
+            {isEditing ? (
+              <HStack justify="end" align="center" gap={2}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setIsEditing(false)}
+                  disabled={isSaving}
+                >
+                  {tCommon('actions.cancel')}
+                </Button>
+                <Button
+                  onClick={() => void handleSave()}
+                  isLoading={isSaving}
+                  disabled={isSaving}
+                >
+                  {tCommon('actions.save')}
+                </Button>
+              </HStack>
+            ) : (
+              <HStack justify="between" align="center" gap={2}>
+                <HStack gap={1} align="center">
+                  <Button
+                    variant="ghost"
+                    icon={RotateCw}
+                    onClick={() => setReplaceDialogOpen(true)}
+                    disabled={isDuplicating || isExporting}
+                  >
+                    {t('skills.actions.replaceBundle', {
+                      defaultValue: 'Replace bundle',
+                    })}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={Copy}
+                    onClick={() => void handleDuplicate()}
+                    isLoading={isDuplicating}
+                    disabled={isDuplicating || !skill}
+                  >
+                    {tCommon('actions.duplicate')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={Download}
+                    onClick={() => void handleExport()}
+                    isLoading={isExporting}
+                    disabled={isExporting || !skill}
+                  >
+                    {tCommon('actions.export')}
+                  </Button>
+                </HStack>
+                <Button
+                  variant="ghost"
+                  icon={Trash2}
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={isDuplicating || isExporting}
+                >
+                  {tCommon('actions.delete')}
+                </Button>
+              </HStack>
+            )}
+          </div>
+        ) : null}
       </Sheet>
 
       {!readOnly && (
@@ -561,38 +691,12 @@ export function SkillDetailPanel({
   );
 }
 
-function SkillBundleAssetsList({
-  assets,
-}: {
-  assets: Array<{ path: string; size: number }>;
-}) {
-  const { t } = useT('settings');
-  const { locale } = useLocale();
-  if (assets.length === 0) {
-    return (
-      <Text variant="muted">
-        {t('skills.bundle.empty', { defaultValue: 'No bundle files yet.' })}
-      </Text>
-    );
+function extractErrorMessage(err: unknown): string | undefined {
+  if (err && typeof err === 'object') {
+    const data = (err as { data?: { message?: string } }).data;
+    if (data?.message) return data.message;
   }
-  return (
-    <Stack gap={1} className="border-border rounded-md border p-2">
-      {assets.map((f) => (
-        <HStack
-          key={f.path}
-          gap={2}
-          align="center"
-          justify="between"
-          className="px-2 py-1.5"
-        >
-          <Text as="span" variant="body" className="font-mono text-sm">
-            <SkeletonBox>{f.path}</SkeletonBox>
-          </Text>
-          <Text as="span" variant="caption">
-            <SkeletonBox>{formatBytes(f.size, locale)}</SkeletonBox>
-          </Text>
-        </HStack>
-      ))}
-    </Stack>
-  );
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return undefined;
 }

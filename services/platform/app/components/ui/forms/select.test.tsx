@@ -52,7 +52,7 @@ describe('Select', () => {
     // Regression test for #1492: near the bottom of a short viewport the
     // dropdown must shrink to the space Radix measures instead of keeping a
     // fixed max-height, otherwise its first option ("End workflow" in the
-    // automation next-step selector) gets clipped behind the scroll buttons.
+    // workflow next-step selector) gets clipped behind the scroll buttons.
     it('caps the dropdown height to the available viewport space', async () => {
       const { user } = render(
         <Select options={options} placeholder="Select fruit" />,

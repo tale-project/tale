@@ -25,10 +25,11 @@ import {
   type MutationCtx,
 } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
 import {
   notifyTaskReviewRequested,
   notifyTaskReviewResolved,
-} from '../collab/notify_workforce';
+} from '../collab/notify_task_reviews';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -245,6 +246,12 @@ export const respondToTaskReview = mutation({
       approvedBy: member.userId,
       reviewedAt: now,
       metadata: { ...metadata, response },
+    });
+
+    await dismissReviewRequestNotifications(ctx, {
+      organizationId: approval.organizationId,
+      approvalId: args.approvalId,
+      taskId,
     });
 
     await recordActivity(ctx, {

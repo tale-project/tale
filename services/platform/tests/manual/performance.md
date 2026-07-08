@@ -7,18 +7,18 @@
 
 ## Scope & routes
 
-| Surface             | Route                              |
-| ------------------- | ---------------------------------- |
-| Org root (→ chat)   | `/dashboard/{org}`                 |
-| Chat composer       | `/dashboard/{org}/chat`            |
-| Chat thread         | `/dashboard/{org}/chat/{threadId}` |
-| Conversations list  | `/dashboard/{org}/conversations`   |
-| Customers DataTable | `/dashboard/{org}/customers`       |
-| Settings            | `/dashboard/{org}/settings`        |
+| Surface                | Route                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| Org root (→ chat)      | `/dashboard/{org}`                                                                        |
+| Chat composer          | `/dashboard/{org}/chat`                                                                   |
+| Chat thread            | `/dashboard/{org}/chat/{threadId}`                                                        |
+| Email automation inbox | `/dashboard/{org}/automations/reply-outlook-emails` (needs an installed email automation) |
+| Customers DataTable    | `/dashboard/{org}/customers`                                                              |
+| Settings               | `/dashboard/{org}/settings`                                                               |
 
 `/dashboard/{org}` redirects to `/dashboard/{org}/chat`; `/settings` redirects to
-`/settings/account`; `/conversations` redirects to `/conversations/open`. `{org}`
-is the 16+ char id in the dashboard URL.
+`/settings/account`; `/conversations` redirects to the single installed email
+automation, else Automations. `{org}` is the 16+ char id in the dashboard URL.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ axes** for every number, because both move it by an order of magnitude:
 
 | Case(s)             | Status         | e2e spec                                                                       |
 | ------------------- | -------------- | ------------------------------------------------------------------------------ |
-| P5 (pagination)     | 🔶 partial     | `conversations.spec.ts`, `projects-depth.spec.ts` (functional, NOT timed)      |
+| P5 (pagination)     | 🔶 partial     | `email-automation.spec.ts`, `projects-depth.spec.ts` (functional, NOT timed)   |
 | P2 (chat turn ends) | 🔶 partial     | `chat-threads.spec.ts`, `chat-depth.spec.ts` (asserts terminal state, untimed) |
 | P3 (thread switch)  | 🔶 partial     | `chat-threads.spec.ts` (switches threads functionally, untimed)                |
 | P1, P4, P6, P7      | ⛔ manual-only | — (no load-timing assertions exist in e2e)                                     |
@@ -65,8 +65,8 @@ axes** for every number, because both move it by an order of magnitude:
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
-> No `list-behaviors.spec.ts` exists — the suite has 29 specs and pagination
-> behaviour lives in `conversations.spec.ts` / `projects-depth.spec.ts`. None
+> No `list-behaviors.spec.ts` exists — pagination behaviour lives in
+> `email-automation.spec.ts` / `projects-depth.spec.ts`. None
 > assert timing; they only prove the functional path, so every P-row below stays
 > a manual measurement.
 
@@ -76,9 +76,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1  | Cold load → first paint | Clear cache, hard-reload `/dashboard/{org}`. Watch the console for `[cold-load]` lines.                                   | All four `[cold-load]` labels print (`module-load`, `convex-authenticated`, `member-context`, `account-bootstrap`); the **Send message** button (`chat.send`) becomes visible. Prod build: usable < 3 s (`mockA`/`live`, `hosted`). Dev/local: record absolute + note it's dev. |
 | P2  | Chat TTFT / turn        | On `/dashboard/{org}/chat` type `hello`, click **Send message** (`chat.send`).                                            | **Stop generating** (`chat.stopGenerating`) appears, then disappears (turn done) and the URL gains `/chat/{threadId}`. Target: prod `live`/`hosted` < 3 s to first token; `mockA`/`local` ≈ 12–18 s round-trip (classifier + local amp) — record the number, do not fail it.    |
-| P3  | Thread switch           | On `/dashboard/{org}/chat/{threadId}` open a different thread (chat sidebar) or a row in `/conversations`.                | URL `{threadId}` changes and the message list repaints. Target: warm prod < 1 s; record the dev/local number.                                                                                                                                                                   |
+| P3  | Thread switch           | On `/dashboard/{org}/chat/{threadId}` open a different thread (chat sidebar).                                             | URL `{threadId}` changes and the message list repaints. Target: warm prod < 1 s; record the dev/local number.                                                                                                                                                                   |
 | P4  | Warm transition         | Hover a left-nav target (e.g. **Customers**), then click it.                                                              | URL commits to `/dashboard/{org}/customers`; on a warm module cache the route paints without a blocking skeleton (row-hover + loader prefetch primed it). Compare cold vs. warm nav delta.                                                                                      |
-| P5  | List pagination         | On `/dashboard/{org}/conversations` (or `/customers`) page through the DataTable when more than one page exists.          | Each page swap loads the next rows; the page chrome/header does NOT reflow or scroll-jump. Target: next page < 1 s warm.                                                                                                                                                        |
+| P5  | List pagination         | On `/dashboard/{org}/customers` (or an email automation's inbox list) page through when more than one page exists.        | Each page swap loads the next rows; the page chrome/header does NOT reflow or scroll-jump. Target: next page < 1 s warm.                                                                                                                                                        |
 | P6  | Settings save           | On `/dashboard/{org}/settings/account` edit a field; the global save bar appears; click **Save** (`common.actions.save`). | The bar shows a saved state; **reload the page and read the field back** — the new value persists (assert by reload, not the toast). Target: round-trip < 2 s warm.                                                                                                             |
 | P7  | Auth recovery           | During a cold load, induce a transient backend hiccup (restart Convex `:3210` mid-handshake).                             | The WS reconnects and authenticates: the shell finishes painting and chat becomes usable WITHOUT a manual reload (no endless skeletons). See `cold-start-auth-recovery`. Mark **ENVIRONMENT** if you cannot induce the hiccup.                                                  |
 
@@ -96,12 +96,12 @@ single warm sample.
 
 ## Boundary & error tests
 
-| ID  | Test                | Input                                                                 | Expected (verifiable)                                                                                                                                                                     |
-| --- | ------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Large thread        | Open a chat thread with many messages.                                | Scroll stays responsive; no `pageerror`/console error; DOM node count does not grow unbounded (older messages are recycled).                                                              |
-| B2  | Large list          | A DataTable with hundreds of rows (`/customers` or `/conversations`). | First page renders quickly and is paginated (only one page of rows in the DOM); paging does not load the whole set at once.                                                               |
-| B3  | Slow network        | DevTools throttle to **Slow 3G**, hard-reload `/dashboard/{org}`.     | Loading skeletons (`aria-busy="true"` regions) show during load with NO layout jank; the page eventually renders; no crash.                                                               |
-| B4  | Chat provider error | Send a message containing `e2e:error` in `mockA`.                     | The provider-error UI renders (HTTP 500 path); the composer recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
+| ID  | Test                | Input                                                             | Expected (verifiable)                                                                                                                                                                     |
+| --- | ------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Large thread        | Open a chat thread with many messages.                            | Scroll stays responsive; no `pageerror`/console error; DOM node count does not grow unbounded (older messages are recycled).                                                              |
+| B2  | Large list          | A DataTable with hundreds of rows (`/customers`).                 | First page renders quickly and is paginated (only one page of rows in the DOM); paging does not load the whole set at once.                                                               |
+| B3  | Slow network        | DevTools throttle to **Slow 3G**, hard-reload `/dashboard/{org}`. | Loading skeletons (`aria-busy="true"` regions) show during load with NO layout jank; the page eventually renders; no crash.                                                               |
+| B4  | Chat provider error | Send a message containing `e2e:error` in `mockA`.                 | The provider-error UI renders (HTTP 500 path); the composer recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
 
 ## Accessibility (WCAG 2.1 AA)
 

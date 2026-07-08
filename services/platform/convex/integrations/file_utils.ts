@@ -9,6 +9,7 @@
 
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import {
   integrationJsonSchema,
   type IntegrationJsonConfig,
@@ -93,7 +94,9 @@ export function parseIntegrationJson(content: string): IntegrationJsonConfig {
   const parsed: unknown = JSON.parse(content);
   const result = integrationJsonSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid integration config JSON: ${result.error.message}`);
+    throw new Error(
+      zodErrorMessage('Invalid integration config JSON', result.error),
+    );
   }
   return result.data;
 }

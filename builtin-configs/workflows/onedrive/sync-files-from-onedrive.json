@@ -1,20 +1,4 @@
 {
-  "name": "Sync files from OneDrive",
-  "description": "Reconcile every active OneDrive sync configuration for the org, one config per loop iteration",
-  "i18n": {
-    "en": {
-      "name": "Sync files from OneDrive",
-      "description": "Lists every active OneDrive sync configuration for the org and reconciles each one — folder imports and single files — into Tale storage, deleting documents whose source files were removed."
-    },
-    "de": {
-      "name": "Dateien aus OneDrive synchronisieren",
-      "description": "Listet alle aktiven OneDrive-Synchronisationskonfigurationen der Organisation auf und gleicht jede — Ordnerimporte und einzelne Dateien — mit dem Tale-Speicher ab; Dokumente, deren Quelldateien entfernt wurden, werden gelöscht."
-    },
-    "fr": {
-      "name": "Synchroniser les fichiers depuis OneDrive",
-      "description": "Liste toutes les configurations de synchronisation OneDrive actives de l'organisation et réconcilie chacune — imports de dossiers et fichiers uniques — vers le stockage Tale, en supprimant les documents dont les fichiers source ont été retirés."
-    }
-  },
   "version": "2.0.0",
   "metadata": {
     "labels": ["Knowledge", "OneDrive"],

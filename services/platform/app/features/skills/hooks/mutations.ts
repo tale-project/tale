@@ -4,7 +4,9 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-function useInvalidateSkills() {
+/** Refresh the skills page's list after a bundle-changing action
+ *  (create/upload/delete — or the builtin catalog sync). */
+export function useInvalidateSkills() {
   const queryClient = useQueryClient();
   return (organizationId: string) =>
     queryClient.invalidateQueries({
@@ -38,6 +40,14 @@ export function useUploadSkillBundle() {
   });
 }
 
+/** Create a skill — blank, or a copy of a built-in template bundle. */
+export function useCreateSkill() {
+  const invalidate = useInvalidateSkills();
+  return useConvexAction(api.skills.file_actions.createSkill, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
+}
+
 export function useDeleteSkill() {
   const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.file_actions.deleteSkill, {
@@ -50,4 +60,17 @@ export function useDuplicateSkill() {
   return useConvexAction(api.skills.file_actions.duplicateSkill, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
+}
+
+/** Save edits to a skill's SKILL.md (description + body) from the detail panel. */
+export function useUpdateSkillMd() {
+  const invalidate = useInvalidateSkills();
+  return useConvexAction(api.skills.file_actions.updateSkillMd, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
+}
+
+/** Export an installed skill bundle as a downloadable zip (base64-encoded). */
+export function useExportSkill() {
+  return useConvexAction(api.skills.file_actions.exportSkill);
 }

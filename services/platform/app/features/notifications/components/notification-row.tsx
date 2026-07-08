@@ -29,7 +29,7 @@ interface NotificationRowProps {
   /** Marks the row read WITHOUT navigating — the trailing icon button. */
   onMarkRead: () => void;
   markReadPending: boolean;
-  /** Extra content rendered below the body (e.g. `<ReviewActions />`). */
+  /** Extra content rendered below the body (e.g. secondary actions). */
   children?: ReactNode;
 }
 

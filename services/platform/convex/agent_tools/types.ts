@@ -35,4 +35,15 @@ export interface ToolDefinition {
   name: string; // unique tool identifier (e.g., 'customer_search')
   tool: ConvexAgentTool; // the actual createTool result
   availability: ToolAvailability; // see ToolAvailability — required by design
+  /**
+   * Callable from an external agent's sandbox over the workspace-tool bridge
+   * (`POST /api/tools/execute`). Orthogonal to `availability` (which seats a
+   * tool between primary turns and sub-agent jobs): bridgeable means pure
+   * request/response against platform data — no dependency on the platform
+   * loop's suspension/resume or interactive continuation, and safe under the
+   * dispatch-synthesized ToolCtx (organizationId + threadId + userId, no live
+   * generation). Keep in lockstep with EXTERNAL_AGENT_TOOL_NAMES in
+   * lib/shared/schemas/agents.ts — `sandbox_bridge.test.ts` fails on drift.
+   */
+  sandboxBridge?: true;
 }

@@ -10,6 +10,7 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ChevronDownIcon,
+  ListFilter,
   Loader2Icon,
   MailXIcon,
   SendHorizontalIcon,
@@ -28,12 +29,27 @@ import { filterByTextSearch } from '@/lib/utils/filtering';
 import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
 import type { Conversation } from '../types';
-import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { BulkSendDialog } from './bulk-send-dialog';
 import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
+import { ConversationsEmptyState } from './conversations-empty-state';
 import { ConversationsList } from './conversations-list';
+
+export interface ChannelFilterOption {
+  /** Integration slug of a connected inbox provider (e.g. `gmail`). */
+  value: string;
+  /** Display title (e.g. "Gmail"). */
+  label: string;
+}
+
+export interface ChannelFilter {
+  options: ChannelFilterOption[];
+  /** The selected provider slug; undefined = all channels. */
+  value?: string;
+  /** Called with the provider slug, or undefined for "All channels". */
+  onChange: (value?: string) => void;
+}
 
 interface ConversationsProps {
   status?: Conversation['status'];
@@ -44,6 +60,9 @@ interface ConversationsProps {
   paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   conversationCount: number | undefined;
   totalConversationCount: number | undefined;
+  /** Server-side provider filter (the route owns the URL state). The control
+   *  renders only when at least one option exists. */
+  channelFilter?: ChannelFilter;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +80,10 @@ interface ConversationsProps {
 //   'data'           — rows available
 // ---------------------------------------------------------------------------
 type BodyState = 'activate-empty' | 'loading' | 'skeleton' | 'data';
+
+/** Radio sentinel for the channel filter's unfiltered state — never a real
+ *  integration slug. */
+const ALL_CHANNELS = 'all';
 
 function deriveBodyState(
   totalConversationCount: number | undefined,
@@ -87,6 +110,7 @@ export function Conversations({
   paginatedResult,
   conversationCount,
   totalConversationCount,
+  channelFilter,
 }: ConversationsProps) {
   const navigate = useNavigate();
 
@@ -125,7 +149,6 @@ export function Conversations({
     [navigate, organizationId, status],
   );
 
-  const { t: tChat } = useT('chat');
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
 
@@ -253,6 +276,7 @@ export function Conversations({
               disabled={controlsDisabled}
             />
             <DropdownMenu
+              disabled={controlsDisabled}
               trigger={
                 <button
                   type="button"
@@ -396,12 +420,59 @@ export function Conversations({
             </>
           ) : (
             <SearchInput
-              placeholder={tChat('searchConversations')}
+              placeholder={tConversations('searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               wrapperClassName="flex-1"
               className="bg-transparent pr-3 text-sm shadow-none"
               disabled={controlsDisabled}
+            />
+          )}
+
+          {/* Channel filter — the connected inbox providers (server-side:
+              the selected slug becomes the query's `integrationName` arg).
+              Icon-only, mirrors FilterButton's chrome; sits to the right of
+              the search box. Rendered only when the org has at least one
+              provider to filter by. */}
+          {channelFilter && channelFilter.options.length > 0 && (
+            <DropdownMenu
+              disabled={controlsDisabled}
+              trigger={
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  disabled={controlsDisabled}
+                  aria-label={tConversations('filter.channel')}
+                  className={cn(
+                    'shrink-0',
+                    channelFilter.value !== undefined &&
+                      'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900',
+                  )}
+                >
+                  <ListFilter className="text-muted-foreground size-4" />
+                </Button>
+              }
+              items={[
+                [
+                  {
+                    type: 'radio-group',
+                    value: channelFilter.value ?? ALL_CHANNELS,
+                    onValueChange: (v) => {
+                      channelFilter.onChange(
+                        v === ALL_CHANNELS ? undefined : v,
+                      );
+                    },
+                    options: [
+                      {
+                        value: ALL_CHANNELS,
+                        label: tConversations('filter.allChannels'),
+                      },
+                      ...channelFilter.options,
+                    ],
+                  } satisfies DropdownMenuItem,
+                ],
+              ]}
+              align="end"
             />
           )}
         </ConversationListToolbar>
@@ -428,7 +499,7 @@ export function Conversations({
         )}
       >
         {isActivateEmpty ? (
-          <ActivateConversationsEmptyState organizationId={organizationId} />
+          <ConversationsEmptyState />
         ) : (
           <ConversationPanel
             selectedConversationId={selectedConversationId}

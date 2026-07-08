@@ -1,24 +1,28 @@
 /**
- * Per-install app config derivation — the generic mechanism that lets an app
- * collect ONE input but store several keys.
+ * Form-field derivation — the generic mechanism that lets a declared
+ * `formFieldSchema` field collect ONE input but dispatch several keys.
  *
- * An app's `requires.config` field may declare a `derive` rule (a regex +
- * target keys). The config form renders one input for the field; on save this
- * splits the entered string into the declared sub-keys, which is what the app's
- * views and scheduled workflows actually bind (`$config:owner`, `{repo}`, …).
- * The platform carries no domain knowledge — the regex and target keys live in
- * the app manifest. Example: a single "owner/repo or GitHub URL" input deriving
- * `owner` + `repo`.
+ * A field may declare a `derive` rule (a regex + target keys). The connected
+ * `Form` block (`registry/connected/form.tsx`) renders one input for the
+ * field; on submit this splits the entered string into the declared sub-keys,
+ * which is what the view's bound action actually reads (`$input.owner`,
+ * `{repo}`, …). The platform carries no domain knowledge — the regex and
+ * target keys live in the view's own JSON. Example: a single "owner/repo or
+ * GitHub URL" input deriving `owner` + `repo`.
  *
- * Pure + isomorphic: the form runs it before calling `setAppConfig`, so the
- * stored map already holds both the raw input (for the form to read back) and
- * the derived keys (for the bindings). No FS or manifest read needed server-side.
+ * Pure: the `Form` block runs it before dispatching its bound action, so the
+ * resolved args already hold both the raw input (read back into the form) and
+ * the derived keys. No FS or manifest read needed server-side.
  */
 
-/** The subset of an `AppConfigField` this module needs. */
+import type { AutomationConfigField } from '../schemas/automation_views';
+
+/** The subset of an `AutomationConfigField` this module needs. `type` mirrors the
+ *  schema union so an additive grammar extension (e.g. `select`, whose value
+ *  coerces through the string branch) can never drift this module. */
 export interface DerivableConfigField {
   key: string;
-  type: 'string' | 'number' | 'boolean';
+  type: AutomationConfigField['type'];
   derive?: { pattern: string; into: string[] };
 }
 

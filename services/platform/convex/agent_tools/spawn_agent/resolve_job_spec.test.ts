@@ -6,7 +6,13 @@ import {
   describeNarrowing,
   resolveJobSpec,
   WORKER_BASELINE_TOOLS,
+  WORKER_WORKSPACE_READ_TOOLS,
 } from './resolve_job_spec';
+
+const IMPLICIT_TOOLS = [
+  ...WORKER_BASELINE_TOOLS,
+  ...WORKER_WORKSPACE_READ_TOOLS,
+];
 
 const AVAILABILITY = new Map<string, ToolAvailability>([
   ['web', 'any'],
@@ -39,7 +45,7 @@ const SKILLS = new Map([
 ]);
 
 describe('resolveJobSpec', () => {
-  it('grants the intersection plus the worker baseline', () => {
+  it('grants the intersection plus the worker baseline and workspace reads', () => {
     const result = resolveJobSpec({
       requested: { tools: ['web', 'rag_search'] },
       parent: PARENT,
@@ -47,11 +53,35 @@ describe('resolveJobSpec', () => {
       skillsBySlug: SKILLS,
     });
     expect(result.effectiveTools).toEqual([
-      ...WORKER_BASELINE_TOOLS,
+      ...IMPLICIT_TOOLS,
       'web',
       'rag_search',
     ]);
     expect(describeNarrowing(result.narrowed)).toBe('');
+  });
+
+  it('grants workspace read tools even when nothing was requested and the parent lacks them', () => {
+    const result = resolveJobSpec({
+      requested: { tools: [] },
+      parent: PARENT, // parent holds neither file_read nor file_list
+      availability: AVAILABILITY,
+      skillsBySlug: SKILLS,
+    });
+    expect(result.effectiveTools).toEqual(IMPLICIT_TOOLS);
+    expect(describeNarrowing(result.narrowed)).toBe('');
+  });
+
+  it('treats a request for an implicit tool as a no-op, not a narrowing or duplicate', () => {
+    const result = resolveJobSpec({
+      requested: {
+        tools: ['file_read', 'file_list', 'update_progress', 'web'],
+      },
+      parent: PARENT,
+      availability: AVAILABILITY,
+      skillsBySlug: SKILLS,
+    });
+    expect(result.effectiveTools).toEqual([...IMPLICIT_TOOLS, 'web']);
+    expect(result.narrowed.tools).toEqual([]);
   });
 
   it('strips primary-only tools even when the parent holds them', () => {
@@ -61,7 +91,7 @@ describe('resolveJobSpec', () => {
       availability: AVAILABILITY,
       skillsBySlug: SKILLS,
     });
-    expect(result.effectiveTools).toEqual([...WORKER_BASELINE_TOOLS, 'web']);
+    expect(result.effectiveTools).toEqual([...IMPLICIT_TOOLS, 'web']);
     expect(result.narrowed.tools).toEqual([
       'request_human_input',
       'update_todos',

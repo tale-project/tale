@@ -47,9 +47,13 @@ export function Alert({
   live = 'polite',
   className,
 }: AlertProps) {
+  // `live: 'off'` renders a STATIC banner — no `role="alert"`, so an
+  // always-present strip (e.g. a settings danger zone) is not announced as a
+  // live region on mount. Transient alerts keep the announcing default.
+  const isLive = live !== 'off';
   return (
     <div
-      role="alert"
+      role={isLive ? 'alert' : undefined}
       aria-live={live}
       aria-atomic="true"
       className={cn(alertVariants({ variant }), className)}

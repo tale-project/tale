@@ -27,9 +27,9 @@ The reply streams in token by token. Tool calls render as collapsed boxes the us
 
 An agent with the human-input tool can pause mid-task and ask you something — a **Question** card appears in the chat with the fields the agent needs, and generation waits until you answer. Fill the form and click **Submit response**, or click **Reply differently** to push back in free text instead. The answered card stays in the transcript at the point where the question was asked, so the exchange reads in order later. If your answer was wrong or incomplete, click **Edit response** on the answered card — the form reopens prefilled, and **Update response** re-runs the agent with the corrected answer superseding the old one. The card keeps every previous answer: flip through the versions with the arrows next to the response, the way edited messages work.
 
-## Conversations versus chats
+## Chats versus the Inbox
 
-Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads`, and the URL slug is `threads/$threadId`; the docs follow the UI and say "chat" in body prose. The separate **Conversations** tab (one over in the sidebar) is the customer-channel inbox, not a list of chats. Two senses of "conversation", two surfaces — see [Conversations overview](/platform/conversations/overview) for the inbox sense.
+Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads`, and the URL slug is `threads/$threadId`; the docs follow the UI and say "chat" in body prose. An installed automation's **Inbox** tab is a different surface entirely — the customer-channel conversations Gmail, Outlook, or IMAP/SMTP deliver, not a list of chats. Two senses of "conversation", two surfaces — see [Built-in automations](/platform/automations/builtin) for the Inbox sense.
 
 ## History and search
 

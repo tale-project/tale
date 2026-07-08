@@ -33,14 +33,19 @@ export interface StepUiAnnotation {
  */
 export interface StepProjection {
   stepSlug: string;
-  /** Definition name — the always-present title; `labelKey` localizes over it. */
+  /** Definition name — the always-present title. Already resolved through the
+   * step's own inline `i18n` when the step declares one (see
+   * `resolveWorkflowStepText`); otherwise the literal (English) name, which
+   * `labelKey` then localizes over. */
   name: string;
   stepType: string;
   /** Resolved render kind. Falls back to `status` when unannotated/unknown so a
    * missing annotation degrades gracefully rather than dropping the step. */
   render: RenderKind;
   stage?: string;
-  /** Tier-2 (pack-authored) localization key for the title, when present. */
+  /** Tier-2 (pack-authored) localization key for the title — set ONLY when the
+   * step has no inline `i18n` of its own; inline i18n wins outright over this
+   * catalog lookup when present (see `hasWorkflowStepI18n`). */
   labelKey?: string;
   params?: StepUiAnnotation['params'];
   /** Advisory role annotation (resolved elsewhere; surfaced for display). */

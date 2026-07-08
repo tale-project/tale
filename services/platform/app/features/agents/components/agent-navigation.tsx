@@ -216,14 +216,6 @@ export function AgentNavigation({
         ]
       : []),
     {
-      // Read-only performance scorecard — no editable config, so no dirtyKeys.
-      // Mirrors the loading skeleton's nav (which already lists it) so the tab
-      // doesn't flicker out once the editor loads.
-      label: t('agents.navigation.metrics'),
-      href: `${basePath}/metrics`,
-      matchMode: 'exact',
-    },
-    {
       label: t('agents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,
       matchMode: 'exact',

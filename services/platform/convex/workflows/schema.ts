@@ -113,10 +113,10 @@ export const wfInstallationsTable = defineTable({
   installedBy: v.string(),
   contentHash: v.string(),
   // Set iff this workflow belongs to an installed app (composite slug
-  // `<appSlug>/<name>`). The recorded, authoritative owner — stamped at app
+  // `<automationSlug>/<name>`). The recorded, authoritative owner — stamped at app
   // install — used by the event-subscription gate, the global app marker, and
   // the delete guard. Absent for global/default-pack workflows.
-  appSlug: v.optional(v.string()),
+  automationSlug: v.optional(v.string()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_slug', ['organizationId', 'workflowSlug']);

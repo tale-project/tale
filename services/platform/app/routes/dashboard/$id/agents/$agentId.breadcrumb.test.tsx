@@ -27,9 +27,10 @@ afterEach(() => {
 // ("Agents", folder segments) as plain links outside the page `Heading`, so
 // they fell back to the inherited body typography while the leaf agent name
 // carried the `text-base font-semibold` page-title style — a visible weight
-// and size mismatch. The whole `ol` trail now carries the page-title
-// typography (parents are dimmed via colour only), and folder segments render
-// their localized display label via `folderLabel`, never the raw path slug.
+// and size mismatch. The whole `ol` trail (now the shared `HeaderBreadcrumbs`)
+// carries the page-title typography (parents are dimmed via colour only), and
+// folder segments render the raw path segment — table folder navigation shows
+// paths verbatim, exactly as the documents table does.
 
 const { mockUseParams } = vi.hoisted(() => ({
   mockUseParams: () => ({ id: 'org-1', agentId: 'agent-1' }),
@@ -140,17 +141,17 @@ describe('agent detail breadcrumb typography (#2543)', () => {
     // from what the trail inherits.
     for (const crumb of [
       screen.getByRole('link', { name: 'Agents' }),
-      screen.getByRole('link', { name: 'Workforce' }),
+      screen.getByRole('link', { name: 'workforce' }),
     ]) {
       expect(typographyOverrides(crumb)).toEqual([]);
     }
   });
 
-  it('shows the localized folder label, never the raw path slug', () => {
+  it('shows the raw folder path segment, verbatim', () => {
     renderDetailLayout();
 
-    expect(screen.getByRole('link', { name: 'Workforce' })).toBeInTheDocument();
-    expect(screen.queryByText('workforce')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'workforce' })).toBeInTheDocument();
+    expect(screen.queryByText('Workforce')).not.toBeInTheDocument();
   });
 
   it('marks only the leaf as the current page', () => {

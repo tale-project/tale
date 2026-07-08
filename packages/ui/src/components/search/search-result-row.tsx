@@ -1,10 +1,4 @@
-import {
-  ChevronRight,
-  CornerDownLeft,
-  FileText,
-  Hash,
-  Type,
-} from 'lucide-react';
+import { CornerDownLeft, FileText, Hash, Type } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -123,7 +117,7 @@ export function SearchResultRow({
           {breadcrumb.length > 0 ? (
             <span
               className="text-fg-subtle mt-1 flex min-w-0 items-center gap-1 truncate text-[10.5px]"
-              aria-label={breadcrumb.join(' › ')}
+              aria-label={breadcrumb.join(' / ')}
             >
               {breadcrumb.map((segment, i) => (
                 <span
@@ -131,7 +125,9 @@ export function SearchResultRow({
                   className="inline-flex shrink-0 items-center gap-1"
                 >
                   {i > 0 ? (
-                    <ChevronRight aria-hidden className="size-2.5 opacity-60" />
+                    <span aria-hidden className="opacity-60">
+                      /
+                    </span>
                   ) : null}
                   <span className="truncate">{segment}</span>
                 </span>

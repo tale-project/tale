@@ -1,5 +1,6 @@
 ---
 name: implement-feature
+icon: lucide:blocks
 description: 'Use this skill whenever you add new behaviour a user or caller can see — a feature, screen, field, route, endpoint, flag, setting, or capability. It is the senior-engineer method: understand the real intent, feel the current product, reuse what already exists before adding anything, ship a thin vertical slice, and prove it works. Load it the moment a task says "add", "build", "support", "create", "implement", or "let users…", or whenever you''re about to write code that resembles something the project may already do. Never start a feature without it. For a behaviour-preserving change use make-improvement; for a defect use fix-bug.'
 ---
 

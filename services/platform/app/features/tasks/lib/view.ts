@@ -1,13 +1,21 @@
 /**
  * Task view-mode plumbing shared by the per-view routes
- * (`routes/…/tasks/board.tsx`, `…/tasks/list.tsx`) and their `/tasks` index
- * redirect. The chosen view persists per project so the bare `/tasks` URL
- * (project tab, notification links) reopens where the user left off.
+ * (`routes/…/tasks/board.tsx`, `…/tasks/list.tsx`, `…/tasks/backlog.tsx`) and
+ * their `/tasks` index redirect. The chosen view persists per project so the
+ * bare `/tasks` URL (project tab, notification links) reopens where the user
+ * left off.
  */
 
-export type TaskView = 'board' | 'list';
+export type TaskView = 'board' | 'list' | 'backlog';
 
-export const TASK_VIEWS: readonly TaskView[] = ['board', 'list'];
+export const TASK_VIEWS: readonly TaskView[] = ['board', 'list', 'backlog'];
+
+/** Route path per view — the tab switch and the `/tasks` alias both use it. */
+export const TASK_VIEW_ROUTES = {
+  board: '/dashboard/$id/projects/$projectId/tasks/board',
+  list: '/dashboard/$id/projects/$projectId/tasks/list',
+  backlog: '/dashboard/$id/projects/$projectId/tasks/backlog',
+} as const satisfies Record<TaskView, string>;
 
 const TASK_VIEW_SET: ReadonlySet<string> = new Set(TASK_VIEWS);
 

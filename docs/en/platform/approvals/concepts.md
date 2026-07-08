@@ -15,7 +15,7 @@ Pending approvals surface in two places: inline in the chat where the action was
 
 ## The four trigger sources
 
-**Workflow gates.** A step in a workflow is configured as an approval gate. The run pauses until the gate resolves. See [Approvals in workflows](/platform/automations/approvals-in-workflows).
+**Workflow gates.** A step in a workflow is configured as an approval gate. The run pauses until the gate resolves. See [Approvals in workflows](/platform/workflows/approvals-in-workflows).
 
 **Document writes.** An agent attempts to write to the knowledge base — create or edit a document, a customer, a product, a vendor — and the governance policy on that resource requires sign-off. The write does not commit until approved.
 
@@ -46,4 +46,4 @@ A finance-operations team configures three governance policies: workflow steps t
 
 ## Where this fits
 
-Approvals are the surface where automation and accountability meet — they let you delegate the work to agents and workflows without giving up the record of who approved what. The natural next read is [Configure approvals](/platform/approvals/configure) for the per-resource policy fields, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for the workflow-gate specifics.
+Approvals are the surface where automation and accountability meet — they let you delegate the work to agents and workflows without giving up the record of who approved what. The natural next read is [Configure approvals](/platform/approvals/configure) for the per-resource policy fields, and [Approvals in workflows](/platform/workflows/approvals-in-workflows) for the workflow-gate specifics.

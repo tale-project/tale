@@ -7,7 +7,7 @@ describe('countAutoInstall', () => {
     const files = new Map<string, string>([
       ['chat/assistant.json', '{"metadata":{"autoInstall":true}}'],
       ['chat/coder.json', '{"metadata":{"autoInstall":false}}'],
-      ['workforce/designer.json', '{"metadata":{"labels":["Design"]}}'],
+      ['chat/designer.json', '{"metadata":{"labels":["Design"]}}'],
     ]);
     expect(countAutoInstall(files)).toEqual({ active: 1, catalog: 2 });
   });

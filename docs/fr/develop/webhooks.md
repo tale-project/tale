@@ -77,4 +77,4 @@ Les retraitements entrants sont la responsabilité de l'appelant — la réponse
 
 ## Où cela s'inscrit
 
-Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/automations/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.
+Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/workflows/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.
