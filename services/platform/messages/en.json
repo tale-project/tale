@@ -252,6 +252,7 @@
     "gate": "Decision",
     "state": {
       "upcoming": "Up next",
+      "skipped": "Skipped",
       "live": "Live",
       "loading": "Pending",
       "running": "Running",

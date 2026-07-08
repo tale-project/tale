@@ -35,6 +35,7 @@ type BadgeVariant =
 
 const STATE_BADGE: Record<PartState, BadgeVariant> = {
   upcoming: 'slate',
+  skipped: 'slate',
   loading: 'slate',
   running: 'blue',
   queued_capacity: 'orange',
@@ -46,13 +47,15 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
 };
 
 // States whose own affordance replaces the panel body (nothing useful to show).
-// `upcoming` is a quiet preview row (no skeleton); `loading` is the imminent step;
+// `upcoming` is a quiet preview row (no skeleton); `skipped` is a lane the run
+// moved past (a mark, never a body); `loading` is the imminent step;
 // `output_error` shows its error message instead — a failed/canceled step has no
 // meaningful result, and rendering the body would dump the abandoned step's raw
 // output (e.g. a stopped sandbox step's `{status:'running'}` handoff envelope) as
 // JSON, which must never surface.
 const BODY_SUPPRESSED = new Set<PartState>([
   'upcoming',
+  'skipped',
   'loading',
   'queued_capacity',
   'waiting_external',

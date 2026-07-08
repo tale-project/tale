@@ -8,6 +8,7 @@
  */
 export const PART_STATES = [
   'upcoming', // in the plan but not yet reached — a quiet preview row, no skeleton
+  'skipped', // a conditional lane the run moved past without running (this round)
   'loading',
   'running',
   'queued_capacity', // park-on-capacity: queued behind the org's sandbox cap

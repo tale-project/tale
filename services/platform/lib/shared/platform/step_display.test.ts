@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bypassedLaneIndexes,
   dedupeSpineLanes,
   isStepVisible,
-  pruneBypassedLanes,
   stepTreatment,
   type SpineLaneInput,
   type StepTreatment,
@@ -190,14 +190,14 @@ describe('dedupeSpineLanes', () => {
   });
 });
 
-describe('pruneBypassedLanes', () => {
+describe('bypassedLaneIndexes', () => {
   const lanes = (entries: Array<[hasRun: boolean, defIndex: number]>) =>
     entries.map(([hasRun, defIndex]) => ({ hasRun, defIndex }));
 
-  it('drops a skipped gate the run already moved past', () => {
+  it('flags a skipped gate the run already moved past', () => {
     // advise(2) ran, review gate(4) skipped, execute(6) running →
     // lastTouched = 6; the gate is neither run nor ahead.
-    const kept = pruneBypassedLanes(
+    const bypassed = bypassedLaneIndexes(
       lanes([
         [true, 2],
         [false, 4],
@@ -206,11 +206,11 @@ describe('pruneBypassedLanes', () => {
       ]),
       6,
     );
-    expect(kept).toEqual([0, 2, 3]);
+    expect(bypassed).toEqual([1]);
   });
 
-  it('keeps the full preview before anything ran', () => {
-    const kept = pruneBypassedLanes(
+  it('flags nothing before anything ran (full preview stays "up next")', () => {
+    const bypassed = bypassedLaneIndexes(
       lanes([
         [false, 2],
         [false, 4],
@@ -218,11 +218,11 @@ describe('pruneBypassedLanes', () => {
       ]),
       -1,
     );
-    expect(kept).toEqual([0, 1, 2]);
+    expect(bypassed).toEqual([]);
   });
 
-  it('always keeps steps that ran, wherever progress sits', () => {
-    const kept = pruneBypassedLanes(
+  it('never flags steps that ran, wherever progress sits', () => {
+    const bypassed = bypassedLaneIndexes(
       lanes([
         [true, 2],
         [true, 4],
@@ -230,6 +230,6 @@ describe('pruneBypassedLanes', () => {
       ]),
       8,
     );
-    expect(kept).toEqual([0, 1]);
+    expect(bypassed).toEqual([2]);
   });
 });

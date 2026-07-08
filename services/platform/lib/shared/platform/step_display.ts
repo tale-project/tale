@@ -53,16 +53,18 @@ export function isStepVisible(input: StepDisplayInput): boolean {
 }
 
 /**
- * Drop un-run steps the run has already moved PAST. A conditional lane the
- * gate skipped (e.g. a plan review the advisor never flagged) would otherwise
- * sit at "Up next" forever while LATER steps run — a lie about what's coming.
- * A step is "passed" when it has no node but some later-ordered definition
- * step does; it reappears the moment a loop actually runs it (it then has a
- * node). `lastTouchedIndex` is the max DEFINITION index with a node, computed
- * over ALL steps (hidden plumbing included) so branch progress counts.
- * Returns the kept indexes, in original order.
+ * Indexes of un-run lanes the run has already moved PAST. A conditional lane
+ * the gate skipped (e.g. a plan review the advisor never flagged) would
+ * otherwise sit at "Up next" forever while LATER steps run — a lie about
+ * what's coming. Callers MARK these lanes as `skipped` rather than hiding
+ * them: the operator should see the review was bypassed, not wonder where it
+ * went. A lane is "passed" when it has no node but some later-ordered
+ * definition step does; the mark clears the moment a loop actually runs it
+ * (it then has a node). `lastTouchedIndex` is the max DEFINITION index with a
+ * node, computed over ALL steps (hidden plumbing included) so branch progress
+ * counts. Returns the bypassed indexes, in original order.
  */
-export function pruneBypassedLanes(
+export function bypassedLaneIndexes(
   steps: readonly { hasRun: boolean; defIndex: number }[],
   lastTouchedIndex: number,
 ): number[] {
@@ -71,7 +73,7 @@ export function pruneBypassedLanes(
     .filter((i) => {
       const step = steps[i];
       if (step === undefined) return false;
-      return step.hasRun || step.defIndex > lastTouchedIndex;
+      return !step.hasRun && step.defIndex <= lastTouchedIndex;
     });
 }
 

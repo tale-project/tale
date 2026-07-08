@@ -15,10 +15,16 @@ export function derivePartState(
    * not-yet-run step that is the current one is `loading` (about to run); one
    * still further down the plan is `upcoming` (a quiet preview, no skeleton). */
   reached = true,
+  /** True when the run's progress has already moved PAST this un-run step (a
+   * conditional lane the gate routed around) — shown as `skipped`. `reached`
+   * wins: a loop that routes back onto the lane makes it the current step
+   * (imminent, loading) before its node exists. */
+  bypassed = false,
 ): PartState {
-  // No journal entry yet → scheduled. The current step is loading; later steps
-  // are merely upcoming, so a 9-step run on step 3 isn't a wall of skeletons.
-  if (!node) return reached ? 'loading' : 'upcoming';
+  // No journal entry yet → scheduled. The current step is loading; a lane the
+  // run moved past is skipped; later steps are merely upcoming, so a 9-step
+  // run on step 3 isn't a wall of skeletons.
+  if (!node) return reached ? 'loading' : bypassed ? 'skipped' : 'upcoming';
 
   switch (node.status) {
     case 'running':
