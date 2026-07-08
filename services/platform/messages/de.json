@@ -1812,11 +1812,8 @@
       "fileActionsAriaLabel": "Dateiaktionen",
       "fileSizeAriaLabel": "Dateigröße",
       "sourceRunOutput": "Code-Ausgabe",
-      "outputExpand": "Alle Dateien anzeigen",
-      "outputCollapse": "Weniger Dateien anzeigen",
       "sourceAgentWrite": "KI-Dateien",
       "sourceUserUpload": "Hochgeladen",
-      "noFilesYet": "Noch keine Dateien",
       "writing": "Schreibt …",
       "runStatus": {
         "queued": "In Warteschlange",

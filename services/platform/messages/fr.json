@@ -1813,11 +1813,8 @@
       "fileActionsAriaLabel": "Actions du fichier",
       "fileSizeAriaLabel": "Taille du fichier",
       "sourceRunOutput": "Sortie de code",
-      "outputExpand": "Afficher tous les fichiers",
-      "outputCollapse": "Afficher moins de fichiers",
       "sourceAgentWrite": "Fichiers IA",
       "sourceUserUpload": "Téléversés",
-      "noFilesYet": "Aucun fichier pour le moment",
       "writing": "Écriture…",
       "runStatus": {
         "queued": "En file d'attente",

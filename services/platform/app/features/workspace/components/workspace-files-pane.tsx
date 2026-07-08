@@ -12,13 +12,6 @@ import {
   Download,
   Eye,
   EyeOff,
-  File,
-  FileArchive,
-  FileCode,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText,
   Folder,
   FolderOpen,
   MoonStar,
@@ -43,7 +36,6 @@ import {
 } from '@/app/features/chat/components/chat-panel/use-register-pane';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import {
   getFileExtensionLower,
   isTextBasedFile,
@@ -53,6 +45,11 @@ import { CanvasPreferencesProvider } from '../hooks/canvas-preferences';
 import { CodeFileViewer } from '../viewers/code-file-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
 import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
+import {
+  TreeRowButton,
+  iconForPath,
+  treeNavigationKeyDown,
+} from './file-tree-primitives';
 import { useWorkspaceFiles } from './workspace-files-context';
 
 /** The agent's working area — the explorer root (matches the backend). Rooted
@@ -75,59 +72,6 @@ const IMAGE_EXTS = new Set([
 /** Text files that read far better rendered than as raw source — previewed via
  *  the RenderableFileViewer (which still offers a Source toggle). */
 const MARKDOWN_EXTS = new Set(['md', 'mdx', 'markdown']);
-
-function iconForPath(name: string): typeof File {
-  const lower = name.toLowerCase();
-  if (lower.endsWith('.md') || lower.endsWith('.mdx')) return FileText;
-  if (lower.endsWith('.json') || lower.endsWith('.jsonc')) return FileJson;
-  if (
-    lower.endsWith('.py') ||
-    lower.endsWith('.js') ||
-    lower.endsWith('.cjs') ||
-    lower.endsWith('.mjs') ||
-    lower.endsWith('.ts') ||
-    lower.endsWith('.tsx') ||
-    lower.endsWith('.sh') ||
-    lower.endsWith('.bash') ||
-    lower.endsWith('.zsh') ||
-    lower.endsWith('.yaml') ||
-    lower.endsWith('.yml') ||
-    lower.endsWith('.toml')
-  ) {
-    return FileCode;
-  }
-  if (
-    lower.endsWith('.png') ||
-    lower.endsWith('.jpg') ||
-    lower.endsWith('.jpeg') ||
-    lower.endsWith('.gif') ||
-    lower.endsWith('.svg') ||
-    lower.endsWith('.webp') ||
-    lower.endsWith('.ico') ||
-    lower.endsWith('.bmp') ||
-    lower.endsWith('.avif')
-  ) {
-    return FileImage;
-  }
-  if (
-    lower.endsWith('.csv') ||
-    lower.endsWith('.xlsx') ||
-    lower.endsWith('.tsv')
-  ) {
-    return FileSpreadsheet;
-  }
-  if (
-    lower.endsWith('.zip') ||
-    lower.endsWith('.tar') ||
-    lower.endsWith('.gz') ||
-    lower.endsWith('.tgz') ||
-    lower.endsWith('.7z') ||
-    lower.endsWith('.rar')
-  ) {
-    return FileArchive;
-  }
-  return File;
-}
 
 /** Join a directory path with a child name into an absolute path. */
 function joinPath(dir: string, name: string): string {
@@ -285,72 +229,7 @@ function WorkspaceFileTree({
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
-    const { key } = event;
-    if (
-      ![
-        'ArrowDown',
-        'ArrowUp',
-        'ArrowLeft',
-        'ArrowRight',
-        'Home',
-        'End',
-      ].includes(key)
-    ) {
-      return;
-    }
-    const items =
-      treeRef.current?.querySelectorAll<HTMLButtonElement>('[role="treeitem"]');
-    if (!items || items.length === 0) return;
-    event.preventDefault();
-
-    const current = document.activeElement;
-    let idx = -1;
-    items.forEach((el, i) => {
-      if (el === current) idx = i;
-    });
-
-    if (key === 'ArrowDown') {
-      const next = idx === -1 ? 0 : Math.min(idx + 1, items.length - 1);
-      items[next]?.focus();
-      return;
-    }
-    if (key === 'ArrowUp') {
-      const next = idx === -1 ? items.length - 1 : Math.max(idx - 1, 0);
-      items[next]?.focus();
-      return;
-    }
-    if (key === 'Home') {
-      items[0]?.focus();
-      return;
-    }
-    if (key === 'End') {
-      items[items.length - 1]?.focus();
-      return;
-    }
-    if (idx === -1) return;
-    const el = items[idx];
-    const dirPath = el.dataset.dirPath;
-    const parentPath = el.dataset.parentPath;
-    if (key === 'ArrowRight' && dirPath !== undefined) {
-      if (!expanded.has(dirPath)) {
-        toggleDir(dirPath);
-      } else {
-        items[Math.min(idx + 1, items.length - 1)]?.focus();
-      }
-      return;
-    }
-    if (key === 'ArrowLeft') {
-      if (dirPath !== undefined && expanded.has(dirPath)) {
-        toggleDir(dirPath);
-        return;
-      }
-      if (parentPath) {
-        const parent = treeRef.current?.querySelector<HTMLButtonElement>(
-          `[data-dir-path="${CSS.escape(parentPath)}"]`,
-        );
-        parent?.focus();
-      }
-    }
+    treeNavigationKeyDown(event, treeRef.current, expanded, toggleDir);
   };
 
   const ariaLabel = t('workspaceFiles.ariaTree', {
@@ -550,57 +429,6 @@ function DirChildren({
         </li>
       )}
     </>
-  );
-}
-
-interface TreeRowButtonProps {
-  isActive: boolean;
-  depth: number;
-  onClick: () => void;
-  title: string;
-  ariaLabel: string;
-  ariaExpanded?: boolean;
-  dataDirPath?: string;
-  dataParentPath?: string | null;
-  children: React.ReactNode;
-}
-
-function TreeRowButton({
-  isActive,
-  depth,
-  onClick,
-  title,
-  ariaLabel,
-  ariaExpanded,
-  dataDirPath,
-  dataParentPath,
-  children,
-}: TreeRowButtonProps) {
-  const state = isActive
-    ? 'bg-muted text-foreground'
-    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground';
-  return (
-    <button
-      type="button"
-      role="treeitem"
-      aria-selected={isActive}
-      aria-level={depth + 1}
-      tabIndex={isActive ? 0 : -1}
-      onClick={onClick}
-      title={title}
-      aria-label={ariaLabel}
-      aria-expanded={ariaExpanded}
-      data-dir-path={dataDirPath}
-      data-parent-path={dataParentPath ?? undefined}
-      style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-      className={cn(
-        'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs',
-        state,
-        'focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none',
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
