@@ -22,13 +22,19 @@
       "before": "Vorher",
       "after": "Nachher"
     },
-    "check": { "pass": "Bestanden", "warn": "Warnung", "fail": "Fehler" },
+    "check": {
+      "pass": "Bestanden",
+      "warn": "Warnung",
+      "fail": "Fehler"
+    },
     "review": {
       "gate": "Warten auf Freigabe",
       "form": "Eingabe erforderlich",
       "choice": "Option wählen"
     },
-    "action": { "open": "Öffnen" },
+    "action": {
+      "open": "Öffnen"
+    },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
@@ -51,10 +57,10 @@
       "description": "Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
     }
   },
-  "automations": {
+  "workflows": {
     "triggers": {
       "schedules": {
-        "emptyDescription": "Erstelle einen Zeitplan, um diese Automatisierung regelmässig automatisch auszulösen."
+        "emptyDescription": "Erstelle einen Zeitplan, um diesen Workflow regelmässig automatisch auszulösen."
       }
     },
     "sidePanel": {
@@ -74,17 +80,6 @@
     "aria": {
       "close": "Schliessen",
       "zoomIn": "Vergrössern"
-    }
-  },
-  "conversations": {
-    "bulk": {
-      "close": "Schliessen"
-    },
-    "header": {
-      "closeConversation": "Konversation schliessen",
-      "toast": {
-        "closeFailed": "Beim Schliessen der Konversation ist ein unerwarteter Fehler aufgetreten."
-      }
     }
   },
   "documents": {
@@ -242,6 +237,14 @@
       "body": "Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
       "confirm": "Widerrufen",
       "cancel": "Abbrechen"
+    }
+  },
+  "tasks": {
+    "backlog": {
+      "close": "Schliessen",
+      "empty": {
+        "description": "Vorgeschlagene Aufgaben landen hier — aus Automatisierungen oder von deinem Team — bis du sie startest oder schliesst."
+      }
     }
   }
 }

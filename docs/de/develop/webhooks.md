@@ -77,4 +77,4 @@ Eingehende Retries sind die Verantwortung des Aufrufers — Tales Antwort zeigt 
 
 ## Wo das hingehört
 
-Webhooks sind die Naht zwischen Tale und externen Systemen auf beiden Seiten. Die [API-Referenz](/de/develop/api-reference) behandelt die synchrone Hälfte — die Endpoints, die du aufrufst, wenn du einen Wert sofort zurück willst. Die [Trigger-Referenz](/de/platform/automations/triggers) deckt die Workflow-Seite eingehender Webhooks ab — die Konfiguration, die einen POST in einen Workflow-Lauf verwandelt.
+Webhooks sind die Naht zwischen Tale und externen Systemen auf beiden Seiten. Die [API-Referenz](/de/develop/api-reference) behandelt die synchrone Hälfte — die Endpoints, die du aufrufst, wenn du einen Wert sofort zurück willst. Die [Trigger-Referenz](/de/platform/workflows/triggers) deckt die Workflow-Seite eingehender Webhooks ab — die Konfiguration, die einen POST in einen Workflow-Lauf verwandelt.

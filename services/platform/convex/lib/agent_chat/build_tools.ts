@@ -1,11 +1,10 @@
 'use node';
 
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 
 import { isRecord, narrowStringUnion } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { createEscalationTool } from '../../agent_tools/escalation/create_escalation_tool';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_operations_summary';
 import { createBoundMcpTool } from '../../agent_tools/mcp/create_bound_mcp_tool';
@@ -13,11 +12,6 @@ import { TOOL_NAMES } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { createBoundWorkflowTool } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
-import {
-  buildChartFromRoster,
-  readWorkforceRoster,
-} from '../../agents/workforce_ops';
-import { renderPrompt } from '../../lib/prompts/registry';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
@@ -67,78 +61,6 @@ export async function buildIntegrationTools(
     tools[key] = tool;
   }
   return tools;
-}
-
-/**
- * Build the agent's org-chart `escalate` tool (chart members only: a manager
- * above them and/or reports below them). The `delegate_*` tools that used to
- * be built alongside were replaced by `spawn_agent` (agent-on-demand jobs) —
- * a stale `delegates` list in an agent config still forms chart edges here
- * but no longer yields delegation tools. `delegationDisabled` (set on
- * spawned job runs) turns this off entirely.
- *
- * `orgSlug` and `orgLocale` are resolved once by the caller (hoisted into
- * the outer Promise.all) so they can be shared with sibling builders. The
- * chart read shares the 60s agent-list cache, so warm turns stay off the
- * disk.
- */
-export async function buildEscalationTools(
-  agentConfig: AgentConfigForTools,
-  organizationId: string,
-  orgSlug: string,
-  orgLocale: string,
-): Promise<
-  | {
-      tools: Record<string, unknown>;
-      instructionsAppend: string;
-    }
-  | undefined
-> {
-  if (agentConfig.delegationDisabled) return undefined;
-
-  const agentSlug = agentConfig.name;
-  if (!agentSlug) return undefined;
-
-  let directReports: string[] = [];
-  let managerSlug: string | undefined;
-  let chartHasEdges = false;
-  try {
-    const roster = await readWorkforceRoster(orgSlug);
-    const chart = buildChartFromRoster(roster);
-    chartHasEdges = chart.parents.size > 0;
-    directReports = chart.reports.get(agentSlug) ?? [];
-    managerSlug = chart.parents.get(agentSlug);
-  } catch (error) {
-    console.warn(
-      '[Workforce] org-chart read failed; escalation unavailable this turn',
-      error,
-    );
-  }
-
-  // Chart membership: has a manager, or has reports. Roots with reports
-  // escalate to humans; agents outside the chart get no escalate tool.
-  const isChartMember =
-    chartHasEdges && (managerSlug !== undefined || directReports.length > 0);
-  if (!isChartMember) return undefined;
-
-  const escalationTool = createEscalationTool({
-    agentSlug,
-    managerSlug,
-    organizationId,
-  });
-
-  return {
-    tools: { [escalationTool.name]: escalationTool.tool },
-    instructionsAppend:
-      '\n\n' +
-      (managerSlug
-        ? renderPrompt(
-            'escalation.section',
-            { manager: managerSlug },
-            { locale: orgLocale },
-          )
-        : renderPrompt('escalation.sectionRoot', {}, { locale: orgLocale })),
-  };
 }
 
 /**

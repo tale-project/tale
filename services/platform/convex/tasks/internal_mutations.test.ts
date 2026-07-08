@@ -86,6 +86,40 @@ async function taskTitle(t: T, taskId: string | null): Promise<string> {
   });
 }
 
+async function taskLabels(
+  t: T,
+  taskId: string | null,
+): Promise<string[] | undefined> {
+  if (!taskId) throw new Error('expected a taskId');
+  return await t.run(async (ctx) => {
+    const task = await ctx.db.get(taskId as Id<'tasks'>);
+    if (!task) throw new Error('task not found');
+    return task.labels;
+  });
+}
+
+// A labelled create (what `triage-github-issues` does — issue label names).
+function upsertWithLabels(
+  t: T,
+  projectId: Id<'projects'>,
+  externalId: string,
+  labels: string[],
+) {
+  return t.mutation(
+    internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+    {
+      organizationId: ORG,
+      actorId: 'workflow',
+      projectId,
+      externalSystem: 'github',
+      externalId,
+      title: `Issue ${externalId}`,
+      externalState: 'open',
+      labels,
+    },
+  );
+}
+
 // The update-only reconcile call: org-scope, NO projectId, never creates.
 function reconcile(t: T, externalId: string, externalState: 'open' | 'closed') {
   return t.mutation(
@@ -273,5 +307,47 @@ describe('agentUpdateTaskStatus — workflow activity context', () => {
     expect(activity[0]?.context).toEqual({
       workflowSlug: 'task-ops/assignment',
     });
+  });
+});
+
+describe('agentUpsertTaskByExternalRef — label preservation on reconcile', () => {
+  // Regression: `sync-github-issues`'s `reconcile_task` re-runs every few
+  // minutes and forwards NO labels. Before the guard, the update patched
+  // `labels: undefined` — and a Convex patch to `undefined` DELETES the field —
+  // silently wiping the labels `triage-github-issues` had set on the same task.
+  it('an update-only reconcile that sends no labels preserves existing labels', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const created = await upsertWithLabels(t, projectA, 'owner/repo#7', [
+      'bug',
+      'good first issue',
+    ]);
+    expect(created.created).toBe(true);
+    expect(await taskLabels(t, created.taskId)).toEqual([
+      'bug',
+      'good first issue',
+    ]);
+
+    // The reconcile (createIfMissing:false, no labels) must not touch labels.
+    const res = await reconcile(t, 'owner/repo#7', 'open');
+    expect(res.taskId).toBe(created.taskId);
+    expect(await taskLabels(t, created.taskId)).toEqual([
+      'bug',
+      'good first issue',
+    ]);
+  });
+
+  it('a caller that supplies labels still overwrites them (empty array clears)', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const created = await upsertWithLabels(t, projectA, 'owner/repo#8', [
+      'bug',
+    ]);
+    // A re-run that DOES pass labels updates them; an explicit [] clears — the
+    // guard only skips the patch when labels is undefined.
+    await upsertWithLabels(t, projectA, 'owner/repo#8', []);
+    expect(await taskLabels(t, created.taskId)).toEqual([]);
   });
 });

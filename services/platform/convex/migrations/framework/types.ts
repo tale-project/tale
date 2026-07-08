@@ -157,6 +157,11 @@ export interface NodeMigrationCtx {
 export interface NodeMigrationHelpers {
   atomicWrite(filePath: string, content: string): Promise<void>;
   readFileSafe(filePath: string): Promise<string | null>;
+  /** Delete one file; missing target is a no-op. Returns true when removed. */
+  removeFileSafe(filePath: string): Promise<boolean>;
+  /** Recursively delete a directory (symlink-refusing); missing target is a
+   *  no-op. Returns true when removed. */
+  removeDirSafe(dirPath: string): Promise<boolean>;
   /** Copy `dir` into the migration's snapshot sidecar; returns the snapshot ref. */
   snapshotFsTree(
     migrationId: string,

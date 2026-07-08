@@ -31,4 +31,4 @@ A worker that runs out of time or hits an error ends with a visible status on th
 
 ## Where this fits
 
-One request, one worker, one card is the smallest useful shape. The same mechanics scale to several workers in a turn — each gets its own card, its own progress, and its own transcript. For fixed stages with approvals or scheduling between them, reach for an [automation](/platform/automations/concepts) instead.
+One request, one worker, one card is the smallest useful shape. The same mechanics scale to several workers in a turn — each gets its own card, its own progress, and its own transcript. For fixed stages with approvals or scheduling between them, reach for a [workflow](/platform/workflows/concepts) instead.

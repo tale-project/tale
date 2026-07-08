@@ -56,11 +56,11 @@ async function seedEnv(
   });
 }
 
-// `deleteAppAgentEnvInternal` is the app-uninstall env/secrets teardown: it must
+// `deleteAutomationAgentEnvInternal` is the app-uninstall env/secrets teardown: it must
 // sweep the WHOLE `<app>/` agent namespace — including agents the current
 // manifest no longer lists (renamed/removed) — while leaving global agents and
 // sibling apps untouched, so a later reinstall starts clean.
-describe('deleteAppAgentEnvInternal', () => {
+describe('deleteAutomationAgentEnvInternal', () => {
   it('sweeps the app namespace, including stale agents, sparing others', async () => {
     const t = convexTest(schema, modules);
 
@@ -75,10 +75,13 @@ describe('deleteAppAgentEnvInternal', () => {
     await seedEnv(t, 'global-helper', 'SHARED_KEY', true);
     await seedEnv(t, 'issue-desk-2/desk-implementer', 'API_TOKEN', true);
 
-    await t.mutation(internal.agents.agent_env.deleteAppAgentEnvInternal, {
-      organizationId: ORG,
-      appSlug: 'issue-desk',
-    });
+    await t.mutation(
+      internal.agents.agent_env.deleteAutomationAgentEnvInternal,
+      {
+        organizationId: ORG,
+        automationSlug: 'issue-desk',
+      },
+    );
 
     expect(await countEnv(t, 'issue-desk/desk-implementer')).toBe(0);
     expect(await countEnv(t, 'issue-desk/desk-reviewer')).toBe(0);
@@ -91,10 +94,13 @@ describe('deleteAppAgentEnvInternal', () => {
 
   it('is a no-op when the app has no agent env', async () => {
     const t = convexTest(schema, modules);
-    await t.mutation(internal.agents.agent_env.deleteAppAgentEnvInternal, {
-      organizationId: ORG,
-      appSlug: 'never-configured',
-    });
+    await t.mutation(
+      internal.agents.agent_env.deleteAutomationAgentEnvInternal,
+      {
+        organizationId: ORG,
+        automationSlug: 'never-configured',
+      },
+    );
     expect(await countEnv(t, 'never-configured/agent')).toBe(0);
   });
 });

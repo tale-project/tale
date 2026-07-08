@@ -1,5 +1,5 @@
 /**
- * German grammar config — 51 closed-list nouns with their gender, used by
+ * German grammar config — 53 closed-list nouns with their gender, used by
  * `grammar-articles` to catch indefinite-article disagreement
  * (`einen Anfrage` → `eine Anfrage`).
  *
@@ -20,6 +20,7 @@ const NOUN_GENDERS: ReadonlyArray<NounGenderEntry> = [
   { noun: 'Aufbewahrung', gender: 'f' },
   { noun: 'Ausführung', gender: 'f' },
   { noun: 'Automation', gender: 'f' },
+  { noun: 'Automatisierung', gender: 'f' },
   { noun: 'Berechtigung', gender: 'f' },
   { noun: 'Commit', gender: 'm' },
   { noun: 'Datei', gender: 'f' },
@@ -62,6 +63,7 @@ const NOUN_GENDERS: ReadonlyArray<NounGenderEntry> = [
   { noun: 'Webhook', gender: 'm' },
   { noun: 'Website', gender: 'f' },
   { noun: 'Wissensdatenbank', gender: 'f' },
+  { noun: 'Workflow', gender: 'm' },
   { noun: 'Zertifizierung', gender: 'f' },
   { noun: 'Zugriff', gender: 'm' },
 ];

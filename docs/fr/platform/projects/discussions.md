@@ -3,7 +3,7 @@ title: Discussions
 description: Des fils de conversation à plusieurs au sein d'un projet — poser des questions et prendre des décisions, les agents s'y joignant dès que tu les @mentionnes.
 ---
 
-Les **discussions** (l'onglet Discussions d'un projet) sont des fils de conversation rattachés au projet, aux côtés de ses tâches et de ses chats. Utilise-les comme une équipe utilise un forum de discussion : ouvrir un sujet, en débattre, puis le clore — avec la main-d'œuvre IA à une @mention près.
+Les **discussions** (l'onglet Discussions d'un projet) sont des fils de conversation rattachés au projet, aux côtés de ses tâches et de ses chats. Utilise-les comme une équipe utilise un forum de discussion : ouvrir un sujet, en débattre, puis le clore — avec tes agents à une @mention près.
 
 Elles réutilisent la surface de messagerie du chat : une discussion se lit et se compose donc comme un chat, mais appartient au projet et est visible par chaque membre du projet, pas seulement par son auteur.
 

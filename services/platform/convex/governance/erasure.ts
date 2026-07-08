@@ -1165,7 +1165,7 @@ export const eraseSubjectTaskSubscriptions = internalMutation({
 });
 
 /**
- * Workforce review decisions: PSEUDONYMIZE (not delete) the subject's
+ * Task-review decisions: PSEUDONYMIZE (not delete) the subject's
  * identity on `task_review` approvals — the approve/request-changes
  * DECISION is org compliance state the review gate's audit trail needs,
  * but `approvedBy` and the reviewer/responder ids inside `metadata` are

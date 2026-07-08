@@ -86,7 +86,7 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
     [isDragging, toggleZoom],
   );
 
-  // Zoom cluster modelled on the automation editor's corner controls
+  // Zoom cluster modelled on the workflow editor's corner controls
   // (`flow-canvas.tsx`): shared `Button` primitives, `Minus` / `Plus` to step
   // zoom and `Maximize` to fit, with a zoom-percentage readout between them.
   const controls = (

@@ -1,5 +1,7 @@
 ---
 name: deep-research
+icon: lucide:microscope
+labels: ['Research']
 description: 'Use this skill whenever a decision depends on facts you don''t have — an unfamiliar domain or technology, choosing a dependency, an external API or standard you''ve never used, conflicting evidence, or any claim your design will load-bear on. It is the discipline of researching before acting: write the questions first, work the sources in order (this codebase, the project''s own docs, official docs at the version the project uses, then the web), cross-check every load-bearing claim against a second independent source or a local experiment, record findings with confidence and evidence in your note, stop at diminishing returns, and hand off to the skill that owns the work. Load it when a task says "research", "investigate", "evaluate", "compare", "which library", or "how does X work", and whenever you catch yourself deciding on a guess. Never adopt a dependency or API contract from a single unverified source. To locate code or concepts inside the repo, use search-codebase instead.'
 ---
 

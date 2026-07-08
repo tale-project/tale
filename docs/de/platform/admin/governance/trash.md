@@ -3,7 +3,7 @@ title: Papierkorb
 description: Die Soft-Delete-Wiederherstellungsansicht für durch Aufbewahrung verworfene Datensätze — Chat-Threads, Dokumente, Prompts, Workflow-Läufe — bevor sie am Ende des Kulanzfensters endgültig gelöscht werden. Admins und Inhaber lesen das, wenn jemand ein gelöschtes Artefakt zurückbraucht.
 ---
 
-Papierkorb ist die Wiederherstellungsoberfläche für die Zeilen, die die Aufbewahrung soft-gelöscht, aber noch nicht hart-gelöscht hat. Wenn ein Chat-Thread, ein Dokument, eine Prompt-Vorlage oder ein Workflow-Lauf sein Aufbewahrungsfenster überschreitet, wandert er für das konfigurierte Kulanzfenster hierhin, bevor der nächste Cleanup-Lauf ihn endgültig entfernt. Admins und Inhaber lesen diese Seite, wenn ein Mitglied ein gelöschtes Artefakt zurückbittet, wenn eine Automatisierung das Falsche gelöscht hat, oder wenn ein Audit wissen muss, ob eine Zeile noch wiederherstellbar ist.
+Papierkorb ist die Wiederherstellungsoberfläche für die Zeilen, die die Aufbewahrung soft-gelöscht, aber noch nicht hart-gelöscht hat. Wenn ein Chat-Thread, ein Dokument, eine Prompt-Vorlage oder ein Workflow-Lauf sein Aufbewahrungsfenster überschreitet, wandert er für das konfigurierte Kulanzfenster hierhin, bevor der nächste Cleanup-Lauf ihn endgültig entfernt. Admins und Inhaber lesen diese Seite, wenn ein Mitglied ein gelöschtes Artefakt zurückbittet, wenn ein Workflow das Falsche gelöscht hat, oder wenn ein Audit wissen muss, ob eine Zeile noch wiederherstellbar ist.
 
 ## Eine durchgespielte Wiederherstellung
 

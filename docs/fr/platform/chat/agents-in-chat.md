@@ -13,7 +13,7 @@ Clique **Select agent** sur le composer (ou la puce affichant l'agent actuelleme
 
 ## « Visible in chat »
 
-Chaque agent a un toggle **Visible in chat** sur sa page d'instructions. Le désactiver ne désactive pas l'agent — les automatisations et les workflows peuvent toujours l'appeler ; les appels de sous-agents depuis d'autres agents fonctionnent encore — ça cache seulement l'agent du sélecteur du chat. La raison : les organisations finissent avec des dizaines d'agents que l'utilisateur moyen ne choisit jamais (agents utilitaires appelés par d'autres agents, agents liés à un workflow précis), et les afficher tous noierait les choix quotidiens.
+Chaque agent a un toggle **Visible in chat** sur sa page d'instructions. Le désactiver ne désactive pas l'agent — les workflows peuvent toujours l'appeler ; les appels de sous-agents depuis d'autres agents fonctionnent encore — ça cache seulement l'agent du sélecteur du chat. La raison : les organisations finissent avec des dizaines d'agents que l'utilisateur moyen ne choisit jamais (agents utilitaires appelés par d'autres agents, agents liés à un workflow précis), et les afficher tous noierait les choix quotidiens.
 
 ## Ponctuel versus persistant
 

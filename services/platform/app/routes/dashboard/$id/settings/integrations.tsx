@@ -125,7 +125,8 @@ function IntegrationsPage() {
   // The card grid masks while the ability, org, file list, or SSO read are in
   // flight — the list resolves under stable chrome instead of swapping in from
   // a separate page-level skeleton.
-  const isAppsLoading = abilityLoading || isOrgLoading || isIntegrationsLoading;
+  const isAutomationsLoading =
+    abilityLoading || isOrgLoading || isIntegrationsLoading;
 
   const credentialsBySlug = new Map(
     (credentials ?? []).map(
@@ -170,20 +171,6 @@ function IntegrationsPage() {
       <SettingsSection
         title={tNav('integrations')}
         description={tSettings('integrations.pageSubtitle')}
-        action={
-          <DataTableActionMenu
-            label={tSettings('integrations.addCustomIntegration')}
-            icon={Plus}
-            menuItems={[
-              {
-                label: tSettings('integrations.addMenu.custom'),
-                icon: Plus,
-                onClick: () => setAddDialogOpen(true),
-              },
-              ...(syncItem ? [syncItem] : []),
-            ]}
-          />
-        }
       >
         <Integrations
           organizationId={organizationId}
@@ -192,9 +179,23 @@ function IntegrationsPage() {
           onTabChange={handleTabChange}
           initialSlug={search.slug}
           onInitialSlugConsumed={clearSlugParam}
-          isLoading={isAppsLoading}
+          isLoading={isAutomationsLoading}
           addDialogOpen={addDialogOpen}
           onAddDialogOpenChange={setAddDialogOpen}
+          toolbarAction={
+            <DataTableActionMenu
+              label={tSettings('integrations.addCustomIntegration')}
+              icon={Plus}
+              menuItems={[
+                {
+                  label: tSettings('integrations.addMenu.custom'),
+                  icon: Plus,
+                  onClick: () => setAddDialogOpen(true),
+                },
+                ...(syncItem ? [syncItem] : []),
+              ]}
+            />
+          }
         />
         {syncDialog}
       </SettingsSection>

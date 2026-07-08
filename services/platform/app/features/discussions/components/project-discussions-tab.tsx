@@ -48,8 +48,8 @@ export function ProjectDiscussionsTab({
   const rows = discussions ?? [];
 
   // ChatInput (reused in the thread view + create dialog) reads ChatLayout
-  // context, so the whole tab is wrapped once — mirrors how the automation
-  // assistant reuses the composer (see the automation editor panel).
+  // context, so the whole tab is wrapped once — mirrors how the workflow
+  // assistant reuses the composer (see the workflow editor panel).
   if (selectedThreadId) {
     return (
       <ChatLayoutProvider organizationId={organizationId}>

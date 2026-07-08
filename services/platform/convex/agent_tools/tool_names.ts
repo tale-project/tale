@@ -58,6 +58,7 @@ export const TOOL_NAMES = [
   'project_read',
   'project_write',
   'secret_read',
+  'automation_search',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

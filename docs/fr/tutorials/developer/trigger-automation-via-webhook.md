@@ -1,5 +1,5 @@
 ---
-title: Déclencher une automatisation par webhook
+title: Déclencher un workflow par webhook
 description: Crée une clé de déclencheur dans un workflow Tale et POSTe sur l'URL de déclencheur depuis un système externe pour démarrer un run avec idempotence.
 ---
 
@@ -50,6 +50,6 @@ Le système source doit utiliser une clé stable et déterministe par événemen
 
 ## Où ça s'utilise
 
-Les déclencheurs webhook sont la moitié entrante de l'API d'automatisation de Tale — la couture où ton CRM, ton système de commandes ou ton outil de monitoring POSTe. Sers-t'en pour « ceci s'est passé dans notre monde, lance un workflow Tale dessus » ; tourne-toi vers la [référence de l'API](/fr/develop/api-reference) quand tu veux une réponse synchrone à la place.
+Les déclencheurs webhook sont la moitié entrante de l'API de workflow de Tale — la couture où ton CRM, ton système de commandes ou ton outil de monitoring POSTe. Sers-t'en pour « ceci s'est passé dans notre monde, lance un workflow Tale dessus » ; tourne-toi vers la [référence de l'API](/fr/develop/api-reference) quand tu veux une réponse synchrone à la place.
 
-Pour la moitié sortante — Tale POSTant à ton URL quand un événement Tale arrive — et pour le contrat complet de signature et de retries, voir [Webhooks](/fr/develop/webhooks). La configuration côté workflow du déclencheur vit sur la page [Concepts d'automatisation](/fr/platform/automations/concepts).
+Pour la moitié sortante — Tale POSTant à ton URL quand un événement Tale arrive — et pour le contrat complet de signature et de retries, voir [Webhooks](/fr/develop/webhooks). La configuration côté workflow du déclencheur vit sur la page [Concepts de workflow](/fr/platform/workflows/concepts).

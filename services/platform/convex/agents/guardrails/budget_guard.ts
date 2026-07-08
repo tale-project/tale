@@ -16,16 +16,9 @@
 import type { GenericQueryCtx } from 'convex/server';
 import { v } from 'convex/values';
 
-import {
-  type AgentWorkforceConfig,
-  agentWorkforceConfigSchema,
-} from '../../../lib/shared/schemas/governance';
 import type { DataModel, Id } from '../../_generated/dataModel';
 import { internalQuery } from '../../_generated/server';
-import {
-  buildPeriodKeyFromTimestamp,
-  readPolicyConfig,
-} from '../../governance/helpers';
+import { buildPeriodKeyFromTimestamp } from '../../governance/helpers';
 import {
   evaluateGuardrails,
   type GuardBudget,
@@ -36,32 +29,18 @@ import {
 /** Rolling window for the per-(task, agent) circuit breaker. */
 export const TASK_RUN_WINDOW_MS = 60 * 60 * 1000;
 
-/** Schema defaults applied when the org has no `agent_workforce` policy row. */
-export const DEFAULT_AGENT_WORKFORCE: AgentWorkforceConfig =
-  agentWorkforceConfigSchema.parse({ enabled: true });
-
-export async function readAgentWorkforcePolicy(
-  ctx: GenericQueryCtx<DataModel>,
-  organizationId: string,
-): Promise<AgentWorkforceConfig> {
-  const raw = await readPolicyConfig<unknown>(
-    ctx,
-    organizationId,
-    'agent_workforce',
-  );
-  if (!raw) return DEFAULT_AGENT_WORKFORCE;
-  const parsed = agentWorkforceConfigSchema.safeParse(raw);
-  if (!parsed.success) {
-    console.warn(
-      '[Guardrails] invalid agent_workforce policy; using defaults',
-      {
-        organizationId,
-      },
-    );
-    return DEFAULT_AGENT_WORKFORCE;
-  }
-  return parsed.data;
-}
+/**
+ * Deployment-wide guardrail caps. These used to be org-tunable through a
+ * retired governance policy; the capacity knobs now ship as fixed defaults,
+ * while per-agent `budget` / `maxConcurrentTasks` still come from the agent
+ * JSON config.
+ */
+export const AGENT_GUARDRAIL_DEFAULTS = {
+  /** Org-wide cap on concurrently RUNNING agent task runs (internal + external). */
+  maxConcurrentRunsOrg: 25,
+  /** Per-task circuit breaker: max agent runs per task per rolling hour. */
+  maxRunsPerTaskPerHour: 10,
+} as const;
 
 async function readRunningCount(
   ctx: GenericQueryCtx<DataModel>,
@@ -109,10 +88,6 @@ export async function checkAgentRunAllowedHelper(
   args: CheckAgentRunArgs,
 ): Promise<GuardVerdict> {
   const now = Date.now();
-  // `policy.enabled === false` disables the capacity knobs (concurrency,
-  // circuit breaker) via unlimited caps below — budget still applies
-  // everywhere (spend authority is not a capacity knob).
-  const policy = await readAgentWorkforcePolicy(ctx, args.organizationId);
 
   let monthSpentCents = 0;
   if (args.budget) {
@@ -151,18 +126,12 @@ export async function checkAgentRunAllowedHelper(
     monthSpentCents,
     budget: args.budget,
     agentRunning,
-    agentCap: policy.enabled
-      ? (args.maxConcurrentTasks ?? policy.defaultAgentMaxConcurrentTasks)
-      : undefined,
+    agentCap: args.maxConcurrentTasks,
     orgRunning,
-    orgCap: policy.enabled
-      ? policy.maxConcurrentRunsOrg
-      : Number.MAX_SAFE_INTEGER,
+    orgCap: AGENT_GUARDRAIL_DEFAULTS.maxConcurrentRunsOrg,
     taskRunsLastHour,
-    taskCircuitCap: policy.enabled
-      ? policy.maxRunsPerTaskPerHour
-      : Number.MAX_SAFE_INTEGER,
-    taskPausedAt: policy.enabled ? taskPausedAt : undefined,
+    taskCircuitCap: AGENT_GUARDRAIL_DEFAULTS.maxRunsPerTaskPerHour,
+    taskPausedAt,
   });
 }
 
@@ -247,16 +216,13 @@ export const resolveTaskRunBudget = internalQuery({
         alreadyTripped: false,
       };
     }
-    const policy = await readAgentWorkforcePolicy(ctx, task.organizationId);
     const windowRuns = await countTaskRunsInWindow(
       ctx,
       args.taskId,
       args.agentSlug,
       Date.now(),
     );
-    const cap = policy.enabled
-      ? policy.maxRunsPerTaskPerHour
-      : Number.MAX_SAFE_INTEGER;
+    const cap = AGENT_GUARDRAIL_DEFAULTS.maxRunsPerTaskPerHour;
 
     const tripNotice = await ctx.db
       .query('agentGuardrailNotices')

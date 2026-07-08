@@ -343,10 +343,10 @@ function WorkflowUpdateApprovalCardComponent({
               {t('updatedSuccessfully')}
             </HStack>
             <Link
-              to="/dashboard/$id/automations/$amId"
+              to="/dashboard/$id/workflows/$workflowId"
               params={{
                 id: organizationId,
-                amId: slugToUrlParam(metadata.workflowSlug),
+                workflowId: slugToUrlParam(metadata.workflowSlug),
               }}
               className="text-primary flex items-center gap-1 text-xs hover:underline"
             >

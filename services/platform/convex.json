@@ -10,7 +10,9 @@
       "mysql2",
       "pg",
       "postgres",
-      "jsdom"
+      "@modelcontextprotocol/sdk",
+      "jsdom",
+      "canvas"
     ]
   },
   "aiFiles": {

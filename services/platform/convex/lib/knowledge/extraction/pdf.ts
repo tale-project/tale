@@ -16,7 +16,7 @@
  * skipped with a warning rather than failing the whole document.
  */
 
-import type { PDFPageProxy } from 'pdfjs-dist/build/pdf.mjs';
+import type { PDFPageProxy } from 'pdfjs-dist';
 
 import type { VisionClient } from '../vision/client';
 import { loadPdfjs } from './pdfjs_loader';

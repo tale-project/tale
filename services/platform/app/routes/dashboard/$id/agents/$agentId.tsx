@@ -1,5 +1,4 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Heading } from '@tale/ui/heading';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -10,6 +9,10 @@ import { useTranslation } from 'react-i18next';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  HEADER_CRUMB_LINK_CLASS,
+  HeaderBreadcrumbs,
+} from '@/app/components/layout/header-breadcrumbs';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import {
   TabNavigation,
@@ -22,12 +25,10 @@ import {
 } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
 import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
-import { folderLabel } from '@/app/features/agents/utils/folder-label';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
-import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents/$agentId')({
@@ -70,7 +71,6 @@ function AgentDetailLayout() {
   const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { t: tCatalog } = useT('agentCatalog');
 
   const { data, isLoading, error, refetch } = useReadAgent(
     organizationId,
@@ -89,11 +89,11 @@ function AgentDetailLayout() {
         : '',
     [agentConfig, i18nCtx.language],
   );
-  // The agent's folder (e.g. `workforce`) is metadata on the roster row, NOT
-  // part of the slug — a global agent at `agents/workforce/software-developer`
-  // still has the flat slug `software-developer`. So resolve the folder from the
+  // The agent's folder (e.g. `github`) is metadata on the roster row, NOT
+  // part of the slug — a global agent at `agents/github/issue-triager` still
+  // has the flat slug `issue-triager`. So resolve the folder from the
   // agent list (already cached from the List view) and break it into clickable
-  // segments: "Agents / Workforce / <Name>" jumps back to the rest of the
+  // segments: "Agents / GitHub / <Name>" jumps back to the rest of the
   // folder. No folder (root agent) → [] → breadcrumb unchanged.
   const { agents: rawAgents } = useListAgents(organizationId);
   const folderSegments = useMemo(() => {
@@ -122,84 +122,62 @@ function AgentDetailLayout() {
   // tab-navigation row and the page body below differ between states because
   // their loaded forms (`AgentNavigation`, the routed `Outlet`) both consume
   // `AgentConfigProvider` and therefore cannot mount until the config loads.
+  // `activeOptions={{ exact: true }}` stops TanStack's `<Link>` from
+  // auto-tagging the parent crumb with `aria-current="page"` just because
+  // this detail route is nested under `/agents`. Folder crumbs render the RAW
+  // path segment — table folder navigation shows paths verbatim, exactly as
+  // the documents table does.
   const breadcrumb = (
     <AdaptiveHeaderRoot standalone={false} className="gap-2">
-      {/* Semantic breadcrumb: a `nav > ol` of crumbs. The parent "Agents" link
-          (and any folder links) are plain links; only the leaf carries
-          `aria-current="page"`, and the leaf is also the page's single `h1`.
-          `activeOptions={{ exact: true }}` stops TanStack's `<Link>` from
-          auto-tagging the parent crumb with `aria-current="page"` just because
-          this detail route is nested under `/agents`. */}
-      <nav
-        aria-label={tCommon('aria.breadcrumb')}
-        className="flex min-w-0 items-center"
-      >
-        {/* The whole trail carries the page-title typography (`text-base
-            font-semibold`, matching `Heading size="base"` and the list view's
-            `AdaptiveHeaderTitle`) so parent crumbs and the leaf share one size
-            and weight — parents are dimmed via colour only (#2543). */}
-        <ol className="flex min-w-0 items-center text-base font-semibold">
-          <li className="hidden items-center md:flex">
-            <Link
-              to="/dashboard/$id/agents"
-              params={{ id: organizationId }}
-              activeOptions={{ exact: true }}
-              className={cn(
-                'text-foreground focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-                resolvedDisplayName &&
-                  'text-muted-foreground hover:text-foreground cursor-pointer',
-              )}
-            >
-              {t('agents.title')}
-            </Link>
-          </li>
-          {folderSegments.map((segment, i) => {
+      <HeaderBreadcrumbs
+        ariaLabel={tCommon('aria.breadcrumb')}
+        crumbs={[
+          {
+            key: 'agents',
+            content: (
+              <Link
+                to="/dashboard/$id/agents"
+                params={{ id: organizationId }}
+                activeOptions={{ exact: true }}
+                className={HEADER_CRUMB_LINK_CLASS}
+              >
+                {t('agents.title')}
+              </Link>
+            ),
+          },
+          ...folderSegments.map((segment, i) => {
             const path = folderSegments.slice(0, i + 1).join('/');
-            return (
-              <li key={path} className="hidden items-center md:flex">
-                <span className="text-muted-foreground mx-2" aria-hidden="true">
-                  /
-                </span>
+            return {
+              key: `folder:${path}`,
+              content: (
                 <Link
-                  to="/dashboard/$id/agents/all"
+                  to="/dashboard/$id/agents"
                   params={{ id: organizationId }}
                   search={{ folder: path }}
-                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                  className={HEADER_CRUMB_LINK_CLASS}
                 >
-                  {/* Localized folder display name, matching the list view's
-                      folder breadcrumb and the catalog sections — never the
-                      raw path segment (#2348). */}
-                  {folderLabel(tCatalog, segment)}
+                  {segment}
                 </Link>
-              </li>
-            );
-          })}
-          <li className="flex min-w-0 items-center">
-            <span
-              className="text-muted-foreground mx-2 hidden md:inline"
-              aria-hidden="true"
-            >
-              /
-            </span>
-            {/* The leaf is the page title — a single `h1` — and the current
-                breadcrumb item. `contents` keeps the Skeletonize wrapper from
-                adding a block box so the truncating heading stays one line. */}
-            <Heading level={1} size="base" truncate aria-current="page">
-              <Skeletonize
-                loading={isLoading}
-                label={t('agents.title')}
-                className="contents"
-              >
-                <SkeletonBox>
-                  {resolvedDisplayName || (
-                    <span className="inline-block h-4 w-32 align-middle" />
-                  )}
-                </SkeletonBox>
-              </Skeletonize>
-            </Heading>
-          </li>
-        </ol>
-      </nav>
+              ),
+            };
+          }),
+        ]}
+        leaf={
+          /* `contents` keeps the Skeletonize wrapper from adding a block box
+             so the truncating heading stays one line. */
+          <Skeletonize
+            loading={isLoading}
+            label={t('agents.title')}
+            className="contents"
+          >
+            <SkeletonBox>
+              {resolvedDisplayName || (
+                <span className="inline-block h-4 w-32 align-middle" />
+              )}
+            </SkeletonBox>
+          </Skeletonize>
+        }
+      />
     </AdaptiveHeaderRoot>
   );
 
@@ -238,11 +216,6 @@ function AgentDetailLayout() {
                   {
                     label: t('agents.navigation.knowledge'),
                     href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/knowledge`,
-                    matchMode: 'exact',
-                  },
-                  {
-                    label: t('agents.navigation.metrics'),
-                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/metrics`,
                     matchMode: 'exact',
                   },
                   {

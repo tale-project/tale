@@ -5,7 +5,7 @@ description: Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, 
 
 Entwicklung ist der Abschnitt für Integratoren und Contributors — alle, die Tale an ein anderes System anbinden, auf der API aufsetzen oder eine Änderung am Quellcode liefern. Die Seiten hier beschreiben die externe Oberfläche (REST, Webhooks, OpenAI-kompatible Endpoints) und den Contributor-Workflow.
 
-Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Automatisierungen, eigene Tools), deckt der Reiter Plattform deinen Alltag ab; Entwicklung ist dann gefragt, wenn du außerhalb des Produkts stehst und über die Leitung mit ihm sprichst.
+Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Workflows, eigene Tools), deckt der Reiter Plattform deinen Alltag ab; Entwicklung ist dann gefragt, wenn du außerhalb des Produkts stehst und über die Leitung mit ihm sprichst.
 
 ## Seiten in diesem Abschnitt
 

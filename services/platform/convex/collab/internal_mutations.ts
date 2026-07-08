@@ -4,7 +4,7 @@
  * reminders, digests, unblock pings).
  *
  * Differences from the transactional emitters in `notify.ts` /
- * `notify_workforce.ts`:
+ * `notify_task_reviews.ts`:
  *  - the AUDIENCE is declarative (`task_assignee`, `task_subscribers`,
  *    `project_creator`, `org_admins`, explicit `user_ids`) and resolved here;
  *  - every type respects the tri-state preference gate (automation noise is

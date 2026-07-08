@@ -1,5 +1,6 @@
 ---
 name: make-improvement
+icon: lucide:wand-sparkles
 description: Use this skill whenever you change existing code WITHOUT changing its behaviour — refactor, optimize, simplify, deduplicate, rename, restructure, extract, or pay down tech debt. It keeps you green while you move and locks behaviour with tests first. Load it the moment a task says "clean up", "refactor", "simplify", "make faster", "extract", "consolidate", or "merge", or whenever you're tempted to rewrite working code. Never refactor without it. If the change adds behaviour use implement-feature; if it fixes a defect use fix-bug.
 ---
 

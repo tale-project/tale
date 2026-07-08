@@ -34,7 +34,7 @@ export const TIMEOUT = {
   /** Save → reload → assert the persisted field rehydrated. */
   PERSIST: 20_000,
   /**
-   * An automation execution subscription reaching `completed`. The one place a
+   * A workflow execution subscription reaching `completed`. The one place a
    * larger ceiling is justified (a real workflow run, not a single LLM turn).
    */
   EXECUTION: 90_000,

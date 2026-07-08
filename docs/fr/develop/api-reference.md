@@ -38,7 +38,7 @@ Les cookies authentifient la session navigateur ; les appels API depuis le navig
 | Compatible OpenAI                                          | POST     | `/api/v1/chat/completions`         | Clé API         | Forme Chat Completions OpenAI ; utilise les SDK existants. |
 | Compatible OpenAI                                          | POST     | `/api/v1/images/generations`       | Clé API         | Génère des images ; forme Images OpenAI.                   |
 | Compatible OpenAI                                          | GET      | `/api/v1/models`                   | Clé API         | Liste les modèles disponibles au format OpenAI.            |
-| Automatisations                                            | diverses | `/api/v1/automations/...`          | Clé API         | List, get, trigger, executions.                            |
+| Workflows                                                  | diverses | `/api/v1/automations/...`          | Clé API         | List, get, trigger, executions.                            |
 | Déclencheurs de workflow                                   | POST     | `/api/v1/workflows/triggers/<nom>` | Clé déclencheur | Invocations de workflow déclenchées par webhook.           |
 | Connaissances — Documents                                  | diverses | `/api/v1/documents/...`            | Clé API         | Upload, list, get, delete.                                 |
 | Connaissances — Clients, Produits, Fournisseurs, Sites web | diverses | `/api/v1/<entity>/...`             | Clé API         | List, get, create, update.                                 |
@@ -92,4 +92,4 @@ Les notes de version nomment la version d'API contre laquelle chaque release shi
 
 ## Où cela s'inscrit
 
-L'API est la couture entre Tale et tout ce qui est dehors. Les webhooks sont l'autre moitié — pour les événements que Tale doit te pousser, ou pour toi à pousser vers les automatisations de Tale, la [référence Webhooks](/fr/develop/webhooks) couvre les règles de signature et d'idempotence. Si tu construis dans le produit avec le rôle Développeur — agents, automatisations, outils sur mesure — l'[onglet Plateforme](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.
+L'API est la couture entre Tale et tout ce qui est dehors. Les webhooks sont l'autre moitié — pour les événements que Tale doit te pousser, ou pour toi à pousser vers les workflows de Tale, la [référence Webhooks](/fr/develop/webhooks) couvre les règles de signature et d'idempotence. Si tu construis dans le produit avec le rôle Développeur — agents, workflows, outils sur mesure — l'[onglet Plateforme](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.

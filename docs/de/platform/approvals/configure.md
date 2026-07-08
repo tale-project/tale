@@ -19,7 +19,7 @@ Drei Konfigurations-Oberflächen erzeugen Genehmigungs-Regeln; jede schreibt in 
 
 - **Einstellungen > Richtlinien > Genehmigungs-Regeln** ist die organisationsweite Oberfläche. Admins erstellen Regeln, die für eine Ressource gelten (Dokumente, Kunden, Produkte, Integrationen, MCP-Server, Agent-Erstellung, Skill-Installation), und wählen das Auslöser-Muster (beliebiger Akteur, bestimmte Rollen, bestimmte Teams, bestimmte Agents).
 - **Der Governance-Tab des Agent-Editors** lässt einen Redakteur eine agent-spezifische Regel anhängen. Die Regel feuert nur für die Aufrufe dieses Agents; sie komponiert mit jeder organisationsweiten Regel, die ebenfalls greift.
-- **Das Genehmigungs-Gate eines Workflow-Schritts** lässt den Workflow-Autor an einem bestimmten Schritt eine Genehmigung verlangen. Das ist die Oberfläche [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows); das Gate schreibt eine einmalige, auf den Schritt skopierte Regel.
+- **Das Genehmigungs-Gate eines Workflow-Schritts** lässt den Workflow-Autor an einem bestimmten Schritt eine Genehmigung verlangen. Das ist die Oberfläche [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows); das Gate schreibt eine einmalige, auf den Schritt skopierte Regel.
 
 Eine Ressource kann mehrere Regeln aktiv haben; die Engine fährt sie alle, und die Aktion wird gehalten, bis jede zutreffende Regel genehmigt. Eine Ablehnung aus irgendeiner Regel beendet die Aktion.
 
@@ -51,4 +51,4 @@ Jede Regel-Änderung landet im Audit-Log mit Akteur, Zeitstempel und Diff. Die A
 
 ## Wo das hingehört
 
-Genehmigungs-Regeln sind die Konfigurations-Ebene hinter [Genehmigungs-Konzepten](/de/platform/approvals/concepts); die Workflow-Gate-Variante hat ihre eigene Oberfläche unter [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows). Die natürliche nächste Lektüre hängt davon ab, was du verdrahtest — für Workflow-Gates die Workflow-Seite, für Agent-Schreib-Genehmigungen die [Admin-Sicht der Agents](/de/platform/admin/agents), wo die Per-Agent-Steuerung liegt.
+Genehmigungs-Regeln sind die Konfigurations-Ebene hinter [Genehmigungs-Konzepten](/de/platform/approvals/concepts); die Workflow-Gate-Variante hat ihre eigene Oberfläche unter [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows). Die natürliche nächste Lektüre hängt davon ab, was du verdrahtest — für Workflow-Gates die Workflow-Seite, für Agent-Schreib-Genehmigungen die [Admin-Sicht der Agents](/de/platform/admin/agents), wo die Per-Agent-Steuerung liegt.

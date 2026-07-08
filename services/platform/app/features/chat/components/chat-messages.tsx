@@ -36,6 +36,7 @@ import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
 import { ModelFallbackNotice } from './model-fallback-notice';
+import { StepLimitNotice } from './step-limit-notice';
 import type { ThinkingAnchor } from './thought-timeline/use-thinking-timer';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
@@ -784,6 +785,26 @@ export const ChatMessages = memo(function ChatMessages({
           <div key={message.key} data-message-key={message.key}>
             <GenerationIncompleteNotice
               body={message.systemMessageBody ?? message.content}
+            />
+          </div>
+        );
+      }
+
+      // Step-limit notices: a tool-heavy turn used up its per-round step
+      // budget — a neutral capacity stop, rendered as a localized info line.
+      if (
+        message.systemMessageTag === SYSTEM_MSG_TAG.STEP_LIMIT_CONTINUED ||
+        message.systemMessageTag === SYSTEM_MSG_TAG.STEP_LIMIT_REACHED
+      ) {
+        return (
+          <div key={message.key} data-message-key={message.key}>
+            <StepLimitNotice
+              body={message.systemMessageBody ?? message.content}
+              variant={
+                message.systemMessageTag === SYSTEM_MSG_TAG.STEP_LIMIT_CONTINUED
+                  ? 'continued'
+                  : 'reached'
+              }
             />
           </div>
         );

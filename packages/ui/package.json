@@ -77,6 +77,7 @@
     "./page-section": "./src/components/layout/page-section.tsx",
     "./bordered-section": "./src/components/layout/bordered-section.tsx",
     "./section-header": "./src/components/layout/section-header.tsx",
+    "./section-row": "./src/components/data-display/section-row.tsx",
     "./sticky-section-header": "./src/components/layout/sticky-section-header.tsx",
     "./popover": "./src/components/overlays/popover.tsx",
     "./dropdown-menu": "./src/components/overlays/dropdown-menu.tsx",

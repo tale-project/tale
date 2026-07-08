@@ -8,6 +8,13 @@ import { ToolSelector } from './tool-selector';
 // The picker is pure client-side UI over three catalog queries — mock them
 // with a small fixed tool set spanning three categories so grouping, counts,
 // search, and the enable-all semantics are all exercised.
+// `mockAvailableWorkflows` (the `mock`-prefix is required for Vitest's
+// hoisting to let the factory below reference it) lets individual tests
+// override the binding list; every other test gets the empty default.
+const mockAvailableWorkflows = vi.fn(() => ({
+  workflows: [] as unknown[],
+  isLoading: false,
+}));
 vi.mock('../hooks/queries', () => ({
   useAvailableTools: () => ({
     tools: [
@@ -20,7 +27,7 @@ vi.mock('../hooks/queries', () => ({
     isLoading: false,
   }),
   useAvailableIntegrations: () => ({ integrations: [], isLoading: false }),
-  useAvailableWorkflows: () => ({ workflows: [], isLoading: false }),
+  useAvailableWorkflows: () => mockAvailableWorkflows(),
 }));
 
 // Resolved from messages/en.json — settings.agents.tools.* and chat.tools.*.
@@ -191,5 +198,59 @@ describe('ToolSelector', () => {
     ).not.toBeInTheDocument();
     // Integration bindings (the external agent's MCP grant set) stay.
     expect(screen.getByText('Bound integrations')).toBeInTheDocument();
+  });
+
+  it('labels the workflow-bindings section "Bound automations" and shows the owning automation\'s title/description', async () => {
+    mockAvailableWorkflows.mockReturnValueOnce({
+      workflows: [
+        {
+          slug: 'create-github-pr',
+          name: 'create-github-pr',
+          description: 'Raw workflow spec summary — never shown.',
+          automationSlug: 'create-github-pr',
+          automationName: 'Create GitHub PR',
+          automationDescription: 'Opens a pull request from your changes.',
+        },
+        {
+          // No owning automation (a standalone workflow) — falls back to its
+          // own name/spec-summary.
+          slug: 'standalone-wf',
+          name: 'standalone-wf',
+          description: 'A standalone workflow with no owning automation.',
+        },
+      ],
+      isLoading: false,
+    });
+
+    const { user } = renderSelector();
+
+    // Section copy is automation-flavored, not "Bound workflows".
+    expect(screen.getByText('Bound automations')).toBeInTheDocument();
+    expect(screen.queryByText('Bound workflows')).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'Bound automations' }),
+    );
+
+    // Automation-owned: the AUTOMATION's title/description render — never the
+    // workflow's own slug-derived name or raw spec summary.
+    expect(
+      screen.getByRole('option', { name: /Create GitHub PR/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Opens a pull request from your changes.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('create-github-pr')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Raw workflow spec summary — never shown.'),
+    ).not.toBeInTheDocument();
+
+    // Standalone workflow: falls back to its own name/description.
+    expect(
+      screen.getByRole('option', { name: /standalone-wf/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('A standalone workflow with no owning automation.'),
+    ).toBeInTheDocument();
   });
 });

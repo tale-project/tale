@@ -100,7 +100,6 @@ const AGENT_SET_ARRAY_FIELDS = [
   'integrationBindings',
   'workflows',
   'skillBindings',
-  'delegates',
 ] as const;
 
 /**

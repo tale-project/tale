@@ -1,20 +1,4 @@
 {
-  "name": "Analyze product relationships",
-  "description": "Analyze product relationships based on customer subscription patterns using AI",
-  "i18n": {
-    "en": {
-      "name": "Analyze product relationships",
-      "description": "Uses AI to infer how products relate (complementary, substitute, bundle, upgrade) from customer subscription patterns."
-    },
-    "de": {
-      "name": "Produktbeziehungen analysieren",
-      "description": "Leitet per KI aus den Abonnementmustern der Kunden ab, wie Produkte zusammenhängen (ergänzend, ersetzend, Bundle, Upgrade)."
-    },
-    "fr": {
-      "name": "Analyser les relations entre produits",
-      "description": "Utilise l'IA pour déduire les relations entre produits (complémentaire, substitut, lot, montée en gamme) à partir des abonnements des clients."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Products"]

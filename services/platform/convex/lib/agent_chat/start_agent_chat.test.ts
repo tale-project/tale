@@ -267,6 +267,51 @@ describe('startAgentChat — deferGeneration (Track B return path)', () => {
   });
 });
 
+describe('startAgentChat — maxSteps resolution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
+    mockSaveMessage.mockResolvedValue({ messageId: 'msg_1' });
+  });
+
+  it('falls back to the system-wide 40-step cap when neither caller nor agent config set maxSteps', async () => {
+    // Regression: the old 20-step fallback cut tool-heavy turns (pptx flows)
+    // mid-loop and fired the [RESPONSE_INTERRUPTED] continue-retry every time.
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      agentConfig: { name: 'test-agent', instructions: 'test' },
+      deferGeneration: true,
+    } as never);
+
+    expect(result.generationArgs).toMatchObject({ maxSteps: 40 });
+  });
+
+  it('prefers the agent config maxSteps over the fallback', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx), // agentConfig.maxSteps: 5
+      deferGeneration: true,
+    } as never);
+
+    expect(result.generationArgs).toMatchObject({ maxSteps: 5 });
+  });
+
+  it('prefers the caller maxSteps over the agent config', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      maxSteps: 7,
+      deferGeneration: true,
+    } as never);
+
+    expect(result.generationArgs).toMatchObject({ maxSteps: 7 });
+  });
+});
+
 describe('startAgentChat — `@`-mention KB references', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -36,6 +36,12 @@ describe('isHiddenFromChatHistory', () => {
     expect(isHiddenFromChatHistory({ kind: 'project_discussion' })).toBe(true);
   });
 
+  it('hides app discussions (the AgentChat shared thread)', () => {
+    expect(isHiddenFromChatHistory({ kind: 'automation_discussion' })).toBe(
+      true,
+    );
+  });
+
   it('hides fork branches regardless of kind', () => {
     expect(isHiddenFromChatHistory({ isBranch: true })).toBe(true);
     expect(isHiddenFromChatHistory({ isBranch: true, kind: 'chat' })).toBe(

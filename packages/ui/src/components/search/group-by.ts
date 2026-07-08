@@ -70,7 +70,7 @@ export function flattenGroups(groups: readonly ResultGroup[]): SearchResult[] {
 
 /** Build a breadcrumb from a URL path. Drops the last segment (it duplicates
  *  the page title) and a leading locale prefix (e.g. `/de`) so users see
- *  context like `Self-hosted › Configuration` instead of a raw URL. Opt-in:
+ *  context like `Self-hosted / Configuration` instead of a raw URL. Opt-in:
  *  surfaces whose `href` is a router path (not a doc URL) simply don't use it. */
 export function urlToBreadcrumb(
   url: string | undefined,

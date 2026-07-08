@@ -8,7 +8,7 @@ import { v } from 'convex/values';
  * `taskAgentRuns` is the SINGLE source of truth for agent work on tasks —
  * internal LLM-loop runs, workflow-triggered runs, and external-runtime runs
  * (daemon CLIs) all go through the same start/record/finalize internal
- * mutations. Cost-per-task, the workforce leaderboard, agent scorecards, the
+ * mutations. Cost-per-task, the per-agent aggregates, the
  * per-(task, agent) circuit-breaker window, and the concurrency counters all
  * derive from these rows; a run path that bypasses them silently vanishes
  * from budgets and KPIs.
@@ -146,7 +146,7 @@ export const taskMetricsDailyTable = defineTable({
   .index('by_org_project_date', ['organizationId', 'projectId', 'dateKey'])
   .index('by_org_date', ['organizationId', 'dateKey']);
 
-/** Daily per-agent rollup (workforce leaderboard + scorecard trends). */
+/** Daily per-agent rollup (per-agent aggregates + trends). */
 export const agentTaskMetricsDailyTable = defineTable({
   organizationId: v.string(),
   agentSlug: v.string(),

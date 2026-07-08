@@ -1,13 +1,44 @@
-import { describe, expect, it, vi } from 'vitest';
+import { convexTest, type TestConvex } from 'convex-test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QueryCtx } from '../_generated/server';
+import schema from '../schema';
 import { listConversationsPaginated } from './list_conversations_paginated';
 
-vi.mock('./transform_conversation', () => ({
-  transformConversation: vi.fn((_ctx, doc) =>
-    Promise.resolve({ ...doc, title: 'transformed' }),
-  ),
-}));
+// Hoisted switch: most suites run a cheap stub; the flat list-row field suite
+// flips to the REAL transform (and back) — the factory below reads the flag
+// per call, so no re-typed `mockImplementation` swap is needed.
+const transformMode = vi.hoisted(() => ({ useReal: false }));
+
+vi.mock('./transform_conversation', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./transform_conversation')>();
+  return {
+    transformConversation: vi.fn((ctx, doc, options) =>
+      transformMode.useReal
+        ? actual.transformConversation(ctx, doc, options)
+        : Promise.resolve({ ...doc, title: 'transformed' }),
+    ),
+  };
+});
+
+// convex-test module map keyed relative to the convex/ root (this file is at
+// convex/conversations/), mirroring status_transitions_rls.test.ts.
+const TEST_DIR_FROM_CONVEX_ROOT = 'conversations';
+function toConvexRootKey(globKey: string): string {
+  const stack: string[] = [];
+  for (const part of `${TEST_DIR_FROM_CONVEX_ROOT}/${globKey}`.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') stack.pop();
+    else stack.push(part);
+  }
+  return stack.join('/');
+}
+const rawModules = import.meta.glob('../**/*.*s');
+const modules: Record<string, () => Promise<unknown>> = {};
+for (const [key, loader] of Object.entries(rawModules)) {
+  modules[toConvexRootKey(key)] = loader;
+}
 
 function createMockQueryBuilder(
   documents: Array<Record<string, unknown>> = [],
@@ -185,5 +216,230 @@ describe('listConversationsPaginated', () => {
     });
 
     expect(builder.paginate).toHaveBeenCalledWith(opts);
+  });
+
+  it('uses by_org_integration_status_lastMessageAt when integrationName and status are provided', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listConversationsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      status: 'open',
+      integrationName: 'outlook',
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_org_integration_status_lastMessageAt',
+      expect.any(Function),
+    );
+    expect(builder.order).toHaveBeenCalledWith('desc');
+    expect(builder.filter).not.toHaveBeenCalled();
+  });
+
+  it('uses by_org_lastMessageAt and filters integrationName when only integrationName is provided', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listConversationsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      integrationName: 'outlook',
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_org_lastMessageAt',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the integration index and filters priority when integrationName, status and priority are provided', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listConversationsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      status: 'open',
+      integrationName: 'outlook',
+      priority: 'high',
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_org_integration_status_lastMessageAt',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Row-level checks against the real schema indexes — the mock-based suite
+// above proves dispatch, this one proves the rows an email app actually gets.
+describe('listConversationsPaginated integrationName row filtering', () => {
+  const ORG = 'org_conv_list_rows';
+  type T = TestConvex<typeof schema>;
+
+  interface SeededIds {
+    outlookOpen: string;
+    gmailOpen: string;
+    unsetOpen: string;
+    outlookClosed: string;
+  }
+
+  async function seedRows(t: T): Promise<SeededIds> {
+    return t.run(async (ctx) => {
+      const outlookOpen = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'outlook',
+        subject: 'Outlook open',
+        lastMessageAt: 400,
+      });
+      const gmailOpen = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'gmail',
+        subject: 'Gmail open',
+        lastMessageAt: 300,
+      });
+      const unsetOpen = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+        subject: 'No integration',
+        lastMessageAt: 200,
+      });
+      const outlookClosed = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'closed',
+        integrationName: 'outlook',
+        subject: 'Outlook closed',
+        lastMessageAt: 100,
+      });
+      return { outlookOpen, gmailOpen, unsetOpen, outlookClosed };
+    });
+  }
+
+  it('returns only rows of the requested integration and status — other integrations, unset-integration rows and other statuses are excluded', async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedRows(t);
+
+    const result = await t.run((ctx) =>
+      listConversationsPaginated(ctx as unknown as QueryCtx, {
+        paginationOpts: { numItems: 10, cursor: null },
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'outlook',
+      }),
+    );
+
+    expect(result.page.map((c) => c._id)).toEqual([ids.outlookOpen]);
+  });
+
+  it('filters by integrationName across statuses (recency order) when status is not set', async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedRows(t);
+
+    const result = await t.run((ctx) =>
+      listConversationsPaginated(ctx as unknown as QueryCtx, {
+        paginationOpts: { numItems: 10, cursor: null },
+        organizationId: ORG,
+        integrationName: 'outlook',
+      }),
+    );
+
+    expect(result.page.map((c) => c._id)).toEqual([
+      ids.outlookOpen,
+      ids.outlookClosed,
+    ]);
+  });
+
+  it('keeps the unfiltered listing unchanged when integrationName is absent', async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedRows(t);
+
+    const result = await t.run((ctx) =>
+      listConversationsPaginated(ctx as unknown as QueryCtx, {
+        paginationOpts: { numItems: 10, cursor: null },
+        organizationId: ORG,
+        status: 'open',
+      }),
+    );
+
+    expect(result.page.map((c) => c._id)).toEqual([
+      ids.outlookOpen,
+      ids.gmailOpen,
+      ids.unsetOpen,
+    ]);
+  });
+});
+
+// End-to-end over the REAL transform: the flat fields the ConversationList
+// block's item map reads (senderField/previewField) must land on every list
+// row, derived from the batch-prefetched customer and the latest message.
+describe('listConversationsPaginated flat list-row fields', () => {
+  const ORG = 'org_conv_list_flat_fields';
+
+  beforeEach(() => {
+    transformMode.useReal = true;
+  });
+
+  afterEach(() => {
+    transformMode.useReal = false;
+  });
+
+  it('flattens senderName and a capped raw lastMessagePreview onto each row', async () => {
+    const t = convexTest(schema, modules);
+    const rawHtml = `<p>Hello from Ada</p>${'x'.repeat(300)}`;
+
+    await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert('customers', {
+        organizationId: ORG,
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        source: 'manual_import',
+      });
+      const withCustomer = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'outlook',
+        customerId,
+        subject: 'With customer',
+        lastMessageAt: 200,
+      });
+      await ctx.db.insert('conversationMessages', {
+        organizationId: ORG,
+        conversationId: withCustomer,
+        channel: 'email',
+        direction: 'inbound',
+        deliveryState: 'delivered',
+        content: rawHtml,
+        sentAt: 200,
+        deliveredAt: 200,
+      });
+      // A row with no customer and no messages — both fields stay absent.
+      await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'outlook',
+        subject: 'Bare',
+        lastMessageAt: 100,
+      });
+    });
+
+    const result = await t.run((ctx) =>
+      listConversationsPaginated(ctx as unknown as QueryCtx, {
+        paginationOpts: { numItems: 10, cursor: null },
+        organizationId: ORG,
+        status: 'open',
+        integrationName: 'outlook',
+      }),
+    );
+
+    expect(result.page).toHaveLength(2);
+    const [withCustomer, bare] = result.page;
+    expect(withCustomer.senderName).toBe('Ada Lovelace');
+    // Raw (HTML intact — the block cleans client-side) and capped at 200.
+    expect(withCustomer.lastMessagePreview).toBe(rawHtml.slice(0, 200));
+    expect(withCustomer.lastMessagePreview).toHaveLength(200);
+    expect(bare.senderName).toBeUndefined();
+    expect(bare.lastMessagePreview).toBeUndefined();
   });
 });

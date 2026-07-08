@@ -4,9 +4,10 @@
  * (reactive) on `stepSlug`. The engine never sees the annotations; this is the
  * single place the friendly view is assembled from (definition × runtime).
  */
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
-import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
+import { useReadWorkflow } from '@/app/features/workflows/hooks/file-queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -22,6 +23,11 @@ import {
   isStepVisible,
   stepTreatment,
 } from '@/lib/shared/platform/step_display';
+import type { WorkflowStepI18n } from '@/lib/shared/schemas/workflows';
+import {
+  hasWorkflowStepI18n,
+  resolveWorkflowStepText,
+} from '@/lib/shared/utils/resolve-workflow-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { derivePartState } from '../lib/derive-part-state';
@@ -37,6 +43,9 @@ interface DefinitionStep {
   stepType: string;
   ui?: StepUiAnnotation;
   role?: string;
+  /** The step's own inline i18n (`workflowStepI18nSchema`) — resolved via
+   * `resolveWorkflowStepText`; when present it wins over `ui.labelKey`. */
+  i18n?: WorkflowStepI18n;
 }
 
 function parseParams(
@@ -72,6 +81,22 @@ function parseUi(raw: unknown): StepUiAnnotation | undefined {
   return ui;
 }
 
+/** Defensively read a step's inline `i18n` block out of the (v.any) payload. */
+function parseStepI18n(raw: unknown): WorkflowStepI18n | undefined {
+  if (!isRecord(raw)) return undefined;
+  const out: WorkflowStepI18n = {};
+  for (const [locale, value] of Object.entries(raw)) {
+    if (!isRecord(value)) continue;
+    const entry: { name?: string; description?: string } = {};
+    if (typeof value.name === 'string') entry.name = value.name;
+    if (typeof value.description === 'string') {
+      entry.description = value.description;
+    }
+    if (Object.keys(entry).length > 0) out[locale] = entry;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Defensively read the steps array out of the (v.any) readWorkflow payload. */
 function parseDefinitionSteps(config: unknown): DefinitionStep[] {
   if (!isRecord(config) || !Array.isArray(config.steps)) return [];
@@ -87,6 +112,8 @@ function parseDefinitionSteps(config: unknown): DefinitionStep[] {
     const ui = parseUi(raw.ui);
     if (ui !== undefined) step.ui = ui;
     if (typeof raw.role === 'string') step.role = raw.role;
+    const i18n = parseStepI18n(raw.i18n);
+    if (i18n !== undefined) step.i18n = i18n;
     out.push(step);
   }
   return out;
@@ -171,20 +198,30 @@ function projectStep(
     /** True for an un-run lane the run already moved past (→ `skipped`). */
     bypassed: boolean;
     treatment: 'normal' | 'gate';
+    locale: string;
   },
 ): StepProjection {
   const render = resolveRenderKind(step.ui);
   const interaction = RENDER_KIND_META[render].interaction;
+  // Inline i18n, once authored on a step, wins outright over the platform
+  // `ui.labelKey` catalog lookup — the labelKey path is kept ONLY when the
+  // step declares no inline i18n at all (see resolve-workflow-locale.ts).
+  const hasInlineI18n = hasWorkflowStepI18n(step);
+  const name = hasInlineI18n
+    ? resolveWorkflowStepText(step, opts.locale).name
+    : step.name;
   const projection: StepProjection = {
     stepSlug: step.stepSlug,
-    name: step.name,
+    name,
     stepType: step.stepType,
     render,
     treatment: opts.treatment,
     partState: derivePartState(node, interaction, opts.reached, opts.bypassed),
   };
   if (step.ui?.stage !== undefined) projection.stage = step.ui.stage;
-  if (step.ui?.labelKey !== undefined) projection.labelKey = step.ui.labelKey;
+  if (!hasInlineI18n && step.ui?.labelKey !== undefined) {
+    projection.labelKey = step.ui.labelKey;
+  }
   if (step.ui?.params !== undefined) projection.params = step.ui.params;
   if (step.role !== undefined) projection.role = step.role;
   if (node !== undefined) projection.node = node;
@@ -219,6 +256,7 @@ export function useExecutionProjection(args: {
   organizationId: string;
   executionId: string;
 }): UseExecutionProjectionResult {
+  const { locale } = useLocale();
   const statuses = useConvexQuery(
     api.workflow_executions.queries.getExecutionStepStatuses,
     { executionId: args.executionId },
@@ -359,6 +397,7 @@ export function useExecutionProjection(args: {
         reached: step.stepSlug === live.execution.currentStepSlug,
         bypassed: bypassedIndexes.has(i),
         treatment,
+        locale,
         ...(isRunning && liveProgress !== undefined && { liveProgress }),
         ...(isRunning &&
           liveTimeline !== undefined && { liveParts: liveTimeline }),
@@ -371,10 +410,8 @@ export function useExecutionProjection(args: {
       if (step.stage && !stages.includes(step.stage)) stages.push(step.stage);
     }
 
-    const workflowName =
-      config && isRecord(config) && typeof config.name === 'string'
-        ? config.name
-        : undefined;
+    // A workflow's only identity is its slug — the operator header shows that.
+    const workflowName = live.execution.workflowSlug;
 
     const result: OperatorProjection = {
       status: live.execution.status,
@@ -400,6 +437,7 @@ export function useExecutionProjection(args: {
     liveProgress,
     liveTimeline,
     urlByStorageId,
+    locale,
   ]);
 
   return {

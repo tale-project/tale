@@ -56,11 +56,15 @@ export function AgentsActionMenu({
         onClick: () => setCreateOpen(true),
       },
       {
+        // The standalone agent-template catalog was retired — agents are
+        // installed by automations now — so this item now browses the
+        // Automations catalog instead (same retarget as the chat agent
+        // selector's footer button).
         label: t('agents.createMenu.fromTemplate'),
         icon: LayoutTemplate,
         onClick: () =>
           void navigate({
-            to: '/dashboard/$id/agents/catalog',
+            to: '/dashboard/$id/automations',
             params: { id: organizationId },
           }),
       },

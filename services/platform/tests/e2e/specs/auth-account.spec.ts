@@ -312,13 +312,14 @@ test.describe('organization switching', () => {
       { timeout: TIMEOUT.NAV },
     );
     // Create lands on the project detail page. Its title renders as a level-2
-    // heading whose accessible name is EXACTLY the project name (the breadcrumb
-    // is a separate level-1 heading reading "Projects / <name>", and the name
-    // also appears in a hidden/off-screen breadcrumb segment — a bare
-    // `getByText` would match that hidden node). Asserting the level-2 heading
-    // proves the project exists and is visible in org A.
+    // heading whose accessible name is EXACTLY the project name. The `level`
+    // filter is load-bearing: the breadcrumb renders its own level-1 heading
+    // that can also carry the bare project name, and the name appears again in
+    // a hidden/off-screen breadcrumb segment — a bare `getByText` (or an
+    // unlevelled heading query) would strict-mode-clash with those. Asserting
+    // the level-2 heading proves the project exists and is visible in org A.
     await expect(
-      page.getByRole('heading', { name: projectName, exact: true }),
+      page.getByRole('heading', { name: projectName, exact: true, level: 2 }),
     ).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
     });

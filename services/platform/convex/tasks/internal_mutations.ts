@@ -15,7 +15,7 @@ import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
 import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussions';
-import { components, internal } from '../_generated/api';
+import { components } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
@@ -27,7 +27,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../workflows/triggers/emit_event';
-import { appOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
+import { automationOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -41,7 +41,6 @@ import {
   nextTaskNumber,
   recordActivity,
   TASK_COMMENT_MAX,
-  TASK_METRIC_ACTIONS,
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
   truncateImportedTitle,
@@ -168,9 +167,9 @@ export const agentCreateTask = internalMutation({
       if (parent.projectId !== args.projectId) {
         throw new ConvexError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
       }
-      // Workforce loop-safety invariant (v): decomposition depth = 1. Agents
+      // Task-ops loop-safety invariant (v): decomposition depth = 1. Agents
       // and automations may create subtasks of ROOT tasks only — a subtask
-      // never gets agent-created children of its own, so manager decomposition
+      // never gets agent-created children of its own, so decomposition
       // cannot recurse.
       if (parent.parentTaskId) {
         throw new ConvexError({ code: 'TASK_DEPTH_EXCEEDED' });
@@ -323,7 +322,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     externalState: v.optional(v.union(v.literal('open'), v.literal('closed'))),
     /** The workflow this create launches (e.g. the app's desk-process). When it
      *  belongs to an installed app, the new task is attributed to that app
-     *  (`createdByType:'app'`, `createdBy:<appSlug>`) — the ownership signal the
+     *  (`createdByType:'app'`, `createdBy:<automationSlug>`) — the ownership signal the
      *  generic task loops arbitrate on. */
     runWorkflowSlug: v.optional(v.string()),
     /** Dedup scope for the external natural key (see the doc comment):
@@ -397,7 +396,13 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       const patch: Partial<Doc<'tasks'>> = {
         title,
         ...(preserveDescription ? {} : { description }),
-        labels: args.labels,
+        // Only overwrite labels when the caller actually supplied them. An
+        // update-only reconcile (e.g. the sync-github-issues bundle's
+        // `reconcile_task`, which forwards no labels) would otherwise patch
+        // `labels: undefined` — and in Convex a patch to `undefined` DELETES
+        // the field, silently wiping the labels `triage-github-issues` set on
+        // the same task minutes earlier. An explicit `[]` still clears.
+        ...(args.labels !== undefined ? { labels: args.labels } : {}),
         externalUrl: args.externalUrl,
         updatedAt: now,
       };
@@ -472,11 +477,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     const rank = await computeEndRank(ctx, projectId, status);
     const number = await nextTaskNumber(ctx, project);
     // A create launched by an installed app's workflow is OWNED by that app:
-    // attribute it to the app (createdByType:'app', createdBy:<appSlug>) so the
+    // attribute it to the app (createdByType:'app', createdBy:<automationSlug>) so the
     // generic task loops defer to the app's own workflow. Otherwise it's an
     // agent-authored task as before.
-    const ownerApp = args.runWorkflowSlug
-      ? await appOwnerOfWorkflowSlug(
+    const ownerAutomation = args.runWorkflowSlug
+      ? await automationOwnerOfWorkflowSlug(
           ctx,
           args.organizationId,
           args.runWorkflowSlug,
@@ -496,8 +501,8 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       externalId: args.externalId,
       externalUrl: args.externalUrl,
       completedAt: status === 'done' ? now : undefined,
-      createdBy: ownerApp ?? args.actorId,
-      createdByType: ownerApp ? 'app' : 'agent',
+      createdBy: ownerAutomation ?? args.actorId,
+      createdByType: ownerAutomation ? 'app' : 'agent',
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
@@ -547,7 +552,7 @@ export const agentUpdateTaskStatus = internalMutation({
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
     if (task.status === args.status) return { ok: true };
 
-    // HARD RULE (workforce invariant): agents never complete work. The only
+    // HARD RULE (task-ops invariant): agents never complete work. The only
     // automated path to 'done' is the review-gate workflow, which acts as the
     // 'workflow' actor after an explicit human approval. Everything an agent
     // produces parks at 'in_review' for that gate.
@@ -959,67 +964,6 @@ export const agentAddComment = internalMutation({
   },
 });
 
-/**
- * Escalation entry point for the `escalate` agent tool (task context):
- * posts an agent-authored `@manager [escalation]` comment — which the
- * mention-response workflow turns into a manager run under the MANAGER's
- * own guardrails — and records the `agent.escalated` metric activity.
- * `mentionResolved: false` (manager not mentionable in this project, or no
- * manager at all) tells the tool to fall back to notifying humans.
- */
-export const agentEscalateOnTask = internalMutation({
-  args: {
-    organizationId: v.string(),
-    actorId: v.string(),
-    taskId: v.id('tasks'),
-    managerSlug: v.optional(v.string()),
-    reason: v.string(),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    messageId: v.optional(v.string()),
-    mentionResolved: v.boolean(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    ok: boolean;
-    messageId?: string;
-    mentionResolved: boolean;
-  }> => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task || task.organizationId !== args.organizationId) {
-      return { ok: false, mentionResolved: false };
-    }
-    const reason = args.reason.trim().slice(0, 2000);
-    const body = args.managerSlug
-      ? `@${args.managerSlug} [escalation] ${reason}`
-      : `[escalation] ${reason}`;
-    const { messageId, mentionCount } = await ctx.runMutation(
-      internal.tasks.internal_mutations.agentAddComment,
-      {
-        organizationId: args.organizationId,
-        actorId: args.actorId,
-        taskId: args.taskId,
-        body,
-      },
-    );
-    await recordActivity(ctx, {
-      task,
-      actorType: 'agent',
-      actorId: args.actorId,
-      action: TASK_METRIC_ACTIONS.agentEscalated,
-      toValue: args.managerSlug ?? 'humans',
-    });
-    return {
-      ok: true,
-      messageId,
-      mentionResolved: args.managerSlug !== undefined && mentionCount > 0,
-    };
-  },
-});
-
 // ---------------------------------------------------------------------------
 // Projects (agent create/update)
 // ---------------------------------------------------------------------------
@@ -1217,22 +1161,24 @@ export const ensureTaskThread = internalMutation({
  * drives them, so they must fall through to the sweeps like any other task — no
  * app-owned task outlives its app with no driver and no sweep (I10).
  */
-function makeAppInstalledCache(
+function makeAutomationInstalledCache(
   ctx: MutationCtx,
   organizationId: string,
-): (appSlug: string) => Promise<boolean> {
+): (automationSlug: string) => Promise<boolean> {
   const cache = new Map<string, boolean>();
-  return async (appSlug: string): Promise<boolean> => {
-    const cached = cache.get(appSlug);
+  return async (automationSlug: string): Promise<boolean> => {
+    const cached = cache.get(automationSlug);
     if (cached !== undefined) return cached;
     const row = await ctx.db
-      .query('appInstallations')
+      .query('automationInstallations')
       .withIndex('by_org_slug', (q) =>
-        q.eq('organizationId', organizationId).eq('appSlug', appSlug),
+        q
+          .eq('organizationId', organizationId)
+          .eq('automationSlug', automationSlug),
       )
       .first();
     const installed = row !== null;
-    cache.set(appSlug, installed);
+    cache.set(automationSlug, installed);
     return installed;
   };
 }
@@ -1260,7 +1206,10 @@ export const sweepStaleTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const cutoff = Date.now() - args.staleAfterHours * 60 * 60 * 1000;
-    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
+    const isAutomationInstalled = makeAutomationInstalledCache(
+      ctx,
+      args.organizationId,
+    );
     const stale: Array<{
       taskId: Id<'tasks'>;
       title: string;
@@ -1279,7 +1228,7 @@ export const sweepStaleTasks = internalMutation({
       if (
         task.createdByType === 'app' &&
         task.createdBy &&
-        (await isAppInstalled(task.createdBy))
+        (await isAutomationInstalled(task.createdBy))
       ) {
         continue;
       }
@@ -1346,7 +1295,10 @@ export const sweepDueSoonTasks = internalMutation({
     const now = Date.now();
     const windowEnd = now + args.windowHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
+    const isAutomationInstalled = makeAutomationInstalledCache(
+      ctx,
+      args.organizationId,
+    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1369,7 +1321,7 @@ export const sweepDueSoonTasks = internalMutation({
       if (
         task.createdByType === 'app' &&
         task.createdBy &&
-        (await isAppInstalled(task.createdBy))
+        (await isAutomationInstalled(task.createdBy))
       ) {
         continue;
       }
@@ -1414,7 +1366,10 @@ export const sweepOverdueLadder = internalMutation({
     const managerMs = args.managerEscalationHours * 60 * 60 * 1000;
     const adminMs = args.adminEscalationHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
+    const isAutomationInstalled = makeAutomationInstalledCache(
+      ctx,
+      args.organizationId,
+    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
@@ -1438,7 +1393,7 @@ export const sweepOverdueLadder = internalMutation({
       if (
         task.createdByType === 'app' &&
         task.createdBy &&
-        (await isAppInstalled(task.createdBy))
+        (await isAutomationInstalled(task.createdBy))
       ) {
         continue;
       }
@@ -1481,7 +1436,10 @@ export const sweepArchivableTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = clampSweepLimit(args.limit);
     const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
-    const isAppInstalled = makeAppInstalledCache(ctx, args.organizationId);
+    const isAutomationInstalled = makeAutomationInstalledCache(
+      ctx,
+      args.organizationId,
+    );
     const rows: Array<{ taskId: Id<'tasks'>; title: string }> = [];
     for (const status of ['done', 'cancelled'] as const) {
       for await (const task of ctx.db
@@ -1493,7 +1451,7 @@ export const sweepArchivableTasks = internalMutation({
         if (
           task.createdByType === 'app' &&
           task.createdBy &&
-          (await isAppInstalled(task.createdBy))
+          (await isAutomationInstalled(task.createdBy))
         ) {
           continue;
         }

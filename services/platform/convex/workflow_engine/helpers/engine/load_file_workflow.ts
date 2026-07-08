@@ -29,8 +29,8 @@ export function loadFileWorkflow(
   const definition: WorkflowDefinition = {
     _id: workflowSlug,
     organizationId,
-    name: config.name,
-    description: config.description,
+    // A workflow definition carries no display name — the slug is its identity.
+    name: workflowSlug,
     version: config.version ?? '1.0.0',
     status: 'active',
     workflowType: 'predefined',

@@ -55,7 +55,7 @@ function isSelfTrigger(
  * Ownership arbitration: a task created by an app (`createdByType === 'app'`,
  * `createdBy` = the app slug) is driven by that app's OWN workflow, so a generic
  * subscription — or another app's — must not also act on it. A subscription is
- * identified by its workflow's owning app slug (`wfInstallations.appSlug`, null
+ * identified by its workflow's owning app slug (`wfInstallations.automationSlug`, null
  * for a global/generic workflow). Non-app tasks are open to every subscription.
  * Pure (no ctx) so it is unit-tested directly.
  */
@@ -115,7 +115,7 @@ export async function processEventHandler(
       !isSubscriptionAllowedForTask(
         getNestedValue(eventData ?? {}, 'task.createdByType'),
         getNestedValue(eventData ?? {}, 'task.createdBy'),
-        installation.appSlug,
+        installation.automationSlug,
       )
     ) {
       continue;

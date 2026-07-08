@@ -11,9 +11,8 @@ import { t } from '../helpers/i18n';
  * "E2E Assistant" the chat specs depend on is never touched); edits accumulate
  * on it and each test asserts only its own field, so the serial order is safe.
  *
- * The webhook/metrics tabs aren't hermetically mutable (real HTTP delivery and
- * no seeded run data respectively), so their render-only coverage lives in
- * component tests rather than here.
+ * The webhook tab isn't hermetically mutable (real HTTP delivery), so its
+ * render-only coverage lives in a component test rather than here.
  */
 
 const NEW_AGENT_SUFFIX = Date.now().toString(36);
@@ -74,9 +73,9 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      // The agents table + "Create agent" trigger live on the "List" tab
-      // (`/agents/all`); the "Blank" menu item opens the create dialog.
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
+      // The agents table + "Create agent" trigger live on the agents index;
+      // the "Blank" menu item opens the create dialog.
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
       await page
         .getByRole('button', { name: t('settings.agents.createAgent') })
         .click();
@@ -117,7 +116,7 @@ test.describe('agent editor depth', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
       const row = agentRow(page, AGENT_DISPLAY_NAME);
       await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       await row
@@ -272,6 +271,6 @@ test.describe('agent editor depth', () => {
     ).toBeChecked({ timeout: TIMEOUT.PERSIST });
   });
 
-  // The webhook-tab and metrics-tab render-only smokes moved to component
-  // tests (agent-webhook-section.test.tsx, agent-metrics-scorecard.test.tsx).
+  // The webhook-tab render-only smoke moved to a component test
+  // (agent-webhook-section.test.tsx).
 });

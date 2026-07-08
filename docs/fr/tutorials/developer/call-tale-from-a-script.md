@@ -61,4 +61,4 @@ Le champ `model` est l'ID de l'agent ; les instructions, connaissances et outils
 
 Un script est le chemin que tu prends quand le plan de données est JSON, pas un écran — tâches cron, checks CI, portails internes. La clé API porte ton rôle, l'endpoint compatible OpenAI est la forme la moins frictionnelle, et chaque endpoint de listing renvoie la même enveloppe `{ resource: [...] }`.
 
-Pour les déclencheurs entrants — ton système POSTe dans un workflow Tale — voir [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). Pour la liste complète des endpoints et le modèle d'erreur, la [référence de l'API](/fr/develop/api-reference) est la seule source de vérité.
+Pour les déclencheurs entrants — ton système POSTe dans un workflow Tale — voir [Déclencher un workflow par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). Pour la liste complète des endpoints et le modèle d'erreur, la [référence de l'API](/fr/develop/api-reference) est la seule source de vérité.

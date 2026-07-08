@@ -27,9 +27,9 @@ Die Antwort streamt Token für Token herein. Tool-Aufrufe rendern als eingeklapp
 
 Ein Agent mit dem Human-Input-Tool kann mitten in einer Aufgabe innehalten und dich etwas fragen — eine **Frage**-Karte erscheint im Chat mit den Feldern, die der Agent braucht, und die Generierung wartet, bis du antwortest. Fülle das Formular aus und klicke auf **Antwort absenden**, oder klicke auf **Anders antworten**, um stattdessen in freiem Text zu widersprechen. Die beantwortete Karte bleibt an der Stelle im Verlauf, an der die Frage gestellt wurde, sodass sich der Austausch später in der richtigen Reihenfolge liest. War deine Antwort falsch oder unvollständig, klicke auf der beantworteten Karte auf **Antwort bearbeiten** — das Formular öffnet sich vorausgefüllt, und **Antwort aktualisieren** lässt den Agent erneut laufen, wobei die korrigierte Antwort die alte ersetzt. Die Karte behält jede frühere Antwort: Blättere mit den Pfeilen neben der Antwort durch die Versionen, genau wie bei bearbeiteten Nachrichten.
 
-## Konversationen versus Chats
+## Chats versus dem Posteingang
 
-Innerhalb von Chat ist die Einheit ein **Chat** — das ist das Wort, das jede Schaltfläche und jeder Toast verwendet. Das Datenmodell dahinter heisst `threads`, und der URL-Slug ist `threads/$threadId`; die Docs folgen der UI und sagen „Chat" in der Prosa. Der separate **Conversations**-Tab (einen weiter in der Sidebar) ist die Kundenkanal-Inbox, nicht eine Liste von Chats. Zwei Bedeutungen von „Konversation", zwei Oberflächen — siehe [Conversations-Übersicht](/de/platform/conversations/overview) für die Inbox-Bedeutung.
+Innerhalb von Chat ist die Einheit ein **Chat** — das ist das Wort, das jede Schaltfläche und jeder Toast verwendet. Das Datenmodell dahinter heisst `threads`, und der URL-Slug ist `threads/$threadId`; die Docs folgen der UI und sagen „Chat" in der Prosa. Der Tab **Posteingang** einer installierten Automatisierung ist eine ganz andere Oberfläche — die Kundenkanal-Konversationen, die Gmail, Outlook oder IMAP/SMTP anliefern, keine Liste von Chats. Zwei Bedeutungen von „Konversation", zwei Oberflächen — siehe [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) für die Posteingang-Bedeutung.
 
 ## History und Suche
 

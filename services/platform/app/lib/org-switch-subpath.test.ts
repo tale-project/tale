@@ -9,8 +9,9 @@ describe('resetCrossOrgDetailSubpath', () => {
       'projects',
     );
     expect(resetCrossOrgDetailSubpath('chat/t_1#mid')).toBe('chat');
-    expect(resetCrossOrgDetailSubpath('automations/am_9?tab=runs')).toBe(
-      'automations',
+    // Workflows has no standalone list route — a detail resets to the org home.
+    expect(resetCrossOrgDetailSubpath('workflows/my-workflow?panel=test')).toBe(
+      '',
     );
   });
 
@@ -18,10 +19,6 @@ describe('resetCrossOrgDetailSubpath', () => {
     expect(resetCrossOrgDetailSubpath('projects')).toBe('projects');
     expect(resetCrossOrgDetailSubpath('projects?archived=true')).toBe(
       'projects?archived=true',
-    );
-    // conversations/{status} is a status filter, not a Convex id — org-agnostic.
-    expect(resetCrossOrgDetailSubpath('conversations/open')).toBe(
-      'conversations/open',
     );
     expect(
       resetCrossOrgDetailSubpath('settings/governance?group=security'),

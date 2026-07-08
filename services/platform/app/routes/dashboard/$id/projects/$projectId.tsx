@@ -1,13 +1,21 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Heading } from '@tale/ui/heading';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatch,
+} from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  HEADER_CRUMB_LINK_CLASS,
+  HeaderBreadcrumbs,
+} from '@/app/components/layout/header-breadcrumbs';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import {
   ActiveEditorProvider,
@@ -18,12 +26,10 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { useProjectApps } from '@/app/features/apps/hooks/use-install-state';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
   loader: ({ context, params }) => {
@@ -47,10 +53,16 @@ function ProjectDetailLayout() {
   const { t: tSecrets } = useT('projectSecrets');
   const { t: tDiscussions } = useT('discussions');
 
+  // A project-scoped automation lives under the AUTOMATIONS chrome
+  // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
+  // tab strip), never inside the project shell — so those child routes render
+  // bare, exactly like the agents layout skips its header on detail pages.
+  const isAutomationDetail = useMatch({
+    from: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+    shouldThrow: false,
+  });
+
   const { project, isLoading } = useProject(asProjectId(projectId));
-  // Apps bound to this project surface as their own nav tab — the in-context
-  // entry point for a project-scoped app (Apps hub installs; the project uses it).
-  const { apps: projectApps } = useProjectApps(asProjectId(projectId));
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
@@ -116,15 +128,8 @@ function ProjectDetailLayout() {
       // U8: Settings tab merged into Overview. Identity edit + Sharing live
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
-      // Project-scoped apps installed here each get their own tab (active across
-      // the app's sub-routes via `startsWith`).
-      ...projectApps.map(
-        (app): TabNavigationItem => ({
-          label: app.appName,
-          href: `/dashboard/${organizationId}/projects/${projectId}/apps/${app.appSlug}`,
-          matchMode: 'startsWith',
-        }),
-      ),
+      // Project-scoped automations do NOT get project tabs — they are opened
+      // from the Automations catalog and live under the Automations breadcrumb.
     ],
     [
       t,
@@ -133,10 +138,15 @@ function ProjectDetailLayout() {
       tDiscussions,
       organizationId,
       projectId,
-      projectApps,
       project?.canAdminister,
     ],
   );
+
+  // Bare pass-through for the automation chrome (see the comment above the
+  // `useMatch`); the automation page owns its own loading/not-found states.
+  if (isAutomationDetail) {
+    return <Outlet />;
+  }
 
   if (!isLoading && !project) {
     return (
@@ -154,20 +164,29 @@ function ProjectDetailLayout() {
         header={
           <>
             <AdaptiveHeaderRoot standalone={false} className="gap-2">
-              <Heading level={1} size="base" truncate>
-                <Link
-                  to="/dashboard/$id/projects"
-                  params={{ id: organizationId }}
-                  className={cn(
-                    'hidden md:inline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                    'text-muted-foreground cursor-pointer',
-                  )}
-                >
-                  {t('title')}&nbsp;&nbsp;
-                </Link>
-                <span className="text-foreground inline-flex items-center gap-2">
-                  <span className="hidden md:inline">/&nbsp;</span>
-                  <Skeletonize loading={isLoading} label={t('title')}>
+              <HeaderBreadcrumbs
+                ariaLabel={tCommon('aria.breadcrumb')}
+                crumbs={[
+                  {
+                    key: 'projects',
+                    content: (
+                      <Link
+                        to="/dashboard/$id/projects"
+                        params={{ id: organizationId }}
+                        activeOptions={{ exact: true }}
+                        className={HEADER_CRUMB_LINK_CLASS}
+                      >
+                        {t('title')}
+                      </Link>
+                    ),
+                  },
+                ]}
+                leaf={
+                  <Skeletonize
+                    loading={isLoading}
+                    label={t('title')}
+                    className="contents"
+                  >
                     {project ? (
                       project.name
                     ) : (
@@ -176,8 +195,8 @@ function ProjectDetailLayout() {
                       </SkeletonBox>
                     )}
                   </Skeletonize>
-                </span>
-              </Heading>
+                }
+              />
             </AdaptiveHeaderRoot>
             <TabNavigation
               items={tabs}

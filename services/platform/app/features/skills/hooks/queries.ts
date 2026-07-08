@@ -14,6 +14,20 @@ export function useListSkills(organizationId: string) {
   return { skills: data, isLoading, error, refetch };
 }
 
+/**
+ * The built-in skill catalog (`{ slug, name, description }` rows) — the
+ * template list behind the "From template" create dialog.
+ */
+export function useListCatalogSkills(organizationId: string, enabled = true) {
+  const { data, isLoading, error } = useActionQuery(
+    ['config', 'skills', organizationId, 'catalog'],
+    api.skills.file_actions.listCatalogSkills,
+    { organizationId },
+    { enabled },
+  );
+  return { templates: data ?? [], isLoading, error };
+}
+
 export function useReadSkill(organizationId: string, slug: string) {
   return useActionQuery(
     configKeys.detail('skills', organizationId, slug),

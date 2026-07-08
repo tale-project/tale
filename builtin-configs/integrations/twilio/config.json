@@ -1,9 +1,7 @@
 {
   "title": "Twilio",
   "description": "Send SMS and make voice calls with Twilio.",
-  "metadata": {
-    "labels": ["Messaging"]
-  },
+  "labels": ["Messaging"],
   "version": 1,
   "authMethod": "basic_auth",
   "supportedAuthMethods": ["basic_auth"],

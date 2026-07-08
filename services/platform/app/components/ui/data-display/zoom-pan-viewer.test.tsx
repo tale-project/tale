@@ -9,7 +9,7 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        // Controls reuse the automation editor's `common.flow.*` labels (and
+        // Controls reuse the workflow editor's `common.flow.*` labels (and
         // `common.aria.close`), which fixed the old missing-`imagePreview.*`
         // fallthrough.
         'flow.zoomIn': 'Zoom in',

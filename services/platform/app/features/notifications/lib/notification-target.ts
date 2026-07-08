@@ -1,25 +1,5 @@
 import { isRecord } from '@/lib/utils/type-utils';
 
-const CONVERSATION_URL_STATUSES = [
-  'open',
-  'closed',
-  'archived',
-  'spam',
-] as const;
-
-type ConversationUrlStatus = (typeof CONVERSATION_URL_STATUSES)[number];
-
-function isConversationUrlStatus(raw: string): raw is ConversationUrlStatus {
-  return (CONVERSATION_URL_STATUSES as readonly string[]).includes(raw);
-}
-
-function conversationUrlStatus(raw: unknown): ConversationUrlStatus {
-  if (typeof raw === 'string' && isConversationUrlStatus(raw)) {
-    return raw;
-  }
-  return 'open';
-}
-
 /**
  * A typed TanStack-Router navigate descriptor for a notification's in-app deep
  * link. `to` is constrained to the routes we actually emit, so each member is
@@ -40,11 +20,6 @@ export type NotificationTarget =
   | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
-    }
-  | {
-      to: '/dashboard/$id/conversations/$status';
-      params: { id: string; status: 'open' | 'closed' | 'archived' | 'spam' };
-      search: { conversation: string };
     }
   | {
       to: '/dashboard/$id/agents/$agentId';
@@ -71,9 +46,9 @@ export type NotificationTarget =
       to: '/dashboard/$id/projects/$projectId';
       params: { id: string; projectId: string };
     }
-  // Automations hub — landing for a generic system/workflow org alert with no
-  // more specific link (workflow notifications flow through the automations
-  // engine, so their home is the automations list).
+  // Automations — landing for a generic system/workflow org alert with
+  // no more specific link (the standalone workflows list was removed;
+  // installed automation lives in Automations).
   | {
       to: '/dashboard/$id/automations';
       params: { id: string };
@@ -121,18 +96,7 @@ export function personalNotificationTarget(args: {
     typeof params?.projectId === 'string' ? params.projectId : undefined;
   const threadId =
     typeof params?.threadId === 'string' ? params.threadId : undefined;
-  const conversationId = params?.conversationId;
 
-  if (typeof conversationId === 'string') {
-    return {
-      to: '/dashboard/$id/conversations/$status',
-      params: {
-        id,
-        status: conversationUrlStatus(params?.conversationStatus),
-      },
-      search: { conversation: conversationId },
-    };
-  }
   if (params?.chat === true && threadId) {
     return {
       to: '/dashboard/$id/chat/$threadId',
@@ -166,7 +130,7 @@ export function personalNotificationTarget(args: {
  * Deep-link target for an ORG notification. A stored `link` routes to its
  * specific page; a linkless row (legacy or generic workflow/system alert) falls
  * back by `category` — security alerts land on Governance, everything else on
- * the Automations hub. Always returns a target, so an org row is never a dead,
+ * Automations. Always returns a target, so an org row is never a dead,
  * unclickable line (#2377).
  */
 export function orgNotificationTarget(

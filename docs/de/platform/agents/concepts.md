@@ -36,14 +36,14 @@ Die Konversation läuft dann: User-Nachricht → Instructions rahmen die Antwort
 
 ## Wann du danach greifst
 
-Ein einzelner Agent ist die richtige Form, wenn die Konversation in einer Domäne und einer Stimme bleibt. Greif zu einer [Automatisierung](/de/platform/automations/concepts), wenn die Arbeit mehrstufig ist und du Genehmigungen oder Zeitpläne dazwischen willst; greif zu einem rohen Chat (kein Agent), wenn du eine Antwort selbst explorierst und die Modell-Defaults reichen.
+Ein einzelner Agent ist die richtige Form, wenn die Konversation in einer Domäne und einer Stimme bleibt. Greif zu einem [Workflow](/de/platform/workflows/concepts), wenn die Arbeit mehrstufig ist und du Genehmigungen oder Zeitpläne dazwischen willst; greif zu einem rohen Chat (kein Agent), wenn du eine Antwort selbst explorierst und die Modell-Defaults reichen.
 
-| Nutz … wenn                                         | Agent | Roher Chat | Automatisierung |
-| --------------------------------------------------- | ----- | ---------- | --------------- |
-| Dieselbe Frage kehrt wieder                         | ✓     |            |                 |
-| Die Stimme oder die Einschränkungen sind wichtig    | ✓     |            |                 |
-| Du brauchst Genehmigungen oder Zeitpläne dazwischen |       |            | ✓               |
-| Du explorierst eine Antwort einmalig                |       | ✓          |                 |
+| Nutz … wenn                                         | Agent | Roher Chat | Workflow |
+| --------------------------------------------------- | ----- | ---------- | -------- |
+| Dieselbe Frage kehrt wieder                         | ✓     |            |          |
+| Die Stimme oder die Einschränkungen sind wichtig    | ✓     |            |          |
+| Du brauchst Genehmigungen oder Zeitpläne dazwischen |       |            | ✓        |
+| Du explorierst eine Antwort einmalig                |       | ✓          |          |
 
 ## Bau einen
 

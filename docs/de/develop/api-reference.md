@@ -38,7 +38,7 @@ Cookies authentifizieren die Browser-Session; API-Aufrufe aus dem Browser innerh
 | OpenAI-kompatibel                                | POST         | `/api/v1/chat/completions`          | API-Key     | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
 | OpenAI-kompatibel                                | POST         | `/api/v1/images/generations`        | API-Key     | Bilder generieren; OpenAI-Images-Form.                     |
 | OpenAI-kompatibel                                | GET          | `/api/v1/models`                    | API-Key     | Verfügbare Modelle im OpenAI-Format auflisten.             |
-| Automatisierungen                                | verschiedene | `/api/v1/automations/...`           | API-Key     | List, get, trigger, executions.                            |
+| Workflows                                        | verschiedene | `/api/v1/automations/...`           | API-Key     | List, get, trigger, executions.                            |
 | Workflow-Trigger                                 | POST         | `/api/v1/workflows/triggers/<name>` | Trigger-Key | Webhook-getriggerte Workflow-Auslösungen.                  |
 | Wissen — Dokumente                               | verschiedene | `/api/v1/documents/...`             | API-Key     | Upload, list, get, delete.                                 |
 | Wissen — Kunden, Produkte, Lieferanten, Websites | verschiedene | `/api/v1/<entity>/...`              | API-Key     | List, get, create, update.                                 |
@@ -92,4 +92,4 @@ Die Release Notes nennen die API-Version, gegen die jede Release ausgeliefert wi
 
 ## Wo das hingehört
 
-Die API ist die Naht zwischen Tale und allem ausserhalb. Webhooks sind die andere Hälfte — für Events, die Tale zu dir pushen muss, oder für dich, an Tales Automatisierungen zu pushen, behandelt die [Webhooks-Referenz](/de/develop/webhooks) die Signier- und Idempotenz-Regeln. Wenn du innerhalb des Produkts als Entwickler-Rolle baust — Agents, Automatisierungen, eigene Tools — ist der [Plattform-Reiter](/de/platform) dein Alltag; diese Seite ist für aussen.
+Die API ist die Naht zwischen Tale und allem ausserhalb. Webhooks sind die andere Hälfte — für Events, die Tale zu dir pushen muss, oder für dich, an Tales Workflows zu pushen, behandelt die [Webhooks-Referenz](/de/develop/webhooks) die Signier- und Idempotenz-Regeln. Wenn du innerhalb des Produkts als Entwickler-Rolle baust — Agents, Workflows, eigene Tools — ist der [Plattform-Reiter](/de/platform) dein Alltag; diese Seite ist für aussen.

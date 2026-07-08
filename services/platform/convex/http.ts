@@ -10,6 +10,10 @@ import {
   runSubActions,
 } from './agent_runtimes/rest_api';
 import {
+  executeToolHandler,
+  toolStatusHandler,
+} from './agent_tools/dispatch_http';
+import {
   listAgents as listAgentsRest,
   getAgent,
   patchAgent,
@@ -812,6 +816,20 @@ http.route({
   path: '/api/integrations/status',
   method: 'POST',
   handler: integrationStatusHandler,
+});
+
+// Workspace-tool dispatch — the same bridge calls these so an external agent
+// can use the platform tools its config grants (`toolNames`); execution and
+// grants stay server-side (agent_tools/dispatch_http.ts).
+http.route({
+  path: '/api/tools/execute',
+  method: 'POST',
+  handler: executeToolHandler,
+});
+http.route({
+  path: '/api/tools/status',
+  method: 'POST',
+  handler: toolStatusHandler,
 });
 
 http.route({

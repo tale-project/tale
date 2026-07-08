@@ -1,20 +1,4 @@
 {
-  "name": "Sync files from Google Drive",
-  "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists every file in the configured folder (recursing into subfolders, mirroring their structure under targetFolderPath), downloads any that are new or changed, and upserts documents by external ID. Pure renames are detected and applied without re-downloading. After the loop completes, files that were removed from Drive are also removed from the target Tale folder (RAG entries are cleaned up too). For safety, if Drive returns an empty file list the reconcile step skips deletion — an empty result is more often caused by an OAuth scope downgrade or wrong folder ID than by a genuinely empty folder, and a user who really wants to clear the target folder can do so directly in the Tale UI.",
-  "i18n": {
-    "en": {
-      "name": "Sync files from Google Drive",
-      "description": "Mirrors a Google Drive folder into Tale documents, downloading new or changed files and reconciling deletions."
-    },
-    "de": {
-      "name": "Dateien aus Google Drive synchronisieren",
-      "description": "Spiegelt einen Google-Drive-Ordner als Tale-Dokumente, lädt neue oder geänderte Dateien herunter und gleicht Löschungen ab."
-    },
-    "fr": {
-      "name": "Synchroniser les fichiers depuis Google Drive",
-      "description": "Réplique un dossier Google Drive dans les documents Tale, télécharge les fichiers nouveaux ou modifiés et réconcilie les suppressions."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Knowledge", "Google Drive"]

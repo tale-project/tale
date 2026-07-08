@@ -1,7 +1,7 @@
 /**
  * External-run state machine — the ONLY writers of `externalRuns`.
  *
- * Contracts (workforce cross-pillar):
+ * Contracts (task-ops cross-pillar):
  *  - The unified `taskAgentRuns` row is created at CLAIM through
  *    `startTaskAgentRun` (transactional admission: guard re-check with the
  *    frozen enqueue-time budget inputs + concurrency counters) and closed

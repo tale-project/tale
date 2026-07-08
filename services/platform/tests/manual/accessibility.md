@@ -15,7 +15,7 @@ file under `app/routes/dashboard/$id/**` (or `_auth/` for `/log-in`):
 | -------------- | ------------------------------------------ | -------------------------------------------------- |
 | Log-in         | `/log-in`                                  | unauthenticated; `_auth/log-in.tsx`                |
 | Chat           | `/dashboard/{org}/chat`                    | live region during streaming (A11)                 |
-| DataTable page | `/dashboard/{org}/agents`                  | redirects to `…/agents/all`; `<table>` (A10)       |
+| DataTable page | `/dashboard/{org}/agents`                  | `<table>` (A10)                                    |
 | DataTable page | `/dashboard/{org}/documents`               | `_knowledge` pathless segment → no `/knowledge/`   |
 | Settings form  | `/dashboard/{org}/settings/account`        | labelled form fields (A7)                          |
 | Dialog         | any create/delete (e.g. agent or document) | focus trap + title (A5/A12)                        |

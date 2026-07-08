@@ -1,16 +1,21 @@
 import { dayjs } from '@/lib/utils/date/format';
 
-import type { Message } from '../../../app/features/conversations/types';
-
 export * from '@/lib/utils/date/format';
 
-interface MessageGroup {
+interface MessageGroup<T> {
   date: string;
-  messages: Message[];
+  messages: T[];
 }
 
-export function groupMessagesByDate(messages: Message[]): MessageGroup[] {
-  const groupMap = new Map<string, MessageGroup>();
+/**
+ * Groups items by calendar day of their `timestamp` (skipping entries with a
+ * missing or invalid one), preserving encounter order. Structural on purpose:
+ * the conversation blocks group their own normalized message shapes.
+ */
+export function groupMessagesByDate<T extends { timestamp?: string }>(
+  messages: T[],
+): MessageGroup<T>[] {
+  const groupMap = new Map<string, MessageGroup<T>>();
 
   messages.forEach((message) => {
     if (!message.timestamp) {

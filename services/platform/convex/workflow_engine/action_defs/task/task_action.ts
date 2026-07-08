@@ -278,34 +278,10 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
                 limit: params.limit,
               },
             );
-            // Level-3 rows escalate to the assignee's MANAGER — resolved here
-            // in the action layer (the org chart lives in agent files, which
-            // the sweep mutation cannot read). One chart read per sweep.
-            const needsManager = rows.filter(
-              (row) =>
-                row.newLevel === 3 &&
-                row.assigneeType === 'agent' &&
-                row.assigneeId,
-            );
-            const managerBySlug = new Map<string, string | undefined>();
-            for (const row of needsManager) {
-              const slug = row.assigneeId;
-              if (!slug || managerBySlug.has(slug)) continue;
-              const role = await ctx.runAction(
-                internal.agents.workforce_ops.getOrgRole,
-                { organizationId, agentSlug: slug },
-              );
-              managerBySlug.set(slug, role.managerSlug);
-            }
-            const tasks = [];
-            for (const row of rows) {
-              const assigneeManagerSlug =
-                row.assigneeType === 'agent' && row.assigneeId
-                  ? managerBySlug.get(row.assigneeId)
-                  : undefined;
-              tasks.push({ ...row, assigneeManagerSlug });
-            }
-            return { operation: 'sweep', kind: params.kind, tasks };
+            // The manager-escalation rung retired with the org chart:
+            // `assigneeManagerSlug` is no longer resolved, so level-3 rows
+            // fall through to the pack's human/admin escalation branch.
+            return { operation: 'sweep', kind: params.kind, tasks: rows };
           }
           case 'archivable': {
             const tasks = await ctx.runMutation(
@@ -367,17 +343,16 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
         // `parametersValidator` declares `owner`/`repo` required, but the
         // workflow engine calls `execute` directly without validating
         // (`execute_action_node.ts`), so a scheduled reconcile whose
-        // `variables` never received the app's `repository` config reaches
-        // here with `owner`/`repo` undefined. Fail loudly with an actionable
-        // message instead of letting the query's generic ArgumentValidationError
-        // surface — and instead of degrading to an org-wide scan, which would
-        // close tasks in repos this desk was never configured to touch.
+        // `variables` never received an `owner`/`repo` value reaches here with
+        // them undefined. Fail loudly with an actionable message instead of
+        // letting the query's generic ArgumentValidationError surface — and
+        // instead of degrading to an org-wide scan, which would close tasks in
+        // repos this desk was never configured to touch.
         if (!params.owner || !params.repo) {
           throw new Error(
             'list_open_external requires both `owner` and `repo`, but they were not provided. ' +
-              "The schedule is missing its repository config — set the issue-desk app's " +
-              '"repository" config (it derives into owner/repo and syncs into the schedule ' +
-              'variables via setAppConfig), or pass owner/repo explicitly on this run.',
+              "The schedule is missing them — open this workflow's Triggers tab and set " +
+              '`owner`/`repo` on its schedule variables, or pass owner/repo explicitly on this run.',
           );
         }
         const refs = await ctx.runQuery(

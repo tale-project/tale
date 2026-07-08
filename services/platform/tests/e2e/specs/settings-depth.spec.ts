@@ -356,6 +356,6 @@ test.describe('settings depth — teams', () => {
 });
 
 // The skills page render + upload-affordance smoke moved to a component test:
-// app/features/skills/components/skills-table.test.tsx (pure render, no real
+// app/features/skills/components/skills-catalog.test.tsx (pure render, no real
 // backend/upload seam — installing a skill needs an on-disk SKILL.md bundle and
 // is non-hermetic, so the e2e only ever asserted the empty-state chrome).

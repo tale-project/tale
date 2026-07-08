@@ -70,7 +70,7 @@ test.describe('external agent (Cursor)', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
       await page
         .getByRole('button', { name: t('settings.agents.createAgent') })
         .click();
@@ -106,7 +106,7 @@ test.describe('external agent (Cursor)', () => {
     });
     const page = await context.newPage();
     try {
-      await page.goto(`/dashboard/${workerOrg.organizationId}/agents/all`);
+      await page.goto(`/dashboard/${workerOrg.organizationId}/agents`);
       const row = page.getByRole('row').filter({
         has: page.getByRole('cell', { name: AGENT_DISPLAY_NAME, exact: true }),
       });

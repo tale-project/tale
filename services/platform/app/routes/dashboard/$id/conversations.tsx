@@ -1,5 +1,13 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router';
+import { Inbox } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
@@ -7,6 +15,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -44,6 +53,48 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
 function ConversationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('conversations');
+  // The Inbox is gated on an INSTALLED automation declaring the `inbox`
+  // builtin view — the same signal that shows/hides the nav entry. A deep
+  // link into an org without one lands on a friendly pointer to the
+  // Automations catalog instead of an inbox that can never fill.
+  const { isLoading, hasInbox } = useInboxAvailability(organizationId);
+
+  if (isLoading || !hasInbox) {
+    return (
+      <PageLayout
+        organizationId={organizationId}
+        header={
+          <AdaptiveHeaderRoot standalone={false}>
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+        }
+      >
+        <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
+          {/* While availability loads, keep the shell empty — no flash of the
+              empty state (or of the inbox) before the answer is in. */}
+          {!isLoading && (
+            <EmptyState
+              icon={Inbox}
+              headingLevel={2}
+              className="flex-1 self-center"
+              title={t('activate.noAutomationTitle')}
+              description={t('activate.noAutomationDescription')}
+              action={
+                <Button asChild>
+                  <Link
+                    to="/dashboard/$id/automations"
+                    params={{ id: organizationId }}
+                  >
+                    {t('activate.browseAutomations')}
+                  </Link>
+                </Button>
+              }
+            />
+          )}
+        </ContentWrapper>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout

@@ -30,6 +30,7 @@ import {
 } from '../../../lib/shared/chat-errors';
 import {
   formatGenerationIncompleteBody,
+  formatStepLimitBody,
   SYSTEM_MSG_TAG,
 } from '../../../lib/shared/constants/system-message-tags';
 import { tuningInstructionSuffix } from '../../../lib/shared/response-tuning';
@@ -1615,20 +1616,29 @@ export async function generateAgentResponse(
         }
       }
 
-      // Unified continue: if finishReason is not "stop" (or other non-retryable),
-      // rebuild context and generate a complete replacement response.
-      const continueCheck = shouldRetryGeneration(
-        result.finishReason,
-        result.text,
-        result.steps,
-        didRetry,
-      );
-      if (continueCheck.retry) {
+      // Unified continue loop: if finishReason is not "stop" (or other
+      // non-retryable), rebuild context and keep generating. A step-cap stop
+      // (finishReason 'tool-calls' — the loop ran out of `maxSteps` mid-work)
+      // is an EXPECTED capacity stop on tool-heavy turns and continues
+      // neutrally for up to MAX_STEP_CAP_CONTINUES rounds; provider anomalies
+      // ('length', 'unknown', DeepSeek stop-with-empty-text) retry ONCE with
+      // the [RESPONSE_INTERRUPTED] marker, as before.
+      let stepCapRounds = 0;
+      for (;;) {
+        const continueCheck = shouldRetryGeneration(
+          result.finishReason,
+          result.text,
+          result.steps,
+          { anomalyRetried: didRetry, stepCapRounds },
+        );
+        if (!continueCheck.retry) break;
+        const isStepCapContinue = continueCheck.kind === 'step-cap';
         const continueRemainingMs = actionDeadline - Date.now();
         if (continueRemainingMs < 30_000) {
           debugLog('Skipping continue, insufficient time remaining', {
             remainingMs: continueRemainingMs,
           });
+          break;
         } else {
           const hasToolResults = needsToolResultRetry(
             result.text,
@@ -1722,12 +1732,15 @@ export async function generateAgentResponse(
             }
           }
 
-          // Save system message to record the continuation in thread history
+          // Record the continuation in thread history: a neutral step-limit
+          // notice for a capacity stop, the interrupted marker for an anomaly.
           const retryMsg = await saveMessage(ctx, components.agent, {
             threadId,
             message: {
               role: 'system',
-              content: '[RESPONSE_INTERRUPTED] Retrying…',
+              content: isStepCapContinue
+                ? `${SYSTEM_MSG_TAG.STEP_LIMIT_CONTINUED} ${formatStepLimitBody({ round: stepCapRounds + 1 })}`.trim()
+                : '[RESPONSE_INTERRUPTED] Retrying…',
             },
           });
           retrySystemMessageId = retryMsg.messageId;
@@ -1772,7 +1785,11 @@ export async function generateAgentResponse(
               continueAbortController,
             );
 
-            didRetry = true;
+            if (isStepCapContinue) {
+              stepCapRounds += 1;
+            } else {
+              didRetry = true;
+            }
             // Capture continuation's saved message ID for downstream operations
             const continueSavedId = continueResult.savedMessages?.[0]?._id;
             if (continueSavedId) savedMessageId = continueSavedId;
@@ -1789,23 +1806,30 @@ export async function generateAgentResponse(
               reasoning: continueResult.reasoningText ?? result.reasoning,
             };
 
-            // Update the "Retrying…" system message now that retry succeeded
+            // Update the "Retrying…" system message now that the retry
+            // succeeded. A step-cap continuation keeps its neutral
+            // [STEP_LIMIT_CONTINUED] notice as saved — nothing to patch.
             if (retrySystemMessageId) {
-              try {
-                await ctx.runMutation(components.agent.messages.updateMessage, {
-                  messageId: retrySystemMessageId,
-                  patch: {
-                    message: {
-                      role: 'system',
-                      content: '[RESPONSE_INTERRUPTED] Retry succeeded',
+              if (!isStepCapContinue) {
+                try {
+                  await ctx.runMutation(
+                    components.agent.messages.updateMessage,
+                    {
+                      messageId: retrySystemMessageId,
+                      patch: {
+                        message: {
+                          role: 'system',
+                          content: '[RESPONSE_INTERRUPTED] Retry succeeded',
+                        },
+                      },
                     },
-                  },
-                });
-              } catch (updateError) {
-                console.error(
-                  '[generateAgentResponse] Failed to update retry system message on success:',
-                  updateError,
-                );
+                  );
+                } catch (updateError) {
+                  console.error(
+                    '[generateAgentResponse] Failed to update retry system message on success:',
+                    updateError,
+                  );
+                }
               }
               retrySystemMessageId = undefined;
             }
@@ -1857,36 +1881,67 @@ export async function generateAgentResponse(
         !endedOnHumanInputGate(result.steps)
       ) {
         const toolNames = extractToolNamesFromSteps(result.steps ?? []);
-        debugLog('All retries exhausted, using fallback message', {
-          toolNames,
-          finishReason: result.finishReason,
-        });
         didRetry = true;
-        // Diagnostic for return-value consumers only (delegate ToolResponses,
-        // logs) — never persisted as the assistant's words (see
-        // `fallbackNoticeSaved`).
-        result.text =
-          toolNames.length > 0
-            ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
-            : 'I was unable to generate a response. Please try again.';
-        // Machine-readable body — the chat UI renders a localized warning line
-        // (same pattern as MODEL_FALLBACK) instead of an English sentence
-        // masquerading as the assistant's own reply.
-        try {
-          await saveMessage(ctx, components.agent, {
-            threadId,
-            message: {
-              role: 'system',
-              content:
-                `${SYSTEM_MSG_TAG.GENERATION_INCOMPLETE} ${formatGenerationIncompleteBody({ tools: toolNames })}`.trim(),
-            },
+        if (result.finishReason === 'tool-calls') {
+          // Step budget exhausted with the work still mid-flight — a capacity
+          // stop, not a failure. Tell the user neutrally why the turn stopped
+          // ([STEP_LIMIT_REACHED], rendered as info), never an error line.
+          debugLog('Step budget exhausted, stopping turn', {
+            stepCapRounds,
+            toolNames,
           });
-          fallbackNoticeSaved = true;
-        } catch (msgError) {
-          console.error(
-            '[generateAgentResponse] Failed to save generation-incomplete message:',
-            msgError,
-          );
+          // Diagnostic for return-value consumers only (delegate
+          // ToolResponses, logs) — never persisted as the assistant's words
+          // (see `fallbackNoticeSaved`).
+          result.text =
+            'I stopped here because the turn reached its step limit. Ask me to continue to pick up where I left off.';
+          try {
+            await saveMessage(ctx, components.agent, {
+              threadId,
+              message: {
+                role: 'system',
+                content:
+                  `${SYSTEM_MSG_TAG.STEP_LIMIT_REACHED} ${formatStepLimitBody({ round: stepCapRounds })}`.trim(),
+              },
+            });
+            fallbackNoticeSaved = true;
+          } catch (msgError) {
+            console.error(
+              '[generateAgentResponse] Failed to save step-limit message:',
+              msgError,
+            );
+          }
+        } else {
+          debugLog('All retries exhausted, using fallback message', {
+            toolNames,
+            finishReason: result.finishReason,
+          });
+          // Diagnostic for return-value consumers only (delegate
+          // ToolResponses, logs) — never persisted as the assistant's words
+          // (see `fallbackNoticeSaved`).
+          result.text =
+            toolNames.length > 0
+              ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
+              : 'I was unable to generate a response. Please try again.';
+          // Machine-readable body — the chat UI renders a localized warning
+          // line (same pattern as MODEL_FALLBACK) instead of an English
+          // sentence masquerading as the assistant's own reply.
+          try {
+            await saveMessage(ctx, components.agent, {
+              threadId,
+              message: {
+                role: 'system',
+                content:
+                  `${SYSTEM_MSG_TAG.GENERATION_INCOMPLETE} ${formatGenerationIncompleteBody({ tools: toolNames })}`.trim(),
+              },
+            });
+            fallbackNoticeSaved = true;
+          } catch (msgError) {
+            console.error(
+              '[generateAgentResponse] Failed to save generation-incomplete message:',
+              msgError,
+            );
+          }
         }
       }
     } catch (timeoutError) {

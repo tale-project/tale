@@ -230,13 +230,13 @@ export const deleteWebhookBySlug = mutation({
 /**
  * The app that owns a workflow slug, or `null` for a global/default-pack workflow.
  *
- * Ownership is a RECORDED fact: app install stamps `appSlug` on the workflow's
+ * Ownership is a RECORDED fact: app install stamps `automationSlug` on the workflow's
  * `wfInstallations` row (`apps/install_actions.ts` registerWorkflow). We read that
  * field directly — no slug-prefix parsing (so no collision with a same-named
- * global workflow folder), and no dependence on the `appInstallations` row still
+ * global workflow folder), and no dependence on the `automationInstallations` row still
  * existing. Takes only a db ctx (no auth) so it stays reusable + unit-testable.
  */
-export async function appOwnerOfWorkflowSlug(
+export async function automationOwnerOfWorkflowSlug(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
   workflowSlug: string,
@@ -247,17 +247,18 @@ export async function appOwnerOfWorkflowSlug(
       q.eq('organizationId', organizationId).eq('workflowSlug', workflowSlug),
     )
     .first();
-  return installation?.appSlug ?? null;
+  return installation?.automationSlug ?? null;
 }
 
 /** Whether a workflow slug is owned by an app installed in this org. */
-export async function isAppOwnedWorkflowSlug(
+export async function isAutomationOwnedWorkflowSlug(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
   workflowSlug: string,
 ): Promise<boolean> {
   return (
-    (await appOwnerOfWorkflowSlug(ctx, organizationId, workflowSlug)) !== null
+    (await automationOwnerOfWorkflowSlug(ctx, organizationId, workflowSlug)) !==
+    null
   );
 }
 
@@ -283,12 +284,16 @@ export const createEventSubscriptionBySlug = mutation({
     // the app (its create action / per-workflow webhook), never off an org-global
     // event that other apps/channels also emit. The auto path already skips event
     // registration on app install (apps/install_actions.ts registerWorkflow); this
-    // is the manual/Automations path's equivalent guard.
+    // is the manual/Workflows path's equivalent guard.
     if (
-      await isAppOwnedWorkflowSlug(ctx, args.organizationId, args.workflowSlug)
+      await isAutomationOwnedWorkflowSlug(
+        ctx,
+        args.organizationId,
+        args.workflowSlug,
+      )
     ) {
       throw new ConvexError({
-        code: 'APP_OWNED_WORKFLOW',
+        code: 'AUTOMATION_OWNED_WORKFLOW',
         slug: args.workflowSlug,
       });
     }

@@ -29,14 +29,18 @@ import {
   resolveAssigneeQueryFilter,
   type TaskPriorityFilter,
 } from '../lib/filter-tasks';
-import { TASK_PRIORITY_ORDER } from '../lib/display';
+import { TASK_PRIORITY_ORDER, TRIAGED_TASK_STATUSES } from '../lib/display';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
 import { TaskBoardProvider } from './task-board-context';
 import type { TaskRow } from './task-card';
 import { TaskModal } from './task-modal';
+import { TasksBacklog } from './tasks-backlog';
 import { TasksList } from './tasks-list';
 import { TasksSkeleton } from './tasks-skeleton';
+
+/** The Backlog tab's server-side scope: proposed tasks only. */
+const BACKLOG_STATUSES = ['backlog' as const];
 
 /** Brand an untrusted `?task=` URL value; a bogus id just renders an empty sheet. */
 function asTaskId(value: string): Id<'tasks'> {
@@ -54,7 +58,8 @@ export function TasksWorkspace({
 }: {
   organizationId: string;
   projectId: string;
-  /** The view this page renders — fixed per route (`/tasks/board`, `/tasks/list`). */
+  /** The view this page renders — fixed per route (`/tasks/board`,
+   *  `/tasks/list`, `/tasks/backlog`). */
   view: TaskView;
   /** Switch pages: the route navigates to the sibling view and persists it. */
   onViewChange: (view: TaskView) => void;
@@ -77,9 +82,14 @@ export function TasksWorkspace({
     assigneeFilter,
     currentUserId,
   );
+  // Each view is scoped server-side: the board/list never receive backlog
+  // rows (proposed tasks), and the backlog tab receives only them. Archive +
+  // assignee narrowing are applied on top; priority/assignee facets filter
+  // the loaded rows client-side.
   const { tasks: loadedTasks, canEdit, isLoading } = useTasksByProject(
     typedProjectId,
     {
+      statuses: view === 'backlog' ? BACKLOG_STATUSES : TRIAGED_TASK_STATUSES,
       includeArchived,
       assigneeId: assigneeQueryFilter,
     },
@@ -207,6 +217,7 @@ export function TasksWorkspace({
             items={[
               { value: 'board', label: t('views.board') },
               { value: 'list', label: t('views.list') },
+              { value: 'backlog', label: t('views.backlog') },
             ]}
           />
           <DataTableFilters
@@ -264,9 +275,18 @@ export function TasksWorkspace({
                 canEdit={canEdit}
               />
             </div>
-          ) : (
+          ) : view === 'list' ? (
             <div className="min-h-0 flex-1">
               <TasksList
+                tasks={tasks}
+                onOpenTask={handleOpenTask}
+                projectKey={projectKey}
+                canEdit={canEdit}
+              />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1">
+              <TasksBacklog
                 tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
@@ -277,12 +297,16 @@ export function TasksWorkspace({
         </TaskBoardProvider>
       )}
 
-      {/* One modal, two roles: create (no taskId) and view/edit (taskId). */}
+      {/* One modal, two roles: create (no taskId) and view/edit (taskId). The
+          preset status follows the view so a new task lands where the user is
+          looking: a board/list create starts triaged (`todo`), a backlog-tab
+          create files another proposal. */}
       <TaskModal
         organizationId={organizationId}
         projectId={typedProjectId}
         open={createOpen}
         onOpenChange={setCreateOpen}
+        defaultStatus={view === 'backlog' ? 'backlog' : 'todo'}
       />
       <TaskModal
         organizationId={organizationId}

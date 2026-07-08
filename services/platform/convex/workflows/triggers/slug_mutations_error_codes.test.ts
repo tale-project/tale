@@ -165,12 +165,12 @@ describe('automation-trigger mutation error codes (#2056)', () => {
     expect(code).toBe('NOT_FOUND');
   });
 
-  it('throws APP_OWNED_WORKFLOW when subscribing an app-owned workflow to events', async () => {
+  it('throws AUTOMATION_OWNED_WORKFLOW when subscribing an app-owned workflow to events', async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert('wfInstallations', {
         organizationId: ORG,
         workflowSlug: 'issue-desk/flow',
-        appSlug: 'issue-desk', // recorded ownership → app-owned
+        automationSlug: 'issue-desk', // recorded ownership → app-owned
         installedAt: 0,
         installedBy: 'system',
         contentHash: 'h',
@@ -189,7 +189,7 @@ describe('automation-trigger mutation error codes (#2056)', () => {
           },
         ),
     );
-    expect(code).toBe('APP_OWNED_WORKFLOW');
+    expect(code).toBe('AUTOMATION_OWNED_WORKFLOW');
   });
 
   it('throws INVALID_EVENT_TYPE for an unknown event type', async () => {

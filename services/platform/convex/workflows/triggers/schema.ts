@@ -12,7 +12,7 @@ export const wfSchedulesTable = defineTable({
    * repos never share a single org-wide schedule. Absent (undefined) for
    * org-level schedules (org-scoped apps + legacy rows predating per-project
    * config). Used only for lifecycle — create at bind, delete at unbind, sync the
-   * right project in `setAppConfig` — by filtering, mirroring the existing
+   * right project in `setAutomationConfig` — by filtering, mirroring the existing
    * `organizationId` filter; the firing path is unchanged (it reads `variables`).
    */
   projectId: v.optional(v.id('projects')),

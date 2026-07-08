@@ -7,16 +7,17 @@ import {
   BrainIcon,
   Folder,
   Inbox,
+  LayoutGrid,
   MessageCircle,
   MoreHorizontal,
   Settings as SettingsIcon,
-  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import { useT } from '@/lib/i18n/client';
@@ -56,7 +57,7 @@ interface OverflowItem {
  *
  * Layout: a row of primary nav destinations followed by a "More" tab that
  * opens a bottom sheet listing the destinations that don't fit (Knowledge,
- * Automations) — the standard iOS overflow pattern. Each tab highlights only
+ * Automations, Settings) — the standard iOS overflow pattern. Each tab highlights only
  * when its route is active.
  */
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
@@ -66,7 +67,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
   const { t: tProjects } = useT('projects');
+  const { t: tConversations } = useT('conversations');
   const [moreOpen, setMoreOpen] = useState(false);
+  // Same nav-gate signal as the desktop rail (`use-navigation-items.ts`): the
+  // Inbox tab only shows once at least one INSTALLED automation declares the
+  // `inbox` builtin view; hidden while the availability reads load.
+  const { hasInbox: hasInboxAutomation } = useInboxAvailability(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
   // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
   // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
@@ -77,6 +83,13 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const tabs = useMemo<PrimaryTab[]>(
     () => [
       {
+        key: 'chat',
+        label: tNav('chat'),
+        icon: MessageCircle,
+        to: `/dashboard/${organizationId}/chat`,
+        activePrefix: `/dashboard/${organizationId}/chat`,
+      },
+      {
         key: 'projects',
         label: tProjects('title'),
         icon: Folder,
@@ -85,18 +98,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         gate: () => ability.can('read', 'projects'),
       },
       {
-        key: 'conversations',
-        label: tNav('conversations'),
+        key: 'inbox',
+        label: tConversations('title'),
         icon: Inbox,
-        to: `/dashboard/${organizationId}/conversations/open`,
+        to: `/dashboard/${organizationId}/conversations`,
         activePrefix: `/dashboard/${organizationId}/conversations`,
-      },
-      {
-        key: 'chat',
-        label: tNav('chat'),
-        icon: MessageCircle,
-        to: `/dashboard/${organizationId}/chat`,
-        activePrefix: `/dashboard/${organizationId}/chat`,
+        gate: () => hasInboxAutomation,
       },
       {
         key: 'agents',
@@ -107,7 +114,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         gate: () => ability.can('write', 'agents'),
       },
     ],
-    [ability, organizationId, tNav, tProjects],
+    [
+      ability,
+      organizationId,
+      tNav,
+      tProjects,
+      tConversations,
+      hasInboxAutomation,
+    ],
   );
 
   const overflow = useMemo<OverflowItem[]>(
@@ -122,7 +136,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       {
         key: 'automations',
         label: tNav('automations'),
-        icon: Workflow,
+        icon: LayoutGrid,
         to: `/dashboard/${organizationId}/automations`,
         activePrefix: `/dashboard/${organizationId}/automations`,
       },

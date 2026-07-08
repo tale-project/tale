@@ -28,7 +28,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
-import type { PDFPageProxy } from 'pdfjs-dist/build/pdf.mjs';
+import type { PDFPageProxy } from 'pdfjs-dist';
 
 import { GuardedZip } from '../../lib/knowledge/extraction/ooxml';
 // pdfjs must be loaded through the shared loader so its DOM polyfills + fake

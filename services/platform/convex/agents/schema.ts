@@ -147,11 +147,11 @@ export const agentInstallationsTable = defineTable({
   ),
   bundledBy: v.optional(v.string()),
   // Set iff this agent belongs to an installed app (composite slug
-  // `<appSlug>/<name>`). The recorded, authoritative owner — stamped at app
+  // `<automationSlug>/<name>`). The recorded, authoritative owner — stamped at app
   // install — used by the global app marker and the delete/disable guards.
   // Orthogonal to `bundledBy` (the integration-cascade key): an app agent
-  // carries `appSlug` and never `bundledBy`. Absent for global agents.
-  appSlug: v.optional(v.string()),
+  // carries `automationSlug` and never `bundledBy`. Absent for global agents.
+  automationSlug: v.optional(v.string()),
 })
   .index('by_organization', ['organizationId'])
   .index('by_org_slug', ['organizationId', 'agentSlug'])

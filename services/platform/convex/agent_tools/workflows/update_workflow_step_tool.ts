@@ -396,7 +396,7 @@ Inform the user the update is ready for review. Only say the approval card has b
             {
               organizationId,
               workflowSlug: args.workflowSlug,
-              workflowName: currentConfig.name,
+              workflowName: args.workflowSlug,
               workflowVersion: currentConfig.version ?? '1.0.0',
               updateSummary: args.updateSummary,
               steps: sanitizedEntries.map((entry) => ({
@@ -426,7 +426,7 @@ Inform the user the update is ready for review. Only say the approval card has b
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${sanitizedEntries.length} steps (${stepNames}) in workflow "${currentConfig.name}". Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${sanitizedEntries.length} steps (${stepNames}) in workflow "${args.workflowSlug}". Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             message: `Batch step update for ${sanitizedEntries.length} steps is ready for approval. An approval card has been created.`,
           };
         } else {
@@ -440,7 +440,7 @@ Inform the user the update is ready for review. Only say the approval card has b
             {
               organizationId,
               workflowSlug: args.workflowSlug,
-              workflowName: currentConfig.name,
+              workflowName: args.workflowSlug,
               workflowVersion: currentConfig.version ?? '1.0.0',
               updateSummary: args.updateSummary,
               stepSlug: entry.stepSlug,
@@ -461,7 +461,7 @@ Inform the user the update is ready for review. Only say the approval card has b
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepName}" in workflow "${currentConfig.name}". The user must approve this update before changes will be applied. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepName}" in workflow "${args.workflowSlug}". The user must approve this update before changes will be applied. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             message: `Step update for "${stepName}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           };
         }

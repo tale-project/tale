@@ -1,20 +1,4 @@
 {
-  "name": "Review a pull request in GitHub",
-  "description": "Run the Pull Request Reviewer agent against a specific GitHub pull request. The workflow links the PR to a task on the board (idempotently, by a stable external reference) and hands it to the pull-request-reviewer agent, which reads the diff and changed files via the GitHub connector (get_pull_request_diff / get_pull_request_files) and posts a structured review (create_pull_request_review — APPROVE / REQUEST_CHANGES / COMMENT) plus any inline comments. Like the other GitHub automations, provider access lives in the `github` integration connector and the logic lives here as data — there is no PR-specific backend code. Bundled with the GitHub integration alongside the Pull Request Reviewer agent.",
-  "i18n": {
-    "en": {
-      "name": "Review a pull request in GitHub",
-      "description": "Links a GitHub pull request to a task and has the Pull Request Reviewer agent read the diff and post a review."
-    },
-    "de": {
-      "name": "Pull Request in GitHub prüfen",
-      "description": "Verknüpft einen GitHub-Pull-Request mit einer Aufgabe und lässt den Pull-Request-Reviewer-Agenten den Diff lesen und eine Review posten."
-    },
-    "fr": {
-      "name": "Examiner une pull request dans GitHub",
-      "description": "Relie une pull request GitHub à une tâche et fait lire le diff par l'agent réviseur de pull requests, qui publie une revue."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Developer", "GitHub"]

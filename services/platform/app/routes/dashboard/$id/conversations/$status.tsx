@@ -1,7 +1,10 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { createFileRoute, notFound } from '@tanstack/react-router';
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
+import { useRequiredIntegrations } from '@/app/features/automations/hooks/use-required-integrations';
 import { Conversations } from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
@@ -10,6 +13,7 @@ import {
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { startCase } from '@/lib/utils/string';
 
 const INITIAL_NUM_ITEMS = 30;
 
@@ -31,6 +35,8 @@ const conversationStatusMap: Record<ValidStatus, ConversationStatus> = {
 const searchSchema = z.object({
   search: z.string().optional(),
   conversation: z.string().optional(),
+  /** Channel filter: an inbox provider's integration slug (e.g. `gmail`). */
+  channel: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
@@ -54,7 +60,8 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
       );
       // Prime the paginated list cache so the first page paints without a
       // skeleton flash on first nav. Args mirror useListConversationsPaginated's
-      // base args (search is an in-page filter — live subscription).
+      // base args (search is an in-page filter — live subscription; the
+      // channel filter subscribes with its own args when active).
       void primeCachedPaginatedQuery(
         context.convexQueryClient.convexClient,
         api.conversations.queries.listConversationsPaginated,
@@ -66,9 +73,47 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
   component: ConversationsStatusPage,
 });
 
+/**
+ * The Inbox's channel-filter options: the connected inbox providers, derived
+ * from the installed automations that declare the inbox builtin view — their
+ * first required integration IS the provider (gmail / outlook / imap_smtp).
+ * Labels come from the org's integration definitions (the same resolver the
+ * install wizard uses), falling back to a humanized slug.
+ */
+function useChannelOptions(
+  organizationId: string,
+): Array<{ value: string; label: string }> {
+  const { inboxAutomations } = useInboxAvailability(organizationId);
+  const providerSlugs = useMemo(
+    () => [
+      ...new Set(
+        inboxAutomations
+          .map((automation) => automation.requiredIntegrations[0])
+          .filter((slug): slug is string => Boolean(slug)),
+      ),
+    ],
+    [inboxAutomations],
+  );
+  const { required } = useRequiredIntegrations(organizationId, providerSlugs);
+  return useMemo(
+    () =>
+      providerSlugs.map((slug) => {
+        const resolved = required.find((r) => r.slug === slug);
+        return {
+          value: slug,
+          label: resolved?.exists
+            ? resolved.integration.title
+            : startCase(slug),
+        };
+      }),
+    [providerSlugs, required],
+  );
+}
+
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { search, conversation } = Route.useSearch();
+  const { search, conversation, channel } = Route.useSearch();
+  const navigate = useNavigate();
 
   const mappedStatus =
     (isValidStatus(status) ? conversationStatusMap[status] : undefined) ??
@@ -92,8 +137,24 @@ function ConversationsStatusPage() {
   const paginatedResult = useListConversationsPaginated({
     organizationId,
     status: mappedStatus,
+    // The channel filter is server-side: the slug rides the `channel` search
+    // param and lands on the query's `integrationName` arg.
+    ...(channel !== undefined && { integrationName: channel }),
     initialNumItems: INITIAL_NUM_ITEMS,
   });
+
+  const channelOptions = useChannelOptions(organizationId);
+  const handleChannelChange = useCallback(
+    (value?: string) => {
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status },
+        search: (prev) => ({ ...prev, channel: value }),
+        replace: true,
+      });
+    },
+    [navigate, organizationId, status],
+  );
 
   return (
     <Conversations
@@ -105,6 +166,11 @@ function ConversationsStatusPage() {
       paginatedResult={paginatedResult}
       conversationCount={conversationCount}
       totalConversationCount={totalConversationCount}
+      channelFilter={{
+        options: channelOptions,
+        value: channel,
+        onChange: handleChannelChange,
+      }}
     />
   );
 }

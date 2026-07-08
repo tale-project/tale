@@ -13,7 +13,7 @@ Klick **Select agent** am Composer (oder den Chip mit dem aktuell gewählten Age
 
 ## „Visible in chat"
 
-Jeder Agent hat einen **Visible in chat**-Schalter auf seiner Instructions-Seite. Ihn auszuschalten deaktiviert den Agent nicht — Automatisierungen und Workflows können ihn weiterhin aufrufen; Sub-Agent-Aufrufe aus anderen Agents funktionieren weiterhin — es versteckt den Agent nur vor dem Chat-Picker. Der Grund: Orgs enden mit Dutzenden von Agents, die ein durchschnittlicher User nie wählt (Hilfsagents, die andere Agents rufen, an einen bestimmten Workflow gebundene Agents), und sie alle anzuzeigen würde die Alltagsauswahl überschwemmen.
+Jeder Agent hat einen **Visible in chat**-Schalter auf seiner Instructions-Seite. Ihn auszuschalten deaktiviert den Agent nicht — Workflows können ihn weiterhin aufrufen; Sub-Agent-Aufrufe aus anderen Agents funktionieren weiterhin — es versteckt den Agent nur vor dem Chat-Picker. Der Grund: Orgs enden mit Dutzenden von Agents, die ein durchschnittlicher User nie wählt (Hilfsagents, die andere Agents rufen, an einen bestimmten Workflow gebundene Agents), und sie alle anzuzeigen würde die Alltagsauswahl überschwemmen.
 
 ## Einmalig versus klebrig
 

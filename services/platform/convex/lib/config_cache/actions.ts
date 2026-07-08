@@ -17,6 +17,7 @@ import {
   getV8SyncSpec,
   type V8SyncSpec,
 } from '../../../lib/shared/config/registry';
+import { zodErrorMessage } from '../../../lib/shared/schemas/format-error';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
@@ -52,7 +53,9 @@ async function readEffectiveConfig(
       const parsed: unknown = JSON.parse(content);
       const r = schema.safeParse(parsed);
       if (!r.success) {
-        throw new Error(`Invalid ${domain}/${key} config: ${r.error.message}`);
+        throw new Error(
+          zodErrorMessage(`Invalid ${domain}/${key} config`, r.error),
+        );
       }
       return r.data;
     },

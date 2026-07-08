@@ -42,7 +42,6 @@ import {
   personalNotificationTarget,
 } from '../lib/notification-target';
 import { NotificationRow } from './notification-row';
-import { ReviewActions } from './review-actions';
 
 interface NotificationListPanelProps {
   organizationId: string;
@@ -425,11 +424,6 @@ export function NotificationListPanel({
               if (entry.kind === 'personal') {
                 const n = entry.item;
                 const params = isRecord(n.params) ? n.params : undefined;
-                const approvalId =
-                  n.type === 'task_review_requested' &&
-                  typeof params?.approvalId === 'string'
-                    ? params.approvalId
-                    : undefined;
                 const target = personalNotificationTarget({
                   organizationId,
                   taskId: n.taskId,
@@ -453,14 +447,7 @@ export function NotificationListPanel({
                     }}
                     onMarkRead={() => handleMarkMyRead(n._id)}
                     markReadPending={markMyRead.isPending}
-                  >
-                    {approvalId && (
-                      <ReviewActions
-                        notificationId={n._id}
-                        approvalId={approvalId}
-                      />
-                    )}
-                  </NotificationRow>
+                  />
                 );
               }
               const n = entry.item;

@@ -401,6 +401,11 @@ export const runExternalAgentTurn = internalAction({
      * (which integrations `integration({slug})` may invoke). Enforced
      * server-side by /api/integrations/execute; defaults to none-granted. */
     integrationBindings: v.optional(v.array(v.string())),
+    /** The agent's workspace-tool allowlist (`toolNames`, schema-restricted to
+     * EXTERNAL_AGENT_TOOL_NAMES) — the session's workspace-tool grant set
+     * (which platform tools `workspace_tool({tool})` may invoke). Enforced
+     * server-side by /api/tools/execute; defaults to none-granted. */
+    toolNames: v.optional(v.array(v.string())),
     /** Org custom skills bound on the agent — staged into the sandbox each turn
      * (workflow disciplines are auto-staged separately). */
     skillBindings: v.optional(v.array(v.string())),
@@ -1098,6 +1103,16 @@ export const runExternalAgentTurn = internalAction({
               // integrationBindings (enforced by /api/integrations/execute).
               integrationGrants: args.integrationBindings ?? [],
               budgetCents: vkBudgetCents,
+              // Workspace-tool grant set + execution context for
+              // /api/tools/execute. Grants and context both live on the
+              // token row, so the container can neither widen the grant
+              // set nor spoof another thread/user.
+              toolGrants: args.toolNames ?? [],
+              ...(args.agentSlug !== undefined && {
+                agentSlug: args.agentSlug,
+              }),
+              threadId: args.threadId,
+              ...(args.userId !== undefined && { userId: args.userId }),
             },
             expiresAt: Date.now() + 2 * 60 * 60 * 1000,
           },

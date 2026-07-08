@@ -2,7 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * Workforce-guardrails schema: the concurrency semaphore and the
+ * Agent-guardrails schema: the concurrency semaphore and the
  * notice/dedupe ledger behind per-agent budgets, concurrency caps, and the
  * per-task circuit breaker.
  */

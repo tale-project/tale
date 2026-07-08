@@ -14,6 +14,8 @@ export const SYSTEM_MSG_TAG = {
   INTEGRATION_OPERATION_FAILED: '[INTEGRATION_OPERATION_FAILED]',
   MODEL_FALLBACK: '[MODEL_FALLBACK]',
   GENERATION_INCOMPLETE: '[GENERATION_INCOMPLETE]',
+  STEP_LIMIT_CONTINUED: '[STEP_LIMIT_CONTINUED]',
+  STEP_LIMIT_REACHED: '[STEP_LIMIT_REACHED]',
 } as const;
 
 export type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
@@ -59,6 +61,10 @@ const DISPLAY_MAP: Record<SystemMsgTag, SystemMessageDisplay> = {
   [SYSTEM_MSG_TAG.INTEGRATION_OPERATION_FAILED]: 'error',
   [SYSTEM_MSG_TAG.MODEL_FALLBACK]: 'warning',
   [SYSTEM_MSG_TAG.GENERATION_INCOMPLETE]: 'warning',
+  // Step-cap continuations are expected capacity stops on tool-heavy turns,
+  // not failures — rendered as neutral info, never a warning.
+  [SYSTEM_MSG_TAG.STEP_LIMIT_CONTINUED]: 'info',
+  [SYSTEM_MSG_TAG.STEP_LIMIT_REACHED]: 'info',
 };
 
 export function getSystemMessageDisplay(
@@ -134,6 +140,35 @@ export function formatGenerationIncompleteBody(
   return body.tools && body.tools.length > 0
     ? `tools=${body.tools.map((t) => encodeURIComponent(t)).join(',')}`
     : '';
+}
+
+/**
+ * Structured payload carried in `[STEP_LIMIT_CONTINUED]` /
+ * `[STEP_LIMIT_REACHED]` system-message bodies. Machine-readable (no
+ * localized prose) so the chat UI renders a localized neutral line.
+ * `round` is the 1-based continuation round for CONTINUED, and the number of
+ * continuation rounds the turn used for REACHED.
+ */
+interface StepLimitBody {
+  round?: number;
+}
+
+export function formatStepLimitBody(body: StepLimitBody): string {
+  return body.round !== undefined && body.round > 0
+    ? `round=${body.round}`
+    : '';
+}
+
+export function parseStepLimitBody(body: string): StepLimitBody {
+  const result: StepLimitBody = {};
+  for (const token of body.trim().split(/\s+/)) {
+    const eq = token.indexOf('=');
+    if (eq <= 0) continue;
+    if (token.slice(0, eq) !== 'round') continue;
+    const value = Number.parseInt(token.slice(eq + 1), 10);
+    if (Number.isFinite(value) && value > 0) result.round = value;
+  }
+  return result;
 }
 
 export function parseGenerationIncompleteBody(

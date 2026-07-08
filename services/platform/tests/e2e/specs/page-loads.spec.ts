@@ -6,10 +6,10 @@ import { t } from '../helpers/i18n';
 
 /**
  * Render-smoke breadth for the remaining top-level routes (changelog, embedded
- * API docs, the redirecting agent entry points, and the metrics dashboards).
- * One sequential test on a shared page asserts a stable anchor per route, so
- * the whole breadth costs a single worker fixture instead of one cold paint per
- * route. Read-only — only navigates and asserts.
+ * API docs, and a legacy tab-suffix redirect). One sequential test on a shared
+ * page asserts a stable anchor per route, so the whole breadth costs a single
+ * worker fixture instead of one cold paint per route. Read-only — only
+ * navigates and asserts.
  */
 
 /**
@@ -46,44 +46,6 @@ function routeCases(): readonly RouteCase[] {
           .getByRole('heading', {
             name: t('changelog.viewer.heading'),
             level: 1,
-          })
-          .first(),
-    },
-    {
-      // `beforeLoad` redirect to `/agents`; the layout title proves the landing.
-      key: 'custom-agents-redirect',
-      path: (id) => `/dashboard/${id}/custom-agents`,
-      anchor: (page) =>
-        page
-          .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
-          .first(),
-    },
-    {
-      // Agents → Metrics dashboard. The section title is an <h2> (the route's
-      // <h1> is the adaptive-header "Agents" layout title, dual-rendered for
-      // desktop/mobile — so the single-render section header is the stable,
-      // unambiguous anchor). Charts paint behind their own loaders.
-      key: 'agents-metrics',
-      path: (id) => `/dashboard/${id}/agents/metrics`,
-      anchor: (page) =>
-        page
-          .getByRole('heading', {
-            name: t('settings.agents.tabs.metrics'),
-            level: 2,
-          })
-          .first(),
-    },
-    {
-      // WorkflowMetricsPage title block — an <h2> section header (same h1/h2
-      // split as agents-metrics above). Owner has `write wfDefinitions`, so the
-      // AccessDenied branch never renders.
-      key: 'automations-metrics',
-      path: (id) => `/dashboard/${id}/automations/metrics`,
-      anchor: (page) =>
-        page
-          .getByRole('heading', {
-            name: t('automations.metrics.title'),
-            level: 2,
           })
           .first(),
     },

@@ -38,7 +38,7 @@ Cookies authenticate the browser session; API calls from the browser inside the 
 | OpenAI-compatible                                  | POST    | `/api/v1/chat/completions`          | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
 | OpenAI-compatible                                  | POST    | `/api/v1/images/generations`        | API key       | Generate images; OpenAI Images shape.              |
 | OpenAI-compatible                                  | GET     | `/api/v1/models`                    | API key       | List available models in OpenAI format.            |
-| Automations                                        | various | `/api/v1/automations/...`           | API key       | List, get, trigger, executions.                    |
+| Workflows                                          | various | `/api/v1/automations/...`           | API key       | List, get, trigger, executions.                    |
 | Workflow triggers                                  | POST    | `/api/v1/workflows/triggers/<name>` | Trigger key   | Webhook-triggered workflow invocations.            |
 | Knowledge — Documents                              | various | `/api/v1/documents/...`             | API key       | Upload, list, get, delete.                         |
 | Knowledge — Customers, Products, Vendors, Websites | various | `/api/v1/<entity>/...`              | API key       | List, get, create, update.                         |
@@ -92,4 +92,4 @@ The release notes name the API version each release ships against; pin your clie
 
 ## Where this fits
 
-The API is the seam between Tale and everything outside it. Webhooks are the other half — for events Tale needs to push to you, or for you to push at Tale's automations, the [Webhooks reference](/develop/webhooks) covers the signing and idempotency rules. If you are building inside the product as a Developer-role user — agents, automations, custom tools — the [Platform tab](/platform) is your day-to-day; this page is for outside.
+The API is the seam between Tale and everything outside it. Webhooks are the other half — for events Tale needs to push to you, or for you to push at Tale's workflows, the [Webhooks reference](/develop/webhooks) covers the signing and idempotency rules. If you are building inside the product as a Developer-role user — agents, workflows, custom tools — the [Platform tab](/platform) is your day-to-day; this page is for outside.

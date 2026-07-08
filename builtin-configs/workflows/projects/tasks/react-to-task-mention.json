@@ -1,20 +1,4 @@
 {
-  "name": "React to mention in task",
-  "description": "@-mentioning an agent in a task comment OR in the task description puts it to work: the agent reads the task and the mentioning text, acts with its task tools, and posts its reply as a comment. Both humans AND agents may trigger via mentions (agent-to-agent collaboration, incl. escalations to a manager agent) — runaway chains are bounded by the per-task circuit breaker (runs per hour), and writes by the automation engine itself ('workflow' actor, e.g. nudges and rollup notes) are inert and never trigger anyone. Agents also never trigger themselves.",
-  "i18n": {
-    "en": {
-      "name": "React to mention in task",
-      "description": "When an agent is @-mentioned in a task or its comments, it does the work and replies as a comment."
-    },
-    "de": {
-      "name": "Auf Erwähnung in Aufgabe reagieren",
-      "description": "Wird ein Agent in einer Aufgabe oder deren Kommentaren @-erwähnt, erledigt er die Arbeit und antwortet als Kommentar."
-    },
-    "fr": {
-      "name": "Réagir à une mention dans une tâche",
-      "description": "Quand un agent est @-mentionné dans une tâche ou ses commentaires, il fait le travail et répond en commentaire."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

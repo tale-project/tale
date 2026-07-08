@@ -9,7 +9,7 @@ description: Open with a directive that commands the agent into the skill ("Use 
 The authoring standard for every skill under .agents/skills/. Copy this file, fill it in, delete the
 comments. A skill exists to make the agent run the SAME PROCESS every time — predictability is the
 point. Keep SKILL.md short and high-signal; push depth into companion files loaded only on demand.
-The full rationale lives in the write-skill skill (../write-skill/SKILL.md) — this is the shape.
+The full rationale lives in the author-skill skill (../author-skill/SKILL.md) — this is the shape.
 -->
 
 One or two sentences: what this skill covers, where it applies in the repo, and where the boundary is
@@ -76,5 +76,5 @@ Plus the structural rules:
   same change. A repo-dev guide lives under `.agents/skills/` (mirrored to `.claude/skills/`); a generic
   workflow skill's source is `builtin-configs/skills/` + its name in the `WORKFLOW_SKILLS` allowlist
   (projected into `.agents/skills/`); a product-only skill stays under `builtin-configs/skills/` or
-  `skills/` — see `write-skill`. Then `bun run skills:check` must pass (mirror + projections current,
+  `skills/` — see `author-skill`. Then `bun run skills:check` must pass (mirror + projections current,
   `SKILL.md` script refs resolve).

@@ -112,9 +112,9 @@
         "title": "AI specialists\nfor every team",
         "description": "Give an agent a role, connect it to your data, and choose its AI model — it's ready in minutes. No coding required.\n\nFrom customer support to compliance reviews, create specialists that use your knowledge base and improve with every conversation."
       },
-      "automations": {
-        "eyebrow": "Automations",
-        "title": "Automation without the\nengineering",
+      "workflows": {
+        "eyebrow": "Workflows",
+        "title": "Workflows without the\nengineering",
         "description": "Build workflows that trigger on events, make decisions with AI, and loop until the job is done. Changes go live the moment you save.\n\nFrom customer onboarding to escalation chains, automate the repetitive work that slows your team down."
       }
     },
@@ -493,7 +493,7 @@
     "sendAriaLabel": "Send"
   },
   "productMockOps": {
-    "heading": "Automations",
+    "heading": "Workflows",
     "today": "Today",
     "rows": {
       "inventorySync": "Daily inventory sync",

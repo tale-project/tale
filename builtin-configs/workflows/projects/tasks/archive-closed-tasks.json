@@ -1,20 +1,4 @@
 {
-  "name": "Auto-archive closed tasks",
-  "description": "Nightly board hygiene: tasks done or cancelled for more than 30 days are archived. Archiving is terminal and emits NO events (it can never wake other automations), and each archive re-checks the task is still closed — a task reopened between sweep and archive is left alone. Tune olderThanDays on the sweep step or deactivate the schedule in Automations.",
-  "i18n": {
-    "en": {
-      "name": "Auto-archive closed tasks",
-      "description": "Nightly hygiene that archives tasks done or cancelled for more than 30 days, skipping any reopened in the meantime."
-    },
-    "de": {
-      "name": "Geschlossene Aufgaben automatisch archivieren",
-      "description": "Nächtliche Pflege, die seit über 30 Tagen erledigte oder abgebrochene Aufgaben archiviert und zwischenzeitlich wiedereröffnete auslässt."
-    },
-    "fr": {
-      "name": "Archiver automatiquement les tâches clôturées",
-      "description": "Entretien nocturne qui archive les tâches terminées ou annulées depuis plus de 30 jours, en ignorant celles rouvertes entre-temps."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

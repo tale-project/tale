@@ -1,6 +1,6 @@
 ---
 title: Platform
-description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, conversations, knowledge, approvals, admin.
+description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, workflows, knowledge, approvals, admin.
 kind: index
 ---
 
@@ -16,9 +16,9 @@ The section is organised by area, then by feature within an area. Most readers d
 
 **[Agents](/platform/agents/concepts)** — instructions, knowledge, tools, model, skills, workers, versioning, webhook triggers.
 
-**[Automations](/platform/automations/concepts)** — workflows, triggers, executions, metrics, approval gates.
+**[Automations](/platform/automations/concepts)** — installable bundles of integrations, agents, skills, and a workflow; the catalog, install wizard, and shipped bundles.
 
-**[Conversations](/platform/conversations/overview)** — the customer-channel inbox; status filtering, search.
+**[Workflows](/platform/workflows/concepts)** — definitions, triggers, executions, metrics, approval gates.
 
 **[Knowledge](/platform/knowledge/overview)** — documents, customers, products, vendors, websites, structured-data model.
 

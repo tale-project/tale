@@ -5,7 +5,7 @@ description: Develop covers the API-consumer surface — REST API, webhooks, int
 
 Develop is the section for integrators and contributors — anyone wiring Tale into another system, building on top of the API, or shipping a change to the source. The pages here describe the external surface (REST, webhooks, OpenAI-compatible endpoints) and the contributor workflow.
 
-If you are inside the product as a Developer-role user (building agents, automations, custom tools), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
+If you are inside the product as a Developer-role user (building agents, workflows, custom tools), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
 
 ## Pages in this section
 

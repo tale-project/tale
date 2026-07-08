@@ -73,9 +73,6 @@ test.describe('responsive / mobile layout', () => {
       moreSheet.getByRole('button', { name: t('navigation.knowledge') }),
     ).toBeVisible();
     await expect(
-      moreSheet.getByRole('button', { name: t('navigation.automations') }),
-    ).toBeVisible();
-    await expect(
       moreSheet.getByRole('button', { name: t('navigation.userSettings') }),
     ).toBeVisible();
 

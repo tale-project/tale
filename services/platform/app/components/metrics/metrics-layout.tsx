@@ -27,8 +27,8 @@ interface MetricsLayoutProps {
 }
 
 /**
- * The shared shell for every metrics surface (automations, usage, feedback,
- * project, agent scorecard, workforce). Gives them ONE structure — a responsive
+ * The shared shell for every metrics surface (usage, feedback,
+ * project). Gives them ONE structure — a responsive
  * header (title + description + toolbar), a filter-chips row, a notices slot,
  * then the body at the standard `gap-6` rhythm — so the pages stop looking
  * hand-rolled and different. Padding-agnostic: the host (a route's

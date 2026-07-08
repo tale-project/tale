@@ -10,14 +10,16 @@ import { Badge } from '@tale/ui/badge';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
-import { usePackLabel } from '@/app/features/apps/runtime/app-runtime';
 import { useT } from '@/lib/i18n/client';
 
 import type { RenderPart } from '../../types';
 
 export function StatusPanel({ part }: { part: RenderPart }) {
   const { t } = useT('operator');
-  const packLabel = usePackLabel();
+  // A step's `verdictLabels` value is now a PLATFORM `automations` catalog key
+  // (workflows/apps translate builtin step copy the same way `boundActionSchema`
+  // labels do — see `bound-button.tsx`), never a retired bundle label.
+  const { t: tAutomations } = useT('automations');
 
   // A gate step's scalar output IS the decision — surface it as a verdict badge.
   const verdict =
@@ -32,14 +34,16 @@ export function StatusPanel({ part }: { part: RenderPart }) {
   }
 
   // Affirmative ("…yes…") reads green; anything else reads needs-work yellow.
-  // The text resolves through the pack's `verdictLabels` map, then the operator
-  // catalog, then the raw value.
+  // The text resolves the step's `verdictLabels` key against the platform
+  // `automations` catalog, falling back to the generic operator verdict copy.
   const key = verdict.toLowerCase();
   const affirmative = key.includes('yes');
-  const label = packLabel(
-    part.params?.verdictLabels?.[key],
-    t(`verdict.${key}`, { defaultValue: verdict }),
-  );
+  const verdictLabelKey = part.params?.verdictLabels?.[key];
+  const label = verdictLabelKey
+    ? tAutomations(verdictLabelKey, {
+        defaultValue: t(`verdict.${key}`, { defaultValue: verdict }),
+      })
+    : t(`verdict.${key}`, { defaultValue: verdict });
 
   return (
     <VStack gap={3}>

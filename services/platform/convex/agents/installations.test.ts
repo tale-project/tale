@@ -39,10 +39,10 @@ function rowFor(t: T, agentSlug: string) {
 
 // App agents are stamped with their owning app at install (the canonical
 // ownership signal used by the global marker + delete/disable guards). Global
-// agents leave `appSlug` unset. Exercises the internal install/delete mutations
+// agents leave `automationSlug` unset. Exercises the internal install/delete mutations
 // directly (no auth) — the public, auth-gated roster guards are verified live.
 describe('agent installations — app ownership stamp', () => {
-  it('stamps appSlug + enabled, survives re-install, and is cleared by delete', async () => {
+  it('stamps automationSlug + enabled, survives re-install, and is cleared by delete', async () => {
     const t = convexTest(schema, modules);
     const SLUG = 'issue-desk/desk-implementer';
 
@@ -52,10 +52,10 @@ describe('agent installations — app ownership stamp', () => {
       installedBy: 'system',
       contentHash: 'h1',
       enabled: true,
-      appSlug: 'issue-desk',
+      automationSlug: 'issue-desk',
     });
     let row = await rowFor(t, SLUG);
-    expect(row?.appSlug).toBe('issue-desk');
+    expect(row?.automationSlug).toBe('issue-desk');
     expect(row?.enabled).toBe(true);
     // App ownership and the integration-cascade key are orthogonal.
     expect(row?.bundledBy).toBeUndefined();
@@ -67,10 +67,10 @@ describe('agent installations — app ownership stamp', () => {
       installedBy: 'system',
       contentHash: 'h2',
       enabled: true,
-      appSlug: 'issue-desk',
+      automationSlug: 'issue-desk',
     });
     row = await rowFor(t, SLUG);
-    expect(row?.appSlug).toBe('issue-desk');
+    expect(row?.automationSlug).toBe('issue-desk');
     expect(row?.contentHash).toBe('h2');
 
     // A global agent install carries no owner.
@@ -80,7 +80,7 @@ describe('agent installations — app ownership stamp', () => {
       installedBy: 'system',
       contentHash: 'g1',
     });
-    expect((await rowFor(t, 'global-helper'))?.appSlug).toBeUndefined();
+    expect((await rowFor(t, 'global-helper'))?.automationSlug).toBeUndefined();
 
     // App uninstall deregisters the app agent's row.
     await t.mutation(internal.agents.installations.deleteInstallation, {
@@ -113,7 +113,7 @@ describe('agent liveness gate — installed && enabled, no fail-open', () => {
     t: T,
     agentSlug: string,
     enabled: boolean,
-    appSlug?: string,
+    automationSlug?: string,
   ) {
     return t.run((ctx) =>
       ctx.db.insert('agentInstallations', {
@@ -123,7 +123,7 @@ describe('agent liveness gate — installed && enabled, no fail-open', () => {
         installedBy: 'system',
         contentHash: 'h',
         enabled,
-        ...(appSlug !== undefined ? { appSlug } : {}),
+        ...(automationSlug !== undefined ? { automationSlug } : {}),
       }),
     );
   }

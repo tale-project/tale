@@ -30,7 +30,7 @@ const installStateValidator = v.object({
   disabledReason: v.optional(
     v.union(v.literal('integration_disabled'), v.literal('user')),
   ),
-  appSlug: v.optional(v.string()),
+  automationSlug: v.optional(v.string()),
 });
 
 type InstallState = {
@@ -39,7 +39,7 @@ type InstallState = {
   installedBy: string;
   bundledBy?: string;
   disabledReason?: 'integration_disabled' | 'user';
-  appSlug?: string;
+  automationSlug?: string;
 };
 
 /** Project a stored row to the wire shape, omitting absent optional fields. */
@@ -52,7 +52,9 @@ function toInstallState(row: Doc<'agentInstallations'>): InstallState {
     ...(row.disabledReason !== undefined
       ? { disabledReason: row.disabledReason }
       : {}),
-    ...(row.appSlug !== undefined ? { appSlug: row.appSlug } : {}),
+    ...(row.automationSlug !== undefined
+      ? { automationSlug: row.automationSlug }
+      : {}),
   };
 }
 
@@ -186,7 +188,7 @@ export const upsertInstallation = internalMutation({
     enabled: v.optional(v.boolean()),
     bundledBy: v.optional(v.string()),
     // Owning app slug when this is an app agent; omitted for global agents.
-    appSlug: v.optional(v.string()),
+    automationSlug: v.optional(v.string()),
   },
   returns: v.id('agentInstallations'),
   handler: async (ctx, args) => {
@@ -203,7 +205,9 @@ export const upsertInstallation = internalMutation({
         contentHash: args.contentHash,
         ...(args.enabled !== undefined ? { enabled: args.enabled } : {}),
         ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
-        ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+        ...(args.automationSlug !== undefined
+          ? { automationSlug: args.automationSlug }
+          : {}),
       });
       return existing._id;
     }
@@ -216,7 +220,9 @@ export const upsertInstallation = internalMutation({
       contentHash: args.contentHash,
       enabled: args.enabled ?? true,
       ...(args.bundledBy !== undefined ? { bundledBy: args.bundledBy } : {}),
-      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+      ...(args.automationSlug !== undefined
+        ? { automationSlug: args.automationSlug }
+        : {}),
     });
   },
 });
@@ -318,11 +324,11 @@ function assertNotCascadeOwned(
  * from the global roster — that would orphan the app. Removal happens only via
  * app uninstall. Hard guard (no force escape). Throws when it trips.
  */
-function assertNotAppOwned(row: Doc<'agentInstallations'>): void {
-  if (row.appSlug) {
+function assertNotAutomationOwned(row: Doc<'agentInstallations'>): void {
+  if (row.automationSlug) {
     throw new ConvexError({
       code: 'app_owned',
-      message: `This agent belongs to app "${row.appSlug}". Uninstall the app to remove it.`,
+      message: `This agent belongs to app "${row.automationSlug}". Uninstall the app to remove it.`,
     });
   }
 }
@@ -380,10 +386,10 @@ export const setAgentEnabled = mutation({
     // Disabling an app-owned agent silently breaks its app; require force too.
     if (!args.enabled) {
       assertNotCascadeOwned(existing, args.force);
-      if (existing.appSlug && !args.force) {
+      if (existing.automationSlug && !args.force) {
         throw new ConvexError({
           code: 'app_owned',
-          message: `This agent belongs to app "${existing.appSlug}"; disabling it would break the app. Pass force to override.`,
+          message: `This agent belongs to app "${existing.automationSlug}"; disabling it would break the app. Pass force to override.`,
         });
       }
     }
@@ -412,7 +418,7 @@ export const uninstallAgent = mutation({
     );
     if (!existing) return null;
     assertNotCascadeOwned(existing, args.force);
-    assertNotAppOwned(existing);
+    assertNotAutomationOwned(existing);
     await ctx.db.delete(existing._id);
     return null;
   },
