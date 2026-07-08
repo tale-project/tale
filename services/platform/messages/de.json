@@ -1330,8 +1330,13 @@
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
       "addAgent": "Katalog",
-      "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
-      "lockedExternalLabel": "Agent: {agent} (für diesen Sandbox-Chat festgelegt)"
+      "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Coding-Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
+      "lockedExternalLabel": "Agent: {agent} (für diesen Sandbox-Chat festgelegt)",
+      "codingAgentLabel": "Coding-Agent",
+      "codingAgentTooltip": "Führt Claude Code oder Cursor in einer isolierten Sandbox aus.",
+      "sectionAgents": "Agenten",
+      "sectionCodingAgents": "Coding-Agenten",
+      "sectionImageAgents": "Bild"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -5482,6 +5487,7 @@
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",
+        "category": "Typ",
         "model": "Standardmodell",
         "tools": "Tools"
       },
@@ -5658,23 +5664,21 @@
         },
         "agentType": {
           "sectionTitle": "Agententyp",
-          "sectionDescription": "Wie dieser Agent läuft. Interne Agenten laufen über die Tool-Schleife der Plattform; externe Agenten führen einen Coding-Agenten in einer Sandbox aus.",
-          "internalLabel": "Interner Agent",
-          "internalDescription": "Läuft auf der Plattform mit Chat-Tools, Wissen und Workflows.",
-          "externalLabel": "Externer Agent",
-          "externalDescription": "Führt Claude Code oder Cursor in einer isolierten Sandbox aus und nutzt gebundene Integrationen.",
+          "sectionDescription": "Wie dieser Agent im Chat läuft. Coding-Agenten führen eine CLI in einer isolierten Sandbox aus; Agenten laufen über die Tool-Schleife der Plattform mit Wissen und Workflows.",
+          "internalLabel": "Agent",
+          "externalLabel": "Coding-Agent",
           "imageLabel": "Bildgenerierung",
-          "imageDescription": "Leitet die Nachricht direkt an ein Bildmodell weiter.",
           "switchTitle": "Agententyp ändern?",
-          "switchToExternalDescription": "Dadurch läuft der Agent künftig in einer Sandbox; seine Plattform-Tools und Workflows werden entfernt. Gebundene Integrationen bleiben erhalten.",
-          "switchToChatDescription": "Dadurch läuft der Agent künftig über die Tool-Schleife der Plattform; seine externe Laufzeit- und Anmeldedaten-Einstellungen werden entfernt.",
-          "switchToImageDescription": "Dadurch wird der Agent auf Bildgenerierung umgestellt; seine Tools, Workflows, Integrationen und externen Laufzeiteinstellungen werden entfernt.",
+          "switchToExternalDescription": "Dadurch wird der Agent ein Coding-Agent in einer Sandbox; seine Plattform-Tools und Workflows werden entfernt. Gebundene Integrationen bleiben erhalten.",
+          "switchToChatDescription": "Dadurch läuft der Agent über die Tool-Schleife der Plattform; seine Sandbox-CLI- und Anmeldedaten-Einstellungen werden entfernt.",
+          "switchToImageDescription": "Dadurch wird der Agent auf Bildgenerierung umgestellt; seine Tools, Workflows, Integrationen und Sandbox-CLI-Einstellungen werden entfernt.",
+          "switchTaskDispatchNote": "Task-Dispatch-Einstellungen in der Agent-JSON bleiben unverändert.",
           "noModelWarning": "Dieser Agent hat kein Modell — füge vor dem Speichern eines auf dem Tab Anweisungen hinzu, sonst schlägt das Speichern fehl.",
           "switchConfirm": "Typ ändern"
         },
         "agentKind": {
-          "label": "Externe Laufzeit",
-          "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
+          "label": "Sandbox-CLI",
+          "description": "Welche Coding-CLI die Chat-Turns dieses Agenten in der Sandbox ausführt.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
           "opencode": "OpenCode",
@@ -5683,6 +5687,18 @@
           "codex": "Codex",
           "pi": "Pi",
           "openclaw": "OpenClaw"
+        },
+        "taskBoard": {
+          "title": "Auf dem Task-Board",
+          "agentPlatform": "Nutzt Plattform-Tools und postet Ergebnisse als Task-Kommentar.",
+          "codingDaemon": "Tasks laufen auf deinem Rechner (tale-daemon) in einem Git-Workspace.",
+          "codingDurable": "Tasks laufen in einer Sandbox; das Ergebnis ist eine Summary-Datei.",
+          "codingSandboxOnly": "Chat läuft in einer Sandbox; Board-Tasks nutzen die Plattform-Schleife, solange kein Daemon gebunden oder Durable Tasks in der Agent-JSON aktiviert ist."
+        },
+        "displayCategory": {
+          "agent": "Agent",
+          "codingAgent": "Coding-Agent",
+          "imageAgent": "Bild"
         },
         "webTools": {
           "sectionTitle": "Web-Tools",
@@ -7981,7 +7997,10 @@
       "saveSuccess": "Gespeichert",
       "saveError": "Einstellungen konnten nicht gespeichert werden",
       "lockoutWarning": "Manche Mitglieder haben nach diesen Einschränkungen möglicherweise keine nutzbaren Agenten/Modelle. Sie sehen einen leeren Composer.",
-      "recommendedBadge": "Empfohlen"
+      "recommendedBadge": "Empfohlen",
+      "sectionAgents": "Agenten",
+      "sectionCodingAgents": "Coding-Agenten",
+      "sectionImageAgents": "Bild"
     },
     "settings": {
       "identity": "Identität",
@@ -8246,6 +8265,18 @@
     "subtitle": "Durchsuche die KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation.",
     "menuItem": "Katalog",
     "searchPlaceholder": "Agenten suchen…",
+    "categoryFilter": {
+      "title": "Kategorie",
+      "all": "Alle",
+      "agent": "Agenten",
+      "codingAgent": "Coding-Agenten",
+      "imageAgent": "Bild"
+    },
+    "categoryBadge": {
+      "agent": "Agent",
+      "codingAgent": "Coding-Agent",
+      "imageAgent": "Bild"
+    },
     "install": "Installieren",
     "enable": "Aktivieren",
     "disable": "Deaktivieren",

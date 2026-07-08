@@ -18,6 +18,7 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { buildAgentSectionOptions } from '@/app/features/agents/utils/agent-picker-options';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -28,7 +29,7 @@ import {
 } from '@/lib/shared/constants/agents';
 
 import { useChatLayout } from '../context/chat-layout-context';
-import { useChatAgents } from '../hooks/queries';
+import { useChatAgents, type ChatAgent } from '../hooks/queries';
 import {
   getAgentMissingIntegrations,
   useIntegrationReadiness,
@@ -79,44 +80,40 @@ export const AgentSelector = memo(function AgentSelector({
         ? allAgents.filter((agent) => allowedAgentSlugs.includes(agent.name))
         : allAgents;
 
-    const agentOptions = [...visibleAgents]
-      .map((agent) => {
-        const missing = getAgentMissingIntegrations(agent, readiness);
-        const missingTitle = missing[0]
-          ? (readiness.titleBySlug.get(missing[0]) ?? missing[0])
-          : undefined;
-        // External agents (Claude Code / OpenCode) run in a sandbox VM — mark
-        // them in the picker so the user knows which agents are sandboxed
-        // before selecting one. The missing-integration hint takes priority
-        // (more actionable); both share the single labelBadge slot.
-        const isExternalAgent = agent.primaryBehavior === 'external-agent';
-        return {
-          value: agent.name,
-          label: agent.displayName,
-          // Surfaced as a hover/keyboard tooltip on the row (see
-          // `descriptionMode: 'tooltip'` on the SearchableSelect below) so the
-          // picker stays scannable when an org has many agents while still
-          // letting users get the "what does this one do?" answer on demand.
-          description: agent.description,
-          isDefaultChat: agent.name === DEFAULT_CHAT_AGENT_SLUG,
-          labelBadge: missingTitle ? (
-            <span className="text-muted-foreground text-xs">
-              {tComposer('requiresIntegration', { name: missingTitle })}
-            </span>
-          ) : isExternalAgent ? (
-            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-              <Box className="size-3" aria-hidden="true" />
-              {t('sandbox.label')}
-            </span>
-          ) : undefined,
-          ready: missing.length === 0,
-        };
-      })
-      .sort((a, b) => {
-        if (a.isDefaultChat) return -1;
-        if (b.isDefaultChat) return 1;
-        return a.label.localeCompare(b.label);
+    const sortAgents = (agents: ChatAgent[]) =>
+      [...agents].sort((a, b) => {
+        if (a.name === DEFAULT_CHAT_AGENT_SLUG) return -1;
+        if (b.name === DEFAULT_CHAT_AGENT_SLUG) return 1;
+        return a.displayName.localeCompare(b.displayName);
       });
+
+    const toOption = (agent: ChatAgent): SearchableSelectOption => {
+      const missing = getAgentMissingIntegrations(agent, readiness);
+      const missingTitle = missing[0]
+        ? (readiness.titleBySlug.get(missing[0]) ?? missing[0])
+        : undefined;
+      return {
+        value: agent.name,
+        label: agent.displayName,
+        description: agent.description,
+        labelBadge: missingTitle ? (
+          <span className="text-muted-foreground text-xs">
+            {tComposer('requiresIntegration', { name: missingTitle })}
+          </span>
+        ) : undefined,
+      };
+    };
+
+    const sectioned = buildAgentSectionOptions(
+      visibleAgents,
+      toOption,
+      {
+        platform: t('agentSelector.sectionAgents'),
+        coding: t('agentSelector.sectionCodingAgents'),
+        image: t('agentSelector.sectionImageAgents'),
+      },
+      sortAgents,
+    );
 
     // "Auto" (the null selection) is pinned first so the user can hand routing
     // back to the system — but it is NOT the default. New sessions open on the
@@ -126,20 +123,14 @@ export const AgentSelector = memo(function AgentSelector({
     // suitable for most messages and starts immediately. Auto is only offered
     // when there's more than one agent to route between — with a single agent
     // there's nothing to choose, so it would be redundant.
-    if (visibleAgents.length <= 1) return agentOptions;
+    if (visibleAgents.length <= 1) return sectioned;
     return [
       {
         value: AUTO_AGENT_SLUG,
         label: t('agentSelector.auto'),
-        // Surfaced as a hover tooltip (the picker is in `descriptionMode:
-        // 'tooltip'` mode) so users hovering Auto get the "what does this
-        // do?" answer without an inline second-line caption crowding the row.
         description: t('agentSelector.autoDescription'),
-        isDefaultChat: false,
-        labelBadge: undefined,
-        ready: true,
       },
-      ...agentOptions,
+      ...sectioned,
     ];
   }, [allAgents, allowedAgentSlugs, readiness, tComposer, t]);
 
@@ -210,7 +201,13 @@ export const AgentSelector = memo(function AgentSelector({
   // detail page is the same `agents` write gate as the Catalog footer button.
   const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
-      if (!canManageAgents || option.value === AUTO_AGENT_SLUG) return null;
+      if (
+        !canManageAgents ||
+        option.isSectionHeader ||
+        option.value === AUTO_AGENT_SLUG
+      ) {
+        return null;
+      }
       return (
         <Tooltip content={t('agentSelector.viewDetails')} side="top">
           <Link
@@ -266,16 +263,12 @@ export const AgentSelector = memo(function AgentSelector({
       align="start"
       side="top"
       sideOffset={8}
-      contentClassName="w-[16.25rem]"
+      contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
       tooltip={t('agentSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('agentSelector.searchPlaceholder')}
       emptyText={t('agentSelector.noResults')}
       aria-label={t('agentSelector.label')}
-      // Surface each agent's description on hover/keyboard-highlight rather
-      // than inline — keeps the row height consistent and the list
-      // scannable when there are many agents.
-      descriptionMode="tooltip"
       optionAction={renderOptionAction}
       showRadio
       trigger={

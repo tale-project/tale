@@ -1330,8 +1330,13 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Catalog",
-      "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
-      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)"
+      "lockedExternal": "This chat runs in a sandbox and keeps its coding agent — start a new chat to use a different one.",
+      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)",
+      "codingAgentLabel": "Coding agent",
+      "codingAgentTooltip": "Runs Claude Code or Cursor in an isolated sandbox.",
+      "sectionAgents": "Agents",
+      "sectionCodingAgents": "Coding agents",
+      "sectionImageAgents": "Image agents"
     },
     "modelSelector": {
       "label": "Select model",
@@ -5361,7 +5366,10 @@
       "saveSuccess": "Saved",
       "saveError": "Couldn't save settings",
       "lockoutWarning": "Some members may have no usable agents/models after these restrictions are applied. They'll see an empty-state in the composer.",
-      "recommendedBadge": "Recommended"
+      "recommendedBadge": "Recommended",
+      "sectionAgents": "Agents",
+      "sectionCodingAgents": "Coding agents",
+      "sectionImageAgents": "Image agents"
     },
     "settings": {
       "identity": "Identity",
@@ -5758,6 +5766,7 @@
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
+        "category": "Type",
         "model": "Default model",
         "tools": "Tools"
       },
@@ -5934,23 +5943,21 @@
         },
         "agentType": {
           "sectionTitle": "Agent type",
-          "sectionDescription": "How this agent runs. Internal agents run on the platform tool loop; external agents run a coding agent in a sandbox.",
-          "internalLabel": "Internal agent",
-          "internalDescription": "Runs on the platform with chat tools, knowledge, and workflows.",
-          "externalLabel": "External agent",
-          "externalDescription": "Runs Claude Code or Cursor in an isolated sandbox, using bound integrations.",
+          "sectionDescription": "How this agent runs in chat. Coding agents run a CLI in an isolated sandbox; agents run on the platform tool loop with knowledge and workflows.",
+          "internalLabel": "Agent",
+          "externalLabel": "Coding agent",
           "imageLabel": "Image generation",
-          "imageDescription": "Routes the message straight to an image model.",
           "switchTitle": "Change agent type?",
-          "switchToExternalDescription": "This will switch the agent to run in a sandbox and clear its platform tools and workflows. Bound integrations are kept.",
-          "switchToChatDescription": "This will switch the agent to run on the platform tool loop and clear its external runtime and credential settings.",
-          "switchToImageDescription": "This will switch the agent to image generation and clear its tools, workflows, integrations, and external runtime settings.",
+          "switchToExternalDescription": "This will switch the agent to a coding agent in a sandbox and clear its platform tools and workflows. Bound integrations are kept.",
+          "switchToChatDescription": "This will switch the agent to run on the platform tool loop and clear its sandbox CLI and credential settings.",
+          "switchToImageDescription": "This will switch the agent to image generation and clear its tools, workflows, integrations, and sandbox CLI settings.",
+          "switchTaskDispatchNote": "Task dispatch settings in the agent JSON are unchanged.",
           "noModelWarning": "This agent has no model set — add one on the Instructions tab before saving, or the save will fail.",
           "switchConfirm": "Change type"
         },
         "agentKind": {
-          "label": "External runtime",
-          "description": "Which coding agent runs this agent's turns in the sandbox.",
+          "label": "Sandbox CLI",
+          "description": "Which coding CLI runs this agent's chat turns in the sandbox.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
           "opencode": "OpenCode",
@@ -5959,6 +5966,18 @@
           "codex": "Codex",
           "pi": "Pi",
           "openclaw": "OpenClaw"
+        },
+        "taskBoard": {
+          "title": "On the task board",
+          "agentPlatform": "Uses platform tools and posts results as task comments.",
+          "codingDaemon": "Tasks run on your machine (tale-daemon) in a git workspace.",
+          "codingDurable": "Tasks run in a sandbox container; the result is a summary file.",
+          "codingSandboxOnly": "Chat runs in a sandbox; board tasks use the platform loop unless you bind a daemon or enable durable tasks in the agent JSON."
+        },
+        "displayCategory": {
+          "agent": "Agent",
+          "codingAgent": "Coding agent",
+          "imageAgent": "Image"
         },
         "webTools": {
           "sectionTitle": "Web tools",
@@ -8246,6 +8265,18 @@
     "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
     "menuItem": "Catalog",
     "searchPlaceholder": "Search agents…",
+    "categoryFilter": {
+      "title": "Category",
+      "all": "All",
+      "agent": "Agents",
+      "codingAgent": "Coding agents",
+      "imageAgent": "Image"
+    },
+    "categoryBadge": {
+      "agent": "Agent",
+      "codingAgent": "Coding agent",
+      "imageAgent": "Image"
+    },
     "install": "Install",
     "enable": "Enable",
     "disable": "Disable",

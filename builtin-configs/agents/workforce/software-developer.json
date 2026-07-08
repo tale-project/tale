@@ -23,7 +23,7 @@
   "i18n": {
     "de": {
       "displayName": "Softwareentwickler",
-      "description": "Coding-Agent, der an eine GitHub-Aufgabe arbeitet: klont das Repo in einer isolierten Sandbox, implementiert die Änderung und öffnet einen Pull Request zur Prüfung.",
+      "description": "Coding-Agent für Repo-Arbeit: Chat läuft in einer isolierten Sandbox (Claude Code). Auf dem Task-Board nutzt die Ausführung die Plattform-Schleife, bis du tale-daemon (`runtime`) bindest oder durable Tasks im Agent-JSON aktivierst.",
       "conversationStarters": [
         "Das in Issue beschriebene Problem in diesem Repo beheben",
         "Diese kleine Funktion implementieren und einen PR öffnen",
@@ -33,7 +33,7 @@
     },
     "en": {
       "displayName": "Software Developer",
-      "description": "Coding agent that works a GitHub-backed task: clones the repo in an isolated sandbox, implements the change, and opens a pull request for review.",
+      "description": "Coding agent for repo work: chat runs in an isolated sandbox (Claude Code). On the task board, work uses the platform loop unless you bind tale-daemon (`runtime`) or enable durable tasks in the agent JSON.",
       "conversationStarters": [
         "Fix the bug described in the issue in this repo",
         "Implement this small feature and open a PR",
@@ -44,7 +44,7 @@
     },
     "fr": {
       "displayName": "Développeur logiciel",
-      "description": "Agent de code qui traite une tâche liée à GitHub : clone le dépôt dans un bac à sable isolé, implémente la modification et ouvre une pull request pour relecture.",
+      "description": "Agent de code pour le travail sur dépôt : le chat tourne dans un bac à sable isolé (Claude Code). Sur le board, l'exécution passe par la boucle plateforme tant que tale-daemon (`runtime`) ou les tâches durables ne sont pas configurés dans le JSON de l'agent.",
       "conversationStarters": [
         "Corriger le bug décrit dans l'issue de ce dépôt",
         "Implémenter cette petite fonctionnalité et ouvrir une PR",

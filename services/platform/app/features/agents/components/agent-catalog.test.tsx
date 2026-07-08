@@ -169,6 +169,18 @@ describe('AgentCatalog', () => {
     );
   });
 
+  it('shows the category filter in the filter panel and a category badge on each card', async () => {
+    const { user } = render(<AgentCatalog organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await user.click(
+      screen.getByRole('button', { name: /categoryFilter\.title/i }),
+    );
+    expect(
+      screen.getByRole('radio', { name: 'categoryFilter.agent' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('categoryBadge.agent')).toBeInTheDocument();
+  });
+
   it('toggles enable for an installed-but-disabled agent', async () => {
     mockInstallStates = [
       { agentSlug: 'sales-rep', enabled: false, installedBy: 'user' },
