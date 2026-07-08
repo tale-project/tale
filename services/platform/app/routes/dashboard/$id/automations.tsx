@@ -5,6 +5,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { AutomationsNavigation } from '@/app/features/automations/components/automations-navigation';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -38,9 +39,12 @@ function AutomationsLayout() {
     <PageLayout
       organizationId={organizationId}
       header={
-        <AdaptiveHeaderRoot standalone={false}>
-          <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-        </AdaptiveHeaderRoot>
+        <>
+          <AdaptiveHeaderRoot standalone={false}>
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+          <AutomationsNavigation organizationId={organizationId} />
+        </>
       }
     >
       <Outlet />

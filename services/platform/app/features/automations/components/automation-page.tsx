@@ -4,17 +4,18 @@
  *
  *  - NOT installed → an Install prompt (project-scoped automations route through the
  *    wizard to pick the first project).
- *  - ORG route, project-scoped + installed → the MEMBERSHIP HUB: org readiness +
- *    the list of bound projects (open / remove each) + "Add to a project" +
- *    Reinstall/Uninstall. It renders NO automation views and NEVER auto-redirects, so it
- *    behaves identically whether the automation is in 0, 1, or N projects.
- *  - ORG route, org-scoped + installed → the automation's views.
- *  - PROJECT route, this project bound → the automation's views scoped to the URL
+ *  - ORG route + installed (org- OR project-scoped) → the automation's own tabbed
+ *    page: Editor · Executions · Configuration · Triggers · Integrations (Editor /
+ *    Executions / Triggers are gated on developer access AND the automation owning
+ *    a workflow). A project-scoped automation no longer diverts to a standalone
+ *    membership hub — the projects it runs in are a section of its Configuration
+ *    tab, alongside its identity and its workflow's runtime settings.
+ *  - PROJECT route, this project bound → the same tabbed page, scoped to the URL
  *    project; lifecycle here is "Remove from this project".
  *  - PROJECT route, this project NOT bound → an "Add to this project" prompt.
  *
  *  A non-blocking readiness checklist (missing integration credentials / agent
- *  setup / broken install) rides above the views/hub; the shell stays usable. */
+ *  setup / broken install) names exactly what's missing; the shell stays usable. */
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -26,7 +27,7 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { LayoutGrid, Plus, Sparkles, Wrench } from 'lucide-react';
+import { LayoutGrid, Sparkles, UserPen, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -72,8 +73,10 @@ import { AutomationAssistantPanel } from './automation-assistant-panel';
 import { AutomationConfiguration } from './automation-configuration';
 import { AutomationDeleteAction } from './automation-delete-action';
 import { AutomationDetailShell } from './automation-detail-shell';
+import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
 import { AutomationLifecycleActions } from './automation-lifecycle-actions';
+import { AutomationProjectsSection } from './automation-projects-section';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
 
@@ -135,6 +138,32 @@ function ReadinessChecklist({
     () => new Map(required.map((r) => [r.slug, r.integration.title])),
     [required],
   );
+  // A one-line "what's actually missing" summary under the banner title — the
+  // rows below are the ACTIONS, this names the blockers at a glance so the
+  // operator doesn't have to read every row to know what's outstanding.
+  const missingSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (status === 'broken') {
+      parts.push(t('readiness.summaryBroken'));
+    }
+    if (blockedIntegrations.length > 0) {
+      parts.push(
+        t('readiness.summaryIntegrations', {
+          names: blockedIntegrations
+            .map((slug) => titleBySlug.get(slug) ?? slug)
+            .join(', '),
+        }),
+      );
+    }
+    if (blockedAgents.length > 0) {
+      parts.push(
+        t('readiness.summaryAgents', {
+          names: blockedAgents.map((agent) => agent.displayName).join(', '),
+        }),
+      );
+    }
+    return parts.join(' · ');
+  }, [status, blockedIntegrations, blockedAgents, titleBySlug, t]);
 
   if (
     status === 'active' &&
@@ -150,6 +179,7 @@ function ReadinessChecklist({
     // indented.
     <Alert variant="warning" icon={Wrench} title={t('readiness.title')}>
       <VStack gap={2} className="mt-1">
+        <Text className="text-sm font-medium">{missingSummary}</Text>
         {status === 'broken' && (
           <HStack gap={3} className="items-center justify-between">
             <Text variant="muted" className="text-sm">
@@ -261,9 +291,8 @@ function useOpenTimeIntegrityCheck(
 
 /**
  * The non-blocking readiness section (checklist + inline connect/agent-setup
- * wizards). Shared by the per-project views and the org-level membership hub —
- * readiness is org-level, so it shows in both; the tabbed page scopes it to
- * the Integrations tab.
+ * wizards). Readiness is org-level, so it shows on the org AND project routes;
+ * the tabbed page scopes it to the Integrations tab.
  */
 function ReadinessSection({
   organizationId,
@@ -460,6 +489,10 @@ function InstalledAutomationBody({
     isPending,
   } = useReinstallWithPreflight(organizationId);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // Org-wide Uninstall is refused server-side while any project is still bound;
+  // knowing the count lets the ⋯ menu block it up front with a hint. (Empty for
+  // an org-scoped automation, which can never carry bindings.)
+  const { bindings } = useAutomationBindings(organizationId, automationSlug);
 
   // The 1:1 automation↔workflow model: `manifest.workflows[0]`, when it
   // declares one at all (today's email builtins declare none — Inbox only).
@@ -474,12 +507,25 @@ function InstalledAutomationBody({
     definitions: { tab: { default: null } },
   });
 
+  // Configuration = the automation's identity + its workflow's runtime settings
+  // (both already combined in `AutomationConfiguration`) and — for a
+  // project-scoped automation — the projects it runs in. That last section is
+  // what the standalone membership-hub page used to be.
   const configuration = (
-    <AutomationConfiguration
-      organizationId={organizationId}
-      automationSlug={automationSlug}
-      automation={automation}
-    />
+    <VStack gap={6}>
+      <AutomationConfiguration
+        organizationId={organizationId}
+        automationSlug={automationSlug}
+        automation={automation}
+      />
+      {automation.scope === 'project' && (
+        <AutomationProjectsSection
+          organizationId={organizationId}
+          automationSlug={automationSlug}
+          automation={automation}
+        />
+      )}
+    </VStack>
   );
 
   // Tab values come from view ids; the automation-owned tab values are
@@ -647,6 +693,9 @@ function InstalledAutomationBody({
         organizationId={organizationId}
         context={lifecycleContext}
         projectId={projectId}
+        boundProjectCount={
+          lifecycleContext === 'org' ? bindings.length : undefined
+        }
       />
     </>
   );
@@ -713,120 +762,6 @@ function InstalledAutomationBody({
   );
 }
 
-/**
- * The org-level membership hub for an installed project-scoped automation: org readiness
- * + the bound-projects list (open / remove each) + "Add to a project" + the
- * Reinstall/Uninstall menu (Uninstall is blocked while any project is bound).
- * Renders no automation views (those live on the project route).
- */
-function MembershipHub({
-  organizationId,
-  automationSlug,
-  automation,
-  status,
-  blockedIntegrations,
-}: {
-  organizationId: string;
-  automationSlug: string;
-  automation: AutomationSummary;
-  status: 'active' | 'broken';
-  blockedIntegrations: string[];
-}) {
-  const { t } = useT('automations');
-  const display = useAutomationDisplay()(automation);
-  useOpenTimeIntegrityCheck(organizationId, automationSlug);
-  const { bindings } = useAutomationBindings(organizationId, automationSlug);
-  const [wizardOpen, setWizardOpen] = useState(false);
-
-  return (
-    <VStack gap={6}>
-      <HStack className="items-start justify-between gap-3">
-        <VStack gap={1} className="min-w-0">
-          <Text as="span" className="text-xl font-semibold">
-            {display.name}
-          </Text>
-          {display.description && (
-            <Text variant="muted">{display.description}</Text>
-          )}
-        </VStack>
-        <AutomationLifecycleActions
-          automationSlug={automationSlug}
-          automationName={display.name}
-          organizationId={organizationId}
-          context="org"
-          boundProjectCount={bindings.length}
-        />
-      </HStack>
-
-      <ReadinessSection
-        organizationId={organizationId}
-        automationSlug={automationSlug}
-        automation={automation}
-        status={status}
-        blockedIntegrations={blockedIntegrations}
-      />
-
-      <VStack gap={3}>
-        <HStack className="items-center justify-between">
-          <Text className="font-medium">{t('membership.title')}</Text>
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={Plus}
-            onClick={() => setWizardOpen(true)}
-          >
-            {t('membership.addProject')}
-          </Button>
-        </HStack>
-        {bindings.length === 0 ? (
-          <EmptyState
-            icon={LayoutGrid}
-            title={t('membership.emptyTitle')}
-            description={t('membership.emptyDescription')}
-          />
-        ) : (
-          <VStack gap={2}>
-            {bindings.map((binding) => (
-              <Card key={binding.projectId} className="py-3">
-                <HStack className="items-center justify-between gap-3">
-                  <Link
-                    to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
-                    params={{
-                      id: organizationId,
-                      projectId: binding.projectId,
-                      automationSlug,
-                    }}
-                    className="min-w-0 truncate font-medium hover:underline"
-                  >
-                    {binding.projectName}
-                  </Link>
-                  <AutomationLifecycleActions
-                    automationSlug={automationSlug}
-                    automationName={display.name}
-                    organizationId={organizationId}
-                    context="project"
-                    projectId={binding.projectId}
-                  />
-                </HStack>
-              </Card>
-            ))}
-          </VStack>
-        )}
-      </VStack>
-
-      <AutomationInstallWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        organizationId={organizationId}
-        automationSlug={automationSlug}
-        automationName={display.name}
-        scope={automation.scope}
-        requiredIntegrations={automation.requiredIntegrations}
-      />
-    </VStack>
-  );
-}
-
 /** Project route, automation not bound here — prompt to add it to this project. */
 function AddToThisProject({
   organizationId,
@@ -878,7 +813,7 @@ function AutomationDetails({
   automation,
   wizardOpen,
   onWizardOpenChange,
-  isPrivate,
+  isCustom,
 }: {
   organizationId: string;
   automationSlug: string;
@@ -889,9 +824,9 @@ function AutomationDetails({
   // while the wizard is open, so the flow reaches its integration/Done steps.
   wizardOpen: boolean;
   onWizardOpenChange: (open: boolean) => void;
-  /** A private (uploaded) automation — earns a "Private" badge and a Delete affordance
-   *  (built-in catalog automations have neither). */
-  isPrivate: boolean;
+  /** A custom (uploaded) automation — earns a "Custom" corner glyph on its icon
+   *  tile and a Delete affordance (built-in catalog automations have neither). */
+  isCustom: boolean;
 }) {
   const { t } = useT('automations');
   const display = useAutomationDisplay()(automation);
@@ -933,13 +868,30 @@ function AutomationDetails({
     <VStack gap={6}>
       <HStack className="items-start justify-between gap-3">
         <HStack gap={3} className="min-w-0 items-start">
-          <Row
-            gap={0}
-            justify="center"
-            className="bg-muted text-muted-foreground size-10 shrink-0 rounded-lg"
-          >
-            <LayoutGrid className="size-5" />
-          </Row>
+          {(() => {
+            const tile = (
+              <Row
+                gap={0}
+                justify="center"
+                className="bg-muted text-muted-foreground size-10 shrink-0 rounded-lg"
+              >
+                <LayoutGrid className="size-5" />
+              </Row>
+            );
+            // Same corner-glyph marker the catalog card uses — never a
+            // title-row chip.
+            return isCustom ? (
+              <AutomationMarker
+                icon={UserPen}
+                label={t('custom')}
+                className="shrink-0"
+              >
+                {tile}
+              </AutomationMarker>
+            ) : (
+              tile
+            );
+          })()}
           <VStack gap={1} className="min-w-0">
             <Text as="span" className="text-xl font-semibold">
               {display.name}
@@ -952,7 +904,6 @@ function AutomationDetails({
                     : 'details.scopeOrg',
                 )}
               </Badge>
-              {isPrivate && <Badge variant="outline">{t('private')}</Badge>}
             </HStack>
           </VStack>
         </HStack>
@@ -983,7 +934,7 @@ function AutomationDetails({
           >
             {t('install.install')}
           </Button>
-          {isPrivate && (
+          {isCustom && (
             <AutomationDeleteAction
               automationSlug={automationSlug}
               automationName={display.name}
@@ -1086,11 +1037,16 @@ export function AutomationPage({
     automations.find((a) => a.slug === automationSlug) ??
     catalog.find((a) => a.slug === automationSlug);
   const state = bySlug.get(automationSlug);
-  // Private (uploaded) automations live in the org dir but not the built-in catalog —
-  // the deletable, badge-worthy kind (mirrors the union in automations-grid.tsx).
-  const isPrivate =
+  // CUSTOM (uploaded) automations live in the org dir but not the built-in catalog —
+  // the deletable, marker-worthy kind (mirrors `isCustomAutomation` in
+  // automations-grid.tsx). A bundle MEMBER is never custom: it IS built-in,
+  // merely hidden from the catalog, so the catalog check alone would mislabel it.
+  const isCustom =
     automations.some((a) => a.slug === automationSlug) &&
-    !catalog.some((a) => a.slug === automationSlug);
+    !catalog.some((a) => a.slug === automationSlug) &&
+    !catalog.some(
+      (a) => a.kind === 'bundle' && (a.members ?? []).includes(automationSlug),
+    );
   const { bindings, isLoading: bindingsLoading } = useAutomationBindings(
     organizationId,
     automationSlug,
@@ -1135,7 +1091,6 @@ export function AutomationPage({
 
   const displayName = display(automation).name;
   const onProjectRoute = projectId !== undefined;
-  const isProjectScoped = automation.scope === 'project';
 
   // Every tab-less state shares the same chrome as the installed body:
   // the "Automations / <name>" breadcrumb over a plain content area.
@@ -1189,25 +1144,15 @@ export function AutomationPage({
         automation={automation}
         wizardOpen={detailsWizardOpen}
         onWizardOpenChange={setDetailsWizardOpen}
-        isPrivate={isPrivate}
+        isCustom={isCustom}
       />,
     );
   }
 
-  // ORG route, installed, project-scoped → the membership hub (no views).
-  if (isProjectScoped) {
-    return shell(
-      <MembershipHub
-        organizationId={organizationId}
-        automationSlug={automationSlug}
-        automation={automation}
-        status={state.status}
-        blockedIntegrations={state.blockedIntegrations}
-      />,
-    );
-  }
-
-  // ORG route, installed, org-scoped → the workflow settings.
+  // ORG route, installed (org- OR project-scoped) → the automation's own tabbed
+  // page. A project-scoped automation no longer diverts to a standalone
+  // membership hub: the projects it runs in are a section of its Configuration
+  // tab (`AutomationProjectsSection`).
   return (
     <InstalledAutomationBody
       organizationId={organizationId}

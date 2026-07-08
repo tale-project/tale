@@ -2,7 +2,7 @@
 
 /**
  * Shared page chrome for EVERY automation detail state — pre-install details,
- * membership hub, installed body, run detail: the `PageLayout` scroll shell,
+ * add-to-project prompt, installed body, run detail: the `PageLayout` scroll shell,
  * the "Automations / <name>" breadcrumb (the shared `HeaderBreadcrumbs`
  * trail), and — for the installed body — the shared routed-look tab strip
  * (`TabNavigation`) whose trailing slot carries the active editor's

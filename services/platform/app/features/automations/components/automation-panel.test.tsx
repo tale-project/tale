@@ -128,7 +128,7 @@ describe('AutomationPanel', () => {
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary()}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -139,17 +139,17 @@ describe('AutomationPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the Private badge only for a private (uploaded) bundle', () => {
+  it('shows the Custom badge only for a private (uploaded) bundle', () => {
     const { rerender } = render(
       <AutomationPanel
         open
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary()}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
-    expect(screen.queryByText('Private')).not.toBeInTheDocument();
+    expect(screen.queryByText('Custom')).not.toBeInTheDocument();
 
     rerender(
       <AutomationPanel
@@ -157,10 +157,10 @@ describe('AutomationPanel', () => {
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary()}
-        isPrivate
+        isCustom
       />,
     );
-    expect(screen.getByText('Private')).toBeInTheDocument();
+    expect(screen.getByText('Custom')).toBeInTheDocument();
   });
 
   it('lists builtin views, workflows, agents, and skills under "What will be installed"', () => {
@@ -175,7 +175,7 @@ describe('AutomationPanel', () => {
           agents: ['gmail-triage'],
           skills: ['browse-web'],
         })}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -202,7 +202,7 @@ describe('AutomationPanel', () => {
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary({ requiredIntegrations: ['gmail'] })}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -217,7 +217,7 @@ describe('AutomationPanel', () => {
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary({ folder: 'github/issues' })}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -234,7 +234,7 @@ describe('AutomationPanel', () => {
         onOpenChange={vi.fn()}
         organizationId="org_1"
         automation={automationSummary()}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -251,7 +251,7 @@ describe('AutomationPanel', () => {
         onOpenChange={onOpenChange}
         organizationId="org_1"
         automation={automationSummary()}
-        isPrivate={false}
+        isCustom={false}
       />,
     );
 
@@ -270,7 +270,7 @@ describe('AutomationPanel', () => {
             builtinViews: [{ id: 'inbox' }],
             requiredIntegrations: ['gmail'],
           })}
-          isPrivate={false}
+          isCustom={false}
         />,
       );
       await checkAccessibility(container);
@@ -313,7 +313,7 @@ describe('AutomationPanel', () => {
           onOpenChange={vi.fn()}
           organizationId="org_1"
           automation={bundleAutomation()}
-          isPrivate={false}
+          isCustom={false}
         />,
       );
 
@@ -335,7 +335,7 @@ describe('AutomationPanel', () => {
           onOpenChange={vi.fn()}
           organizationId="org_1"
           automation={bundleAutomation()}
-          isPrivate={false}
+          isCustom={false}
         />,
       );
 
@@ -364,7 +364,7 @@ describe('AutomationPanel', () => {
           onOpenChange={vi.fn()}
           organizationId="org_1"
           automation={bundleAutomation()}
-          isPrivate={false}
+          isCustom={false}
         />,
       );
 
@@ -391,7 +391,7 @@ describe('AutomationPanel', () => {
           onOpenChange={vi.fn()}
           organizationId="org_1"
           automation={bundleAutomation()}
-          isPrivate={false}
+          isCustom={false}
         />,
       );
 

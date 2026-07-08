@@ -1,14 +1,14 @@
 {
   "name": "Resolve GitHub issues",
-  "description": "Turns open GitHub issues into merge-ready pull requests.",
+  "description": "Turn open issues into merge-ready pull requests.",
   "i18n": {
     "de": {
       "name": "GitHub-Issues lösen",
-      "description": "Macht aus offenen GitHub-Issues merge-fertige Pull Requests."
+      "description": "Macht aus offenen Issues merge-fertige Pull Requests."
     },
     "fr": {
       "name": "Résoudre les issues GitHub",
-      "description": "Transforme les issues GitHub ouvertes en pull requests prêtes à fusionner."
+      "description": "Transforme les issues ouvertes en pull requests prêtes à fusionner."
     }
   },
   "icon": "ticket",

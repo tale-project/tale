@@ -135,15 +135,20 @@ function automationCard(page: Page, name: string): Locator {
  * Open the hub on its All tab (the full catalog union). The hub lands on the
  * Installed tab, where a not-installed automation's card is absent — every
  * flow that must see a card through an install-state flip drives All.
+ *
+ * The Installed/All switch lives in the page header's shared `TabNavigation`
+ * (like Knowledge's), so it renders as a real LINK to `?tab=all` — not a
+ * `role="tab"` pill.
  */
 export async function gotoAutomationsHubAllTab(
   page: Page,
   organizationId: string,
 ): Promise<void> {
   await page.goto(`/dashboard/${organizationId}/automations`);
-  const allTab = page.getByRole('tab', { name: t('automations.tabs.all') });
+  const allTab = page.getByRole('link', { name: t('automations.tabs.all') });
   await expect(allTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await allTab.click();
+  await page.waitForURL(/[?&]tab=all/, { timeout: TIMEOUT.FIRST_PAINT });
 }
 
 /**

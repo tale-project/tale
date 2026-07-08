@@ -58,7 +58,7 @@ vi.mock('./install-wizard/automation-install-wizard', () => ({
     open ? <div>wizard step probe</div> : null,
 }));
 
-// The installed views (MembershipHub/InstalledAutomationBody) reach into Convex-backed
+// The installed views (InstalledAutomationBody) reach into Convex-backed
 // readiness; stub them so the #2341 test observes a clean assertion (the wizard
 // disappearing on the old code) rather than a Convex-provider crash.
 vi.mock('../hooks/use-automation-agent-readiness', () => ({

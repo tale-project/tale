@@ -8,23 +8,30 @@ import { useCatalogSync } from '@/app/components/catalog/use-catalog-sync';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { AutomationUploadDialog } from '@/app/features/automations/components/automation-upload/automation-upload-dialog';
 import { AutomationsGrid } from '@/app/features/automations/components/automations-grid';
+import { DEFAULT_AUTOMATIONS_TAB } from '@/app/features/automations/components/automations-navigation';
 import { useInvalidateAutomations } from '@/app/features/automations/hooks/use-automations';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({
   component: AutomationsIndexPage,
-  validateSearch: z.object({ slug: z.string().optional() }),
+  validateSearch: z.object({
+    slug: z.string().optional(),
+    // The Installed/All filter. It lives in the URL (not component state) so the
+    // layout's header tab strip — the shared `TabNavigation`, like Knowledge's —
+    // can drive it and deep links keep working.
+    tab: z.enum(['installed', 'all']).optional(),
+  }),
 });
 
 /**
- * The automations layout owns the page <h1>; the content opens straight with
- * the catalog (tabs, then search + the Add menu in the toolbar row — no
- * second title block).
+ * The automations layout owns the page <h1> AND the Installed/All tab strip; the
+ * content opens straight with the catalog (search + the Add menu in the toolbar
+ * row — no second title block, no second tab strip).
  */
 function AutomationsIndexPage() {
   const { id: organizationId } = Route.useParams();
-  const { slug: initialSlug } = Route.useSearch();
+  const { slug: initialSlug, tab } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { t } = useT('automations');
   const ability = useAbility();
@@ -47,9 +54,15 @@ function AutomationsIndexPage() {
     <Stack gap={6} className="p-4">
       <AutomationsGrid
         organizationId={organizationId}
+        tab={tab ?? DEFAULT_AUTOMATIONS_TAB}
         initialSlug={initialSlug}
         onInitialSlugConsumed={() =>
-          navigate({ search: { slug: undefined }, replace: true })
+          // Preserve `?tab=` — clearing the whole search would bounce the
+          // header tab strip back to Installed.
+          navigate({
+            search: (prev) => ({ ...prev, slug: undefined }),
+            replace: true,
+          })
         }
         toolbarAction={
           canUpload ? (

@@ -530,7 +530,7 @@
     "addMenu": {
       "label": "Add automation"
     },
-    "private": "Private",
+    "custom": "Custom",
     "upload": {
       "uploadApp": "Upload package",
       "dialogTitle": "Upload automation package",
@@ -659,6 +659,9 @@
     },
     "readiness": {
       "title": "Finish setup",
+      "summaryBroken": "Installed files are missing",
+      "summaryIntegrations": "Not connected: {names}",
+      "summaryAgents": "Needs setup: {names}",
       "broken": "Some installed files are missing. Reinstall to restore them.",
       "connect": "Connect {integration} to use this automation.",
       "connectButton": "Connect",
@@ -1801,6 +1804,7 @@
       "backTo": "Back to {page}",
       "breadcrumb": "Breadcrumb",
       "agentsNavigation": "Agents navigation",
+      "automationsNavigation": "Automations navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
       "moreInfo": "More information",
@@ -5543,11 +5547,11 @@
         "sectionIntegrationBindings": "Bound integrations",
         "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
         "noIntegrationsAvailable": "No active integrations available.",
-        "sectionWorkflowBindings": "Bound workflows",
-        "sectionWorkflowBindingsDescription": "Bind specific workflows as dedicated tools. The agent won't need to specify the workflow ID.",
-        "noWorkflowsAvailable": "No active workflows available.",
+        "sectionAutomationBindings": "Bound automations",
+        "sectionAutomationBindingsDescription": "Bind specific automations as dedicated tools. The agent won't need to specify the automation name.",
+        "noAutomationsAvailable": "No active automations available.",
         "bindIntegrationsPlaceholder": "Bind integrations…",
-        "bindWorkflowsPlaceholder": "Bind workflows…",
+        "bindAutomationsPlaceholder": "Bind automations…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
         "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",

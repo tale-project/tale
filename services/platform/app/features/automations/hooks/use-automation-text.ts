@@ -4,8 +4,8 @@
  * Locale-bound wrappers over `resolve-automation-locale.ts` — automations
  * translate THEMSELVES via the manifest's inline `i18n` block, so every
  * surface that renders an automation's name/description (hub grid, page
- * headers, membership hub, pre-install details, breadcrumb) or its config
- * field labels (config form, Overview, the `Form` block) resolves through
+ * headers, projects section, pre-install details, breadcrumb) or its config
+ * field labels (config form, the `Form` block) resolves through
  * these two hooks instead of reading manifest literals directly.
  */
 import { useLocale } from '@tale/ui/i18n/locale-provider';

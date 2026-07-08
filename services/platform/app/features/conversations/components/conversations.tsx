@@ -10,6 +10,7 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ChevronDownIcon,
+  ListFilter,
   Loader2Icon,
   MailXIcon,
   SendHorizontalIcon,
@@ -310,56 +311,6 @@ export function Conversations({
             />
           </div>
 
-          {/* Channel filter — the connected inbox providers (server-side:
-              the selected slug becomes the query's `integrationName` arg).
-              Mirrors the read-filter dropdown; rendered only when the org
-              has at least one provider to filter by. */}
-          {channelFilter && channelFilter.options.length > 0 && (
-            <DropdownMenu
-              trigger={
-                <button
-                  type="button"
-                  disabled={controlsDisabled}
-                  aria-label={tConversations('filter.channel')}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 disabled:cursor-not-allowed',
-                    channelFilter.value !== undefined &&
-                      'bg-blue-100 dark:bg-blue-950',
-                    controlsDisabled && 'opacity-50',
-                  )}
-                >
-                  <span className="text-muted-foreground text-sm">
-                    {channelFilter.options.find(
-                      (option) => option.value === channelFilter.value,
-                    )?.label ?? tConversations('filter.channel')}
-                  </span>
-                  <ChevronDownIcon className="text-muted-foreground size-3.5" />
-                </button>
-              }
-              items={[
-                [
-                  {
-                    type: 'radio-group',
-                    value: channelFilter.value ?? ALL_CHANNELS,
-                    onValueChange: (v) => {
-                      channelFilter.onChange(
-                        v === ALL_CHANNELS ? undefined : v,
-                      );
-                    },
-                    options: [
-                      {
-                        value: ALL_CHANNELS,
-                        label: tConversations('filter.allChannels'),
-                      },
-                      ...channelFilter.options,
-                    ],
-                  } satisfies DropdownMenuItem,
-                ],
-              ]}
-              align="start"
-            />
-          )}
-
           {hasSelectedItems ? (
             <>
               <span className="shrink-0 text-sm font-semibold">
@@ -474,6 +425,52 @@ export function Conversations({
               wrapperClassName="flex-1"
               className="bg-transparent pr-3 text-sm shadow-none"
               disabled={controlsDisabled}
+            />
+          )}
+
+          {/* Channel filter — the connected inbox providers (server-side:
+              the selected slug becomes the query's `integrationName` arg).
+              Icon-only, mirrors FilterButton's chrome; sits to the right of
+              the search box. Rendered only when the org has at least one
+              provider to filter by. */}
+          {channelFilter && channelFilter.options.length > 0 && (
+            <DropdownMenu
+              trigger={
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  disabled={controlsDisabled}
+                  aria-label={tConversations('filter.channel')}
+                  className={cn(
+                    'shrink-0',
+                    channelFilter.value !== undefined &&
+                      'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900',
+                  )}
+                >
+                  <ListFilter className="text-muted-foreground size-4" />
+                </Button>
+              }
+              items={[
+                [
+                  {
+                    type: 'radio-group',
+                    value: channelFilter.value ?? ALL_CHANNELS,
+                    onValueChange: (v) => {
+                      channelFilter.onChange(
+                        v === ALL_CHANNELS ? undefined : v,
+                      );
+                    },
+                    options: [
+                      {
+                        value: ALL_CHANNELS,
+                        label: tConversations('filter.allChannels'),
+                      },
+                      ...channelFilter.options,
+                    ],
+                  } satisfies DropdownMenuItem,
+                ],
+              ]}
+              align="end"
             />
           )}
         </ConversationListToolbar>

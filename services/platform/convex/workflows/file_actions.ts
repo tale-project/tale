@@ -19,7 +19,9 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import {
+  type InstalledAutomationDisplay,
   listInstalledAutomationSlugsFromDisk,
+  readInstalledAutomationDisplays,
   readInstalledAutomationFolders,
 } from '../automations/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -258,16 +260,28 @@ export const listWorkflows = action({
 
     // Project one workflow file (by slug) to its list item, applying the filter.
     // `automationSlug` set ⇒ app-owned: the global list groups + marks it (under the
-    // app's display `folder`); null ⇒ global.
+    // app's display `folder`) and — when `automationDisplay` resolved — carries the
+    // owning automation's self-translated `automationName`/`automationDescription`/
+    // `automationI18n`, so a binding picker can show the AUTOMATION's identity
+    // instead of the workflow's own slug-derived name; null ⇒ global/standalone.
     const projectWorkflow = async (
       slug: string,
       automationSlug?: string,
       folder?: string,
+      automationDisplay?: InstalledAutomationDisplay,
     ) => {
       if (!validateWorkflowSlug(slug)) return null;
       const ownerTag =
         automationSlug !== undefined
-          ? { automationSlug, folder: folder ?? automationSlug }
+          ? {
+              automationSlug,
+              folder: folder ?? automationSlug,
+              ...(automationDisplay && {
+                automationName: automationDisplay.name,
+                automationDescription: automationDisplay.description,
+                automationI18n: automationDisplay.i18n,
+              }),
+            }
           : {};
       const result = await readWorkflowFile(orgSlug, slug);
       if (!result.ok) {
@@ -312,11 +326,15 @@ export const listWorkflows = action({
     // `workflow` field, invisible to the global scan above. A non-bundle
     // automation owns AT MOST ONE, its slug IS the automation slug; surface it
     // (tagged with the owning automation + its display folder, manifest
-    // `folder` falling back to the slug) so the global workflows list groups +
-    // marks it. Automations with no inline workflow (bundles, view-only ones)
-    // are skipped.
+    // `folder` falling back to the slug, plus its self-translated display text)
+    // so the global workflows list groups + marks it. Automations with no inline
+    // workflow (bundles, view-only ones) are skipped.
     const automationSlugs = await listInstalledAutomationSlugsFromDisk(orgSlug);
     const appFolders = await readInstalledAutomationFolders(
+      orgSlug,
+      automationSlugs,
+    );
+    const appDisplays = await readInstalledAutomationDisplays(
       orgSlug,
       automationSlugs,
     );
@@ -329,6 +347,7 @@ export const listWorkflows = action({
             app,
             app,
             appFolders.get(app),
+            appDisplays.get(app),
           );
           return projected ? [projected] : [];
         }),

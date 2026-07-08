@@ -23,7 +23,7 @@ import {
 } from '@tale/ui/section-row';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { X } from 'lucide-react';
+import { UserPen, X } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 
 import { folderLabel } from '@/app/components/catalog/catalog-section';
@@ -48,7 +48,11 @@ import {
   type RequiredIntegration,
   useRequiredIntegrations,
 } from '../hooks/use-required-integrations';
-import { AutomationIcon, AutomationLabels } from './automation-icon';
+import {
+  AutomationIcon,
+  AutomationLabels,
+  AutomationMarker,
+} from './automation-icon';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
 import { BundleInstallWizard } from './install-wizard/bundle-install-wizard';
 
@@ -135,9 +139,9 @@ interface AutomationPanelProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   automation: AutomationSummary;
-  /** A private (uploaded) automation — earns a "Private" badge (built-in catalog
-   *  automations don't). */
-  isPrivate: boolean;
+  /** A custom (uploaded) automation — earns a "Custom" corner glyph on its icon
+   *  tile (built-in catalog automations don't). */
+  isCustom: boolean;
 }
 
 export function AutomationPanel({
@@ -145,7 +149,7 @@ export function AutomationPanel({
   onOpenChange,
   organizationId,
   automation,
-  isPrivate,
+  isCustom,
 }: AutomationPanelProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -342,13 +346,30 @@ export function AutomationPanel({
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
           <HStack gap={3} className="items-start">
-            <Row
-              gap={0}
-              justify="center"
-              className="bg-muted text-muted-foreground size-10 shrink-0 rounded-lg"
-            >
-              <AutomationIcon automation={automation} className="size-5" />
-            </Row>
+            {(() => {
+              const tile = (
+                <Row
+                  gap={0}
+                  justify="center"
+                  className="bg-muted text-muted-foreground size-10 shrink-0 rounded-lg"
+                >
+                  <AutomationIcon automation={automation} className="size-5" />
+                </Row>
+              );
+              // Same corner-glyph marker the catalog card uses — never a
+              // title-row chip.
+              return isCustom ? (
+                <AutomationMarker
+                  icon={UserPen}
+                  label={t('custom')}
+                  className="shrink-0"
+                >
+                  {tile}
+                </AutomationMarker>
+              ) : (
+                tile
+              );
+            })()}
             <VStack gap={1} className="min-w-0">
               <Text as="span" className="text-sm font-medium">
                 {display.name}
@@ -362,7 +383,6 @@ export function AutomationPanel({
                   )}
                 </Badge>
                 <AutomationLabels labels={automation.labels} />
-                {isPrivate && <Badge variant="outline">{t('private')}</Badge>}
               </HStack>
             </VStack>
           </HStack>

@@ -1,10 +1,11 @@
+import { cloneElement, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
 import type { AutomationSummary } from '../hooks/use-automations';
 import type { AutomationInstallState } from '../hooks/use-install-state';
-import { AutomationsGrid } from './automations-grid';
+import { AutomationsGrid, type AutomationsGridProps } from './automations-grid';
 
 /**
  * Regression net for #1979 (the heart of gap #1, in-UI discovery): the
@@ -129,11 +130,14 @@ function installState(
   };
 }
 
-/** Render the catalog and switch to the All tab (the full catalog union). */
-async function renderAllTab(...args: Parameters<typeof render>) {
-  const utils = render(...args);
-  await utils.user.click(screen.getByRole('tab', { name: 'All automations' }));
-  return utils;
+/**
+ * Render the catalog on the All tab (the full catalog union). The Installed/All
+ * switch moved out of the toolbar into the page header's shared `TabNavigation`
+ * (`AutomationsNavigation`), so the grid now takes it as a prop rather than
+ * owning it — there is no in-grid tab to click.
+ */
+function renderAllTab(ui: ReactElement<AutomationsGridProps>) {
+  return render(cloneElement(ui, { tab: 'all' }));
 }
 
 beforeEach(() => {
@@ -224,7 +228,7 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
   });
 
   // #2355: a private (uploaded) automation lives in the org install list but not the
-  // built-in catalog. It must be distinguishable (a "Private" badge) and
+  // built-in catalog. It must be distinguishable (a "Custom" corner glyph) and
   // deletable (a Delete item in its ⋯ menu) — a built-in catalog card gets
   // neither.
   it('badges + offers Delete only for a private (uploaded) automation', async () => {
@@ -247,8 +251,8 @@ describe('AutomationsGrid catalog/installed union (#1979)', () => {
       <AutomationsGrid organizationId="org_1" />,
     );
 
-    // Exactly one Private badge — on the uploaded automation, not the built-in one.
-    expect(screen.getByText('Private')).toBeInTheDocument();
+    // Exactly one "Custom" marker — on the uploaded automation, not the built-in one.
+    expect(screen.getByText('Custom')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Manage My Upload' }));
     expect(
@@ -486,12 +490,12 @@ describe('AutomationsGrid tabs + badges', () => {
       screen.queryByText('Discoverable Automation'),
     ).not.toBeInTheDocument();
     // The whole card is a real button carrying the automation's name as its
-    // accessible name ("Installed" appears twice: the tab label and the card
-    // badge).
+    // accessible name. "Installed" now appears exactly ONCE — only as the card
+    // badge; the tab label moved to the page header's `AutomationsNavigation`.
     expect(
       screen.getByRole('button', { name: 'Live Automation' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('Installed')).toHaveLength(2);
+    expect(screen.getAllByText('Installed')).toHaveLength(1);
   });
 
   it('shows the catalog empty copy on an Installed tab with nothing installed', () => {
@@ -671,8 +675,9 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
 
     await renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
-    // "Installed" appears twice: the tab label and the card's derived badge.
-    expect(screen.getAllByText('Installed')).toHaveLength(2);
+    // Only the bundle card's DERIVED badge says "Installed" — the tab label
+    // moved to the page header's `AutomationsNavigation`.
+    expect(screen.getAllByText('Installed')).toHaveLength(1);
   });
 
   it("routes the ⋯ menu's Install through the bundle wizard, never the one-click path", async () => {
@@ -698,9 +703,17 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     expect(screen.getByText('bundle wizard step probe')).toBeInTheDocument();
   });
 
-  it('appears on the Installed tab once any member is installed', () => {
+  // A bundle carries no `automationInstallations` row of its own, so the
+  // Installed tab lists its MEMBERS (each with an "Uninstall bundle" action),
+  // never the bundle card — the bundle stays browsable on the All tab.
+  it('lists the installed MEMBER on the Installed tab, not the bundle', () => {
     useAutomationsMock.mockReturnValue({
-      automations: [],
+      automations: [
+        automationSummary({
+          slug: 'reply-gmail-emails',
+          name: 'Reply to Gmail emails',
+        }),
+      ],
       isLoading: false,
       error: null,
     });
@@ -715,6 +728,35 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
 
     render(<AutomationsGrid organizationId="org_1" />);
 
-    expect(screen.getByText('Email')).toBeInTheDocument();
+    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.queryByText('Email')).not.toBeInTheDocument();
+  });
+
+  // A bundle MEMBER is built-in (merely hidden from the catalog), so it must
+  // never earn the "Custom" corner glyph an uploaded automation gets.
+  it('never marks a bundle member as Custom', () => {
+    useAutomationsMock.mockReturnValue({
+      automations: [
+        automationSummary({
+          slug: 'reply-gmail-emails',
+          name: 'Reply to Gmail emails',
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [bundleAutomation()],
+      isLoading: false,
+      error: null,
+    });
+    mockInstallStates = new Map([
+      ['reply-gmail-emails', installState('reply-gmail-emails')],
+    ]);
+
+    render(<AutomationsGrid organizationId="org_1" />);
+
+    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.queryByText('Custom')).not.toBeInTheDocument();
   });
 });

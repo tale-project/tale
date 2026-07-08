@@ -4,7 +4,14 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Search, Unplug } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
 import { CatalogGrid } from '@/app/components/catalog/catalog-grid';
@@ -55,9 +62,12 @@ interface IntegrationsProps {
    * page chrome instead of swapping in from a separate page-level skeleton.
    */
   isLoading?: boolean;
-  /** Controls the "Add integration" upload dialog; the trigger lives in the page header. */
+  /** Controls the "Add integration" upload dialog opened from `toolbarAction`. */
   addDialogOpen: boolean;
   onAddDialogOpenChange: (open: boolean) => void;
+  /** Right-aligned toolbar slot (the page's Add-integration menu) — rendered
+   *  in the search row, next to the search input. */
+  toolbarAction?: ReactNode;
 }
 
 export function Integrations({
@@ -70,6 +80,7 @@ export function Integrations({
   isLoading = false,
   addDialogOpen,
   onAddDialogOpenChange,
+  toolbarAction,
 }: IntegrationsProps) {
   const { t } = useT('settings');
 
@@ -185,6 +196,7 @@ export function Integrations({
           placeholder: t('integrations.searchPlaceholder'),
           disabled: searchDisabled,
         }}
+        action={toolbarAction}
       />
 
       {isLoading ? (

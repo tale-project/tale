@@ -171,20 +171,6 @@ function IntegrationsPage() {
       <SettingsSection
         title={tNav('integrations')}
         description={tSettings('integrations.pageSubtitle')}
-        action={
-          <DataTableActionMenu
-            label={tSettings('integrations.addCustomIntegration')}
-            icon={Plus}
-            menuItems={[
-              {
-                label: tSettings('integrations.addMenu.custom'),
-                icon: Plus,
-                onClick: () => setAddDialogOpen(true),
-              },
-              ...(syncItem ? [syncItem] : []),
-            ]}
-          />
-        }
       >
         <Integrations
           organizationId={organizationId}
@@ -196,6 +182,20 @@ function IntegrationsPage() {
           isLoading={isAutomationsLoading}
           addDialogOpen={addDialogOpen}
           onAddDialogOpenChange={setAddDialogOpen}
+          toolbarAction={
+            <DataTableActionMenu
+              label={tSettings('integrations.addCustomIntegration')}
+              icon={Plus}
+              menuItems={[
+                {
+                  label: tSettings('integrations.addMenu.custom'),
+                  icon: Plus,
+                  onClick: () => setAddDialogOpen(true),
+                },
+                ...(syncItem ? [syncItem] : []),
+              ]}
+            />
+          }
         />
         {syncDialog}
       </SettingsSection>

@@ -100,7 +100,8 @@ export function useProjectAutomations(projectId: Id<'projects'>): {
   };
 }
 
-/** A project a (project-scoped) automation is bound to — drives the membership hub. */
+/** A project a (project-scoped) automation is bound to — drives the Configuration
+ *  tab's projects section (`AutomationProjectsSection`). */
 export interface AutomationBinding {
   projectId: string;
   projectName: string;

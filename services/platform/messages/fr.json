@@ -531,7 +531,7 @@
     "addMenu": {
       "label": "Ajouter une automatisation"
     },
-    "private": "Privé",
+    "custom": "Personnalisé",
     "upload": {
       "uploadApp": "Téléverser un package",
       "dialogTitle": "Téléverser un package d'automatisation",
@@ -660,6 +660,9 @@
     },
     "readiness": {
       "title": "Terminer la configuration",
+      "summaryBroken": "Des fichiers installés sont manquants",
+      "summaryIntegrations": "À connecter : {names}",
+      "summaryAgents": "À configurer : {names}",
       "broken": "Certains fichiers installés sont manquants. Réinstallez pour les restaurer.",
       "connect": "Connectez {integration} pour utiliser cette automatisation.",
       "connectButton": "Connecter",
@@ -1802,6 +1805,7 @@
       "backTo": "Retour à {page}",
       "breadcrumb": "Fil d'Ariane",
       "agentsNavigation": "Navigation des agents",
+      "automationsNavigation": "Navigation des automatisations",
       "knowledgeNavigation": "Navigation de la base de connaissances",
       "actionsMenu": "Menu des actions",
       "moreInfo": "Plus d'informations",
@@ -5267,11 +5271,11 @@
         "sectionIntegrationBindings": "Intégrations liées",
         "sectionIntegrationBindingsDescription": "Lie des intégrations spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de l'intégration.",
         "noIntegrationsAvailable": "Aucune intégration active disponible.",
-        "sectionWorkflowBindings": "Flux de travail liés",
-        "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
-        "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
+        "sectionAutomationBindings": "Automatisations liées",
+        "sectionAutomationBindingsDescription": "Lie des automatisations spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de l'automatisation.",
+        "noAutomationsAvailable": "Aucune automatisation active disponible.",
         "bindIntegrationsPlaceholder": "Lier des intégrations…",
-        "bindWorkflowsPlaceholder": "Lier des flux de travail…",
+        "bindAutomationsPlaceholder": "Lier des automatisations…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
         "sectionSkillBindingsExternalDescription": "Les disciplines workflow (fix-bug, write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici uniquement des skills org supplémentaires. Chaque skill lié est injecté dans la session à chaque tour.",

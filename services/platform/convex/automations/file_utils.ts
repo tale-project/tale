@@ -19,6 +19,7 @@ import path from 'node:path';
 import {
   AUTOMATION_MANIFEST_FILENAME,
   automationDisplayFolder,
+  type AutomationManifestI18n,
   automationManifestSchema,
   BUNDLE_MANIFEST_FILENAME,
   isValidAutomationSlug,
@@ -155,6 +156,59 @@ export async function readInstalledAutomationFolders(
     }),
   );
   return folders;
+}
+
+/** An installed automation's self-translated display text — {@link readInstalledAutomationDisplays}. */
+export interface InstalledAutomationDisplay {
+  name: string;
+  description?: string;
+  /** Per-locale overrides; resolve via `resolveAutomationLocale`/
+   *  `useAutomationDisplay`, never index this directly. */
+  i18n?: AutomationManifestI18n;
+}
+
+/**
+ * Display name/description/i18n per installed automation (automationSlug →
+ * display), read from each automation's ORG-DIR manifest (the authoritative
+ * copy after install) — the same tolerant read/fallback shape as
+ * {@link readInstalledAutomationFolders} (a missing or malformed manifest
+ * falls back to the automation slug as `name`, no description). Backs the
+ * global workflow list's automation-owner enrichment
+ * (`workflows/file_actions.ts#listWorkflows`) so an automation-owned
+ * workflow's binding-picker entry can show the AUTOMATION's self-translated
+ * name/description instead of its own slug-derived one.
+ */
+export async function readInstalledAutomationDisplays(
+  orgSlug: string,
+  automationSlugs: readonly string[],
+): Promise<Map<string, InstalledAutomationDisplay>> {
+  const displays = new Map<string, InstalledAutomationDisplay>();
+  await Promise.all(
+    automationSlugs.map(async (automationSlug) => {
+      let display: InstalledAutomationDisplay = { name: automationSlug };
+      try {
+        const content = await readFile(
+          resolveAutomationManifestPath(orgSlug, automationSlug),
+          'utf-8',
+        );
+        const parsed = automationManifestSchema.safeParse(JSON.parse(content));
+        if (parsed.success) {
+          display = {
+            name: parsed.data.name,
+            description: parsed.data.description,
+            i18n: parsed.data.i18n,
+          };
+        }
+      } catch (err) {
+        console.warn(
+          `[automations.readInstalledAutomationDisplays] falling back to slug for "${automationSlug}":`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+      displays.set(automationSlug, display);
+    }),
+  );
+  return displays;
 }
 
 export function resolveAutomationDir(orgSlug: string, slug: string): string {

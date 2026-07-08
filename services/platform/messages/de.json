@@ -530,7 +530,7 @@
     "addMenu": {
       "label": "Automatisierung hinzufügen"
     },
-    "private": "Privat",
+    "custom": "Benutzerdefiniert",
     "upload": {
       "uploadApp": "Paket hochladen",
       "dialogTitle": "Automatisierungspaket hochladen",
@@ -659,6 +659,9 @@
     },
     "readiness": {
       "title": "Einrichtung abschließen",
+      "summaryBroken": "Installierte Dateien fehlen",
+      "summaryIntegrations": "Nicht verbunden: {names}",
+      "summaryAgents": "Einrichtung nötig: {names}",
       "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
       "connect": "Verbinde {integration}, um diese Automatisierung zu nutzen.",
       "connectButton": "Verbinden",
@@ -1801,6 +1804,7 @@
       "backTo": "Zurück zu {page}",
       "breadcrumb": "Brotkrumennavigation",
       "agentsNavigation": "Agents-Navigation",
+      "automationsNavigation": "Automatisierungen-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
       "actionsMenu": "Aktionsmenü",
       "moreInfo": "Weitere Informationen",
@@ -5266,11 +5270,11 @@
         "sectionIntegrationBindings": "Gebundene Integrationen",
         "sectionIntegrationBindingsDescription": "Bestimmte Integrationen als dedizierte Tools binden. Der Agent muss den Integrationsnamen nicht angeben.",
         "noIntegrationsAvailable": "Keine aktiven Integrationen verfügbar.",
-        "sectionWorkflowBindings": "Gebundene Workflows",
-        "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
-        "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
+        "sectionAutomationBindings": "Gebundene Automatisierungen",
+        "sectionAutomationBindingsDescription": "Bestimmte Automatisierungen als dedizierte Tools binden. Der Agent muss den Namen der Automatisierung nicht angeben.",
+        "noAutomationsAvailable": "Keine aktiven Automatisierungen verfügbar.",
         "bindIntegrationsPlaceholder": "Integrationen binden…",
-        "bindWorkflowsPlaceholder": "Workflows binden…",
+        "bindAutomationsPlaceholder": "Automatisierungen binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",

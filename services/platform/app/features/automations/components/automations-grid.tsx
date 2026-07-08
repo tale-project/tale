@@ -7,16 +7,24 @@
  * not-yet-installed automation opens the `AutomationPanel` preview (mirrors
  * `Integrations`' card → `IntegrationPanel`); an installed automation navigates
  * straight to its automation page. Every card also carries a ⋯ menu:
- * Reinstall/Uninstall once installed, Install (+ Delete for a private upload)
- * before. The Installed/All pill tabs split the org's installed automations
- * from the full catalog union. */
+ * Reinstall/Uninstall once installed, Install (+ Delete for a custom upload)
+ * before; an installed BUNDLE gets the bundle lifecycle instead. The Installed/All
+ * split comes from the route's `?tab=`, driven by the page header's shared
+ * `TabNavigation` (`AutomationsNavigation`) — not a toolbar pill strip. */
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate } from '@tanstack/react-router';
-import { Download, FileDown, LayoutGrid, Package } from 'lucide-react';
+import {
+  Download,
+  FileDown,
+  LayoutGrid,
+  Package,
+  PackageMinus,
+  RotateCw,
+  UserPen,
+} from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -39,8 +47,11 @@ import {
 } from '@/app/components/catalog/catalog-section';
 import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
 import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
-import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import {
+  EntityRowActions,
+  useEntityRowDialogs,
+} from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { downloadBase64File } from '@/lib/utils/download';
@@ -59,9 +70,17 @@ import {
   useAutomationInstallStates,
 } from '../hooks/use-install-state';
 import { useAutomationDeleteAction } from './automation-delete-action';
-import { AutomationIcon, AutomationLabels } from './automation-icon';
+import {
+  AutomationIcon,
+  AutomationLabels,
+  AutomationMarker,
+} from './automation-icon';
 import { AutomationLifecycleActions } from './automation-lifecycle-actions';
 import { AutomationPanel } from './automation-panel';
+import {
+  type AutomationsTab,
+  DEFAULT_AUTOMATIONS_TAB,
+} from './automations-navigation';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
 import { BundleInstallWizard } from './install-wizard/bundle-install-wizard';
 
@@ -76,8 +95,11 @@ function InstallBadge({
   if (!state) {
     return null;
   }
+  // ANY incomplete install reads "Finish setup" — a broken install is just a
+  // louder one (destructive tone, its repair is Reinstall in the ⋯ menu). The
+  // specific blocker is named on the automation's readiness banner.
   if (state.status === 'broken') {
-    return <Badge variant="destructive">{t('install.reinstall')}</Badge>;
+    return <Badge variant="destructive">{t('install.setup')}</Badge>;
   }
   if (state.blockedIntegrations.length > 0) {
     return <Badge variant="yellow">{t('install.setup')}</Badge>;
@@ -142,19 +164,19 @@ function isAutomationEntryInstalled(
  * wizard-vs-one-click branch the card itself used to run on click, now a
  * fast path alongside the whole-card click that opens the preview panel) +
  * Export (of the catalog bundle — export is not gated on installation) +
- * Delete for a private (uploaded) bundle. Combined into ONE dropdown — via
+ * Delete for a custom (uploaded) bundle. Combined into ONE dropdown — via
  * `useAutomationDeleteAction` — so a card never shows two ⋯ triggers.
  */
 function NotInstalledMenu({
   automation,
   organizationId,
-  isPrivate,
+  isCustom,
   isPending,
   onInstall,
 }: {
   automation: AutomationSummary;
   organizationId: string;
-  isPrivate: boolean;
+  isCustom: boolean;
   isPending: boolean;
   onInstall: () => void;
 }) {
@@ -199,7 +221,7 @@ function NotInstalledMenu({
       onClick: () => void handleExport(),
       disabled: exporting,
     },
-    ...(isPrivate ? [deleteAction] : []),
+    ...(isCustom ? [deleteAction] : []),
   ];
 
   return (
@@ -209,13 +231,124 @@ function NotInstalledMenu({
         ariaLabel={t('install.menuLabel', { name: automation.name })}
         disabled={isPending}
       />
-      {isPrivate && deleteDialog}
+      {isCustom && deleteDialog}
+    </>
+  );
+}
+
+/**
+ * The installed bundle card's ⋯ menu. A bundle carries no
+ * `automationInstallations` row of its own, so its lifecycle is aggregated over
+ * its members: Reinstall re-opens the bundle wizard (re-runs the idempotent
+ * per-member install), Export downloads the bundle, and "Uninstall bundle"
+ * tears every member down. Without this, an installed bundle wrongly showed the
+ * not-installed Install menu next to its green "Installed" badge.
+ */
+function InstalledBundleMenu({
+  bundle,
+  organizationId,
+  onReinstall,
+}: {
+  bundle: AutomationSummary;
+  organizationId: string;
+  onReinstall: () => void;
+}) {
+  const { t } = useT('automations');
+  const { uninstallBundle } = useAutomationInstallActions(organizationId);
+  const { mutateAsync: exportAutomation } = useExportAutomation();
+  const dialogs = useEntityRowDialogs(['uninstallBundle']);
+  const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const memberCount = (bundle.members ?? []).length;
+
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await exportAutomation({
+        organizationId,
+        slug: bundle.slug,
+      });
+      downloadBase64File(result.filename, result.dataBase64, 'application/zip');
+    } catch (error) {
+      console.error('[InstalledBundleMenu] export failed:', error);
+      toast({ title: t('install.exportFailed'), variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, exportAutomation, organizationId, bundle.slug, t]);
+
+  const handleUninstallBundle = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await uninstallBundle(bundle.slug);
+      toast({ title: t('install.bundleUninstalled'), variant: 'success' });
+      dialogs.setOpen.uninstallBundle(false);
+    } catch (error) {
+      console.error('[InstalledBundleMenu] uninstall failed:', error);
+      toast({
+        title: t('install.bundleUninstallFailed'),
+        variant: 'destructive',
+      });
+      dialogs.setOpen.uninstallBundle(false);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, uninstallBundle, bundle.slug, t, dialogs]);
+
+  const actions = [
+    {
+      key: 'reinstall',
+      label: t('install.reinstall'),
+      icon: RotateCw,
+      onClick: onReinstall,
+    },
+    {
+      key: 'export',
+      label: t('install.export'),
+      icon: FileDown,
+      onClick: () => void handleExport(),
+      disabled: exporting,
+    },
+    {
+      key: 'uninstallBundle',
+      label: t('install.uninstallBundle'),
+      icon: PackageMinus,
+      destructive: true,
+      onClick: () => dialogs.open.uninstallBundle(),
+    },
+  ];
+
+  return (
+    <>
+      <EntityRowActions
+        actions={actions}
+        ariaLabel={t('install.menuLabel', { name: bundle.name })}
+        disabled={busy}
+      />
+      <DeleteDialog
+        open={dialogs.isOpen.uninstallBundle}
+        onOpenChange={dialogs.setOpen.uninstallBundle}
+        title={t('install.uninstallBundleTitle')}
+        description={t('install.uninstallBundleDescription', {
+          count: memberCount,
+        })}
+        preview={{ primary: bundle.name }}
+        warning={t('install.uninstallWarning')}
+        deleteText={t('install.uninstallBundle')}
+        isDeleting={busy}
+        onDelete={() => void handleUninstallBundle()}
+      />
     </>
   );
 }
 
 export interface AutomationsGridProps {
   organizationId: string;
+  /** Which content filter to render. Owned by the route's `?tab=` search param
+   *  and driven by the layout's header tab strip (`AutomationsNavigation`). */
+  tab?: AutomationsTab;
   /** Deep-link target — opens the matching automation's panel/page once
    *  (mirrors `Integrations`' `initialSlug`). */
   initialSlug?: string;
@@ -228,6 +361,7 @@ export interface AutomationsGridProps {
 
 export function AutomationsGrid({
   organizationId,
+  tab = DEFAULT_AUTOMATIONS_TAB,
   initialSlug,
   onInitialSlugConsumed,
   toolbarAction,
@@ -266,13 +400,21 @@ export function AutomationsGrid({
     }
     return map;
   }, [automations]);
-  // A private (uploaded) automation lives in the org's automations dir but not the built-in
-  // catalog. It's the only kind the UI offers a Delete for (the server refuses
-  // any built-in slug regardless), and it earns a "Private" badge so it's
-  // distinguishable from a built-in card sharing the same display name.
+  // A CUSTOM (uploaded) automation lives in the org's automations dir but not the
+  // built-in catalog. It's the only kind the UI offers a Delete for (the server
+  // refuses any built-in slug regardless), and it earns a "Custom" corner glyph
+  // so it's distinguishable from a built-in card sharing the same display name.
+  // A bundle MEMBER is never custom: it IS built-in, merely hidden from the
+  // catalog, so the catalog check alone would mislabel it.
   const catalogSlugs = useMemo(
     () => new Set(catalog.map((a) => a.slug)),
     [catalog],
+  );
+  const isCustomAutomation = useCallback(
+    (automation: AutomationSummary) =>
+      !catalogSlugs.has(automation.slug) &&
+      !bundleByMember.has(automation.slug),
+    [catalogSlugs, bundleByMember],
   );
   const { bySlug } = useAutomationInstallStates(organizationId);
   const { install, isPending } = useAutomationInstallActions(organizationId);
@@ -291,17 +433,9 @@ export function AutomationsGrid({
   const [panelAutomation, setPanelAutomation] =
     useState<AutomationSummary | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
   // Installed = automations with an install row; All = the full catalog union.
-  const [tab, setTab] = useState('installed');
-
-  const tabItems = useMemo(
-    () => [
-      { value: 'installed', label: t('tabs.installed') },
-      { value: 'all', label: t('tabs.all') },
-    ],
-    [t],
-  );
-
+  // The switch itself lives in the page header (`AutomationsNavigation`).
   const tabbedAutomations = useMemo(
     () =>
       tab === 'installed'
@@ -388,12 +522,21 @@ export function AutomationsGrid({
   const renderCard = (automation: AutomationSummary) => {
     const isBundle = automation.kind === 'bundle';
     const state = bySlug.get(automation.slug);
-    const isPrivate = !catalogSlugs.has(automation.slug);
-    // A bundle has no page/lifecycle of its own — its card always opens the
-    // preview panel and its ⋯ menu is always "Install" (idempotent per
-    // member, so it doubles as "finish setup"/"reinstall").
+    // A bundle has no `automationInstallations` row of its own — `isInstalled`
+    // only ever applies to a real automation install. A bundle card opens the
+    // preview panel; its ⋯ menu is the bundle lifecycle once any member is
+    // installed (`bundleInstalled`), else the not-installed Install menu.
     const isInstalled = !isBundle && state != null;
     const owningBundle = bundleByMember.get(automation.slug);
+    // "Custom" = an uploaded automation: it lives in the org's automations dir
+    // but not the built-in catalog. Bundle MEMBERS are excluded — they're
+    // built-in, just hidden from the catalog, so the catalog check alone would
+    // both mislabel them and wrongly offer Delete.
+    const isCustom = isCustomAutomation(automation);
+    const bundleInstalled =
+      isBundle &&
+      deriveBundleInstallStatus(automation.members ?? [], bySlug) !==
+        'not-installed';
     const icon = (
       <CatalogCardIcon>
         <AutomationIcon
@@ -406,26 +549,22 @@ export function AutomationsGrid({
       <CatalogCard
         key={automation.slug}
         media={
+          // A bundle, and a custom (uploaded) automation, are marked on the icon
+          // tile with a corner glyph — never a title-row chip, so the badge slot
+          // stays reserved for INSTALL state alone.
           isBundle ? (
-            // A bundle is marked on the icon tile (corner glyph + hover
-            // detail), not with a title-row chip — the badge slot stays
-            // reserved for INSTALL state alone.
-            <Tooltip
-              content={t('bundle.memberCount', {
+            <AutomationMarker
+              icon={Package}
+              label={t('bundle.memberCount', {
                 count: (automation.members ?? []).length,
               })}
-              side="top"
             >
-              <div className="relative">
-                {icon}
-                <span className="bg-background ring-border absolute -right-1.5 -bottom-1.5 rounded-md p-0.5 ring-1">
-                  <Package
-                    aria-hidden="true"
-                    className="text-muted-foreground size-3"
-                  />
-                </span>
-              </div>
-            </Tooltip>
+              {icon}
+            </AutomationMarker>
+          ) : isCustom ? (
+            <AutomationMarker icon={UserPen} label={t('custom')}>
+              {icon}
+            </AutomationMarker>
           ) : (
             icon
           )
@@ -433,28 +572,26 @@ export function AutomationsGrid({
         title={automation.name}
         description={automation.description}
         badge={
-          <>
-            {isPrivate && <Badge variant="slate">{t('private')}</Badge>}
-            {isBundle ? (
-              <BundleInstallStateBadge
-                memberSlugs={automation.members ?? []}
-                bySlug={bySlug}
-              />
-            ) : (
-              <InstallBadge state={state} />
-            )}
-          </>
+          isBundle ? (
+            <BundleInstallStateBadge
+              memberSlugs={automation.members ?? []}
+              bySlug={bySlug}
+            />
+          ) : (
+            <InstallBadge state={state} />
+          )
         }
         meta={
           automation.labels && automation.labels.length > 0 ? (
             <AutomationLabels labels={automation.labels} />
           ) : undefined
         }
-        // Every installed automation opens its org-level page. For a project-scoped
-        // automation that page is its membership hub (the list of bound projects +
-        // Add); we never deep-link a single project from the catalog. A
-        // not-yet-installed automation opens the preview panel instead of installing
-        // outright — the ⋯ menu's Install item is the fast path. A bundle
+        // Every installed automation opens its org-level page — the tabbed
+        // Editor/Executions/Configuration/Triggers/Integrations shell. For a
+        // project-scoped automation the projects it runs in are a section of that
+        // page's Configuration tab; we never deep-link a single project from the
+        // catalog. A not-yet-installed automation opens the preview panel instead of
+        // installing outright — the ⋯ menu's Install item is the fast path. A bundle
         // always opens its preview panel (no page of its own).
         onClick={() =>
           isInstalled
@@ -466,7 +603,13 @@ export function AutomationsGrid({
         }
         ariaLabel={automation.name}
         menu={
-          isInstalled ? (
+          bundleInstalled ? (
+            <InstalledBundleMenu
+              bundle={automation}
+              organizationId={organizationId}
+              onReinstall={() => setWizardBundle(automation)}
+            />
+          ) : isInstalled ? (
             <AutomationLifecycleActions
               automationSlug={automation.slug}
               automationName={automation.name}
@@ -486,7 +629,7 @@ export function AutomationsGrid({
             <NotInstalledMenu
               automation={automation}
               organizationId={organizationId}
-              isPrivate={isPrivate}
+              isCustom={isCustom}
               isPending={isPending}
               onInstall={() => runInstall(automation)}
             />
@@ -504,7 +647,6 @@ export function AutomationsGrid({
       <Skeletonize loading label={t('title')}>
         <Stack gap={4}>
           <CatalogToolbar
-            tabs={{ items: tabItems, value: tab, onValueChange: setTab }}
             search={{
               value: searchQuery,
               onChange: (e) => setSearchQuery(e.target.value),
@@ -532,7 +674,6 @@ export function AutomationsGrid({
   return (
     <Stack gap={4}>
       <CatalogToolbar
-        tabs={{ items: tabItems, value: tab, onValueChange: setTab }}
         search={{
           value: searchQuery,
           onChange: (e) => setSearchQuery(e.target.value),
@@ -598,7 +739,7 @@ export function AutomationsGrid({
           }}
           organizationId={organizationId}
           automation={panelAutomation}
-          isPrivate={!catalogSlugs.has(panelAutomation.slug)}
+          isCustom={isCustomAutomation(panelAutomation)}
         />
       )}
     </Stack>
