@@ -144,8 +144,13 @@ test.describe('email automations: Inbox gating and flow', () => {
     // With no email automation installed the sidebar has NO Inbox entry.
     // Anchor on a sibling rail link first — the entry is also hidden while
     // the availability queries load, so a bare count-0 could pass early.
+    // `exact` is load-bearing: the hub's "All automations" tab link would
+    // otherwise substring-match the rail link's "Automations" name.
     await expect(
-      page.getByRole('link', { name: t('navigation.automations') }),
+      page.getByRole('link', {
+        name: t('navigation.automations'),
+        exact: true,
+      }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await expect(inboxNavLink(page)).toHaveCount(0);
 

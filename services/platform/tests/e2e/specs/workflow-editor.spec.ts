@@ -63,22 +63,19 @@ test.describe.serial('workflow editor', () => {
       `/dashboard/${organizationId}/workflows/${workflowSlug}/configuration`,
     );
 
-    const nameField = page.getByLabel(t('workflows.configuration.name'), {
+    // The Configuration tab owns the workflow's RUNTIME settings only —
+    // identity (name/description) moved to the owning automation. Backoff is
+    // a safe persistence probe: it only applies on retries, which the seeded
+    // start-only workflow never hits, so editing it can't affect the run and
+    // webhook tests that follow in this serial file.
+    const backoffField = page.getByLabel(t('workflows.configuration.backoff'), {
       exact: true,
     });
-    await expect(nameField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(nameField).toHaveValue(SEEDED_WORKFLOW_NAME, {
-      timeout: TIMEOUT.VISIBLE,
-    });
-
-    // The description is optional + free-form, so editing it can't break the
-    // slug/name invariants the editor URL depends on.
-    const descriptionField = page.getByLabel(
-      t('workflows.configuration.description'),
-      { exact: true },
-    );
-    const newDescription = `Edited by E2E ${suffix}`;
-    await descriptionField.fill(newDescription);
+    await expect(backoffField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    // Derived from the per-run suffix so re-runs never collide with a value
+    // an earlier run already persisted (the seeded config ships no backoff).
+    const newBackoff = String(500 + (parseInt(suffix, 36) % 1000));
+    await backoffField.fill(newBackoff);
 
     // Editing makes the form dirty, enabling the unified Save cluster in the
     // workflow nav strip. Scope to that nav landmark: the page also renders
@@ -93,13 +90,13 @@ test.describe.serial('workflow editor', () => {
     await save.click();
 
     // Assert the persisted FIELD value after reload (not the transient toast):
-    // the edited description must rehydrate from the backend file.
-    const reloadedDescription = page.getByLabel(
-      t('workflows.configuration.description'),
+    // the edited backoff must rehydrate from the backend file.
+    const reloadedBackoff = page.getByLabel(
+      t('workflows.configuration.backoff'),
       { exact: true },
     );
-    await reloadAndSettle(page, reloadedDescription);
-    await expect(reloadedDescription).toHaveValue(newDescription, {
+    await reloadAndSettle(page, reloadedBackoff);
+    await expect(reloadedBackoff).toHaveValue(newBackoff, {
       timeout: TIMEOUT.PERSIST,
     });
   });
