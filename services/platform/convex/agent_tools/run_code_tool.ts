@@ -1,15 +1,16 @@
 /**
  * run_code — execute code in the thread workspace sandbox.
  *
- * Reads every file currently in the calling thread's `threadFiles` table,
- * mounts them at `/user/code/<path>` inside the sandbox, runs either
- * a single entry script or a sequential list of steps, and harvests any
- * files produced under `/user/output/` back into the workspace
- * (source `'run_output'`).
+ * Three modes behind an explicit `mode` discriminator: `script` runs a
+ * workspace file staged via `file_write`, `inline` runs a snippet directly,
+ * `install` provisions packages without running anything. Every mode may
+ * declare `packages` to install first; files produced under `/user/output/`
+ * are harvested back into the workspace (source `'run_output'`).
  *
  * The thread workspace IS the workspace — there is no separate file
  * injection channel. The LLM must `file_write` everything it wants the
- * sandbox to see first, then call `run_code`.
+ * sandbox to execute as a script; multi-step work is sequential run_code
+ * calls against the turn's persistent session (there is no `steps` array).
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -23,104 +24,138 @@ import {
 import { internal } from '../_generated/api';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 import { getWorkspaceThreadId } from '../threads/get_parent_thread_id';
-import { refinePackagesObject } from './files/_shared';
-import { packageBaseName } from './files/_shared';
+import {
+  evaluatePackageAgainstPolicy,
+  packageBaseName,
+  refinePackagesObject,
+} from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
 import {
   buildSandboxState,
   formatSandboxState,
 } from './files/helpers/sandbox_state';
 import { parseWorkspacePath, relOf } from './files/sandbox_paths';
+import { validateInlineCode } from './inline_language';
 import type { ToolDefinition } from './types';
 
-const RUN_CODE_MAX_STEPS = 10;
-
-export const runCodeArgs = z
-  .object({
-    entryPath: z
-      .string()
-      .min(1)
-      .max(200)
+const packagesField = z
+  .strictObject({
+    python: z
+      .array(z.string().max(120))
+      .max(20)
       .optional()
-      .describe(
-        'Single-script mode: absolute path of a script under `/user/code`, e.g. `/user/code/gen.py`. Mutually exclusive with `steps`.',
-      ),
-    steps: z
-      .array(z.object({ path: z.string().min(1).max(200) }))
-      .min(1)
-      .max(RUN_CODE_MAX_STEPS)
+      .describe('pip specs, e.g. ["pandas", "python-pptx==1.0.2"].'),
+    node: z
+      .array(z.string().max(120))
+      .max(20)
       .optional()
-      .describe(
-        'Multi-step mode: scripts to execute sequentially in one container — each `path` is an absolute `/user/code/<script>`. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
-      ),
-    code: z
-      .string()
-      .min(1)
-      .max(65_536)
-      .optional()
-      .describe(
-        'Inline mode: source code to execute directly — no file_write needed. Requires `language`. Mutually exclusive with `entryPath` / `steps`.',
-      ),
-    language: z
-      .enum(['python', 'node', 'bash'])
-      .optional()
-      .describe(
-        'Interpreter for `code` (inline mode only): `python` → python3, `node` → Node as ESM (`import` / top-level `await`, no `require`), `bash` → bash.',
-      ),
-    packages: z
-      .object({
-        python: z.array(z.string().max(120)).max(20).optional(),
-        node: z.array(z.string().max(120)).max(20).optional(),
-      })
-      .optional()
-      .describe(
-        'Packages to install before executing. Pip specs go in `python`; npm specs in `node`. The org policy may reject specs not on its allowlist.',
-      )
-      .superRefine((val, ctx) => {
-        refinePackagesObject(val, (issue) => ctx.addIssue(issue));
-      }),
-    timeoutMs: z
-      .number()
-      .int()
-      .min(1_000)
-      .max(300_000)
-      .optional()
-      .describe('Wall-clock cap in ms (default 30000, max 300000).'),
-    sourceCitation: z
-      .object({
-        skillSlug: z.string().min(1).max(64),
-        fileReferences: z.array(z.string().min(1).max(200)).max(10),
-      })
-      .optional()
-      .describe(
-        'Optional provenance — when the script content was inspired by a skill, record which one. Surfaced on the audit row.',
-      ),
+      .describe('npm specs (installed globally), e.g. ["sharp"].'),
   })
   .superRefine((val, ctx) => {
-    const modes = [val.entryPath, val.steps, val.code].filter(
-      (m) => m !== undefined,
-    ).length;
-    if (modes !== 1) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['entryPath'],
-        message:
-          'Pass exactly one of `entryPath`, `steps`, or `code` — the modes are mutually exclusive.',
-      });
-    }
-    if (val.code !== undefined && val.language === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['language'],
-        message: '`language` is required with `code` (python | node | bash).',
-      });
-    }
-    if (val.language !== undefined && val.code === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['language'],
-        message: '`language` is only valid with `code`.',
-      });
+    refinePackagesObject(val, (issue) => ctx.addIssue(issue));
+  });
+
+/** Fields every mode accepts — spread into each strict variant. */
+const runCodeSharedFields = {
+  timeoutMs: z
+    .number()
+    .int()
+    .min(1_000)
+    .max(300_000)
+    .optional()
+    .describe(
+      'Wall-clock cap in ms for the script/snippet run (default 30000; mode "install" defaults to 120000; max 300000). Declared package installs get their own budget and do not eat into this.',
+    ),
+  sourceCitation: z
+    .object({
+      skillSlug: z.string().min(1).max(64),
+      fileReferences: z.array(z.string().min(1).max(200)).max(10),
+    })
+    .optional()
+    .describe(
+      'Optional provenance — when the script content was inspired by a skill, record which one. Surfaced on the audit row.',
+    ),
+};
+
+const MODE_ERROR =
+  'Pass mode: "script" | "inline" | "install". Examples: {"mode":"inline","code":"print(1)","language":"python"} · {"mode":"script","entryPath":"/user/code/gen.py","packages":{"python":["pandas"]}} · {"mode":"install","packages":{"python":["pandas"]}}';
+
+// Strict variants on purpose: the provider-facing schema is flattened for
+// OpenAI (all per-mode fields look optional — see `flattenUnionSchema` in
+// resolve_model.ts), so cross-mode combinations like `mode: "script"` +
+// `code` WILL arrive. Non-strict objects would silently strip the extra
+// field and run something else than the model asked for; strict ones reject
+// with a repairable unrecognized-keys error.
+export const runCodeArgs = z
+  .discriminatedUnion(
+    'mode',
+    [
+      z.strictObject({
+        mode: z
+          .literal('script')
+          .describe('Run a workspace script staged with file_write.'),
+        entryPath: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe(
+            'Absolute script path under /user/code, e.g. "/user/code/gen.py" — the extension picks the interpreter (.py / .js / .cjs / .mjs / .sh).',
+          ),
+        packages: packagesField
+          .optional()
+          .describe(
+            'Installed before the run; persist for later run_code calls in this turn.',
+          ),
+        ...runCodeSharedFields,
+      }),
+      z.strictObject({
+        mode: z
+          .literal('inline')
+          .describe('Execute a snippet directly — nothing is staged.'),
+        code: z
+          .string()
+          .min(1)
+          .max(65_536)
+          .describe(
+            'Source to execute. Not stored in the workspace — for anything worth re-running or editing, file_write + mode "script" instead.',
+          ),
+        language: z
+          .enum(['python', 'node', 'bash'])
+          .describe(
+            'Interpreter for `code`: python → python3, node → Node as ESM (`import` / top-level `await`, no `require`), bash → bash. Must match the code — contradictions are rejected, not auto-corrected.',
+          ),
+        packages: packagesField
+          .optional()
+          .describe(
+            'Installed before the snippet runs; persist for later run_code calls in this turn.',
+          ),
+        ...runCodeSharedFields,
+      }),
+      z.strictObject({
+        mode: z
+          .literal('install')
+          .describe('Install packages only — no code runs.'),
+        packages: packagesField.describe(
+          'At least one non-empty bucket. Installed packages persist for later run_code calls in this turn.',
+        ),
+        ...runCodeSharedFields,
+      }),
+    ],
+    { error: MODE_ERROR },
+  )
+  .superRefine((val, ctx) => {
+    if (val.mode === 'install') {
+      const hasSpec =
+        (val.packages.python?.length ?? 0) > 0 ||
+        (val.packages.node?.length ?? 0) > 0;
+      if (!hasSpec) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packages'],
+          message:
+            'mode "install" needs at least one package, e.g. {"mode": "install", "packages": {"python": ["pandas"]}}.',
+        });
+      }
     }
   });
 
@@ -128,7 +163,7 @@ type RunCodeArgs = z.infer<typeof runCodeArgs>;
 
 const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js|sh)$/i;
 
-function checkPackagesAgainstPolicy(
+export function checkPackagesAgainstPolicy(
   policy: RunCodePolicyConfig | null,
   packages: { python?: string[]; node?: string[] } | undefined,
 ):
@@ -137,44 +172,31 @@ function checkPackagesAgainstPolicy(
       ok: false;
       code: 'PACKAGE_NOT_ALLOWED';
       package: string;
-      reason: string;
+      message: string;
     } {
   if (!packages || !policy) return { ok: true };
-  const check = (
-    specs: readonly string[] | undefined,
-    allow: readonly string[],
-    deny: readonly string[],
-    bucket: 'python' | 'node',
-  ) => {
-    if (!specs) return null;
-    const denySet = new Set(deny.map((s) => s.trim().toLowerCase()));
-    const allowSet = new Set(allow.map((s) => s.trim().toLowerCase()));
-    for (const spec of specs) {
+  const buckets = [
+    ['python', packages.python],
+    ['node', packages.node],
+  ] as const;
+  for (const [bucket, specs] of buckets) {
+    for (const spec of specs ?? []) {
+      const verdict = evaluatePackageAgainstPolicy(spec, bucket, policy);
+      if (verdict.allowed) continue;
       const base = packageBaseName(spec).toLowerCase();
-      if (denySet.has(base)) {
-        return {
-          ok: false as const,
-          code: 'PACKAGE_NOT_ALLOWED' as const,
-          package: spec,
-          reason: `${bucket} package "${base}" is explicitly denied by org policy.`,
-        };
-      }
-      if (policy.defaultMode === 'allowlist' && !allowSet.has(base)) {
-        return {
-          ok: false as const,
-          code: 'PACKAGE_NOT_ALLOWED' as const,
-          package: spec,
-          reason: `${bucket} package "${base}" is not on the org allowlist (mode=allowlist).`,
-        };
-      }
+      const why =
+        verdict.reason === 'deny_match'
+          ? `${bucket} package "${base}" is explicitly denied by org policy.`
+          : `${bucket} package "${base}" is not on the org allowlist (mode=allowlist).`;
+      return {
+        ok: false as const,
+        code: 'PACKAGE_NOT_ALLOWED' as const,
+        package: spec,
+        message: `${why} Remove it from \`packages\`, or ask an org admin to update the run_code policy.`,
+      };
     }
-    return null;
-  };
-  return (
-    check(packages.python, policy.pythonAllow, policy.pythonDeny, 'python') ?? {
-      ok: true,
-    }
-  );
+  }
+  return { ok: true };
 }
 
 /** Fence that survives `text` itself containing triple-backtick runs. */
@@ -206,23 +228,29 @@ If your script genuinely had no deliverable (e.g. a sanity check or package inst
  * its stdout); stderr only on failure — successful runs route package-install
  * noise there. Previews arrive pre-capped (4096 chars) from session_exec.
  */
-export function formatRunCodeResultMessage(run: {
-  status: 'completed' | 'failed' | 'cancelled';
-  exitCode: number | null;
-  errorCode?: string;
-  errorMessage?: string;
-  stdoutPreview: string;
-  stderrPreview: string;
-  durationMs: number;
-  files: Array<{ path: string }>;
-}): string {
+export function formatRunCodeResultMessage(
+  run: {
+    status: 'completed' | 'failed' | 'cancelled';
+    exitCode: number | null;
+    errorCode?: string;
+    errorMessage?: string;
+    stdoutPreview: string;
+    stderrPreview: string;
+    durationMs: number;
+    files: Array<{ path: string }>;
+  },
+  opts?: { installOnly?: boolean; packageCount?: number },
+): string {
   const success = run.status === 'completed';
   const stdout = run.stdoutPreview.trim();
   const stderr = run.stderrPreview.trim();
 
   let header: string;
   if (success) {
-    if (run.files.length > 0) {
+    if (opts?.installOnly) {
+      // No deliverable expected — the harvest lecture would be noise here.
+      header = `run_code installed ${opts.packageCount ?? 'the requested'} package(s) in ${run.durationMs}ms. They persist for later run_code calls in this turn.`;
+    } else if (run.files.length > 0) {
       header = `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /user/output/: ${run.files.map((f) => f.path).join(', ')}.`;
     } else if (stdout.length > 0) {
       header = `run_code succeeded in ${run.durationMs}ms. (No output files were harvested — only files written under \`/user/output/\` come back into the workspace.)`;
@@ -231,7 +259,7 @@ export function formatRunCodeResultMessage(run: {
     }
   } else {
     header = run.errorCode
-      ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read the output below, fix the script, then call run_code again.`
+      ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read the output below, fix the problem, then call run_code again.`
       : `run_code finished with status=${run.status}${run.exitCode !== null ? ` (exit code ${run.exitCode})` : ''}.`;
   }
 
@@ -244,6 +272,13 @@ export function formatRunCodeResultMessage(run: {
     const fence = fenceFor(stderr);
     blocks.push(`stderr:\n${fence}\n${stderr}\n${fence}`);
   }
+  // Backstop for language mismatches the pre-flight heuristic let through:
+  // bash choking on Python source has this one unmistakable signature.
+  if (!success && stderr.includes('import: command not found')) {
+    blocks.push(
+      'Hint: `import: command not found` means bash tried to execute Python source. Resubmit with `language` matching the code (probably "python").',
+    );
+  }
   return blocks.join('\n\n');
 }
 
@@ -251,34 +286,22 @@ export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `**run_code** — execute code in the thread's sandbox. Python 3, Node.js, and bash are available. Run an inline snippet (\`code\`), or script files staged in the workspace (\`entryPath\` / \`steps\`).
+    description: `**run_code** — execute code in the thread's sandbox (Python 3, Node as ESM, bash). Pick a \`mode\`:
 
-INLINE MODE (quick commands and snippets — use it like a shell):
-\`run_code({code: "ls -la /user/output", language: "bash"})\` executes the snippet directly — no file_write needed — and the result message contains its terminal output. Good for one-off commands, inspecting the sandbox, quick computations, and installs. \`language\` is required: \`python\` → python3, \`node\` → Node as ESM (\`import\` / top-level \`await\`, no \`require\`), \`bash\` → bash. The snippet is not stored in the workspace — for anything worth re-running or editing, use file_write + entryPath instead.
+- \`{"mode": "inline", "code": "ls -la /user/output", "language": "bash"}\` — run a snippet directly, like a shell. For one-off commands, quick computations, sandbox inspection. The snippet is not stored — for anything worth re-running or editing, use mode "script".
+- \`{"mode": "script", "entryPath": "/user/code/gen.py"}\` — run a workspace script. \`file_write\` it first; the extension picks the interpreter (.py / .js / .cjs / .mjs / .sh).
+- \`{"mode": "install", "packages": {"python": ["pandas"]}}\` — install packages without running code (use for big installs or a separate install checkpoint).
 
-SCRIPT-FILE WORKFLOW (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash):
-1. \`file_write\` every script you need (the workspace IS the sandbox source tree)
-2. \`run_code({entryPath: "/user/code/<script>"})\` for a one-shot
-   OR \`run_code({steps: [{path: "/user/code/step_a.py"}, {path: "/user/code/step_b.py"}]})\` for sequential steps sharing one container
-3. Any file the script writes under \`/user/output/\` is harvested back into the thread workspace and appears in the canvas
+PACKAGES: declare pip specs in \`packages.python\`, npm specs in \`packages.node\` — available on every mode; they install before the code runs and persist for later run_code calls in this turn. The org policy gates them. Do NOT install ad-hoc from inline code — \`pip install x\` / \`npm install -g y\` snippets are rejected with PREFER_PACKAGES (\`pip install -r\` and project-local \`npm install\` remain fine).
 
-PACKAGES:
-- Pip specs go in \`packages.python\`, npm specs in \`packages.node\` — these install **before** the script runs.
-- You can also install on demand from inside the script: \`subprocess.run([sys.executable, "-m", "pip", "install", "foo"])\` from Python, \`npm install -g bar\` from a bash step, etc. Installed packages are importable/requireable immediately on the next line.
-- A bash step can also drive \`python\` (alias for python3), \`node\`, \`pip\`, \`npm\` directly — same writable install paths as the language-specific steps.
-- The org policy gates what \`packages.python\` / \`packages.node\` can declare — denied packages return a structured error so you can adapt. Inline installs are governed by the sandbox egress allowlist instead.
+MULTI-STEP: call run_code repeatedly — the sandbox session persists within the turn (installed packages, files under \`/user/output/\`). There is no steps array.
 
-TIMEOUTS / LIMITS:
-- Default 30s wall-clock, max 300s
-- Memory cap 1 GB
-- Max 16 harvested output files per run
+PATHS (pre-populated from the thread workspace):
+- \`/user/code/\`    — scripts you authored via \`file_write\` (what \`entryPath\` runs);
+- \`/user/output/\`  — deliverables: ONLY files written here are harvested back into the workspace and canvas; previous runs' outputs also live here;
+- \`/user/uploads/\` — files the user uploaded into the thread.
 
-The sandbox sees three directories pre-populated from the thread workspace:
-- \`/user/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
-- \`/user/output/\`  — deliverables: files from previous \`run_code\` calls and files you saved there with \`file_write\`; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
-- \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
-
-Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
+LIMITS: default 30s per run (\`timeoutMs\`, max 300s); declared package installs get their own budget (up to 5 min); 1 GB memory; max 16 harvested output files per run.
 
 Every result message embeds the run's terminal output (stdout inline, capped at 4 KB; stderr too on failure) plus a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
@@ -305,11 +328,25 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
       // outputs land where the parent agent and the canvas read them.
       const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
 
-      // Script-file modes resolve + validate paths against the workspace.
-      // Inline mode (`code`) skips all of it — the snippet is staged by the
-      // exec action itself and may run against an empty workspace.
+      // Inline pre-flight (Layer 2): the declared interpreter must plausibly
+      // match the snippet, and ad-hoc installs are routed to `packages` where
+      // the org policy can see them. Fail-open — see inline_language.ts.
+      if (args.mode === 'inline') {
+        const issue = validateInlineCode(args.code, args.language);
+        if (issue !== null) {
+          return {
+            ok: false as const,
+            code: issue.code,
+            message: issue.message,
+          };
+        }
+      }
+
+      // Script mode resolves entryPath against the workspace; inline and
+      // install modes skip it — the exec action stages what they need and
+      // may run against an empty workspace.
       let stepPaths: string[] = [];
-      if (args.code === undefined) {
+      if (args.mode === 'script') {
         // Load every workspace file. The path the LLM passed must exist.
         const rows = await ctx.runQuery(
           internal.thread_files.internal_queries.listThreadFiles,
@@ -324,84 +361,52 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
             ok: false as const,
             code: 'EMPTY_WORKSPACE' as const,
             message:
-              'No files in the thread workspace. Use file_write to stage scripts first, or pass `code` to run a snippet directly.',
+              'No files in the thread workspace. Use file_write to stage the script first, or run the code directly with mode "inline".',
           };
         }
 
-        // Resolve target paths the LLM asked us to execute.
-        if (args.steps !== undefined) {
-          stepPaths = args.steps.map((s) => s.path);
-        } else {
-          // entryPath is guaranteed by the superRefine mutex above when
-          // steps and code are absent, but TS narrows it loosely — guard
-          // explicitly.
-          if (args.entryPath === undefined) {
-            return {
-              ok: false as const,
-              code: 'INVALID_STEP_PATH' as const,
-              message: 'run_code requires entryPath, steps, or code.',
-            };
-          }
-          stepPaths = [args.entryPath];
+        // entryPath is the absolute `/user/code/<script>` path file_write
+        // returned. Resolve to the sandbox-relative form the spawner +
+        // matching use. Only `/user/code` scripts run.
+        let parsed;
+        try {
+          parsed = parseWorkspacePath(args.entryPath);
+        } catch {
+          parsed = null;
         }
-        // entry/steps are absolute `/user/code/<script>` paths (what
-        // file_write returns). Resolve to the sandbox-relative form the
-        // spawner + matching use. Only `/user/code` scripts run.
-        {
-          const rels: string[] = [];
-          for (const raw of stepPaths) {
-            let parsed;
-            try {
-              parsed = parseWorkspacePath(raw);
-            } catch {
-              parsed = null;
-            }
-            if (parsed === null || parsed.source !== 'agent_write') {
-              return {
-                ok: false as const,
-                code: 'INVALID_STEP_PATH' as const,
-                message: `Step path "${raw}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
-              };
-            }
-            rels.push(parsed.rel);
-          }
-          stepPaths = rels;
+        if (parsed === null || parsed.source !== 'agent_write') {
+          return {
+            ok: false as const,
+            code: 'INVALID_ENTRY_PATH' as const,
+            message: `entryPath "${args.entryPath}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
+          };
+        }
+        const rel = parsed.rel;
+        if (!SCRIPT_EXT_REGEX.test(rel)) {
+          return {
+            ok: false as const,
+            code: 'INVALID_ENTRY_PATH' as const,
+            message: `entryPath "${args.entryPath}" has no recognized script extension (.py / .js / .cjs / .mjs / .sh).`,
+          };
         }
         // /user/code/ is the executable surface — keyed on LOCATION, not the
         // `source` provenance (file_write also authors /user/output
         // deliverables now, which must never become executable). If the user
         // wants to run a user-uploaded script, they can copy it into
         // /user/code/ with file_write.
-        const seen = new Set<string>();
         const knownPaths = new Set(
           workspaceFiles
             .filter((f: { path: string }) => f.path.startsWith('/user/code/'))
             .map((f: { path: string }) => relOf(f.path)),
         );
-        for (const p of stepPaths) {
-          if (!SCRIPT_EXT_REGEX.test(p)) {
-            return {
-              ok: false as const,
-              code: 'INVALID_STEP_PATH' as const,
-              message: `Step path "${p}" has no recognized script extension (.py / .js / .cjs / .mjs / .sh).`,
-            };
-          }
-          if (seen.has(p)) {
-            return {
-              ok: false as const,
-              code: 'DUPLICATE_STEP_PATH' as const,
-              message: `Step path "${p}" appears more than once. Each step must be unique within a single run_code call.`,
-            };
-          }
-          if (!knownPaths.has(p)) {
-            return {
-              ok: false as const,
-              code: 'STEP_PATH_NOT_FOUND' as const,
-              message: `Step path "${p}" is not in the workspace. Call file_write first.`,
-            };
-          }
-          seen.add(p);
+        if (!knownPaths.has(rel)) {
+          return {
+            ok: false as const,
+            code: 'ENTRY_PATH_NOT_FOUND' as const,
+            message: `entryPath "${args.entryPath}" is not in the workspace. Call file_write first.`,
+          };
         }
+        stepPaths = [rel];
       }
 
       // Org package policy check. The `run_code` governance policy is the
@@ -437,18 +442,14 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
         packagesByLang.node = args.packages.node;
       }
 
+      // A standalone install gets a 120s default — a cold pip/npm resolve
+      // rarely fits the 30s interactive default the run modes keep.
+      const timeoutMs =
+        args.timeoutMs ?? (args.mode === 'install' ? 120_000 : undefined);
+
       // Execute in the thread's persistent sandbox session — it stages inputs
       // and harvests outputs; prior outputs persist in the workspace across
       // runs (no re-stage / re-harvest churn).
-      // Inline mode: superRefine ties `language` to `code`, but TS narrows
-      // them independently — guard explicitly.
-      if (args.code !== undefined && args.language === undefined) {
-        return {
-          ok: false as const,
-          code: 'INVALID_STEP_PATH' as const,
-          message: '`language` is required with `code` (python | node | bash).',
-        };
-      }
       let raw: unknown;
       try {
         raw = await ctx.runAction(
@@ -457,13 +458,12 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
             organizationId,
             threadId: workspaceThreadId,
             uploadedBy: userId,
-            stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
-            ...(args.code !== undefined &&
-              args.language !== undefined && {
-                inlineCode: { content: args.code, language: args.language },
-              }),
+            stepPaths: stepPaths.map((p) => `/user/code/${p}`),
+            ...(args.mode === 'inline' && {
+              inlineCode: { content: args.code, language: args.language },
+            }),
             ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
-            ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+            ...(timeoutMs !== undefined && { timeoutMs }),
           },
         );
       } catch (err) {
@@ -491,7 +491,6 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
           contentType: string;
         }>;
         executionId: string;
-        steps?: Array<unknown>;
       };
 
       const success = run.status === 'completed';
@@ -522,7 +521,12 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
         }
       }
 
-      const message = formatRunCodeResultMessage(run);
+      const message = formatRunCodeResultMessage(run, {
+        installOnly: args.mode === 'install',
+        packageCount:
+          (args.packages?.python?.length ?? 0) +
+          (args.packages?.node?.length ?? 0),
+      });
 
       // Sandbox-state manifest: the current workspace files grouped by area,
       // each with its `fileId` (storage id). Reported on every run (success
@@ -551,7 +555,6 @@ Every result message embeds the run's terminal output (stdout inline, capped at 
         runStderrPreview: run.stderrPreview,
         durationMs: run.durationMs,
         files: run.files,
-        ...(run.steps !== undefined && { steps: run.steps }),
         sandboxState,
         message: messageWithState,
       };

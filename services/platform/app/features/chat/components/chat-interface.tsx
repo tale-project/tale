@@ -53,6 +53,8 @@ import {
   useChatAgents,
   useResolvedHumanInputRequests,
   useSessionProgress,
+  isAgentActivelyWorking,
+  isAgentLingeringSteerReady,
 } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
@@ -339,8 +341,11 @@ export function ChatInterface({
   useReportServerNow(threadMeta?.serverNow);
   const { toClientEpoch } = useClockOffset();
   const isGenerating = threadMeta?.isGenerating;
-  const agentLingering = sessionProgress?.agentIdleAt != null;
-  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
+  const agentActivelyWorking = isAgentActivelyWorking(
+    isGenerating,
+    sessionProgress,
+  );
+  const agentLingeringSteerReady = isAgentLingeringSteerReady(sessionProgress);
 
   // Bridge the active message's live `file_write` tool calls into the
   // StreamingToolContext for the canvas pane. See hook.
@@ -1458,7 +1463,7 @@ export function ChatInterface({
                 className="mx-auto w-full max-w-(--chat-max-width)"
                 placeholder={
                   queueModeActive
-                    ? agentLingering
+                    ? agentLingeringSteerReady
                       ? t('queue.placeholderIdle')
                       : t('queue.placeholder')
                     : isImageGenAgent

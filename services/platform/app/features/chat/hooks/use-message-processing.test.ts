@@ -14,7 +14,10 @@ const queryResults = new Map<string, unknown>();
 // Drives the mocked `useSessionProgress` (the thread's live sandbox op).
 // null = no sandbox op / no linger (the normal-chat + actively-generating
 // cases); set `agentIdleAt` to simulate an external-agent turn lingering.
-let mockSessionProgress: { agentIdleAt?: number } | null = null;
+let mockSessionProgress: {
+  agentIdleAt?: number;
+  pendingBackgroundTasks?: number;
+} | null = null;
 
 function functionPath(queryRef: unknown): string {
   if (typeof queryRef === 'object' && queryRef !== null) {
@@ -59,9 +62,13 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('./queries', () => ({
-  useSessionProgress: vi.fn(() => mockSessionProgress),
-}));
+vi.mock('./queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./queries')>();
+  return {
+    ...actual,
+    useSessionProgress: vi.fn(() => mockSessionProgress),
+  };
+});
 
 const mockChatLayout: { pendingMessage: unknown } = { pendingMessage: null };
 vi.mock('../context/chat-layout-context', () => ({
@@ -783,6 +790,33 @@ describe('useMessageProcessing', () => {
         (m) => m.key === 'msg-2',
       );
       expect(lingeringMsg?.isStreaming).toBe(false);
+    });
+
+    it('keeps the last pending assistant streaming while background tasks run during linger', () => {
+      setGenerating(true);
+      mockSessionProgress = {
+        agentIdleAt: 1_700_000_000_000,
+        pendingBackgroundTasks: 1,
+      };
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({ id: 'msg-1', order: 0, role: 'user', text: 'Go' }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'Running sleep in background…',
+            status: 'pending',
+            parts: settledToolParts,
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const activeMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(activeMsg?.isStreaming).toBe(true);
     });
 
     it('does not treat the last pending assistant as streaming once generation stops', () => {

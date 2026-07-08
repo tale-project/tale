@@ -83,6 +83,10 @@ export interface SessionExecResultShape {
    * aggregates over several execs and extends with harvest I/O.
    */
   durationMs: number;
+  /** Set on failure when the cause is classified — e.g. `INSTALL_FAILED`
+   * (a declared package's pip/npm install exited non-zero). */
+  errorCode?: string;
+  errorMessage?: string;
   files: Array<{
     path: string;
     storageId: string;
@@ -110,6 +114,8 @@ export interface StepRunResult {
   exitCode: number | null;
   stdout: string;
   stderr: string;
+  errorCode?: string;
+  errorMessage?: string;
 }
 
 /**
@@ -133,13 +139,21 @@ export async function runStepsInSession(
   const abort = new AbortController();
   const stdoutParts: string[] = [];
   const stderrParts: string[] = [];
-  const runExec = async (command: string[], perTimeout: number) =>
+  const runExec = async (
+    command: string[],
+    perTimeout: number,
+    // Steps run from /user/code (staging created it — a step implies a staged
+    // script). Installs run from the workspace root: /user always exists,
+    // while /user/code doesn't on a fresh session with nothing staged (an
+    // install-only call), and runnerd rejects a non-existent cwd.
+    cwd: '/user/code' | '/user' = '/user/code',
+  ) =>
     drainSessionExecResilient(
       sessionId,
       {
         execId: randomUUID(),
         command,
-        cwd: '/user/code',
+        cwd,
         collectOutput: true,
         timeoutMs: perTimeout,
       },
@@ -147,21 +161,48 @@ export async function runStepsInSession(
     );
 
   // Install declared packages first (persist in the session for later runs).
+  // Installs get their own budget, floored at 120s — a cold pip/npm resolve
+  // rarely fits the 30s interactive default — and capped at the 300s schema
+  // max. A failed install fails the whole run: running the steps anyway would
+  // surface a confusing downstream ImportError (or, with no steps, report a
+  // success that never happened).
   const py = args.packagesByLang?.python ?? [];
   const node = args.packagesByLang?.node ?? [];
+  const installTimeoutMs = Math.min(Math.max(timeoutMs, 120_000), 300_000);
+  const installs: Array<{ tool: 'pip' | 'npm'; command: string[] }> = [];
   if (py.length > 0) {
-    const r = await runExec(
-      ['python3', '-m', 'pip', 'install', '--no-input', ...py],
-      Math.min(timeoutMs, 300_000),
-    );
-    stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
+    installs.push({
+      tool: 'pip',
+      command: ['python3', '-m', 'pip', 'install', '--no-input', ...py],
+    });
   }
   if (node.length > 0) {
-    const r = await runExec(
-      ['npm', 'install', '-g', ...node],
-      Math.min(timeoutMs, 300_000),
-    );
+    installs.push({ tool: 'npm', command: ['npm', 'install', '-g', ...node] });
+  }
+  for (const { tool, command } of installs) {
+    const r = await runExec(command, installTimeoutMs, '/user');
+    const failed = r.status !== 'completed' || (r.exitCode ?? 0) !== 0;
+    // Install-only runs (and failures) surface installer stdout — it carries
+    // the resolved versions / the resolver error. Successful script runs drop
+    // it so install noise never drowns the script's own stdout; warnings
+    // still route to stderr as before.
+    if (args.stepPaths.length === 0 || failed) {
+      stdoutParts.push(Buffer.from(r.stdoutBase64, 'base64').toString('utf8'));
+    }
     stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
+    if (failed) {
+      const detail = r.errorMessage ?? r.errorCode;
+      return {
+        status: r.status === 'cancelled' ? 'cancelled' : 'failed',
+        exitCode: r.exitCode,
+        stdout: stdoutParts.join(''),
+        stderr: stderrParts.join(''),
+        errorCode: 'INSTALL_FAILED',
+        errorMessage: `${tool} install failed${
+          r.exitCode !== null ? ` (exit ${r.exitCode})` : ''
+        }${detail !== undefined ? `: ${detail}` : ''}`,
+      };
+    }
   }
 
   // Run each step in order; stop at the first failure.
@@ -231,13 +272,18 @@ export async function runAndHarvestInSession(
   });
 
   // Harvest top-level /user/output, upserting only new/changed files (sha256).
+  // Install-only runs skip it — an install can't produce deliverables, and the
+  // sha256 dedupe would re-read every existing output file for nothing.
   const files: Array<{
     path: string;
     storageId: string;
     size: number;
     contentType: string;
   }> = [];
-  const entries = (await sessionListFiles(sessionId, OUTPUT_DIR)) ?? [];
+  const entries =
+    args.stepPaths.length === 0
+      ? []
+      : ((await sessionListFiles(sessionId, OUTPUT_DIR)) ?? []);
   for (const e of entries) {
     if (e.type !== 'file') continue;
     if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) break;
@@ -315,11 +361,35 @@ export async function runAndHarvestInSession(
     executionId: execId,
     status: run.status,
     exitCode: run.exitCode,
+    ...(run.errorCode !== undefined && { errorCode: run.errorCode }),
+    ...(run.errorMessage !== undefined && { errorMessage: run.errorMessage }),
     stdoutPreview: run.stdout.slice(0, 4096),
     stderrPreview: run.stderr.slice(0, 4096),
     durationMs: Date.now() - startedAt,
     files,
   };
+}
+
+/** Arg mutex for {@link executeCodeInSession}: script XOR inline — or, for an
+ * install-only run, neither, iff packages are declared. Returns the rejection
+ * message, or `null` when the combination is executable. */
+export function execInputsError(args: {
+  stepPaths: string[];
+  inlineCode?: unknown;
+  packagesByLang?: { python?: string[]; node?: string[] };
+}): string | null {
+  const hasSteps = args.stepPaths.length > 0;
+  const hasInline = args.inlineCode !== undefined;
+  const hasPackages =
+    (args.packagesByLang?.python?.length ?? 0) > 0 ||
+    (args.packagesByLang?.node?.length ?? 0) > 0;
+  if (hasSteps && hasInline) {
+    return 'executeCodeInSession takes stepPaths or inlineCode, not both.';
+  }
+  if (!hasSteps && !hasInline && !hasPackages) {
+    return 'executeCodeInSession requires stepPaths, inlineCode, or packagesByLang.';
+  }
+  return null;
 }
 
 export const executeCodeInSession = internalAction({
@@ -328,7 +398,8 @@ export const executeCodeInSession = internalAction({
     threadId: v.string(),
     uploadedBy: v.string(),
     // Absolute /user/code/<script> paths (already validated by run_code_tool).
-    // Empty in inline mode (exactly one of stepPaths / inlineCode is set).
+    // Empty in inline mode (stepPaths and inlineCode are mutually exclusive)
+    // and in install-only mode (no steps, no inline code, only packagesByLang).
     stepPaths: v.array(v.string()),
     // Inline snippet mode: stage `content` as a hidden one-shot script and run
     // it as the single step. Mutually exclusive with a non-empty stepPaths.
@@ -358,6 +429,8 @@ export const executeCodeInSession = internalAction({
       v.literal('cancelled'),
     ),
     exitCode: v.union(v.number(), v.null()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
     stdoutPreview: v.string(),
     stderrPreview: v.string(),
     durationMs: v.number(),
@@ -371,11 +444,8 @@ export const executeCodeInSession = internalAction({
     ),
   }),
   handler: async (ctx, args): Promise<SessionExecResultShape> => {
-    if (args.stepPaths.length > 0 === (args.inlineCode !== undefined)) {
-      throw new Error(
-        'executeCodeInSession requires exactly one of stepPaths / inlineCode.',
-      );
-    }
+    const inputsError = execInputsError(args);
+    if (inputsError !== null) throw new Error(inputsError);
     const { sessionId, created } = await ctx.runAction(
       internal.node_only.sandbox.thread_session.ensureThreadSession,
       {

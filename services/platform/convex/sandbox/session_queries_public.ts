@@ -45,6 +45,9 @@ export const getActiveSessionOp = query({
       // on held-open stdin (so we can still inject queued/steer messages). Lets
       // the UI distinguish "lingering/ready" from "actively working".
       agentIdleAt: v.optional(v.number()),
+      /** >0 while the model is parked on in-session background work (bash,
+       * workflow tasks). Keeps active-work affordances during quiet-idle. */
+      pendingBackgroundTasks: v.optional(v.number()),
       // The turn's CURRENT live segment message — the single bubble the drain
       // is streaming into. Anchors the chat's thinking indicator (the live
       // region) instead of positional scans; changes only at segment seams,
@@ -85,6 +88,10 @@ export const getActiveSessionOp = query({
       ...(latest.assistantMessageId !== undefined && {
         assistantMessageId: latest.assistantMessageId,
       }),
+      ...(latest.pendingBackgroundTasks !== undefined &&
+        latest.pendingBackgroundTasks > 0 && {
+          pendingBackgroundTasks: latest.pendingBackgroundTasks,
+        }),
     };
   },
 });

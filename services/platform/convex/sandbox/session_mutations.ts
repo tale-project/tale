@@ -828,6 +828,8 @@ export const upsertSessionOp = internalMutation({
     /** Lingering transition (claude-code stdin-hold): true stamps agentIdleAt,
      * false clears it. Omitted ⇒ untouched (the usual throttled flush). */
     agentIdle: v.optional(v.boolean()),
+    /** Background-task ledger depth (0 clears the field). */
+    pendingBackgroundTasks: v.optional(v.number()),
   },
   returns: v.id('sandboxSessionOps'),
   handler: async (ctx, args) => {
@@ -884,9 +886,16 @@ export const upsertSessionOp = internalMutation({
     if (args.agentIdle !== undefined) {
       patch.agentIdleAt = args.agentIdle ? now : undefined;
     }
+    if (args.pendingBackgroundTasks !== undefined) {
+      patch.pendingBackgroundTasks =
+        args.pendingBackgroundTasks > 0
+          ? args.pendingBackgroundTasks
+          : undefined;
+    }
     if (terminal) {
       patch.finishedAt = now;
       patch.agentIdleAt = undefined;
+      patch.pendingBackgroundTasks = undefined;
     }
 
     if (existing) {

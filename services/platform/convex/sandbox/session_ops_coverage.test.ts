@@ -103,6 +103,37 @@ describe('upsertSessionOp', () => {
     expect(row?.agentIdleAt).toBeUndefined();
     expect(typeof row?.finishedAt).toBe('number');
   });
+
+  it('pendingBackgroundTasks>0 is stored; 0 clears; terminal clears', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      pendingBackgroundTasks: 2,
+    });
+    let row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.pendingBackgroundTasks).toBe(2);
+
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      pendingBackgroundTasks: 0,
+    });
+    row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.pendingBackgroundTasks).toBeUndefined();
+
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      pendingBackgroundTasks: 1,
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'completed',
+    });
+    row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.pendingBackgroundTasks).toBeUndefined();
+  });
 });
 
 describe('claimSessionOpFinalize', () => {

@@ -1154,6 +1154,7 @@ export async function runAgentInSessionImpl(
       ...(lastEventAt !== undefined && { lastEventAt }),
       lastSeq: cursor.lastSeq,
       ...(sendIdle && { agentIdle }),
+      pendingBackgroundTasks: pendingTasks.size,
       ...(capturedSessionId !== undefined && {
         agentSessionId: capturedSessionId,
       }),

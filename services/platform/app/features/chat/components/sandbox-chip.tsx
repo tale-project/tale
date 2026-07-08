@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils/cn';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useChatAgents,
+  isAgentActivelyWorking,
   useSessionProgress,
   useThreadSandboxState,
 } from '../hooks/queries';
@@ -212,14 +213,9 @@ export function SandboxChip({
   }, [persist]);
 
   if (!isExternal) return null;
-  // "Working" means a turn is actively running — NOT a finished turn whose
-  // process is merely lingering idle on held-open stdin (agentIdleAt set) to
-  // receive the next message. Subtracting the lingering marker keeps this pill
-  // in lockstep with the composer's running-state (see `agentActivelyWorking`
-  // in chat-interface): both read `status === 'running' && agentIdleAt == null`
-  // so the page never shows "Working" beside a "finished" composer.
-  const running =
-    progress?.status === 'running' && progress?.agentIdleAt == null;
+  // "Working" means a turn is actively running — NOT steer-ready linger on
+  // held-open stdin. Background tasks still count as working.
+  const running = isAgentActivelyWorking(meta?.isGenerating, progress);
 
   const Spinner = prefersReducedMotion ? Loader2 : SpinningLoader;
 

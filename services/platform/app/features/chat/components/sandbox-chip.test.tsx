@@ -18,7 +18,11 @@ vi.mock('../context/chat-layout-context', () => ({
   }),
 }));
 
-vi.mock('../hooks/queries', () => ({
+// Partial mock: hooks are stubbed, but pure helpers (isAgentActivelyWorking
+// & co.) stay real — the component's working-state derivation is behaviour
+// under test, not test plumbing.
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/queries')>()),
   useChatAgents: () => ({
     agents: [{ name: 'claude-code', primaryBehavior: 'external-agent' }],
   }),

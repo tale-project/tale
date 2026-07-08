@@ -16,7 +16,10 @@ import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/ho
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
-import { packageBaseName } from '@/convex/agent_tools/files/_shared';
+import {
+  evaluatePackageAgainstPolicy,
+  packageBaseName,
+} from '@/convex/agent_tools/files/_shared';
 import { useT } from '@/lib/i18n/client';
 import { runCodePolicyConfigSchema } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
@@ -57,8 +60,9 @@ interface FormState {
 }
 
 // Parse a comma- or newline-separated list of package names into a deduped
-// array. Blank lines / empty entries are dropped; matching is case-sensitive
-// (pip and npm both treat names case-sensitively on disk).
+// array. Blank lines / empty entries are dropped. Entries keep their typed
+// casing for display; evaluation lowercases both sides
+// (`evaluatePackageAgainstPolicy`).
 function parseList(value: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -89,24 +93,30 @@ interface DecisionDeny {
 
 type Decision = DecisionAllow | DecisionDeny;
 
+// Thin i18n adapter over the shared evaluator — the tester must show exactly
+// what the runtime gate will decide, so the semantics live in one place.
 function evaluateSpec(
   spec: string,
   bucket: Bucket,
   draft: PolicyDraft,
 ): Decision {
-  const base = packageBaseName(spec);
-  const allow = bucket === 'python' ? draft.pythonAllow : draft.nodeAllow;
-  const deny = bucket === 'python' ? draft.pythonDeny : draft.nodeDeny;
-
-  if (draft.defaultMode === 'allowlist') {
-    return allow.includes(base)
-      ? { decision: 'allowed', reasonKey: 'reasonAllowlistMatch' }
-      : { decision: 'denied', reasonKey: 'reasonAllowlistMiss' };
+  const verdict = evaluatePackageAgainstPolicy(spec, bucket, draft);
+  if (verdict.allowed) {
+    return {
+      decision: 'allowed',
+      reasonKey:
+        verdict.reason === 'allowlist_match'
+          ? 'reasonAllowlistMatch'
+          : 'reasonDenylistNotMatched',
+    };
   }
-  // denylist mode: blocked iff base is on the deny list.
-  return deny.includes(base)
-    ? { decision: 'denied', reasonKey: 'reasonDenylistMatch' }
-    : { decision: 'allowed', reasonKey: 'reasonDenylistNotMatched' };
+  return {
+    decision: 'denied',
+    reasonKey:
+      verdict.reason === 'deny_match'
+        ? 'reasonDenylistMatch'
+        : 'reasonAllowlistMiss',
+  };
 }
 
 interface TestRow {
