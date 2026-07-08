@@ -13,7 +13,7 @@ The tabs below are role-indexed: pick the role you're operating as, then the tas
 
 **[Editor tutorials](/tutorials/editor/first-agent-end-to-end)** — building a first agent end-to-end, binding knowledge, building workflows with approvals, delegating between agents.
 
-**[Developer tutorials](/tutorials/developer/call-tale-from-a-script)** — calling Tale from a script, triggering automations via webhooks, building custom tools, standing up an MCP server.
+**[Developer tutorials](/tutorials/developer/call-tale-from-a-script)** — calling Tale from a script, triggering workflows via webhooks, building custom tools, standing up an MCP server.
 
 **[Admin tutorials](/tutorials/admin/office-add-in)** — installing the Office add-in, wiring meeting transcription, connecting a local provider, SSO with OIDC, restricting models by team.
 

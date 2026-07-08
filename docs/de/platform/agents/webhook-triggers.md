@@ -5,7 +5,7 @@ description: Der Workers-Tab — ein pro-Agent-HTTP-Endpunkt, an den externe Sys
 
 Der **Workers**-Tab eines Agents zeigt einen HTTP-Endpunkt, an den ein anderes System POSTen kann. Das POST führt den Agent gegen die Payload aus und gibt die Antwort zurück; die UI ist nicht involviert. Greif danach, wenn etwas ausserhalb von Tale eine Frage vom Agent beantwortet braucht — ein Slack-Bot, ein Formular-Handler, ein geplanter Job.
 
-Diese Seite deckt nur die Workers-Oberfläche ab. Für das entwickler-zugewandte Äquivalent (Tale aus beliebigen Skripten aufrufen) siehe [Develop → API-Referenz](/de/develop/api-reference); für eingehende Automatisierungs-Trigger, die einen Workflow statt eines Agents ausführen, siehe [Automatisierungen → Trigger](/de/platform/automations/triggers).
+Diese Seite deckt nur die Workers-Oberfläche ab. Für das entwickler-zugewandte Äquivalent (Tale aus beliebigen Skripten aufrufen) siehe [Develop → API-Referenz](/de/develop/api-reference); für eingehende Trigger, die einen Workflow statt eines Agents ausführen, siehe [Workflows → Trigger](/de/platform/workflows/triggers).
 
 ## Ein durchgespielter Worker
 
@@ -21,4 +21,4 @@ Die Default-Payload ist `{"message": "…"}`. Zusätzliche Felder, die die Instr
 
 ## Wo das hineinpasst
 
-Workers sind das leichtgewichtige, pro-Agent-Äquivalent der API. Sie sind nützlich, wenn die Integration „dieser eine Agent macht diese eine Sache" ist; für reichere Flüsse modellier den Aufruf als [Automatisierung](/de/platform/automations/concepts) und richt die Integration auf den Webhook-Trigger der Automatisierung. Das Tutorial [Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) führt die Automatisierungs-Form von Anfang bis Ende.
+Workers sind das leichtgewichtige, pro-Agent-Äquivalent der API. Sie sind nützlich, wenn die Integration „dieser eine Agent macht diese eine Sache" ist; für reichere Flüsse modellier den Aufruf als [Workflow](/de/platform/workflows/concepts) und richt die Integration auf den Webhook-Trigger des Workflows. Das Tutorial [Einen Workflow per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) führt die Workflow-Form von Anfang bis Ende.

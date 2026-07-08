@@ -34,11 +34,13 @@ import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { useAutomationDisplay } from '@/app/features/automations/hooks/use-automation-text';
 import { toolDisplayName } from '@/app/features/chat/utils/format-tool-detail';
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
 
 import {
+  type AvailableAutomation,
   useAvailableIntegrations,
   useAvailableTools,
   useAvailableWorkflows,
@@ -192,7 +194,7 @@ export function ToolSelector({
   const { tools, isLoading } = useAvailableTools();
   const { integrations, isLoading: integrationsLoading } =
     useAvailableIntegrations(organizationId);
-  const { workflows, isLoading: workflowsLoading } =
+  const { workflows: automations, isLoading: automationsLoading } =
     useAvailableWorkflows(organizationId);
 
   const [query, setQuery] = useState('');
@@ -267,9 +269,9 @@ export function ToolSelector({
         t={t}
       />
       {showWorkflows && (
-        <WorkflowBindingsSection
-          workflows={workflows}
-          isLoading={workflowsLoading}
+        <AutomationBindingsSection
+          automations={automations}
+          isLoading={automationsLoading}
           value={workflowBindings}
           onChange={onWorkflowBindingsChange}
           searchPlaceholder={tCommon('search.placeholder')}
@@ -488,8 +490,17 @@ function IntegrationBindingsSection({
   );
 }
 
-function WorkflowBindingsSection({
-  workflows,
+/**
+ * The agent form's automation-bindings picker. Options are still keyed by
+ * WORKFLOW slug (the persisted `workflowBindings` value — an automation-owned
+ * workflow's slug IS its automation's slug), but the label/description shown
+ * are the owning AUTOMATION's self-translated `name`/`description`
+ * (`useAutomationDisplay`, never a raw literal) whenever one owns the
+ * workflow; a standalone workflow (no owning automation) falls back to its
+ * own name/spec-summary.
+ */
+function AutomationBindingsSection({
+  automations,
   isLoading,
   value,
   onChange,
@@ -497,9 +508,7 @@ function WorkflowBindingsSection({
   emptyText,
   t,
 }: {
-  workflows:
-    | Array<{ id: string; name: string; description?: string }>
-    | undefined;
+  automations: AvailableAutomation[] | undefined;
   isLoading: boolean;
   value: string[];
   onChange: (next: string[]) => void;
@@ -507,39 +516,50 @@ function WorkflowBindingsSection({
   emptyText: string;
   t: (key: string) => string;
 }) {
-  const isEmpty = !isLoading && (!workflows || workflows.length === 0);
+  const resolveAutomation = useAutomationDisplay();
+  const isEmpty = !isLoading && (!automations || automations.length === 0);
   const options = useMemo(
     () =>
-      (workflows ?? []).map((workflow) => ({
-        value: workflow.id,
-        label: workflow.name,
-        description: workflow.description,
-      })),
-    [workflows],
+      (automations ?? []).map((workflow) => {
+        const display =
+          workflow.automationName !== undefined
+            ? resolveAutomation({
+                name: workflow.automationName,
+                description: workflow.automationDescription,
+                i18n: workflow.automationI18n,
+              })
+            : { name: workflow.name, description: workflow.description };
+        return {
+          value: workflow.slug,
+          label: display.name,
+          description: display.description,
+        };
+      }),
+    [automations, resolveAutomation],
   );
 
   return (
     <Skeletonize
       loading={isLoading}
-      label={t('agents.form.sectionWorkflowBindings')}
+      label={t('agents.form.sectionAutomationBindings')}
     >
       <FormSection
-        label={t('agents.form.sectionWorkflowBindings')}
-        description={t('agents.form.sectionWorkflowBindingsDescription')}
+        label={t('agents.form.sectionAutomationBindings')}
+        description={t('agents.form.sectionAutomationBindingsDescription')}
       >
         {isEmpty ? (
           <Text variant="caption" className="italic">
-            {t('agents.form.noWorkflowsAvailable')}
+            {t('agents.form.noAutomationsAvailable')}
           </Text>
         ) : (
           <MultiSelect
             value={value}
             onValueChange={onChange}
             options={options}
-            placeholder={t('agents.form.bindWorkflowsPlaceholder')}
+            placeholder={t('agents.form.bindAutomationsPlaceholder')}
             searchPlaceholder={searchPlaceholder}
             emptyText={emptyText}
-            aria-label={t('agents.form.sectionWorkflowBindings')}
+            aria-label={t('agents.form.sectionAutomationBindings')}
           />
         )}
       </FormSection>

@@ -1,11 +1,14 @@
 /**
- * Cross-locale i18n completeness for a config-driven pack's workflow labels.
+ * Cross-locale i18n completeness for a bundled workflow's step labels.
  *
- * A pack ships its own Tier-2 message catalog (`messages/<locale>.json`); a
- * workflow step's `ui.labelKey` (and `ui.params.fields[].labelKey`) reference
- * keys in it. This guard collects those referenced keys and reports any missing
- * from a base locale — so a workflow can't ship a label that resolves in `en`
- * but blanks out in `de`/`fr`. Pure (no I/O); the caller reads the catalogs.
+ * UI translations are PLATFORM-owned: a workflow step's `ui.labelKey` (plus
+ * `ui.params.fields[].labelKey` and `ui.params.verdictLabels.*`) references a
+ * key in the platform's `automations` message namespace
+ * (`services/platform/messages/<locale>.json`). This guard collects those
+ * referenced keys so the builtin-apps gate can report any missing from a base
+ * locale — a builtin workflow can't ship a label that resolves in `en` but
+ * blanks out in `de`/`fr`. Pure (no I/O); the caller reads and flattens the
+ * catalogs.
  *
  * Per-step config validity (render kind, run target, ports) is covered by the
  * workflow definition/annotation validators; this is only the cross-locale
@@ -17,9 +20,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Every Tier-2 label key a workflow's steps reference — `ui.labelKey` and each
- * `ui.params.fields[].labelKey`. Steps are free-form records (the annotation is
- * advisory), so this duck-types rather than assuming a parsed shape.
+ * Every label key a workflow's steps reference — `ui.labelKey`, each
+ * `ui.params.fields[].labelKey`, and each `ui.params.verdictLabels` value
+ * (the gate-step verdict chips). Steps are free-form records (the annotation
+ * is advisory), so this duck-types rather than assuming a parsed shape.
  */
 export function collectWorkflowLabelKeys(workflow: {
   steps?: unknown;
@@ -32,40 +36,20 @@ export function collectWorkflowLabelKeys(workflow: {
     if (!ui) continue;
     if (typeof ui.labelKey === 'string') keys.push(ui.labelKey);
     const params = isRecord(ui.params) ? ui.params : undefined;
-    if (params && Array.isArray(params.fields)) {
+    if (!params) continue;
+    if (Array.isArray(params.fields)) {
       for (const field of params.fields) {
         if (isRecord(field) && typeof field.labelKey === 'string') {
           keys.push(field.labelKey);
         }
       }
     }
+    if (isRecord(params.verdictLabels)) {
+      for (const value of Object.values(params.verdictLabels)) {
+        if (typeof value === 'string') keys.push(value);
+      }
+    }
   }
-  return keys;
-}
-
-/**
- * Every Tier-2 pack label key a VIEW doc references via the `$label:<key>` marker
- * — view/tab titles + descriptions, connected-block titles, `columnLabels`
- * values, and `$label:` arg templates. The marker can sit at any depth, so this
- * recurses the whole document (records + arrays). Pure; the caller reads the
- * catalogs. Sibling to `collectWorkflowLabelKeys` (which covers `ui.labelKey`).
- */
-export function collectViewLabelKeys(view: unknown): string[] {
-  const keys: string[] = [];
-  const walk = (node: unknown): void => {
-    if (typeof node === 'string') {
-      if (node.startsWith('$label:')) keys.push(node.slice('$label:'.length));
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item);
-      return;
-    }
-    if (isRecord(node)) {
-      for (const value of Object.values(node)) walk(value);
-    }
-  };
-  walk(view);
   return keys;
 }
 

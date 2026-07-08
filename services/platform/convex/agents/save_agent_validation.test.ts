@@ -50,7 +50,7 @@ describe('agentJsonSchema validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts null delegates after stripNulls', () => {
+  it('accepts null workflows after stripNulls', () => {
     const config = { ...BASE_CONFIG, workflows: null };
     const result = agentJsonSchema.safeParse(stripNulls(config));
     expect(result.success).toBe(true);
@@ -106,7 +106,7 @@ describe('agentJsonSchema validation', () => {
 
   // -------------------------------------------------------------------------
   // skillBindings (Skills feature)
-  // Parity with delegates/visibleInChat: array shape + null transport handling.
+  // Parity with workflows/visibleInChat: array shape + null transport handling.
   // -------------------------------------------------------------------------
 
   it('accepts skillBindings as a kebab-case slug array', () => {
@@ -201,16 +201,18 @@ describe('stripNulls', () => {
   });
 
   it('filters null elements from arrays', () => {
-    const input = { delegates: ['integration-assistant', null] };
-    expect(stripNulls(input)).toEqual({ delegates: ['integration-assistant'] });
+    const input = { skillBindings: ['integration-assistant', null] };
+    expect(stripNulls(input)).toEqual({
+      skillBindings: ['integration-assistant'],
+    });
   });
 
   it('filters undefined elements from arrays', () => {
     const input = {
-      delegates: ['integration-assistant', undefined, 'crm-assistant'],
+      skillBindings: ['integration-assistant', undefined, 'crm-assistant'],
     };
     expect(stripNulls(input)).toEqual({
-      delegates: ['integration-assistant', 'crm-assistant'],
+      skillBindings: ['integration-assistant', 'crm-assistant'],
     });
   });
 
@@ -238,8 +240,8 @@ describe('stripNulls', () => {
   });
 
   it('preserves empty arrays', () => {
-    const input = { delegates: [], name: 'test' };
-    expect(stripNulls(input)).toEqual({ delegates: [], name: 'test' });
+    const input = { skillBindings: [], name: 'test' };
+    expect(stripNulls(input)).toEqual({ skillBindings: [], name: 'test' });
   });
 
   it('handles deeply nested i18n structure', () => {

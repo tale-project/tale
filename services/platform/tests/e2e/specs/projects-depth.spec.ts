@@ -182,39 +182,43 @@ test('project secrets: create then delete an API-key secret', async ({
       page.getByRole('heading', { name: t('projectSecrets.title') }).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
+    // The tab embeds the shared env-var editor in forceSecret mode: "Add
+    // variable" appends an inline table row (no dialog), the NAME/value
+    // inputs are placeholder-labelled, and Save commits pending rows. A
+    // fresh project has no secrets, so this row's inputs are unique — and
+    // stay the anchor throughout: the secret NAME lives in the key input's
+    // VALUE, which text-content filters (hasText) can never see.
     await page
-      .getByRole('button', { name: t('projectSecrets.addButton') })
+      .getByRole('button', { name: t('envEditor.add'), exact: true })
       .click();
-    const secretDialog = page.getByRole('dialog', {
-      name: t('projectSecrets.addButton'),
-    });
-    await expect(secretDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Type defaults to "API key"; names are stored upper-cased, so feed an
-    // already-upper name. The fields are `required`, and the asterisk carries
-    // an `aria-label="required"` that the label's accessible name folds in
-    // (e.g. "Namerequired"), so match on the substring rather than exact.
-    await secretDialog
-      .getByLabel(t('projectSecrets.nameLabel'))
-      .fill(secretName);
-    await secretDialog
-      .getByLabel(t('projectSecrets.apiKeyValueLabel'))
+    const keyInput = page.getByPlaceholder(t('envEditor.keyPlaceholder'));
+    await keyInput.fill(secretName);
+    await page
+      .getByPlaceholder(t('envEditor.valuePlaceholder'))
       .fill('tale-e2e-depth-secret-value');
-    await secretDialog
-      .getByRole('button', { name: t('common.actions.save'), exact: true })
+    await page
+      .getByRole('button', { name: t('envEditor.save'), exact: true })
       .click();
 
-    // The new secret shows in the list; scope the delete to its row. Each row
-    // is an `<li>` whose `display:flex` styling makes Chromium drop the
-    // implicit `listitem` role from the a11y tree, so match the row by tag
-    // name (role-independent) and its unique secret-name text instead.
-    const secretRow = page.locator('li').filter({ hasText: secretName });
-    await expect(secretRow).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    await secretRow
-      .getByRole('button', { name: t('common.actions.delete'), exact: true })
+    // Saved: the editor re-renders the secret from the backend as a masked
+    // row whose key input still holds the name.
+    await expect(keyInput).toHaveValue(secretName, {
+      timeout: TIMEOUT.PERSIST,
+    });
+
+    // Remove the row (its icon button is the only Remove on the page until
+    // the confirm dialog opens) and confirm through the delete dialog.
+    await page
+      .getByRole('button', { name: t('envEditor.remove'), exact: true })
       .click();
-    await expect(
-      page.locator('li').filter({ hasText: secretName }),
-    ).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
+    const removeDialog = page.getByRole('dialog', {
+      name: t('envEditor.confirmRemoveTitle'),
+    });
+    await expect(removeDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await removeDialog
+      .getByRole('button', { name: t('envEditor.remove'), exact: true })
+      .click();
+    await expect(keyInput).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
   } finally {
     await deleteProject(page, organizationId, projectName);
   }

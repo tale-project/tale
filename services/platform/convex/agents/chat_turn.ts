@@ -34,6 +34,7 @@ import {
 } from '../collab/resolve_surface_mentions';
 import { isDrainingNow } from '../control/drain';
 import { userContextValidator } from '../lib/agent_response/validators';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
@@ -191,8 +192,24 @@ export const chatWithAgentTurn = mutation({
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
-    if (!meta || meta.userId !== authUser.userId) {
+    if (!meta) {
       throw new Error('Thread not found');
+    }
+    if (meta.userId !== authUser.userId) {
+      // App-discussion threads (the AgentChat block's shared per-subject
+      // thread) are a shared org surface: any current member of the thread's
+      // org may send turns — mirrors `can_access_thread`'s discussion branch.
+      // Every other kind stays owner-only. `assertThreadAccess` enforces org
+      // membership, active-org coherence, and the retention-status gate.
+      if (meta.kind !== 'automation_discussion') {
+        throw new Error('Thread not found');
+      }
+      await assertThreadAccess(
+        ctx,
+        args.threadId,
+        authUser,
+        args.organizationId,
+      );
     }
     if (meta.organizationId && meta.organizationId !== args.organizationId) {
       throw new Error('Thread does not belong to the requested organization');
@@ -261,7 +278,12 @@ export const chatWithAgentTurn = mutation({
     // working (no hard reject). Like Stop, the abort is poll-based (~1.5s), so
     // a near-instant prior turn may still finalize — acceptable parity.
     if (meta.generationStatus === 'generating' && meta.streamId) {
-      await cancelGeneration(ctx, authUser.userId, args.threadId);
+      // Cancel AS THE THREAD OWNER: `cancelGeneration` validates against the
+      // agent-component thread's creator userId, which equals `meta.userId`.
+      // For an owner send the two are identical; for an authorized non-owner
+      // send on a shared `automation_discussion` thread (gate above) this is what
+      // lets the supersede work instead of failing on the ownership check.
+      await cancelGeneration(ctx, meta.userId, args.threadId);
     }
 
     const streamId = await persistentStreaming.createStream(ctx);

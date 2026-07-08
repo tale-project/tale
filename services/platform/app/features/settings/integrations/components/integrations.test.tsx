@@ -25,6 +25,11 @@ vi.mock('./integration-upload/integration-upload-dialog', () => ({
   IntegrationUploadDialog: () => <div data-testid="upload-dialog" />,
 }));
 
+// The export action wires a Convex hook (no ConvexProvider mounts here).
+vi.mock('../hooks/use-export-integration', () => ({
+  useExportIntegration: () => ({ mutateAsync: vi.fn() }),
+}));
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -132,7 +137,7 @@ describe('Integrations', () => {
     await user.type(searchInput, 'nonexistent');
 
     expect(
-      screen.getByText('integrations.empty.searchTitle'),
+      screen.getByText('integrations.noResults.title'),
     ).toBeInTheDocument();
   });
 

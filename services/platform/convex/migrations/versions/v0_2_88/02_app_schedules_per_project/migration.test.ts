@@ -2,8 +2,10 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { internal } from '../../../../_generated/api';
-import schema from '../../../../schema';
-import { buildModules } from '../../../framework/test_helpers';
+import {
+  buildModules,
+  historicalSchema,
+} from '../../../framework/test_helpers';
 import { meta } from './meta';
 
 const DIR = 'migrations/versions/v0_2_88/02_app_schedules_per_project';
@@ -15,7 +17,7 @@ const SLUG = 'issue-desk/reconcile';
 
 describe('0.2.88/02 app_schedules_per_project', () => {
   it('up assigns an org-level app schedule to its binding; down unsets it', async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest(historicalSchema, modules);
     const projectId = await t.run(async (ctx) => {
       await ctx.db.insert('appInstallations', {
         organizationId: ORG,
@@ -74,7 +76,7 @@ describe('0.2.88/02 app_schedules_per_project', () => {
   });
 
   it('leaves a non-app schedule untouched', async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest(historicalSchema, modules);
     await t.run(async (ctx) => {
       await ctx.db.insert('wfSchedules', {
         organizationId: ORG,

@@ -23,6 +23,7 @@ type ThreadMetadataFilterBuilder = FilterBuilder<
 const NON_CHAT_HISTORY_KINDS = [
   'project_discussion',
   'task_discussion',
+  'automation_discussion',
 ] as const;
 
 /**

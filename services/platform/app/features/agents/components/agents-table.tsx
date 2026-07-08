@@ -4,10 +4,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Bot } from 'lucide-react';
-import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { type DataTableActionMenuItem } from '@/app/components/ui/data-table/data-table-action-menu';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
@@ -30,8 +38,8 @@ export interface AgentRow {
   description?: string;
   /** '/'-joined folder path the agent lives in (from its `folder` field). */
   folderPath: string;
-  /** Owning app slug when app-owned (folderPath === appSlug); else undefined. */
-  appSlug?: string;
+  /** Owning app slug when app-owned (folderPath === automationSlug); else undefined. */
+  automationSlug?: string;
   supportedModels?: string[];
   toolNames?: string[];
   visibleInChat?: boolean;
@@ -47,8 +55,8 @@ export interface AgentFolderItem {
   /** Full '/'-joined path used to drill in. */
   path: string;
   agentCount: number;
-  /** Set when this top-level folder IS an installed app — marks it `[App]`. */
-  appSlug?: string;
+  /** Set when this top-level folder IS an installed automation — marks it `[Automation]`. */
+  automationSlug?: string;
 }
 
 export type AgentTableItem = AgentRow | AgentFolderItem;
@@ -56,11 +64,21 @@ export type AgentTableItem = AgentRow | AgentFolderItem;
 interface AgentsTableProps {
   organizationId: string;
   currentFolder?: string;
+  /**
+   * Page-specific items appended after the create items in the action menu
+   * (e.g. the "Update from catalog" sync item — the standalone catalog page
+   * was folded into this list, so its controls land here now).
+   */
+  extraMenuItems?: DataTableActionMenuItem[];
+  /** Dialog rendered alongside the table for `extraMenuItems` (e.g. the sync confirm dialog). */
+  extraDialog?: ReactNode;
 }
 
 export function AgentsTable({
   organizationId,
   currentFolder,
+  extraMenuItems,
+  extraDialog,
 }: AgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
@@ -110,7 +128,7 @@ export function AgentsTable({
         displayName: resolved.displayName,
         description: resolved.description,
         folderPath: agent.folder ?? '',
-        appSlug: agent.appSlug,
+        automationSlug: agent.automationSlug,
         supportedModels: agent.supportedModels,
         toolNames: agent.toolNames,
         visibleInChat: agent.visibleInChat,
@@ -120,18 +138,22 @@ export function AgentsTable({
     return validAgents;
   }, [rawAgents, locale, enabledSlugs]);
 
-  // Top-level folders whose name is an installed app — surfaced from the rows
-  // that carry `appSlug` (app agents have folderPath === appSlug). Used to mark
-  // the folder group `[App]` instead of rendering it as an ordinary folder.
-  const appFolderSlugs = useMemo<Set<string>>(
-    () =>
-      new Set(
-        agents
-          .map((a) => a.appSlug)
-          .filter((s): s is string => s !== undefined),
-      ),
-    [agents],
-  );
+  // Folder paths an installed automation groups under — surfaced from the rows that
+  // carry `automationSlug` (automation agents have folderPath = the automation's
+  // display folder, which defaults to the automation slug but can be any nested
+  // path, e.g. `github/issues`). Used to mark the folder group `[Automation]`
+  // instead of rendering it as an ordinary folder — but only when EVERY agent
+  // nested beneath the folder is automation-owned, so a shared parent folder
+  // (e.g. `github` holding both global agents and an automation's subfolder)
+  // stays an ordinary folder.
+  const automationFolderSlugs = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const a of agents) {
+      if (a.automationSlug !== undefined)
+        map.set(a.folderPath, a.automationSlug);
+    }
+    return map;
+  }, [agents]);
 
   // Search is global (matches across every folder); otherwise scope to the
   // current folder plus everything nested beneath it.
@@ -162,18 +184,31 @@ export function AgentsTable({
       (a) => a.folderPath,
       currentFolder ?? '',
     );
-    const folderItems: AgentFolderItem[] = subfolders.map((f) => ({
-      type: 'folder',
-      name: f.name,
-      path: f.path,
-      agentCount: f.count,
-      appSlug: appFolderSlugs.has(f.path) ? f.path : undefined,
-    }));
+    const folderItems: AgentFolderItem[] = subfolders.map((f) => {
+      // `[Automation]`-mark a folder only when every agent nested beneath it is
+      // automation-owned — a folder mixing global agents with an automation's
+      // is ordinary.
+      const nested = scopedAgents.filter((a) =>
+        isInFolder(a.folderPath, f.path),
+      );
+      const allAutomationOwned =
+        nested.length > 0 &&
+        nested.every((a) => a.automationSlug !== undefined);
+      return {
+        type: 'folder',
+        name: f.name,
+        path: f.path,
+        agentCount: f.count,
+        automationSlug: allAutomationOwned
+          ? (automationFolderSlugs.get(f.path) ?? nested[0]?.automationSlug)
+          : undefined,
+      };
+    });
     const agentItems = [...items].sort((a, b) =>
       a.displayName.localeCompare(b.displayName),
     );
     return [...folderItems, ...agentItems];
-  }, [scopedAgents, isSearching, currentFolder, appFolderSlugs]);
+  }, [scopedAgents, isSearching, currentFolder, automationFolderSlugs]);
 
   const { mutateAsync: deleteAgent } = useDeleteAgent();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -241,7 +276,7 @@ export function AgentsTable({
       const item = row.original;
       if (item.type === 'folder') {
         void navigate({
-          to: '/dashboard/$id/agents/all',
+          to: '/dashboard/$id/agents',
           params: { id: organizationId },
           search: { folder: item.path },
         });
@@ -291,55 +326,57 @@ export function AgentsTable({
   });
 
   return (
-    <DataTable
-      className="p-4"
-      {...list.tableProps}
-      columns={columns}
-      caption={tSettings('agents.tableCaption')}
-      stickyLayout={stickyLayout}
-      // Folders aren't selectable; built-in agents and app-owned agents are not
-      // deletable — so the header checkbox + bulk bar only ever target
-      // user-created global agents.
-      enableRowSelection={(row) =>
-        row.original.type === 'agent' &&
-        !row.original.appSlug &&
-        !PROTECTED_AGENT_NAMES.some((name) => name === row.original.name)
-      }
-      rowSelection={rowSelection}
-      onRowSelectionChange={setRowSelection}
-      rowClassName={(row) => {
-        if (row.original.type === 'folder') return 'cursor-pointer';
-        return row.original.name === highlightedName
-          ? 'bg-primary/10 transition-colors duration-500 motion-reduce:transition-none'
-          : '';
-      }}
-      onRowClick={handleRowClick}
-      onRowMouseEnter={handleRowMouseEnter}
-      actionMenu={
-        // Overview / Catalog / Metrics live in the agents-page tab strip
-        // (agents.tsx); this list carries only the create action.
-        <AgentsActionMenu
-          organizationId={organizationId}
-          createOpen={createOpen}
-          onCreateOpenChange={setCreateOpen}
-        />
-      }
-      emptyState={{
-        icon: Bot,
-        title: tEmpty('agents.title'),
-        description: tEmpty('agents.description'),
-      }}
-      footer={
-        <BulkDeleteBar
-          rowSelection={rowSelection}
-          onClearSelection={handleClearSelection}
-          onDeleteItem={handleBulkDeleteItem}
-          onDeleteComplete={() => {
-            handleClearSelection();
-            invalidateAgents();
-          }}
-        />
-      }
-    />
+    <>
+      <DataTable
+        className="p-4"
+        {...list.tableProps}
+        columns={columns}
+        caption={tSettings('agents.tableCaption')}
+        stickyLayout={stickyLayout}
+        // Folders aren't selectable; built-in agents and app-owned agents are not
+        // deletable — so the header checkbox + bulk bar only ever target
+        // user-created global agents.
+        enableRowSelection={(row) =>
+          row.original.type === 'agent' &&
+          !row.original.automationSlug &&
+          !PROTECTED_AGENT_NAMES.some((name) => name === row.original.name)
+        }
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        rowClassName={(row) => {
+          if (row.original.type === 'folder') return 'cursor-pointer';
+          return row.original.name === highlightedName
+            ? 'bg-primary/10 transition-colors duration-500 motion-reduce:transition-none'
+            : '';
+        }}
+        onRowClick={handleRowClick}
+        onRowMouseEnter={handleRowMouseEnter}
+        actionMenu={
+          <AgentsActionMenu
+            organizationId={organizationId}
+            createOpen={createOpen}
+            onCreateOpenChange={setCreateOpen}
+            extraMenuItems={extraMenuItems}
+          />
+        }
+        emptyState={{
+          icon: Bot,
+          title: tEmpty('agents.title'),
+          description: tEmpty('agents.description'),
+        }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleBulkDeleteItem}
+            onDeleteComplete={() => {
+              handleClearSelection();
+              invalidateAgents();
+            }}
+          />
+        }
+      />
+      {extraDialog}
+    </>
   );
 }

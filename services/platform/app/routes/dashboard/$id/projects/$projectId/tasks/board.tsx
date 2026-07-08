@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
 import {
   persistTaskView,
+  TASK_VIEW_ROUTES,
+  type TaskView,
   validateTaskSearch,
 } from '@/app/features/tasks/lib/view';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -47,9 +49,9 @@ function TasksBoardPage() {
       organizationId={organizationId}
       projectId={projectId}
       view="board"
-      onViewChange={() => {
+      onViewChange={(next: TaskView) => {
         void navigate({
-          to: '/dashboard/$id/projects/$projectId/tasks/list',
+          to: TASK_VIEW_ROUTES[next],
           params: { id: organizationId, projectId },
           search: (prev) => prev,
         });

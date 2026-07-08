@@ -1,6 +1,6 @@
 ---
 title: Plattform
-description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Conversations, Wissen, Genehmigungen, Verwaltung.
+description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Workflows, Wissen, Genehmigungen, Verwaltung.
 kind: index
 ---
 
@@ -16,9 +16,9 @@ Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature geglied
 
 **[Agents](/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools, Modell, Fähigkeiten, Worker, Versionierung, Webhook-Trigger.
 
-**[Automatisierungen](/de/platform/automations/concepts)** — Workflows, Trigger, Ausführungen, Metriken, Genehmigungs-Gates.
+**[Automatisierungen](/de/platform/automations/concepts)** — installierbare Bündel aus Integrationen, Agents, Skills und einem Workflow; der Katalog, der Installations-Assistent und die mitgelieferten Bundles.
 
-**[Conversations](/de/platform/conversations/overview)** — der Posteingang für Kundenkanäle; Statusfilter, Suche.
+**[Workflows](/de/platform/workflows/concepts)** — Definitionen, Trigger, Ausführungen, Metriken, Genehmigungs-Gates.
 
 **[Wissen](/de/platform/knowledge/overview)** — Dokumente, Kunden, Produkte, Lieferanten, Websites, Modell für strukturierte Daten.
 

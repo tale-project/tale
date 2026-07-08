@@ -1,9 +1,7 @@
 {
   "title": "Shopify",
   "description": "Sync products, customers, and orders from your Shopify store.",
-  "metadata": {
-    "labels": ["Commerce"]
-  },
+  "labels": ["Commerce"],
   "version": 1,
   "authMethod": "api_key",
   "secretBindings": ["domain", "accessToken"],

@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import {
   readPersistedTaskView,
+  TASK_VIEW_ROUTES,
   validateTaskSearch,
 } from '@/app/features/tasks/lib/view';
 
@@ -18,10 +19,7 @@ export const Route = createFileRoute(
   validateSearch: validateTaskSearch,
   beforeLoad: ({ params, search }) => {
     throw redirect({
-      to:
-        readPersistedTaskView(params.projectId) === 'list'
-          ? '/dashboard/$id/projects/$projectId/tasks/list'
-          : '/dashboard/$id/projects/$projectId/tasks/board',
+      to: TASK_VIEW_ROUTES[readPersistedTaskView(params.projectId)],
       params,
       search,
       replace: true,

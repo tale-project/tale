@@ -17,6 +17,7 @@ import {
   readdir,
   realpath,
   rename as fsRename,
+  rm,
   stat,
   unlink,
 } from 'node:fs/promises';
@@ -68,7 +69,7 @@ function isFileNotFound(err: unknown): boolean {
  * Used to replace silent `catch {}` blocks at:
  *  - convex/agents/file_actions.ts (listAgents, duplicateAgent, listHistory)
  *  - convex/agents/internal_actions.ts (listAgentsInternal)
- *  - convex/workflows/file_actions.ts (listWorkflowsInternal, getAvailableWorkflows)
+ *  - convex/workflows/file_actions.ts (listWorkflowsForAgent)
  */
 export function handleDirReadError(err: unknown, label: string): void {
   if (errnoCode(err) === 'ENOENT') return;
@@ -437,6 +438,49 @@ export async function readFileSafe(filePath: string): Promise<string | null> {
     }
     return null;
   }
+}
+
+/**
+ * Delete a single file, tolerating a missing target (idempotent). A symlink
+ * at the path is removed as a link (unlink never follows), so this cannot
+ * reach outside the intended tree. Returns true when a file was removed.
+ */
+export async function removeFileSafe(filePath: string): Promise<boolean> {
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (err) {
+    if (!isFileNotFound(err)) {
+      console.warn('[removeFileSafe] failed:', filePath, err);
+      throw err;
+    }
+    return false;
+  }
+}
+
+/**
+ * Recursively delete a directory, tolerating a missing target (idempotent).
+ * Refuses a symlink at the directory path itself — following one with
+ * `rm -rf` would delete arbitrary filesystem locations (same defense as
+ * `organizations/scaffold.ts::removeOrgSubtree`). Returns true when a
+ * directory was removed.
+ */
+export async function removeDirSafe(dirPath: string): Promise<boolean> {
+  let info;
+  try {
+    info = await lstat(dirPath);
+  } catch (err) {
+    if (!isFileNotFound(err)) {
+      console.warn('[removeDirSafe] lstat failed:', dirPath, err);
+      throw err;
+    }
+    return false;
+  }
+  if (info.isSymbolicLink()) {
+    throw new Error(`[removeDirSafe] refusing symlinked dir: ${dirPath}`);
+  }
+  await rm(dirPath, { recursive: true });
+  return true;
 }
 
 /**

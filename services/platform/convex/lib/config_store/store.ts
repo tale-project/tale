@@ -31,6 +31,7 @@ import path from 'node:path';
 
 import type { z } from 'zod/v4';
 
+import { zodErrorMessage } from '../../../lib/shared/schemas/format-error';
 import {
   atomicWrite,
   getConfigRoot,
@@ -93,7 +94,7 @@ export function createFileConfigStore<T>(
     const parsed = JSON.parse(content) as unknown;
     const result = schema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(`Invalid ${area} config: ${result.error.message}`);
+      throw new Error(zodErrorMessage(`Invalid ${area} config`, result.error));
     }
     return result.data;
   };
@@ -115,7 +116,10 @@ export function createFileConfigStore<T>(
       const parsed = schema.safeParse(value);
       if (!parsed.success) {
         throw new Error(
-          `Refusing to write invalid ${area} config: ${parsed.error.message}`,
+          zodErrorMessage(
+            `Refusing to write invalid ${area} config`,
+            parsed.error,
+          ),
         );
       }
       const content = JSON.stringify(parsed.data, null, 2) + '\n';

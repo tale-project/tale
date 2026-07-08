@@ -1,5 +1,5 @@
 ---
-title: Eine Automation per Webhook auslösen
+title: Einen Workflow per Webhook auslösen
 description: Erzeug in einem Tale-Workflow einen Trigger-Schlüssel und POSTe von einem externen System auf die Trigger-URL, um mit Idempotenz einen Lauf zu starten.
 ---
 
@@ -50,6 +50,6 @@ Das Quell-System muss pro logischem Event einen stabilen, deterministischen Schl
 
 ## Wo das eingesetzt wird
 
-Webhook-Trigger sind die eingehende Hälfte von Tales Automation-API — die Naht, in die dein CRM, dein Order-System oder dein Monitoring-Tool POSTet. Nimm sie für „das ist in unserer Welt passiert, bitte lass dazu einen Tale-Workflow laufen"; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst.
+Webhook-Trigger sind die eingehende Hälfte von Tales Workflow-API — die Naht, in die dein CRM, dein Order-System oder dein Monitoring-Tool POSTet. Nimm sie für „das ist in unserer Welt passiert, bitte lass dazu einen Tale-Workflow laufen"; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst.
 
-Für die ausgehende Hälfte — Tale POSTet auf deine URL, wenn ein Tale-Event passiert — und für den vollen Signier- und Wiederholungs-Vertrag siehe [Webhooks](/de/develop/webhooks). Die Workflow-seitige Konfiguration des Triggers lebt auf der Seite [Automation-Konzepte](/de/platform/automations/concepts).
+Für die ausgehende Hälfte — Tale POSTet auf deine URL, wenn ein Tale-Event passiert — und für den vollen Signier- und Wiederholungs-Vertrag siehe [Webhooks](/de/develop/webhooks). Die Workflow-seitige Konfiguration des Triggers lebt auf der Seite [Workflow-Konzepte](/de/platform/workflows/concepts).

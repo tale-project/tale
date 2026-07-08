@@ -23,21 +23,14 @@ import { validateWorkflowVariableReferences } from './variables';
 /**
  * Validate a complete workflow definition.
  *
- * @param workflowConfig - Workflow configuration object (must have name)
  * @param stepsConfig - Array of step configuration objects
  * @returns Validation result with errors and warnings
  */
 export function validateWorkflowDefinition(
-  workflowConfig: { name?: string },
   stepsConfig: Array<Record<string, unknown>>,
 ): WorkflowValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-
-  // Validate workflow config
-  if (!workflowConfig.name || typeof workflowConfig.name !== 'string') {
-    errors.push('Workflow config must have a "name" field (string)');
-  }
 
   // Validate each step
   for (let i = 0; i < stepsConfig.length; i++) {

@@ -2,8 +2,9 @@
 
 /** `collection` — N homogeneous items. `params.layout` (table | list | cards)
  * picks the presentation; folds table/grid/list/schema-profile into one kind.
- * A `status` column renders as a colored badge; internal id columns are hidden
- * from display (kept in the data for future row links). */
+ * A `status` column renders as a colored badge via the shared `STATUS_VARIANT`
+ * map (`data-table/cell-kinds`); internal id columns are hidden from display
+ * (kept in the data for future row links). */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { Grid, VStack } from '@tale/ui/layout';
@@ -17,6 +18,7 @@ import {
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 
+import { STATUS_VARIANT } from '@/app/components/ui/data-table/cell-kinds';
 import { useT } from '@/lib/i18n/client';
 import type { CollectionLayout } from '@/lib/shared/platform/render_kinds';
 
@@ -39,24 +41,6 @@ function columnsOf(items: unknown[]): string[] {
         .slice(0, 6)
     : [];
 }
-
-const STATUS_VARIANT: Record<
-  string,
-  'green' | 'destructive' | 'blue' | 'yellow' | 'slate'
-> = {
-  completed: 'green',
-  done: 'green',
-  failed: 'destructive',
-  running: 'blue',
-  in_progress: 'blue',
-  paused: 'yellow',
-  waiting: 'yellow',
-  in_review: 'yellow',
-  cancelled: 'slate',
-  canceled: 'slate',
-  pending: 'slate',
-  unknown: 'slate',
-};
 
 function CellValue({ col, value }: { col: string; value: unknown }) {
   if (col === 'status' && typeof value === 'string') {

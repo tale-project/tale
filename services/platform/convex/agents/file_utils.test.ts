@@ -6,14 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   resolveAgentFilePath,
-  resolveAppAgentsDir,
+  resolveAutomationAgentsDir,
   resolveHistoryDir,
 } from './file_utils';
 import { validateAgentName } from './validators';
 
 // Agent identities are either a flat GLOBAL name (`coder`, under `org/agents/`)
-// or an app-owned COMPOSITE `<app>/<name>` (`issue-desk/desk-coordinator`, under
-// `org/apps/<app>/agents/`). A `/` is UNAMBIGUOUS for agents — they are flat by
+// or an automation-owned COMPOSITE `<slug>/<name>` (`issue-desk/desk-coordinator`, under
+// `org/automations/<slug>/agents/`). A `/` is UNAMBIGUOUS for agents — they are flat by
 // default — so the dispatch is purely lexical (no fs check, unlike workflows).
 let configRoot: string;
 let prev: string | undefined;
@@ -32,8 +32,8 @@ afterEach(async () => {
 
 const globalAgentsDir = (): string =>
   path.join(configRoot, 'default', 'agents');
-const appAgentsDir = (app: string): string =>
-  path.join(configRoot, 'default', 'apps', app, 'agents');
+const automationAgentsDir = (slug: string): string =>
+  path.join(configRoot, 'default', 'automations', slug, 'agents');
 
 describe('validateAgentName (flat global OR composite app-owned)', () => {
   it('accepts a flat global name', () => {
@@ -65,15 +65,15 @@ describe('agent path dispatch (flat → global dir, composite → app dir)', () 
     );
   });
 
-  it('composite slug resolves under org/apps/<app>/agents/', () => {
+  it('composite slug resolves under org/automations/<slug>/agents/', () => {
     expect(resolveAgentFilePath('default', 'issue-desk/desk-coordinator')).toBe(
-      path.join(appAgentsDir('issue-desk'), 'desk-coordinator.json'),
+      path.join(automationAgentsDir('issue-desk'), 'desk-coordinator.json'),
     );
   });
 
-  it('resolveAppAgentsDir points under the app bundle', () => {
-    expect(resolveAppAgentsDir('default', 'issue-desk')).toBe(
-      appAgentsDir('issue-desk'),
+  it('resolveAutomationAgentsDir points under the app bundle', () => {
+    expect(resolveAutomationAgentsDir('default', 'issue-desk')).toBe(
+      automationAgentsDir('issue-desk'),
     );
   });
 
@@ -82,7 +82,11 @@ describe('agent path dispatch (flat → global dir, composite → app dir)', () 
       path.join(globalAgentsDir(), '.history', 'coder'),
     );
     expect(resolveHistoryDir('default', 'issue-desk/desk-coordinator')).toBe(
-      path.join(appAgentsDir('issue-desk'), '.history', 'desk-coordinator'),
+      path.join(
+        automationAgentsDir('issue-desk'),
+        '.history',
+        'desk-coordinator',
+      ),
     );
   });
 

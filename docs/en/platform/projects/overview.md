@@ -19,6 +19,8 @@ Each Project carries five things visible from its sidebar: **Files** uploaded on
 
 **[Project agents](/platform/projects/project-agents)** — Project-scoped agents versus org agents; the shadow rule; publishing into a Project.
 
+**[Backlog](/platform/projects/backlog)** — proposed tasks an automation or teammate synced in; Start onto the board or Close them off.
+
 ## Where this fits
 
 Projects sit beside Chat in the sidebar. The handover is natural: most users start a question in Chat, realise it is bigger than one chat, and move it into a Project. The next read depends on whether you are building the Project or working in one — [Use projects](/tutorials/member/use-projects) walks a fresh Project end to end; [Project concepts](/platform/projects/concepts) names the model.

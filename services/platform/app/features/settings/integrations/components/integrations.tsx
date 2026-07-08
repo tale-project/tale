@@ -1,66 +1,50 @@
 'use client';
 
-import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { HStack, Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Tabs } from '@tale/ui/tabs';
 import { Search, Unplug } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
+import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
 import { CatalogGrid } from '@/app/components/catalog/catalog-grid';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
+import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { downloadBase64File } from '@/lib/utils/download';
 
+import { useExportIntegration } from '../hooks/use-export-integration';
 import { IntegrationCard } from './integration-card';
 import { IntegrationPanel } from './integration-panel';
 import { IntegrationUploadDialog } from './integration-upload/integration-upload-dialog';
-
-/** Number of placeholder cards rendered while the integration list loads. */
-const PLACEHOLDER_CARD_COUNT = 6;
-
-/**
- * Placeholder card matching `IntegrationCard`'s footprint (icon tile + status
- * badge, title, two description lines) so the loading grid occupies the same
- * height as the loaded grid. Decorative; the enclosing `<Skeletonize>` owns the
- * single status announcement.
- */
-function IntegrationCardSkeleton() {
-  return (
-    <Card padding="md">
-      <Row gap={3} align="start">
-        <SkeletonBox>
-          <div className="size-10 rounded-lg" />
-        </SkeletonBox>
-        <Stack gap={1} className="min-w-0 flex-1">
-          <Row gap={2} align="start" justify="between">
-            <div className="w-24 text-sm leading-none">
-              <SkeletonText />
-            </div>
-            <SkeletonBox>
-              <div className="h-5 w-16 rounded-full" />
-            </SkeletonBox>
-          </Row>
-          <div className="text-sm leading-snug">
-            <SkeletonText lines={2} />
-          </div>
-        </Stack>
-      </Row>
-    </Card>
-  );
-}
 
 export interface IntegrationListItem {
   _id: string;
   slug: string;
   title: string;
   description?: string;
+  /** Definition catalog chips, rendered in the card's meta row. */
+  labels?: string[];
   type?: 'rest_api' | 'sql';
   authMethod: string;
   operationCount: number;
   hash: string;
   [key: string]: unknown;
+}
+
+/** Search matches an integration's title or description. */
+function integrationHaystack(
+  item: IntegrationListItem,
+): ReadonlyArray<string | undefined> {
+  return [item.title, item.description];
 }
 
 interface IntegrationsProps {
@@ -78,9 +62,12 @@ interface IntegrationsProps {
    * page chrome instead of swapping in from a separate page-level skeleton.
    */
   isLoading?: boolean;
-  /** Controls the "Add integration" upload dialog; the trigger lives in the page header. */
+  /** Controls the "Add integration" upload dialog opened from `toolbarAction`. */
   addDialogOpen: boolean;
   onAddDialogOpenChange: (open: boolean) => void;
+  /** Right-aligned toolbar slot (the page's Add-integration menu) — rendered
+   *  in the search row, next to the search input. */
+  toolbarAction?: ReactNode;
 }
 
 export function Integrations({
@@ -93,8 +80,40 @@ export function Integrations({
   isLoading = false,
   addDialogOpen,
   onAddDialogOpenChange,
+  toolbarAction,
 }: IntegrationsProps) {
   const { t } = useT('settings');
+
+  const { mutateAsync: exportIntegration } = useExportIntegration();
+  const [exportingSlug, setExportingSlug] = useState<string | null>(null);
+  const handleExport = useCallback(
+    async (item: IntegrationListItem) => {
+      if (exportingSlug) return;
+      setExportingSlug(item.slug);
+      try {
+        const result = await exportIntegration({
+          organizationId,
+          slug: item.slug,
+        });
+        downloadBase64File(
+          result.filename,
+          result.dataBase64,
+          'application/zip',
+        );
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: t('integrations.export.failed', {
+            defaultValue: 'Failed to export integration',
+          }),
+          variant: 'destructive',
+        });
+      } finally {
+        setExportingSlug(null);
+      }
+    },
+    [exportingSlug, exportIntegration, organizationId, t],
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [managingIntegration, setManagingIntegration] =
@@ -107,24 +126,18 @@ export function Integrations({
     [t],
   );
 
-  const filteredIntegrations = useMemo(() => {
-    let filtered = integrations;
-
-    if (tab === 'connected') {
-      filtered = filtered.filter((i) => i.isActive === true);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (i) =>
-          i.title.toLowerCase().includes(query) ||
-          (i.description ?? '').toLowerCase().includes(query),
-      );
-    }
-
-    return filtered;
-  }, [integrations, tab, searchQuery]);
+  const tabbedIntegrations = useMemo(
+    () =>
+      tab === 'connected'
+        ? integrations.filter((i) => i.isActive === true)
+        : integrations,
+    [integrations, tab],
+  );
+  const filteredIntegrations = useCatalogSearch(
+    tabbedIntegrations,
+    searchQuery,
+    integrationHaystack,
+  );
 
   const showSearch = searchQuery.trim().length > 0;
 
@@ -141,8 +154,8 @@ export function Integrations({
       return (
         <EmptyState
           icon={Search}
-          title={t('integrations.empty.searchTitle')}
-          description={t('integrations.empty.searchDescription')}
+          title={t('integrations.noResults.title')}
+          description={t('integrations.noResults.description')}
         />
       );
     }
@@ -174,24 +187,21 @@ export function Integrations({
 
   return (
     <Stack gap={0} className="pb-8">
-      <HStack wrap justify="between" align="center" className="mb-4">
-        <Tabs items={tabItems} value={tab} onValueChange={onTabChange} />
-        <SearchInput
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('integrations.searchPlaceholder')}
-          disabled={searchDisabled}
-          className="w-64"
-        />
-      </HStack>
+      <CatalogToolbar
+        className="mb-4"
+        tabs={{ items: tabItems, value: tab, onValueChange: onTabChange }}
+        search={{
+          value: searchQuery,
+          onChange: (e) => setSearchQuery(e.target.value),
+          placeholder: t('integrations.searchPlaceholder'),
+          disabled: searchDisabled,
+        }}
+        action={toolbarAction}
+      />
 
       {isLoading ? (
         <Skeletonize loading label={t('integrations.title')}>
-          <CatalogGrid>
-            {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
-              <IntegrationCardSkeleton key={i} />
-            ))}
-          </CatalogGrid>
+          <CatalogGridSkeleton menu />
         </Skeletonize>
       ) : filteredIntegrations.length > 0 ? (
         <CatalogGrid>
@@ -200,6 +210,7 @@ export function Integrations({
               key={integration.slug}
               title={integration.title}
               description={integration.description}
+              labels={integration.labels}
               isActive={integration.isActive === true}
               status={
                 typeof integration.status === 'string'
@@ -212,6 +223,7 @@ export function Integrations({
                   : undefined
               }
               onClick={() => handleCardClick(integration)}
+              onExport={() => void handleExport(integration)}
             />
           ))}
         </CatalogGrid>
@@ -233,6 +245,8 @@ export function Integrations({
           }}
           integration={managingIntegration}
           organizationId={organizationId}
+          onExport={() => void handleExport(managingIntegration)}
+          isExporting={exportingSlug === managingIntegration.slug}
         />
       )}
     </Stack>

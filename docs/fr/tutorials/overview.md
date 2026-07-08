@@ -13,7 +13,7 @@ Les onglets ci-dessous sont indexés par rôle : choisis le rôle dans lequel tu
 
 **[Tutoriels Éditeur](/fr/tutorials/editor/first-agent-end-to-end)** — construire un premier agent de bout en bout, lier des connaissances, monter des workflows avec approbations, déléguer entre agents.
 
-**[Tutoriels Développeur](/fr/tutorials/developer/call-tale-from-a-script)** — appeler Tale depuis un script, déclencher des automatisations par webhook, construire des outils sur mesure, monter un serveur MCP.
+**[Tutoriels Développeur](/fr/tutorials/developer/call-tale-from-a-script)** — appeler Tale depuis un script, déclencher des workflows par webhook, construire des outils sur mesure, monter un serveur MCP.
 
 **[Tutoriels Administration](/fr/tutorials/admin/office-add-in)** — installer l'add-in Office, câbler la transcription de réunion, connecter un fournisseur local, SSO avec OIDC, restreindre les modèles par équipe.
 

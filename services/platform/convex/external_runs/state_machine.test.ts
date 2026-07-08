@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // External-run state machine, tested at the handler level with the mock-ctx
 // idiom of erasure_collab_passes.test.ts. The contracts under test are the
-// workforce cross-pillar ones: complete hard-codes in_review and closes the
+// task-ops cross-pillar ones: complete hard-codes in_review and closes the
 // unified metrics row; lease expiry requeues until the attempt cap; the
 // dispatch deadline fails quietly-queued runs; claims are daemon-pinned.
 

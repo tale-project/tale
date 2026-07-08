@@ -19,6 +19,8 @@ Chaque Projet porte cinq choses visibles depuis sa sidebar : **Files**, téléve
 
 **[Agents de projet](/fr/platform/projects/project-agents)** — agents scopés au Projet versus agents d'organisation ; la règle d'ombre ; publier dans un Projet.
 
+**[Backlog](/fr/platform/projects/backlog)** — tâches proposées qu'une automatisation ou un coéquipier a synchronisées ; Démarrer les met sur le tableau ou Fermer les écarte.
+
 ## Où ça s'inscrit
 
 Les Projets sont à côté de Chat dans la sidebar. Le passage est naturel : la plupart des utilisateurs démarrent une question dans Chat, réalisent qu'elle est plus grosse qu'un chat, et la déplacent dans un Projet. La lecture suivante dépend de si tu construis le Projet ou tu y travailles — [Utiliser les projets](/fr/tutorials/member/use-projects) parcourt un Projet de bout en bout ; [Concepts de projet](/fr/platform/projects/concepts) nomme le modèle.

@@ -19,7 +19,7 @@ Ein Worker kann höchstens halten, was der startende Agent selbst hält. Drei Eb
 
 - **Org-Konfiguration** — die Tools, Skills und Integrationen des Agenten, wie von deinen Admins konfiguriert. Pro Worker gibt es nichts zu pflegen.
 - **Die Job-Auswahl** — der Agent wählt für diese Aufgabe die kleinste Menge aus seinen eigenen Fähigkeiten (weniger Tools = ein fokussierterer Worker).
-- **Plattform-Ausnahmen** — einige Tools wandern nie mit, allen voran das Nutzer-Frage-Tool: Die Fragen eines Workers laufen über den Agenten, damit eine Antwort nie ins Leere führt. Worker können auch keine Worker starten.
+- **Plattform-Ausnahmen** — einige Tools wandern nie mit, allen voran das Nutzer-Frage-Tool: Die Fragen eines Workers laufen über den Agenten, damit eine Antwort nie ins Leere führt. Worker können auch keine Worker starten. Eine Ausnahme läuft in die Gegenrichtung: Die Dateien des Threads (Uploads, erzeugte Ergebnisse) kann jeder Worker immer auflisten und lesen — Dateien schreiben oder Code ausführen bleibt eine ausdrückliche Auswahl.
 
 Alles außerhalb dieser Grenzen wird still übersprungen und gemeldet — die Job-Karte zeigt, was weggeschnitten wurde, und der Agent passt sich an (sagt dir zum Beispiel, dass eine Integration verbunden werden muss).
 
@@ -39,4 +39,4 @@ Ein Worker läuft im verbleibenden Zug-Budget seines Agenten und kann es nicht v
 | Der Agent inline gut antworten kann                      |        | ✓               |          |
 | Arbeit feste Stufen mit Freigaben dazwischen hat         |        |                 | ✓        |
 
-Die Kosten eines Workers sind ein zusätzlicher Lauf; der Gewinn ist ein sauberer Kontext mit genau den richtigen Fähigkeiten für die Teilaufgabe — und eine Job-Karte, die zeigt, was passiert ist. Sind die Stufen fest und willst du Freigaben oder Zeitpläne dazwischen, ist eine Automation die richtige Form.
+Die Kosten eines Workers sind ein zusätzlicher Lauf; der Gewinn ist ein sauberer Kontext mit genau den richtigen Fähigkeiten für die Teilaufgabe — und eine Job-Karte, die zeigt, was passiert ist. Sind die Stufen fest und willst du Freigaben oder Zeitpläne dazwischen, ist ein Workflow die richtige Form.

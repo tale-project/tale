@@ -92,9 +92,9 @@ export interface SerializableAgentConfig {
   knowledgeFileIds?: string[];
   /**
    * Hard off-switch for delegation tools (the orchestrator's
-   * double-delegation guard). Delegates are derived from the org chart at
-   * tool-build time, so only this flag reliably disables delegation for a
-   * stripped sub-agent.
+   * double-delegation guard): a spawned job run must never get `spawn_agent`
+   * itself, so this flag reliably disables delegation for a stripped
+   * sub-agent.
    */
   delegationDisabled?: boolean;
   /** External runtime binding (task runs dispatch to a tale-daemon). */

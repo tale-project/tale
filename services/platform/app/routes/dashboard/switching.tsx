@@ -122,7 +122,7 @@ function SwitchingPage() {
       // would require enumerating every possible dashboard subroute).
       //
       // `resetCrossOrgDetailSubpath` strips an org-scoped entity id
-      // (project/thread/automation) from the carried subpath: that id doesn't
+      // (project/thread/workflow) from the carried subpath: that id doesn't
       // exist in the target org, so the by-id read would deny it and the user
       // would land on a "not found" dead-end. Reset to the section root; tab/
       // filter/config subpaths are preserved.

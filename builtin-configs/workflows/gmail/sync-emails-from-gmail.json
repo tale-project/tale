@@ -1,20 +1,4 @@
 {
-  "name": "Sync emails from Gmail",
-  "description": "Sync emails from Gmail via Google Gmail API into conversations with automatic thread grouping",
-  "i18n": {
-    "en": {
-      "name": "Sync emails from Gmail",
-      "description": "Imports Gmail messages into Tale conversations with automatic thread grouping."
-    },
-    "de": {
-      "name": "E-Mails aus Gmail synchronisieren",
-      "description": "Importiert Gmail-Nachrichten als Tale-Konversationen mit automatischer Thread-Gruppierung."
-    },
-    "fr": {
-      "name": "Synchroniser les e-mails depuis Gmail",
-      "description": "Importe les messages Gmail dans les conversations Tale avec regroupement automatique des fils de discussion."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Email", "Gmail"]

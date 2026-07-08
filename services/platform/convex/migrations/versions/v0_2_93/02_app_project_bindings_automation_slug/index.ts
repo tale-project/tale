@@ -1,0 +1,33 @@
+import type { MutationCtx } from '../../../../_generated/server';
+import type { DbMigration, MigrationDoc } from '../../../framework/types';
+import { meta } from './meta';
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+export const migration: DbMigration = {
+  meta,
+  table: 'appProjectBindings',
+
+  async up(ctx: MutationCtx, doc: MigrationDoc) {
+    const legacySlug = str((doc as Record<string, unknown>).appSlug);
+    if (legacySlug === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- legacy field absent from schema
+    await (ctx.db as any).patch(doc._id, {
+      automationSlug: legacySlug,
+      appSlug: undefined,
+    });
+  },
+
+  async down(ctx: MutationCtx, doc: MigrationDoc) {
+    if (doc.automationSlug === undefined) return;
+    const automationSlug = str(doc.automationSlug);
+    if (automationSlug === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- legacy field absent from schema
+    await (ctx.db as any).patch(doc._id, {
+      appSlug: automationSlug,
+      automationSlug: undefined,
+    });
+  },
+};

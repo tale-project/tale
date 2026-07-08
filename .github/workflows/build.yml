@@ -253,6 +253,20 @@ jobs:
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
+      # Fail the build (not just the separate test job) on a broken builtin
+      # config catalog — build.yml and test.yml otherwise run independently,
+      # so a bad builtin JSON could still ship in the image. Platform-only:
+      # other matrix services have no builtin-configs catalog to validate.
+      - name: Setup toolchain
+        if: matrix.service == 'platform'
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate builtin configs
+        if: matrix.service == 'platform'
+        run: bun run --filter @tale/platform configs:validate
+
       # `provenance: false` avoids GHCR's "unknown/unknown" attestation manifest
       # for single-platform images (docker/build-push-action#820). The cleanup
       # workflow's tag-prefix filter assumes single-manifest tags — re-enabling

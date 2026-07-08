@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FunctionBinding,
+  argsReferenceViewState,
   bindingArgsResolved,
   collectViewBindings,
   isFunctionAllowed,
@@ -123,23 +124,97 @@ describe('resolveBindingArgs', () => {
       'acme/widgets#42',
     );
   });
-  it('resolves $label: via the pack catalog, then interpolates the row', () => {
-    const lctx = {
-      organizationId: 'org_1',
-      selected: { title: 'Fix bug', number: 7 },
-      labels: { 'app.task': 'Resolve {title} (#{number})' },
-    };
-    expect(resolveBindingArgs('$label:app.task', lctx)).toBe(
-      'Resolve Fix bug (#7)',
-    );
-  });
-  it('falls back to the $label: key itself when no catalog entry exists', () => {
+  it('leaves a bare $label: string verbatim — the retired sentinel is no longer recognized', () => {
+    // Display strings are literals now (UI translations are platform-owned);
+    // `resolveBindingArgs` has no special case for this prefix any more, so a
+    // value that happens to start with it just passes through unchanged.
     expect(
-      resolveBindingArgs('$label:missing.key', {
+      resolveBindingArgs('$label:automation.task', { organizationId: 'org_1' }),
+    ).toBe('$label:automation.task');
+  });
+
+  it('substitutes $state.<key> from the cross-block view state', () => {
+    const sctx = {
+      organizationId: 'org_1',
+      state: { conversationId: 'c1', taskId: 't2' },
+    };
+    expect(resolveBindingArgs('$state.conversationId', sctx)).toBe('c1');
+    expect(resolveBindingArgs('$state.taskId', sctx)).toBe('t2');
+  });
+
+  it('$state.<key> resolves to undefined when unset (gates, not a literal)', () => {
+    // Unlike `$selected.`/`$projectId` (fail-visible literals), an unset state
+    // key must gate the call so the block shows its awaiting placeholder.
+    expect(
+      resolveBindingArgs('$state.conversationId', {
         organizationId: 'org_1',
-        selected: {},
+        state: {},
       }),
-    ).toBe('missing.key');
+    ).toBeUndefined();
+    expect(
+      resolveBindingArgs('$state.conversationId', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
+
+  it('substitutes $selection.ids with the multi-select ids', () => {
+    expect(
+      resolveBindingArgs('$selection.ids', {
+        organizationId: 'org_1',
+        selectionIds: ['c1', 'c2'],
+      }),
+    ).toEqual(['c1', 'c2']);
+    expect(
+      resolveBindingArgs('$selection.ids', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
+
+  it('substitutes $input.<field> from the submitted values', () => {
+    const ictx = {
+      organizationId: 'org_1',
+      input: { body: 'Hello', priority: 2 },
+    };
+    expect(resolveBindingArgs('$input.body', ictx)).toBe('Hello');
+    expect(resolveBindingArgs('$input.priority', ictx)).toBe(2);
+    expect(resolveBindingArgs('$input.missing', ictx)).toBeUndefined();
+    expect(
+      resolveBindingArgs('$input.body', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
+
+  it('substitutes $lane with the drop-target lane', () => {
+    expect(
+      resolveBindingArgs('$lane', { organizationId: 'org_1', lane: 'done' }),
+    ).toBe('done');
+    expect(
+      resolveBindingArgs('$lane', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
+
+  it('resolves the new sentinels inside nested args trees', () => {
+    expect(
+      resolveBindingArgs(
+        {
+          organizationId: '$orgId',
+          conversationId: '$state.conversationId',
+          input: { body: '$input.body' },
+          ids: '$selection.ids',
+          status: '$lane',
+        },
+        {
+          organizationId: 'org_1',
+          state: { conversationId: 'c1' },
+          input: { body: 'Hi' },
+          selectionIds: ['a', 'b'],
+          lane: 'open',
+        },
+      ),
+    ).toEqual({
+      organizationId: 'org_1',
+      conversationId: 'c1',
+      input: { body: 'Hi' },
+      ids: ['a', 'b'],
+      status: 'open',
+    });
   });
 });
 
@@ -237,6 +312,156 @@ describe('collectViewBindings + validateViewBindings', () => {
     ]);
   });
 
+  it('collects nodes from Puck `zones` arrays like `content`', () => {
+    const zoned = {
+      data: {
+        content: [
+          {
+            type: 'Collection',
+            props: { query: { path: 'tasks/queries:listTasksByOrg' } },
+          },
+        ],
+        zones: {
+          'node-1:left': [
+            {
+              type: 'ConversationList',
+              props: {
+                query: { path: 'conversations/queries:listConversations' },
+              },
+            },
+          ],
+          'node-1:right': [
+            {
+              type: 'MessageComposer',
+              props: {
+                submit: {
+                  path: 'conversations/mutations:replyToConversation',
+                  mode: 'mutation',
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    expect(collectViewBindings(zoned)).toEqual([
+      { path: 'tasks/queries:listTasksByOrg', mode: 'query' },
+      { path: 'conversations/queries:listConversations', mode: 'query' },
+      {
+        path: 'conversations/mutations:replyToConversation',
+        mode: 'mutation',
+      },
+    ]);
+  });
+
+  it('collects the named single-action props (move/submit/improve/onOpen/attachmentAction)', () => {
+    const node = (props: Record<string, unknown>) => ({
+      data: { content: [{ type: 'X', props }] },
+    });
+    expect(
+      collectViewBindings(
+        node({ move: { path: 'tasks/mutations:moveTask', mode: 'mutation' } }),
+      ),
+    ).toEqual([{ path: 'tasks/mutations:moveTask', mode: 'mutation' }]);
+    expect(
+      collectViewBindings(
+        node({
+          submit: { path: 'tasks/mutations:createTask', mode: 'mutation' },
+          improve: {
+            path: 'conversations/actions:improveMessage',
+            mode: 'action',
+          },
+        }),
+      ),
+    ).toEqual([
+      { path: 'tasks/mutations:createTask', mode: 'mutation' },
+      { path: 'conversations/actions:improveMessage', mode: 'action' },
+    ]);
+    expect(
+      collectViewBindings(
+        node({
+          onOpen: {
+            path: 'conversations/mutations:markRead',
+            mode: 'mutation',
+          },
+          attachmentAction: {
+            path: 'conversations/actions:getAttachment',
+            mode: 'action',
+          },
+        }),
+      ),
+    ).toEqual([
+      { path: 'conversations/mutations:markRead', mode: 'mutation' },
+      { path: 'conversations/actions:getAttachment', mode: 'action' },
+    ]);
+  });
+
+  it('collects the secondary `count` query binding (mode query)', () => {
+    const withCount = {
+      data: {
+        content: [
+          {
+            type: 'ConversationList',
+            props: {
+              query: { path: 'conversations/queries:listConversations' },
+              count: { path: 'conversations/queries:countByStatus' },
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(withCount)).toEqual([
+      { path: 'conversations/queries:listConversations', mode: 'query' },
+      { path: 'conversations/queries:countByStatus', mode: 'query' },
+    ]);
+  });
+
+  it('collects `bulkActions[]` like `actions[]`', () => {
+    const withBulk = {
+      data: {
+        content: [
+          {
+            type: 'ConversationList',
+            props: {
+              query: { path: 'conversations/queries:listConversations' },
+              bulkActions: [
+                {
+                  path: 'conversations/mutations:bulkArchive',
+                  mode: 'mutation',
+                },
+                { path: 'conversations/mutations:bulkClose', mode: 'mutation' },
+              ],
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(withBulk)).toEqual([
+      { path: 'conversations/queries:listConversations', mode: 'query' },
+      { path: 'conversations/mutations:bulkArchive', mode: 'mutation' },
+      { path: 'conversations/mutations:bulkClose', mode: 'mutation' },
+    ]);
+  });
+
+  it('skips malformed single-action props (no path/mode) without throwing', () => {
+    const malformed = {
+      data: {
+        content: [
+          {
+            type: 'X',
+            props: {
+              move: { path: 'tasks/mutations:moveTask' }, // mode missing
+              submit: 'not-an-object',
+              count: { args: {} }, // path missing
+              bulkActions: [{ mode: 'mutation' }],
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(malformed)).toEqual([]);
+  });
+
   it('flags a bound path missing from the allowlist', () => {
     const offending = {
       data: {
@@ -248,6 +473,141 @@ describe('collectViewBindings + validateViewBindings', () => {
     const errors = validateViewBindings(offending, allowlist);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain('secret/x:peek');
+  });
+
+  it('collects the `addAction` bound action (the header create affordance)', () => {
+    const withAdd = {
+      data: {
+        content: [
+          {
+            type: 'Collection',
+            props: {
+              query: { path: 'tasks/queries:listTasksByOrg' },
+              addAction: {
+                path: 'tasks/mutations:createTask',
+                mode: 'mutation',
+              },
+            },
+          },
+        ],
+      },
+    };
+    expect(collectViewBindings(withAdd)).toEqual([
+      { path: 'tasks/queries:listTasksByOrg', mode: 'query' },
+      { path: 'tasks/mutations:createTask', mode: 'mutation' },
+    ]);
+  });
+});
+
+/**
+ * Completeness guard: the collector must see EVERY binding-bearing prop the
+ * view schema admits — a prop carrying `{path, mode}` that the collector
+ * misses is invisible to publish-time allowlist validation. When a block
+ * schema gains a new binding prop, extend the collector AND this fixture in
+ * the same change.
+ */
+describe('collector covers every binding-bearing schema prop', () => {
+  it('collects all binding props across blocks, tabs, columns and zones', () => {
+    const everyBindingProp = {
+      tabs: [
+        {
+          id: 'a',
+          label: 'A',
+          columns: [
+            {
+              content: [
+                {
+                  type: 'ConversationList',
+                  props: {
+                    query: { path: 'd/f:listQ' },
+                    count: { path: 'd/f:countQ' },
+                    onOpen: { path: 'd/f:openM', mode: 'mutation' },
+                    bulkActions: [{ path: 'd/f:bulkM', mode: 'mutation' }],
+                  },
+                },
+              ],
+              zones: {
+                'a:side': [
+                  {
+                    type: 'ConversationThread',
+                    props: {
+                      query: { path: 'd/f:threadQ' },
+                      attachmentAction: {
+                        path: 'd/f:attachM',
+                        mode: 'mutation',
+                      },
+                      actions: [{ path: 'd/f:verbM', mode: 'mutation' }],
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              content: [
+                {
+                  type: 'MessageComposer',
+                  props: {
+                    submit: { path: 'd/f:sendM', mode: 'mutation' },
+                    improve: { path: 'd/f:improveA', mode: 'action' },
+                  },
+                },
+                {
+                  type: 'Board',
+                  props: {
+                    query: { path: 'd/f:boardQ' },
+                    move: { path: 'd/f:moveM', mode: 'mutation' },
+                  },
+                },
+                {
+                  type: 'ExternalList',
+                  props: {
+                    source: { path: 'd/f:sourceA' },
+                    excludeBy: { query: { path: 'd/f:excludeQ' } },
+                    addAction: { path: 'd/f:addM', mode: 'mutation' },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const paths = collectViewBindings(everyBindingProp)
+      .map((b) => b.path)
+      .sort();
+    expect(paths).toEqual(
+      [
+        'd/f:listQ',
+        'd/f:countQ',
+        'd/f:openM',
+        'd/f:bulkM',
+        'd/f:threadQ',
+        'd/f:attachM',
+        'd/f:verbM',
+        'd/f:sendM',
+        'd/f:improveA',
+        'd/f:boardQ',
+        'd/f:moveM',
+        'd/f:sourceA',
+        'd/f:excludeQ',
+        'd/f:addM',
+      ].sort(),
+    );
+  });
+});
+
+describe('argsReferenceViewState', () => {
+  it('detects $state. references at any depth', () => {
+    expect(argsReferenceViewState('$state.selected')).toBe(true);
+    expect(argsReferenceViewState({ a: { b: '$state.k' } })).toBe(true);
+    expect(argsReferenceViewState(['x', '$state.y'])).toBe(true);
+  });
+
+  it('ignores literals, other sentinels, and non-strings', () => {
+    expect(argsReferenceViewState('$tpl:{owner}/{repo}')).toBe(false);
+    expect(argsReferenceViewState('state.x')).toBe(false);
+    expect(argsReferenceViewState({ a: 42, b: null })).toBe(false);
+    expect(argsReferenceViewState(undefined)).toBe(false);
   });
 });
 
@@ -276,5 +636,43 @@ describe('bindingArgsResolved', () => {
 
   it('treats null as bound (only undefined gates the call)', () => {
     expect(bindingArgsResolved({ a: null })).toBe(true);
+  });
+
+  it('is false when a $state/$input/$lane/$selection reference is unavailable', () => {
+    const ctx = { organizationId: 'org_1', state: {} };
+    expect(
+      bindingArgsResolved(
+        resolveBindingArgs(
+          { organizationId: '$orgId', conversationId: '$state.conversationId' },
+          ctx,
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      bindingArgsResolved(resolveBindingArgs({ body: '$input.body' }, ctx)),
+    ).toBe(false);
+    expect(
+      bindingArgsResolved(resolveBindingArgs({ status: '$lane' }, ctx)),
+    ).toBe(false);
+    expect(
+      bindingArgsResolved(resolveBindingArgs({ ids: '$selection.ids' }, ctx)),
+    ).toBe(false);
+  });
+
+  it('is true once the referenced view-state values are live', () => {
+    const resolved = resolveBindingArgs(
+      {
+        organizationId: '$orgId',
+        conversationId: '$state.conversationId',
+        ids: '$selection.ids',
+      },
+      {
+        organizationId: 'org_1',
+        state: { conversationId: 'c1' },
+        selectionIds: [],
+      },
+    );
+    // An EMPTY selection is still a bound value (the action decides emptiness).
+    expect(bindingArgsResolved(resolved)).toBe(true);
   });
 });

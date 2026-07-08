@@ -135,6 +135,35 @@ describe('spawn_agent sandboxState', () => {
     expect(result.sandboxState).toBeUndefined();
   });
 
+  it('omits sandboxState for read-only workspace access — reads cannot change the workspace', async () => {
+    const ctx = makeCtx();
+    const result = await handlerOf(makeDeps())(
+      ctx,
+      { ...baseArgs, tools: ['file_list'] },
+      { toolCallId: 'call-4' },
+    );
+    expect(result.success).toBe(true);
+    expect(result.sandboxState).toBeUndefined();
+  });
+
+  it('always hands the worker the workspace read tools', async () => {
+    const deps = makeDeps();
+    const ctx = makeCtx();
+    await handlerOf(deps)(
+      ctx,
+      // Parent grants nothing workspace-related; reads arrive as baseline.
+      { ...baseArgs, tools: ['web'] },
+      { toolCallId: 'call-5' },
+    );
+    const runGeneration = deps.runGeneration as ReturnType<typeof vi.fn>;
+    const generationArgs = runGeneration.mock.calls[0]?.[1] as {
+      agentConfig: { convexToolNames: string[] };
+    };
+    expect(generationArgs.agentConfig.convexToolNames).toEqual(
+      expect.arrayContaining(['file_read', 'file_list', 'web']),
+    );
+  });
+
   it('still reports the workspace when the job failed', async () => {
     const deps = makeDeps({
       runGeneration: vi.fn().mockRejectedValue(new Error('model exploded')),

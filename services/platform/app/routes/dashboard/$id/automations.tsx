@@ -1,20 +1,24 @@
-import {
-  createFileRoute,
-  Outlet,
-  useMatch,
-  useNavigate,
-} from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
+import { createFileRoute, Outlet, useParams } from '@tanstack/react-router';
 
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { AutomationsListNavigation } from '@/app/features/automations/components/automations-list-navigation';
+import { AutomationsNavigation } from '@/app/features/automations/components/automations-navigation';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
+/**
+ * "Automations" is the product name. Phase R renamed module paths
+ * (`api.automations.*`), schema (`lib/shared/schemas/automations.ts`), config
+ * domain (`CONFIG_DOMAINS` `'automations'`), on-disk dirs
+ * (`builtin-configs/automations/` + `<org>/automations/`, dual-read against
+ * legacy `apps`-named paths — see `convex/automations/file_utils.ts`), Convex
+ * tables (`automationInstallations`, `automationProjectBindings`,
+ * `automationUpload*`), `automationSlug` fields, and `threadMetadata.kind`
+ * `automation_discussion`. The `pack://` asset scheme was never renamed.
+ */
 export const Route = createFileRoute('/dashboard/$id/automations')({
   head: () => ({
     meta: seo('automations'),
@@ -24,76 +28,23 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
 
 function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
+  // Non-strict: `automationSlug` is present only on the nested detail routes,
+  // which own their whole page shell (breadcrumb + tab strip — see
+  // `AutomationDetailShell`), exactly like the workflow and project detail
+  // pages. The layout only shells the hub index.
+  const { automationSlug } = useParams({ strict: false });
   const { t } = useT('automations');
-  const navigate = useNavigate();
-
-  const isSpecificAutomation = useMatch({
-    from: '/dashboard/$id/automations/$amId',
-    shouldThrow: false,
-  });
-
-  const indexMatch = useMatch({
-    from: '/dashboard/$id/automations/',
-    shouldThrow: false,
-  });
-  // Folder drill-down (List view) shows a file-system breadcrumb of clickable
-  // path segments. Catalog/Metrics are tabs, so they need no breadcrumb leaf.
-  const currentFolder = indexMatch?.search?.folder ?? '';
-  const segments = currentFolder ? currentFolder.split('/') : [];
-
-  const goToFolder = (folder: string) =>
-    void navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      search: folder ? { folder } : {},
-    });
-
+  if (automationSlug) return <Outlet />;
   return (
     <PageLayout
       organizationId={organizationId}
       header={
-        !isSpecificAutomation ? (
-          <>
-            <AdaptiveHeaderRoot standalone={false}>
-              <AdaptiveHeaderTitle>
-                {segments.length > 0 ? (
-                  <span className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => goToFolder('')}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {t('title')}
-                    </button>
-                    {segments.map((segment, i) => {
-                      const path = segments.slice(0, i + 1).join('/');
-                      const isLast = i === segments.length - 1;
-                      return (
-                        <span key={path} className="flex items-center gap-1">
-                          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                          {isLast ? (
-                            <span>{segment}</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => goToFolder(path)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {segment}
-                            </button>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </span>
-                ) : (
-                  t('title')
-                )}
-              </AdaptiveHeaderTitle>
-            </AdaptiveHeaderRoot>
-            <AutomationsListNavigation organizationId={organizationId} />
-          </>
-        ) : undefined
+        <>
+          <AdaptiveHeaderRoot standalone={false}>
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+          <AutomationsNavigation organizationId={organizationId} />
+        </>
       }
     >
       <Outlet />

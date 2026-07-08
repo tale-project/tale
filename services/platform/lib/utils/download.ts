@@ -29,6 +29,34 @@ export function downloadTextFile(filename: string, content: string): void {
   }
 }
 
+/** Save an in-memory Blob (e.g. a generated zip) under `filename`. */
+function downloadBlobFile(filename: string, blob: Blob): void {
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    triggerDownload(blobUrl, filename);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
+}
+
+/**
+ * Decode a base64 payload (e.g. a `.zip` returned by a Convex export action)
+ * and save it under `filename`. Decodes into a fresh `ArrayBuffer`-backed
+ * `Uint8Array` so the resulting bytes are a valid `BlobPart`.
+ */
+export function downloadBase64File(
+  filename: string,
+  base64: string,
+  mimeType = 'application/octet-stream',
+): void {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  downloadBlobFile(filename, new Blob([bytes], { type: mimeType }));
+}
+
 /**
  * Fetch a (possibly cross-origin) URL as a Blob and save it under `filename`.
  * Throws on a non-OK response so callers can surface the failure.

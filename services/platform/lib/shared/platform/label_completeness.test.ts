@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  collectViewLabelKeys,
   collectWorkflowLabelKeys,
   findMissingLabelKeys,
 } from './label_completeness';
@@ -37,51 +36,6 @@ describe('collectWorkflowLabelKeys', () => {
   it('tolerates a workflow with no steps', () => {
     expect(collectWorkflowLabelKeys({})).toEqual([]);
     expect(collectWorkflowLabelKeys({ steps: undefined })).toEqual([]);
-  });
-});
-
-describe('collectViewLabelKeys', () => {
-  it('collects $label: markers from titles, tab labels, columnLabels, and args at any depth', () => {
-    const view = {
-      title: '$label:issueDesk.deskTitle',
-      description: 'a plain literal description', // no marker → ignored
-      tabs: [
-        {
-          id: 'issues',
-          label: '$label:issueDesk.tab.issues',
-          data: {
-            content: [
-              {
-                type: 'ExternalList',
-                props: {
-                  title: '$label:issueDesk.issuesListTitle',
-                  columnLabels: {
-                    number: '$label:issueDesk.col.number',
-                    title: '$label:issueDesk.col.title',
-                  },
-                  actions: [
-                    { args: { description: '$label:issueDesk.taskTemplate' } },
-                  ],
-                },
-              },
-            ],
-          },
-        },
-      ],
-    };
-    expect(collectViewLabelKeys(view)).toEqual([
-      'issueDesk.deskTitle',
-      'issueDesk.tab.issues',
-      'issueDesk.issuesListTitle',
-      'issueDesk.col.number',
-      'issueDesk.col.title',
-      'issueDesk.taskTemplate',
-    ]);
-  });
-
-  it('returns nothing for a view with no $label: markers', () => {
-    expect(collectViewLabelKeys({ title: 'Plain', tabs: [] })).toEqual([]);
-    expect(collectViewLabelKeys(undefined)).toEqual([]);
   });
 });
 

@@ -1,6 +1,7 @@
 {
-  "name": "test",
-  "description": "Trivial start-only workflow used by the automation E2E spec",
+  "metadata": {
+    "autoInstall": true
+  },
   "steps": [
     {
       "stepSlug": "start",

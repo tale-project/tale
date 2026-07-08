@@ -2,9 +2,14 @@
  * DB migration over `appProjectBindings`: copy the owning app's org-level
  * `appInstallations.config` onto each binding's `config` so a `scope: 'project'`
  * app holds its config per-project. Both `up` and `down` are idempotent.
+ *
+ * `config` was dropped from both tables' live schema by the 0.2.91
+ * app-config-to-schedule-variables cutover — this migration predates that and
+ * still needs to read/write it, so every access below is untyped (`as any`),
+ * matching the framework's convention for a field absent from the current
+ * schema (see e.g. `v0_2_14/01_usage_ledger_drop_cost_fields`).
  */
 
-import type { Id } from '../../../../_generated/dataModel';
 import type { MutationCtx } from '../../../../_generated/server';
 import type { DbMigration, MigrationDoc } from '../../../framework/types';
 import { meta } from './meta';
@@ -23,9 +28,9 @@ async function installConfig(
   organizationId: string,
   appSlug: string,
 ): Promise<Record<string, unknown> | undefined> {
-  const install = await ctx.db
+  const install = await (ctx.db as any)
     .query('appInstallations')
-    .withIndex('by_org_slug', (q) =>
+    .withIndex('by_org_slug', (q: any) =>
       q.eq('organizationId', organizationId).eq('appSlug', appSlug),
     )
     .first();
@@ -44,7 +49,8 @@ export const migration: DbMigration = {
     if (!organizationId || !appSlug) return;
     const cfg = await installConfig(ctx, organizationId, appSlug);
     if (!cfg || Object.keys(cfg).length === 0) return;
-    await ctx.db.patch(doc._id as Id<'appProjectBindings'>, { config: cfg });
+    // oxlint-disable-next-line typescript/no-explicit-any -- config absent from the current schema
+    await (ctx.db as any).patch(doc._id, { config: cfg });
   },
 
   async down(ctx: MutationCtx, doc: MigrationDoc) {
@@ -56,7 +62,8 @@ export const migration: DbMigration = {
     const cfg = await installConfig(ctx, organizationId, appSlug);
     // Clear only the copy this migration made; preserve a post-migration edit.
     if (cfg && JSON.stringify(cfg) === JSON.stringify(current)) {
-      await ctx.db.patch(doc._id as Id<'appProjectBindings'>, {
+      // oxlint-disable-next-line typescript/no-explicit-any -- config absent from the current schema
+      await (ctx.db as any).patch(doc._id, {
         config: undefined,
       });
     }

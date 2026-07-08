@@ -58,7 +58,7 @@ export interface ThreadApprovals {
  * The per-type mapping is copied verbatim from `queries.ts` so the bucket
  * contents are byte-identical to the legacy hooks. Those legacy hooks are
  * intentionally kept — they have external consumers (arena split view,
- * automations assistant chat) — so this is additive, not a replacement.
+ * workflow assistant chat) — so this is additive, not a replacement.
  *
  * The returned field names match the params of `useMergedChatItems`, so it can
  * be spread directly: `useMergedChatItems({ messages, ...approvals })`.

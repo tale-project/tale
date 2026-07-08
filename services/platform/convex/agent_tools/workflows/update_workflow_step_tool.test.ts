@@ -118,7 +118,7 @@ describe('update_workflow_step tool handler', () => {
       expect.objectContaining({
         organizationId: 'org1',
         workflowSlug: 'my-workflow',
-        workflowName: 'My Workflow',
+        workflowName: 'my-workflow',
         workflowVersion: '2.0.0',
         updateSummary: 'Updated email template',
         stepSlug: 'send_email',

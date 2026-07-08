@@ -4,7 +4,8 @@ import { t } from '../helpers/i18n';
 
 /**
  * Projects smoke: create a project, confirm a task shows in both the board and
- * list views, then delete the project (cascade-removes its task — there is no
+ * list views, triage a backlog proposal (created off the board, Started onto
+ * it), then delete the project (cascade-removes its tasks — there is no
  * per-task delete affordance in the UI). Several create surfaces share the
  * "Create project"/"Create task" label, so locators scope to the open dialog
  * and use the button role.
@@ -93,6 +94,48 @@ test('creates a project with a task shown in both views, then deletes it', async
   });
   await page.goto(boardUrl);
   await expect(page.getByText(taskTitle).first()).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+
+  // Backlog triage: a task created with status "Backlog" is a proposal — it
+  // stays off the board and shows on the Backlog tab, where Start promotes it
+  // onto the board (status → To do).
+  const backlogTitle = `E2E Backlog ${suffix}`;
+  await newTaskButton.click();
+  await expect(taskDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await taskDialog
+    .getByRole('textbox', { name: t('tasks.fields.title') })
+    .fill(backlogTitle);
+  await taskDialog
+    .getByRole('button', { name: t('tasks.fields.status'), exact: true })
+    .click();
+  await page
+    .getByRole('listbox', { name: t('tasks.fields.status') })
+    .getByRole('option', { name: t('tasks.status.backlog') })
+    .click();
+  await taskDialog
+    .getByRole('button', { name: t('tasks.actions.create') })
+    .click();
+  await expect(taskDialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
+
+  // The board settled (the todo task is painted) and shows no backlog task.
+  await expect(page.getByText(taskTitle).first()).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+  await expect(page.getByText(backlogTitle)).toHaveCount(0);
+
+  // The Backlog tab lists the proposal; Start moves it off the backlog…
+  await page.goto(boardUrl.replace('/tasks/board', '/tasks/backlog'));
+  const backlogRow = page.getByRole('row').filter({ hasText: backlogTitle });
+  await expect(backlogRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await backlogRow
+    .getByRole('button', { name: t('tasks.backlog.start') })
+    .click();
+  await expect(backlogRow).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
+
+  // …and onto the board.
+  await page.goto(boardUrl);
+  await expect(page.getByText(backlogTitle).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
 

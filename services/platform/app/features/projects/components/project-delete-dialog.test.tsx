@@ -7,10 +7,11 @@ import { ProjectDeleteDialog } from './project-delete-dialog';
 
 // Regression cover for #2068: the delete dialog's catch block mapped only
 // PROJECT_CONFIRM_PHRASE_MISMATCH / PROJECT_LEGAL_HOLD / RATE_LIMITED, so a
-// PROJECT_HAS_BOUND_APPS error (thrown when appProjectBindings still reference
+// PROJECT_HAS_BOUND_AUTOMATIONS error (thrown when automationProjectBindings still reference
 // the project) fell through to the generic "Couldn't delete project" toast and
-// the bound app names returned in error.data.apps were discarded. The dialog
-// now maps the code to the actionable i18n message and lists the app names.
+// the bound automation names returned in error.data.automations were discarded.
+// The dialog now maps the code to the actionable i18n message and lists the
+// automation names.
 
 const mockDeleteProject = vi.fn();
 const mockNavigate = vi.fn();
@@ -54,11 +55,11 @@ describe('ProjectDeleteDialog', () => {
     vi.clearAllMocks();
   });
 
-  it('surfaces the actionable message with bound app names on PROJECT_HAS_BOUND_APPS', async () => {
+  it('surfaces the actionable message with bound automation names on PROJECT_HAS_BOUND_AUTOMATIONS', async () => {
     mockDeleteProject.mockRejectedValueOnce(
       new ConvexError({
-        code: 'PROJECT_HAS_BOUND_APPS',
-        apps: ['Invoices', 'CRM'],
+        code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+        automations: ['Invoices', 'CRM'],
       }),
     );
 
@@ -69,7 +70,7 @@ describe('ProjectDeleteDialog', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title:
-          'Uninstall the apps using this project first, then delete it: Invoices, CRM.',
+          'Uninstall the automations using this project first, then delete it: Invoices, CRM.',
         variant: 'destructive',
       }),
     );
@@ -79,9 +80,9 @@ describe('ProjectDeleteDialog', () => {
     );
   });
 
-  it('falls back to the generic actionable message when no app names are returned', async () => {
+  it('falls back to the generic actionable message when no automation names are returned', async () => {
     mockDeleteProject.mockRejectedValueOnce(
-      new ConvexError({ code: 'PROJECT_HAS_BOUND_APPS' }),
+      new ConvexError({ code: 'PROJECT_HAS_BOUND_AUTOMATIONS' }),
     );
 
     const { user } = renderDialog();
@@ -90,18 +91,23 @@ describe('ProjectDeleteDialog', () => {
 
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Uninstall the apps using this project first, then delete it.',
+        title:
+          'Uninstall the automations using this project first, then delete it.',
         variant: 'destructive',
       }),
     );
   });
 
-  it('falls back to the generic actionable message when apps is malformed', async () => {
-    // The runtime guard narrows error.data.apps to string[]; a non-array (or a
-    // non-string element) must not reach the named variant — it falls back to
-    // the generic message rather than rendering "[object Object]" or "123".
+  it('falls back to the generic actionable message when automations is malformed', async () => {
+    // The runtime guard narrows error.data.automations to string[]; a
+    // non-array (or a non-string element) must not reach the named variant —
+    // it falls back to the generic message rather than rendering
+    // "[object Object]" or "123".
     mockDeleteProject.mockRejectedValueOnce(
-      new ConvexError({ code: 'PROJECT_HAS_BOUND_APPS', apps: [123] }),
+      new ConvexError({
+        code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+        automations: [123],
+      }),
     );
 
     const { user } = renderDialog();
@@ -110,7 +116,8 @@ describe('ProjectDeleteDialog', () => {
 
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Uninstall the apps using this project first, then delete it.',
+        title:
+          'Uninstall the automations using this project first, then delete it.',
         variant: 'destructive',
       }),
     );

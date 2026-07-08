@@ -1,253 +1,4 @@
 {
-  "apps": {
-    "title": "Apps",
-    "searchPlaceholder": "Search apps…",
-    "searchNoResults": "No apps match your search.",
-    "addMenu": {
-      "label": "Add app"
-    },
-    "private": "Private",
-    "upload": {
-      "uploadApp": "Upload app",
-      "dialogTitle": "Upload private app",
-      "description": "Upload a private app to this organization. Provide a .zip of the app folder, or select the folder directly — its name becomes the app slug. Uploading does not install the app; you can install it afterwards.",
-      "dropZoneLabel": "Upload app bundle",
-      "dropHere": "Drop the .zip here",
-      "parsing": "Reading bundle…",
-      "dropOrClick": "Drop a .zip here or click to browse",
-      "acceptedFormats": "A folder containing app.json at its root",
-      "selectFolder": "Select a folder instead",
-      "useFolderButton": "To upload a folder, use the link below.",
-      "singleZipOnly": "Drop a single .zip bundle, not multiple files.",
-      "zipRequired": "Bundle must be a .zip file.",
-      "unexpectedError": "An unexpected error occurred",
-      "scopeProject": "Project app",
-      "scopeOrg": "Org app",
-      "workflows": "Workflows",
-      "agents": "Agents",
-      "requiresIntegrations": "Requires integrations",
-      "bundleFiles": "Bundle files",
-      "fileCount": "{count, plural, one {# file} other {# files}}",
-      "submit": "Upload app",
-      "submitting": "Uploading…",
-      "uploadSuccess": "App uploaded",
-      "installHint": "Install it from the Apps list when you’re ready.",
-      "replaceSuccess": "App replaced",
-      "uploadFailed": "Failed to upload app",
-      "replaceTitle": "Replace existing app?",
-      "replaceDescription": "A private app named \"{slug}\" already exists. Uploading will overwrite its current contents.",
-      "replaceConfirm": "Replace",
-      "delete": "Delete upload",
-      "deleteMenuLabel": "Delete {name}",
-      "deleteTitle": "Delete uploaded app",
-      "deleteDescription": "This removes the uploaded app and its files from this organization. Built-in apps can't be deleted.",
-      "deleteWarning": "The app bundle is permanently removed. Uninstall the app first if it's still installed.",
-      "deleteSuccess": "Upload deleted",
-      "deleteFailed": "Couldn't delete the upload",
-      "deleteInstalledBlocked": "Uninstall the app before deleting its upload."
-    },
-    "empty": {
-      "title": "No apps yet",
-      "description": "Installed packs appear here as apps."
-    },
-    "notFound": {
-      "title": "App not found",
-      "description": "This pack is not installed."
-    },
-    "noViews": {
-      "title": "Nothing to show yet",
-      "description": "This pack has no pages configured."
-    },
-    "details": {
-      "scopeOrg": "Organization app",
-      "scopeProject": "Project app",
-      "includesTitle": "What's included",
-      "pages": "Pages",
-      "workflows": "Workflows",
-      "agents": "Agents",
-      "requiresTitle": "What you'll need",
-      "requiresHint": "You'll connect these during setup."
-    },
-    "install": {
-      "install": "Install",
-      "installed": "Installed",
-      "installFailed": "Couldn't install the app",
-      "available": "Available",
-      "open": "Open",
-      "reinstall": "Reinstall",
-      "setup": "Finish setup",
-      "uninstall": "Uninstall",
-      "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
-      "chooseProjectDescription": "This app runs inside a project. Choose where its tasks and pages live.",
-      "projectLabel": "Project",
-      "projectPlaceholder": "Select a project",
-      "projectSearchPlaceholder": "Search projects…",
-      "noProjects": "No projects found.",
-      "createProject": "Create new project",
-      "menuLabel": "Manage {name}",
-      "reinstallTitle": "Reinstall app",
-      "reinstallDescription": "Refreshes this app's files from the latest template. Your environment variables and secrets are kept; any changes you made to its files are replaced.",
-      "reinstalled": "App reinstalled",
-      "reinstallFailed": "Couldn't reinstall the app",
-      "uninstallTitle": "Uninstall app",
-      "uninstallDescription": "This removes the app and everything it installed from your organization.",
-      "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
-      "uninstalled": "App uninstalled",
-      "uninstallFailed": "Couldn't uninstall the app",
-      "removeFromProject": "Remove from project",
-      "removedFromProject": "Removed from project",
-      "removeFromProjectFailed": "Couldn't remove the app from this project",
-      "removeFromProjectTitle": "Remove from this project?",
-      "removeFromProjectDescription": "{name} will no longer appear in this project. Its agents, workflows, and any other projects are unaffected — you can add it back anytime.",
-      "uninstallBlocked": "Still in use by: {projects}. Remove the app from those projects before uninstalling.",
-      "uninstallBlockedCount": "Remove the app from its {count} project(s) before uninstalling."
-    },
-    "readiness": {
-      "title": "Finish setup",
-      "description": "Complete these steps before this app can run.",
-      "broken": "Some installed files are missing. Reinstall to restore them.",
-      "connect": "Connect {integration} to use this app.",
-      "connectButton": "Connect",
-      "agentNeedsSetup": "{agent} needs setup to run.",
-      "agentNeedsKeys": "{agent} needs {keys} in Environment.",
-      "setupButton": "Set up",
-      "openAgentFallback": "Open agent"
-    },
-    "config": {
-      "title": "Configuration",
-      "description": "Point this app at your own resources. These values drive its pages and scheduled work.",
-      "save": "Save",
-      "saving": "Saving…",
-      "saved": "Configuration saved",
-      "saveError": "Couldn't save configuration",
-      "invalidValue": "{label}: check the format and try again.",
-      "configure": "Configure",
-      "setupTitle": "Configuration needed",
-      "setupPrompt": "Point this app at your resources to start using it."
-    },
-    "installWizard": {
-      "title": "Set up {name}",
-      "progress": "{label} · step {current} of {total}",
-      "stepsAriaLabel": "Setup steps",
-      "projectStepLabel": "Project",
-      "installStepLabel": "Install",
-      "installReady": "Ready to install {name}.",
-      "installNeeds": "It uses these integrations: {integrations}.",
-      "doneStepLabel": "Done",
-      "doneTitle": "{name} is ready",
-      "doneAllConnected": "Everything it needs is connected.",
-      "doneSomeSkipped": "You skipped some steps — finish them anytime from the app's setup checklist.",
-      "finish": "Finish",
-      "skipForNow": "I'll do this later",
-      "installFailed": "Couldn't install the app",
-      "integrationUnavailable": "{integration} isn't available in this organization yet. Connect it from Settings → Integrations.",
-      "oauthPopupBlocked": "Allow pop-ups for this site to connect, then try again.",
-      "authModeStepLabel": "Agent mode",
-      "authModeDescription": "Each automation agent can use the platform's managed model access, or bring its own credentials.",
-      "authModeManaged": "Managed",
-      "authModeByo": "Bring your own key",
-      "providerKeyLabel": "{provider} API key",
-      "connectProvider": "Connect {provider}",
-      "providerConnectFailed": "Couldn't connect the provider",
-      "agentNeedsKeys": "{name} needs these credentials to run.",
-      "saveSecrets": "Save"
-    },
-    "confirm": "Are you sure?",
-    "binding": {
-      "empty": "Nothing to show yet.",
-      "blocked": "This view is not allowed to call {path}."
-    },
-    "detail": {
-      "title": "Details"
-    },
-    "review": {
-      "none": "No pending reviews.",
-      "awaiting": "Awaiting approval"
-    },
-    "issues": {
-      "createTask": "Create task"
-    },
-    "list": {
-      "refresh": "Refresh",
-      "error": "Couldn't load data: {error}",
-      "notConnected": "This integration isn't connected yet. Connect it to load data.",
-      "needsConfig": "Configure this app to load data.",
-      "loadMore": "Load more",
-      "loadingMore": "Loading…",
-      "created": "Created",
-      "start": "Start",
-      "markDone": "Mark done",
-      "merge": "Merge pull request",
-      "all": "All",
-      "review": "Review"
-    },
-    "agents": {
-      "none": "No agents configured.",
-      "error": "Couldn't load agents: {error}",
-      "editInstructions": "Edit instructions",
-      "envSecrets": "Env & secrets",
-      "authMode": {
-        "label": "Auth",
-        "byo": "BYO",
-        "managed": "Managed",
-        "error": "Couldn't switch the agent's auth mode"
-      },
-      "instructions": {
-        "title": "Edit instructions — {name}",
-        "description": "The system prompt that steers this agent. Changes apply to the next run.",
-        "placeholder": "Describe how this agent should behave…",
-        "save": "Save",
-        "saving": "Saving…",
-        "cancel": "Cancel",
-        "saved": "Instructions saved",
-        "saveError": "Couldn't save instructions",
-        "loadError": "Couldn't load this agent."
-      },
-      "env": {
-        "title": "Environment & secrets — {name}",
-        "description": "Env vars and secrets injected into this agent's runs. Secrets are encrypted at rest, shown masked, and decrypted only at run time.",
-        "none": "No environment variables yet.",
-        "keyPlaceholder": "NAME",
-        "valuePlaceholder": "value",
-        "secret": "Secret",
-        "secretKept": "•••••••• (unchanged)",
-        "add": "Add variable",
-        "remove": "Remove",
-        "save": "Save",
-        "saving": "Saving…",
-        "cancel": "Cancel",
-        "saved": "Environment saved",
-        "saveError": "Couldn't save environment",
-        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
-        "dupKey": "Duplicate variable name — each NAME must be unique."
-      }
-    },
-    "workflow": {
-      "none": "This workflow has no steps.",
-      "error": "Couldn't load the workflow: {error}"
-    },
-    "runs": {
-      "backToApp": "Back to app",
-      "none": "No runs yet.",
-      "colRun": "Run",
-      "colStatus": "Status",
-      "colStarted": "Started",
-      "watchLive": "Watch live",
-      "queuedForCapacity": "Queued for capacity",
-      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
-      "failed": "Failed",
-      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
-    },
-    "membership": {
-      "title": "Projects",
-      "addProject": "Add to a project",
-      "emptyTitle": "Not in any project yet",
-      "emptyDescription": "Add this app to a project to start using it there.",
-      "notInProjectTitle": "Not added to this project",
-      "notInProjectDescription": "Add this app to this project to use it here.",
-      "addToThisProject": "Add to this project"
-    }
-  },
   "operator": {
     "gate": "Decision",
     "state": {
@@ -327,7 +78,6 @@
   },
   "accessDenied": {
     "title": "Access denied",
-    "automations": "You need Admin or Developer permissions to access automations.",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "organization": "You need Admin permissions to access organization settings.",
@@ -581,7 +331,7 @@
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
       "ssoTitle": "Sign in with SSO",
-      "ssoDescription": "Choose your organization to continue with SSO.",
+      "ssoDescription": "Enter your organization email address — it selects your organization's sign-in.",
       "ssoOrgListLabel": "Organizations",
       "ssoBackToLogin": "Back to log in",
       "ssoNoOrganizations": "No organizations are available for sign-in. Contact your administrator.",
@@ -723,437 +473,355 @@
   },
   "automations": {
     "title": "Automations",
-    "appBadge": "App",
     "tabs": {
-      "list": "List",
-      "catalog": "Catalog",
-      "metrics": "Metrics"
-    },
-    "catalog": {
-      "installed": "Automation installed"
-    },
-    "aria": {
-      "openNamed": "Open {name}",
-      "openLoop": "Open loop"
-    },
-    "metrics": {
-      "link": "Metrics",
-      "title": "Automation Metrics",
-      "description": "Usage and performance KPIs across your automations.",
-      "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
-      "period": {
-        "last7Days": "Last 7 days",
-        "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days",
-        "label": "Period"
-      },
-      "cards": {
-        "totalRuns": "Total runs",
-        "successRate": "Success rate",
-        "avgDuration": "Avg duration",
-        "failedRuns": "Failed runs"
-      },
-      "chart": {
-        "trendTitle": "Runs over time",
-        "trendTooltip": "Number of workflow executions over the selected time period",
-        "statusTitle": "Status breakdown",
-        "statusTooltip": "Distribution of workflow run outcomes",
-        "totalLabel": "Total runs",
-        "noData": "No data",
-        "noDataDescription": "Run a workflow to see breakdown",
-        "completed": "Completed",
-        "failed": "Failed",
-        "running": "Running",
-        "pending": "Pending"
-      },
-      "table": {
-        "title": "Top workflows",
-        "workflow": "Workflow",
-        "runs": "Runs",
-        "successRate": "Success rate",
-        "avgDuration": "Avg duration",
-        "failed": "Failed",
-        "lastRun": "Last run"
-      },
-      "empty": {
-        "title": "No workflow runs",
-        "description": "No workflows have run in the selected period."
-      }
-    },
-    "createButton": "Create automation",
-    "emptyState": {
-      "noSteps": "No automation steps to display",
-      "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
-    },
-    "search": {
-      "placeholder": "Search automations",
-      "noResults": "No automations match your search."
-    },
-    "entityLabel": "automations",
-    "createWithAI": "Create automation with AI",
-    "renameTitle": "Rename automation",
-    "navigation": {
+      "installed": "Installed",
+      "all": "All automations",
       "editor": "Editor",
-      "history": "History",
-      "openAssistant": "Open AI assistant"
-    },
-    "history": {
-      "empty": "No history entries",
-      "diffTitle": "Compare changes",
-      "diffDescription": "Review differences before restoring snapshot from {date}",
-      "restore": "Restore",
-      "noDifferences": "No differences found",
-      "loadFailed": "Failed to load history",
-      "restoreSuccess": "Version restored successfully",
-      "restoreFailed": "Failed to restore version"
-    },
-    "form": {
-      "name": "Name"
+      "executions": "Executions",
+      "configuration": "Configuration",
+      "triggers": "Triggers",
+      "environment": "Environment",
+      "integrations": "Integrations",
+      "ariaLabel": "Automation sections"
     },
     "configuration": {
-      "title": "Configuration",
-      "name": "Name",
-      "namePlaceholder": "Enter automation name",
-      "description": "Description",
-      "descriptionPlaceholder": "Enter automation description",
-      "timeout": "Timeout (ms)",
-      "timeoutHelp": "Maximum execution time in milliseconds",
-      "maxRetries": "Max retries",
-      "maxRetriesHelp": "Number of retry attempts on failure",
-      "backoff": "Backoff (ms)",
-      "backoffHelp": "Delay between retry attempts in milliseconds",
-      "variables": "Variables (JSON)",
-      "variablesHelp": "These variables will be available to all steps in the automation",
-      "validation": {
-        "nameRequired": "Name is required",
-        "invalidJson": "Invalid JSON in variables field"
+      "nameLabel": "Name",
+      "descriptionLabel": "Description",
+      "agentsTitle": "Agents",
+      "skillsTitle": "Skills",
+      "status": {
+        "ready": "Ready",
+        "needsSetup": "Needs setup",
+        "connected": "Connected",
+        "notConnected": "Not connected",
+        "missing": "Missing"
       },
-      "env": "Environment & secrets",
-      "envHelp": "Variables injected into every sandbox step of this automation. Mark a value as a secret to encrypt it; secrets are write-only. A step can override any of these."
+      "namePlaceholder": "Automation name",
+      "descriptionPlaceholder": "What this automation does",
+      "runtimeTitle": "Workflow settings",
+      "validation": {
+        "nameRequired": "Name is required"
+      }
     },
     "triggers": {
-      "title": "Triggers",
       "errors": {
         "unauthenticated": "You're not signed in. Refresh the page and try again.",
         "invalidSlug": "This automation's identifier is invalid.",
         "notInstalled": "This automation isn't installed yet.",
         "notFound": "That trigger could no longer be found. It may have been deleted.",
-        "appOwnedWorkflow": "App automations run only from within the app, so they can't subscribe to events.",
         "invalidEventType": "That event type isn't valid.",
         "duplicateSubscription": "This automation already has a trigger for that event."
-      },
-      "schedules": {
-        "title": "Schedules",
-        "createButton": "Add schedule",
-        "emptyTitle": "No schedules",
-        "emptyDescription": "Create a schedule to automatically trigger this automation on a recurring basis.",
-        "columns": {
-          "cronExpression": "Cron expression",
-          "active": "Active",
-          "lastTriggered": "Last triggered",
-          "createdBy": "Created by"
-        },
-        "form": {
-          "title": "Create schedule",
-          "editTitle": "Edit schedule",
-          "cronExpression": "Cron expression",
-          "cronPlaceholder": "0 * * * *",
-          "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
-          "variablesLabel": "Workflow variables",
-          "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
-          "variablesInvalid": "Variables must be valid JSON object",
-          "validation": {
-            "cronRequired": "Cron expression is required",
-            "cronInvalid": "Must be a valid 5-field cron expression"
-          },
-          "presets": {
-            "every5Minutes": "Every 5 minutes",
-            "hourly": "Every hour",
-            "daily": "Every day",
-            "weekly": "Every week",
-            "monthly": "Every month"
-          },
-          "ai": {
-            "label": "Describe your schedule",
-            "placeholder": "e.g., every weekday at 9am, twice a day at 8am and 6pm",
-            "generateButton": "Generate",
-            "generateError": "Could not generate cron expression. Please try again or enter manually."
-          }
-        },
-        "toast": {
-          "created": "Schedule created",
-          "updated": "Schedule updated",
-          "deleted": "Schedule deleted",
-          "enabled": "Schedule enabled",
-          "disabled": "Schedule disabled",
-          "toggleError": "Failed to toggle schedule",
-          "deleteError": "Failed to delete schedule"
-        },
-        "deleteTitle": "Delete schedule",
-        "deleteDescription": "This will permanently delete this schedule. This action cannot be undone."
-      },
-      "webhooks": {
-        "title": "Webhooks",
-        "createButton": "Add webhook",
-        "emptyTitle": "No webhooks",
-        "emptyDescription": "Create a webhook to trigger this automation via HTTP POST requests.",
-        "columns": {
-          "url": "Webhook URL",
-          "active": "Active",
-          "lastTriggered": "Last triggered"
-        },
-        "createdTitle": "Webhook created",
-        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
-        "webhookUrl": "Webhook URL",
-        "deleteTitle": "Delete webhook",
-        "deleteDescription": "This will permanently delete this webhook endpoint. Any integrations using this URL will stop working.",
-        "deleteWebhook": "Delete webhook",
-        "toast": {
-          "created": "Webhook created",
-          "deleted": "Webhook deleted",
-          "enabled": "Webhook enabled",
-          "disabled": "Webhook disabled",
-          "urlCopied": "Webhook URL copied",
-          "createFailed": "Failed to create webhook",
-          "toggleFailed": "Failed to toggle webhook",
-          "deleteFailed": "Failed to delete webhook"
-        }
-      },
-      "events": {
-        "title": "Events",
-        "createButton": "Add event trigger",
-        "emptyTitle": "No event triggers",
-        "emptyDescription": "Subscribe to system events to automatically trigger this automation when specific actions occur.",
-        "columns": {
-          "eventType": "Event type",
-          "active": "Active",
-          "lastTriggered": "Last triggered",
-          "createdBy": "Created by"
-        },
-        "form": {
-          "title": "Add event trigger",
-          "editTitle": "Edit event trigger",
-          "eventType": "Event type",
-          "eventTypePlaceholder": "Select an event type",
-          "filtersLabel": "Filters",
-          "filterAll": "All (no filter)",
-          "filterAllPlaceholder": "Select a filter value"
-        },
-        "toast": {
-          "created": "Event trigger created",
-          "updated": "Event trigger updated",
-          "deleted": "Event trigger deleted",
-          "enabled": "Event trigger enabled",
-          "disabled": "Event trigger disabled",
-          "toggleError": "Failed to toggle event subscription",
-          "deleteError": "Failed to delete event subscription"
-        },
-        "editTitle": "Edit event trigger",
-        "deleteTitle": "Delete event trigger",
-        "deleteDescription": "This will permanently delete this event trigger. The automation will no longer be triggered by this event."
-      },
-      "common": {
-        "never": "Never",
-        "copied": "Copied",
-        "copyFailed": "Copy failed"
       }
     },
-    "executions": {
-      "title": "Executions",
-      "entityLabel": "executions",
-      "searchPlaceholder": "Search by execution ID",
-      "viewOnCanvas": "View on canvas"
+    "searchPlaceholder": "Search automations…",
+    "noResults": {
+      "title": "No matching automations",
+      "description": "No automations match your search. Try a different term."
     },
-    "createDialog": {
-      "title": "Create automation",
-      "tabBlank": "Blank",
-      "tabTemplate": "From template",
-      "nameTooltip": "Becomes the automation's id in its URL. Add a / to place it in a folder, e.g. marketing/social-posts. You can change the display name later.",
-      "namePlaceholder": "e.g., Social media workflow",
-      "descriptionPlaceholder": "Describe what this automation does...",
-      "creating": "Creating...",
-      "continue": "Continue",
+    "folders": {
+      "general": "General",
+      "email": "Email",
+      "github": "GitHub"
+    },
+    "addMenu": {
+      "label": "Add automation"
+    },
+    "custom": "Custom",
+    "upload": {
+      "uploadApp": "Upload package",
+      "dialogTitle": "Upload automation package",
+      "description": "Upload a private automation to this organization as a .zip package, or select the automation folder directly — its name becomes the automation slug. Uploading does not install the automation; you can install it afterwards.",
+      "dropZoneLabel": "Upload automation package",
+      "dropHere": "Drop the .zip here",
+      "parsing": "Reading package…",
+      "dropOrClick": "Drop a .zip here or click to browse",
+      "acceptedFormats": "A folder containing automation.json at its root",
+      "selectFolder": "Select a folder instead",
+      "useFolderButton": "To upload a folder, use the link below.",
+      "singleZipOnly": "Drop a single .zip package, not multiple files.",
+      "zipRequired": "The package must be a .zip file.",
+      "unexpectedError": "An unexpected error occurred",
+      "scopeProject": "Project automation",
+      "scopeOrg": "Org automation",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresIntegrations": "Requires integrations",
+      "bundleFiles": "Package files",
+      "fileCount": "{count, plural, one {# file} other {# files}}",
+      "submit": "Upload package",
+      "submitting": "Uploading…",
+      "uploadSuccess": "Automation uploaded",
+      "installHint": "Install it from the Automations list when you’re ready.",
+      "replaceSuccess": "Automation replaced",
+      "uploadFailed": "Failed to upload automation",
+      "replaceTitle": "Replace existing automation?",
+      "replaceDescription": "A private automation named \"{slug}\" already exists. Uploading will overwrite its current contents.",
+      "replaceConfirm": "Replace",
+      "delete": "Delete upload",
+      "deleteMenuLabel": "Delete {name}",
+      "deleteTitle": "Delete uploaded automation",
+      "deleteDescription": "This removes the uploaded automation and its files from this organization. Built-in automations can't be deleted.",
+      "deleteWarning": "The automation bundle is permanently removed. Uninstall the automation first if it's still installed.",
+      "deleteSuccess": "Upload deleted",
+      "deleteFailed": "Couldn't delete the upload",
+      "deleteInstalledBlocked": "Uninstall the automation before deleting its upload."
+    },
+    "empty": {
+      "title": "No automations yet",
+      "description": "Installed automations appear here."
+    },
+    "notFound": {
+      "title": "Automation not found",
+      "description": "This pack is not installed."
+    },
+    "viewInvalid": {
+      "title": "This page can't be shown",
+      "description": "The page's definition didn't pass validation. Reinstalling the automation restores its bundled files.",
+      "reinstall": "Reinstall automation"
+    },
+    "editor": {
+      "notFoundTitle": "Workflow not found",
+      "notFoundDescription": "This automation's workflow could not be loaded."
+    },
+    "details": {
+      "scopeOrg": "Organization automation",
+      "scopeProject": "Project automation",
+      "includesTitle": "What's included",
+      "pages": "Pages",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "skills": "Skills",
+      "requiresTitle": "What you'll need",
+      "requiresHint": "You'll connect these during setup."
+    },
+    "panel": {
+      "title": "Automation details",
+      "whatWillBeInstalled": "What will be installed",
+      "whatsInstalled": "What's installed",
       "install": "Install",
-      "installing": "Installing..."
-    },
-    "uploadDialog": {
-      "menuItem": "Upload file",
-      "title": "Upload automations",
-      "description": "Drop workflow JSON files or a .zip archive. Each .json installs as a separate automation. To import a folder, use the link below the drop zone.",
-      "toastSuccess": "Automations imported"
-    },
-    "templates": {
-      "description": "Choose a template to get started with pre-configured steps.",
-      "fetching": "Loading template...",
-      "noTemplates": "No templates available for this integration."
-    },
-    "editDialog": {
-      "namePlaceholder": "Enter automation name"
-    },
-    "steps": {
-      "banners": {
-        "hasActiveTriggers": "This automation is active — saved changes apply to new runs."
-      },
-      "toolbar": {
-        "testAutomation": "Test automation",
-        "addStepUnavailable": "Editing steps on the canvas isn't available yet — use the AI assistant or edit the workflow configuration."
-      },
-      "execution": {
-        "viewingRun": "Viewing run {id}",
-        "clear": "Hide run results",
-        "nodeBadgeLabel": "Execution status: {status}",
-        "duration": "Duration: {duration}",
-        "attempts": "{count, plural, one {# attempt} other {# attempts}}",
-        "loopProgress": "Iteration {current} of {total}",
-        "output": "Output",
-        "error": "Error",
-        "outputTruncated": "Output preview truncated",
-        "outputUnavailable": "Output too large to preview",
-        "status": {
-          "pending": "Pending",
-          "running": "Running",
-          "completed": "Completed",
-          "failed": "Failed",
-          "waiting": "Waiting for input",
-          "paused": "Paused (debug)",
-          "success": "Succeeded",
-          "canceled": "Canceled"
-        }
+      "sections": {
+        "pages": "Pages",
+        "workflows": "Workflows",
+        "agents": "Agents",
+        "skills": "Skills",
+        "integrations": "Integrations",
+        "folder": "Folder",
+        "members": "Automations"
       }
     },
-    "stepTypes": {
+    "bundle": {
+      "memberCount": "Bundle · {count} automations",
+      "needsAttention": "Needs attention"
+    },
+    "install": {
+      "install": "Install",
+      "installed": "Installed",
+      "installFailed": "Couldn't install the automation",
+      "reinstall": "Reinstall",
+      "setup": "Finish setup",
+      "uninstall": "Uninstall",
+      "notInstalledDescription": "Install this automation to add its agents and workflows to your organization.",
+      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live.",
+      "projectLabel": "Project",
+      "projectPlaceholder": "Select a project",
+      "projectSearchPlaceholder": "Search projects…",
+      "noProjects": "No projects found.",
+      "createProject": "Create new project",
+      "menuLabel": "Manage {name}",
+      "reinstallOverridesTitle": "Reinstall automation",
+      "reinstallOverridesDescription": "Reinstalling replaces these changed files with the automation's latest versions. Your environment variables and secrets are kept.",
+      "reinstallOverridesNoChanges": "None of its files were changed — reinstalling refreshes the automation from the latest template. Your environment variables and secrets are kept.",
+      "reinstalled": "Automation reinstalled",
+      "reinstallFailed": "Couldn't reinstall the automation",
+      "uninstallTitle": "Uninstall automation",
+      "uninstallDescription": "This removes the automation and everything it installed from your organization.",
+      "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
+      "uninstalled": "Automation uninstalled",
+      "uninstallFailed": "Couldn't uninstall the automation",
+      "removeFromProject": "Remove from project",
+      "removedFromProject": "Removed from project",
+      "removeFromProjectFailed": "Couldn't remove the automation from this project",
+      "removeFromProjectTitle": "Remove from this project?",
+      "removeFromProjectDescription": "{name} will no longer appear in this project. Its agents, workflows, and any other projects are unaffected — you can add it back anytime.",
+      "uninstallBlocked": "Still in use by: {projects}. Remove the automation from those projects before uninstalling.",
+      "uninstallBlockedCount": "Remove the automation from its {count} project(s) before uninstalling.",
+      "export": "Export",
+      "exportFailed": "Couldn't export the automation",
+      "uninstallBundle": "Uninstall bundle",
+      "uninstallBundleTitle": "Uninstall bundle?",
+      "uninstallBundleDescription": "Removes all {count} automations this bundle installed, including their agents and settings.",
+      "uninstallContents": "What this removes",
+      "bundleUninstalled": "Bundle uninstalled",
+      "bundleUninstallFailed": "Couldn't uninstall the bundle"
+    },
+    "readiness": {
+      "title": "Finish setup",
+      "summaryBroken": "Installed files are missing",
+      "summaryIntegrations": "Not connected: {names}",
+      "summaryAgents": "Needs setup: {names}",
+      "mismatch": {
+        "cursorKeyOnClaudeRuntime": "{agent} runs as Claude Code but Environment has {configuredKeys} — this runtime needs {expectedKeys}. Open the agent → General, set External runtime to Cursor and save, or set the matching secret.",
+        "claudeKeyOnCursorRuntime": "{agent} runs as Cursor but Environment has {configuredKeys} — this runtime needs {expectedKeys}. Open the agent → General, set External runtime to Claude Code and save, or set the matching secret."
+      }
+    },
+    "config": {
+      "invalidValue": "{label}: check the format and try again."
+    },
+    "installWizard": {
+      "title": "Set up {name}",
+      "progress": "{label} · step {current} of {total}",
+      "stepsAriaLabel": "Setup steps",
+      "projectStepLabel": "Project",
+      "installStepLabel": "Install",
+      "installReady": "Ready to install {name}.",
+      "installNeeds": "It uses these integrations: {integrations}.",
+      "reviewStepLabel": "Review changes",
+      "reviewTitle": "Installing overwrites existing files",
+      "reviewConfirmLabel": "Replace these files with the automation's versions",
+      "bundleReviewDescription": "This bundle installs several automations at once — review each one's changes separately below.",
+      "bundleInstallReady": "Ready to install {name} ({count} automations).",
+      "bundleMembersFailed": "{count} automation(s) couldn't be installed",
+      "overridesChanged": "The files changed while you were reviewing. Start again to see the current list.",
+      "reviewKind": {
+        "agent": "Agents",
+        "view": "Pages",
+        "integration": "Integrations",
+        "skill": "Skills",
+        "manifest": "Manifest",
+        "icon": "Icon",
+        "asset": "Assets"
+      },
+      "doneStepLabel": "Done",
+      "doneTitle": "{name} is ready",
+      "doneNeedsSetupTitle": "Finish setting up {name}",
+      "doneNeedsSetup": "A required integration isn't connected yet — connect it from the automation's Integrations tab before it can run.",
+      "doneAllConnected": "Everything it needs is connected.",
+      "doneSomeSkipped": "You skipped some steps — finish them anytime from the automation's setup checklist.",
+      "finish": "Finish",
+      "skipForNow": "I'll do this later",
+      "installFailed": "Couldn't install the automation",
+      "integrationUnavailable": "{integration} isn't available in this organization yet. Connect it from Settings → Integrations.",
+      "oauthPopupBlocked": "Allow pop-ups for this site to connect, then try again.",
+      "authModeStepLabel": "Agent mode",
+      "authModeDescription": "Each automation agent can use the platform's managed model access, or bring its own credentials.",
+      "authModeManaged": "Managed",
+      "authModeByo": "Bring your own key",
+      "providerKeyLabel": "{provider} API key",
+      "connectProvider": "Connect {provider}",
+      "providerConnectFailed": "Couldn't connect the provider",
+      "agentNeedsKeys": "{name} needs these credentials to run.",
+      "saveSecrets": "Save"
+    },
+    "confirm": "Are you sure?",
+    "binding": {
+      "empty": "Nothing to show yet.",
+      "blocked": "This view is not allowed to call {path}.",
+      "awaitingSelection": "Select an item to see it here."
+    },
+    "detail": {
+      "title": "Details",
+      "activity": "Activity",
+      "run": "Workflow run",
+      "discuss": "Discussion",
+      "openLink": "Open link",
+      "chatPlaceholder": "Ask about this item…"
+    },
+    "review": {
+      "none": "No pending reviews.",
+      "awaiting": "Awaiting approval"
+    },
+    "issues": {
+      "createTask": "Create task"
+    },
+    "list": {
+      "refresh": "Refresh",
+      "error": "Couldn't load data: {error}",
+      "notConnected": "This integration isn't connected yet. Connect it to load data.",
+      "needsConfig": "Configure this automation to load data.",
+      "created": "Created",
       "start": "Start",
-      "llm": "LLM",
-      "condition": "Condition",
-      "loop": "Loop",
-      "action": "Action",
-      "output": "Output"
+      "markDone": "Mark done",
+      "merge": "Merge pull request",
+      "all": "All"
     },
-    "edges": {
-      "yes": "Yes",
-      "no": "No"
-    },
-    "step": {
-      "openStep": "Open {name} step",
-      "openStepDefault": "Open step"
-    },
-    "sidePanel": {
-      "aiAssistant": "AI Assistant",
-      "testAutomation": "Test automation",
-      "stepTooltip": "{stepType} step",
-      "end": "End",
-      "close": "Close panel",
-      "validationErrors": "Validation errors",
-      "validationWarnings": "Warnings",
-      "stepSaveFailed": "Failed to save step",
-      "saving": "Saving...",
-      "resizePanel": "Resize panel",
-      "stepEditor": "Step editor",
-      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet.",
-      "env": "Environment & secrets",
-      "envHelp": "Variables injected into this step's sandbox, overriding the automation-level values on a name clash."
-    },
-    "nextSteps": {
-      "endWorkflow": "End workflow",
-      "transitions": {
-        "success": "Next step (on success)",
-        "failure": "Next step (on failure)",
-        "true": "Next step (if true)",
-        "false": "Next step (if false)",
-        "loop": "Next step (loop iteration)",
-        "done": "Next step (loop complete)"
+    "agents": {
+      "none": "No agents configured.",
+      "error": "Couldn't load agents: {error}",
+      "editInstructions": "Edit instructions",
+      "envSecrets": "Env & secrets",
+      "authMode": {
+        "label": "Auth",
+        "byo": "BYO",
+        "managed": "Managed",
+        "error": "Couldn't switch the agent's auth mode"
+      },
+      "instructions": {
+        "title": "Edit instructions — {name}",
+        "description": "The system prompt that steers this agent. Changes apply to the next run.",
+        "placeholder": "Describe how this agent should behave…",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Instructions saved",
+        "saveError": "Couldn't save instructions",
+        "loadError": "Couldn't load this agent."
+      },
+      "env": {
+        "title": "Environment & secrets — {name}",
+        "description": "Env vars and secrets injected into this agent's runs. Secrets are encrypted at rest, shown masked, and decrypted only at run time.",
+        "none": "No environment variables yet.",
+        "keyPlaceholder": "NAME",
+        "valuePlaceholder": "value",
+        "secret": "Secret",
+        "secretKept": "•••••••• (unchanged)",
+        "add": "Add variable",
+        "remove": "Remove",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "saved": "Environment saved",
+        "saveError": "Couldn't save environment",
+        "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
+        "dupKey": "Duplicate variable name — each NAME must be unique."
       }
     },
-    "createStep": {
-      "title": "Create step",
-      "description": "Add a new step to the selected workflow",
-      "namePlaceholder": "analyze_data",
-      "creating": "Creating...",
-      "createButton": "Create step",
-      "type": "Type",
-      "types": {
-        "action": "Action",
-        "llm": "LLM",
-        "condition": "Condition",
-        "output": "Output"
-      },
-      "configLabel": "Config (JSON)",
-      "validation": {
-        "nameRequired": "Step name is required",
-        "nameFormat": "Format: letters, numbers, \"_\", \"-\""
-      }
+    "workflow": {
+      "none": "This workflow has no steps.",
+      "error": "Couldn't load the workflow: {error}"
     },
-    "toast": {
-      "created": "Automation created successfully",
-      "createFailed": "Failed to create automation"
+    "runs": {
+      "backToApp": "Back to automation",
+      "none": "No runs yet.",
+      "colRun": "Run",
+      "colStatus": "Status",
+      "colStarted": "Started",
+      "watchLive": "Watch live",
+      "queuedForCapacity": "Queued for capacity",
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
+      "failed": "Failed",
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
-    "validation": {
-      "duplicateName": "An automation with a matching identifier already exists. Try a more distinct name.",
-      "invalidName": "Name must contain at least one letter or number"
+    "membership": {
+      "boundProjectsTitle": "Bound projects",
+      "boundProjectsDescription": "Run this automation in specific projects. Add a project to bind it; remove one to unbind it there.",
+      "boundProjectsPlaceholder": "Bind projects…",
+      "noProjectsAvailable": "No projects available.",
+      "saveFailed": "Couldn't update this automation's projects.",
+      "notInProjectTitle": "Not added to this project",
+      "notInProjectDescription": "Add this automation to this project to use it here.",
+      "addToThisProject": "Add to this project"
     },
-    "deleteAutomation": {
-      "title": "Delete automation",
-      "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
+    "board": {
+      "hiddenCards": "{count, plural, one {# card hidden — no matching lane} other {# cards hidden — no matching lane}}",
+      "moveTo": "Move to",
+      "truncated": "Showing the first cards only — the list was truncated."
     },
-    "assistant": {
-      "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
-      "analyzeAttachments": "Please analyze the attached files."
+    "chat": {
+      "roleUnavailable": "This automation doesn't map the “{role}” role to an agent yet."
     },
-    "tester": {
-      "inputLabel": "Test input (JSON)",
-      "inputDescription": "Provide input data in JSON format for the automation execution",
-      "validation": {
-        "invalidJson": "Enter valid JSON to run this automation.",
-        "missingRequired": "Configure required field(s) before running: {fields}"
-      },
-      "tip": "💡 Dry run simulates execution without side effects. Execute creates real runs visible in Executions tab.",
-      "execute": "Execute",
-      "executing": "Executing...",
-      "dryRunning": "Simulating...",
-      "dryRun": {
-        "button": "Dry run",
-        "success": "Dry run completed successfully",
-        "failed": "Dry run found issues",
-        "errors": "Errors",
-        "warnings": "Warnings",
-        "executionPath": "Execution path",
-        "fileBasedUnsupported": "Dry run isn't supported for file-based workflows yet."
-      },
-      "toast": {
-        "invalidJson": "Invalid JSON",
-        "invalidJsonDescription": "Please provide valid JSON input",
-        "executionStarted": "Execution started",
-        "executionId": "Execution ID: {id}",
-        "testFailed": "Execution failed",
-        "startFailed": "Failed to start execution"
-      },
-      "result": {
-        "completed": "Completed",
-        "failed": "Execution failed",
-        "running": "Running…",
-        "failedAtStep": "Failed at step: {step}",
-        "runningStep": "Current step: {step}",
-        "stepsHeading": "Executed steps",
-        "openStep": "Open settings for the failed step {step}",
-        "errorCode": {
-          "start_failure": "The run failed to start",
-          "step_failure": "A step failed",
-          "timeout": "The run timed out",
-          "canceled": "The run was canceled",
-          "invalid_input": "The input was invalid"
-        }
-      },
-      "debug": {
-        "button": "Debug",
-        "title": "Debug session",
-        "pausedAt": "Paused before step: {step}",
-        "step": "Step",
-        "continue": "Continue",
-        "stop": "Stop",
-        "variables": "Run variables",
-        "variablesLoading": "Loading variables…",
-        "variablesError": "Couldn't load the run variables."
-      }
+    "integrationsTab": {
+      "emptyTitle": "No integrations required",
+      "emptyDescription": "This automation runs without any connected integration."
     }
   },
   "changelog": {
@@ -1329,9 +997,9 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
-      "addAgent": "Catalog",
       "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
-      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)"
+      "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)",
+      "browseAutomations": "Browse automations"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1520,7 +1188,6 @@
       "truncated": "… more items hidden (list truncated)",
       "ariaTree": "Workspace files"
     },
-    "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
     "audioDurationExceeded": "{names}: audio is longer than the {maxHours}-hour limit. Please split it into shorter segments.",
@@ -1918,6 +1585,9 @@
     "modelFallbackUnknown": "the previous model",
     "generationIncomplete": "The response couldn't be completed. Please try again.",
     "generationIncompleteWithTools": "The response couldn't be completed after running {tools}. Please try again.",
+    "stepLimitContinued": "Step limit for this round reached — continuing automatically.",
+    "stepLimitContinuedRound": "Step limit for this round reached — continuing automatically (round {round}).",
+    "stepLimitReached": "Stopped here — this turn reached its step limit. Send a message to continue.",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
@@ -1947,7 +1617,10 @@
       "fullscreen": "Expand to full screen",
       "exitFullscreen": "Exit full screen"
     },
-    "kbFolderChipFiles": "{count, plural, one {# file} other {# files}}"
+    "kbFolderChipFiles": "{count, plural, one {# file} other {# files}}",
+    "embedded": {
+      "analyzeAttachments": "Please analyze the attached files."
+    }
   },
   "common": {
     "optional": "optional",
@@ -2007,7 +1680,8 @@
       "import": "Import",
       "importing": "Importing...",
       "openMenu": "Open menu",
-      "deleteSelected": "Delete selected"
+      "deleteSelected": "Delete selected",
+      "export": "Export"
     },
     "unsavedChanges": {
       "title": "Unsaved changes",
@@ -2041,7 +1715,7 @@
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload",
       "dropOrClick": "Drop JSON files or .zip here",
-      "acceptHint": "JSON files or .zip archives",
+      "acceptHint": "JSON files, folders, or .zip archives",
       "uploadFolderInstead": "Select a folder instead",
       "importBlocked": "Nothing ready to import. Fix invalid files above, or adjust overwrite settings for conflicts.",
       "summary": "{total} entries · {saved} saved · {queued} pending",
@@ -2122,8 +1796,8 @@
       "back": "Back",
       "backTo": "Back to {page}",
       "breadcrumb": "Breadcrumb",
-      "automationsNavigation": "Automations navigation",
       "agentsNavigation": "Agents navigation",
+      "automationsNavigation": "Automations navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
       "moreInfo": "More information",
@@ -2134,7 +1808,8 @@
       "validationStatus": "{message}: {status}",
       "skipToContent": "Skip to main content",
       "mainNavigation": "Main navigation",
-      "projectsNavigation": "Projects navigation"
+      "projectsNavigation": "Projects navigation",
+      "workflowNavigation": "Workflow navigation"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
@@ -2253,9 +1928,10 @@
     "reachingServer": "Trying to reach the server"
   },
   "conversations": {
-    "title": "Conversations",
+    "title": "Inbox",
     "unknownCustomer": "Unknown customer",
     "messagePlaceholder": "Type a message",
+    "searchPlaceholder": "Search conversations",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
     "fallbackImageAttachment": "Image attachment",
     "fallbackAttachment": "Attachment",
@@ -2373,15 +2049,19 @@
       "empty": "No conversations in this tab"
     },
     "activate": {
-      "title": "Activate conversations",
-      "description": "Connect your email to get started with conversations",
-      "connectEmail": "Connect email"
+      "title": "No conversations yet",
+      "description": "Incoming conversations from your connected channels will appear here.",
+      "noAutomationTitle": "Set up your Inbox",
+      "noAutomationDescription": "Install an email automation (Gmail, Outlook, or IMAP) to start reading and replying to conversations here.",
+      "browseAutomations": "Browse automations"
     },
     "filter": {
       "label": "Filter by read status",
       "all": "All",
       "read": "Read",
-      "unread": "Unread"
+      "unread": "Unread",
+      "channel": "Channel",
+      "allChannels": "All channels"
     },
     "category": {
       "churnSurvey": "Churn survey",
@@ -2480,7 +2160,6 @@
     "thisMember": "this member",
     "confirmRemoveMember": "Are you sure you want to remove {name} from the team? They will lose access to this organization and all associated resources.",
     "toSend": "to send",
-    "selectConversation": "Select conversation",
     "vendorInfo": {
       "title": "Vendor information"
     },
@@ -2858,10 +2537,6 @@
     "knowledgeEntries": {
       "title": "No knowledge entries yet",
       "description": "Save facts from chat or add entries to make your AI smarter"
-    },
-    "automations": {
-      "title": "No automations yet",
-      "description": "Create your first automation to get started"
     },
     "agents": {
       "title": "No agents yet",
@@ -4372,7 +4047,7 @@
     },
     "automations": {
       "title": "Automations",
-      "description": "Manage your automation workflows."
+      "description": "Installed packs and the automations they add to your organization."
     },
     "automation": {
       "title": "Automation",
@@ -4569,13 +4244,27 @@
     "enterpriseSso": {
       "title": "Enterprise SSO",
       "description": "Configure single sign-on and SCIM provisioning."
+    },
+    "workflow": {
+      "title": "Workflow",
+      "description": "View and edit workflow."
+    },
+    "workflowConfiguration": {
+      "title": "Workflow configuration",
+      "description": "Configure workflow settings."
+    },
+    "workflowExecutions": {
+      "title": "Workflow executions",
+      "description": "View workflow execution history."
+    },
+    "workflowTriggers": {
+      "title": "Triggers",
+      "description": "Manage workflow triggers, schedules, and webhooks."
     }
   },
   "navigation": {
     "newChat": "New chat",
     "chat": "Chat",
-    "apps": "Apps",
-    "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
     "more": "More",
@@ -4776,33 +4465,6 @@
       "title": "Environment variables & secrets",
       "description": "Variables and secrets injected into all of your agent sandboxes.",
       "note": "Secrets are encrypted and write-only — once saved they are never shown again. These variables are injected into all of your sandboxes."
-    },
-    "add": {
-      "keyLabel": "Name",
-      "keyPlaceholder": "e.g. MY_API_KEY",
-      "keyInvalid": "Must start with a letter or underscore and contain only letters, numbers, and underscores.",
-      "valueLabel": "Value",
-      "valuePlaceholder": "Value",
-      "secretLabel": "Secret",
-      "secretHelp": "When on, the value is encrypted and write-only — it is never shown again after saving.",
-      "whitespaceWarning": "This value contains spaces or line breaks. Credentials shouldn't — if you pasted a token that wrapped across lines in your terminal, remove them. (Multi-line secrets like PEM keys can keep them.)",
-      "submit": "Add"
-    },
-    "list": {
-      "empty": "No environment variables yet.",
-      "secretBadge": "Secret",
-      "updatedHint": "Updated {when}",
-      "delete": "Delete",
-      "deleteConfirmTitle": "Delete variable?",
-      "deleteConfirmDescription": "Delete \"{key}\"? This removes it from all of your sandboxes."
-    },
-    "toasts": {
-      "saved": "Saved.",
-      "deleted": "Deleted."
-    },
-    "errors": {
-      "saveFailed": "Couldn't save. Please try again.",
-      "deleteFailed": "Couldn't delete. Please try again."
     }
   },
   "piiConfigPanel": {
@@ -5452,8 +5114,6 @@
     "errors": {
       "PROJECT_FORBIDDEN": "You don't have access to this project.",
       "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
-      "PROJECT_HAS_BOUND_APPS": "Uninstall the apps using this project first, then delete it.",
-      "PROJECT_HAS_BOUND_APPS_NAMED": "Uninstall the apps using this project first, then delete it: {apps}.",
       "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
@@ -5477,7 +5137,9 @@
       "THREAD_FORBIDDEN": "You can only modify your own chats.",
       "THREAD_NOT_FOUND": "Chat not found.",
       "THREAD_NOT_IN_PROJECT": "This chat isn't in a project.",
-      "RATE_LIMITED": "You're doing that too often. Try again in a moment."
+      "RATE_LIMITED": "You're doing that too often. Try again in a moment.",
+      "PROJECT_HAS_BOUND_AUTOMATIONS": "Uninstall the automations using this project first, then delete it.",
+      "PROJECT_HAS_BOUND_AUTOMATIONS_NAMED": "Uninstall the automations using this project first, then delete it: {automations}."
     },
     "sharing": {
       "effectiveAudience": "Effective audience",
@@ -5556,7 +5218,7 @@
         "description": "Manage always-on remote agent sandboxes."
       },
       "enterpriseSso": {
-        "description": "Single sign-on and directory sync for your workforce."
+        "description": "Single sign-on and directory sync for your organization."
       },
       "dataResidency": {
         "description": "Where your data is stored and processed."
@@ -5565,7 +5227,7 @@
     "tokenSources": {
       "editTitle": "Edit token source",
       "newTitle": "New token source",
-      "new": "New token source",
+      "new": "New source",
       "slug": "Slug",
       "displayName": "Display name",
       "endpoint": "Endpoint URL",
@@ -5744,10 +5406,6 @@
     },
     "agents": {
       "title": "Agents",
-      "tabs": {
-        "list": "List",
-        "metrics": "Metrics"
-      },
       "entityLabel": "agents",
       "tableCaption": "Installed agents",
       "createAgent": "Create agent",
@@ -5755,7 +5413,6 @@
         "blank": "Blank",
         "fromTemplate": "From template"
       },
-      "appBadge": "App",
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
@@ -5793,7 +5450,6 @@
         "webhook": "Webhooks",
         "conversationStarters": "Starters",
         "history": "History",
-        "metrics": "Performance",
         "environment": "Environment"
       },
       "history": {
@@ -5817,7 +5473,7 @@
       "uploadDialog": {
         "menuItem": "Upload file",
         "title": "Upload agents",
-        "description": "Drop agent JSON files or a .zip archive. Each .json installs as a separate agent. To import a folder, use the link below the drop zone.",
+        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
         "toastSuccess": "Agents imported"
       },
       "general": {
@@ -5853,15 +5509,15 @@
         "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
-        "sectionToolsExternalDescription": "External agents run in a sandbox and only use bound integrations. Platform tools and workflows don't apply.",
+        "sectionToolsExternalDescription": "External agents run in a sandbox and use what you bind here: connected integrations and the platform tools they may call (knowledge search, documents). Workflows don't apply.",
         "sectionIntegrationBindings": "Bound integrations",
         "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
         "noIntegrationsAvailable": "No active integrations available.",
-        "sectionWorkflowBindings": "Bound workflows",
-        "sectionWorkflowBindingsDescription": "Bind specific workflows as dedicated tools. The agent won't need to specify the workflow ID.",
-        "noWorkflowsAvailable": "No active workflows available.",
+        "sectionAutomationBindings": "Bound automations",
+        "sectionAutomationBindingsDescription": "Bind specific automations as dedicated tools. The agent won't need to specify the automation name.",
+        "noAutomationsAvailable": "No active automations available.",
         "bindIntegrationsPlaceholder": "Bind integrations…",
-        "bindWorkflowsPlaceholder": "Bind workflows…",
+        "bindAutomationsPlaceholder": "Bind automations…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
         "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",
@@ -6131,7 +5787,8 @@
       "env": {
         "title": "Environment & secrets",
         "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only."
-      }
+      },
+      "automationBadge": "Automation"
     },
     "skills": {
       "entityLabel": "skills",
@@ -6149,11 +5806,14 @@
       "manageInSettings": "Manage in Skills settings",
       "actions": {
         "duplicate": "Duplicate",
-        "replaceBundle": "Replace bundle"
+        "replaceBundle": "Replace bundle",
+        "viewDetails": "View details",
+        "menuLabel": "Manage {name}"
       },
       "columns": {
         "name": "Skill",
-        "description": "Description"
+        "description": "Description",
+        "loadError": "Failed to read SKILL.md"
       },
       "loadErrorDetail": {
         "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
@@ -6171,17 +5831,13 @@
         }
       },
       "form": {
-        "slug": "Slug",
         "description": "Description"
       },
       "section": {
-        "overview": "Overview",
         "body": "Instructions (body)",
-        "bundle": "Bundle files",
         "auditHistory": "Recent changes"
       },
       "metadata": {
-        "bundleFiles": "Bundle files",
         "license": "License"
       },
       "body": {
@@ -6192,7 +5848,8 @@
         "action": {
           "upload_skill": "Uploaded",
           "duplicate_skill": "Duplicated",
-          "delete_skill": "Deleted"
+          "delete_skill": "Deleted",
+          "update_skill": "Updated"
         }
       },
       "viewer": {
@@ -6202,14 +5859,12 @@
         "largeFile": "Large file — syntax highlighting disabled for performance.",
         "notFound": "This file is no longer in the bundle. Pick another file from the tree."
       },
-      "bundle": {
-        "empty": "No bundle files yet."
-      },
       "detail": {
         "descriptionEmpty": "(no description)",
         "tree": {
           "heading": "Bundle",
-          "empty": "Only SKILL.md — bundle assets live under scripts/, references/, or assets/."
+          "empty": "Only SKILL.md — bundle assets live under scripts/, references/, or assets/.",
+          "headingCount": "Bundle · {fileCount} files"
         }
       },
       "upload": {
@@ -6240,6 +5895,43 @@
         "replaceDescription": "A skill named \"{slug}\" already exists. Uploading will overwrite its current contents.",
         "replaceConfirm": "Replace",
         "replaceSuccess": "Skill bundle replaced"
+      },
+      "addMenu": {
+        "label": "Add skill"
+      },
+      "createMenu": {
+        "blank": "Blank",
+        "fromTemplate": "From template"
+      },
+      "createDialog": {
+        "title": "Create skill",
+        "nameLabel": "Name",
+        "namePlaceholder": "my-skill",
+        "nameHelp": "Unique id — lowercase letters, numbers, and single hyphens. This becomes the skill’s slug.",
+        "namePatternError": "Use lowercase letters, numbers, and single hyphens (e.g. my-skill).",
+        "submit": "Create",
+        "creating": "Creating...",
+        "created": "Skill created",
+        "exists": "A skill with this name already exists.",
+        "createFailed": "Couldn't create the skill"
+      },
+      "templateDialog": {
+        "title": "New skill from template",
+        "description": "Start from a built-in skill — the copy is yours to edit.",
+        "templateLabel": "Template",
+        "templatePlaceholder": "Select a template",
+        "empty": "No built-in skills available."
+      },
+      "noResults": {
+        "title": "No matching skills",
+        "description": "No skills match your search. Try a different term."
+      },
+      "editor": {
+        "saveSuccess": "Skill saved",
+        "saveFailed": "Failed to save skill"
+      },
+      "export": {
+        "failed": "Failed to export skill"
       }
     },
     "integrations": {
@@ -6289,9 +5981,7 @@
       },
       "empty": {
         "connectedTitle": "No connected integrations",
-        "connectedDescription": "Integrations you connect will appear here.",
-        "searchTitle": "No results found",
-        "searchDescription": "Try adjusting your search or request a new integration."
+        "connectedDescription": "Integrations you connect will appear here."
       },
       "toast": {
         "disconnected": "Disconnected",
@@ -6400,11 +6090,7 @@
         "updateTypeMismatch": "Package type does not match this integration. A REST API package cannot be applied to a SQL integration, and vice versa.",
         "updatePreview": "Changes preview",
         "newOperations": "{count} operations",
-        "newCodeLines": "{count} lines of code",
-        "relatedAutomations": "Automations",
-        "noRelatedAutomations": "No automations use this integration yet",
-        "createAutomation": "Create automation",
-        "loadingAutomations": "Loading automations"
+        "newCodeLines": "{count} lines of code"
       },
       "panel": {
         "addIntegration": "Add integration",
@@ -6461,9 +6147,9 @@
           "editor": "Editor",
           "member": "Member"
         },
-        "autoRoleLabel": "Auto-assign roles",
+        "autoRoleLabel": "Auto-assign roles from the IdP",
         "autoRoleDescription": "Assigns platform roles from the IdP's groups, app roles, or claims at sign-in.",
-        "autoTeamLabel": "Sync groups to teams",
+        "autoTeamLabel": "Sync IdP groups to teams",
         "autoTeamDescription": "Creates and updates teams from the IdP's group memberships at sign-in.",
         "excludeGroupsLabel": "Exclude groups",
         "excludeGroupsHelp": "Comma-separated group names to skip during team sync.",
@@ -6557,7 +6243,16 @@
             "s5": "Map the email, name, and group attributes in your IdP; if their names differ, set the matching attribute names under Advanced."
           }
         }
-      }
+      },
+      "noResults": {
+        "title": "No results found",
+        "description": "Try adjusting your search or request a new integration."
+      },
+      "export": {
+        "failed": "Failed to export integration"
+      },
+      "viewDetails": "View details",
+      "menuLabel": "Manage {name}"
     },
     "providers": {
       "title": "Providers",
@@ -7261,7 +6956,12 @@
       "accentColor": "Accent color",
       "uploadLogo": "Upload logo",
       "uploadFavicon": "Upload favicon",
-      "preview": "Branding preview"
+      "preview": "Branding preview",
+      "previewStatus": {
+        "open": "Open",
+        "closed": "Closed",
+        "spam": "Spam"
+      }
     },
     "dataResidency": {
       "readOnly": {
@@ -7400,12 +7100,12 @@
     "taskReviewReminderBody": "Agent work on \"{title}\" is still waiting for your review.",
     "taskReviewEscalated": "Review overdue",
     "taskReviewEscalatedBody": "A review on \"{title}\" has been waiting for over a day.",
-    "humanInputEscalated": "Automation waiting on input",
+    "humanInputEscalated": "Workflow waiting on input",
     "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
     "conversationInboundMessage": "New conversation message",
-    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open your Inbox to reply.",
     "agentEscalation": "Agent escalation",
     "agentEscalationBody": "{agent} escalated: {reason}",
     "email": {
@@ -7414,47 +7114,14 @@
     }
   },
   "projectSecrets": {
-    "title": "Secrets",
+    "title": "Environment",
     "description": "Encrypted credentials this project's agents can use. Values are never shown after saving.",
-    "addButton": "Add secret",
-    "empty": "No secrets yet.",
     "agentAccessTitle": "Available to agents",
     "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
-    "nameLabel": "Name",
-    "nameInvalid": "Name must start with a letter and use only A–Z, 0–9 and underscores.",
-    "valueLabel": "Value",
-    "descriptionLabel": "Description",
-    "typeLabel": "Type",
-    "typeApiKey": "API key",
-    "typeBearer": "Bearer token",
-    "typeBasic": "Username & password",
-    "typeCustom": "Custom",
-    "apiKeyValueLabel": "API key",
-    "tokenLabel": "Token",
-    "usernameLabel": "Username",
-    "passwordLabel": "Password",
-    "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
-    "nameShapeHint": "Uppercase letters, numbers, and underscores; must start with a letter.",
-    "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
-    "saveSuccess": "Secret saved",
-    "editButton": "Edit",
-    "editTitle": "Edit secret",
-    "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
-    "updateSuccess": "Secret updated",
-    "deleteSuccess": "Secret deleted",
-    "overwriteWarningTitle": "Name already in use",
-    "overwriteWarningBody": "A secret named {names} already exists. Saving will replace its stored value — this can't be undone.",
-    "overwriteConfirmLabel": "Overwrite the existing secret",
-    "overwriteButton": "Overwrite",
     "errors": {
       "accessDeniedTitle": "Admin access required",
-      "nameInvalid": "Use uppercase letters, numbers, and underscores only, starting with a letter (max 64 characters).",
-      "unauthenticated": "Your session has expired. Sign in again, then retry.",
-      "forbidden": "You don't have permission to manage this project's secrets.",
       "PROJECT_FORBIDDEN": "You don't have access to this project's secrets. Only project administrators can view or manage them.",
-      "PROJECT_NOT_FOUND": "This project no longer exists.",
-      "SECRET_NAME_INVALID": "Secret names must start with a letter and contain only uppercase letters, numbers, and underscores (max 64 characters).",
-      "SECRET_VALUE_INVALID": "Enter a secret value between 1 and 8192 characters."
+      "PROJECT_NOT_FOUND": "This project no longer exists."
     }
   },
   "tasks": {
@@ -7514,7 +7181,8 @@
       "board": "Board",
       "list": "List",
       "table": "Table",
-      "timeline": "Timeline"
+      "timeline": "Timeline",
+      "backlog": "Backlog"
     },
     "board": {
       "noTasks": "No tasks"
@@ -7647,6 +7315,16 @@
       "humanLabel": "Humans",
       "costTrend": "Daily spend",
       "costLabel": "Spend"
+    },
+    "backlog": {
+      "caption": "Backlog tasks awaiting triage",
+      "actions": "Actions",
+      "start": "Start",
+      "close": "Close",
+      "empty": {
+        "title": "No tasks to triage",
+        "description": "Tasks proposed by automations or teammates land here until you start or close them."
+      }
     }
   },
   "tables": {
@@ -7659,7 +7337,6 @@
       "member": "Member",
       "role": "Role",
       "joined": "Joined",
-      "automation": "Automation",
       "document": "Document",
       "size": "Size",
       "ragStatus": "RAG status",
@@ -7722,14 +7399,6 @@
         "title": "Member added",
         "description": "The user has been added to your organization."
       },
-      "automationDuplicated": {
-        "title": "Automation duplicated",
-        "description": "A copy of the automation has been created."
-      },
-      "automationRenamed": {
-        "title": "Automation renamed",
-        "description": "The new name has been saved."
-      },
       "brandingUpdated": {
         "title": "Branding updated",
         "description": "Your branding changes have been saved."
@@ -7766,14 +7435,6 @@
       "imageTypeInvalid": "Invalid image type",
       "addMemberFailed": {
         "title": "Couldn't add member",
-        "description": "Something went wrong. Please try again."
-      },
-      "automationDuplicateFailed": {
-        "title": "Couldn't duplicate automation",
-        "description": "Something went wrong. Please try again."
-      },
-      "automationDeleteFailed": {
-        "title": "Couldn't delete automation",
         "description": "Something went wrong. Please try again."
       },
       "generic": {
@@ -8214,7 +7875,9 @@
       "agents": "Update built-in agents",
       "workflows": "Update built-in automations",
       "integrations": "Update built-in integrations",
-      "apps": "Update built-in apps"
+      "apps": "Update built-in apps",
+      "automations": "Update built-in automations",
+      "skills": "Update built-in skills"
     },
     "confirm": {
       "title": "Update from the built-in catalog",
@@ -8229,111 +7892,13 @@
     }
   },
   "agentCatalog": {
-    "folders": {
-      "workforce": "Workforce",
-      "chat": "Chat",
-      "github": "GitHub",
-      "general": "General"
-    },
-    "loadError": {
-      "title": "Couldn't load the catalog",
-      "description": "The agent catalog couldn't be loaded. Check your connection and try again.",
-      "retry": "Try again"
-    },
-    "noResults": {
-      "title": "No matching agents",
-      "description": "No agents match your search. Try a different term."
-    },
-    "title": "Agent catalog",
-    "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
-    "menuItem": "Catalog",
-    "searchPlaceholder": "Search agents…",
-    "install": "Install",
-    "enable": "Enable",
-    "disable": "Disable",
-    "uninstall": "Uninstall",
     "installed": "Agent installed",
     "enabled": "Agent enabled",
     "disabled": "Agent disabled",
     "uninstalled": "Agent uninstalled",
-    "error": "Could not update the agent roster",
-    "installedByIntegration": "Installed by {integration}",
-    "requiresIntegration": "Requires {integration}",
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
-    },
-    "empty": {
-      "title": "No catalog agents",
-      "description": "No installable agents were found for this organization."
-    }
-  },
-  "workforce": {
-    "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",
-    "period": {
-      "label": "Period",
-      "last7Days": "Last 7 days",
-      "last30Days": "Last 30 days",
-      "last90Days": "Last 90 days"
-    },
-    "cappedNotice": "Some numbers in this window are lower bounds — the scan hit its cap.",
-    "noData": "No data",
-    "noDataDescription": "Metrics appear after the first daily rollup.",
-    "toggle": {
-      "title": "Task automation",
-      "onHint": "The task-ops pack is live: assignments run agents, reviews gate completion.",
-      "offHint": "Paused — agents take no automated task work until re-enabled.",
-      "error": "Could not change task automation."
-    },
-    "health": {
-      "runs24h": "{count} runs (24h)",
-      "failures24h": "{count} failed/timed out",
-      "packFailures24h": "{count} automation failures",
-      "oldestQueued": "oldest queued run {age}"
-    },
-    "kpi": {
-      "completed": "Completed ({days}d)",
-      "completedDetail": "{agent} by agents · {human} by humans",
-      "intervention": "Intervention rate",
-      "reviewPassRate": "{pct}% reviews approved first pass",
-      "noReviews": "No reviews in this window",
-      "cycleTime": "Avg cycle time",
-      "runs": "{started} runs · {failed} failed",
-      "cost": "Spend ({days}d)",
-      "costDetail": "{perTask} per completed task"
-    },
-    "trend": {
-      "title": "Daily activity",
-      "completed": "Tasks completed",
-      "failedRuns": "Failed runs"
-    },
-    "leaderboard": {
-      "title": "Agent leaderboard",
-      "agent": "Agent",
-      "completed": "Completed",
-      "runs": "Runs (failed)",
-      "bounceRate": "Change rate",
-      "cost": "Spend"
-    },
-    "attention": {
-      "pendingReviews": "Awaiting review",
-      "staleTasks": "Stale agent work",
-      "queuedRuns": "Queued runs",
-      "trippedBreakers": "Paused by circuit breaker",
-      "none": "Nothing here."
-    },
-    "scorecard": {
-      "title": "Agent Metrics",
-      "subtitle": "Last {days} days — outcomes, review quality, and cost for this agent.",
-      "tasksCompleted": "Tasks completed",
-      "reviewOutcome": "First-pass approval",
-      "reviewDetail": "{passed} approved · {changes} changes requested · {escalations} escalations",
-      "avgRun": "Avg run time",
-      "spend": "Spend",
-      "recentRuns": "Recent runs",
-      "noRuns": "No runs yet.",
-      "runsCompleted": "Completed",
-      "runsFailed": "Failed"
     }
   },
   "runtimes": {
@@ -8432,5 +7997,334 @@
     "saveError": "Couldn't save environment",
     "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
     "dupKey": "Duplicate variable name — each NAME must be unique."
+  },
+  "workflows": {
+    "title": "Workflows",
+    "notFound": "Workflow not found: {{slug}}",
+    "aria": {
+      "openNamed": "Open {name}",
+      "openLoop": "Open loop"
+    },
+    "emptyState": {
+      "noSteps": "No workflow steps to display",
+      "createStepsHint": "Create steps to see the workflow overview, or use the AI assistant to help you get started."
+    },
+    "navigation": {
+      "editor": "Editor",
+      "history": "History",
+      "openAssistant": "Open AI assistant"
+    },
+    "history": {
+      "empty": "No history entries",
+      "diffTitle": "Compare changes",
+      "diffDescription": "Review differences before restoring snapshot from {date}",
+      "restore": "Restore",
+      "noDifferences": "No differences found",
+      "loadFailed": "Failed to load history",
+      "restoreSuccess": "Version restored successfully",
+      "restoreFailed": "Failed to restore version"
+    },
+    "configuration": {
+      "title": "Configuration",
+      "timeout": "Timeout (ms)",
+      "timeoutHelp": "Maximum execution time in milliseconds",
+      "maxRetries": "Max retries",
+      "maxRetriesHelp": "Number of retry attempts on failure",
+      "backoff": "Backoff (ms)",
+      "backoffHelp": "Delay between retry attempts in milliseconds",
+      "variables": "Variables (JSON)",
+      "variablesHelp": "These variables will be available to all steps in the workflow",
+      "validation": {
+        "invalidJson": "Invalid JSON in variables field"
+      },
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into every sandbox step of this workflow. Mark a value as a secret to encrypt it; secrets are write-only. A step can override any of these."
+    },
+    "triggers": {
+      "title": "Triggers",
+      "errors": {
+        "unauthenticated": "You're not signed in. Refresh the page and try again.",
+        "invalidSlug": "This workflow's identifier is invalid.",
+        "notInstalled": "This workflow isn't installed yet.",
+        "notFound": "That trigger could no longer be found. It may have been deleted.",
+        "automationOwnedWorkflow": "Automation workflows run only from within the automation, so they can't subscribe to events.",
+        "invalidEventType": "That event type isn't valid.",
+        "duplicateSubscription": "This workflow already has a trigger for that event."
+      },
+      "schedules": {
+        "title": "Schedules",
+        "createButton": "Add schedule",
+        "emptyTitle": "No schedules",
+        "emptyDescription": "Create a schedule to automatically trigger this workflow on a recurring basis.",
+        "columns": {
+          "cronExpression": "Cron expression",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Create schedule",
+          "editTitle": "Edit schedule",
+          "cronExpression": "Cron expression",
+          "cronPlaceholder": "0 * * * *",
+          "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
+          "variablesLabel": "Workflow variables",
+          "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
+          "variablesInvalid": "Variables must be valid JSON object",
+          "validation": {
+            "cronRequired": "Cron expression is required",
+            "cronInvalid": "Must be a valid 5-field cron expression"
+          },
+          "presets": {
+            "every5Minutes": "Every 5 minutes",
+            "hourly": "Every hour",
+            "daily": "Every day",
+            "weekly": "Every week",
+            "monthly": "Every month"
+          },
+          "ai": {
+            "label": "Describe your schedule",
+            "placeholder": "e.g., every weekday at 9am, twice a day at 8am and 6pm",
+            "generateButton": "Generate",
+            "generateError": "Could not generate cron expression. Please try again or enter manually."
+          }
+        },
+        "toast": {
+          "created": "Schedule created",
+          "updated": "Schedule updated",
+          "deleted": "Schedule deleted",
+          "enabled": "Schedule enabled",
+          "disabled": "Schedule disabled",
+          "toggleError": "Failed to toggle schedule",
+          "deleteError": "Failed to delete schedule"
+        },
+        "deleteTitle": "Delete schedule",
+        "deleteDescription": "This will permanently delete this schedule. This action cannot be undone."
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "createButton": "Add webhook",
+        "emptyTitle": "No webhooks",
+        "emptyDescription": "Create a webhook to trigger this workflow via HTTP POST requests.",
+        "columns": {
+          "url": "Webhook URL",
+          "active": "Active",
+          "lastTriggered": "Last triggered"
+        },
+        "createdTitle": "Webhook created",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
+        "webhookUrl": "Webhook URL",
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "This will permanently delete this webhook endpoint. Any integrations using this URL will stop working.",
+        "deleteWebhook": "Delete webhook",
+        "toast": {
+          "created": "Webhook created",
+          "deleted": "Webhook deleted",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "urlCopied": "Webhook URL copied",
+          "createFailed": "Failed to create webhook",
+          "toggleFailed": "Failed to toggle webhook",
+          "deleteFailed": "Failed to delete webhook"
+        }
+      },
+      "events": {
+        "title": "Events",
+        "createButton": "Add event trigger",
+        "emptyTitle": "No event triggers",
+        "emptyDescription": "Subscribe to system events to automatically trigger this workflow when specific actions occur.",
+        "columns": {
+          "eventType": "Event type",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Add event trigger",
+          "editTitle": "Edit event trigger",
+          "eventType": "Event type",
+          "eventTypePlaceholder": "Select an event type",
+          "filtersLabel": "Filters",
+          "filterAll": "All (no filter)",
+          "filterAllPlaceholder": "Select a filter value"
+        },
+        "toast": {
+          "created": "Event trigger created",
+          "updated": "Event trigger updated",
+          "deleted": "Event trigger deleted",
+          "enabled": "Event trigger enabled",
+          "disabled": "Event trigger disabled",
+          "toggleError": "Failed to toggle event subscription",
+          "deleteError": "Failed to delete event subscription"
+        },
+        "editTitle": "Edit event trigger",
+        "deleteTitle": "Delete event trigger",
+        "deleteDescription": "This will permanently delete this event trigger. The workflow will no longer be triggered by this event."
+      },
+      "common": {
+        "never": "Never",
+        "copied": "Copied",
+        "copyFailed": "Copy failed"
+      }
+    },
+    "executions": {
+      "title": "Executions",
+      "entityLabel": "executions",
+      "searchPlaceholder": "Search by execution ID",
+      "viewOnCanvas": "View on canvas"
+    },
+    "steps": {
+      "banners": {
+        "hasActiveTriggers": "This workflow is active — saved changes apply to new runs."
+      },
+      "toolbar": {
+        "testWorkflow": "Test workflow",
+        "addStepUnavailable": "Editing steps on the canvas isn't available yet — use the AI assistant or edit the workflow configuration."
+      },
+      "execution": {
+        "viewingRun": "Viewing run {id}",
+        "clear": "Hide run results",
+        "nodeBadgeLabel": "Execution status: {status}",
+        "duration": "Duration: {duration}",
+        "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+        "loopProgress": "Iteration {current} of {total}",
+        "output": "Output",
+        "error": "Error",
+        "outputTruncated": "Output preview truncated",
+        "outputUnavailable": "Output too large to preview",
+        "status": {
+          "pending": "Pending",
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "waiting": "Waiting for input",
+          "paused": "Paused (debug)",
+          "success": "Succeeded",
+          "canceled": "Canceled"
+        }
+      }
+    },
+    "stepTypes": {
+      "start": "Start",
+      "llm": "LLM",
+      "condition": "Condition",
+      "loop": "Loop",
+      "action": "Action",
+      "output": "Output"
+    },
+    "edges": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "step": {
+      "openStep": "Open {name} step",
+      "openStepDefault": "Open step"
+    },
+    "sidePanel": {
+      "aiAssistant": "AI Assistant",
+      "testWorkflow": "Test workflow",
+      "stepTooltip": "{stepType} step",
+      "end": "End",
+      "close": "Close panel",
+      "validationErrors": "Validation errors",
+      "validationWarnings": "Warnings",
+      "stepSaveFailed": "Failed to save step",
+      "saving": "Saving...",
+      "resizePanel": "Resize panel",
+      "stepEditor": "Step editor",
+      "fileBasedStepSaveUnsupported": "Step saving isn't wired up for file-based workflows yet.",
+      "env": "Environment & secrets",
+      "envHelp": "Variables injected into this step's sandbox, overriding the workflow-level values on a name clash."
+    },
+    "nextSteps": {
+      "endWorkflow": "End workflow",
+      "transitions": {
+        "success": "Next step (on success)",
+        "failure": "Next step (on failure)",
+        "true": "Next step (if true)",
+        "false": "Next step (if false)",
+        "loop": "Next step (loop iteration)",
+        "done": "Next step (loop complete)"
+      }
+    },
+    "assistant": {
+      "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
+      "analyzeAttachments": "Please analyze the attached files."
+    },
+    "tester": {
+      "inputLabel": "Test input (JSON)",
+      "inputDescription": "Provide input data in JSON format for the workflow execution",
+      "validation": {
+        "invalidJson": "Enter valid JSON to run this workflow.",
+        "missingRequired": "Configure required field(s) before running: {fields}"
+      },
+      "tip": "💡 Dry run simulates execution without side effects. Execute creates real runs visible in Executions tab.",
+      "execute": "Execute",
+      "executing": "Executing...",
+      "dryRunning": "Simulating...",
+      "dryRun": {
+        "button": "Dry run",
+        "success": "Dry run completed successfully",
+        "failed": "Dry run found issues",
+        "errors": "Errors",
+        "warnings": "Warnings",
+        "executionPath": "Execution path",
+        "fileBasedUnsupported": "Dry run isn't supported for file-based workflows yet."
+      },
+      "toast": {
+        "invalidJson": "Invalid JSON",
+        "invalidJsonDescription": "Please provide valid JSON input",
+        "executionStarted": "Execution started",
+        "executionId": "Execution ID: {id}",
+        "testFailed": "Execution failed",
+        "startFailed": "Failed to start execution"
+      },
+      "result": {
+        "completed": "Completed",
+        "failed": "Execution failed",
+        "running": "Running…",
+        "failedAtStep": "Failed at step: {step}",
+        "runningStep": "Current step: {step}",
+        "stepsHeading": "Executed steps",
+        "openStep": "Open settings for the failed step {step}",
+        "errorCode": {
+          "start_failure": "The run failed to start",
+          "step_failure": "A step failed",
+          "timeout": "The run timed out",
+          "canceled": "The run was canceled",
+          "invalid_input": "The input was invalid"
+        }
+      },
+      "debug": {
+        "button": "Debug",
+        "title": "Debug session",
+        "pausedAt": "Paused before step: {step}",
+        "step": "Step",
+        "continue": "Continue",
+        "stop": "Stop",
+        "variables": "Run variables",
+        "variablesLoading": "Loading variables…",
+        "variablesError": "Couldn't load the run variables."
+      }
+    },
+    "editorView": {
+      "showGraph": "Show graph",
+      "showSpecification": "Show specification",
+      "specification": "Specification",
+      "regenerateGraph": "Regenerate graph",
+      "generateFromGraph": "Generate specification from graph",
+      "emptyState": "No specification yet. Write one below, or generate one from the current workflow graph.",
+      "placeholder": "Describe what this workflow does, step by step…",
+      "generateError": "Couldn't generate a preview. Try again.",
+      "diffTitle": "Review the generated graph",
+      "diffDescription": "Compare the current graph with the version generated from your specification.",
+      "applyGraph": "Apply graph",
+      "validationErrors": "Validation errors",
+      "saveSuccess": "Specification saved",
+      "saveFailed": "Failed to save specification",
+      "specStaleBanner": "The graph has changed since this specification was last updated.",
+      "graphStaleBanner": "The specification has changed — the graph has not been regenerated yet.",
+      "updateFromGraph": "Update from graph"
+    }
   }
 }

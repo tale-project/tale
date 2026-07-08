@@ -528,6 +528,11 @@ export const insertSessionToken = internalMutation({
       allowedModels: v.array(v.string()),
       integrationGrants: v.array(v.string()),
       budgetCents: v.number(),
+      // Workspace-tool dispatch (see sessions_schema.ts scope docs).
+      toolGrants: v.optional(v.array(v.string())),
+      agentSlug: v.optional(v.string()),
+      threadId: v.optional(v.string()),
+      userId: v.optional(v.string()),
     }),
     expiresAt: v.number(),
   },

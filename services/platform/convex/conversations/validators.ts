@@ -101,6 +101,12 @@ export const conversationItemValidator = v.object({
   business_id: v.string(),
   message_count: v.number(),
   unread_count: v.number(),
+  // Flat list-row fields for the ConversationList block (single-level item
+  // map): the customer's display name and the latest message's raw content,
+  // capped server-side. Optional — absent when there is no named customer /
+  // no message yet.
+  senderName: v.optional(v.string()),
+  lastMessagePreview: v.optional(v.string()),
   last_message_at: v.optional(v.string()),
   last_read_at: v.optional(v.string()),
   resolved_at: v.optional(v.string()),

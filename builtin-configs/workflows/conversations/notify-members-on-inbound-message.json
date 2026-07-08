@@ -1,20 +1,4 @@
 {
-  "name": "Notify members on inbound conversation message",
-  "description": "When a customer message lands in Conversations (email sync, IMAP, or a manual inbound reply), every active org member gets an inbox notification with the sender and subject. Outbound messages, closed threads, spam, and archived threads are ignored. Repeated messages in the same conversation are deduped for six hours per recipient. Install from the catalog when you want this — it is off by default. Members can mute these under Settings > Notifications > Conversation messages.",
-  "i18n": {
-    "en": {
-      "name": "Notify members on inbound conversation message",
-      "description": "When a customer message arrives in an open conversation, every active member gets an inbox notification with the sender and subject."
-    },
-    "de": {
-      "name": "Mitglieder bei eingehender Konversationsnachricht benachrichtigen",
-      "description": "Kommt eine Kundennachricht in einer offenen Konversation an, erhält jedes aktive Mitglied eine Posteingangs-Benachrichtigung mit Absender und Betreff."
-    },
-    "fr": {
-      "name": "Notifier les membres à l'arrivée d'un message entrant",
-      "description": "Quand un message client arrive dans une conversation ouverte, chaque membre actif reçoit une notification avec l'expéditeur et l'objet."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Conversations", "Automation"]

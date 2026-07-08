@@ -17,7 +17,7 @@ Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Mitgl
 
 **Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Integrationen, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
 
-**Entwickler** baut: Agents, Automatisierungen, Integrationen, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Integrations-Tooling braucht.
+**Entwickler** baut: Agents, Workflows, Integrationen, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Integrations-Tooling braucht.
 
 **Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kunden, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Prompt-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
 

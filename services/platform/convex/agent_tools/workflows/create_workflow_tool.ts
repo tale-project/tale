@@ -14,74 +14,10 @@ import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 import type { ToolDefinition } from '../types';
-
-const workflowConfigSchema = z.object({
-  name: z
-    .string()
-    .describe(
-      'Human-readable workflow name (must be unique per organization).',
-    ),
-  description: z
-    .string()
-    .optional()
-    .describe('Optional description explaining what the workflow does.'),
-  version: z
-    .string()
-    .optional()
-    .describe('Optional version label, e.g. "v1", "v2".'),
-  workflowType: z
-    .enum(['predefined'])
-    .optional()
-    .describe('Workflow type; currently only "predefined" is supported.'),
-  config: z
-    .object({
-      timeout: z
-        .number()
-        .optional()
-        .describe(
-          'Workflow timeout in milliseconds (e.g., 120000 for 2 minutes).',
-        ),
-      retryPolicy: z
-        .object({
-          maxRetries: z.number().describe('Maximum retry attempts.'),
-          backoffMs: z
-            .number()
-            .describe('Backoff delay between retries in ms.'),
-        })
-        .optional()
-        .describe('Default retry policy for action steps.'),
-      variables: z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe(
-          'Initial workflow-level variables accessible to all steps via {{variableName}}. organizationId is auto-injected.',
-        ),
-    })
-    .optional()
-    .describe(
-      'Workflow-level configuration: timeout, retryPolicy, and initial variables.',
-    ),
-});
-
-const stepConfigSchema = z.object({
-  stepSlug: z
-    .string()
-    .describe('Unique step slug in snake_case (e.g., "find_customers").'),
-  name: z
-    .string()
-    .describe('Human-readable step name (e.g., "Find Inactive Customers").'),
-  stepType: z
-    .enum(['start', 'llm', 'action', 'condition', 'loop', 'output'])
-    .describe('Step type.'),
-  config: z
-    .record(z.string(), z.unknown())
-    .describe('Step configuration object; structure depends on step type.'),
-  nextSteps: z
-    .record(z.string(), z.string())
-    .describe(
-      'Next step connections (e.g., {success: "next_step_id", failure: "error_handler"}).',
-    ),
-});
+import {
+  stepConfigSchema,
+  workflowConfigSchema,
+} from './helpers/workflow_definition_schema';
 
 export const createWorkflowTool = {
   name: 'create_workflow' as const,
@@ -94,6 +30,12 @@ Requires user approval — an approval card rendered separately by the UI will b
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
 Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.`,
     inputSchema: z.object({
+      workflowSlug: z
+        .string()
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+        .describe(
+          'Unique kebab-case slug identifying the workflow (its only identity — workflows carry no display name).',
+        ),
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
@@ -128,7 +70,6 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
 
       // Validate workflow definition before creating approval
       const validation = validateWorkflowDefinition(
-        args.workflowConfig,
         args.stepsConfig as Array<Record<string, unknown>>,
       );
 
@@ -149,8 +90,9 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
             .createWorkflowCreationApproval,
           {
             organizationId,
-            workflowName: args.workflowConfig.name,
-            workflowDescription: args.workflowConfig.description,
+            // The slug IS the workflow's identity — approval cards label with it.
+            workflowName: args.workflowSlug,
+            workflowSlug: args.workflowSlug,
             workflowConfig: {
               ...args.workflowConfig,
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated config is Record<string, unknown> but TS infers broader z.object type
@@ -172,8 +114,8 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
-          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowSlug}". The user must approve this workflow creation before it will be created. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+          message: `Workflow "${args.workflowSlug}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

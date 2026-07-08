@@ -21,8 +21,8 @@ export interface MentionActorOption {
 /**
  * Mentionable actors for a project, in picker order: org members first, then
  * agents — the same population the server resolves mentions against
- * (`convex/tasks/directory.ts`). Agent scoping follows the workforce
- * semantics: the default `agentMode: 'all'` exposes every org agent
+ * (`convex/tasks/directory.ts`). Agent scoping follows the project agent
+ * gates: the default `agentMode: 'all'` exposes every org agent
  * (recommended ones first); `'restricted'` limits the list to the project's
  * `allowedAgentSlugs`.
  *

@@ -19,13 +19,16 @@ import {
   RESERVED_AGENT_SLUGS,
 } from '../../lib/shared/constants/agents';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
-import { isValidAppSlug } from '../../lib/shared/schemas/apps';
+import { isValidAutomationSlug } from '../../lib/shared/schemas/automations';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
+import {
+  listInstalledAutomationSlugsFromDisk,
+  readInstalledAutomationFolders,
+} from '../automations/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -54,7 +57,7 @@ import {
   parseAgentJson,
   resolveAgentFilePath,
   resolveAgentFilePathFromRelative,
-  resolveAppAgentsDir,
+  resolveAutomationAgentsDir,
   resolveHistoryDir,
   serializeAgentJson,
   validateAgentName,
@@ -73,7 +76,7 @@ async function readAgentFile(
   agentName: string,
 ): Promise<AgentReadResult> {
   // Folder-aware resolution: the index maps a flat slug to its real relative
-  // path, so foldered global agents (chat/, workforce/, github/) resolve to
+  // path, so foldered global agents (chat/, github/) resolve to
   // their on-disk location; a composite `<app>/<name>` falls through to the
   // app bundle. A flat global slug with no index hit lands at org/agents/<slug>.
   const filePath = await resolveAgentPath(orgSlug, agentName);
@@ -99,7 +102,7 @@ type AgentAuditAction =
  * Best-effort audit emit for agent writes — never blocks the user-visible
  * operation. Mirrors `logSkillAudit` in skills/file_actions.ts. Capability
  * fields (toolNames, integrationBindings, workflowBindings, skillBindings,
- * delegates, roleRestriction) belong in the state diff so a reviewer can
+ * roleRestriction) belong in the state diff so a reviewer can
  * see exactly what changed; the agent-side audit was previously absent
  * altogether, making skillBindings widening invisible.
  */
@@ -152,8 +155,6 @@ function captureCapability(
     ...(config.workflows && { workflows: config.workflows }),
     ...(config.skillBindings && { skillBindings: config.skillBindings }),
     ...(config.roleRestriction && { roleRestriction: config.roleRestriction }),
-    // Delegation edges: grant this agent a delegate_* tool per target.
-    ...(config.delegates && { delegates: config.delegates }),
     // Guardrails: spend authority + parallelism are capability-grade.
     ...(config.budget && { budget: config.budget }),
     ...(config.maxConcurrentTasks !== undefined && {
@@ -240,21 +241,22 @@ export const listAgents = action({
     );
     const seen = new Set<string>();
 
-    // Project an agent config to its list row. `appSlug` set ⇒ app-owned: the
+    // Project an agent config to its list row. `automationSlug` set ⇒ app-owned: the
     // global list groups it under (and marks) its app; `folder` is the app slug.
     const toAgentRow = (
       slug: string,
       config: AgentJsonConfig,
       folder: string,
-      appSlug?: string,
+      automationSlug?: string,
     ) => ({
       name: slug,
       slug,
       // The '/'-joined folder path the agent file lives in (every path segment
       // except the file itself), so nested folders survive in the list/catalog —
       // e.g. `marketing/seo` → `marketing/seo`. Seeded single-level agents
-      // (workforce/, github/) are unaffected. For app agents this is the app
-      // slug. Independent of `labels`, which are flat equal tags.
+      // (chat/, github/) are unaffected. For app agents this is the app's
+      // display folder (manifest `folder`, falling back to the app slug).
+      // Independent of `labels`, which are flat equal tags.
       folder,
       labels: config.metadata?.labels,
       displayName: config.displayName,
@@ -273,11 +275,11 @@ export const listAgents = action({
       uiConfigurable: config.uiConfigurable,
       i18n: config.i18n,
       metadata: config.metadata,
-      ...(appSlug !== undefined ? { appSlug } : {}),
+      ...(automationSlug !== undefined ? { automationSlug } : {}),
     });
 
     // Global agents — recursive walk of the global folder tree (chat/,
-    // workforce/, github/, …); identity is the config's explicit `slug`
+    // github/, …); identity is the config's explicit `slug`
     // (basename fallback), NOT the path.
     const relPaths = await walkAgentRelativePaths(orgSlug);
     const globalResults = await Promise.all(
@@ -303,15 +305,20 @@ export const listAgents = action({
     );
 
     // App-owned agents (org/apps/<app>/agents/) — invisible to the global walk
-    // above. Surface them too, grouped under their app (folder = app slug) and
-    // tagged with appSlug so the global agents list can mark the group.
-    const appSlugs = await listInstalledAppSlugsFromDisk(orgSlug);
+    // above. Surface them too, grouped under their app's display folder (the
+    // manifest's `folder`, falling back to the app slug) and tagged with
+    // automationSlug so the global agents list can mark the group.
+    const automationSlugs = await listInstalledAutomationSlugsFromDisk(orgSlug);
+    const appFolders = await readInstalledAutomationFolders(
+      orgSlug,
+      automationSlugs,
+    );
     const appResults = (
       await Promise.all(
-        appSlugs.map(async (app) => {
+        automationSlugs.map(async (app) => {
           let entries: string[];
           try {
-            entries = await readdir(resolveAppAgentsDir(orgSlug, app));
+            entries = await readdir(resolveAutomationAgentsDir(orgSlug, app));
           } catch (err) {
             handleDirReadError(err, 'agents.listAgents.app');
             return [];
@@ -328,14 +335,19 @@ export const listAgents = action({
               seen.add(slug);
               const result = await readAgentFile(orgSlug, slug);
               if (result.ok) {
-                return toAgentRow(slug, result.config, app, app);
+                return toAgentRow(
+                  slug,
+                  result.config,
+                  appFolders.get(app) ?? app,
+                  app,
+                );
               }
               return {
                 name: slug,
                 slug,
                 status: result.error,
                 message: result.message,
-                appSlug: app,
+                automationSlug: app,
               };
             }),
           );
@@ -354,10 +366,10 @@ export const listAgents = action({
  * identity `<app>/<agent>` (what the env/instructions dialogs, `readAgent`, and
  * `saveAgent` key on); `shortName` is the bare local name for display.
  */
-export const listAppAgents = action({
+export const listAutomationAgents = action({
   args: {
     organizationId: v.string(),
-    appSlug: v.string(),
+    automationSlug: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
@@ -365,15 +377,15 @@ export const listAppAgents = action({
       ctx,
       args.organizationId,
     );
-    if (!isValidAppSlug(args.appSlug)) {
-      throw new Error(`Invalid app slug: ${args.appSlug}`);
+    if (!isValidAutomationSlug(args.automationSlug)) {
+      throw new Error(`Invalid app slug: ${args.automationSlug}`);
     }
-    const dir = resolveAppAgentsDir(orgSlug, args.appSlug);
+    const dir = resolveAutomationAgentsDir(orgSlug, args.automationSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
     } catch (err) {
-      handleDirReadError(err, 'agents.listAppAgents');
+      handleDirReadError(err, 'agents.listAutomationAgents');
       return [];
     }
 
@@ -384,7 +396,7 @@ export const listAppAgents = action({
     const results = await Promise.all(
       jsonFiles.map(async (fileName) => {
         const shortName = agentSlugFromFileName(fileName);
-        const slug = `${args.appSlug}/${shortName}`;
+        const slug = `${args.automationSlug}/${shortName}`;
         if (!validateAgentName(slug)) return null;
         const result = await readAgentFile(orgSlug, slug);
         if (result.ok) {
@@ -603,15 +615,6 @@ export const saveAgent = action({
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // `delegates` (the legacy org-chart delegation edges) is READ-ONLY — every
-    // editor was removed with the organigram. The settings form must never
-    // carry it — a stale form would silently re-wire delegation — so the
-    // incoming value is dropped and the on-disk value re-applied here.
-    config = {
-      ...config,
-      delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,
-    };
-
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;
     // unqualified entries that match multiple providers produce a soft warning.
@@ -713,7 +716,7 @@ export const saveAgent = action({
     // A new agent (and the destination of a rename) gets a freshly-computed
     // path — flat under org/agents/, or app-scoped when the name is
     // `<app>/<name>`. An in-place edit resolves through the folder-aware index
-    // so foldered global agents (chat/, workforce/, github/) are written back
+    // so foldered global agents (chat/, github/) are written back
     // where they actually live, not flattened to org/agents/<slug>.json.
     const isRename =
       !args.isNew &&
@@ -834,7 +837,7 @@ export const duplicateAgent = action({
     }
 
     // Derive existing names from the folder-aware roster so the copy's name
-    // can't collide with a foldered global agent (chat/, workforce/, …) that a
+    // can't collide with a foldered global agent (chat/, github/, …) that a
     // flat readdir of org/agents/ would miss.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listAgentsForOrg returns a v.any() projection; we read only `name` for the duplicate-name guard
     const roster = (await listAgentsForOrg(orgSlug)) as Array<{
@@ -914,7 +917,7 @@ export const duplicateAgent = action({
     const normalized = normalizeAgentConfig(draft, orgLocale);
     const content = serializeAgentJson(normalized);
     // Write the copy INTO THE SAME FOLDER as the source. A foldered global
-    // agent (chat/, workforce/, github/, …) must duplicate alongside its
+    // agent (chat/, github/, …) must duplicate alongside its
     // original — resolving the copy to the flat org/agents/<slug>.json instead
     // gives it folder `''`, and the folder-scoped list view (`?folder=chat`)
     // then filters it out, so the user sees "Agent duplicated" but no new row.
@@ -1004,15 +1007,15 @@ export const deleteAgent = action({
 
     // App-owned agents are not individually deletable from the global surface —
     // removing one would orphan its app. Deletion happens only via app uninstall.
-    // Ownership is the recorded `appSlug` on the install row.
+    // Ownership is the recorded `automationSlug` on the install row.
     const installation = await ctx.runQuery(
       internal.agents.installations.getInstallationInternal,
       { organizationId: args.organizationId, agentSlug: args.agentName },
     );
-    if (installation?.appSlug) {
+    if (installation?.automationSlug) {
       throw new ConvexError({
         code: 'app_owned',
-        message: `Agent "${args.agentName}" belongs to app "${installation.appSlug}". Uninstall the app to remove it.`,
+        message: `Agent "${args.agentName}" belongs to app "${installation.automationSlug}". Uninstall the app to remove it.`,
       });
     }
 
@@ -1153,7 +1156,7 @@ export const restoreFromHistory = action({
     // wholesale overwrite of the live config with an arbitrary historical
     // snapshot — including the capability fields (`toolNames`,
     // `integrationBindings`, `workflows`, `skillBindings`, `budget`,
-    // `maxConcurrentTasks`, `runtime`, delegation edges) that `saveAgent`
+    // `maxConcurrentTasks`, `runtime`) that `saveAgent`
     // only lets admin/developer roles change. Without this gate a plain
     // `member` could re-grant a binding a developer had revoked simply by
     // restoring an older snapshot, laundering a capability change past the

@@ -76,9 +76,9 @@ vi.mock('@/app/hooks/use-list-page', () => ({
   useListPage: () => ({ tableProps: {} }),
 }));
 
-// Stub the DataTable to a no-op — the create panel is now opened via the
-// hoisted `createOpen` prop (the New button lives on SettingsSection.action);
-// the table primitive carries its own accessibility suite.
+// Stub the DataTable out — the create/edit panel is now controlled via the
+// `panel` prop (owned by the route), so these tests drive it directly; the
+// table primitive carries its own accessibility suite.
 vi.mock('@/app/components/ui/data-table/data-table', () => ({
   DataTable: () => <div />,
 }));
@@ -90,12 +90,13 @@ describe('TokenSourcesManager', () => {
     const { baseElement } = render(
       <TokenSourcesManager
         organizationId="org-1"
-        createOpen
-        onCreateOpenChange={vi.fn()}
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
       />,
     );
 
-    // The sheet opened and every Select trigger has an accessible name (the
+    // The sheet is open (create mode) and every Select trigger has an
+    // accessible name (the
     // `label` prop wires `aria-labelledby` on the Radix combobox).
     expect(
       await screen.findByRole('combobox', { name: /tokenSources\.method/i }),
@@ -111,8 +112,8 @@ describe('TokenSourcesManager', () => {
     render(
       <TokenSourcesManager
         organizationId="org-1"
-        createOpen
-        onCreateOpenChange={vi.fn()}
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
       />,
     );
     await screen.findByRole('combobox', { name: /tokenSources\.method/i });
@@ -146,8 +147,8 @@ describe('TokenSourcesManager', () => {
     const { user } = render(
       <TokenSourcesManager
         organizationId="org-1"
-        createOpen
-        onCreateOpenChange={vi.fn()}
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
       />,
     );
     await user.type(
@@ -195,8 +196,8 @@ describe('TokenSourcesManager', () => {
     const { user } = render(
       <TokenSourcesManager
         organizationId="org-1"
-        createOpen
-        onCreateOpenChange={vi.fn()}
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
       />,
     );
     await user.click(
@@ -229,8 +230,8 @@ describe('TokenSourcesManager', () => {
     const { user } = render(
       <TokenSourcesManager
         organizationId="org-1"
-        createOpen
-        onCreateOpenChange={vi.fn()}
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
       />,
     );
     await user.click(

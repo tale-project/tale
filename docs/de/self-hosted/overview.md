@@ -13,7 +13,7 @@ Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen A
 
 **tale-platform** ist der React + TanStack Start-Server. Er rendert die UI, liefert statische Assets aus und ist der einzige Container, der dem Browser exponiert ist. Er hält keinen Geschäfts-State — alles, was persistieren muss, spricht mit Convex.
 
-**tale-convex** ist das Backend: die Actions, Queries, Mutations und die WebSocket-Schicht, die die UI abonniert. Provider-Keys, Agent-Definitionen, Automatisierungs-Läufe, Audit-Logs — alles davon lebt hier. Es läuft auch die Wissens-Arbeit im Prozess — Dokument-Ingestion, Web-Crawling, RAG-Suche und Dokumentgenerierung sind Convex-Node-Actions, keine separaten Services. Die Headless-Arbeit, die diese Jobs brauchen (eine Webseite rendern, HTML in ein PDF oder Bild verwandeln), wird an die Sandbox-Laufzeit delegiert, die ohnehin schon Chromium und Playwright mitbringt.
+**tale-convex** ist das Backend: die Actions, Queries, Mutations und die WebSocket-Schicht, die die UI abonniert. Provider-Keys, Agent-Definitionen, Workflow-Läufe, Audit-Logs — alles davon lebt hier. Es läuft auch die Wissens-Arbeit im Prozess — Dokument-Ingestion, Web-Crawling, RAG-Suche und Dokumentgenerierung sind Convex-Node-Actions, keine separaten Services. Die Headless-Arbeit, die diese Jobs brauchen (eine Webseite rendern, HTML in ein PDF oder Bild verwandeln), wird an die Sandbox-Laufzeit delegiert, die ohnehin schon Chromium und Playwright mitbringt.
 
 **tale-db** ist das operative Postgres (ParadeDB). Es hält die Daten des Convex-Backends — Agents, Runs, das Audit-Log — und ist einer der zwei zustandsbehafteten Container, die für Backups zählen.
 

@@ -17,7 +17,7 @@ To add a person to your organisation, open **Settings > People** and click **Add
 
 **Admin** governs the organisation: members, providers, branding, governance policies, integrations, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
 
-**Developer** builds: agents, automations, integrations, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the integration tooling.
+**Developer** builds: agents, workflows, integrations, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the integration tooling.
 
 **Editor** curates and operates: agents, the knowledge base (documents, customers, products, vendors, websites), the conversation inbox, approvals, the prompt library. Editors can read workflows but not modify them; they can read integrations but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or integration plane.
 

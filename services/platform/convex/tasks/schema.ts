@@ -149,7 +149,7 @@ export const tasksTable = defineTable({
   // status-writing mutation; legacy rows fall back to `updatedAt`.
   statusChangedAt: v.optional(v.number()),
 
-  // Per-task circuit breaker (workforce guardrails): set when automated agent
+  // Per-task circuit breaker (agent guardrails): set when automated agent
   // runs on this task exceeded the org's runs-per-hour cap. Cleared when a
   // HUMAN changes the task status. While set, all automated runs are refused.
   agentRunsPausedAt: v.optional(v.number()),

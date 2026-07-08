@@ -1,8 +1,7 @@
 /**
  * Convex Tool: Agent Read
  *
- * Read-only view of the AI workforce: the installed roster and any agent's
- * escalation position (its manager chain). The write half (install / enable /
+ * Read-only view of the org's agent roster. The write half (install / enable /
  * disable agents) lives in `agent_write` — mirrors the `task_read` /
  * `task_write` split so read-only agents can see the structure without being
  * able to change it.
@@ -20,21 +19,16 @@ const agentReadArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('list_roster'),
   }),
-  z.object({
-    operation: z.literal('get_role'),
-    agentSlug: z.string().describe('Agent whose escalation position to read'),
-  }),
 ]);
 
 export const agentReadTool: ToolDefinition = {
   name: 'agent_read',
   availability: 'any',
   tool: createTool({
-    description: `Read the AI workforce: who's on the team.
+    description: `Read the org's agent roster: who's on the team.
 
 OPERATIONS:
 • 'list_roster': The installed agents and whether each is enabled (live) — provenance included.
-• 'get_role': One agent's escalation position — whether it's a manager, its direct reports, and the manager its escalations route to.
 
 Call this before agent_write so roster changes start from the real current state.`,
     inputSchema: agentReadArgs,
@@ -49,12 +43,9 @@ Call this before agent_write so roster changes start from the real current state
         return { operation: 'list_roster', roster: states };
       }
 
-      // operation === 'get_role'
-      const role = await ctx.runAction(
-        internal.agents.workforce_ops.getOrgRole,
-        { organizationId, agentSlug: args.agentSlug },
-      );
-      return { operation: 'get_role', ...role };
+      // Exhaustiveness: `list_roster` is the only operation.
+      const unhandled: never = args.operation;
+      throw new Error(`Unsupported agent_read operation: ${String(unhandled)}`);
     },
   }),
 } as const;

@@ -51,12 +51,12 @@ describe('canonicalizeAgentConfig', () => {
   it('sorts set-like arrays but preserves ordered ones', () => {
     const out = canonicalizeAgentConfig({
       toolNames: ['web', 'calc', 'calc'],
-      delegates: ['c', 'a', 'b'],
+      skillBindings: ['c', 'a', 'b'],
       supportedModels: ['gpt-4', 'haiku'], // fallback chain — preserved
       conversationStarters: ['Hi', 'Bye'], // display order — preserved
     });
     expect(out.toolNames).toEqual(['calc', 'web']);
-    expect(out.delegates).toEqual(['a', 'b', 'c']);
+    expect(out.skillBindings).toEqual(['a', 'b', 'c']);
     expect(out.supportedModels).toEqual(['gpt-4', 'haiku']);
     expect(out.conversationStarters).toEqual(['Hi', 'Bye']);
   });

@@ -1,5 +1,6 @@
 ---
 name: review-code
+icon: lucide:file-search
 description: Use this skill whenever you review a code change — your own working diff before a PR, or someone else's. It is the skeptical senior read for what's WRONG across correctness, security, edge cases, reuse, and simplicity, then a pass with the project's automated reviewers. Load it before opening any PR, after finishing any non-trivial change, and whenever asked to review a diff or "check this code". Never call a change ready without it. To review a whole GitHub pull request end-to-end, use review-pr instead.
 ---
 

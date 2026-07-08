@@ -1,20 +1,4 @@
 {
-  "name": "Sync products from Shopify",
-  "description": "Synchronize products from Shopify to local database with pagination",
-  "i18n": {
-    "en": {
-      "name": "Sync products from Shopify",
-      "description": "Imports Shopify products into Tale with pagination, creating or updating each record by external ID."
-    },
-    "de": {
-      "name": "Produkte aus Shopify synchronisieren",
-      "description": "Importiert Shopify-Produkte seitenweise in Tale und legt jeden Datensatz über die externe ID an oder aktualisiert ihn."
-    },
-    "fr": {
-      "name": "Synchroniser les produits depuis Shopify",
-      "description": "Importe les produits Shopify dans Tale avec pagination, en créant ou mettant à jour chaque fiche par identifiant externe."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Commerce", "Shopify"]

@@ -5,7 +5,7 @@ description: Câble un workflow à trois étapes où une approbation humaine s'i
 
 Un workflow avec approbation est la forme vers laquelle tu te tournes quand le travail comporte un brouillon, une décision et une action — et que tu veux un humain entre le brouillon et l'action. La porte d'approbation met le run en pause jusqu'à ce que quelqu'un clique « Approuver » ; l'étape suivante ne se déclenche qu'avec le feu vert. Ce parcours construit un workflow de résumé quotidien avec une porte d'approbation sur une organisation neuve.
 
-Il te faut un rôle Éditeur et un agent qui produit un brouillon (le premier agent utile de [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) suffit). Le côté conceptuel vit dans [Concepts d'automatisation](/fr/platform/automations/concepts) et [Concepts d'approbation](/fr/platform/approvals/concepts) ; ce parcours est le mécanisme de bout en bout.
+Il te faut un rôle Éditeur et un agent qui produit un brouillon (le premier agent utile de [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) suffit). Le côté conceptuel vit dans [Concepts de workflow](/fr/platform/workflows/concepts) et [Concepts d'approbation](/fr/platform/approvals/concepts) ; ce parcours est le mécanisme de bout en bout.
 
 ## Avant de commencer
 
@@ -13,7 +13,7 @@ Confirme trois choses. Ton rôle est au moins Éditeur — l'édition de workflo
 
 ## Étape 1 — Créer la coquille du workflow
 
-Le premier geste est la définition du workflow — le conteneur ordonné dans lequel vivent les étapes. Ouvre **Automatisations > Nouveau workflow** et règle :
+Le premier geste est la définition du workflow — le conteneur ordonné dans lequel vivent les étapes. Depuis l'app à laquelle le workflow doit appartenir, crée un nouveau workflow et règle :
 
 - **Nom** — `Daily inbox summary`
 - **Déclencheur** — **Manuel** pour l'instant ; tu pourras le remplacer par un schedule une fois que le run marche
@@ -56,4 +56,4 @@ Enregistre et **Publie** le workflow. Clique **Lancer**. L'étape de brouillon s
 
 Trois étapes avec une porte, c'est le plus petit workflow-avec-approbation utile : l'agent rédige, l'humain décide, le système agit. La même forme passe à l'échelle — échange Manuel contre un déclencheur schedule, ajoute une deuxième porte avant une étape destructive, branche sur la décision au lieu d'échouer sur le refus.
 
-Pour la machine à états de la porte et les règles de routage, voir [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows). Pour les quatre pièces dont chaque workflow est fait, voir [Concepts d'automatisation](/fr/platform/automations/concepts).
+Pour la machine à états de la porte et les règles de routage, voir [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows). Pour les quatre pièces dont chaque workflow est fait, voir [Concepts de workflow](/fr/platform/workflows/concepts).
