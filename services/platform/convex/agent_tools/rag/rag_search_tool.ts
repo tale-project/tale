@@ -269,12 +269,15 @@ RESPONSE (list_indexed):
         const accessibleThreadsRetrieve = ctx.threadId
           ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdRetrieve)
           : [];
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
+        const extendedRetrieve = ctx as AgentKnowledgeCtx;
         const retrieveAuthorized = await ctx.runQuery(
           internal.agent_tools.rag.helpers.verify_thread_scoped_access
             .verifyStorageIdsInThreadScope,
           {
             organizationId: orgIdRetrieve,
             accessibleThreadIds: accessibleThreadsRetrieve,
+            allowedProjectIds: extendedRetrieve.agentProjectIds,
             storageIds: [args.fileId],
           },
         );
@@ -451,12 +454,15 @@ RESPONSE (list_indexed):
         const accessibleThreadsSearch = ctx.threadId
           ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdSearch)
           : [];
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
+        const extendedSearch = ctx as AgentKnowledgeCtx;
         const searchAuthorized = await ctx.runQuery(
           internal.agent_tools.rag.helpers.verify_thread_scoped_access
             .verifyStorageIdsInThreadScope,
           {
             organizationId: orgIdSearch,
             accessibleThreadIds: accessibleThreadsSearch,
+            allowedProjectIds: extendedSearch.agentProjectIds,
             storageIds: args.fileIds,
           },
         );

@@ -19,7 +19,7 @@ import type { PaginationResult } from 'convex/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { documentsSearchStrategy, runEntitySearch } from '../lib/search';
-import { hasTeamAccess } from '../lib/team_access';
+import { hasKnowledgeHubDocumentAccess } from './access';
 
 export const MENTION_RESULT_LIMIT = 10;
 const MAX_SCAN_SLICES = 5;
@@ -83,7 +83,8 @@ export async function searchDocumentsForMention(
         organizationId: args.organizationId,
         term: args.term,
         paginationOpts: { cursor, numItems: SCAN_SLICE_SIZE },
-        accessFilter: (doc) => !!doc.fileId && hasTeamAccess(doc, teamSet),
+        accessFilter: (doc) =>
+          !!doc.fileId && hasKnowledgeHubDocumentAccess(doc, teamSet),
       },
     );
 

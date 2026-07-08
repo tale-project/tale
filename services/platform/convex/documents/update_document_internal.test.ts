@@ -248,3 +248,35 @@ describe('updateDocumentInternal folder-move RAG sync', () => {
     expect(scheduled[0].args).toMatchObject({ documentId: 'd1' });
   });
 });
+
+describe('updateDocumentInternal project-doc scope invariant', () => {
+  it('rejects team assignment on a project-scoped document', async () => {
+    const { ctx, patches } = createMockCtx(
+      { ...baseDoc, projectId: 'proj_1' },
+      null,
+    );
+
+    await expect(
+      updateDocumentInternal(ctx, {
+        documentId: 'd1' as never,
+        teamId: 'team_1',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'DOCUMENT_SCOPE_CONFLICT' } });
+    expect(patches).toHaveLength(0);
+  });
+
+  it('still allows non-team updates on a project-scoped document', async () => {
+    const { ctx, patches } = createMockCtx(
+      { ...baseDoc, projectId: 'proj_1' },
+      null,
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      title: 'Renamed inside project',
+    });
+
+    expect(patches).toHaveLength(1);
+    expect(patches[0].data).toMatchObject({ title: 'Renamed inside project' });
+  });
+});

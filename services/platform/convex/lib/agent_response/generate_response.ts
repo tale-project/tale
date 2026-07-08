@@ -35,6 +35,7 @@ import {
 import { tuningInstructionSuffix } from '../../../lib/shared/response-tuning';
 import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import {
@@ -578,6 +579,48 @@ export async function generateAgentResponse(
     const needsWebContext =
       !prewarm && (webSearchMode === 'context' || webSearchMode === 'both');
 
+    // Resolve the thread's project once (single point read, ~free): files
+    // uploaded to a project must be retrievable in that project's chat, so
+    // the thread's project is unioned into the agent's (config-provided)
+    // project scope for BOTH context injection below and the rag_search tool
+    // (contextWithOrg). The project-instructions block reuses the same id.
+    // Degrades to "no project scope" on failure rather than aborting.
+    //
+    // The stored thread↔project binding is NOT proof of access at send time
+    // (membership may have been revoked since the thread was created), so the
+    // sender's CURRENT project access is re-verified before the scope widens.
+    // Turns without a user identity get no thread-project scope — only the
+    // agent's own config can grant one there.
+    let threadProjectId: Id<'projects'> | null = null;
+    try {
+      const storedProjectId = await ctx.runQuery(
+        internal.projects.internal_queries.getProjectIdForThread,
+        { threadId },
+      );
+      if (storedProjectId && userId && organizationId) {
+        const projectAccess = await ctx.runQuery(
+          internal.projects.internal_queries.assertProjectAccessForChat,
+          { projectId: storedProjectId, organizationId, userId },
+        );
+        if (projectAccess.allowed) {
+          threadProjectId = storedProjectId;
+        } else {
+          console.warn(
+            '[generateAgentResponse] sender lacks project access; skipping project scope',
+            { threadId, reason: projectAccess.reason },
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[generateAgentResponse] thread project resolve failed; skipping project scope',
+        err instanceof Error ? err.message : err,
+      );
+    }
+    const effectiveAgentProjectIds = threadProjectId
+      ? [...new Set([...(agentProjectIds ?? []), String(threadProjectId)])]
+      : agentProjectIds;
+
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise:
       | Promise<
@@ -607,7 +650,7 @@ export async function generateAgentResponse(
               includeTeamKnowledge,
               includeOrgKnowledge,
               knowledgeFileIds,
-              agentProjectIds,
+              agentProjectIds: effectiveAgentProjectIds,
             },
           );
         } catch (err) {
@@ -682,21 +725,21 @@ export async function generateAgentResponse(
       });
     }
 
-    // Project instructions block — resolves the thread's projectId (if any)
-    // and assembles the XML-wrapped block to inject into the system prompt
-    // between agent instructions and user personalization. Empty when the
-    // chat is not inside a project. Parallel with personalization for TTFT.
+    // Project instructions block — assembles the XML-wrapped block to inject
+    // into the system prompt between agent instructions and user
+    // personalization. Empty when the chat is not inside a project (the
+    // thread's projectId was resolved once above, shared with the RAG scope).
+    // Parallel with personalization for TTFT.
     const projectInstructionsPromise: Promise<ProjectInstructionsBlock> =
       (async () => {
         try {
-          const projectId = await ctx.runQuery(
-            internal.projects.internal_queries.getProjectIdForThread,
-            { threadId },
-          );
-          if (!projectId) {
+          if (!threadProjectId) {
             return { text: '', tokens: 0, fingerprint: '' };
           }
-          return await buildProjectInstructions({ ctx, projectId });
+          return await buildProjectInstructions({
+            ctx,
+            projectId: threadProjectId,
+          });
         } catch (err) {
           console.error('[generate_response] projectInstructions failed', err);
           return { text: '', tokens: 0, fingerprint: '' };
@@ -908,6 +951,8 @@ export async function generateAgentResponse(
 
     // Build context with organization info.
     // actionDeadlineMs is exposed via variables so tool handlers can check remaining budget.
+    // agentProjectIds carries the thread's project too, so the rag_search
+    // tool searches project files inside their own project's chat.
     const contextWithOrg = {
       ...ctx,
       organizationId,
@@ -918,7 +963,7 @@ export async function generateAgentResponse(
       includeTeamKnowledge,
       includeOrgKnowledge,
       knowledgeFileIds,
-      agentProjectIds,
+      agentProjectIds: effectiveAgentProjectIds,
     };
 
     let didRetry = false;

@@ -12,8 +12,8 @@ import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
+import { canReadDocument, hasKnowledgeHubDocumentAccess } from './access';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
 import { searchDocumentsForMention as searchDocumentsForMentionHelper } from './search_documents_for_mention';
 import { transformDocumentsBatch } from './transform_to_document_item';
@@ -61,7 +61,7 @@ export const listDocuments = query({
       )
       .order('desc')) {
       if (!isActiveDocument(doc)) continue;
-      if (!hasTeamAccess(doc, userTeamIds)) continue;
+      if (!hasKnowledgeHubDocumentAccess(doc, userTeamIds)) continue;
 
       documents.push(doc);
     }
@@ -71,11 +71,12 @@ export const listDocuments = query({
 });
 
 /**
- * Point-query a single document by id, with the SAME access control as
- * `listDocuments` (org membership + team access + active lifecycle). Lets the
- * client fetch one document directly instead of pulling the whole collection
- * and filtering client-side. Returns null on not-found or any access failure
- * (never leaks a document from another org/team).
+ * Point-query a single document by id (org membership + active lifecycle +
+ * scope access). Unlike `listDocuments` — which is a Knowledge Hub surface
+ * and never shows project files — this by-ID read also admits a
+ * project-scoped document when the caller has access to the owning project
+ * (`canReadDocument`). Returns null on not-found or any access failure
+ * (never leaks a document from another org/team/project).
  */
 export const getDocumentById = query({
   args: {
@@ -102,8 +103,11 @@ export const getDocumentById = query({
       return null;
     }
 
-    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-    if (!hasTeamAccess(doc, userTeamIds)) return null;
+    const canRead = await canReadDocument(ctx, doc, {
+      userId: authUser.userId,
+      organizationId: args.organizationId,
+    });
+    if (!canRead) return null;
 
     const [item] = await transformDocumentsBatch(ctx, [doc]);
     return item ?? null;

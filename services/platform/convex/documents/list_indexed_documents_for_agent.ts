@@ -80,12 +80,15 @@ export async function listIndexedDocumentsForAgent(
     includeTeamKnowledge?: boolean;
     includeOrgKnowledge?: boolean;
     knowledgeFileIds?: string[];
+    /** Project IDs whose files are listable (thread's own project only). */
+    agentProjectIds?: string[];
     limit?: number;
     cursor?: string;
   },
 ): Promise<AgentIndexedDocumentListResult> {
   const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const knowledgeFileIdSet = new Set(args.knowledgeFileIds ?? []);
+  const agentProjectIdSet = new Set<string>(args.agentProjectIds ?? []);
 
   // Build effective team set: prefer agentTeamIds, fall back to single agentTeamId
   const agentTeamIdSet = new Set<string>();
@@ -150,10 +153,14 @@ export async function listIndexedDocumentsForAgent(
       if (!isActiveDocument(doc)) continue;
 
       const fileId = String(doc.fileId);
+      // Project docs are team-less by invariant and must NOT ride the
+      // org-wide bucket — they are listable only via an explicit project
+      // scope (mirrors get_agent_scoped_file_ids).
       const isMatch =
         knowledgeFileIdSet.has(fileId) ||
         (needsTeamDocs && doc.teamId && agentTeamIdSet.has(doc.teamId)) ||
-        (needsOrgDocs && !doc.teamId);
+        (needsOrgDocs && !doc.teamId && !doc.projectId) ||
+        (doc.projectId != null && agentProjectIdSet.has(String(doc.projectId)));
 
       if (!isMatch) continue;
 

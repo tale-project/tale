@@ -52,6 +52,7 @@ interface MockDoc {
   extension?: string;
   fileId?: string;
   teamId?: string;
+  projectId?: string;
   folderId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -423,6 +424,20 @@ describe('listDocumentsForAgent', () => {
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
         userTeamIds: [],
+      });
+
+      expect(result.documents).toHaveLength(1);
+    });
+
+    it('filters out project-scoped documents even for team members', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', teamId: undefined }),
+        makeDoc({ _id: 'doc2', teamId: undefined, projectId: 'proj1' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team1'],
       });
 
       expect(result.documents).toHaveLength(1);

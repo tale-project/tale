@@ -12,8 +12,8 @@ import type { PaginationOptions } from 'convex/server';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
+import { hasKnowledgeHubDocumentAccess } from './access';
 import { transformDocumentsBatch } from './transform_to_document_item';
 import type { DocumentItemResponse } from './types';
 
@@ -82,7 +82,7 @@ export async function listDocumentsPaginated(
   const userTeamSet = new Set(args.userTeamIds);
   const accessibleDocs = result.page.filter(
     (doc: Doc<'documents'>) =>
-      isActiveDocument(doc) && hasTeamAccess(doc, userTeamSet),
+      isActiveDocument(doc) && hasKnowledgeHubDocumentAccess(doc, userTeamSet),
   );
 
   const transformedPage = await transformDocumentsBatch(ctx, accessibleDocs);

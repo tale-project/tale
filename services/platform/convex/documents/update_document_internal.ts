@@ -38,6 +38,17 @@ export async function updateDocumentInternal(
     });
   }
 
+  // `projectId`/`teamId` are mutually exclusive (enforced at
+  // attachDocumentToProject) — hold the invariant for every caller,
+  // including REST and sync paths.
+  if (updateData.teamId !== undefined && document.projectId != null) {
+    throw new ConvexError({
+      code: 'DOCUMENT_SCOPE_CONFLICT',
+      message:
+        'A project document cannot be assigned to a team. Detach it from the project first.',
+    });
+  }
+
   if (updateData.folderId) {
     const folder = await ctx.db.get(updateData.folderId);
     if (!folder || folder.organizationId !== document.organizationId) {

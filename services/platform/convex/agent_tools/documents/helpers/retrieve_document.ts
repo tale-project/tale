@@ -6,6 +6,7 @@ import { createDebugLog } from '../../../lib/debug_log';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
+import type { AgentKnowledgeCtx } from '../../rag/rag_search_tool';
 import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import {
   fetchDocumentContent,
@@ -46,16 +47,27 @@ export async function retrieveDocument(
   );
 
   if (document) {
-    const accessibleIds: string[] = await ctx.runQuery(
-      internal.documents.internal_queries.getAccessibleDocumentIds,
-      { organizationId, userId },
-    );
+    // Project files pass when this chat's verified project scope covers the
+    // owning project (parity with rag_search); Knowledge Hub docs follow the
+    // caller's accessible-id set (team rules, project docs excluded).
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
+    const extended = ctx as AgentKnowledgeCtx;
+    const inProjectScope =
+      document.projectId != null &&
+      (extended.agentProjectIds ?? []).includes(String(document.projectId));
 
-    if (!accessibleIds.includes(document._id)) {
-      throw new Error(
-        `Access denied for document "${args.fileId}". ` +
-          "You may not have access to this document's team.",
+    if (!inProjectScope) {
+      const accessibleIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleDocumentIds,
+        { organizationId, userId },
       );
+
+      if (!accessibleIds.includes(document._id)) {
+        throw new Error(
+          `Access denied for document "${args.fileId}". ` +
+            "You may not have access to this document's team or project.",
+        );
+      }
     }
   } else {
     // No hub document — fall back to chat-attachment path via fileMetadata.
