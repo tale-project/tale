@@ -716,10 +716,17 @@ describe('listAgents app scope (#2564)', () => {
       runMutation: vi.fn().mockResolvedValue(undefined),
       runQuery: vi.fn().mockResolvedValue(['issue-desk']),
     };
-    mockReaddir.mockResolvedValue([
-      'desk-implementer.json',
-      'desk-reviewer.json',
-    ]);
+    // Both issue-desk (installed) and issue-desk-qa (uploaded, never installed)
+    // may exist on disk; only the installed slug should be scanned.
+    mockReaddir.mockImplementation(async (dir: string) => {
+      if (dir === '/data/apps/issue-desk/agents') {
+        return ['desk-implementer.json', 'desk-reviewer.json'];
+      }
+      if (dir === '/data/apps/issue-desk-qa/agents') {
+        return ['desk-implementer.json', 'desk-reviewer.json'];
+      }
+      throw new Error(`unexpected readdir: ${dir}`);
+    });
     mockReadJsonFile.mockImplementation(async () => ({
       ok: true,
       data: {
@@ -736,7 +743,11 @@ describe('listAgents app scope (#2564)', () => {
     expect(ctx.runQuery).toHaveBeenCalledWith('listAppInstallationsInternal', {
       organizationId: 'org-123',
     });
+    expect(mockReaddir).toHaveBeenCalledTimes(1);
     expect(mockReaddir).toHaveBeenCalledWith('/data/apps/issue-desk/agents');
+    expect(mockReaddir).not.toHaveBeenCalledWith(
+      '/data/apps/issue-desk-qa/agents',
+    );
     expect(rows.some((row) => row.slug === 'issue-desk/desk-implementer')).toBe(
       true,
     );
