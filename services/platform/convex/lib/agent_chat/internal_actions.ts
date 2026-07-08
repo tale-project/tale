@@ -266,6 +266,20 @@ const runGenerationArgs = {
    * — see generate_response.ts.
    */
   pinnedFileIds: v.optional(v.array(v.string())),
+  /** Full `@`-pin metadata (folder pins pre-expanded): filed into the thread
+   * workspace at /user/uploads next to the attachments so run_code sessions
+   * see the bytes, not just the RAG scope. */
+  referencedFiles: v.optional(
+    v.array(
+      v.object({
+        documentId: v.id('documents'),
+        fileId: v.id('_storage'),
+        fileName: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }),
+    ),
+  ),
   // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
   // Optional so jobs scheduled before this field existed still validate
   // during a rolling deploy (the consumer falls back to the action start).
@@ -360,19 +374,28 @@ export async function runGenerationCore(
     throw new Error(`Invalid agent type: ${agentTypeStr}`);
   }
 
-  // File this turn's attachments into the thread workspace
-  // (/user/uploads/<name>) BEFORE generation starts, so the model's first
-  // file_list / file_read / run_code already sees them. Skipped on prewarm
-  // (speculative turn — the real one follows immediately and files them).
-  // Fail-open: a filing failure must never block the turn; the attachment
-  // stays readable via the pre-analyzed prompt content and the image tool.
-  if (!args.prewarm && attachments !== undefined && attachments.length > 0) {
+  // File this turn's attachments AND `@`-pinned knowledge files into the
+  // thread workspace (/user/uploads/<name>) BEFORE generation starts, so the
+  // model's first file_list / file_read / run_code already sees them. Pins
+  // are deduped against attachments by blob (the same file uploaded and
+  // pinned files once). Skipped on prewarm (speculative turn — the real one
+  // follows immediately and files them). Fail-open: a filing failure must
+  // never block the turn; attachments stay readable via the pre-analyzed
+  // prompt content and pins via the RAG scope.
+  const attachmentFileIds = new Set((attachments ?? []).map((a) => a.fileId));
+  const filesToFile = [
+    ...(attachments ?? []),
+    ...(args.referencedFiles ?? []).filter(
+      (ref) => !attachmentFileIds.has(ref.fileId),
+    ),
+  ];
+  if (!args.prewarm && filesToFile.length > 0) {
     try {
       const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
       const filedCounts = await fileAttachmentsIntoWorkspace(ctx, {
         organizationId,
         workspaceThreadId,
-        attachments,
+        attachments: filesToFile,
       });
       debugLog('ATTACHMENTS_FILED_TO_WORKSPACE', filedCounts);
     } catch (err) {

@@ -427,6 +427,20 @@ export const runExternalAgentTurn = internalAction({
         }),
       ),
     ),
+    /** `@`-pinned knowledge-base files (folder pins pre-expanded upstream).
+     * External agents run no platform RAG, so pins are delivered as real
+     * files: staged into the sandbox alongside the attachments (deduped by
+     * blob). Access already resolved + authorized in chatWithAgentTurn. */
+    referencedFiles: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
     organizationId: v.string(),
     userId: v.optional(v.string()),
   },
@@ -1169,21 +1183,28 @@ export const runExternalAgentTurn = internalAction({
         });
       await stampTurnOpRow(execId);
 
-      // Deliver this turn's chat attachments into the sandbox: stage each file
-      // under /user/uploads/<promptMessageId>/ and reference the absolute paths
-      // in the prompt so the agent reads the real files (images load as vision).
-      // Adapters without out-of-cwd attachment dirs skip staging. The in-process
-      // agent path instead inlines images as multimodal parts; the external agent
-      // has no such channel.
+      // Deliver this turn's chat attachments AND `@`-pinned knowledge files
+      // into the sandbox: stage each file under /user/uploads/ and reference
+      // the absolute paths in the prompt so the agent reads the real files
+      // (images load as vision). KB pins are deduped against attachments by
+      // blob — the same file uploaded and pinned stages once. Adapters
+      // without out-of-cwd attachment dirs skip staging. The in-process agent
+      // path instead scopes RAG retrieval (and files uploads via
+      // workspace_uploads); the external agent has no such channel.
       let promptForRun = args.rawPrompt;
       let attachmentDirs: string[] = [];
-      if (
-        capabilities.supportsAttachmentDirs &&
-        args.attachments &&
-        args.attachments.length > 0
-      ) {
+      const attachmentFileIds = new Set(
+        (args.attachments ?? []).map((a) => a.fileId),
+      );
+      const filesToStage = [
+        ...(args.attachments ?? []),
+        ...(args.referencedFiles ?? []).filter(
+          (ref) => !attachmentFileIds.has(ref.fileId),
+        ),
+      ];
+      if (capabilities.supportsAttachmentDirs && filesToStage.length > 0) {
         const staged = await stageChatAttachments(ctx, {
-          attachments: args.attachments,
+          attachments: filesToStage,
           promptMessageId: args.promptMessageId,
           sessionId: liveSessionId,
           rawPrompt: args.rawPrompt,

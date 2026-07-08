@@ -34,6 +34,7 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import { toId } from '../type_cast_helpers';
 import {
   appendKbReferenceBlock,
   type KbReferencedFile,
@@ -693,6 +694,18 @@ export async function startAgentChat(
           actionAttachments.length > 0 && {
             attachments: actionAttachments,
           }),
+        // `@`-pinned knowledge files (folder pins arrive pre-expanded):
+        // external agents run no platform RAG, so the pins are delivered as
+        // real files — staged next to the attachments under /user/uploads.
+        // Access was already resolved + authorized in chatWithAgentTurn.
+        ...(referencedFiles.length > 0 && {
+          referencedFiles: referencedFiles.map((ref) => ({
+            fileId: toId<'_storage'>(ref.fileId),
+            fileName: ref.fileName,
+            fileType: ref.fileType,
+            fileSize: ref.fileSize,
+          })),
+        }),
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
         organizationId,
@@ -738,6 +751,19 @@ export async function startAgentChat(
     pinnedFileIds:
       referencedFiles.length > 0
         ? referencedFiles.map((ref) => ref.fileId)
+        : undefined,
+    // Full pin metadata: runGenerationCore files these into the thread
+    // workspace (/user/uploads) so run_code sessions see the actual bytes,
+    // not just the RAG scope.
+    referencedFiles:
+      !prewarm && referencedFiles.length > 0
+        ? referencedFiles.map((ref) => ({
+            documentId: toId<'documents'>(ref.documentId),
+            fileId: toId<'_storage'>(ref.fileId),
+            fileName: ref.fileName,
+            fileType: ref.fileType,
+            fileSize: ref.fileSize,
+          }))
         : undefined,
     streamId: streamId || undefined,
     promptMessageId: prewarm ? undefined : promptMessageId,
