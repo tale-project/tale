@@ -185,11 +185,14 @@ test('project secrets: create then delete an API-key secret', async ({
     // The tab embeds the shared env-var editor in forceSecret mode: "Add
     // variable" appends an inline table row (no dialog), the NAME/value
     // inputs are placeholder-labelled, and Save commits pending rows. A
-    // fresh project has no secrets, so the pending row's inputs are unique.
+    // fresh project has no secrets, so this row's inputs are unique — and
+    // stay the anchor throughout: the secret NAME lives in the key input's
+    // VALUE, which text-content filters (hasText) can never see.
     await page
       .getByRole('button', { name: t('envEditor.add'), exact: true })
       .click();
-    await page.getByPlaceholder(t('envEditor.keyPlaceholder')).fill(secretName);
+    const keyInput = page.getByPlaceholder(t('envEditor.keyPlaceholder'));
+    await keyInput.fill(secretName);
     await page
       .getByPlaceholder(t('envEditor.valuePlaceholder'))
       .fill('tale-e2e-depth-secret-value');
@@ -197,11 +200,15 @@ test('project secrets: create then delete an API-key secret', async ({
       .getByRole('button', { name: t('envEditor.save'), exact: true })
       .click();
 
-    // The saved secret is a masked table row; scope the remove to its row
-    // and confirm through the editor's delete dialog.
-    const secretRow = page.getByRole('row').filter({ hasText: secretName });
-    await expect(secretRow).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    await secretRow
+    // Saved: the editor re-renders the secret from the backend as a masked
+    // row whose key input still holds the name.
+    await expect(keyInput).toHaveValue(secretName, {
+      timeout: TIMEOUT.PERSIST,
+    });
+
+    // Remove the row (its icon button is the only Remove on the page until
+    // the confirm dialog opens) and confirm through the delete dialog.
+    await page
       .getByRole('button', { name: t('envEditor.remove'), exact: true })
       .click();
     const removeDialog = page.getByRole('dialog', {
@@ -211,9 +218,7 @@ test('project secrets: create then delete an API-key secret', async ({
     await removeDialog
       .getByRole('button', { name: t('envEditor.remove'), exact: true })
       .click();
-    await expect(
-      page.getByRole('row').filter({ hasText: secretName }),
-    ).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
+    await expect(keyInput).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
   } finally {
     await deleteProject(page, organizationId, projectName);
   }
