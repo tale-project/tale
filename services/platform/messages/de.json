@@ -8012,6 +8012,7 @@
       "owningTeamHelp": "Mitglieder dieses Teams haben Vollzugriff. Organisationsadmins haben immer Zugriff.",
       "alsoSharedWith": "Auch geteilt mit",
       "alsoSharedWithHelp": "Wähle weitere Teams, die dieses Projekt sehen sollen.",
+      "noAdditionalTeams": "Keine weiteren Teams",
       "visibility": "Sichtbarkeit",
       "visibilityTeam": "Nur Team",
       "visibilityShared": "Bestimmte Teams",
