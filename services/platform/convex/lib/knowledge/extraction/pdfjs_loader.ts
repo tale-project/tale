@@ -25,7 +25,7 @@
 
 import { installPdfjsDomGlobals } from './pdfjs_dom_polyfill';
 
-export type PdfjsModule = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
+export type PdfjsModule = typeof import('pdfjs-dist/build/pdf.mjs');
 
 let pdfjsModulePromise: Promise<PdfjsModule> | undefined;
 
@@ -34,7 +34,10 @@ let pdfjsModulePromise: Promise<PdfjsModule> | undefined;
  * node-action runtime. Lazy so this never runs during Convex's module *analyze*
  * pass (where the globals are undefined and a top-level pdfjs import would
  * throw). pdfjs is bundled (tree-shaken) rather than externalized to keep the
- * module upload under the backend's size limit.
+ * module upload under the backend's size limit — and it is the MODERN build,
+ * not `legacy/`, because the legacy build drags ~2 MB of core-js polyfills
+ * into the bundle. The few ES2025 APIs the modern build calls unguarded on
+ * Node 22 are shimmed by `installPdfjsDomGlobals` (see pdfjs_dom_polyfill.ts).
  */
 export function loadPdfjs(): Promise<PdfjsModule> {
   installPdfjsDomGlobals();
@@ -46,8 +49,8 @@ export function loadPdfjs(): Promise<PdfjsModule> {
     // PDFWorker._setupFakeWorkerGlobal then uses its `WorkerMessageHandler`
     // in-process and skips the file import. The worker is bundled with the
     // action because we import it statically here.
-    const worker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const worker = await import('pdfjs-dist/build/pdf.worker.mjs');
     (globalThis as Record<string, unknown>).pdfjsWorker = worker;
-    return import('pdfjs-dist/legacy/build/pdf.mjs');
+    return import('pdfjs-dist/build/pdf.mjs');
   })());
 }
