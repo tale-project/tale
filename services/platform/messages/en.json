@@ -1947,7 +1947,7 @@
       "fullscreen": "Expand to full screen",
       "exitFullscreen": "Exit full screen"
     },
-    "kbFolderChipFiles": "{count} files"
+    "kbFolderChipFiles": "{count, plural, one {# file} other {# files}}"
   },
   "common": {
     "optional": "optional",
@@ -2232,7 +2232,7 @@
       "actionBrowseAgents": "Browse agents",
       "actionInviteTeammates": "Invite teammates",
       "actionUploadDocuments": "Upload documents",
-      "documentChipLabel": "Knowledge base",
+      "documentChipLabel": "Knowledge",
       "agentChipLabel": "Agent",
       "teammateChipLabel": "Teammate",
       "removeDocumentMention": "Remove reference to {title}",

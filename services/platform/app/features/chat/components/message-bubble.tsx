@@ -1052,7 +1052,8 @@ function MessageBubbleComponent({
                     className="text-muted-foreground/50"
                   >
                     {tChat('kbFolderChipFiles', {
-                      defaultValue: '{count} files',
+                      defaultValue:
+                        '{count, plural, one {# file} other {# files}}',
                       count: folder.fileCount,
                     })}
                   </Text>

@@ -1947,7 +1947,7 @@
       "fullscreen": "Auf Vollbild erweitern",
       "exitFullscreen": "Vollbild beenden"
     },
-    "kbFolderChipFiles": "{count} Dateien"
+    "kbFolderChipFiles": "{count, plural, one {# Datei} other {# Dateien}}"
   },
   "common": {
     "optional": "optional",
@@ -2232,7 +2232,7 @@
       "actionBrowseAgents": "Agenten ansehen",
       "actionInviteTeammates": "Teammitglieder einladen",
       "actionUploadDocuments": "Dokumente hochladen",
-      "documentChipLabel": "Wissensdatenbank",
+      "documentChipLabel": "Wissen",
       "agentChipLabel": "Agent",
       "teammateChipLabel": "Teammitglied",
       "removeDocumentMention": "Verweis auf {title} entfernen",

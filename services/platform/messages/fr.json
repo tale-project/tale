@@ -1948,7 +1948,7 @@
       "fullscreen": "Passer en plein écran",
       "exitFullscreen": "Quitter le plein écran"
     },
-    "kbFolderChipFiles": "{count} fichiers"
+    "kbFolderChipFiles": "{count, plural, one {# fichier} other {# fichiers}}"
   },
   "common": {
     "optional": "facultatif",
@@ -2233,7 +2233,7 @@
       "actionBrowseAgents": "Parcourir les agents",
       "actionInviteTeammates": "Inviter des coéquipiers",
       "actionUploadDocuments": "Importer des documents",
-      "documentChipLabel": "Base de connaissances",
+      "documentChipLabel": "Connaissances",
       "agentChipLabel": "Agent",
       "teammateChipLabel": "Coéquipier",
       "removeDocumentMention": "Supprimer la référence à {title}",
