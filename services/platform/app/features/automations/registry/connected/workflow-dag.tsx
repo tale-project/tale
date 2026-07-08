@@ -137,7 +137,13 @@ export function WorkflowDag({
       })),
     [steps],
   );
-  const openChat = () => {
+  // Toggle: the canvas ✨ button opens the chat (clearing any step/test panel)
+  // and closes it on a second press, so it behaves as an on/off control.
+  const toggleChat = () => {
+    if (chatOpen) {
+      setChatOpen(false);
+      return;
+    }
     clearPanelUrlState();
     setChatOpen(true);
   };
@@ -176,7 +182,8 @@ export function WorkflowDag({
         <WorkflowSteps
           steps={steps}
           hasActiveTrigger={false}
-          onOpenAIChat={openChat}
+          onOpenAIChat={toggleChat}
+          isAIChatOpen={chatOpen}
         />
         {chatOpen && !sidePanelOpen && (
           <WorkflowAIChatPanel

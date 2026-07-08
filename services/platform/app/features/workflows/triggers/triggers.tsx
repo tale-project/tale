@@ -1,6 +1,6 @@
 'use client';
 
-import { ContentArea } from '@/app/components/layout/content-area';
+import { Stack } from '@tale/ui/layout';
 
 import { EventsSection } from './components/events-section';
 import { SchedulesSection } from './components/schedules-section';
@@ -17,8 +17,11 @@ export function Triggers({
   organizationId,
   workflowSlug,
 }: TriggersProps) {
+  // No ContentArea here — the caller owns padding (the automation Editor's
+  // sibling tabs and the standalone route both wrap this), so Triggers never
+  // double-pads. Mirrors how ExecutionsTable renders bare.
   return (
-    <ContentArea gap={6}>
+    <Stack gap={6}>
       <SchedulesSection
         workflowRootId={workflowId}
         organizationId={organizationId}
@@ -34,6 +37,6 @@ export function Triggers({
         organizationId={organizationId}
         workflowSlug={workflowSlug}
       />
-    </ContentArea>
+    </Stack>
   );
 }

@@ -480,6 +480,7 @@
       "executions": "Executions",
       "configuration": "Configuration",
       "triggers": "Triggers",
+      "environment": "Environment",
       "integrations": "Integrations",
       "ariaLabel": "Automation sections"
     },
@@ -511,11 +512,6 @@
         "invalidEventType": "That event type isn't valid.",
         "duplicateSubscription": "This automation already has a trigger for that event."
       }
-    },
-    "assistant": {
-      "open": "Assistant",
-      "title": "Automation assistant",
-      "description": "Ask how this automation works, what it needs, and how to change it."
     },
     "searchPlaceholder": "Search automations…",
     "noResults": {
@@ -653,7 +649,8 @@
       "exportFailed": "Couldn't export the automation",
       "uninstallBundle": "Uninstall bundle",
       "uninstallBundleTitle": "Uninstall bundle?",
-      "uninstallBundleDescription": "Removes all {{count}} automations this bundle installed, including their agents and settings.",
+      "uninstallBundleDescription": "Removes all {count} automations this bundle installed, including their agents and settings.",
+      "uninstallContents": "What this removes",
       "bundleUninstalled": "Bundle uninstalled",
       "bundleUninstallFailed": "Couldn't uninstall the bundle"
     },
@@ -662,13 +659,6 @@
       "summaryBroken": "Installed files are missing",
       "summaryIntegrations": "Not connected: {names}",
       "summaryAgents": "Needs setup: {names}",
-      "broken": "Some installed files are missing. Reinstall to restore them.",
-      "connect": "Connect {integration} to use this automation.",
-      "connectButton": "Connect",
-      "agentNeedsSetup": "{agent} needs setup to run.",
-      "agentNeedsKeys": "{agent} needs {keys} in Environment.",
-      "setupButton": "Set up",
-      "openAgent": "Open agent",
       "mismatch": {
         "cursorKeyOnClaudeRuntime": "{agent} runs as Claude Code but Environment has {configuredKeys} — this runtime needs {expectedKeys}. Open the agent → General, set External runtime to Cursor and save, or set the matching secret.",
         "claudeKeyOnCursorRuntime": "{agent} runs as Cursor but Environment has {configuredKeys} — this runtime needs {expectedKeys}. Open the agent → General, set External runtime to Claude Code and save, or set the matching secret."
@@ -703,6 +693,8 @@
       },
       "doneStepLabel": "Done",
       "doneTitle": "{name} is ready",
+      "doneNeedsSetupTitle": "Finish setting up {name}",
+      "doneNeedsSetup": "A required integration isn't connected yet — connect it from the automation's Integrations tab before it can run.",
       "doneAllConnected": "Everything it needs is connected.",
       "doneSomeSkipped": "You skipped some steps — finish them anytime from the automation's setup checklist.",
       "finish": "Finish",
@@ -4472,33 +4464,6 @@
       "title": "Environment variables & secrets",
       "description": "Variables and secrets injected into all of your agent sandboxes.",
       "note": "Secrets are encrypted and write-only — once saved they are never shown again. These variables are injected into all of your sandboxes."
-    },
-    "add": {
-      "keyLabel": "Name",
-      "keyPlaceholder": "e.g. MY_API_KEY",
-      "keyInvalid": "Must start with a letter or underscore and contain only letters, numbers, and underscores.",
-      "valueLabel": "Value",
-      "valuePlaceholder": "Value",
-      "secretLabel": "Secret",
-      "secretHelp": "When on, the value is encrypted and write-only — it is never shown again after saving.",
-      "whitespaceWarning": "This value contains spaces or line breaks. Credentials shouldn't — if you pasted a token that wrapped across lines in your terminal, remove them. (Multi-line secrets like PEM keys can keep them.)",
-      "submit": "Add"
-    },
-    "list": {
-      "empty": "No environment variables yet.",
-      "secretBadge": "Secret",
-      "updatedHint": "Updated {when}",
-      "delete": "Delete",
-      "deleteConfirmTitle": "Delete variable?",
-      "deleteConfirmDescription": "Delete \"{key}\"? This removes it from all of your sandboxes."
-    },
-    "toasts": {
-      "saved": "Saved.",
-      "deleted": "Deleted."
-    },
-    "errors": {
-      "saveFailed": "Couldn't save. Please try again.",
-      "deleteFailed": "Couldn't delete. Please try again."
     }
   },
   "piiConfigPanel": {
@@ -7147,47 +7112,14 @@
     }
   },
   "projectSecrets": {
-    "title": "Secrets",
+    "title": "Environment",
     "description": "Encrypted credentials this project's agents can use. Values are never shown after saving.",
-    "addButton": "Add secret",
-    "empty": "No secrets yet.",
     "agentAccessTitle": "Available to agents",
     "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
-    "nameLabel": "Name",
-    "nameInvalid": "Name must start with a letter and use only A–Z, 0–9 and underscores.",
-    "valueLabel": "Value",
-    "descriptionLabel": "Description",
-    "typeLabel": "Type",
-    "typeApiKey": "API key",
-    "typeBearer": "Bearer token",
-    "typeBasic": "Username & password",
-    "typeCustom": "Custom",
-    "apiKeyValueLabel": "API key",
-    "tokenLabel": "Token",
-    "usernameLabel": "Username",
-    "passwordLabel": "Password",
-    "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
-    "nameShapeHint": "Uppercase letters, numbers, and underscores; must start with a letter.",
-    "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
-    "saveSuccess": "Secret saved",
-    "editButton": "Edit",
-    "editTitle": "Edit secret",
-    "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
-    "updateSuccess": "Secret updated",
-    "deleteSuccess": "Secret deleted",
-    "overwriteWarningTitle": "Name already in use",
-    "overwriteWarningBody": "A secret named {names} already exists. Saving will replace its stored value — this can't be undone.",
-    "overwriteConfirmLabel": "Overwrite the existing secret",
-    "overwriteButton": "Overwrite",
     "errors": {
       "accessDeniedTitle": "Admin access required",
-      "nameInvalid": "Use uppercase letters, numbers, and underscores only, starting with a letter (max 64 characters).",
-      "unauthenticated": "Your session has expired. Sign in again, then retry.",
-      "forbidden": "You don't have permission to manage this project's secrets.",
       "PROJECT_FORBIDDEN": "You don't have access to this project's secrets. Only project administrators can view or manage them.",
-      "PROJECT_NOT_FOUND": "This project no longer exists.",
-      "SECRET_NAME_INVALID": "Secret names must start with a letter and contain only uppercase letters, numbers, and underscores (max 64 characters).",
-      "SECRET_VALUE_INVALID": "Enter a secret value between 1 and 8192 characters."
+      "PROJECT_NOT_FOUND": "This project no longer exists."
     }
   },
   "tasks": {

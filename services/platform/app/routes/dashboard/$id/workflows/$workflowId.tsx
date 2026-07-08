@@ -449,6 +449,17 @@ function WorkflowDetailInner({
     setIsAIChatOpen(true);
   }, [clearPanelUrlState]);
 
+  // The canvas ✨ button toggles the panel (open clears any step/test panel
+  // first; a second press closes it), so it reads as an on/off control.
+  const handleToggleAIChat = useCallback(() => {
+    if (isAIChatOpen) {
+      setIsAIChatOpen(false);
+      return;
+    }
+    clearPanelUrlState();
+    setIsAIChatOpen(true);
+  }, [isAIChatOpen, clearPanelUrlState]);
+
   useEffect(() => {
     const handler = () => void onRefetch();
     window.addEventListener('workflow-updated', handler);
@@ -580,7 +591,8 @@ function WorkflowDetailInner({
                     className="flex-1"
                     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
                     steps={steps as StepDef[]}
-                    onOpenAIChat={handleOpenAIChat}
+                    onOpenAIChat={handleToggleAIChat}
+                    isAIChatOpen={isAIChatOpen}
                     viewToggle={
                       <EditorViewToggle
                         view={editorView}

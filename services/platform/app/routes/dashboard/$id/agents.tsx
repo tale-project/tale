@@ -68,7 +68,7 @@ function AgentsLayout() {
       organizationId={organizationId}
       header={
         !isDetailPage ? (
-          <AdaptiveHeaderRoot standalone={false}>
+          <AdaptiveHeaderRoot showBorder standalone={false}>
             {segments.length > 0 ? (
               /* Folder path segments render RAW (verbatim slugs) — table
                  folder navigation shows paths as-is, exactly as the

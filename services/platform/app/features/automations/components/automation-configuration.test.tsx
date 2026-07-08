@@ -21,6 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock('../hooks/use-automation-agent-readiness', () => ({
@@ -128,7 +129,7 @@ describe('AutomationConfiguration — identity', () => {
     expect(screen.queryByTestId('env-editor')).not.toBeInTheDocument();
   });
 
-  it('adds the workflow runtime settings + env editor when the automation has a workflow', () => {
+  it('adds the workflow runtime settings when the automation has a workflow (env editor is its own tab)', () => {
     abilityMock.can.mockReturnValue(true);
     readWorkflowMock.mockReturnValue({
       data: {
@@ -156,7 +157,8 @@ describe('AutomationConfiguration — identity', () => {
 
     expect(screen.getByText('Workflow settings')).toBeInTheDocument();
     expect(screen.getByLabelText('Timeout (ms)')).toHaveValue(120000);
-    expect(screen.getByTestId('env-editor')).toBeInTheDocument();
+    // The env editor moved to its own Environment tab — no longer in Configuration.
+    expect(screen.queryByTestId('env-editor')).not.toBeInTheDocument();
   });
 });
 

@@ -12,21 +12,26 @@
  * rows, falling back to the manifest cast) and Skills, each row linking to the
  * resource's own management surface (Integrations have their own tab). A bare
  * automation gets a localized empty state below the identity block. Workflow
- * env/secrets close the tab for developers (their own side-table, saved
- * independently of the form).
+ * env/secrets live on their own Environment tab now, not here.
  */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { Grid, HStack, Stack, VStack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { LucideIcon } from 'lucide-react';
 import { Bot, Sparkles } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { Controller } from 'react-hook-form';
 import { z } from 'zod';
 
+import {
+  CatalogCard,
+  CatalogCardIcon,
+  CatalogGrid,
+} from '@/app/components/catalog/catalog-grid';
 import {
   useFormEditor,
   useRegisterActiveEditor,
@@ -35,7 +40,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { WorkflowEnvEditor } from '@/app/features/workflows/components/workflow-env-editor';
 import { useSaveWorkflow } from '@/app/features/workflows/hooks/file-mutations';
 import { useReadWorkflow } from '@/app/features/workflows/hooks/file-queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -60,8 +64,8 @@ function ConfigurationSection({
   children: ReactNode;
 }) {
   return (
-    <VStack gap={2}>
-      <Text className="font-medium">{title}</Text>
+    <VStack gap={3}>
+      <SectionHeader as="h3" size="sm" title={title} />
       <VStack gap={2}>{children}</VStack>
     </VStack>
   );
@@ -333,9 +337,11 @@ function ConfigurationEditor({
 
             {hasWorkflow && (
               <>
-                <Text className="font-medium">
-                  {t('configuration.runtimeTitle')}
-                </Text>
+                <SectionHeader
+                  as="h3"
+                  size="sm"
+                  title={t('configuration.runtimeTitle')}
+                />
                 <Grid cols={2} gap={4}>
                   <FormSection>
                     <Input
@@ -411,7 +417,7 @@ export function AutomationConfiguration({
   automation: AutomationSummary;
 }) {
   const { t } = useT('automations');
-  const { t: tWorkflows } = useT('workflows');
+  const navigate = useNavigate();
   const ability = useAbility();
   const isDeveloper = ability.can('read', 'developerSettings');
   const workflowSlug = automation.workflows[0];
@@ -428,6 +434,7 @@ export function AutomationConfiguration({
       ? agentReadiness.map((agent) => ({
           slug: agent.agentSlug,
           name: agent.displayName,
+          description: agent.description,
           badge: agent.ready ? (
             <Badge variant="green">{t('configuration.status.ready')}</Badge>
           ) : (
@@ -439,6 +446,7 @@ export function AutomationConfiguration({
       : automation.agents.map((slug) => ({
           slug,
           name: startCase(slug),
+          description: undefined as string | undefined,
           badge: undefined,
         }));
 
@@ -456,25 +464,35 @@ export function AutomationConfiguration({
       )}
 
       {agentRows.length > 0 && (
-        <ConfigurationSection title={t('configuration.agentsTitle')}>
-          {agentRows.map((agent) => (
-            <ConfigurationRow
-              key={agent.slug}
-              icon={Bot}
-              slug={agent.slug}
-              badge={agent.badge}
-              link={
-                <Link
-                  to="/dashboard/$id/agents/$agentId"
-                  params={{ id: organizationId, agentId: agent.slug }}
-                  className="min-w-0 truncate font-medium hover:underline"
-                >
-                  {agent.name}
-                </Link>
-              }
-            />
-          ))}
-        </ConfigurationSection>
+        <VStack gap={3}>
+          <SectionHeader
+            as="h3"
+            size="sm"
+            title={t('configuration.agentsTitle')}
+          />
+          <CatalogGrid>
+            {agentRows.map((agent) => (
+              <CatalogCard
+                key={agent.slug}
+                media={
+                  <CatalogCardIcon>
+                    <Bot className="text-muted-foreground size-5" />
+                  </CatalogCardIcon>
+                }
+                title={agent.name}
+                description={agent.description}
+                badge={agent.badge}
+                ariaLabel={agent.name}
+                onClick={() =>
+                  void navigate({
+                    to: '/dashboard/$id/agents/$agentId',
+                    params: { id: organizationId, agentId: agent.slug },
+                  })
+                }
+              />
+            ))}
+          </CatalogGrid>
+        </VStack>
       )}
 
       {automation.skills.length > 0 && (
@@ -497,17 +515,6 @@ export function AutomationConfiguration({
             />
           ))}
         </ConfigurationSection>
-      )}
-
-      {isDeveloper && workflowSlug !== undefined && (
-        <FormSection>
-          <Text variant="label">{tWorkflows('configuration.env')}</Text>
-          <Text variant="caption">{tWorkflows('configuration.envHelp')}</Text>
-          <WorkflowEnvEditor
-            organizationId={organizationId}
-            workflowSlug={workflowSlug}
-          />
-        </FormSection>
       )}
     </VStack>
   );

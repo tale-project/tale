@@ -481,6 +481,7 @@
       "executions": "Exécutions",
       "configuration": "Configuration",
       "triggers": "Déclencheurs",
+      "environment": "Environnement",
       "integrations": "Intégrations",
       "ariaLabel": "Sections de l'automatisation"
     },
@@ -512,11 +513,6 @@
         "invalidEventType": "Ce type d'événement n'est pas valide.",
         "duplicateSubscription": "Cette automatisation a déjà un déclencheur pour cet événement."
       }
-    },
-    "assistant": {
-      "open": "Assistant",
-      "title": "Assistant d'automatisation",
-      "description": "Demande comment cette automatisation fonctionne, ce qu'il lui faut et comment l'adapter."
     },
     "searchPlaceholder": "Rechercher des automatisations…",
     "noResults": {
@@ -654,7 +650,8 @@
       "exportFailed": "Échec de l'export de l'automatisation",
       "uninstallBundle": "Désinstaller le bundle",
       "uninstallBundleTitle": "Désinstaller le bundle ?",
-      "uninstallBundleDescription": "Supprime les {{count}} automatisations installées par ce bundle, y compris leurs agents et réglages.",
+      "uninstallBundleDescription": "Supprime les {count} automatisations installées par ce bundle, y compris leurs agents et réglages.",
+      "uninstallContents": "Ce qui sera supprimé",
       "bundleUninstalled": "Bundle désinstallé",
       "bundleUninstallFailed": "Impossible de désinstaller le bundle"
     },
@@ -663,13 +660,6 @@
       "summaryBroken": "Des fichiers installés sont manquants",
       "summaryIntegrations": "À connecter : {names}",
       "summaryAgents": "À configurer : {names}",
-      "broken": "Certains fichiers installés sont manquants. Réinstallez pour les restaurer.",
-      "connect": "Connectez {integration} pour utiliser cette automatisation.",
-      "connectButton": "Connecter",
-      "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
-      "agentNeedsKeys": "{agent} a besoin de {keys} dans Environnement.",
-      "setupButton": "Configurer",
-      "openAgent": "Ouvrir l'agent",
       "mismatch": {
         "cursorKeyOnClaudeRuntime": "{agent} tourne en Claude Code mais Environnement a {configuredKeys} — ce runtime attend {expectedKeys}. Ouvre l'agent → Général, passe Exécution externe sur Cursor et enregistre, ou renseigne le secret correspondant.",
         "claudeKeyOnCursorRuntime": "{agent} tourne en Cursor mais Environnement a {configuredKeys} — ce runtime attend {expectedKeys}. Ouvre l'agent → Général, passe Exécution externe sur Claude Code et enregistre, ou renseigne le secret correspondant."
@@ -704,6 +694,8 @@
       },
       "doneStepLabel": "Terminé",
       "doneTitle": "{name} est prête",
+      "doneNeedsSetupTitle": "Terminer la configuration de {name}",
+      "doneNeedsSetup": "Une intégration requise n'est pas encore connectée — connectez-la depuis l'onglet Intégrations de l'automatisation avant qu'elle puisse s'exécuter.",
       "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
       "doneSomeSkipped": "Vous avez ignoré certaines étapes — terminez-les à tout moment depuis la liste de configuration de l'automatisation.",
       "finish": "Terminer",
@@ -4473,33 +4465,6 @@
       "title": "Variables d'environnement et secrets",
       "description": "Variables et secrets injectés dans toutes tes sandboxes d'agent.",
       "note": "Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes sandboxes."
-    },
-    "add": {
-      "keyLabel": "Nom",
-      "keyPlaceholder": "ex. MY_API_KEY",
-      "keyInvalid": "Doit commencer par une lettre ou un trait de soulignement et ne contenir que des lettres, des chiffres et des traits de soulignement.",
-      "valueLabel": "Valeur",
-      "valuePlaceholder": "Valeur",
-      "secretLabel": "Secret",
-      "secretHelp": "Lorsque activé, la valeur est chiffrée et en écriture seule — elle n'est plus jamais affichée après l'enregistrement.",
-      "whitespaceWarning": "Cette valeur contient des espaces ou des sauts de ligne. Les identifiants ne devraient pas en avoir — si vous avez collé un jeton coupé sur plusieurs lignes dans votre terminal, supprimez-les. (Les secrets multilignes comme les clés PEM peuvent les conserver.)",
-      "submit": "Ajouter"
-    },
-    "list": {
-      "empty": "Aucune variable d'environnement pour l'instant.",
-      "secretBadge": "Secret",
-      "updatedHint": "Mis à jour {when}",
-      "delete": "Supprimer",
-      "deleteConfirmTitle": "Supprimer la variable ?",
-      "deleteConfirmDescription": "Supprimer « {key} » ? Cela la retire de toutes tes sandboxes."
-    },
-    "toasts": {
-      "saved": "Enregistré.",
-      "deleted": "Supprimé."
-    },
-    "errors": {
-      "saveFailed": "Échec de l'enregistrement. Veuillez réessayer.",
-      "deleteFailed": "Échec de la suppression. Veuillez réessayer."
     }
   },
   "piiConfigPanel": {
@@ -6871,47 +6836,14 @@
     }
   },
   "projectSecrets": {
-    "title": "Secrets",
+    "title": "Environnement",
     "description": "Identifiants chiffrés que les agents de ce projet peuvent utiliser. Les valeurs ne sont jamais affichées après l'enregistrement.",
-    "addButton": "Ajouter un secret",
-    "empty": "Aucun secret pour le moment.",
     "agentAccessTitle": "Accessible aux agents",
     "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
-    "nameLabel": "Nom",
-    "nameInvalid": "Le nom doit commencer par une lettre et ne contenir que A–Z, 0–9 et des traits de soulignement.",
-    "valueLabel": "Valeur",
-    "descriptionLabel": "Description",
-    "typeLabel": "Type",
-    "typeApiKey": "Clé API",
-    "typeBearer": "Jeton Bearer",
-    "typeBasic": "Nom d'utilisateur et mot de passe",
-    "typeCustom": "Personnalisé",
-    "apiKeyValueLabel": "Clé API",
-    "tokenLabel": "Jeton",
-    "usernameLabel": "Nom d'utilisateur",
-    "passwordLabel": "Mot de passe",
-    "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
-    "nameShapeHint": "Lettres majuscules, chiffres et traits de soulignement ; doit commencer par une lettre.",
-    "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
-    "saveSuccess": "Secret enregistré",
-    "editButton": "Modifier",
-    "editTitle": "Modifier le secret",
-    "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
-    "updateSuccess": "Secret mis à jour",
-    "deleteSuccess": "Secret supprimé",
-    "overwriteWarningTitle": "Nom déjà utilisé",
-    "overwriteWarningBody": "Un secret nommé {names} existe déjà. L'enregistrement remplacera sa valeur stockée — cette action est irréversible.",
-    "overwriteConfirmLabel": "Écraser le secret existant",
-    "overwriteButton": "Écraser",
     "errors": {
       "accessDeniedTitle": "Accès administrateur requis",
-      "nameInvalid": "Utilise uniquement des lettres majuscules, des chiffres et des traits de soulignement, en commençant par une lettre (max. 64 caractères).",
-      "unauthenticated": "Ta session a expiré. Reconnecte-toi, puis réessaie.",
-      "forbidden": "Tu n'as pas l'autorisation de gérer les secrets de ce projet.",
       "PROJECT_FORBIDDEN": "Tu n'as pas accès aux secrets de ce projet. Seuls les administrateurs du projet peuvent les consulter ou les gérer.",
-      "PROJECT_NOT_FOUND": "Ce projet n'existe plus.",
-      "SECRET_NAME_INVALID": "Les noms de secret doivent commencer par une lettre et ne contenir que des lettres majuscules, des chiffres et des tirets bas (64 caractères max).",
-      "SECRET_VALUE_INVALID": "Saisis une valeur de secret comprise entre 1 et 8192 caractères."
+      "PROJECT_NOT_FOUND": "Ce projet n'existe plus."
     }
   },
   "tasks": {

@@ -3,7 +3,7 @@
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 /**
  * The automation detail page's "Editor" tab — the automation's workflow
@@ -16,7 +16,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
  * `useWorkflowEditorView` persists the choice in a cookie shared across every
  * workflow, layered under an optional `?view=` URL override.
  */
-import { lazy, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, lazy, useCallback, useMemo, type ReactNode } from 'react';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import {
@@ -50,17 +50,66 @@ const WorkflowSteps = lazy(() =>
   })),
 );
 
+/**
+ * The editor's loading placeholder — a centered column of step-node cards joined
+ * by short connectors, so the skeleton→graph swap doesn't lurch from stacked
+ * text lines to a diagram. Shared by BOTH the workflow-read wait and the lazy
+ * canvas-chunk Suspense fallback, so the two phases show one continuous shape
+ * rather than two different skeletons flashing in sequence.
+ */
+function EditorLoadingSkeleton() {
+  const nodes = [0, 1, 2, 3];
+  return (
+    <Skeletonize
+      loading
+      className="relative flex min-h-0 flex-1 overflow-hidden"
+    >
+      {/* The step-node column, centered like the real canvas. */}
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-10">
+        {nodes.map((i) => (
+          <Fragment key={i}>
+            <SkeletonBox>
+              <div className="h-14 w-72 rounded-lg" />
+            </SkeletonBox>
+            {i < nodes.length - 1 && (
+              <SkeletonBox>
+                <div className="h-6 w-px" />
+              </SkeletonBox>
+            )}
+          </Fragment>
+        ))}
+      </div>
+      {/* The bottom-center action toolbar the real editor floats there — so the
+          skeleton reads as "the editor is loading", not a blank column. */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+        <SkeletonBox>
+          <div className="h-9 w-44 rounded-lg" />
+        </SkeletonBox>
+      </div>
+    </Skeletonize>
+  );
+}
+
 /** Canvas + side panels — mounted once the workflow config is loaded, inside
  *  `WorkflowConfigProvider` so `useWorkflowConfig` resolves. */
 function EditorCanvas({
   organizationId,
   workflowSlug,
   viewToggle,
+  isAIChatOpen,
+  onAIChatOpenChange,
+  setupIncomplete,
 }: {
   organizationId: string;
   workflowSlug: string;
   /** The Graph ⇄ Specification toggle, rendered in the canvas toolbar. */
   viewToggle?: ReactNode;
+  /** AI Assistant open-state, lifted to the detail page so its toggle lives in
+   *  the tab strip rather than the canvas toolbar. */
+  isAIChatOpen: boolean;
+  onAIChatOpenChange: (open: boolean) => void;
+  /** Automation setup isn't done — suppress the "workflow is active" banner. */
+  setupIncomplete?: boolean;
 }) {
   const { locale } = useLocale();
   const { config } = useWorkflowConfig();
@@ -68,7 +117,6 @@ function EditorCanvas({
     organizationId,
     workflowSlug,
   );
-  const [isAIChatOpen, setIsAIChatOpen] = useState(true);
   const [panelWidth, setPanelWidth] = usePersistedState(
     'workflow-side-panel-width',
     384,
@@ -79,11 +127,21 @@ function EditorCanvas({
   const isUrlSidePanelOpen =
     panelState.panel === 'test' || panelState.panel === 'step';
 
-  const handleCloseAIChat = useCallback(() => setIsAIChatOpen(false), []);
-  const handleOpenAIChat = useCallback(() => {
+  const handleCloseAIChat = useCallback(
+    () => onAIChatOpenChange(false),
+    [onAIChatOpenChange],
+  );
+  // The ✨ button in the canvas toolbar TOGGLES the AI Assistant: opening it
+  // clears any step/test side panel so the chat can take the shared right rail;
+  // pressing it again closes the panel.
+  const handleToggleAIChat = useCallback(() => {
+    if (isAIChatOpen) {
+      onAIChatOpenChange(false);
+      return;
+    }
     clearPanelUrlState();
-    setIsAIChatOpen(true);
-  }, [clearPanelUrlState]);
+    onAIChatOpenChange(true);
+  }, [isAIChatOpen, clearPanelUrlState, onAIChatOpenChange]);
 
   const steps = useMemo(
     () =>
@@ -136,19 +194,15 @@ function EditorCanvas({
     <ExecutionStatusProvider>
       <Row gap={0} align="stretch" className="relative min-h-0 flex-1">
         <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <SuspenseBoundary
-            fallback={
-              <Skeletonize loading className="contents">
-                <SkeletonText lines={10} />
-              </Skeletonize>
-            }
-          >
+          <SuspenseBoundary fallback={<EditorLoadingSkeleton />}>
             <WorkflowSteps
               hasActiveTrigger={hasActiveTrigger}
+              setupIncomplete={setupIncomplete}
               className="flex-1"
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
               steps={steps as StepDef[]}
-              onOpenAIChat={handleOpenAIChat}
+              onOpenAIChat={handleToggleAIChat}
+              isAIChatOpen={isAIChatOpen}
               viewToggle={viewToggle}
             />
           </SuspenseBoundary>
@@ -186,9 +240,18 @@ function EditorCanvas({
 export function AutomationWorkflowEditorTab({
   organizationId,
   workflowSlug,
+  isAIChatOpen,
+  onAIChatOpenChange,
+  setupIncomplete,
 }: {
   organizationId: string;
   workflowSlug: string;
+  /** AI Assistant open-state, owned by the detail page (its toggle is in the
+   *  tab strip). */
+  isAIChatOpen: boolean;
+  onAIChatOpenChange: (open: boolean) => void;
+  /** Automation setup isn't done — the editor must not claim it's active. */
+  setupIncomplete?: boolean;
 }) {
   const { t } = useT('automations');
   const { data: readResult, isLoading } = useReadWorkflow(
@@ -199,11 +262,7 @@ export function AutomationWorkflowEditorTab({
   const [editorView, setEditorView] = useWorkflowEditorView();
 
   if (isLoading) {
-    return (
-      <Skeletonize loading className="contents">
-        <SkeletonText lines={10} />
-      </Skeletonize>
-    );
+    return <EditorLoadingSkeleton />;
   }
 
   if (!config) {
@@ -238,6 +297,9 @@ export function AutomationWorkflowEditorTab({
             organizationId={organizationId}
             workflowSlug={workflowSlug}
             viewToggle={viewToggle}
+            isAIChatOpen={isAIChatOpen}
+            onAIChatOpenChange={onAIChatOpenChange}
+            setupIncomplete={setupIncomplete}
           />
         </WorkflowConfigProvider>
       )}

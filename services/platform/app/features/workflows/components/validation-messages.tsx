@@ -1,6 +1,6 @@
 'use client';
 
-import { Text } from '@tale/ui/text';
+import { Alert } from '@tale/ui/alert';
 import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
@@ -30,40 +30,23 @@ export const ValidationMessages = memo(function ValidationMessages({
   return (
     <>
       {uniqueErrors.length > 0 && (
-        <div
-          role="alert"
-          className="border-destructive/50 bg-destructive/10 rounded-md border p-3"
-        >
-          <Text variant="error" className="mb-1 flex items-center gap-2">
-            <AlertCircle className="size-4" />
-            {errorLabel}
-          </Text>
-          <ul role="list" className="text-destructive space-y-1 text-xs">
+        <Alert variant="destructive" icon={AlertCircle} title={errorLabel}>
+          <ul role="list" className="space-y-1 text-xs">
             {uniqueErrors.map((error) => (
               <li key={error}>• {error}</li>
             ))}
           </ul>
-        </div>
+        </Alert>
       )}
 
       {uniqueWarnings.length > 0 && (
-        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-          <Text
-            as="div"
-            className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400"
-          >
-            <AlertTriangle className="size-4" />
-            {warningLabel}
-          </Text>
-          <ul
-            role="list"
-            className="space-y-1 text-xs text-amber-600 dark:text-amber-400"
-          >
+        <Alert variant="warning" icon={AlertTriangle} title={warningLabel}>
+          <ul role="list" className="space-y-1 text-xs">
             {uniqueWarnings.map((warning) => (
               <li key={warning}>• {warning}</li>
             ))}
           </ul>
-        </div>
+        </Alert>
       )}
     </>
   );

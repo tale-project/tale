@@ -19,17 +19,17 @@
  */
 import { Button } from '@tale/ui/button';
 import { VStack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
+import { WizardLoadingSkeleton } from '@/app/components/ui/wizard/wizard-loading-skeleton';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -161,7 +161,7 @@ function BundleInstallWizardContent({
         title={t('installWizard.title', { name: bundleName })}
         size="md"
       >
-        <SkeletonText lines={4} />
+        <WizardLoadingSkeleton />
       </Dialog>
     );
   }
@@ -234,6 +234,21 @@ function BundleInstallWizardBody({
   );
   const [modeChoices, setModeChoices] = useState<Record<string, AgentAuthMode>>(
     {},
+  );
+  // Which required integrations the user actually connected DURING this wizard.
+  // Each ConnectIntegrationStep reports up; this is the Done screen's source of
+  // truth, since the reactive required-integrations query can lag an in-wizard
+  // connect (it's an action query, not a live subscription).
+  const [connectedSlugs, setConnectedSlugs] = useState<Record<string, boolean>>(
+    {},
+  );
+  const handleConnectedChange = useCallback(
+    (slug: string, connected: boolean) => {
+      setConnectedSlugs((prev) =>
+        prev[slug] === connected ? prev : { ...prev, [slug]: connected },
+      );
+    },
+    [],
   );
   const applyAgents = (agents: AgentReadiness[]) => {
     setAgentSnapshot(agents);
@@ -447,26 +462,28 @@ function BundleInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // No single "bundle page" exists (each member is its own automation) —
-    // land on the first member's page for a project-scoped bundle, mirroring
-    // the single-automation wizard's post-install navigation.
+    // No single "bundle page" exists (each member is its own automation) — land
+    // on the first member's ORG-level detail page. The project-nested route
+    // wraps the detail in the project layout's own PageLayout + ContentArea,
+    // doubling the page padding.
     const first = preview[0];
-    if (scope === 'project' && targetProjectId && first) {
+    if (first) {
       void navigate({
-        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+        to: '/dashboard/$id/automations/$automationSlug',
         params: {
           id: organizationId,
-          projectId: targetProjectId,
           automationSlug: first.automationSlug,
         },
       });
     }
   };
 
+  // Required integrations left unconnected at finish BLOCK the bundle from
+  // running — the Done screen must not claim it's "ready" when any remain.
+  const unconnectedRequired = stepSlugs.filter((slug) => !connectedSlugs[slug]);
+  const hasRequiredSkips = unconnectedRequired.length > 0;
   const skippedCount =
-    stepSlugs.filter((slug) => !requiredBySlug.get(slug)?.connected).length +
-    providersToConnect.length +
-    byoAgents.length;
+    unconnectedRequired.length + providersToConnect.length + byoAgents.length;
 
   return (
     <Dialog
@@ -571,6 +588,7 @@ function BundleInstallWizardBody({
               key={slug}
               required={r}
               organizationId={organizationId}
+              onConnectedChange={handleConnectedChange}
             />
           );
         })}
@@ -578,12 +596,16 @@ function BundleInstallWizardBody({
         <WizardStep id="done">
           <VStack gap={1}>
             <Text className="text-sm font-medium">
-              {t('installWizard.doneTitle', { name: bundleName })}
+              {hasRequiredSkips
+                ? t('installWizard.doneNeedsSetupTitle', { name: bundleName })
+                : t('installWizard.doneTitle', { name: bundleName })}
             </Text>
             <Text variant="muted" className="text-sm">
-              {skippedCount > 0
-                ? t('installWizard.doneSomeSkipped')
-                : t('installWizard.doneAllConnected')}
+              {hasRequiredSkips
+                ? t('installWizard.doneNeedsSetup')
+                : skippedCount > 0
+                  ? t('installWizard.doneSomeSkipped')
+                  : t('installWizard.doneAllConnected')}
             </Text>
           </VStack>
         </WizardStep>

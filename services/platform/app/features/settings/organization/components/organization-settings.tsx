@@ -1,8 +1,10 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
@@ -263,24 +265,26 @@ function DangerZoneSection({
       title={tSettings('organization.dangerZoneTitle')}
       description={tSettings('organization.dangerZoneDescription')}
     >
-      <div className="border-destructive/40 flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium">
-            {tSettings('organization.deleteDialogTitle')}
-          </span>
-          <span className="text-muted-foreground text-sm">
+      <Alert
+        variant="destructive"
+        live="off"
+        icon={AlertTriangle}
+        title={tSettings('organization.deleteDialogTitle')}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-sm">
             {tSettings('organization.deleteSectionHelp')}
           </span>
+          <Button
+            type="button"
+            variant="destructive"
+            className="shrink-0"
+            onClick={() => setConfirmDeleteOpen(true)}
+          >
+            {tSettings('organization.deleteConfirmAction')}
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="destructive"
-          className="shrink-0"
-          onClick={() => setConfirmDeleteOpen(true)}
-        >
-          {tSettings('organization.deleteConfirmAction')}
-        </Button>
-      </div>
+      </Alert>
 
       <ConfirmDialog
         open={confirmDeleteOpen}

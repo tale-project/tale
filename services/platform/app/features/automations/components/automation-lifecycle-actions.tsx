@@ -17,6 +17,7 @@ import {
   PackageMinus,
   RotateCw,
   Trash2,
+  Wrench,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
@@ -30,9 +31,12 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { downloadBase64File } from '@/lib/utils/download';
 
+import { type AutomationSummary } from '../hooks/use-automations';
 import { useExportAutomation } from '../hooks/use-export-automation';
 import { useAutomationInstallActions } from '../hooks/use-install-state';
 import { useReinstallWithPreflight } from '../hooks/use-reinstall-with-preflight';
+import { AutomationContentsList } from './automation-contents-list';
+import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
 
 interface AutomationLifecycleActionsProps {
   automationSlug: string;
@@ -50,12 +54,19 @@ interface AutomationLifecycleActionsProps {
    * Uninstall is blocked up front with a hint (the server refuses it anyway).
    */
   boundProjectCount?: number;
+  /** context 'org': the install-setup state. When integrations are still
+   *  blocked (or the install is broken), a "Finish setup" action opens the
+   *  connect-only wizard for the remaining integration + agent steps. */
+  scope?: AutomationSummary['scope'];
+  requiredIntegrations?: readonly string[];
+  blockedIntegrations?: readonly string[];
+  broken?: boolean;
   /**
    * Set when this automation is a BUNDLE MEMBER (context 'org'): adds an
    * "Uninstall bundle" action that tears down the whole bundle — every
    * member's project bindings, then every member.
    */
-  bundle?: { slug: string; name: string; memberCount: number };
+  bundle?: AutomationSummary;
   /** Extra classes for the ⋯ trigger (e.g. card overlay positioning). */
   triggerClassName?: string;
   onChanged?: () => void;
@@ -68,6 +79,10 @@ export function AutomationLifecycleActions({
   context,
   projectId,
   boundProjectCount,
+  scope,
+  requiredIntegrations,
+  blockedIntegrations,
+  broken,
   bundle,
   triggerClassName,
   onChanged,
@@ -90,6 +105,10 @@ export function AutomationLifecycleActions({
   const [busy, setBusy] = useState(false);
   const { mutateAsync: exportAutomation } = useExportAutomation();
   const [exporting, setExporting] = useState(false);
+  const [finishSetupOpen, setFinishSetupOpen] = useState(false);
+  const setupIncomplete =
+    context === 'org' &&
+    ((blockedIntegrations?.length ?? 0) > 0 || broken === true);
 
   const handleExport = useCallback(async () => {
     if (exporting) return;
@@ -212,6 +231,16 @@ export function AutomationLifecycleActions({
           },
         ]
       : [
+          ...(setupIncomplete
+            ? [
+                {
+                  key: 'finishSetup',
+                  label: t('install.setup'),
+                  icon: Wrench,
+                  onClick: () => setFinishSetupOpen(true),
+                },
+              ]
+            : []),
           {
             key: 'reinstall',
             label: t('install.reinstall'),
@@ -261,6 +290,21 @@ export function AutomationLifecycleActions({
 
       {reinstallDialog}
 
+      {setupIncomplete && (
+        <AutomationInstallWizard
+          open={finishSetupOpen}
+          onOpenChange={setFinishSetupOpen}
+          organizationId={organizationId}
+          automationSlug={automationSlug}
+          automationName={automationName}
+          scope={scope ?? 'org'}
+          projectId={projectId}
+          requiredIntegrations={[...(requiredIntegrations ?? [])]}
+          mode="connect-only"
+          initialSlugs={[...(blockedIntegrations ?? [])]}
+        />
+      )}
+
       <ConfirmDialog
         open={dialogs.isOpen.removeFromProject}
         onOpenChange={dialogs.setOpen.removeFromProject}
@@ -279,14 +323,22 @@ export function AutomationLifecycleActions({
           onOpenChange={dialogs.setOpen.uninstallBundle}
           title={t('install.uninstallBundleTitle')}
           description={t('install.uninstallBundleDescription', {
-            count: bundle.memberCount,
+            count: (bundle.members ?? []).length,
           })}
           preview={{ primary: bundle.name }}
           warning={t('install.uninstallWarning')}
           deleteText={t('install.uninstallBundle')}
           isDeleting={busy}
           onDelete={() => void handleUninstallBundle()}
-        />
+        >
+          {dialogs.isOpen.uninstallBundle && (
+            <AutomationContentsList
+              organizationId={organizationId}
+              automation={bundle}
+              heading={t('install.uninstallContents')}
+            />
+          )}
+        </DeleteDialog>
       )}
 
       <DeleteDialog

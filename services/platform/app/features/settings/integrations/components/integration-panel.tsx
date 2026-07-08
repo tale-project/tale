@@ -142,7 +142,7 @@ export function IntegrationPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
-          <Stack gap={3}>
+          <Stack gap={4}>
             <IntegrationIconUpload
               iconUrl={manage.iconUrl}
               title={integration.title}
@@ -187,7 +187,7 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <Stack gap={3}>
+            <Stack gap={4}>
               <IntegrationActiveView
                 integration={integration}
                 isSql={manage.isSql}

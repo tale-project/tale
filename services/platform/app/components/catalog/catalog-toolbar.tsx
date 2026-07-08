@@ -60,7 +60,7 @@ export function CatalogToolbar({
   }
 
   return (
-    <Stack gap={3} className={className}>
+    <Stack gap={4} className={className}>
       <Tabs
         variant="underline"
         items={tabs.items}

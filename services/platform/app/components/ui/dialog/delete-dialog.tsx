@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Stack } from '@tale/ui/layout';
 import * as React from 'react';
 
@@ -89,13 +90,7 @@ export function DeleteDialog({
               secondary={preview.secondary}
             />
           )}
-          {warning && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                {warning}
-              </p>
-            </div>
-          )}
+          {warning && <Alert variant="warning">{warning}</Alert>}
           {children}
         </Stack>
       )}

@@ -41,6 +41,9 @@ export interface FlowCanvasProps extends ReactFlowProps {
   centerActions?: ReactNode;
   /** Opens the editor's AI assistant panel (✨ in the bottom-center toolbar). */
   onOpenAi?: () => void;
+  /** Whether the AI assistant panel is open — drives the ✨ button's pressed
+   *  (active) state so it reads as a toggle rather than a one-way open. */
+  aiOpen?: boolean;
 }
 
 /** Corner cluster: zoom in / zoom out / reset view.
@@ -85,9 +88,11 @@ function FlowCornerControls() {
 function FlowCenterToolbar({
   centerActions,
   onOpenAi,
+  aiOpen,
 }: {
   centerActions?: ReactNode;
   onOpenAi?: () => void;
+  aiOpen?: boolean;
 }) {
   const { t } = useT('common');
   if (!centerActions && !onOpenAi) return null;
@@ -103,6 +108,7 @@ function FlowCenterToolbar({
             variant="secondary"
             size="icon"
             title={t('flow.aiEditor')}
+            aria-pressed={aiOpen}
             onClick={onOpenAi}
           >
             <Sparkles className="size-4" />
@@ -118,6 +124,7 @@ export function FlowCanvas({
   minimapProps,
   centerActions,
   onOpenAi,
+  aiOpen,
   children,
   ...flowProps
 }: FlowCanvasProps) {
@@ -131,7 +138,11 @@ export function FlowCanvas({
     >
       <Background {...backgroundProps} />
       <FlowCornerControls />
-      <FlowCenterToolbar centerActions={centerActions} onOpenAi={onOpenAi} />
+      <FlowCenterToolbar
+        centerActions={centerActions}
+        onOpenAi={onOpenAi}
+        aiOpen={aiOpen}
+      />
       {minimapProps && <MiniMap {...minimapProps} />}
       {children}
     </ReactFlow>

@@ -155,7 +155,7 @@ describe('AutomationInstallWizard', () => {
     expect(screen.getByText('Issue Desk is ready')).toBeInTheDocument();
   });
 
-  it('lets the user skip the connect step and still reach done', async () => {
+  it('skipping a required integration makes Done flag the unfinished setup, not "ready"', async () => {
     withOneBlockedIntegration();
     const { user } = renderWizard();
 
@@ -166,8 +166,15 @@ describe('AutomationInstallWizard', () => {
     await user.click(
       screen.getByRole('button', { name: "I'll do this later" }),
     );
-    expect(screen.getByText('Issue Desk is ready')).toBeInTheDocument();
-    expect(screen.getByText(/skipped some steps/i)).toBeInTheDocument();
+    // Skipping a REQUIRED integration must NOT claim the automation is ready —
+    // Done surfaces the outstanding setup instead (the item-10 honesty fix).
+    expect(
+      screen.getByText('Finish setting up Issue Desk'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/required integration isn't connected/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Issue Desk is ready')).not.toBeInTheDocument();
   });
 
   it('after install, walks a BYO agent through mode choice then secrets', async () => {

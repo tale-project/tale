@@ -1,7 +1,7 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { ConnectIntegrationPanel } from '@/app/features/settings/integrations/components/integration-manage/connect-integration-panel';
@@ -20,14 +20,23 @@ import type { RequiredIntegration } from '../../hooks/use-required-integrations'
 export function ConnectIntegrationStep({
   required,
   organizationId,
+  onConnectedChange,
 }: {
   required: RequiredIntegration;
   organizationId: string;
+  /** Report the live connect state up so the wizard's Done screen can tell a
+   *  genuinely-connected required integration from a skipped one — the reactive
+   *  required-integrations query can lag an in-wizard connect. */
+  onConnectedChange: (slug: string, connected: boolean) => void;
 }) {
   const { t } = useT('automations');
   const popup = useOAuth2PopupConnect();
   const [connected, setConnected] = useState(required.connected);
   const stepId = `connect-${required.slug}`;
+
+  useEffect(() => {
+    onConnectedChange(required.slug, connected);
+  }, [required.slug, connected, onConnectedChange]);
 
   if (!required.exists) {
     // The definition isn't in the org (a newer builtin not yet scaffolded) — we

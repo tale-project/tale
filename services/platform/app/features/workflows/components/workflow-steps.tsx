@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -40,8 +41,14 @@ interface WorkflowStepsProps {
   steps: StepDef[];
   className?: string;
   hasActiveTrigger: boolean;
+  /** The owning automation's setup isn't complete — suppress the "workflow is
+   *  active" banner, since it can't actually run yet. */
+  setupIncomplete?: boolean;
   onStepCreated?: () => void;
   onOpenAIChat?: () => void;
+  /** Whether the AI assistant panel is open — makes the canvas ✨ button a
+   *  toggle (pressed state) instead of a one-way open. */
+  isAIChatOpen?: boolean;
 }
 
 const nodeTypes = {
@@ -98,8 +105,10 @@ function WorkflowStepsInner({
   steps,
   className: _className,
   hasActiveTrigger,
+  setupIncomplete,
   onStepCreated: _onStepCreated,
   onOpenAIChat,
+  isAIChatOpen,
   viewToggle,
 }: WorkflowStepsProps) {
   const { t } = useT('workflows');
@@ -243,6 +252,7 @@ function WorkflowStepsInner({
         <div ref={containerRef} className="bg-background min-h-0 flex-[1_1_0]">
           <FlowCanvas
             onOpenAi={onOpenAIChat}
+            aiOpen={isAIChatOpen}
             centerActions={
               <>
                 {viewToggle}
@@ -345,27 +355,34 @@ function WorkflowStepsInner({
               </Row>
             )}
 
-            {((showActivityBanner && hasActiveTrigger) ||
+            {((showActivityBanner && hasActiveTrigger && !setupIncomplete) ||
               viewedExecutionId) && (
               <Panel position="top-center" className="mx-4 mt-4 w-full px-4">
                 <Stack gap={2} className="mx-auto max-w-3xl">
-                  {showActivityBanner && hasActiveTrigger && (
-                    <div className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
-                      <AlertTriangle className="size-5 shrink-0 text-amber-600" />
-                      <Text className="text-sm text-amber-600">
-                        {t('steps.banners.hasActiveTriggers')}
-                      </Text>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title={tCommon('aria.dismiss')}
-                        className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
-                        onClick={() => setShowActivityBanner(false)}
+                  {showActivityBanner &&
+                    hasActiveTrigger &&
+                    !setupIncomplete && (
+                      <Alert
+                        variant="warning"
+                        icon={AlertTriangle}
+                        className="shadow-sm"
                       >
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                  )}
+                        <Row className="items-center justify-between gap-2">
+                          <Text className="text-sm">
+                            {t('steps.banners.hasActiveTriggers')}
+                          </Text>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={tCommon('aria.dismiss')}
+                            className="size-6 shrink-0 p-1"
+                            onClick={() => setShowActivityBanner(false)}
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </Row>
+                      </Alert>
+                    )}
                   {viewedExecutionId && (
                     <div
                       className="bg-background ring-border flex items-center gap-2.5 rounded-lg px-4 py-2 shadow-sm ring-1"

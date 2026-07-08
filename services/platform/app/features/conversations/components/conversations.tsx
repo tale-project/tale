@@ -276,6 +276,7 @@ export function Conversations({
               disabled={controlsDisabled}
             />
             <DropdownMenu
+              disabled={controlsDisabled}
               trigger={
                 <button
                   type="button"
@@ -435,6 +436,7 @@ export function Conversations({
               provider to filter by. */}
           {channelFilter && channelFilter.options.length > 0 && (
             <DropdownMenu
+              disabled={controlsDisabled}
               trigger={
                 <Button
                   variant="secondary"

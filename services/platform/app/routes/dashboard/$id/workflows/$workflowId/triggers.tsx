@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Triggers } from '@/app/features/workflows/triggers/triggers';
 import { seo } from '@/lib/utils/seo';
 import { urlParamToSlug } from '@/lib/utils/workflow-slug';
@@ -24,10 +25,12 @@ function TriggersPage() {
     // (`a/b` ⇄ URL `a__b`) matches itself and is excluded from its own
     // workflow.completed "Source workflow" dropdown. Mirrors the automation
     // Editor tab, which passes `workflowSlug` here.
-    <Triggers
-      workflowId={workflowSlug}
-      organizationId={organizationId}
-      workflowSlug={workflowSlug}
-    />
+    <ContentArea gap={6} className="px-4 py-4">
+      <Triggers
+        workflowId={workflowSlug}
+        organizationId={organizationId}
+        workflowSlug={workflowSlug}
+      />
+    </ContentArea>
   );
 }

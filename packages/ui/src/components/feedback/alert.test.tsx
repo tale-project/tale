@@ -87,6 +87,18 @@ describe('Alert', () => {
       render(<Alert>Content</Alert>);
       expect(screen.getByRole('alert')).toHaveAttribute('aria-atomic', 'true');
     });
+
+    it('renders a static banner (no alert role) when live is off', () => {
+      render(
+        <Alert live="off" title="Danger zone">
+          Static content
+        </Alert>,
+      );
+      // A `live: 'off'` banner is always-present chrome, not an announcement —
+      // it must NOT be an `alert` live region.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByText('Static content')).toBeInTheDocument();
+    });
   });
 
   describe('styling', () => {

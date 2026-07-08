@@ -5,7 +5,7 @@
  *  - NOT installed → an Install prompt (project-scoped automations route through the
  *    wizard to pick the first project).
  *  - ORG route + installed (org- OR project-scoped) → the automation's own tabbed
- *    page: Editor · Executions · Configuration · Triggers · Integrations (Editor /
+ *    page: Editor · Executions · Triggers · Integrations · Configuration (Editor /
  *    Executions / Triggers are gated on developer access AND the automation owning
  *    a workflow). A project-scoped automation no longer diverts to a standalone
  *    membership hub — the projects it runs in are a section of its Configuration
@@ -21,13 +21,13 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { IconButton } from '@tale/ui/icon-button';
 import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { LayoutGrid, Sparkles, UserPen, Wrench } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { LayoutGrid, UserPen, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -36,7 +36,9 @@ import {
   EditorActions,
   useActiveEditor,
 } from '@/app/components/ui/editor';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import type { TabNavigationItem } from '@/app/components/ui/navigation/tab-navigation';
+import { WorkflowEnvEditor } from '@/app/features/workflows/components/workflow-env-editor';
 import { ExecutionsTable } from '@/app/features/workflows/executions/executions-table';
 import { Triggers } from '@/app/features/workflows/triggers/triggers';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -44,7 +46,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { useT } from '@/lib/i18n/client';
 import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
-import { formatEnvKeyList } from '@/lib/shared/agents/readiness';
 import { startCase } from '@/lib/utils/string';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
@@ -69,13 +70,11 @@ import { useRequiredIntegrations } from '../hooks/use-required-integrations';
 import { AutomationView } from '../registry/automation-view';
 import { AutomationRuntimeProvider } from '../runtime/automation-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
-import { AutomationAssistantPanel } from './automation-assistant-panel';
 import { AutomationConfiguration } from './automation-configuration';
 import { AutomationDeleteAction } from './automation-delete-action';
 import { AutomationDetailShell } from './automation-detail-shell';
 import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
-import { AutomationLifecycleActions } from './automation-lifecycle-actions';
 import { AutomationProjectsSection } from './automation-projects-section';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
@@ -92,18 +91,17 @@ const EXECUTIONS_TAB = 'executions';
 const CONFIGURATION_TAB = 'configuration';
 const TRIGGERS_TAB = 'triggers';
 const INTEGRATIONS_TAB = 'integrations';
+const ENVIRONMENT_TAB = 'environment';
 
 function ReadinessChecklist({
   organizationId,
-  automationSlug,
   status,
   blockedIntegrations,
   blockedAgents,
-  onConnect,
-  onSetupAgents,
+  onFinishSetup,
+  only,
 }: {
   organizationId: string;
-  automationSlug: string;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
   /** Bundled agents not yet ready (no provider key / missing secrets). */
@@ -113,23 +111,15 @@ function ReadinessChecklist({
     credentialMismatch?: CredentialRuntimeMismatchDetail;
     missingEnvKeys: string[];
   }[];
-  /** Open the inline connect wizard for one required integration. */
-  onConnect: (slug: string) => void;
-  /** Open the inline wizard to finish the bundled agents' setup. */
-  onSetupAgents: () => void;
+  /** Open the finish-setup wizard for the remaining steps. */
+  onFinishSetup: () => void;
+  /** Scope the banner to one tab's concern: integration blockers on the
+   *  Integrations tab, agent blockers on the Configuration tab. */
+  only?: 'integrations' | 'agents';
 }) {
   const { t } = useT('automations');
-  const openAgentLabel = t('readiness.openAgent');
-  // Broken-install repair runs through the shared preflight flow so a repair
-  // never silently overwrites files the operator edited.
-  const {
-    requestReinstall,
-    dialog: reinstallDialog,
-    isPending,
-  } = useReinstallWithPreflight(organizationId);
-  // Resolve each blocked slug to its integration display title, the same lookup
-  // the install wizard's `labelFor` uses — so the checklist reads "Connect
-  // GitHub", not the raw "github" slug.
+  // Resolve each blocked slug to its integration display title (the install
+  // wizard's `labelFor` lookup) so the summary reads "GitHub", not "github".
   const { required } = useRequiredIntegrations(
     organizationId,
     blockedIntegrations,
@@ -138,15 +128,17 @@ function ReadinessChecklist({
     () => new Map(required.map((r) => [r.slug, r.integration.title])),
     [required],
   );
-  // A one-line "what's actually missing" summary under the banner title — the
-  // rows below are the ACTIONS, this names the blockers at a glance so the
-  // operator doesn't have to read every row to know what's outstanding.
+
+  // Integration/broken blockers belong on the Integrations tab; agent blockers
+  // on Configuration. `only` filters the banner to the relevant ones.
+  const showBroken = only !== 'agents' && status === 'broken';
+  const showIntegrations = only !== 'agents' && blockedIntegrations.length > 0;
+  const showAgents = only !== 'integrations' && blockedAgents.length > 0;
+
   const missingSummary = useMemo(() => {
     const parts: string[] = [];
-    if (status === 'broken') {
-      parts.push(t('readiness.summaryBroken'));
-    }
-    if (blockedIntegrations.length > 0) {
+    if (showBroken) parts.push(t('readiness.summaryBroken'));
+    if (showIntegrations) {
       parts.push(
         t('readiness.summaryIntegrations', {
           names: blockedIntegrations
@@ -155,7 +147,7 @@ function ReadinessChecklist({
         }),
       );
     }
-    if (blockedAgents.length > 0) {
+    if (showAgents) {
       parts.push(
         t('readiness.summaryAgents', {
           names: blockedAgents.map((agent) => agent.displayName).join(', '),
@@ -163,107 +155,29 @@ function ReadinessChecklist({
       );
     }
     return parts.join(' · ');
-  }, [status, blockedIntegrations, blockedAgents, titleBySlug, t]);
+  }, [
+    showBroken,
+    showIntegrations,
+    showAgents,
+    blockedIntegrations,
+    blockedAgents,
+    titleBySlug,
+    t,
+  ]);
 
-  if (
-    status === 'active' &&
-    blockedIntegrations.length === 0 &&
-    blockedAgents.length === 0
-  ) {
-    return null;
-  }
+  if (!showBroken && !showIntegrations && !showAgents) return null;
 
+  // One warning banner, one button — opens the wizard for the remaining steps.
+  // Laid out like the org danger-zone Alert: summary on the left, the action
+  // button pinned right on wider screens, stacked on mobile.
   return (
-    // `icon` keeps this banner visually in step with the app's other warning
-    // boxes (e.g. project secrets' "Available to agents") — icon left, content
-    // indented.
     <Alert variant="warning" icon={Wrench} title={t('readiness.title')}>
-      <VStack gap={2} className="mt-1">
-        <Text className="text-sm font-medium">{missingSummary}</Text>
-        {status === 'broken' && (
-          <HStack gap={3} className="items-center justify-between">
-            <Text variant="muted" className="text-sm">
-              {t('readiness.broken')}
-            </Text>
-            <Button
-              size="sm"
-              disabled={isPending}
-              onClick={() => void requestReinstall(automationSlug)}
-            >
-              {t('install.reinstall')}
-            </Button>
-            {reinstallDialog}
-          </HStack>
-        )}
-        {blockedIntegrations.map((slug) => (
-          <HStack key={slug} gap={3} className="items-center justify-between">
-            <Text variant="muted" className="text-sm">
-              {t('readiness.connect', {
-                integration: titleBySlug.get(slug) ?? slug,
-              })}
-            </Text>
-            <Button variant="secondary" onClick={() => onConnect(slug)}>
-              {t('readiness.connectButton')}
-            </Button>
-          </HStack>
-        ))}
-        {blockedAgents.map((agent) => {
-          // `code` is the closed CredentialRuntimeMismatchCode union — every
-          // code has platform copy under `readiness.mismatch.*`.
-          const mismatchHint = agent.credentialMismatch
-            ? t(`readiness.mismatch.${agent.credentialMismatch.code}`, {
-                agent: agent.displayName,
-                expectedKeys: formatEnvKeyList(
-                  agent.credentialMismatch.expectedKeys,
-                ),
-                configuredKeys: formatEnvKeyList(
-                  agent.credentialMismatch.configuredKeys,
-                ),
-              })
-            : undefined;
-          const missingKeysHint =
-            !mismatchHint && agent.missingEnvKeys.length > 0
-              ? t('readiness.agentNeedsKeys', {
-                  agent: agent.displayName,
-                  keys: formatEnvKeyList(agent.missingEnvKeys),
-                })
-              : undefined;
-          const hint =
-            mismatchHint ??
-            missingKeysHint ??
-            t('readiness.agentNeedsSetup', { agent: agent.displayName });
-          return (
-            <HStack
-              key={agent.agentSlug}
-              gap={3}
-              className="items-center justify-between"
-            >
-              <VStack gap={1} className="min-w-0">
-                <Text variant="muted" className="text-sm">
-                  {hint}
-                </Text>
-              </VStack>
-              {agent.credentialMismatch ? (
-                <Button size="sm" variant="secondary" asChild>
-                  <Link
-                    to="/dashboard/$id/agents/$agentId"
-                    params={{
-                      id: organizationId,
-                      agentId: agent.agentSlug,
-                    }}
-                  >
-                    {openAgentLabel}
-                  </Link>
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" onClick={onSetupAgents}>
-                  {t('readiness.setupButton')}
-                </Button>
-              )}
-            </HStack>
-          );
-        })}
-      </VStack>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm">{missingSummary}</span>
+        <Button variant="warning" className="shrink-0" onClick={onFinishSetup}>
+          {t('install.setup')}
+        </Button>
+      </div>
     </Alert>
   );
 }
@@ -290,30 +204,32 @@ function useOpenTimeIntegrityCheck(
 }
 
 /**
- * The non-blocking readiness section (checklist + inline connect/agent-setup
- * wizards). Readiness is org-level, so it shows on the org AND project routes;
- * the tabbed page scopes it to the Integrations tab.
+ * The non-blocking readiness banner. Scoped per tab: integration blockers show
+ * on the Integrations tab, agent blockers on the Configuration tab. Its single
+ * button opens the finish-setup wizard (owned by the page) for the remaining
+ * steps.
  */
 function ReadinessSection({
   organizationId,
   automationSlug,
-  automation,
   status,
   blockedIntegrations,
-  projectId,
+  onFinishSetup,
+  only,
 }: {
   organizationId: string;
   automationSlug: string;
-  automation: AutomationSummary;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
-  projectId?: string;
+  onFinishSetup: () => void;
+  only?: 'integrations' | 'agents';
 }) {
-  const display = useAutomationDisplay()(automation);
-  const [connectSlug, setConnectSlug] = useState<string | null>(null);
-  const [agentSetupOpen, setAgentSetupOpen] = useState(false);
-  const { agents: agentReadiness, refetch: refetchAgentReadiness } =
-    useAutomationAgentReadiness(organizationId, automationSlug, true);
+  // Only fetch agent readiness when this banner cares about agents.
+  const { agents: agentReadiness } = useAutomationAgentReadiness(
+    organizationId,
+    automationSlug,
+    only !== 'integrations',
+  );
   const blockedAgents = useMemo(
     () =>
       agentReadiness
@@ -337,54 +253,14 @@ function ReadinessSection({
   );
 
   return (
-    <>
-      <ReadinessChecklist
-        organizationId={organizationId}
-        automationSlug={automationSlug}
-        status={status}
-        blockedIntegrations={blockedIntegrations}
-        blockedAgents={blockedAgents}
-        onConnect={setConnectSlug}
-        onSetupAgents={() => setAgentSetupOpen(true)}
-      />
-      {connectSlug && (
-        <AutomationInstallWizard
-          open
-          onOpenChange={(o) => {
-            if (!o) setConnectSlug(null);
-          }}
-          organizationId={organizationId}
-          automationSlug={automationSlug}
-          automationName={display.name}
-          scope={automation.scope}
-          projectId={projectId}
-          requiredIntegrations={automation.requiredIntegrations}
-          mode="connect-only"
-          initialSlugs={[connectSlug]}
-        />
-      )}
-      {agentSetupOpen && (
-        <AutomationInstallWizard
-          open
-          onOpenChange={(o) => {
-            if (!o) {
-              setAgentSetupOpen(false);
-              // Action-query readiness isn't reactive — refetch so the
-              // checklist reflects the secrets/mode just configured.
-              refetchAgentReadiness();
-            }
-          }}
-          organizationId={organizationId}
-          automationSlug={automationSlug}
-          automationName={display.name}
-          scope={automation.scope}
-          projectId={projectId}
-          requiredIntegrations={automation.requiredIntegrations}
-          mode="connect-only"
-          initialSlugs={[]}
-        />
-      )}
-    </>
+    <ReadinessChecklist
+      organizationId={organizationId}
+      status={status}
+      blockedIntegrations={blockedIntegrations}
+      blockedAgents={blockedAgents}
+      onFinishSetup={onFinishSetup}
+      only={only}
+    />
   );
 }
 
@@ -424,8 +300,8 @@ function ViewBody({ view }: { view: AutomationViewDoc }) {
 /**
  * Reads the active tab's editor controller (the Configuration form) and
  * renders the unified Save/Discard cluster in the tab strip, alongside the
- * automation's own trailing actions (Assistant + the lifecycle ⋯ menu) —
- * the same slot anatomy as the standalone workflow page's tab strip.
+ * automation's trailing action (the Editor tab's AI Assistant toggle) — the
+ * same slot anatomy as the standalone workflow page's tab strip.
  */
 function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
   const controller = useActiveEditor();
@@ -449,17 +325,17 @@ function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
  * An installed automation's page body — the workflow settings, under the
  * automation: the "Automations / <name>" breadcrumb and ONE shared tab strip
  * (`TabNavigation`, matching every other settings page), in order: Editor,
- * Executions, Configuration, Triggers, Integrations, then any bundled views
- * (invalid ones as repair-stub tabs). Editor/Executions/Triggers are gated on
- * developer access AND the automation actually having a workflow
+ * Executions, Triggers, Integrations, any bundled views (invalid ones as
+ * repair-stub tabs), then Configuration last. Editor/Executions/Triggers are
+ * gated on developer access AND the automation actually having a workflow
  * (`manifest.workflows[0]`); Configuration and Integrations always show. Tab
  * selection is URL-addressable via the `tab` search param; the default is
- * Editor for a developer with a workflow, otherwise the first view the
- * viewer can see (Configuration as the last resort). The strip's trailing
- * slot carries the active tab's Save/Discard plus Assistant + lifecycle.
- * Scoped to `projectId` when rendered under a project route; lifecycle
- * context follows: a bound project shows "Remove from this project"; the org
- * route shows Reinstall/Uninstall.
+ * Editor for a developer with a workflow, otherwise the first bundled view,
+ * else Integrations. The strip's trailing slot carries the active tab's
+ * Save/Discard plus — on the Editor tab — the single AI Assistant toggle;
+ * lifecycle actions (Reinstall / Export / Uninstall / Remove-from-project)
+ * live on the Automations catalog card and the Configuration tab's projects
+ * list, not here. Scoped to `projectId` when rendered under a project route.
  */
 function InstalledAutomationBody({
   organizationId,
@@ -468,7 +344,6 @@ function InstalledAutomationBody({
   projectId,
   status,
   blockedIntegrations,
-  lifecycleContext,
 }: {
   organizationId: string;
   automationSlug: string;
@@ -476,9 +351,9 @@ function InstalledAutomationBody({
   projectId?: string;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
-  lifecycleContext: 'org' | 'project';
 }) {
   const { t } = useT('automations');
+  const { t: tWorkflows } = useT('workflows');
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
   useOpenTimeIntegrityCheck(organizationId, automationSlug);
@@ -488,17 +363,21 @@ function InstalledAutomationBody({
     dialog: reinstallDialog,
     isPending,
   } = useReinstallWithPreflight(organizationId);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  // Org-wide Uninstall is refused server-side while any project is still bound;
-  // knowing the count lets the ⋯ menu block it up front with a hint. (Empty for
-  // an org-scoped automation, which can never carry bindings.)
-  const { bindings } = useAutomationBindings(organizationId, automationSlug);
-
   // The 1:1 automation↔workflow model: `manifest.workflows[0]`, when it
   // declares one at all (today's email builtins declare none — Inbox only).
   const workflowSlug = automation.workflows[0];
   const isDeveloper = ability.can('read', 'developerSettings');
   const showDevTabs = isDeveloper && workflowSlug !== undefined;
+
+  // "Setup incomplete" = a broken install or unconnected required integrations.
+  // Drives the Finish-setup affordances (tab-strip button, editor banner) and
+  // suppresses the editor's "workflow is active" claim (it can't run yet).
+  const setupIncomplete = status === 'broken' || blockedIntegrations.length > 0;
+  const [finishSetupOpen, setFinishSetupOpen] = useState(false);
+
+  // The workflow AI Assistant panel's open-state is lifted here so it persists
+  // across tab switches; its ✨ toggle lives in the editor canvas toolbar.
+  const [aiChatOpen, setAiChatOpen] = useState(true);
 
   // Tab selection rides the URL (`?tab=`) so a view is deep-linkable, same as
   // the workflow detail's `?panel=` state. Switching happens through the tab
@@ -537,6 +416,7 @@ function InstalledAutomationBody({
     CONFIGURATION_TAB,
     TRIGGERS_TAB,
     INTEGRATIONS_TAB,
+    ENVIRONMENT_TAB,
   ]);
   const uniqueTabValue = (id: string): string => {
     let value = id;
@@ -594,6 +474,9 @@ function InstalledAutomationBody({
               <AutomationWorkflowEditorTab
                 organizationId={organizationId}
                 workflowSlug={workflowSlug}
+                isAIChatOpen={aiChatOpen}
+                onAIChatOpenChange={setAiChatOpen}
+                setupIncomplete={setupIncomplete}
               />
             ),
           },
@@ -609,11 +492,6 @@ function InstalledAutomationBody({
           },
         ]
       : []),
-    {
-      value: CONFIGURATION_TAB,
-      label: t('tabs.configuration'),
-      content: configuration,
-    },
     ...(showDevTabs && workflowSlug !== undefined
       ? [
           {
@@ -625,6 +503,27 @@ function InstalledAutomationBody({
                 organizationId={organizationId}
                 workflowSlug={workflowSlug}
               />
+            ),
+          },
+          {
+            value: ENVIRONMENT_TAB,
+            label: t('tabs.environment'),
+            // Its own tab, mirroring the Agent settings Environment tab: the
+            // same SectionHeader + FormSection chrome, the workflow's env editor
+            // (moved out of the Configuration form).
+            content: (
+              <>
+                <SectionHeader
+                  title={tWorkflows('configuration.env')}
+                  description={tWorkflows('configuration.envHelp')}
+                />
+                <FormSection>
+                  <WorkflowEnvEditor
+                    organizationId={organizationId}
+                    workflowSlug={workflowSlug}
+                  />
+                </FormSection>
+              </>
             ),
           },
         ]
@@ -642,18 +541,27 @@ function InstalledAutomationBody({
       ),
     },
     ...viewTabs,
+    // Configuration is the automation's settings — the LAST tab, after any
+    // bundled views (matching where per-entity settings sit elsewhere).
+    {
+      value: CONFIGURATION_TAB,
+      label: t('tabs.configuration'),
+      content: configuration,
+    },
   ];
   // An unknown/absent `?tab=` falls back to Editor for a developer with a
-  // workflow, otherwise the first view the viewer can see (Configuration as
-  // the last resort). Validated against the tabs actually RENDERED (not
-  // `usedTabValues`, which also reserves gated tab values for
+  // workflow, otherwise the first bundled view, else Integrations — the first
+  // visible tab, and where the "Finish setup" banner lives, so a no-workflow
+  // automation (e.g. an email inbox) opens on something actionable rather than
+  // its last (Configuration) tab. Validated against the tabs actually RENDERED
+  // (not `usedTabValues`, which also reserves gated tab values for
   // collision-avoidance even when they aren't shown) — a stale `?tab=editor`
   // from before a role change, or on a non-developer's guessed URL, falls
   // back cleanly instead of selecting a tab that isn't in `tabItems`.
   const renderedTabValues = new Set(tabItems.map((item) => item.value));
   const defaultTab = showDevTabs
     ? EDITOR_TAB
-    : (viewTabs[0]?.value ?? CONFIGURATION_TAB);
+    : (viewTabs[0]?.value ?? INTEGRATIONS_TAB);
   const activeTab =
     tabState.tab !== null && renderedTabValues.has(tabState.tab)
       ? tabState.tab
@@ -676,38 +584,32 @@ function InstalledAutomationBody({
     isActive: activeTab === item.value,
   }));
 
-  const canUseAssistant = isDeveloper;
-  const trailingActions = (
-    <>
-      {canUseAssistant && (
-        <IconButton
-          icon={Sparkles}
-          aria-label={t('assistant.open')}
-          variant="ghost"
-          onClick={() => setAssistantOpen(true)}
-        />
-      )}
-      <AutomationLifecycleActions
-        automationSlug={automationSlug}
-        automationName={display.name}
-        organizationId={organizationId}
-        context={lifecycleContext}
-        projectId={projectId}
-        boundProjectCount={
-          lifecycleContext === 'org' ? bindings.length : undefined
-        }
-      />
-    </>
-  );
+  // The tab strip's trailing slot holds only the Finish-setup button (the AI
+  // Assistant toggle lives in the editor canvas toolbar). Lifecycle actions
+  // (Reinstall / Export / Uninstall) live on the Automations catalog card and,
+  // for a project-scoped automation, its Configuration tab.
+  const trailingActions = setupIncomplete ? (
+    // One warning button (icon-only on small screens) that opens the wizard for
+    // the REMAINING integration + agent steps, while setup is incomplete.
+    <Button
+      variant="warning"
+      size="sm"
+      icon={Wrench}
+      onClick={() => setFinishSetupOpen(true)}
+      aria-label={t('install.setup')}
+    >
+      <span className="hidden sm:inline">{t('install.setup')}</span>
+    </Button>
+  ) : null;
 
-  const readiness = (
+  const readinessBanner = (only: 'integrations' | 'agents') => (
     <ReadinessSection
       organizationId={organizationId}
       automationSlug={automationSlug}
-      automation={automation}
       status={status}
       blockedIntegrations={blockedIntegrations}
-      projectId={projectId}
+      onFinishSetup={() => setFinishSetupOpen(true)}
+      only={only}
     />
   );
 
@@ -731,29 +633,52 @@ function InstalledAutomationBody({
             }
           >
             {reinstallDialog}
-            {activeTab === EDITOR_TAB ? (
-              /* The Editor is the one full-bleed tab — the canvas fills the
-                 page. */
-              <div className="flex min-h-0 flex-1 flex-col">
-                {activeContent}
-              </div>
-            ) : (
-              <ContentArea gap={6}>
-                {/* The "Finish setup" banner is about connect state, so it
-                    lives on the Integrations tab only. */}
-                {activeTab === INTEGRATIONS_TAB && readiness}
-                {activeContent}
-              </ContentArea>
-            )}
-            {canUseAssistant && (
-              <AutomationAssistantPanel
-                open={assistantOpen}
-                onOpenChange={setAssistantOpen}
+            {finishSetupOpen && (
+              <AutomationInstallWizard
+                open
+                onOpenChange={(o) => {
+                  if (!o) setFinishSetupOpen(false);
+                }}
                 organizationId={organizationId}
                 automationSlug={automationSlug}
                 automationName={display.name}
+                scope={automation.scope}
                 projectId={projectId}
+                requiredIntegrations={automation.requiredIntegrations}
+                mode="connect-only"
+                initialSlugs={blockedIntegrations}
               />
+            )}
+            {activeTab === EDITOR_TAB ? (
+              /* The Editor is the one full-bleed tab — the canvas fills the
+                 page. (Finish-setup lives on the tab-strip button, not a banner
+                 over the canvas.) */
+              <div className="flex min-h-0 flex-1 flex-col">
+                {activeContent}
+              </div>
+            ) : activeTab === EXECUTIONS_TAB ? (
+              /* The executions table brings its own 16px padding (DataTable
+                 `p-4`), so it's full-bleed here — otherwise it double-pads. */
+              <div className="flex min-h-0 flex-1 flex-col">
+                {activeContent}
+              </div>
+            ) : activeTab === TRIGGERS_TAB ? (
+              /* Triggers renders bare sections (a full-width operational view),
+                 so this supplies the 16px top padding, no max-w cap. */
+              <ContentArea gap={6} className="px-4 py-4">
+                {activeContent}
+              </ContentArea>
+            ) : (
+              /* Every other non-editor tab is capped to the same reading width
+                 as the Agent settings pages (max-w-3xl) with 16px top padding. */
+              <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
+                {/* The finish-setup banner is contextual: integration blockers
+                    on Integrations, agent blockers on Configuration. */}
+                {activeTab === INTEGRATIONS_TAB &&
+                  readinessBanner('integrations')}
+                {activeTab === CONFIGURATION_TAB && readinessBanner('agents')}
+                {activeContent}
+              </ContentArea>
             )}
           </AutomationDetailShell>
         </ActiveEditorProvider>
@@ -1117,7 +1042,6 @@ export function AutomationPage({
           projectId={projectId}
           status={state.status}
           blockedIntegrations={state.blockedIntegrations}
-          lifecycleContext="project"
         />
       );
     }
@@ -1160,7 +1084,6 @@ export function AutomationPage({
       automation={automation}
       status={state.status}
       blockedIntegrations={state.blockedIntegrations}
-      lifecycleContext="org"
     />
   );
 }

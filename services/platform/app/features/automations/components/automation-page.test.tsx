@@ -42,10 +42,11 @@ vi.mock('../hooks/use-install-state', () => ({
   }),
 }));
 
-// The installed header's lifecycle ⋯ menu wires an Export action through
-// useExportAutomation → useConvexAction → convex/react's useAction, which needs
-// a ConvexProvider no test mounts. Stub it to the real `{ mutateAsync }` shape,
-// mirroring the sibling useExportSkill / useExportIntegration test mocks.
+// The Configuration tab's projects list renders per-project lifecycle menus
+// that wire an Export action through useExportAutomation → useConvexAction →
+// convex/react's useAction, which needs a ConvexProvider no test mounts. Stub
+// it to the real `{ mutateAsync }` shape, mirroring the sibling
+// useExportSkill / useExportIntegration test mocks.
 vi.mock('../hooks/use-export-automation', () => ({
   useExportAutomation: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -182,12 +183,6 @@ vi.mock('./automation-integrations-tab', () => ({
 // action (Convex + QueryClient); its content has its own test file.
 vi.mock('./automation-configuration', () => ({
   AutomationConfiguration: () => <div data-testid="configuration-tab" />,
-}));
-
-// The assistant panel pulls the chat/Convex stack; a marker keeps the
-// developer-gate assertion cheap (the panel only mounts for developers).
-vi.mock('./automation-assistant-panel', () => ({
-  AutomationAssistantPanel: () => <div data-testid="assistant-panel" />,
 }));
 
 // The Editor/Executions/Triggers tab bodies pull the workflow canvas,
@@ -339,10 +334,11 @@ function installSampleAutomation(overrides: Partial<AutomationSummary> = {}) {
 /**
  * An installed automation with no views and no workflow (a non-developer, or
  * a developer without dev-tab access to anything else) still gets the shared
- * strip — Configuration + Integrations — and lands on Configuration.
+ * strip — Integrations + Configuration — and lands on Integrations (the first
+ * visible tab, where the "Finish setup" banner lives).
  */
 describe('AutomationPage renders an installed automation with nothing else to show', () => {
-  it('renders the breadcrumb name and the Configuration content', () => {
+  it('renders the breadcrumb name and lands on Integrations', () => {
     installSampleAutomation({ views: [] });
 
     render(
@@ -354,20 +350,21 @@ describe('AutomationPage renders an installed automation with nothing else to sh
 
     // The name lives in the breadcrumb.
     expect(screen.getByText('Sample Automation')).toBeInTheDocument();
-    // No views, no workflow, non-developer → Configuration + Integrations.
+    // No views, no workflow, non-developer → Integrations + Configuration
+    // (Configuration is always the last tab).
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Configuration',
       'Integrations',
+      'Configuration',
     ]);
-    // …and Configuration is the landing tab.
-    expect(screen.getByTestId('configuration-tab')).toBeInTheDocument();
+    // …and Integrations is the landing tab.
+    expect(screen.getByTestId('integrations-tab')).toBeInTheDocument();
   });
 });
 
 /**
- * The installed page's ONE top-level tab strip: Configuration + Integrations
- * always, any JSON view tabs after them (invalid ones as repair-stub tabs) —
+ * The installed page's ONE top-level tab strip: Integrations always, then any
+ * JSON view tabs (invalid ones as repair-stub tabs), then Configuration last —
  * the Editor/Executions/Triggers tabs stay off the strip entirely for a
  * non-developer. Each tab is a real link carrying its `?tab=` value.
  */
@@ -383,7 +380,7 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
       ] as AutomationSummary['views'],
     });
 
-  it('renders Configuration + Integrations plus a tab per view, first view active', () => {
+  it('renders Integrations + a tab per view + Configuration last, first view active', () => {
     installSampleAutomation(viewAutomation());
 
     render(
@@ -395,9 +392,9 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Configuration',
       'Integrations',
       'Desk',
+      'Configuration',
     ]);
     // A non-developer defaults to the first VIEW, not Configuration.
     expect(screen.getByRole('tab', { name: 'Desk' })).toHaveAttribute(
@@ -486,7 +483,7 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
  * (`manifest.workflows[0]`); Configuration always shows. A developer with a
  * workflow lands on Editor by default.
  */
-describe('AutomationPage developer tabs (Editor/Executions/Configuration/Triggers)', () => {
+describe('AutomationPage developer tabs (Editor/Executions/Triggers/Configuration)', () => {
   const workflowAutomation = () =>
     catalogAutomation({ workflows: ['sample-automation/main'], views: [] });
 
@@ -501,11 +498,11 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
     );
 
     // Editor/Executions/Triggers are never RENDERED for a non-developer
-    // (not just hidden) — only Configuration + Integrations remain.
+    // (not just hidden) — only Integrations + Configuration remain.
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Configuration',
       'Integrations',
+      'Configuration',
     ]);
     expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
     expect(screen.queryByTestId('executions-table')).not.toBeInTheDocument();
@@ -525,13 +522,13 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Configuration',
       'Integrations',
+      'Configuration',
     ]);
     expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
   });
 
-  it('orders Editor, Executions, Configuration, Triggers, Integrations for a developer with a workflow', () => {
+  it('orders Editor, Executions, Triggers, Integrations, Configuration for a developer with a workflow', () => {
     abilityMock.can.mockReturnValue(true);
     installSampleAutomation(workflowAutomation());
 
@@ -546,9 +543,10 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'Editor',
       'Executions',
-      'Configuration',
       'Triggers',
+      'Environment',
       'Integrations',
+      'Configuration',
     ]);
   });
 
@@ -596,10 +594,11 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'Editor',
       'Executions',
-      'Configuration',
       'Triggers',
+      'Environment',
       'Integrations',
       'Desk',
+      'Configuration',
     ]);
     // A developer with a workflow defaults to Editor.
     expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(

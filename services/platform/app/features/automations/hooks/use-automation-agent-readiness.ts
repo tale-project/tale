@@ -37,6 +37,8 @@ export interface AgentReadiness {
   agentSlug: string;
   shortName: string;
   displayName: string;
+  /** The agent's manifest description, for its card in the Configuration tab. */
+  description?: string;
   mode: AgentReadinessMode;
   agentKind?:
     | 'claude-code'

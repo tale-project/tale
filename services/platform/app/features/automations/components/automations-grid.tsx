@@ -69,6 +69,7 @@ import {
   useAutomationInstallActions,
   useAutomationInstallStates,
 } from '../hooks/use-install-state';
+import { AutomationContentsList } from './automation-contents-list';
 import { useAutomationDeleteAction } from './automation-delete-action';
 import {
   AutomationIcon,
@@ -339,7 +340,15 @@ function InstalledBundleMenu({
         deleteText={t('install.uninstallBundle')}
         isDeleting={busy}
         onDelete={() => void handleUninstallBundle()}
-      />
+      >
+        {dialogs.isOpen.uninstallBundle && (
+          <AutomationContentsList
+            organizationId={organizationId}
+            automation={bundle}
+            heading={t('install.uninstallContents')}
+          />
+        )}
+      </DeleteDialog>
     </>
   );
 }
@@ -615,15 +624,11 @@ export function AutomationsGrid({
               automationName={automation.name}
               organizationId={organizationId}
               context="org"
-              bundle={
-                owningBundle
-                  ? {
-                      slug: owningBundle.slug,
-                      name: owningBundle.name,
-                      memberCount: (owningBundle.members ?? []).length,
-                    }
-                  : undefined
-              }
+              scope={automation.scope}
+              requiredIntegrations={automation.requiredIntegrations}
+              blockedIntegrations={state?.blockedIntegrations}
+              broken={state?.status === 'broken'}
+              bundle={owningBundle}
             />
           ) : (
             <NotInstalledMenu

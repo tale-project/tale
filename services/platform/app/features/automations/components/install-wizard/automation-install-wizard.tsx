@@ -2,17 +2,17 @@
 
 import { Button } from '@tale/ui/button';
 import { VStack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
+import { WizardLoadingSkeleton } from '@/app/components/ui/wizard/wizard-loading-skeleton';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -154,7 +154,7 @@ function AutomationInstallWizardContent({
         title={t('installWizard.title', { name: automationName })}
         size="md"
       >
-        <SkeletonText lines={4} />
+        <WizardLoadingSkeleton />
       </Dialog>
     );
   }
@@ -222,6 +222,21 @@ function AutomationInstallWizardBody({
 
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? null);
   const [createOpen, setCreateOpen] = useState(false);
+  // Which required integrations the user actually connected DURING this wizard.
+  // Each ConnectIntegrationStep reports up; this is the Done screen's source of
+  // truth, since the reactive required-integrations query can lag an in-wizard
+  // connect (it's an action query, not a live subscription).
+  const [connectedSlugs, setConnectedSlugs] = useState<Record<string, boolean>>(
+    {},
+  );
+  const handleConnectedChange = useCallback(
+    (slug: string, connected: boolean) => {
+      setConnectedSlugs((prev) =>
+        prev[slug] === connected ? prev : { ...prev, [slug]: connected },
+      );
+    },
+    [],
+  );
 
   // Agent setup is known only after the automation is installed (its agent configs are
   // copied then). Snapshot the agents once, and track per-external-agent mode.
@@ -444,23 +459,25 @@ function AutomationInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    if (mode === 'install' && scope === 'project' && targetProjectId) {
+    // Land on the automation's ORG-level detail page — the same target the
+    // catalog card opens. The project-nested route wraps the detail in the
+    // project layout's own PageLayout + ContentArea, doubling the page padding.
+    if (mode === 'install') {
       void navigate({
-        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-        params: {
-          id: organizationId,
-          projectId: targetProjectId,
-          automationSlug,
-        },
+        to: '/dashboard/$id/automations/$automationSlug',
+        params: { id: organizationId, automationSlug },
       });
     }
   };
 
-  // What's still outstanding at finish → "some skipped" summary copy.
+  // Required integrations left unconnected at finish BLOCK the automation from
+  // running — the Done screen must not claim it's "ready" when any remain.
+  const unconnectedRequired = stepSlugs.filter((slug) => !connectedSlugs[slug]);
+  const hasRequiredSkips = unconnectedRequired.length > 0;
+  // Everything still outstanding at finish (required + optional providers/BYO
+  // agents) → the "some skipped" summary copy.
   const skippedCount =
-    stepSlugs.filter((slug) => !requiredBySlug.get(slug)?.connected).length +
-    providersToConnect.length +
-    byoAgents.length;
+    unconnectedRequired.length + providersToConnect.length + byoAgents.length;
 
   return (
     <Dialog
@@ -567,6 +584,7 @@ function AutomationInstallWizardBody({
               key={slug}
               required={r}
               organizationId={organizationId}
+              onConnectedChange={handleConnectedChange}
             />
           );
         })}
@@ -574,12 +592,18 @@ function AutomationInstallWizardBody({
         <WizardStep id="done">
           <VStack gap={1}>
             <Text className="text-sm font-medium">
-              {t('installWizard.doneTitle', { name: automationName })}
+              {hasRequiredSkips
+                ? t('installWizard.doneNeedsSetupTitle', {
+                    name: automationName,
+                  })
+                : t('installWizard.doneTitle', { name: automationName })}
             </Text>
             <Text variant="muted" className="text-sm">
-              {skippedCount > 0
-                ? t('installWizard.doneSomeSkipped')
-                : t('installWizard.doneAllConnected')}
+              {hasRequiredSkips
+                ? t('installWizard.doneNeedsSetup')
+                : skippedCount > 0
+                  ? t('installWizard.doneSomeSkipped')
+                  : t('installWizard.doneAllConnected')}
             </Text>
           </VStack>
         </WizardStep>

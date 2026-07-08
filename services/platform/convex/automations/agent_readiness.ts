@@ -39,6 +39,7 @@ interface AutomationAgentRow {
   name: string;
   shortName?: string;
   displayName?: string;
+  description?: string;
   status?: string;
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   agentKind?:
@@ -184,6 +185,8 @@ export const getAutomationAgentReadiness = action({
         agentSlug: row.name,
         shortName: row.shortName ?? row.name,
         displayName: row.displayName ?? row.shortName ?? row.name,
+        ...(typeof row.description === 'string' &&
+          row.description.length > 0 && { description: row.description }),
         mode: needs.mode,
         ...(row.agentKind !== undefined && { agentKind: row.agentKind }),
         ...(credentialMismatch !== undefined && { credentialMismatch }),
