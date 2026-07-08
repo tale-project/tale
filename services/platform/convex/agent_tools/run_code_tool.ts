@@ -35,7 +35,7 @@ import type { ToolDefinition } from './types';
 
 const RUN_CODE_MAX_STEPS = 10;
 
-const runCodeArgs = z
+export const runCodeArgs = z
   .object({
     entryPath: z
       .string()
@@ -52,6 +52,20 @@ const runCodeArgs = z
       .optional()
       .describe(
         'Multi-step mode: scripts to execute sequentially in one container — each `path` is an absolute `/user/code/<script>`. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
+      ),
+    code: z
+      .string()
+      .min(1)
+      .max(65_536)
+      .optional()
+      .describe(
+        'Inline mode: source code to execute directly — no file_write needed. Requires `language`. Mutually exclusive with `entryPath` / `steps`.',
+      ),
+    language: z
+      .enum(['python', 'node', 'bash'])
+      .optional()
+      .describe(
+        'Interpreter for `code` (inline mode only): `python` → python3, `node` → Node as ESM (`import` / top-level `await`, no `require`), `bash` → bash.',
       ),
     packages: z
       .object({
@@ -83,14 +97,29 @@ const runCodeArgs = z
       ),
   })
   .superRefine((val, ctx) => {
-    const hasEntry = val.entryPath !== undefined;
-    const hasSteps = val.steps !== undefined;
-    if (hasEntry === hasSteps) {
+    const modes = [val.entryPath, val.steps, val.code].filter(
+      (m) => m !== undefined,
+    ).length;
+    if (modes !== 1) {
       ctx.addIssue({
         code: 'custom',
         path: ['entryPath'],
         message:
-          '`entryPath` and `steps` are mutually exclusive — pass exactly one.',
+          'Pass exactly one of `entryPath`, `steps`, or `code` — the modes are mutually exclusive.',
+      });
+    }
+    if (val.code !== undefined && val.language === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['language'],
+        message: '`language` is required with `code` (python | node | bash).',
+      });
+    }
+    if (val.language !== undefined && val.code === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['language'],
+        message: '`language` is only valid with `code`.',
       });
     }
   });
@@ -148,14 +177,87 @@ function checkPackagesAgainstPolicy(
   );
 }
 
+/** Fence that survives `text` itself containing triple-backtick runs. */
+function fenceFor(text: string): string {
+  return text.includes('```') ? '````' : '```';
+}
+
+function emptyRunHint(durationMs: number): string {
+  return `run_code succeeded in ${durationMs}ms. No output files were harvested and nothing was printed.
+
+If the script was supposed to produce a deliverable file, only paths under \`/user/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/user/code/\` are discarded when the container exits.
+
+Wrong (file is lost, NOT harvested):
+  open("report.pptx", "wb").write(data)              # Python
+  fs.writeFileSync("report.json", data)              // Node
+
+Correct (harvested into the thread workspace):
+  open("/user/output/report.pptx", "wb").write(data)
+  fs.writeFileSync("/user/output/report.json", data)
+
+Same rule for bash: \`cp report.pdf /user/output/report.pdf\`.
+
+If your script genuinely had no deliverable (e.g. a sanity check or package install), you can ignore this — the run did succeed.`;
+}
+
+/**
+ * Human-readable result message: outcome header + the run's terminal output.
+ * stdout is embedded whenever non-empty (a shell-style run's deliverable IS
+ * its stdout); stderr only on failure — successful runs route package-install
+ * noise there. Previews arrive pre-capped (4096 chars) from session_exec.
+ */
+export function formatRunCodeResultMessage(run: {
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  errorCode?: string;
+  errorMessage?: string;
+  stdoutPreview: string;
+  stderrPreview: string;
+  durationMs: number;
+  files: Array<{ path: string }>;
+}): string {
+  const success = run.status === 'completed';
+  const stdout = run.stdoutPreview.trim();
+  const stderr = run.stderrPreview.trim();
+
+  let header: string;
+  if (success) {
+    if (run.files.length > 0) {
+      header = `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /user/output/: ${run.files.map((f) => f.path).join(', ')}.`;
+    } else if (stdout.length > 0) {
+      header = `run_code succeeded in ${run.durationMs}ms. (No output files were harvested — only files written under \`/user/output/\` come back into the workspace.)`;
+    } else {
+      header = emptyRunHint(run.durationMs);
+    }
+  } else {
+    header = run.errorCode
+      ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read the output below, fix the script, then call run_code again.`
+      : `run_code finished with status=${run.status}${run.exitCode !== null ? ` (exit code ${run.exitCode})` : ''}.`;
+  }
+
+  const blocks = [header];
+  if (stdout.length > 0) {
+    const fence = fenceFor(stdout);
+    blocks.push(`stdout:\n${fence}\n${stdout}\n${fence}`);
+  }
+  if (!success && stderr.length > 0) {
+    const fence = fenceFor(stderr);
+    blocks.push(`stderr:\n${fence}\n${stderr}\n${fence}`);
+  }
+  return blocks.join('\n\n');
+}
+
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3, Node.js, and bash are available (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash). Pick the language that fits the task (or whatever a relevant skill recommends).
+    description: `**run_code** — execute code in the thread's sandbox. Python 3, Node.js, and bash are available. Run an inline snippet (\`code\`), or script files staged in the workspace (\`entryPath\` / \`steps\`).
 
-WORKFLOW:
-1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
+INLINE MODE (quick commands and snippets — use it like a shell):
+\`run_code({code: "ls -la /user/output", language: "bash"})\` executes the snippet directly — no file_write needed — and the result message contains its terminal output. Good for one-off commands, inspecting the sandbox, quick computations, and installs. \`language\` is required: \`python\` → python3, \`node\` → Node as ESM (\`import\` / top-level \`await\`, no \`require\`), \`bash\` → bash. The snippet is not stored in the workspace — for anything worth re-running or editing, use file_write + entryPath instead.
+
+SCRIPT-FILE WORKFLOW (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash):
+1. \`file_write\` every script you need (the workspace IS the sandbox source tree)
 2. \`run_code({entryPath: "/user/code/<script>"})\` for a one-shot
    OR \`run_code({steps: [{path: "/user/code/step_a.py"}, {path: "/user/code/step_b.py"}]})\` for sequential steps sharing one container
 3. Any file the script writes under \`/user/output/\` is harvested back into the thread workspace and appears in the canvas
@@ -178,7 +280,7 @@ The sandbox sees three directories pre-populated from the thread workspace:
 
 Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
 
-Every result includes a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
+Every result message embeds the run's terminal output (stdout inline, capped at 4 KB; stderr too on failure) plus a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
@@ -203,96 +305,103 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
       // outputs land where the parent agent and the canvas read them.
       const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
 
-      // Load every workspace file. The path the LLM passed must exist.
-      const rows = await ctx.runQuery(
-        internal.thread_files.internal_queries.listThreadFiles,
-        { threadId: workspaceThreadId },
-      );
-      const workspaceFiles = rows.filter(
-        (r: { organizationId: string }) => r.organizationId === organizationId,
-      );
-      if (workspaceFiles.length === 0) {
-        return {
-          ok: false as const,
-          code: 'EMPTY_WORKSPACE' as const,
-          message:
-            'No files in the thread workspace. Use file_write to stage scripts first.',
-        };
-      }
-
-      // Resolve target paths the LLM asked us to execute.
-      let stepPaths: string[];
-      if (args.steps !== undefined) {
-        stepPaths = args.steps.map((s) => s.path);
-      } else {
-        // entryPath is guaranteed by the superRefine mutex above when
-        // steps is absent, but TS narrows it loosely — guard explicitly.
-        if (args.entryPath === undefined) {
+      // Script-file modes resolve + validate paths against the workspace.
+      // Inline mode (`code`) skips all of it — the snippet is staged by the
+      // exec action itself and may run against an empty workspace.
+      let stepPaths: string[] = [];
+      if (args.code === undefined) {
+        // Load every workspace file. The path the LLM passed must exist.
+        const rows = await ctx.runQuery(
+          internal.thread_files.internal_queries.listThreadFiles,
+          { threadId: workspaceThreadId },
+        );
+        const workspaceFiles = rows.filter(
+          (r: { organizationId: string }) =>
+            r.organizationId === organizationId,
+        );
+        if (workspaceFiles.length === 0) {
           return {
             ok: false as const,
-            code: 'INVALID_STEP_PATH' as const,
-            message: 'run_code requires entryPath or steps.',
+            code: 'EMPTY_WORKSPACE' as const,
+            message:
+              'No files in the thread workspace. Use file_write to stage scripts first, or pass `code` to run a snippet directly.',
           };
         }
-        stepPaths = [args.entryPath];
-      }
-      // entry/steps are absolute `/user/code/<script>` paths (what file_write
-      // returns). Resolve to the sandbox-relative form the spawner + matching
-      // use. Only `/user/code` scripts run.
-      {
-        const rels: string[] = [];
-        for (const raw of stepPaths) {
-          let parsed;
-          try {
-            parsed = parseWorkspacePath(raw);
-          } catch {
-            parsed = null;
-          }
-          if (parsed === null || parsed.source !== 'agent_write') {
+
+        // Resolve target paths the LLM asked us to execute.
+        if (args.steps !== undefined) {
+          stepPaths = args.steps.map((s) => s.path);
+        } else {
+          // entryPath is guaranteed by the superRefine mutex above when
+          // steps and code are absent, but TS narrows it loosely — guard
+          // explicitly.
+          if (args.entryPath === undefined) {
             return {
               ok: false as const,
               code: 'INVALID_STEP_PATH' as const,
-              message: `Step path "${raw}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
+              message: 'run_code requires entryPath, steps, or code.',
             };
           }
-          rels.push(parsed.rel);
+          stepPaths = [args.entryPath];
         }
-        stepPaths = rels;
-      }
-      // /user/code/ is the executable surface — keyed on LOCATION, not the
-      // `source` provenance (file_write also authors /user/output
-      // deliverables now, which must never become executable). If the user
-      // wants to run a user-uploaded script, they can copy it into
-      // /user/code/ with file_write.
-      const seen = new Set<string>();
-      const knownPaths = new Set(
-        workspaceFiles
-          .filter((f: { path: string }) => f.path.startsWith('/user/code/'))
-          .map((f: { path: string }) => relOf(f.path)),
-      );
-      for (const p of stepPaths) {
-        if (!SCRIPT_EXT_REGEX.test(p)) {
-          return {
-            ok: false as const,
-            code: 'INVALID_STEP_PATH' as const,
-            message: `Step path "${p}" has no recognized script extension (.py / .js / .cjs / .mjs / .sh).`,
-          };
+        // entry/steps are absolute `/user/code/<script>` paths (what
+        // file_write returns). Resolve to the sandbox-relative form the
+        // spawner + matching use. Only `/user/code` scripts run.
+        {
+          const rels: string[] = [];
+          for (const raw of stepPaths) {
+            let parsed;
+            try {
+              parsed = parseWorkspacePath(raw);
+            } catch {
+              parsed = null;
+            }
+            if (parsed === null || parsed.source !== 'agent_write') {
+              return {
+                ok: false as const,
+                code: 'INVALID_STEP_PATH' as const,
+                message: `Step path "${raw}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
+              };
+            }
+            rels.push(parsed.rel);
+          }
+          stepPaths = rels;
         }
-        if (seen.has(p)) {
-          return {
-            ok: false as const,
-            code: 'DUPLICATE_STEP_PATH' as const,
-            message: `Step path "${p}" appears more than once. Each step must be unique within a single run_code call.`,
-          };
+        // /user/code/ is the executable surface — keyed on LOCATION, not the
+        // `source` provenance (file_write also authors /user/output
+        // deliverables now, which must never become executable). If the user
+        // wants to run a user-uploaded script, they can copy it into
+        // /user/code/ with file_write.
+        const seen = new Set<string>();
+        const knownPaths = new Set(
+          workspaceFiles
+            .filter((f: { path: string }) => f.path.startsWith('/user/code/'))
+            .map((f: { path: string }) => relOf(f.path)),
+        );
+        for (const p of stepPaths) {
+          if (!SCRIPT_EXT_REGEX.test(p)) {
+            return {
+              ok: false as const,
+              code: 'INVALID_STEP_PATH' as const,
+              message: `Step path "${p}" has no recognized script extension (.py / .js / .cjs / .mjs / .sh).`,
+            };
+          }
+          if (seen.has(p)) {
+            return {
+              ok: false as const,
+              code: 'DUPLICATE_STEP_PATH' as const,
+              message: `Step path "${p}" appears more than once. Each step must be unique within a single run_code call.`,
+            };
+          }
+          if (!knownPaths.has(p)) {
+            return {
+              ok: false as const,
+              code: 'STEP_PATH_NOT_FOUND' as const,
+              message: `Step path "${p}" is not in the workspace. Call file_write first.`,
+            };
+          }
+          seen.add(p);
         }
-        if (!knownPaths.has(p)) {
-          return {
-            ok: false as const,
-            code: 'STEP_PATH_NOT_FOUND' as const,
-            message: `Step path "${p}" is not in the workspace. Call file_write first.`,
-          };
-        }
-        seen.add(p);
       }
 
       // Org package policy check. The `run_code` governance policy is the
@@ -331,6 +440,15 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
       // Execute in the thread's persistent sandbox session — it stages inputs
       // and harvests outputs; prior outputs persist in the workspace across
       // runs (no re-stage / re-harvest churn).
+      // Inline mode: superRefine ties `language` to `code`, but TS narrows
+      // them independently — guard explicitly.
+      if (args.code !== undefined && args.language === undefined) {
+        return {
+          ok: false as const,
+          code: 'INVALID_STEP_PATH' as const,
+          message: '`language` is required with `code` (python | node | bash).',
+        };
+      }
       let raw: unknown;
       try {
         raw = await ctx.runAction(
@@ -340,6 +458,10 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
             threadId: workspaceThreadId,
             uploadedBy: userId,
             stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
+            ...(args.code !== undefined &&
+              args.language !== undefined && {
+                inlineCode: { content: args.code, language: args.language },
+              }),
             ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
             ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
           },
@@ -400,28 +522,7 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
         }
       }
 
-      const emptyFilesHint = `run_code succeeded in ${run.durationMs}ms. No output files were harvested.
-
-If the script was supposed to produce a deliverable file, only paths under \`/user/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/user/code/\` are discarded when the container exits.
-
-Wrong (file is lost, NOT harvested):
-  open("report.pptx", "wb").write(data)              # Python
-  fs.writeFileSync("report.json", data)              // Node
-
-Correct (harvested into the thread workspace):
-  open("/user/output/report.pptx", "wb").write(data)
-  fs.writeFileSync("/user/output/report.json", data)
-
-Same rule for bash: \`cp report.pdf /user/output/report.pdf\`.
-
-If your script genuinely had no file deliverable (e.g. a sanity check or package install), you can ignore this — the run did succeed.`;
-      const message = success
-        ? run.files.length > 0
-          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /user/output/: ${run.files.map((f) => f.path).join(', ')}.`
-          : emptyFilesHint
-        : run.errorCode
-          ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
-          : `run_code finished with status=${run.status} and no output files.`;
+      const message = formatRunCodeResultMessage(run);
 
       // Sandbox-state manifest: the current workspace files grouped by area,
       // each with its `fileId` (storage id). Reported on every run (success

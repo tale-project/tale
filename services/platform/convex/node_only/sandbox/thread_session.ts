@@ -10,15 +10,13 @@
  * keyed per-thread (`thr-<threadId>`, `ownerType: 'thread'`) so one thread's
  * packages/files never leak into another.
  *
- * We deliberately do NOT stop the session at turn end: the spawner's reaper
- * already stop-preserves an idle session (workspace kept) and a later
- * `sessionCreate` against the same deterministic id resumes it — so
- * "warm within a turn, preserved across turns" falls out of the existing
- * reaper + resume path with no turn-lifecycle surgery. The only explicit
- * teardown is {@link destroyThreadSession} on thread delete.
- *
- * Inert until the run_code dispatch stage calls these behind the
- * `SANDBOX_RUNCODE_SESSIONS` flag.
+ * The session is TURN-scoped: `ensureThreadSession` creates it lazily on the
+ * first run_code call of a turn and every later call in that turn reuses it
+ * warm; `runGenerationCore`'s finally schedules
+ * `teardownThreadSessionAtTurnEnd` (session_teardown.ts), which destroys the
+ * container + workspace unless a sibling turn on the thread still has a live
+ * exec. It never idles across turns. {@link destroyThreadSession} is the
+ * thread-delete teardown for whatever the turn-end path left behind.
  */
 
 import { v } from 'convex/values';

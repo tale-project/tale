@@ -19,12 +19,11 @@ import { preloadHighlighter } from '@/lib/utils/shiki';
 
 import { CanvasPreferencesProvider } from '../hooks/canvas-preferences';
 import type { ThreadFileItem } from '../types';
+import { CanvasFileTree } from './canvas-file-tree';
 import { FileViewerRouter } from './file-viewer-router';
 import { useWorkspace } from './workspace-context';
-import { WorkspaceFileTabs, WorkspaceOutputDock } from './workspace-file-tabs';
 
-/** id of the file viewer container — the tab strip + output dock point their
- *  `aria-controls` at it. */
+/** id of the file viewer container. */
 const CANVAS_VIEWER_ID = 'canvas-file-viewer';
 
 interface CanvasPaneProps {
@@ -171,17 +170,20 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
       ? t('canvas.writing', { defaultValue: 'Writing…' })
       : null;
 
+    // Explorer layout, mirroring the external-agent Workspace-files pane:
+    // directory tree left (stacked on top on small widths), viewer right.
     const body: ReactNode = (
       <CanvasPreferencesProvider>
-        <div className="flex min-h-0 flex-1 flex-col">
-          <WorkspaceFileTabs
-            files={mergedFiles}
-            activePath={resolvedPath}
-            onSelect={setActiveFilePath}
-            streamingPaths={livePaths}
-            viewerId={CANVAS_VIEWER_ID}
-            meta={activeMeta}
-          />
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
+            <CanvasFileTree
+              files={mergedFiles}
+              activePath={resolvedPath}
+              onSelect={setActiveFilePath}
+              streamingPaths={livePaths}
+              meta={activeMeta}
+            />
+          </div>
           <div id={CANVAS_VIEWER_ID} className="min-h-0 flex-1 overflow-hidden">
             <FileViewerRouter
               threadId={threadId}
@@ -193,12 +195,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
               liveEncoding={activeLive?.encoding}
             />
           </div>
-          <WorkspaceOutputDock
-            files={mergedFiles}
-            activePath={resolvedPath}
-            onSelect={setActiveFilePath}
-            viewerId={CANVAS_VIEWER_ID}
-          />
         </div>
       </CanvasPreferencesProvider>
     );

@@ -46,12 +46,14 @@ import {
 // that resolve_model.ts uses to stay V8-importable.
 import { resolveLanguageModelByIdNode } from '../../providers/resolve_model_node';
 import { autoRouteReasonValidator } from '../../streaming/validators';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import { generateAgentResponse } from '../agent_response';
 import { routeModelOrder } from '../agent_response/model_routing/route_model';
 import { resolvePromptCaching } from '../agent_response/prompt_caching/strategy';
 import type { GenerateResponseHooks } from '../agent_response/types';
 import { userContextValidator } from '../agent_response/validators';
 import { buildInlineMultiModalPrompt } from '../attachments/build_inline_multi_modal_prompt';
+import { fileAttachmentsIntoWorkspace } from '../attachments/workspace_uploads';
 import {
   estimateTokens,
   DEFAULT_MODEL_CONTEXT_LIMIT,
@@ -356,6 +358,29 @@ export async function runGenerationCore(
   );
   if (!agentType) {
     throw new Error(`Invalid agent type: ${agentTypeStr}`);
+  }
+
+  // File this turn's attachments into the thread workspace
+  // (/user/uploads/<name>) BEFORE generation starts, so the model's first
+  // file_list / file_read / run_code already sees them. Skipped on prewarm
+  // (speculative turn — the real one follows immediately and files them).
+  // Fail-open: a filing failure must never block the turn; the attachment
+  // stays readable via the pre-analyzed prompt content and the image tool.
+  if (!args.prewarm && attachments !== undefined && attachments.length > 0) {
+    try {
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
+      const filedCounts = await fileAttachmentsIntoWorkspace(ctx, {
+        organizationId,
+        workspaceThreadId,
+        attachments,
+      });
+      debugLog('ATTACHMENTS_FILED_TO_WORKSPACE', filedCounts);
+    } catch (err) {
+      console.warn(
+        '[agent_chat] filing attachments into the workspace failed:',
+        err,
+      );
+    }
   }
 
   // Tracked across the fallback loop so the final catch-all can build an
