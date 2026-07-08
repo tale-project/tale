@@ -136,10 +136,6 @@ export interface CredentialRuntimeMismatchDetail {
   configuredKeys: readonly string[];
 }
 
-export function formatEnvKeyList(keys: readonly string[]): string {
-  return keys.join(', ');
-}
-
 const CURSOR_CREDENTIAL_KEYS = ['CURSOR_API_KEY'] as const;
 
 function configuredMismatchedKeys(
