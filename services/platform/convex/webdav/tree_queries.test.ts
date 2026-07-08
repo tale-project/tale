@@ -184,3 +184,89 @@ describe('webdav tree_queries project-scope visibility (convex-test)', () => {
     expect(resolved).toEqual({ kind: 'not_found', exists: false });
   });
 });
+
+// Project-scoped FOLDERS are excluded at the index (hub-exact
+// by_org_project_parent_name pinned to projectId=undefined): they never
+// list, never resolve as a path segment, and a hub folder sharing the name
+// still resolves normally.
+describe('webdav tree_queries project-folder visibility (convex-test)', () => {
+  async function seedProjectFolder(t: TestCtx, name: string) {
+    return await t.run(async (ctx) => {
+      const projectId = await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Secret Project',
+        createdBy: USER,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const folderId = await ctx.db.insert('folders', {
+        organizationId: ORG,
+        name,
+        projectId,
+      });
+      return { projectId, folderId };
+    });
+  }
+
+  it('listCollection at the root excludes project folders', async () => {
+    const t = convexTest(schema, modules);
+    await seedProjectFolder(t, 'project-reports');
+    await t.run(async (ctx) =>
+      ctx.db.insert('folders', { organizationId: ORG, name: 'hub-reports' }),
+    );
+
+    const listing = await t.query(internal.webdav.tree_queries.listCollection, {
+      organizationId: ORG,
+      namespace: 'documents',
+      folderId: null,
+    });
+
+    const names = listing.folders.map((f) => f.name);
+    expect(names).toContain('hub-reports');
+    expect(names).not.toContain('project-reports');
+  });
+
+  it('resolvePath treats a project folder as not_found; a same-named hub folder resolves', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
+
+    const missing = await t.query(internal.webdav.tree_queries.resolvePath, {
+      organizationId: ORG,
+      namespace: 'documents',
+      segments: ['reports'],
+    });
+    expect(missing).toEqual({ kind: 'not_found', exists: false });
+
+    const hubFolderId = await t.run(async (ctx) =>
+      ctx.db.insert('folders', { organizationId: ORG, name: 'reports' }),
+    );
+    const resolved = await t.query(internal.webdav.tree_queries.resolvePath, {
+      organizationId: ORG,
+      namespace: 'documents',
+      segments: ['reports'],
+    });
+    expect(resolved).toMatchObject({ kind: 'folder', folderId: hubFolderId });
+    expect(resolved).not.toMatchObject({ folderId: projectFolderId });
+  });
+
+  it('a document inside a project folder is unreachable by path', async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, folderId } = await seedProjectFolder(t, 'reports');
+    await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'plan.pdf',
+        projectId,
+        folderId,
+        lifecycleStatus: 'active',
+      }),
+    );
+
+    const resolved = await t.query(internal.webdav.tree_queries.resolvePath, {
+      organizationId: ORG,
+      namespace: 'documents',
+      segments: ['reports', 'plan.pdf'],
+    });
+    expect(resolved).toEqual({ kind: 'not_found', exists: false });
+  });
+});

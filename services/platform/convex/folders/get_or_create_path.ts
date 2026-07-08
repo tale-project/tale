@@ -37,11 +37,16 @@ export async function getOrCreateFolderPath(
       break;
     }
 
+    // Hub-exact lookup: auto-vivification is a Knowledge Hub concept (sync,
+    // WebDAV, agent writers). It must never match — and thereby write into —
+    // a project folder that shares (org, parent, name); inserts below carry
+    // no projectId, so the created chain stays hub-scoped.
     const existing = await ctx.db
       .query('folders')
-      .withIndex('by_org_parent_name', (q) =>
+      .withIndex('by_org_project_parent_name', (q) =>
         q
           .eq('organizationId', organizationId)
+          .eq('projectId', undefined)
           .eq('parentId', parentId)
           .eq('name', validName),
       )

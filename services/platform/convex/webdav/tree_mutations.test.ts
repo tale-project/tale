@@ -523,6 +523,154 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
   });
 });
 
+// Project-scoped FOLDERS are excluded the same way as project docs: the
+// hub-exact index (`by_org_project_parent_name` pinned to
+// projectId=undefined) keeps them out of listings/path segments/collision
+// checks, and the id-level `assertVisibleFolderSrc` gate refuses raw ids.
+describe('webdav tree_mutations project-folder gate (convex-test)', () => {
+  async function seedProjectFolder(t: TestCtx, name: string) {
+    return await t.run(async (ctx) => {
+      const projectId = await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Secret Project',
+        createdBy: USER,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const folderId = await ctx.db.insert('folders', {
+        organizationId: ORG,
+        name,
+        projectId,
+      });
+      return { projectId, folderId };
+    });
+  }
+
+  it('MKCOL colliding with a project folder creates an independent hub folder', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
+    const { folderId } = await mkcol(t, [], 'reports');
+    expect(folderId).toBeTruthy();
+    expect(folderId).not.toBe(projectFolderId);
+    // The project folder is untouched.
+    const projectFolder = await t.run(async (ctx) =>
+      ctx.db.get(projectFolderId),
+    );
+    expect(projectFolder?.projectId).toBeTruthy();
+  });
+
+  it('a PUT path never traverses a project folder — the invisible parent 409s', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
+    const storageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(['hub bytes'], { type: 'text/plain' })),
+    );
+    // PUT does not auto-vivify parents (RFC 4918: the client MKCOLs first);
+    // a parent segment that only exists as a project folder must read as
+    // missing — CONFLICT — rather than routing the write into the project.
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.ingestPutBlob, {
+        organizationId: ORG,
+        pathSegments: ['reports', 'notes.txt'],
+        storageId,
+        contentType: 'text/plain',
+        size: 9,
+        userId: USER,
+      }),
+      'CONFLICT',
+    );
+    // Nothing landed inside the project folder.
+    const projectChildren = await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_folderId', (q) =>
+          q.eq('organizationId', ORG).eq('folderId', projectFolderId),
+        )
+        .collect();
+      return rows;
+    });
+    expect(projectChildren).toHaveLength(0);
+  });
+
+  it('deleteFolderCascade refuses a project folder id as NOT_FOUND', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId } = await seedProjectFolder(t, 'reports');
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.deleteFolderCascade, {
+        organizationId: ORG,
+        folderId,
+      }),
+      'NOT_FOUND',
+    );
+    const folder = await t.run(async (ctx) => ctx.db.get(folderId));
+    expect(folder).not.toBeNull();
+  });
+
+  it('moveResource refuses a project folder src as NOT_FOUND', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId } = await seedProjectFolder(t, 'reports');
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.moveResource, {
+        organizationId: ORG,
+        src: { kind: 'folder', id: folderId },
+        srcSegments: ['reports'],
+        destParentSegments: [],
+        destName: 'renamed',
+        overwrite: false,
+        userId: USER,
+      }),
+      'NOT_FOUND',
+    );
+    const folder = await t.run(async (ctx) => ctx.db.get(folderId));
+    expect(folder?.name).toBe('reports');
+  });
+
+  it('copyResource refuses a project folder src as NOT_FOUND', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId } = await seedProjectFolder(t, 'reports');
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.copyResource, {
+        organizationId: ORG,
+        src: { kind: 'folder', id: folderId },
+        destParentSegments: [],
+        destName: 'copy',
+        overwrite: false,
+        userId: USER,
+      }),
+      'NOT_FOUND',
+    );
+    const copies = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('folders').collect();
+      return rows.filter((r) => r.name === 'copy');
+    });
+    expect(copies).toHaveLength(0);
+  });
+
+  it('a MOVE destination colliding with a project folder is not a collision', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
+    const { folderId: hubId } = await mkcol(t, [], 'drafts');
+    // Overwrite:false — an invisible project folder must not DEST_EXISTS.
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.moveResource,
+      {
+        organizationId: ORG,
+        src: { kind: 'folder', id: hubId },
+        srcSegments: ['drafts'],
+        destParentSegments: [],
+        destName: 'reports',
+        overwrite: false,
+        userId: USER,
+      },
+    );
+    expect(result.created).toBe(true);
+    const projectFolder = await t.run(async (ctx) =>
+      ctx.db.get(projectFolderId),
+    );
+    expect(projectFolder?.name).toBe('reports');
+  });
+});
+
 describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
   it('trashes every descendant document and removes the folder rows', async () => {
     const t = convexTest(schema, modules);

@@ -214,7 +214,7 @@ describe('getOrCreateFolderPath', () => {
     expect(ctx.db.insert).toHaveBeenCalledTimes(2);
   });
 
-  it('uses by_org_parent_name index for direct lookup', async () => {
+  it('uses the hub-exact by_org_project_parent_name index for direct lookup', async () => {
     const { ctx } = createMockCtx();
 
     await getOrCreateFolderPath(ctx as unknown as MutationCtx, 'org_1', [
@@ -222,9 +222,11 @@ describe('getOrCreateFolderPath', () => {
     ]);
 
     expect(ctx.db.query).toHaveBeenCalledWith('folders');
+    // Pinned to projectId=undefined so auto-vivification can never match —
+    // and thereby write into — a project folder sharing (org, parent, name).
     const withIndexCall =
       ctx.db.query.mock.results[0].value.withIndex.mock.calls[0];
-    expect(withIndexCall[0]).toBe('by_org_parent_name');
+    expect(withIndexCall[0]).toBe('by_org_project_parent_name');
   });
 
   it('stops at invalid segment mid-path and returns partial result', async () => {

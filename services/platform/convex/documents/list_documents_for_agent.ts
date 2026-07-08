@@ -9,13 +9,13 @@
 import { getNumber } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { hasKnowledgeHubFolderAccess } from '../folders/access';
 import { buildBreadcrumb } from '../folders/queries';
 import {
   fuzzyMatchFolder,
   fuzzyMatchTitle,
   levenshteinDistance,
 } from '../lib/fuzzy_match';
-import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
 import { hasKnowledgeHubDocumentAccess } from './access';
 
@@ -284,7 +284,9 @@ async function resolveFolderPathFuzzy(
     );
 
   for await (const folder of folderQuery) {
-    if (!hasTeamAccess(folder, userTeamIds)) continue;
+    // Hub predicate: agent folder-path filters are a Knowledge Hub concept —
+    // a project folder (teamless) would otherwise read as org-wide.
+    if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) continue;
     const entry: FolderEntry = {
       id: folder._id,
       name: folder.name,

@@ -37,14 +37,17 @@ export async function getDocumentByPath(
       return { success: false, error: 'Invalid path' };
     }
 
-    // Traverse folder hierarchy using compound index
+    // Traverse folder hierarchy using the hub-exact compound index —
+    // document paths are a Knowledge Hub concept and must never resolve
+    // through a project folder that shares (org, parent, name).
     let folderId: Id<'folders'> | undefined;
     for (const segment of parts) {
       const folder = await ctx.db
         .query('folders')
-        .withIndex('by_org_parent_name', (qb) =>
+        .withIndex('by_org_project_parent_name', (qb) =>
           qb
             .eq('organizationId', organizationId)
+            .eq('projectId', undefined)
             .eq('parentId', folderId)
             .eq('name', segment),
         )

@@ -472,6 +472,7 @@ import type * as file_metadata_transcribe_dictation from "../file_metadata/trans
 import type * as file_metadata_transcription_request from "../file_metadata/transcription_request.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as folders_access from "../folders/access.js";
 import type * as folders_cleanup_empty_ancestors from "../folders/cleanup_empty_ancestors.js";
 import type * as folders_find_folder_by_path from "../folders/find_folder_by_path.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
@@ -1160,6 +1161,7 @@ import type * as projects_audit_actions from "../projects/audit_actions.js";
 import type * as projects_internal_queries from "../projects/internal_queries.js";
 import type * as projects_mutations from "../projects/mutations.js";
 import type * as projects_queries from "../projects/queries.js";
+import type * as projects_resolve_project_access from "../projects/resolve_project_access.js";
 import type * as projects_secrets_actions from "../projects/secrets/actions.js";
 import type * as projects_secrets_internal from "../projects/secrets/internal.js";
 import type * as projects_secrets_queries from "../projects/secrets/queries.js";
@@ -2163,6 +2165,7 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/transcription_request": typeof file_metadata_transcription_request;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "folders/access": typeof folders_access;
   "folders/cleanup_empty_ancestors": typeof folders_cleanup_empty_ancestors;
   "folders/find_folder_by_path": typeof folders_find_folder_by_path;
   "folders/get_or_create_path": typeof folders_get_or_create_path;
@@ -2851,6 +2854,7 @@ declare const fullApi: ApiFromModules<{
   "projects/internal_queries": typeof projects_internal_queries;
   "projects/mutations": typeof projects_mutations;
   "projects/queries": typeof projects_queries;
+  "projects/resolve_project_access": typeof projects_resolve_project_access;
   "projects/secrets/actions": typeof projects_secrets_actions;
   "projects/secrets/internal": typeof projects_secrets_internal;
   "projects/secrets/queries": typeof projects_secrets_queries;
