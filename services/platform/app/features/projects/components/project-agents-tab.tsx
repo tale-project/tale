@@ -15,6 +15,8 @@ import {
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
+import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
+import { buildAgentSectionOptions } from '@/app/features/agents/utils/agent-picker-options';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -78,26 +80,43 @@ export function ProjectAgentsTab({
 
   const agentOptions = useMemo<SlugOption[]>(() => {
     if (!rawAgents) return [];
-    const out: SlugOption[] = [];
-    for (const a of rawAgents) {
-      if (!a || typeof a.name !== 'string' || 'status' in a) continue;
-      const resolved = resolveAgentLocale(a, locale);
-      // Some system agents (e.g. `image-generator`) carry no localized
-      // displayName — fall back to a humanized slug rather than dropping
-      // them from the picker, otherwise admins can't restrict/recommend
-      // them at all.
+    const entries: Array<{
+      agent: NonNullable<ReturnType<typeof toConfigurableAgent>>;
+      label: string;
+      description?: string;
+    }> = [];
+    for (const raw of rawAgents) {
+      const agent = toConfigurableAgent(raw);
+      if (!agent) continue;
+      const resolved = resolveAgentLocale(agent, locale);
       const label =
         resolved.displayName && resolved.displayName.length > 0
           ? resolved.displayName
-          : humanizeSlug(a.name);
-      out.push({
-        value: a.name,
-        label,
-        description: resolved.description,
-      });
+          : humanizeSlug(agent.name);
+      entries.push({ agent, label, description: resolved.description });
     }
-    return out;
-  }, [rawAgents, locale]);
+    const byName = new Map(entries.map((entry) => [entry.agent.name, entry]));
+
+    return buildAgentSectionOptions(
+      entries.map((entry) => entry.agent),
+      (agent) => ({
+        value: agent.name,
+        label: byName.get(agent.name)?.label ?? humanizeSlug(agent.name),
+        description: byName.get(agent.name)?.description,
+      }),
+      {
+        platform: t('agents.sectionAgents'),
+        coding: t('agents.sectionCodingAgents'),
+        image: t('agents.sectionImageAgents'),
+      },
+      (section) =>
+        [...section].sort((a, b) =>
+          (byName.get(a.name)?.label ?? a.name).localeCompare(
+            byName.get(b.name)?.label ?? b.name,
+          ),
+        ),
+    );
+  }, [rawAgents, locale, t]);
 
   const modelOptions = useMemo<SlugOption[]>(() => {
     const out: SlugOption[] = [];

@@ -2,8 +2,10 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { UserX } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Text } from '@tale/ui/text';
+import { Info, UserX } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
   SearchableSelect,
@@ -11,6 +13,7 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
+import { looksLikeCodeTask } from '@/lib/shared/agents/display-category';
 
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { TaskActorType } from '../lib/display';
@@ -20,7 +23,8 @@ import { AssigneeAvatar } from './assignee-avatar';
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
  * searchable list offers the current user first (self-assign), then the other
- * members, then the project's agents, with an Unassign action in the footer.
+ * members, then platform Agents and Coding agents (image agents excluded), with
+ * an Unassign action in the footer.
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
  */
@@ -34,6 +38,9 @@ export function AssigneePicker({
   size = 'sm',
   align = 'start',
   disabled = false,
+  taskTitle,
+  taskDescription,
+  taskLabels,
 }: {
   organizationId: string;
   projectId?: string;
@@ -44,6 +51,9 @@ export function AssigneePicker({
   size?: 'sm' | 'md';
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
+  taskTitle?: string;
+  taskDescription?: string;
+  taskLabels?: string[];
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -56,6 +66,35 @@ export function AssigneePicker({
   const resolved =
     assigneeType && assigneeId ? resolveActor(assigneeType, assigneeId) : null;
 
+  const assignedAgent =
+    assigneeType === 'agent' && assigneeId
+      ? agents.find((a) => a.id === assigneeId)
+      : undefined;
+
+  const showNonCodeWarning =
+    assignedAgent?.displayCategory === 'coding-agent' &&
+    !looksLikeCodeTask({
+      title: taskTitle,
+      description: taskDescription,
+      labels: taskLabels,
+    });
+
+  const sectionInfoButton = useCallback(
+    (content: string): ReactNode => (
+      <Tooltip content={content} side="right">
+        <button
+          type="button"
+          aria-label={tCommon('aria.moreInfo')}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Info className="size-3.5" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    ),
+    [tCommon],
+  );
+
   const label = resolved?.name ?? t('assignee.unassigned');
 
   const avatar = (
@@ -67,30 +106,62 @@ export function AssigneePicker({
     />
   );
 
+  const platformAgents = useMemo(
+    () => agents.filter((a) => a.displayCategory === 'agent'),
+    [agents],
+  );
+  const codingAgents = useMemo(
+    () => agents.filter((a) => a.displayCategory === 'coding-agent'),
+    [agents],
+  );
+
   const options = useMemo<SearchableSelectOption[]>(() => {
     const sortedMembers = [...members].sort((a, b) =>
       a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
     );
-    return [
-      ...sortedMembers.map((m) => ({
-        value: `user:${m.id}`,
-        label: m.name,
-        description:
-          m.id === currentUserId ? t('assignee.assignToMe') : m.email,
-        labelBadge:
-          m.id === currentUserId ? (
-            <Badge variant="outline" className="text-[10px]">
-              {t('assignee.you')}
-            </Badge>
-          ) : undefined,
-      })),
-      ...agents.map((a) => ({
-        value: `agent:${a.id}`,
-        label: a.name,
-        description: t('assignee.agents'),
-      })),
-    ];
-  }, [members, agents, currentUserId, t]);
+    const memberOptions: SearchableSelectOption[] = sortedMembers.map((m) => ({
+      value: `user:${m.id}`,
+      label: m.name,
+      description: m.id === currentUserId ? t('assignee.assignToMe') : m.email,
+      labelBadge:
+        m.id === currentUserId ? (
+          <Badge variant="outline" className="text-[10px]">
+            {t('assignee.you')}
+          </Badge>
+        ) : undefined,
+    }));
+
+    const agentOption = (
+      agent: (typeof agents)[number],
+    ): SearchableSelectOption => ({
+      value: `agent:${agent.id}`,
+      label: agent.name,
+    });
+
+    const agentSections: SearchableSelectOption[] = [];
+    if (platformAgents.length > 0) {
+      agentSections.push({
+        value: '__section:agents',
+        label: t('assignee.agents'),
+        isSectionHeader: true,
+        labelBadge: sectionInfoButton(
+          t('assignee.dispatchHints.agentPlatform'),
+        ),
+      });
+      agentSections.push(...platformAgents.map(agentOption));
+    }
+    if (codingAgents.length > 0) {
+      agentSections.push({
+        value: '__section:coding-agents',
+        label: t('assignee.codingAgents'),
+        isSectionHeader: true,
+        labelBadge: sectionInfoButton(t('assignee.codingAgentsInfo')),
+      });
+      agentSections.push(...codingAgents.map(agentOption));
+    }
+
+    return [...memberOptions, ...agentSections];
+  }, [members, platformAgents, codingAgents, currentUserId, t, sectionInfoButton]);
 
   if (disabled) {
     return (
@@ -104,6 +175,7 @@ export function AssigneePicker({
     assigneeType && assigneeId ? `${assigneeType}:${assigneeId}` : null;
 
   const handleSelect = (val: string) => {
+    if (val.startsWith('__section:')) return;
     const isAgent = val.startsWith('agent:');
     const id = val.slice(val.indexOf(':') + 1);
     onAssign(isAgent ? 'agent' : 'user', id);
@@ -116,9 +188,6 @@ export function AssigneePicker({
       size="icon"
       aria-label={t('actions.assign')}
       className="h-auto w-auto rounded-full p-1"
-      // Stop the pointer/click from reaching the draggable card/row: dnd-kit's
-      // listeners live on the parent, so without this a press starts a drag
-      // (eating scroll/clicks in the popover) and the click opens the task.
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -128,16 +197,9 @@ export function AssigneePicker({
 
   return (
     <Tooltip content={label}>
-      {/* React replays portal events through the React tree, so a click on a
-          portaled option bubbles up to the card/row's onClick (opening the
-          task). Stop pointer/click propagation here — the picker's whole
-          subtree (trigger + portaled list) sits under this span in the React
-          tree — so neither selecting an option nor dragging-to-scroll reaches
-          the draggable parent. This span is a propagation boundary, not a
-          control; the accessible controls (button + listbox) live inside it. */}
-      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary, not an interactive control */}
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
       <span
-        className="inline-flex"
+        className="inline-flex flex-col items-end gap-1"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -148,15 +210,13 @@ export function AssigneePicker({
           open={open}
           onOpenChange={setOpen}
           align={align}
-          // The picker opens inside the (modal) task dialog: without a modal
-          // popover the dialog's scroll lock eats wheel events over the list
-          // and a long member+agent roster can't be scrolled.
           modal
           trigger={trigger}
           searchPlaceholder={t('assignee.search')}
           emptyText={tCommon('search.noResults')}
           aria-label={t('fields.assignee')}
           optionAction={(opt) => {
+            if (opt.isSectionHeader) return null;
             const isAgent = opt.value.startsWith('agent:');
             const id = opt.value.slice(opt.value.indexOf(':') + 1);
             return (
@@ -184,6 +244,11 @@ export function AssigneePicker({
             ) : undefined
           }
         />
+        {showNonCodeWarning && (
+          <Text variant="muted" className="max-w-56 text-right text-xs">
+            {t('assignee.nonCodeWarning')}
+          </Text>
+        )}
       </span>
     </Tooltip>
   );

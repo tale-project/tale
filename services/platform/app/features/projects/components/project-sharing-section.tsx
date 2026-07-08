@@ -216,7 +216,8 @@ export function ProjectSharingSection({
               teams={shareableTeams}
               selectedTeamIds={sharedWithTeamIds}
               onSelectionChange={handleSharedTeamsChange}
-              orgWideLabel={t('list.sharingOrgWide')}
+              orgWideLabel={t('settings.noAdditionalTeams')}
+              emptyPlaceholderStyle="muted"
               disabled={isPending}
             />
           </div>

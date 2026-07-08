@@ -176,8 +176,8 @@ export interface TaskCandidate {
 /**
  * Agents assignable to a task, honoring the project's agent gates:
  * `restricted` → allow-list only; `recommended` → full roster with the
- * recommended slugs flagged `preferred`; `all`/unset → full roster. The
- * triage workflow feeds these to an LLM scoring step.
+ * recommended slugs flagged `preferred`; `all`/unset → full roster. Only
+ * installed+enabled agents are candidates (matches chat roster gate).
  */
 export const listTaskCandidates = internalAction({
   args: {
@@ -209,6 +209,12 @@ export const listTaskCandidates = internalAction({
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const roster = await readWorkforceRoster(orgSlug);
     const chart = buildChartFromRoster(roster);
+    const liveSlugs = new Set(
+      await ctx.runQuery(
+        internal.agents.installations.getEnabledAgentSlugsInternal,
+        { organizationId: args.organizationId },
+      ),
+    );
 
     const allowed = new Set(project.allowedAgentSlugs ?? []);
     const recommended = new Set(project.recommendedAgentSlugs ?? []);
@@ -216,6 +222,7 @@ export const listTaskCandidates = internalAction({
 
     const candidates: TaskCandidate[] = [];
     for (const entry of roster) {
+      if (!liveSlugs.has(entry.slug)) continue;
       if (mode === 'restricted' && !allowed.has(entry.slug)) continue;
       candidates.push({
         slug: entry.slug,
@@ -340,6 +347,12 @@ export const reassignOrUnassign = internalAction({
       orgSlug,
     );
     if (!manager) return await unassign('MANAGER_NOT_FOUND');
+
+    const managerLive = await ctx.runQuery(
+      internal.agents.installations.isAgentLiveInternal,
+      { organizationId: args.organizationId, agentSlug: role.managerSlug },
+    );
+    if (!managerLive) return await unassign('MANAGER_NOT_LIVE');
 
     const verdict = await ctx.runQuery(
       internal.agents.guardrails.budget_guard.checkAgentRunAllowed,

@@ -13,6 +13,7 @@ import {
 } from '@/app/components/ui/data-table/column-builders';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
+import { displayCategoryI18nSuffix } from '@/lib/shared/agents/display-category';
 import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { AgentRowActions } from '../components/agent-row-actions';
@@ -96,6 +97,23 @@ export function useAgentsTableConfig({
                 )}
               </Text>
             </Row>
+          );
+        },
+      },
+      {
+        id: 'category',
+        header: t('agents.columns.category'),
+        meta: { skeleton: { type: 'badge' } },
+        size: 140,
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') return null;
+          const category = row.original.displayCategory;
+          if (!category) return null;
+          const suffix = displayCategoryI18nSuffix(category);
+          return (
+            <Badge variant="outline">
+              {t(`agents.form.displayCategory.${suffix}`)}
+            </Badge>
           );
         },
       },

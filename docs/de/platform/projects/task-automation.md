@@ -30,6 +30,18 @@ Jeder Agenten-Lauf — Zuweisung, Mention, Revision, Eskalation, extern — pass
 
 Org-weite Standards liegen unter **Einstellungen → Governance** (`agent_workforce`-Richtlinie); Budget und Parallelität pro Agent in dessen Konfiguration.
 
+## Assignee wählen
+
+Nicht jede Aufgabe gehört an einen Coding-Agenten. Faustregel:
+
+| Aufgabenart                                                                           | Zuweisen                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, Texte, Zusammenfassungen, persönliche Deliverables                         | Eine **Person** — deaktiviere unassigned Triage in persönlichen Projekten, damit Agenten sie nicht automatisch übernehmen                                                                                                                                     |
+| Allgemeine Automatisierung mit Plattform-Tools (Kommentare, Workflows, Integrationen) | Einen **Agent** (Plattform-Tool-Schleife)                                                                                                                                                                                                                     |
+| Repo-Arbeit — Bugs, Features, Refactors, PRs                                          | Einen **Coding-Agent** mit passendem Dispatch: tale-daemon (`runtime`) für Git-Workspaces, durable Sandbox wenn konfiguriert, oder akzeptiere, dass Sandbox-only-Coding-Agenten auf dem Board weiter die Plattform-Schleife nutzen, bis du diese Felder setzt |
+
+Der Assignee-Picker trennt **Agenten** und **Coding-Agenten** und zeigt pro Coding-Agent eine Zeile Dispatch-Hinweis. Image-Agenten erscheinen nicht in der Assignee-Liste.
+
 ## Der Kill-Switch
 
 **Agenten → Workforce** trägt den Hauptschalter: Aufgaben-Automatisierung auszuschalten pausiert die Trigger des Pakets UND den Ausführungspfad selbst — Laufendes endet, Neues startet nicht. Nur für Admins, auditiert. Details im [Operations-Runbook](/self-hosted/operate/workforce-operations).

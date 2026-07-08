@@ -4,13 +4,13 @@ import { Button, LinkButton } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { BarChart3, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { useMyAttentionSummary } from '@/app/features/notifications/hooks/queries';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -19,6 +19,17 @@ import {
   useTaskOpsIndicators,
   useTasksByProject,
 } from '../hooks/queries';
+import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ALL_ASSIGNEE_FILTER,
+  ALL_PRIORITY_FILTER,
+  ASSIGNEE_FILTER_ME,
+  ASSIGNEE_FILTER_UNASSIGNED,
+  filterTasksByFacets,
+  resolveAssigneeQueryFilter,
+  type TaskPriorityFilter,
+} from '../lib/filter-tasks';
+import { TASK_PRIORITY_ORDER } from '../lib/display';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
 import { TaskBoardProvider } from './task-board-context';
@@ -54,29 +65,37 @@ export function TasksWorkspace({
 }) {
   const { t } = useT('tasks');
   const typedProjectId = asProjectId(projectId);
-  const { tasks, canEdit, isLoading } = useTasksByProject(typedProjectId);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [assigneeFilter, setAssigneeFilter] = useState(ALL_ASSIGNEE_FILTER);
+  const [priorityFilter, setPriorityFilter] =
+    useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
+  const { members, agents, currentUserId } = useActorDirectory(
+    organizationId,
+    projectId,
+  );
+  const assigneeQueryFilter = resolveAssigneeQueryFilter(
+    assigneeFilter,
+    currentUserId,
+  );
+  const { tasks: loadedTasks, canEdit, isLoading } = useTasksByProject(
+    typedProjectId,
+    {
+      includeArchived,
+      assigneeId: assigneeQueryFilter,
+    },
+  );
+  const tasks = useMemo(
+    () =>
+      filterTasksByFacets(loadedTasks, {
+        assignee: assigneeFilter,
+        priority: priorityFilter,
+        currentUserId,
+      }),
+    [loadedTasks, assigneeFilter, priorityFilter, currentUserId],
+  );
   const { edges } = useProjectDependencies(typedProjectId);
   const { runningTaskIds, reviewTaskIds } =
     useTaskOpsIndicators(typedProjectId);
-  const { data: attention } = useMyAttentionSummary(
-    organizationId,
-    typedProjectId,
-  );
-  const [waitingOnMeOnly, setWaitingOnMeOnly] = usePersistedState(
-    `tale.platform.tasks.${projectId}.waitingOnMe`,
-    false,
-  );
-  const waitingOnMeIds = useMemo(
-    () => new Set(attention?.waitingOnMeTaskIds ?? []),
-    [attention?.waitingOnMeTaskIds],
-  );
-  const visibleTasks = useMemo(
-    () =>
-      waitingOnMeOnly
-        ? tasks.filter((task) => waitingOnMeIds.has(task._id))
-        : tasks,
-    [tasks, waitingOnMeOnly, waitingOnMeIds],
-  );
   const { project } = useProject(typedProjectId);
   const projectKey = project?.key ?? null;
 
@@ -98,9 +117,82 @@ export function TasksWorkspace({
 
   const handleOpenTask = (task: TaskRow) => setOpenTaskId(task._id);
 
+  const handleAssigneeFilterChange = useCallback((values: string[]) => {
+    setAssigneeFilter(values[0] ?? ALL_ASSIGNEE_FILTER);
+  }, []);
+
+  const handlePriorityFilterChange = useCallback((values: string[]) => {
+    setPriorityFilter(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of this filter's own priority options
+      (values[0] as TaskPriorityFilter | undefined) ?? ALL_PRIORITY_FILTER,
+    );
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setAssigneeFilter(ALL_ASSIGNEE_FILTER);
+    setPriorityFilter(ALL_PRIORITY_FILTER);
+  }, []);
+
+  const hasActiveFilters =
+    assigneeFilter !== ALL_ASSIGNEE_FILTER ||
+    priorityFilter !== ALL_PRIORITY_FILTER;
+
+  const taskFilterConfigs = useMemo(
+    () => [
+      {
+        key: 'assignee',
+        title: t('fields.assignee'),
+        options: [
+          ...(currentUserId
+            ? [{ value: ASSIGNEE_FILTER_ME, label: t('assignee.you') }]
+            : []),
+          {
+            value: ASSIGNEE_FILTER_UNASSIGNED,
+            label: t('fields.unassigned'),
+          },
+          ...members.map((member) => ({
+            value: member.id,
+            label: member.name,
+          })),
+          ...agents.map((agent) => ({
+            value: agent.id,
+            label: agent.name,
+          })),
+        ],
+        selectedValues:
+          assigneeFilter === ALL_ASSIGNEE_FILTER ? [] : [assigneeFilter],
+        onChange: handleAssigneeFilterChange,
+      },
+      {
+        key: 'priority',
+        title: t('fields.priority'),
+        options: [
+          ...TASK_PRIORITY_ORDER.map((priority) => ({
+            value: priority,
+            label: t(`priority.${priority}`),
+          })),
+          { value: 'none', label: t('priority.none') },
+        ],
+        selectedValues:
+          priorityFilter === ALL_PRIORITY_FILTER ? [] : [priorityFilter],
+        onChange: handlePriorityFilterChange,
+      },
+    ],
+    [
+      agents,
+      assigneeFilter,
+      currentUserId,
+      handleAssigneeFilterChange,
+      handlePriorityFilterChange,
+      members,
+      priorityFilter,
+      t,
+    ],
+  );
+
   // Only skeletonize the genuine first load (no cached tasks yet). A background
   // refetch with rows already present keeps showing them instead of flashing.
-  const isFirstLoad = isLoading && tasks.length === 0;
+  const isFirstLoad = isLoading && loadedTasks.length === 0;
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">
@@ -117,18 +209,20 @@ export function TasksWorkspace({
               { value: 'list', label: t('views.list') },
             ]}
           />
-          <Button
-            variant={waitingOnMeOnly ? 'primary' : 'secondary'}
-            size="sm"
-            aria-pressed={waitingOnMeOnly}
-            disabled={waitingOnMeIds.size === 0 && !waitingOnMeOnly}
-            onClick={() => setWaitingOnMeOnly((prev) => !prev)}
-          >
-            {t('filters.waitingOnMe')}
-            {waitingOnMeIds.size > 0
-              ? ` (${waitingOnMeIds.size > 99 ? '99+' : waitingOnMeIds.size})`
-              : ''}
-          </Button>
+          <DataTableFilters
+            filters={taskFilterConfigs}
+            onClearAll={handleClearFilters}
+            disabled={loadedTasks.length === 0 && !hasActiveFilters}
+            className="w-auto"
+          />
+          {canEdit && (
+            <Checkbox
+              id={`tasks-show-archived-${projectId}`}
+              checked={includeArchived}
+              onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
+              label={t('list.showArchived')}
+            />
+          )}
         </Row>
         <Row gap={2}>
           <LinkButton
@@ -156,7 +250,7 @@ export function TasksWorkspace({
         // An empty project still renders every lane / section (with its empty
         // hint) so the page keeps its shape instead of swapping to an island.
         <TaskBoardProvider
-          tasks={visibleTasks}
+          tasks={tasks}
           dependencyEdges={edges}
           runningTaskIds={runningTaskIds}
           reviewTaskIds={reviewTaskIds}
@@ -164,7 +258,7 @@ export function TasksWorkspace({
           {view === 'board' ? (
             <div className="min-h-0 flex-1">
               <KanbanBoard
-                tasks={visibleTasks}
+                tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
                 canEdit={canEdit}
@@ -173,7 +267,7 @@ export function TasksWorkspace({
           ) : (
             <div className="min-h-0 flex-1">
               <TasksList
-                tasks={visibleTasks}
+                tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
                 canEdit={canEdit}
