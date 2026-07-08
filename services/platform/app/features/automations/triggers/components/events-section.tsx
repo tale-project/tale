@@ -247,6 +247,16 @@ export function EventsSection({
       title={t('triggers.events.title')}
       count={subscriptions?.length ?? 0}
       defaultOpen={(subscriptions?.length ?? 0) > 0}
+      action={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          <Plus className="mr-2 size-4" />
+          {t('triggers.events.createButton')}
+        </Button>
+      }
     >
       <DataTable
         columns={columns}
@@ -258,12 +268,6 @@ export function EventsSection({
           title: t('triggers.events.emptyTitle'),
           description: t('triggers.events.emptyDescription'),
         }}
-        actionMenu={
-          <Button variant="secondary" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            {t('triggers.events.createButton')}
-          </Button>
-        }
       />
 
       <EventCreateDialog

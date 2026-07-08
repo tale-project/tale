@@ -231,7 +231,7 @@ export function AutomationNavigation({
       aria-label={t('navigation.openAssistant')}
       title={t('navigation.openAssistant')}
     >
-      <Sparkles className="size-3.5 text-purple-600" aria-hidden="true" />
+      <Sparkles className="size-3.5" aria-hidden="true" />
     </Button>
   ) : null;
 

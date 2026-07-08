@@ -15,7 +15,6 @@
  *
  *  A non-blocking readiness checklist (missing integration credentials / agent
  *  setup / broken install) rides above the views/hub; the shell stays usable. */
-import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -27,7 +26,7 @@ import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, Plus } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
@@ -122,93 +121,133 @@ function ReadinessChecklist({
     return null;
   }
 
+  type ReadinessStep = {
+    key: string;
+    label: string;
+    action: ReactNode;
+  };
+
+  // One control size across steps; `fullWidth` fills a fixed 7rem action
+  // column so Connect / Set up / Reinstall form one aligned strip.
+  const steps: ReadinessStep[] = [];
+  if (status === 'broken') {
+    steps.push({
+      key: 'broken',
+      label: t('readiness.broken'),
+      action: (
+        <Button
+          size="sm"
+          fullWidth
+          disabled={isPending}
+          onClick={() =>
+            notifyOnInstallFailure(
+              reinstall(appSlug),
+              t('install.reinstallFailed'),
+            )
+          }
+        >
+          {t('install.reinstall')}
+        </Button>
+      ),
+    });
+  }
+  for (const slug of blockedIntegrations) {
+    steps.push({
+      key: `integration-${slug}`,
+      label: t('readiness.connect', {
+        integration: titleBySlug.get(slug) ?? slug,
+      }),
+      action: (
+        <Button
+          size="sm"
+          variant="secondary"
+          fullWidth
+          onClick={() => onConnect(slug)}
+        >
+          {t('readiness.connectButton')}
+        </Button>
+      ),
+    });
+  }
+  for (const agent of blockedAgents) {
+    const mismatchHint = agent.credentialMismatch
+      ? resolvePackReadinessHint(
+          messageNamespace,
+          labels,
+          agent.credentialMismatch,
+          agent.displayName,
+        )
+      : undefined;
+    const missingKeysHint =
+      !mismatchHint && agent.missingEnvKeys.length > 0
+        ? t('readiness.agentNeedsKeys', {
+            agent: agent.displayName,
+            keys: formatEnvKeyList(agent.missingEnvKeys),
+          })
+        : undefined;
+    const label =
+      mismatchHint ??
+      missingKeysHint ??
+      t('readiness.agentNeedsSetup', { agent: agent.displayName });
+    steps.push({
+      key: `agent-${agent.agentSlug}`,
+      label,
+      action: agent.credentialMismatch ? (
+        <Button size="sm" variant="secondary" fullWidth asChild>
+          <Link
+            to="/dashboard/$id/agents/$agentId"
+            params={{
+              id: organizationId,
+              agentId: agent.agentSlug,
+            }}
+          >
+            {openAgentLabel}
+          </Link>
+        </Button>
+      ) : (
+        <Button size="sm" variant="secondary" fullWidth onClick={onSetupAgents}>
+          {t('readiness.setupButton')}
+        </Button>
+      ),
+    });
+  }
+
+  // Card + numbered steps: title owns the section, muted line is support,
+  // step labels are medium (actionable), numbers give scan rhythm without
+  // implying a hard order — any remaining step can be done independently.
   return (
-    <Alert variant="warning" title={t('readiness.title')}>
-      <VStack gap={2} className="mt-1">
-        {status === 'broken' && (
-          <HStack gap={3} className="items-center justify-between">
-            <Text variant="muted" className="text-sm">
-              {t('readiness.broken')}
-            </Text>
-            <Button
-              size="sm"
-              disabled={isPending}
-              onClick={() =>
-                notifyOnInstallFailure(
-                  reinstall(appSlug),
-                  t('install.reinstallFailed'),
-                )
-              }
-            >
-              {t('install.reinstall')}
-            </Button>
-          </HStack>
-        )}
-        {blockedIntegrations.map((slug) => (
-          <HStack key={slug} gap={3} className="items-center justify-between">
-            <Text variant="muted" className="text-sm">
-              {t('readiness.connect', {
-                integration: titleBySlug.get(slug) ?? slug,
-              })}
-            </Text>
-            <Button variant="secondary" onClick={() => onConnect(slug)}>
-              {t('readiness.connectButton')}
-            </Button>
-          </HStack>
-        ))}
-        {blockedAgents.map((agent) => {
-          const mismatchHint = agent.credentialMismatch
-            ? resolvePackReadinessHint(
-                messageNamespace,
-                labels,
-                agent.credentialMismatch,
-                agent.displayName,
-              )
-            : undefined;
-          const missingKeysHint =
-            !mismatchHint && agent.missingEnvKeys.length > 0
-              ? t('readiness.agentNeedsKeys', {
-                  agent: agent.displayName,
-                  keys: formatEnvKeyList(agent.missingEnvKeys),
-                })
-              : undefined;
-          const hint =
-            mismatchHint ??
-            missingKeysHint ??
-            t('readiness.agentNeedsSetup', { agent: agent.displayName });
-          return (
-            <HStack
-              key={agent.agentSlug}
-              gap={3}
-              className="items-center justify-between"
-            >
-              <VStack gap={1} className="min-w-0">
-                <Text variant="muted" className="text-sm">
-                  {hint}
-                </Text>
-              </VStack>
-              {agent.credentialMismatch ? (
-                <Button size="sm" variant="secondary" asChild>
-                  <Link
-                    to="/dashboard/$id/agents/$agentId"
-                    params={{
-                      id: organizationId,
-                      agentId: agent.agentSlug,
-                    }}
+    <Card>
+      <VStack gap={5}>
+        <VStack gap={1} className="min-w-0">
+          <Text className="font-medium">{t('readiness.title')}</Text>
+          <Text variant="muted" className="text-sm">
+            {t('readiness.description')}
+          </Text>
+        </VStack>
+        <ol className="border-border divide-border flex list-none flex-col divide-y border-t p-0">
+          {steps.map((step, index) => (
+            <li key={step.key} className="py-3">
+              <HStack gap={4} className="items-center justify-between">
+                <HStack gap={3} className="min-w-0 flex-1 items-start">
+                  <span
+                    aria-hidden="true"
+                    className="bg-muted text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums"
                   >
-                    {openAgentLabel}
-                  </Link>
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" onClick={onSetupAgents}>
-                  {t('readiness.setupButton')}
-                </Button>
-              )}
-            </HStack>
-          );
-        })}
+                    {index + 1}
+                  </span>
+                  <Text className="text-sm leading-relaxed font-medium">
+                    {step.label}
+                  </Text>
+                </HStack>
+                <div className="flex w-[7rem] shrink-0 [&_a]:w-full [&_button]:w-full">
+                  {step.action}
+                </div>
+              </HStack>
+            </li>
+          ))}
+        </ol>
       </VStack>
-    </Alert>
+    </Card>
   );
 }
 
@@ -529,15 +568,26 @@ function MembershipHub({
   const { t } = useT('apps');
   const { bindings } = useAppBindings(organizationId, appSlug);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Prefer a pack short summary when present (e.g. issueDesk.deskDescription) so
+  // the hub reads as a product page, not a dump of the install-catalog essay.
+  const ns = app.messageNamespace;
+  const hubSummary =
+    (ns ? labels[`${ns}.deskDescription`] : undefined) ??
+    (ns ? labels[`${ns}.hubSummary`] : undefined) ??
+    app.description;
 
   return (
     <VStack gap={6}>
       <HStack className="items-start justify-between gap-3">
-        <VStack gap={1} className="min-w-0">
+        <VStack gap={1} className="max-w-2xl min-w-0">
           <Text as="span" className="text-xl font-semibold">
             {app.name}
           </Text>
-          {app.description && <Text variant="muted">{app.description}</Text>}
+          {hubSummary && (
+            <Text variant="muted" className="text-sm leading-relaxed">
+              {hubSummary}
+            </Text>
+          )}
         </VStack>
         <AppLifecycleActions
           appSlug={appSlug}
@@ -570,11 +620,14 @@ function MembershipHub({
           </Button>
         </HStack>
         {bindings.length === 0 ? (
-          <EmptyState
-            icon={LayoutGrid}
-            title={t('membership.emptyTitle')}
-            description={t('membership.emptyDescription')}
-          />
+          <Card>
+            <EmptyState
+              icon={LayoutGrid}
+              title={t('membership.emptyTitle')}
+              description={t('membership.emptyDescription')}
+              className="py-8"
+            />
+          </Card>
         ) : (
           <VStack gap={2}>
             {bindings.map((binding) => (

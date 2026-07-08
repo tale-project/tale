@@ -2,8 +2,11 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useId } from 'react';
 
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/app/components/ui/forms/radio-group';
 import { cn } from '@/lib/utils/cn';
 
 // `'all'` is a legacy value still accepted by the backend for older project
@@ -26,6 +29,12 @@ interface ProjectModeRadioProps {
   legend?: string;
 }
 
+/**
+ * Mode picker for project Agents / Models. Card chrome matches the same
+ * `border-primary bg-primary/5` selection language as human-input radio cards;
+ * the indicator is the shared `RadioGroupItem` (accent-base), not a native
+ * `<input type="radio">` that would paint the browser's blue control.
+ */
 export function ProjectModeRadio({
   value,
   onChange,
@@ -33,14 +42,17 @@ export function ProjectModeRadio({
   disabled,
   legend,
 }: ProjectModeRadioProps) {
-  const name = useId();
   return (
-    <Stack gap={2} role="radiogroup" aria-label={legend}>
+    <RadioGroup
+      value={value}
+      onValueChange={(next) => onChange(next as ProjectModeRadioValue)}
+      disabled={disabled}
+      aria-label={legend}
+      className="gap-2"
+    >
       {options.map((opt) => {
         const checked = opt.value === value;
-        const labelId = `${name}-${opt.value}-label`;
         return (
-          // eslint-disable-next-line jsx-a11y/label-has-associated-control -- label wraps both the input and its descriptive text; the input has an accessible name via the wrapped <Text id={labelId}>.
           <label
             key={opt.value}
             className={cn(
@@ -49,25 +61,19 @@ export function ProjectModeRadio({
               disabled && 'cursor-not-allowed opacity-60',
             )}
           >
-            <input
-              type="radio"
-              name={name}
+            <RadioGroupItem
               value={opt.value}
-              checked={checked}
               disabled={disabled}
-              onChange={() => onChange(opt.value)}
-              aria-labelledby={labelId}
               className="mt-1"
+              aria-label={opt.label}
             />
             <Stack gap={1}>
-              <Text id={labelId} className="font-medium">
-                {opt.label}
-              </Text>
+              <Text className="font-medium">{opt.label}</Text>
               <Text variant="caption">{opt.description}</Text>
             </Stack>
           </label>
         );
       })}
-    </Stack>
+    </RadioGroup>
   );
 }
