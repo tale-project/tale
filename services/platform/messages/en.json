@@ -479,24 +479,27 @@
       "editor": "Editor",
       "executions": "Executions",
       "configuration": "Configuration",
-      "triggers": "Triggers"
+      "triggers": "Triggers",
+      "integrations": "Integrations",
+      "ariaLabel": "Automation sections"
     },
     "configuration": {
       "nameLabel": "Name",
       "descriptionLabel": "Description",
       "agentsTitle": "Agents",
-      "workflowsTitle": "Workflows",
-      "workflowUpdateExemptTitle": "This workflow keeps its own steps",
-      "workflowUpdateExemptDescription": "Reinstalling or syncing this automation updates everything except its workflow's steps. To use the latest workflow, uninstall and install it again.",
       "skillsTitle": "Skills",
-      "integrationsTitle": "Integrations",
-      "empty": "Nothing to manage yet",
       "status": {
         "ready": "Ready",
         "needsSetup": "Needs setup",
         "connected": "Connected",
         "notConnected": "Not connected",
         "missing": "Missing"
+      },
+      "namePlaceholder": "Automation name",
+      "descriptionPlaceholder": "What this automation does",
+      "runtimeTitle": "Workflow settings",
+      "validation": {
+        "nameRequired": "Name is required"
       }
     },
     "triggers": {
@@ -514,7 +517,6 @@
       "title": "Automation assistant",
       "description": "Ask how this automation works, what it needs, and how to change it."
     },
-    "subtitle": "Browse the catalog and install automations for your organization.",
     "searchPlaceholder": "Search automations…",
     "noResults": {
       "title": "No matching automations",
@@ -570,49 +572,11 @@
     },
     "empty": {
       "title": "No automations yet",
-      "description": "Installed automations appear here.",
-      "browseCatalog": "Browse the catalog"
+      "description": "Installed automations appear here."
     },
     "notFound": {
       "title": "Automation not found",
       "description": "This pack is not installed."
-    },
-    "inbox": {
-      "title": "Inbox",
-      "description": "Read and reply to your conversations.",
-      "tab": {
-        "open": "Open",
-        "closed": "Closed",
-        "spam": "Spam",
-        "archived": "Archived"
-      },
-      "empty": {
-        "open": "No open conversations",
-        "closed": "No closed conversations",
-        "spam": "No spam",
-        "archived": "No archived conversations"
-      },
-      "thread": {
-        "placeholder": "Select a conversation to view details"
-      },
-      "composer": {
-        "placeholder": "Type a message"
-      },
-      "action": {
-        "close": "Close conversation",
-        "markSpam": "Mark as spam",
-        "reopen": "Reopen conversation",
-        "notSpam": "Not spam",
-        "delete": "Delete",
-        "download": "Download"
-      },
-      "bulk": {
-        "close": "Close",
-        "archive": "Archive",
-        "markSpam": "Mark as spam",
-        "reopen": "Reopen",
-        "unarchive": "Unarchive"
-      }
     },
     "viewInvalid": {
       "title": "This page can't be shown",
@@ -637,6 +601,7 @@
     "panel": {
       "title": "Automation details",
       "whatWillBeInstalled": "What will be installed",
+      "whatsInstalled": "What's installed",
       "install": "Install",
       "sections": {
         "pages": "Pages",
@@ -645,7 +610,7 @@
         "skills": "Skills",
         "integrations": "Integrations",
         "folder": "Folder",
-        "members": "Included automations"
+        "members": "Automations"
       }
     },
     "bundle": {
@@ -685,7 +650,12 @@
       "uninstallBlocked": "Still in use by: {projects}. Remove the automation from those projects before uninstalling.",
       "uninstallBlockedCount": "Remove the automation from its {count} project(s) before uninstalling.",
       "export": "Export",
-      "exportFailed": "Couldn't export the automation"
+      "exportFailed": "Couldn't export the automation",
+      "uninstallBundle": "Uninstall bundle",
+      "uninstallBundleTitle": "Uninstall bundle?",
+      "uninstallBundleDescription": "Removes all {{count}} automations this bundle installed, including their agents and settings.",
+      "bundleUninstalled": "Bundle uninstalled",
+      "bundleUninstallFailed": "Couldn't uninstall the bundle"
     },
     "readiness": {
       "title": "Finish setup",
@@ -721,9 +691,7 @@
       "overridesChanged": "The files changed while you were reviewing. Start again to see the current list.",
       "reviewKind": {
         "agent": "Agents",
-        "workflow": "Workflows",
         "view": "Pages",
-        "message": "Messages",
         "integration": "Integrations",
         "skill": "Skills",
         "manifest": "Manifest",
@@ -755,10 +723,6 @@
       "blocked": "This view is not allowed to call {path}.",
       "awaitingSelection": "Select an item to see it here."
     },
-    "thread": {
-      "deliveryQueued": "Sending",
-      "deliveryFailed": "Sending failed"
-    },
     "detail": {
       "title": "Details",
       "activity": "Activity",
@@ -779,8 +743,6 @@
       "error": "Couldn't load data: {error}",
       "notConnected": "This integration isn't connected yet. Connect it to load data.",
       "needsConfig": "Configure this automation to load data.",
-      "loadMore": "Load more",
-      "loadingMore": "Loading…",
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
@@ -858,15 +820,12 @@
       "moveTo": "Move to",
       "truncated": "Showing the first cards only — the list was truncated."
     },
-    "composer": {
-      "send": "Send",
-      "improve": "Improve",
-      "undo": "Undo",
-      "improveFailed": "Couldn't improve the message.",
-      "placeholder": "Write a message…"
-    },
     "chat": {
       "roleUnavailable": "This automation doesn't map the “{role}” role to an agent yet."
+    },
+    "integrationsTab": {
+      "emptyTitle": "No integrations required",
+      "emptyDescription": "This automation runs without any connected integration."
     }
   },
   "changelog": {
@@ -1970,6 +1929,153 @@
     "retry": "Try again",
     "getApp": "Get the app",
     "reachingServer": "Trying to reach the server"
+  },
+  "conversations": {
+    "title": "Inbox",
+    "unknownCustomer": "Unknown customer",
+    "messagePlaceholder": "Type a message",
+    "searchPlaceholder": "Search conversations",
+    "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
+    "fallbackImageAttachment": "Image attachment",
+    "fallbackAttachment": "Attachment",
+    "status": {
+      "open": "Open",
+      "closed": "Closed",
+      "spam": "Spam",
+      "archived": "Archived"
+    },
+    "improvement": {
+      "title": "Message improvement preview",
+      "description": "Review the AI-improved version and accept or reject the changes",
+      "original": "Original",
+      "improved": "Improved",
+      "reject": "Reject",
+      "accept": "Accept changes"
+    },
+    "bulkSend": {
+      "title": "Send {count, plural, one {# Message} other {# Messages}}",
+      "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Type your reply...",
+      "send": "Send"
+    },
+    "updating": "Updating conversations...",
+    "bulk": {
+      "sendMessages": "Send messages",
+      "close": "Close",
+      "reopen": "Reopen",
+      "messagesSent": "Messages sent",
+      "messagesSentDescription": "Successfully sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "sendFailed": "Failed to send messages",
+      "resolved": "Conversations resolved",
+      "resolvedDescription": "Successfully resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "resolveFailed": "Failed to resolve conversations",
+      "reopened": "Conversations reopened",
+      "reopenedDescription": "Successfully reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "reopenFailed": "Failed to reopen conversations",
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "archived": "Conversations archived",
+      "archivedDescription": "Successfully archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "archiveFailed": "Failed to archive conversations",
+      "unarchived": "Conversations unarchived",
+      "unarchivedDescription": "Successfully unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "unarchiveFailed": "Failed to unarchive conversations",
+      "markSpam": "Mark as spam",
+      "markedAsSpam": "Conversations marked as spam",
+      "markedAsSpamDescription": "Successfully marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "spamFailed": "Failed to mark conversations as spam"
+    },
+    "header": {
+      "moreActions": "More actions",
+      "customerInfo": "Customer info",
+      "closeConversation": "Close conversation",
+      "closing": "Closing...",
+      "reopenConversation": "Reopen conversation",
+      "reopening": "Reopening...",
+      "markAsSpam": "Mark as spam",
+      "markingAsSpam": "Marking as spam...",
+      "toast": {
+        "closed": "Conversation has been closed successfully.",
+        "closeFailed": "An unexpected error occurred while closing the conversation.",
+        "reopened": "Conversation has been reopened successfully.",
+        "reopenFailed": "An unexpected error occurred while reopening the conversation.",
+        "markedAsSpam": "Conversation has been marked as spam successfully.",
+        "markAsSpamFailed": "An unexpected error occurred while marking the conversation as spam."
+      }
+    },
+    "editor": {
+      "noContent": "No content to improve",
+      "improveFailed": "Failed to improve content. Please try again.",
+      "sendFailed": "Failed to send message. Please try again.",
+      "backToEditor": "Back to editor",
+      "improving": "Improving...",
+      "improveWithAi": "Improve with AI",
+      "generateImprovement": "Generate improvement",
+      "replyImproved": "Reply improved",
+      "attachFile": "Attach file",
+      "send": "Send message"
+    },
+    "attachment": {
+      "download": "Download",
+      "downloading": "Downloading...",
+      "attachments": "{count, plural, one {# attachment} other {# attachments}}"
+    },
+    "panel": {
+      "uploadFailed": "Failed to upload attachments. Please try again.",
+      "downloadFailed": "Failed to download attachments. Please try again.",
+      "noSelected": "No conversation selected",
+      "selectToView": "Select a conversation to view details",
+      "notFound": "Conversation not found",
+      "noMessages": "No messages yet",
+      "invalidFileAttachment": "Invalid file attachment",
+      "defaultSubject": "Re: Conversation",
+      "customerEmailNotFound": "Cannot send email: customer email not found",
+      "replySubjectPrefix": "Re: {subject}",
+      "loadFailed": "Failed to load conversation",
+      "loadFailedDescription": "Something went wrong while loading this conversation.",
+      "tryAgain": "Try again",
+      "closedBanner": "This conversation was closed on {date}",
+      "closedBannerNoDate": "This conversation was closed",
+      "archivedBanner": "This conversation was archived",
+      "spamBanner": "This conversation was marked as spam",
+      "unarchive": "Unarchive",
+      "notSpam": "Not spam",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "deleteSuccess": "Conversation deleted successfully.",
+      "deleteFailed": "Failed to delete conversation.",
+      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
+    },
+    "list": {
+      "empty": "No conversations in this tab"
+    },
+    "activate": {
+      "title": "No conversations yet",
+      "description": "Incoming conversations from your connected channels will appear here.",
+      "noAutomationTitle": "Set up your Inbox",
+      "noAutomationDescription": "Install an email automation (Gmail, Outlook, or IMAP) to start reading and replying to conversations here.",
+      "browseAutomations": "Browse automations"
+    },
+    "filter": {
+      "label": "Filter by read status",
+      "all": "All",
+      "read": "Read",
+      "unread": "Unread",
+      "channel": "Channel",
+      "allChannels": "All channels"
+    },
+    "category": {
+      "churnSurvey": "Churn survey",
+      "productRecommendation": "Product recommendation",
+      "serviceRequest": "Service request"
+    },
+    "priority": {
+      "high": "High",
+      "low": "Low",
+      "medium": "Medium"
+    }
   },
   "customers": {
     "title": "Customers",
@@ -7028,7 +7134,7 @@
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
     "conversationInboundMessage": "New conversation message",
-    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open your Inbox to reply.",
     "agentEscalation": "Agent escalation",
     "agentEscalationBody": "{agent} escalated: {reason}",
     "email": {
@@ -7848,12 +7954,6 @@
     }
   },
   "agentCatalog": {
-    "folders": {
-      "workforce": "Workforce",
-      "chat": "Chat",
-      "github": "GitHub",
-      "general": "General"
-    },
     "installed": "Agent installed",
     "enabled": "Agent enabled",
     "disabled": "Agent disabled",
@@ -7962,6 +8062,7 @@
   },
   "workflows": {
     "title": "Workflows",
+    "notFound": "Workflow not found: {{slug}}",
     "aria": {
       "openNamed": "Open {name}",
       "openLoop": "Open loop"
@@ -7987,10 +8088,6 @@
     },
     "configuration": {
       "title": "Configuration",
-      "name": "Name",
-      "namePlaceholder": "Enter workflow name",
-      "description": "Description",
-      "descriptionPlaceholder": "Enter workflow description",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Maximum execution time in milliseconds",
       "maxRetries": "Max retries",
@@ -8000,7 +8097,6 @@
       "variables": "Variables (JSON)",
       "variablesHelp": "These variables will be available to all steps in the workflow",
       "validation": {
-        "nameRequired": "Name is required",
         "invalidJson": "Invalid JSON in variables field"
       },
       "env": "Environment & secrets",
@@ -8274,23 +8370,23 @@
       }
     },
     "editorView": {
-      "graph": "Graph",
+      "showGraph": "Show graph",
+      "showSpecification": "Show specification",
       "specification": "Specification",
-      "ariaLabel": "Workflow editor view",
       "regenerateGraph": "Regenerate graph",
-      "regenerateSpecification": "Regenerate specification",
       "generateFromGraph": "Generate specification from graph",
       "emptyState": "No specification yet. Write one below, or generate one from the current workflow graph.",
       "placeholder": "Describe what this workflow does, step by step…",
-      "staleBanner": "The graph changed since this specification was last generated — regenerate to bring them back in sync.",
-      "neverSyncedBanner": "This specification hasn't been synced with the graph yet.",
       "generateError": "Couldn't generate a preview. Try again.",
       "diffTitle": "Review the generated graph",
       "diffDescription": "Compare the current graph with the version generated from your specification.",
       "applyGraph": "Apply graph",
       "validationErrors": "Validation errors",
       "saveSuccess": "Specification saved",
-      "saveFailed": "Failed to save specification"
+      "saveFailed": "Failed to save specification",
+      "specStaleBanner": "The graph has changed since this specification was last updated.",
+      "graphStaleBanner": "The specification has changed — the graph has not been regenerated yet.",
+      "updateFromGraph": "Update from graph"
     }
   }
 }

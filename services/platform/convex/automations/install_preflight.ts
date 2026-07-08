@@ -21,10 +21,7 @@
  */
 import { readFile } from 'node:fs/promises';
 
-import {
-  APP_MANIFEST_FILENAME,
-  AUTOMATION_MANIFEST_FILENAME,
-} from '../../lib/shared/schemas/automations';
+import { AUTOMATION_MANIFEST_FILENAME } from '../../lib/shared/schemas/automations';
 import { sortObjectKeysDeep } from '../../lib/shared/utils/canonicalize-config';
 import { errnoCode } from '../lib/file_io';
 import { type PlannedFile, planAutomationFiles } from './install_fs';
@@ -37,7 +34,6 @@ export type PreflightKind =
   | 'icon'
   | 'agent'
   | 'view'
-  | 'message'
   | 'asset'
   | 'integration'
   | 'skill';
@@ -71,12 +67,8 @@ function classify(
   if (file.domain === 'skills') {
     return { kind: 'skill', slug: file.path.split('/')[0] };
   }
-  // domain 'automation' — the shell. DUAL-READ: a planned manifest file is either the
-  // canonical name or the legacy one (see `file_utils.ts`'s DUAL-READ note).
-  if (
-    file.path === AUTOMATION_MANIFEST_FILENAME ||
-    file.path === APP_MANIFEST_FILENAME
-  ) {
+  // domain 'automation' — the shell.
+  if (file.path === AUTOMATION_MANIFEST_FILENAME) {
     return { kind: 'manifest' };
   }
   if (/^icon\.[a-z0-9]+$/.test(file.path)) return { kind: 'icon' };
@@ -85,7 +77,6 @@ function classify(
     return { kind: 'agent', slug: `${automationSlug}/${name}` };
   }
   if (file.path.startsWith('views/')) return { kind: 'view' };
-  if (file.path.startsWith('messages/')) return { kind: 'message' };
   return { kind: 'asset' };
 }
 

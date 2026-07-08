@@ -1,20 +1,4 @@
 {
-  "name": "Run an assigned task",
-  "description": "The execution loop of the task board: when a task is assigned to an AI agent, acknowledge by moving it to In progress, then RUN the agent against the task and park the result at In review for a human. On failure the task auto-rolls back to To do with an explanatory comment. Guardrail refusals (concurrency queue, budget pause, circuit breaker) skip the error comment — the guardrails already posted a more specific one. Tune or disable per org: this file is yours to edit, and the trigger can be deactivated on the workflow's Triggers tab. Agents bound to an external runtime (tale-daemon) dispatch instead of running inline: the task stays In progress until the daemon reports back (its completion moves the task to In review; failures roll back automatically).",
-  "i18n": {
-    "en": {
-      "name": "Run an assigned task",
-      "description": "When a task is assigned to an agent, it runs the work and parks the result at In review."
-    },
-    "de": {
-      "name": "Eine zugewiesene Aufgabe ausführen",
-      "description": "Wird eine Aufgabe einem Agenten zugewiesen, erledigt er die Arbeit und legt das Ergebnis zur Überprüfung ab."
-    },
-    "fr": {
-      "name": "Exécuter une tâche attribuée",
-      "description": "Quand une tâche est attribuée à un agent, il effectue le travail et place le résultat en revue."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

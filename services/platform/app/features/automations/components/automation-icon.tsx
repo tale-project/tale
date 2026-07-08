@@ -7,10 +7,10 @@
  * `automations-grid.tsx` so the panel can reuse them without importing the
  * grid (which imports the panel back, to open it from a card click).
  */
-import { Badge } from '@tale/ui/badge';
-import { HStack } from '@tale/ui/layout';
 import { LayoutGrid } from 'lucide-react';
 import { DynamicIcon, type IconName, iconNames } from 'lucide-react/dynamic';
+
+import { CatalogLabels } from '@/app/components/catalog/catalog-labels';
 
 import type { AutomationSummary } from '../hooks/use-automations';
 
@@ -41,16 +41,8 @@ export function AutomationIcon({
   return <LayoutGrid className={className} />;
 }
 
-/** Manifest `labels` as muted outline badges on catalog cards and the panel/page header. */
+/** Manifest `labels` on catalog cards and the panel/page header — the shared
+ *  {@link CatalogLabels} renderer under the automation-feature name. */
 export function AutomationLabels({ labels }: { labels?: string[] }) {
-  if (!labels || labels.length === 0) return null;
-  return (
-    <HStack gap={1} className="flex-wrap">
-      {labels.map((label) => (
-        <Badge key={label} variant="outline">
-          {label}
-        </Badge>
-      ))}
-    </HStack>
-  );
+  return <CatalogLabels labels={labels} />;
 }

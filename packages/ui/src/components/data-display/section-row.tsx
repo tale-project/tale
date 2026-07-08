@@ -63,7 +63,11 @@ export function SectionRow({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="flex w-full cursor-pointer items-center gap-2 px-4 py-3"
+        // `min-h-12` pins every row to the height of its tallest possible
+        // content (a `Badge`, taller than the label's line) — a badge-less row
+        // (e.g. the automation panel's "Folder") must not render shorter than
+        // its badge-carrying siblings.
+        className="flex min-h-12 w-full cursor-pointer items-center gap-2 px-4 py-3"
       >
         <span className="text-foreground text-[13px] leading-tight font-medium tracking-[-0.078px]">
           {label}

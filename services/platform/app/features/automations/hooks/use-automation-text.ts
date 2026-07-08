@@ -38,20 +38,16 @@ export interface ConfigFieldText {
   placeholder: (field: AutomationConfigField) => string | undefined;
   /** `undefined` when the field declares no help text anywhere. */
   help: (field: AutomationConfigField) => string | undefined;
-  /** A `select` option's label (literal, or humanized legacy `labelKey`). */
-  option: (option: {
-    value: string;
-    label?: string;
-    labelKey?: string;
-  }) => string;
+  /** A `select` option's label (literal, or the humanized `value`). */
+  option: (option: { value: string; label?: string }) => string;
 }
 
 /**
  * Config-field display text: the manifest's `i18n.<locale>.config.<key>`
  * override → the field's literal `label`/`placeholder`/`help` → the humanized
- * deprecated `labelKey`/field key. Call with the automation's `i18n` block
- * (config form / Overview), or with no argument for view-authored `Form`
- * fields, which carry literals only.
+ * field `key`. Call with the automation's `i18n` block (config form /
+ * Overview), or with no argument for view-authored `Form` fields, which carry
+ * literals only.
  */
 export function useConfigFieldText(
   i18n?: AutomationManifestI18n,
@@ -62,7 +58,6 @@ export function useConfigFieldText(
     placeholder: (field) =>
       resolveConfigFieldLocale(field, i18n, locale).placeholder,
     help: (field) => resolveConfigFieldLocale(field, i18n, locale).help,
-    option: (option) =>
-      option.label ?? humanizeFieldKey(option.labelKey ?? option.value),
+    option: (option) => option.label ?? humanizeFieldKey(option.value),
   };
 }

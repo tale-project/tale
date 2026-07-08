@@ -43,8 +43,8 @@ vi.mock('../../runtime/automation-runtime', () => ({
 }));
 
 // View-authored fields carry literals only — no i18n override, so
-// `useConfigFieldText` humanizes each fixture's (deprecated) `labelKey` down
-// to its last dotted segment, start-cased (e.g. `fields.title` → `Title`).
+// `useConfigFieldText` humanizes each fixture's `key`, start-cased
+// (e.g. `title` → `Title`).
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => ({ locale: 'en' }),
 }));
@@ -107,7 +107,6 @@ const SUBMIT: BoundActionSpec = {
 const TITLE_FIELD: AutomationConfigField = {
   key: 'title',
   type: 'string',
-  labelKey: 'fields.title',
 };
 
 afterEach(() => {
@@ -138,10 +137,9 @@ describe('Form — rendering and initial values', () => {
           {
             key: 'body',
             type: 'string',
-            labelKey: 'fields.body',
             multiline: true,
           },
-          { key: 'urgent', type: 'boolean', labelKey: 'fields.urgent' },
+          { key: 'urgent', type: 'boolean' },
         ]}
         submit={SUBMIT}
       />,
@@ -197,15 +195,11 @@ describe('Form — submit', () => {
       <Form
         fields={[
           TITLE_FIELD,
-          { key: 'count', type: 'number', labelKey: 'fields.count' },
+          { key: 'count', type: 'number' },
           {
             key: 'priority',
             type: 'select',
-            labelKey: 'fields.priority',
-            options: [
-              { value: 'low', labelKey: 'fields.low' },
-              { value: 'high', labelKey: 'fields.high' },
-            ],
+            options: [{ value: 'low' }, { value: 'high' }],
           },
         ]}
         submit={SUBMIT}
@@ -240,7 +234,6 @@ describe('Form — submit', () => {
           {
             key: 'repo',
             type: 'string',
-            labelKey: 'fields.repo',
             derive: { pattern: '^([^/]+)/([^/]+)$', into: ['owner', 'name'] },
           },
         ]}
@@ -266,7 +259,6 @@ describe('Form — submit', () => {
           {
             key: 'repo',
             type: 'string',
-            labelKey: 'fields.repo',
             derive: { pattern: '^([^/]+)/([^/]+)$', into: ['owner', 'name'] },
           },
         ]}

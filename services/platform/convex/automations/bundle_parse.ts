@@ -7,14 +7,8 @@
  * Bundle shape: a SINGLE top-level folder whose NAME is the automation slug, with
  * `automation.json` (the manifest) at its root — exactly the layout a user
  * gets by zipping their `my-automation/` directory, and what the folder-picker path
- * builds client-side. The legacy `app.json` name is DUAL-ACCEPTED too (an
- * export/zip authored before the Automations rename shipped — see
- * `file_utils.ts`'s DUAL-READ note); either way the re-emitted bundle always
- * carries the canonical name. Everything else (views/, agents/, workflows/,
- * scripts/, integrations/) is carried verbatim under the automation dir. A legacy
- * `messages/` dir (the retired per-bundle label catalog) is ACCEPTED and
- * carried as inert assets — old zips keep uploading; nothing reads those
- * files any more.
+ * builds client-side. Everything else (views/, agents/, scripts/,
+ * integrations/) is carried verbatim under the automation dir.
  */
 
 import { ConvexError } from 'convex/values';
@@ -24,7 +18,6 @@ import { z } from 'zod/v4';
 import { validateViewBindings } from '../../lib/shared/platform/function_bindings';
 import type { AutomationViewDoc } from '../../lib/shared/schemas/automation_views';
 import {
-  APP_MANIFEST_FILENAME,
   type AutomationManifest,
   AUTOMATION_MANIFEST_FILENAME,
   automationManifestSchema,
@@ -46,9 +39,7 @@ export interface ParsedAutomationBundle {
   /** Derived from the bundle's single top-level folder name. */
   slug: string;
   manifest: AutomationManifest;
-  /** Includes the manifest (`automation.json`) as the first entry — always
-   *  re-emitted under the canonical name, even when the upload carried the
-   *  legacy `app.json` (see the DUAL-ACCEPT comment in `parseAutomationBundleZip`). */
+  /** Includes the manifest (`automation.json`) as the first entry. */
   files: ParsedAutomationBundleFile[];
   /** Total decompressed bytes (manifest + every asset). */
   totalBytes: number;
@@ -156,13 +147,7 @@ export async function parseAutomationBundleZip(
         });
       }
     }
-    // DUAL-ACCEPT: an uploaded zip may still carry the legacy `app.json` (it
-    // was exported/authored before the Automations rename shipped) — see the
-    // file header + `file_utils.ts`'s DUAL-READ note. Whichever name is
-    // found, the parsed bundle is always re-emitted under the canonical
-    // {@link AUTOMATION_MANIFEST_FILENAME} below (writers never emit the
-    // legacy name).
-    if (rel === AUTOMATION_MANIFEST_FILENAME || rel === APP_MANIFEST_FILENAME) {
+    if (rel === AUTOMATION_MANIFEST_FILENAME) {
       manifestEntry = entry;
       continue;
     }
@@ -177,12 +162,6 @@ export async function parseAutomationBundleZip(
       message: `Bundle is missing ${AUTOMATION_MANIFEST_FILENAME} at the automation folder root`,
     });
   }
-
-  // The name actually found (`automation.json` or the legacy `app.json`) —
-  // used in error messages so they match what the operator actually zipped;
-  // the RE-EMITTED file below is always the canonical name (see the loop's
-  // DUAL-ACCEPT comment).
-  const foundManifestName = manifestEntry.name.slice(stripPrefix.length);
 
   const manifestText = await manifestEntry.async('string');
   let manifest: AutomationManifest;
@@ -201,7 +180,7 @@ export async function parseAutomationBundleZip(
           : String(err);
     throw new ConvexError({
       code: 'INVALID_MANIFEST',
-      message: `${foundManifestName} rejected: ${detail}`,
+      message: `${AUTOMATION_MANIFEST_FILENAME} rejected: ${detail}`,
     });
   }
 
@@ -210,7 +189,7 @@ export async function parseAutomationBundleZip(
   if (manifestBytes.length > MAX_AUTOMATION_BUNDLE_FILE_BYTES) {
     throw new ConvexError({
       code: 'FILE_TOO_LARGE',
-      message: `${foundManifestName} exceeds per-file cap of ${MAX_AUTOMATION_BUNDLE_FILE_BYTES} bytes`,
+      message: `${AUTOMATION_MANIFEST_FILENAME} exceeds per-file cap of ${MAX_AUTOMATION_BUNDLE_FILE_BYTES} bytes`,
     });
   }
   let totalBytes = manifestBytes.length;

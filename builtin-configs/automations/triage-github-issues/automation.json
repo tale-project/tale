@@ -21,21 +21,6 @@
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {
-    "name": "Triage GitHub issues",
-    "i18n": {
-      "en": {
-        "name": "Triage GitHub issues",
-        "description": "Scores a repository's open GitHub issues and proposes the actionable ones onto the project's backlog."
-      },
-      "de": {
-        "name": "GitHub-Issues sichten",
-        "description": "Bewertet die offenen GitHub-Issues eines Repositorys und schlägt die umsetzbaren im Projekt-Backlog vor."
-      },
-      "fr": {
-        "name": "Trier les issues GitHub",
-        "description": "Évalue les issues GitHub ouvertes d'un dépôt et propose les issues exploitables dans le backlog du projet."
-      }
-    },
     "specification": "# Triage GitHub issues\n\nA scheduled scan that scores a repository's open GitHub issues and proposes the actionable ones onto a project's backlog for a human to start. It never assigns or runs an agent.\n\n## Trigger\n\nRuns on a schedule, every thirty minutes. Its **owner**, **repo**, and target **project** are set on the schedule.\n\n## Steps\n\n1. **Start** — takes `owner`, `repo`, and `projectId`.\n2. **List open GitHub issues** — up to 100 open issues from the repo.\n3. **Skip loop if no open issues** — end early when there are none.\n4. **Loop through open issues** — for each issue in turn:\n   - **Skip pull requests** — GitHub's issues endpoint returns pull requests too; only real issues are scored.\n   - **Score the issue** — a small LLM rubric judges whether it is concrete, actionable work and assigns a priority from `p0` (urgent) to `p3` (low).\n   - **Actionable enough to propose?** — decide from that score.\n   - **Propose the issue onto the backlog** — upsert an actionable issue as a backlog task keyed by a stable `owner/repo#number` reference scoped to this project, carrying the issue's URL, its GitHub labels, and the rubric priority.\n\n## Decision points\n\n- A question, a duplicate, or a discussion with no concrete ask is left alone, so the backlog stays a queue of real, startable work.\n- Every open issue is re-scored on every run; the upsert is idempotent, so re-scoring simply re-confirms the existing task.\n\n## Outcome\n\nThe project's backlog gains — or keeps — one proposed task per actionable open issue, ready for a human to review and start, which is what hands it to the resolve chain.",
     "version": "1.0.0",
     "config": {

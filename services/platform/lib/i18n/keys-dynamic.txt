@@ -239,10 +239,8 @@ agentCatalog.uninstalled
 # Folder section headers, rendered via `t(`folders.${folder}`)` in the shared
 # `folderLabel` helper (app/components/catalog/catalog-section.tsx) with a
 # runtime folder key — the scanner can't follow the template literal (or the
-# `t` passed as a parameter) back to these keys.
-agentCatalog.folders.chat
-agentCatalog.folders.github
-agentCatalog.folders.general
+# `t` passed as a parameter) back to these keys. (Agents table/breadcrumb
+# folder paths render RAW segments — only catalog section headings localize.)
 automations.folders.general
 automations.folders.email
 automations.folders.github
@@ -323,12 +321,14 @@ auth.sso.errors.multipleConnections
 # scope — an enum-driven dispatch the regex scanner can't follow.
 settings.skills.loadErrorDetail
 settings.skills.notFound
-# `common.aria.selectAll` labels the data-table select-all header checkbox
+# `common.aria.selectAll` / `common.aria.selectRow` label the data-table
+# selection checkboxes
 # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
-# by every selectable table). It is referenced via `i18n.t('common:aria.selectAll')`
-# — the `ns:key` colon form the usage scanner's `i18n.t()` matcher can't tie
-# back to a flat key, and the builder runs outside a hook so it can't alias
-# `useT('common')`. The sibling `common.aria.selectRow` only escapes orphaning
-# because it also appears as `tCommon('aria.selectRow')` elsewhere; this label
-# has no such second site.
+# by every selectable table). Both are referenced via the
+# `i18n.t('common:aria.…')` colon form the usage scanner's `i18n.t()` matcher
+# can't tie back to a flat key, and the builder runs outside a hook so it
+# can't alias `useT('common')`. (`selectRow` used to escape orphaning through
+# a second `tCommon('aria.selectRow')` site in the removed Puck
+# conversation-list block; the column builder is now its only caller.)
 common.aria.selectAll
+common.aria.selectRow

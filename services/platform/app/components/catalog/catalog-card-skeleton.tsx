@@ -36,7 +36,9 @@ export function CatalogCardSkeleton({
           <div className="size-10 rounded-lg" />
         </SkeletonBox>
         <Stack gap={1} className="min-w-0 flex-1">
-          <Row gap={2} align="start" justify="between">
+          {/* Mirrors the loaded card's reserved slots (`min-h-6` title row,
+              two-line description box, `min-h-6` meta row) 1:1. */}
+          <Row gap={2} align="center" justify="between" className="h-6.5">
             <div className="w-28 text-sm leading-none">
               <SkeletonText />
             </div>
@@ -44,10 +46,15 @@ export function CatalogCardSkeleton({
               <div className="h-5 w-16 rounded-full" />
             </SkeletonBox>
           </Row>
-          <div className="text-sm leading-snug">
+          <div className="min-h-[2lh] text-sm leading-snug">
             <SkeletonText lines={2} />
           </div>
         </Stack>
+      </Row>
+      <Row gap={2} align="center" className="mt-2 min-h-6">
+        <SkeletonBox>
+          <div className="h-5 w-14 rounded-full" />
+        </SkeletonBox>
       </Row>
       {footer ? (
         <Row

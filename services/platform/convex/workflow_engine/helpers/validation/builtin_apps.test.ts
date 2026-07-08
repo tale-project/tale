@@ -198,7 +198,6 @@ describe.each(automationSlugs)(
     it('the inline workflow (when present) passes validateWorkflowDefinition', () => {
       if (!workflow) return;
       const result = validateWorkflowDefinition(
-        { name: workflow.name },
         workflow.steps as Array<Record<string, unknown>>,
       );
       expect(result.errors).toEqual([]);

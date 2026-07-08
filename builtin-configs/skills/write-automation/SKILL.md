@@ -1,6 +1,7 @@
 ---
 name: write-automation
 icon: lucide:workflow
+labels: ['Authoring']
 description: 'Use this skill whenever you create or update an automation in a Tale organization — the installable bundle that groups workflows, agents, views, integrations, and configuration behind one manifest. Triggers include: "build an automation", "package these workflows and agents", "add a view or config field to an automation", or "make X installable". Never author a bundle without it — and never create one before listing the existing automations and ruling out extending one. For the pieces inside the bundle, use write-workflow, write-agent, write-skill, and write-integration.'
 ---
 

@@ -169,6 +169,9 @@ export function useAutomationInstallActions(organizationId: string): {
   ) => Promise<void>;
   /** Org-wide teardown — refused server-side while any project is still bound. */
   uninstall: (automationSlug: string) => Promise<void>;
+  /** Bundle teardown: drops every member's project bindings, then uninstalls
+   *  each member (reverse install order). */
+  uninstallBundle: (bundleSlug: string) => Promise<void>;
   verify: (automationSlug: string) => Promise<void>;
   isPending: boolean;
 } {
@@ -186,6 +189,9 @@ export function useAutomationInstallActions(organizationId: string): {
   );
   const uninstall = useConvexAction(
     api.automations.install_actions.uninstallAutomation,
+  );
+  const uninstallBundle = useConvexAction(
+    api.automations.install_bundle_actions.uninstallBundle,
   );
   const verify = useConvexAction(
     api.automations.install_actions.verifyAutomationIntegrity,
@@ -247,6 +253,13 @@ export function useAutomationInstallActions(organizationId: string): {
           .then(() => undefined),
       [uninstall, organizationId],
     ),
+    uninstallBundle: useCallback(
+      (bundleSlug: string) =>
+        uninstallBundle
+          .mutateAsync({ organizationId, bundleSlug })
+          .then(() => undefined),
+      [uninstallBundle, organizationId],
+    ),
     verify: useCallback(
       (s: string) =>
         verify
@@ -260,6 +273,7 @@ export function useAutomationInstallActions(organizationId: string): {
       removeFromProject.isPending ||
       reinstall.isPending ||
       uninstall.isPending ||
+      uninstallBundle.isPending ||
       verify.isPending,
   };
 }

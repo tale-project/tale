@@ -1,5 +1,4 @@
 import { Stack } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Plus, Upload } from 'lucide-react';
 import { useState } from 'react';
@@ -19,8 +18,9 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
 });
 
 /**
- * Same page shape as the agent catalog: the automations layout owns the page
- * <h1>, so the content opens with a section title block carrying the Add menu.
+ * The automations layout owns the page <h1>; the content opens straight with
+ * the catalog (tabs, then search + the Add menu in the toolbar row — no
+ * second title block).
  */
 function AutomationsIndexPage() {
   const { id: organizationId } = Route.useParams();
@@ -45,10 +45,13 @@ function AutomationsIndexPage() {
 
   return (
     <Stack gap={6} className="p-4">
-      <SectionHeader
-        title={t('title')}
-        description={t('subtitle')}
-        action={
+      <AutomationsGrid
+        organizationId={organizationId}
+        initialSlug={initialSlug}
+        onInitialSlugConsumed={() =>
+          navigate({ search: { slug: undefined }, replace: true })
+        }
+        toolbarAction={
           canUpload ? (
             <DataTableActionMenu
               label={t('addMenu.label')}
@@ -63,13 +66,6 @@ function AutomationsIndexPage() {
               ]}
             />
           ) : undefined
-        }
-      />
-      <AutomationsGrid
-        organizationId={organizationId}
-        initialSlug={initialSlug}
-        onInitialSlugConsumed={() =>
-          navigate({ search: { slug: undefined }, replace: true })
         }
       />
       {canUpload ? (

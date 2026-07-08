@@ -1,17 +1,17 @@
 'use client';
 
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { type ChangeEvent, type ReactNode } from 'react';
 
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 
 /**
- * The one-row header every catalog surface shares: `[tabs?] … [search] …
- * [action?]`. With tabs the pill strip leads and the search right-aligns next
- * to the optional action; without tabs the search leads and the action stays
- * right-aligned. Keeping the row a single shared component is what keeps the
- * catalogs' toolbars pixel-identical (one search width, one gap scale).
+ * The header every catalog surface shares. With tabs it is two rows — the
+ * pill strip leads, and below it the search (left) faces the optional action
+ * (right); without tabs it collapses to that one search/action row. Keeping
+ * this a single shared component is what keeps the catalogs' toolbars
+ * pixel-identical (one search width, one gap scale).
  */
 
 interface CatalogToolbarTabs {
@@ -42,33 +42,32 @@ export function CatalogToolbar({
   action,
   className,
 }: CatalogToolbarProps) {
-  const searchInput = (
-    <SearchInput
-      value={search.value}
-      onChange={search.onChange}
-      placeholder={search.placeholder}
-      disabled={search.disabled}
-      className="w-64"
-    />
+  const searchRow = (
+    <HStack wrap justify="between" align="center" gap={4}>
+      <SearchInput
+        value={search.value}
+        onChange={search.onChange}
+        placeholder={search.placeholder}
+        disabled={search.disabled}
+        className="w-64"
+      />
+      {action}
+    </HStack>
   );
 
+  if (!tabs) {
+    return <div className={className}>{searchRow}</div>;
+  }
+
   return (
-    <HStack wrap justify="between" align="center" gap={4} className={className}>
-      {tabs ? (
-        <Tabs
-          items={tabs.items}
-          value={tabs.value}
-          onValueChange={tabs.onValueChange}
-        />
-      ) : (
-        searchInput
-      )}
-      {tabs || action ? (
-        <HStack gap={3} align="center">
-          {tabs ? searchInput : null}
-          {action}
-        </HStack>
-      ) : null}
-    </HStack>
+    <Stack gap={3} className={className}>
+      <Tabs
+        variant="underline"
+        items={tabs.items}
+        value={tabs.value}
+        onValueChange={tabs.onValueChange}
+      />
+      {searchRow}
+    </Stack>
   );
 }

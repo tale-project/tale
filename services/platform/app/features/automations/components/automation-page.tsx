@@ -20,14 +20,22 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
+import { IconButton } from '@tale/ui/icon-button';
 import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { LayoutGrid, Plus, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid, Plus, Sparkles, Wrench } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
+import type { TabNavigationItem } from '@/app/components/ui/navigation/tab-navigation';
 import { ExecutionsTable } from '@/app/features/workflows/executions/executions-table';
 import { Triggers } from '@/app/features/workflows/triggers/triggers';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -38,13 +46,6 @@ import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readin
 import { formatEnvKeyList } from '@/lib/shared/agents/readiness';
 import { startCase } from '@/lib/utils/string';
 
-import {
-  BUILTIN_VIEW_COMPONENTS,
-  type BuiltinViewId,
-  knownBuiltinViews,
-  useBuiltinViewMeta,
-  useBuiltinViewTitles,
-} from '../builtin-views/registry';
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import { useAutomationAgentReadiness } from '../hooks/use-automation-agent-readiness';
 import { useAutomationDisplay } from '../hooks/use-automation-text';
@@ -70,6 +71,8 @@ import { ResourceDetailProvider } from '../runtime/resource-detail';
 import { AutomationAssistantPanel } from './automation-assistant-panel';
 import { AutomationConfiguration } from './automation-configuration';
 import { AutomationDeleteAction } from './automation-delete-action';
+import { AutomationDetailShell } from './automation-detail-shell';
+import { AutomationIntegrationsTab } from './automation-integrations-tab';
 import { AutomationLifecycleActions } from './automation-lifecycle-actions';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
@@ -79,12 +82,13 @@ import { AutomationInstallWizard } from './install-wizard/automation-install-wiz
  * id, which is dynamic — `uniqueTabValue` guards against a collision with
  * these). Editor/Executions/Triggers are gated on developer access AND the
  * automation actually having a workflow (`manifest.workflows[0]`);
- * Configuration always shows.
+ * Configuration and Integrations always show.
  */
 const EDITOR_TAB = 'editor';
 const EXECUTIONS_TAB = 'executions';
 const CONFIGURATION_TAB = 'configuration';
 const TRIGGERS_TAB = 'triggers';
+const INTEGRATIONS_TAB = 'integrations';
 
 function ReadinessChecklist({
   organizationId,
@@ -141,7 +145,10 @@ function ReadinessChecklist({
   }
 
   return (
-    <Alert variant="warning" title={t('readiness.title')}>
+    // `icon` keeps this banner visually in step with the app's other warning
+    // boxes (e.g. project secrets' "Available to agents") — icon left, content
+    // indented.
+    <Alert variant="warning" icon={Wrench} title={t('readiness.title')}>
       <VStack gap={2} className="mt-1">
         {status === 'broken' && (
           <HStack gap={3} className="items-center justify-between">
@@ -232,9 +239,31 @@ function ReadinessChecklist({
 }
 
 /**
+ * Re-check that the copied files still exist when an installed automation opens.
+ * Guarded by automationSlug so it runs once per automation (verify's identity is
+ * unstable and it mutates the install status, which would otherwise re-fire in
+ * a loop). Lives on the PAGE hosts — not inside `ReadinessSection` — so the
+ * check still runs when the readiness banner's tab isn't the one open.
+ */
+function useOpenTimeIntegrityCheck(
+  organizationId: string,
+  automationSlug: string,
+) {
+  const { verify } = useAutomationInstallActions(organizationId);
+  const verifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (verifiedRef.current !== automationSlug) {
+      verifiedRef.current = automationSlug;
+      void verify(automationSlug);
+    }
+  }, [automationSlug, verify]);
+}
+
+/**
  * The non-blocking readiness section (checklist + inline connect/agent-setup
- * wizards + the open-time integrity re-check). Shared by the per-project views
- * and the org-level membership hub — readiness is org-level, so it shows in both.
+ * wizards). Shared by the per-project views and the org-level membership hub —
+ * readiness is org-level, so it shows in both; the tabbed page scopes it to
+ * the Integrations tab.
  */
 function ReadinessSection({
   organizationId,
@@ -252,7 +281,6 @@ function ReadinessSection({
   projectId?: string;
 }) {
   const display = useAutomationDisplay()(automation);
-  const { verify } = useAutomationInstallActions(organizationId);
   const [connectSlug, setConnectSlug] = useState<string | null>(null);
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const { agents: agentReadiness, refetch: refetchAgentReadiness } =
@@ -278,17 +306,6 @@ function ReadinessSection({
         }),
     [agentReadiness],
   );
-
-  // Re-check that the copied files still exist when an installed automation opens.
-  // Guard by automationSlug so it runs once per automation (verify's identity is unstable and
-  // it mutates the install status, which would otherwise re-fire in a loop).
-  const verifiedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (verifiedRef.current !== automationSlug) {
-      verifiedRef.current = automationSlug;
-      void verify(automationSlug);
-    }
-  }, [automationSlug, verify]);
 
   return (
     <>
@@ -342,28 +359,6 @@ function ReadinessSection({
   );
 }
 
-/**
- * One platform-rendered builtin view (manifest `builtinViews`) as tab content.
- * The tab label already carries the view's platform-catalog title; the panel
- * keeps only the description above the view body.
- */
-function BuiltinViewTabContent({
-  id,
-  automation,
-}: {
-  id: BuiltinViewId;
-  automation: AutomationSummary;
-}) {
-  const meta = useBuiltinViewMeta(id);
-  const View = BUILTIN_VIEW_COMPONENTS[id];
-  return (
-    <VStack gap={4}>
-      <Text variant="muted">{meta.description}</Text>
-      <View automation={automation} />
-    </VStack>
-  );
-}
-
 /** A tab's content: side-by-side columns, or a single Puck Data region. */
 function TabContent({ tab }: { tab: AutomationTabDoc }) {
   if (tab.columns && tab.columns.length > 0) {
@@ -398,22 +393,44 @@ function ViewBody({ view }: { view: AutomationViewDoc }) {
 }
 
 /**
- * An installed automation's page body: a stable header (name + description +
- * Assistant + the lifecycle ⋯ menu) above ONE tab strip, in order: platform
- * builtin views (Inbox) and bundled JSON views first (invalid ones as
- * repair-stub tabs), then — gated on developer access AND the automation
- * actually having a workflow (`manifest.workflows[0]`) — Editor, Executions,
- * Configuration, Triggers. Configuration always shows (entity lists +
- * read-only name/description); a non-developer, or an automation with no
- * workflow, never renders the gated tabs at all (not just hidden). Tab
+ * Reads the active tab's editor controller (the Configuration form) and
+ * renders the unified Save/Discard cluster in the tab strip, alongside the
+ * automation's own trailing actions (Assistant + the lifecycle ⋯ menu) —
+ * the same slot anatomy as the standalone workflow page's tab strip.
+ */
+function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
+  const controller = useActiveEditor();
+  if (!controller) {
+    return (
+      <Row gap={2} className="ml-auto">
+        {trailing}
+      </Row>
+    );
+  }
+  return (
+    <EditorActions
+      controller={controller}
+      entityKind="automation"
+      history={trailing}
+    />
+  );
+}
+
+/**
+ * An installed automation's page body — the workflow settings, under the
+ * automation: the "Automations / <name>" breadcrumb and ONE shared tab strip
+ * (`TabNavigation`, matching every other settings page), in order: Editor,
+ * Executions, Configuration, Triggers, Integrations, then any bundled views
+ * (invalid ones as repair-stub tabs). Editor/Executions/Triggers are gated on
+ * developer access AND the automation actually having a workflow
+ * (`manifest.workflows[0]`); Configuration and Integrations always show. Tab
  * selection is URL-addressable via the `tab` search param; the default is
- * Editor for a developer with a workflow, otherwise the first tab the viewer
- * CAN see. An automation collapsed to exactly one visible tab (e.g. no
- * views, no workflow, or a non-developer on a workflow-only automation)
- * renders that tab's content directly, with no tab strip. Scoped to
- * `projectId` when rendered under a project route (org-scoped automations pass none);
- * lifecycle context follows: a bound project shows "Remove from this project";
- * the org route shows Reinstall/Uninstall.
+ * Editor for a developer with a workflow, otherwise the first view the
+ * viewer can see (Configuration as the last resort). The strip's trailing
+ * slot carries the active tab's Save/Discard plus Assistant + lifecycle.
+ * Scoped to `projectId` when rendered under a project route; lifecycle
+ * context follows: a bound project shows "Remove from this project"; the org
+ * route shows Reinstall/Uninstall.
  */
 function InstalledAutomationBody({
   organizationId,
@@ -435,15 +452,13 @@ function InstalledAutomationBody({
   const { t } = useT('automations');
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
+  useOpenTimeIntegrityCheck(organizationId, automationSlug);
   // Invalid-view repair reinstalls through the shared preflight flow.
   const {
     requestReinstall,
     dialog: reinstallDialog,
     isPending,
   } = useReinstallWithPreflight(organizationId);
-  // Platform-rendered views the manifest opts into — before any JSON views.
-  const builtinViews = knownBuiltinViews(automation.builtinViews);
-  const builtinViewTitles = useBuiltinViewTitles(automation.builtinViews);
   const [assistantOpen, setAssistantOpen] = useState(false);
 
   // The 1:1 automation↔workflow model: `manifest.workflows[0]`, when it
@@ -453,8 +468,9 @@ function InstalledAutomationBody({
   const showDevTabs = isDeveloper && workflowSlug !== undefined;
 
   // Tab selection rides the URL (`?tab=`) so a view is deep-linkable, same as
-  // the workflow detail's `?panel=` state.
-  const { state: tabState, setState: setTabState } = useUrlState({
+  // the workflow detail's `?panel=` state. Switching happens through the tab
+  // strip's real links; this only READS the param.
+  const { state: tabState } = useUrlState({
     definitions: { tab: { default: null } },
   });
 
@@ -474,6 +490,7 @@ function InstalledAutomationBody({
     EXECUTIONS_TAB,
     CONFIGURATION_TAB,
     TRIGGERS_TAB,
+    INTEGRATIONS_TAB,
   ]);
   const uniqueTabValue = (id: string): string => {
     let value = id;
@@ -482,56 +499,46 @@ function InstalledAutomationBody({
     return value;
   };
 
-  const viewTabs = [
-    ...builtinViews.map((view, index) => ({
-      value: uniqueTabValue(view.id),
-      label: builtinViewTitles[index] ?? startCase(view.id),
-      content: <BuiltinViewTabContent id={view.id} automation={automation} />,
-    })),
-    ...automation.views.map((view, index) => {
-      // A view doc may omit its `id` — fall back to a stable positional value.
-      const viewId = view.id ?? `view-${index + 1}`;
-      if (isAutomationViewErrorStub(view)) {
-        return {
-          value: uniqueTabValue(view.id),
-          label: startCase(view.id),
-          content: (
-            <Alert variant="destructive" title={t('viewInvalid.title')}>
-              <VStack gap={3}>
-                <Text>{t('viewInvalid.description')}</Text>
-                <Text variant="muted" className="text-sm">
-                  {view.error.message}
-                </Text>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="self-start"
-                  disabled={isPending}
-                  onClick={() => void requestReinstall(automationSlug)}
-                >
-                  {t('viewInvalid.reinstall')}
-                </Button>
-              </VStack>
-            </Alert>
-          ),
-        };
-      }
+  const viewTabs = automation.views.map((view, index) => {
+    // A view doc may omit its `id` — fall back to a stable positional value.
+    const viewId = view.id ?? `view-${index + 1}`;
+    if (isAutomationViewErrorStub(view)) {
       return {
-        value: uniqueTabValue(viewId),
-        label: view.title ?? startCase(viewId),
+        value: uniqueTabValue(view.id),
+        label: startCase(view.id),
         content: (
-          <VStack gap={4}>
-            {view.description && (
-              <Text variant="muted">{view.description}</Text>
-            )}
-            <ViewBody view={view} />
-          </VStack>
+          <Alert variant="destructive" title={t('viewInvalid.title')}>
+            <VStack gap={3}>
+              <Text>{t('viewInvalid.description')}</Text>
+              <Text variant="muted" className="text-sm">
+                {view.error.message}
+              </Text>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="self-start"
+                disabled={isPending}
+                onClick={() => void requestReinstall(automationSlug)}
+              >
+                {t('viewInvalid.reinstall')}
+              </Button>
+            </VStack>
+          </Alert>
         ),
       };
-    }),
-  ];
+    }
+    return {
+      value: uniqueTabValue(viewId),
+      label: view.title ?? startCase(viewId),
+      content: (
+        <VStack gap={4}>
+          {view.description && <Text variant="muted">{view.description}</Text>}
+          <ViewBody view={view} />
+        </VStack>
+      ),
+    };
+  });
   const tabItems = [
-    ...viewTabs,
     ...(showDevTabs && workflowSlug !== undefined
       ? [
           {
@@ -576,33 +583,81 @@ function InstalledAutomationBody({
           },
         ]
       : []),
+    {
+      value: INTEGRATIONS_TAB,
+      label: t('tabs.integrations'),
+      content: (
+        <AutomationIntegrationsTab
+          organizationId={organizationId}
+          automationSlug={automationSlug}
+          automation={automation}
+          projectId={projectId}
+        />
+      ),
+    },
+    ...viewTabs,
   ];
-  // More than one visible tab needs the strip; a collapsed automation (no
-  // views, no workflow, or a non-developer on a workflow-only automation)
-  // renders its single tab's content directly, matching the pre-tab-strip
-  // "Overview renders directly" behavior.
-  const showTabStrip = tabItems.length > 1;
   // An unknown/absent `?tab=` falls back to Editor for a developer with a
-  // workflow, otherwise the first tab the viewer can see (a builtin/JSON view,
-  // or Configuration as the last resort). Validated against the tabs actually
-  // RENDERED (not `usedTabValues`, which also reserves gated tab values for
+  // workflow, otherwise the first view the viewer can see (Configuration as
+  // the last resort). Validated against the tabs actually RENDERED (not
+  // `usedTabValues`, which also reserves gated tab values for
   // collision-avoidance even when they aren't shown) — a stale `?tab=editor`
   // from before a role change, or on a non-developer's guessed URL, falls
   // back cleanly instead of selecting a tab that isn't in `tabItems`.
   const renderedTabValues = new Set(tabItems.map((item) => item.value));
-  const defaultTab = showDevTabs ? EDITOR_TAB : tabItems[0].value;
+  const defaultTab = showDevTabs
+    ? EDITOR_TAB
+    : (viewTabs[0]?.value ?? CONFIGURATION_TAB);
   const activeTab =
     tabState.tab !== null && renderedTabValues.has(tabState.tab)
       ? tabState.tab
       : defaultTab;
+  const activeContent =
+    tabItems.find((item) => item.value === activeTab)?.content ?? null;
+
+  // Real links through the shared strip: every tab navigates the SAME route
+  // with its `?tab=` value (the default tab clears it), so deep links and
+  // back/forward keep working while the strip stays the one every settings
+  // page renders.
+  const basePath =
+    projectId !== undefined
+      ? `/dashboard/${organizationId}/projects/${projectId}/automations/${automationSlug}`
+      : `/dashboard/${organizationId}/automations/${automationSlug}`;
+  const navItems: TabNavigationItem[] = tabItems.map((item) => ({
+    label: item.label,
+    href: basePath,
+    search: item.value === defaultTab ? {} : { tab: item.value },
+    isActive: activeTab === item.value,
+  }));
 
   const canUseAssistant = isDeveloper;
-  const lifecycle = (
-    <AutomationLifecycleActions
-      automationSlug={automationSlug}
-      automationName={display.name}
+  const trailingActions = (
+    <>
+      {canUseAssistant && (
+        <IconButton
+          icon={Sparkles}
+          aria-label={t('assistant.open')}
+          variant="ghost"
+          onClick={() => setAssistantOpen(true)}
+        />
+      )}
+      <AutomationLifecycleActions
+        automationSlug={automationSlug}
+        automationName={display.name}
+        organizationId={organizationId}
+        context={lifecycleContext}
+        projectId={projectId}
+      />
+    </>
+  );
+
+  const readiness = (
+    <ReadinessSection
       organizationId={organizationId}
-      context={lifecycleContext}
+      automationSlug={automationSlug}
+      automation={automation}
+      status={status}
+      blockedIntegrations={blockedIntegrations}
       projectId={projectId}
     />
   );
@@ -617,65 +672,42 @@ function InstalledAutomationBody({
       }}
     >
       <ResourceDetailProvider>
-        <VStack gap={6} className="min-h-0 flex-1">
-          {reinstallDialog}
-          <HStack className="items-start justify-between gap-3">
-            <VStack gap={1} className="min-w-0">
-              <Text as="span" className="text-xl font-semibold">
-                {display.name}
-              </Text>
-              {display.description && (
-                <Text variant="muted">{display.description}</Text>
-              )}
-            </VStack>
-            <HStack gap={2} className="shrink-0 items-center">
-              {canUseAssistant && (
-                <Button
-                  variant="secondary"
-                  icon={Sparkles}
-                  onClick={() => setAssistantOpen(true)}
-                >
-                  {t('assistant.open')}
-                </Button>
-              )}
-              {lifecycle}
-            </HStack>
-          </HStack>
-          <ReadinessSection
+        <ActiveEditorProvider>
+          <AutomationDetailShell
             organizationId={organizationId}
-            automationSlug={automationSlug}
-            automation={automation}
-            status={status}
-            blockedIntegrations={blockedIntegrations}
-            projectId={projectId}
-          />
-          {showTabStrip ? (
-            <Tabs
-              variant="underline"
-              value={activeTab}
-              onValueChange={(value) => setTabState('tab', value)}
-              items={tabItems}
-              // `flex flex-col` (not just sizing) — `TabsPrimitive.Content`'s
-              // own `flex-1 min-h-0` only takes effect once its parent
-              // (`TabsPrimitive.Root`, this className) is itself a flex
-              // container; without it the Editor tab's canvas has nothing to
-              // fill and collapses to its natural (empty) height.
-              className="flex min-h-0 flex-1 flex-col"
-            />
-          ) : (
-            tabItems[0].content
-          )}
-          {canUseAssistant && (
-            <AutomationAssistantPanel
-              open={assistantOpen}
-              onOpenChange={setAssistantOpen}
-              organizationId={organizationId}
-              automationSlug={automationSlug}
-              automationName={display.name}
-              projectId={projectId}
-            />
-          )}
-        </VStack>
+            displayName={display.name}
+            tabs={navItems}
+            tabsChildren={
+              <AutomationEditorActionsSlot trailing={trailingActions} />
+            }
+          >
+            {reinstallDialog}
+            {activeTab === EDITOR_TAB ? (
+              /* The Editor is the one full-bleed tab — the canvas fills the
+                 page. */
+              <div className="flex min-h-0 flex-1 flex-col">
+                {activeContent}
+              </div>
+            ) : (
+              <ContentArea gap={6}>
+                {/* The "Finish setup" banner is about connect state, so it
+                    lives on the Integrations tab only. */}
+                {activeTab === INTEGRATIONS_TAB && readiness}
+                {activeContent}
+              </ContentArea>
+            )}
+            {canUseAssistant && (
+              <AutomationAssistantPanel
+                open={assistantOpen}
+                onOpenChange={setAssistantOpen}
+                organizationId={organizationId}
+                automationSlug={automationSlug}
+                automationName={display.name}
+                projectId={projectId}
+              />
+            )}
+          </AutomationDetailShell>
+        </ActiveEditorProvider>
       </ResourceDetailProvider>
     </AutomationRuntimeProvider>
   );
@@ -702,6 +734,7 @@ function MembershipHub({
 }) {
   const { t } = useT('automations');
   const display = useAutomationDisplay()(automation);
+  useOpenTimeIntegrityCheck(organizationId, automationSlug);
   const { bindings } = useAutomationBindings(organizationId, automationSlug);
   const [wizardOpen, setWizardOpen] = useState(false);
 
@@ -869,16 +902,11 @@ function AutomationDetails({
     automation.requiredIntegrations.length > 0;
 
   // Pages by their literal titles; untitled views drop out — a blank chip says
-  // nothing about what the page is. Platform-rendered builtin views (localized
-  // platform titles) lead, matching render order.
-  const builtinViewTitles = useBuiltinViewTitles(automation.builtinViews);
-  const pageTitles = [
-    ...builtinViewTitles,
-    ...automation.views
-      .filter((v): v is AutomationViewDoc => !isAutomationViewErrorStub(v))
-      .map((v) => v.title)
-      .filter((title): title is string => Boolean(title)),
-  ];
+  // nothing about what the page is.
+  const pageTitles = automation.views
+    .filter((v): v is AutomationViewDoc => !isAutomationViewErrorStub(v))
+    .map((v) => v.title)
+    .filter((title): title is string => Boolean(title));
 
   // The automation's composition, as labelled chip groups. Slugs are humanized for
   // display (we have no friendlier name pre-install); empty groups are dropped.
@@ -1043,6 +1071,7 @@ export function AutomationPage({
   projectId?: string;
 }) {
   const { t } = useT('automations');
+  const display = useAutomationDisplay();
   const { automations, isLoading } = useAutomations(organizationId);
   // Fall back to the built-in catalog so a not-yet-installed automation discovered in
   // the hub resolves to its pre-install AutomationDetails page instead of "Automation not
@@ -1080,22 +1109,48 @@ export function AutomationPage({
     stateLoading ||
     (projectId !== undefined && bindingsLoading)
   ) {
-    return <SkeletonText lines={6} />;
+    return (
+      <AutomationDetailShell organizationId={organizationId} isLoading>
+        <ContentArea>
+          <SkeletonText lines={6} />
+        </ContentArea>
+      </AutomationDetailShell>
+    );
   }
   if (!automation) {
     return (
-      <EmptyState
-        title={t('notFound.title')}
-        description={t('notFound.description')}
-      />
+      <AutomationDetailShell
+        organizationId={organizationId}
+        displayName={automationSlug}
+      >
+        <ContentArea>
+          <EmptyState
+            title={t('notFound.title')}
+            description={t('notFound.description')}
+          />
+        </ContentArea>
+      </AutomationDetailShell>
     );
   }
 
+  const displayName = display(automation).name;
   const onProjectRoute = projectId !== undefined;
   const isProjectScoped = automation.scope === 'project';
 
-  // PROJECT route — only project-scoped automations land here. Bound → views; not
-  // bound (or not yet installed) → an "Add to this project" prompt.
+  // Every tab-less state shares the same chrome as the installed body:
+  // the "Automations / <name>" breadcrumb over a plain content area.
+  const shell = (children: React.ReactNode) => (
+    <AutomationDetailShell
+      organizationId={organizationId}
+      displayName={displayName}
+    >
+      <ContentArea gap={6}>{children}</ContentArea>
+    </AutomationDetailShell>
+  );
+
+  // PROJECT route — only project-scoped automations land here. Bound → the
+  // workflow settings under the Automations breadcrumb; not bound (or not
+  // yet installed) → an "Add to this project" prompt.
   if (onProjectRoute) {
     const boundHere = bindings.some((b) => b.projectId === projectId);
     if (boundHere && state) {
@@ -1111,13 +1166,13 @@ export function AutomationPage({
         />
       );
     }
-    return (
+    return shell(
       <AddToThisProject
         organizationId={organizationId}
         automationSlug={automationSlug}
         automation={automation}
         projectId={projectId}
-      />
+      />,
     );
   }
 
@@ -1127,7 +1182,7 @@ export function AutomationPage({
   // this page while its wizard is open even after the install lands `state`, so
   // the flow continues to its integration/Done steps instead of vanishing.
   if (!state || detailsWizardOpen) {
-    return (
+    return shell(
       <AutomationDetails
         organizationId={organizationId}
         automationSlug={automationSlug}
@@ -1135,24 +1190,24 @@ export function AutomationPage({
         wizardOpen={detailsWizardOpen}
         onWizardOpenChange={setDetailsWizardOpen}
         isPrivate={isPrivate}
-      />
+      />,
     );
   }
 
   // ORG route, installed, project-scoped → the membership hub (no views).
   if (isProjectScoped) {
-    return (
+    return shell(
       <MembershipHub
         organizationId={organizationId}
         automationSlug={automationSlug}
         automation={automation}
         status={state.status}
         blockedIntegrations={state.blockedIntegrations}
-      />
+      />,
     );
   }
 
-  // ORG route, installed, org-scoped → the automation's views.
+  // ORG route, installed, org-scoped → the workflow settings.
   return (
     <InstalledAutomationBody
       organizationId={organizationId}

@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import { query } from '../_generated/server';
+import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -152,6 +152,44 @@ export const listAutomationBindings = query({
       // blocks this) so the hub never lists a ghost project.
       if (!project) continue;
       out.push({ projectId: binding.projectId, projectName: project.name });
+    }
+    return out;
+  },
+});
+
+/** Installed automation slugs — trusted-caller twin of the public state list,
+ *  for server-side fan-outs (`uninstallBundle`). */
+export const listInstalledAutomationSlugs = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const out: string[] = [];
+    for await (const row of ctx.db
+      .query('automationInstallations')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      out.push(row.automationSlug);
+    }
+    return out;
+  },
+});
+
+/** An automation's project bindings — trusted-caller twin of
+ *  `listAutomationBindings` (ids only, no project-name join). */
+export const listAutomationBindingsInternal = internalQuery({
+  args: { organizationId: v.string(), automationSlug: v.string() },
+  returns: v.array(v.object({ projectId: v.id('projects') })),
+  handler: async (ctx, args) => {
+    const out: Array<{ projectId: Id<'projects'> }> = [];
+    for await (const binding of ctx.db
+      .query('automationProjectBindings')
+      .withIndex('by_org_slug_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('automationSlug', args.automationSlug),
+      )) {
+      out.push({ projectId: binding.projectId });
     }
     return out;
   },

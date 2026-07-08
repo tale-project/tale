@@ -1,6 +1,7 @@
 ---
 name: implement-ui
 icon: lucide:layout-dashboard
+labels: ['Design', 'Engineering']
 description: Read before writing or editing any UI — a component, screen, page, route, dialog, or styling change — so you build from the project's design system, not by hand. It is the design-conformance layer — it defers the generic process (note → reuse → slice → verify) to implement-feature / make-improvement and adds the UI rules — compose the component library (never hand-roll what it ships), semantic tokens (never hex), one control system, light + dark, keep design languages separate, localize every user-visible string, meet accessibility AA, and observe the real rendered outcome in every theme. Understand the design system first with design-ui. Never hand-roll a component the library already ships, hardcode a colour, or call a UI change done on a green typecheck alone.
 ---
 

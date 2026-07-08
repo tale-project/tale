@@ -295,16 +295,6 @@ export const AUTOMATION_MANIFEST_FILENAME = 'automation.json';
 export const BUNDLE_MANIFEST_FILENAME = 'bundle.json';
 
 /**
- * @deprecated Legacy manifest filename — a bundle installed/uploaded before
- * the Automations rename shipped may still carry it on disk. Every reader
- * DUAL-ACCEPTS {@link AUTOMATION_MANIFEST_FILENAME} OR this one (never both
- * for the SAME bundle); every writer emits only the canonical name. No
- * customer fs-tree migration needed — see `convex/automations/file_utils.ts`
- * (`resolveManifestFilePath`) for the read-time fallback.
- */
-export const APP_MANIFEST_FILENAME = 'app.json';
-
-/**
  * Limits for an UPLOADED automation bundle (the private-automation upload path). An automation is
  * richer than a skill — it can carry agents, workflows, views,
  * scripts and integration definitions — so the entry cap is higher than the

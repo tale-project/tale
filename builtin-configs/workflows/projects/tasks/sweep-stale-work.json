@@ -1,20 +1,4 @@
 {
-  "name": "Sweep stale in-progress work",
-  "description": "Hourly health check for agent work: agent-assigned tasks sitting In progress with no movement for 24h are rolled back to To do with an explanatory comment, so the board itself shows 'this needs another look' instead of work silently rotting. One-shot per stall by construction — the rollback restarts the staleness clock. Also re-emits the slot-freed wake for queued runs older than 15 minutes (the lost-event backstop for the queued-run-retry workflow). Tune the threshold by editing the sweep step's staleAfterHours, or deactivate the schedule on the workflow's Triggers tab.",
-  "i18n": {
-    "en": {
-      "name": "Sweep stale in-progress work",
-      "description": "Hourly check that rolls agent tasks stuck In progress for 24h back to To do and re-wakes long-queued runs."
-    },
-    "de": {
-      "name": "Festgefahrene laufende Arbeit aufräumen",
-      "description": "Stündliche Prüfung, die seit 24 Stunden in Bearbeitung feststeckende Agentenaufgaben auf Zu erledigen zurücksetzt und lange wartende Läufe erneut weckt."
-    },
-    "fr": {
-      "name": "Balayer le travail en cours bloqué",
-      "description": "Vérification horaire qui replace en À faire les tâches d'agent bloquées en cours depuis 24 h et réveille les exécutions en attente prolongée."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

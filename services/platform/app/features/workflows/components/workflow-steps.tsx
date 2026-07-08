@@ -35,6 +35,8 @@ import { WorkflowLoopContainer } from './workflow-loop-container';
 import { WorkflowStep } from './workflow-step';
 
 interface WorkflowStepsProps {
+  /** The Graph ⇄ Specification mode toggle — leads the bottom-center toolbar. */
+  viewToggle?: React.ReactNode;
   steps: StepDef[];
   className?: string;
   hasActiveTrigger: boolean;
@@ -98,6 +100,7 @@ function WorkflowStepsInner({
   hasActiveTrigger,
   onStepCreated: _onStepCreated,
   onOpenAIChat,
+  viewToggle,
 }: WorkflowStepsProps) {
   const { t } = useT('workflows');
   const { t: tCommon } = useT('common');
@@ -242,6 +245,7 @@ function WorkflowStepsInner({
             onOpenAi={onOpenAIChat}
             centerActions={
               <>
+                {viewToggle}
                 {/* On-canvas step editing is not wired up yet. Keep the
                     affordance visible but disabled — with a tooltip pointing to
                     the working paths — instead of opening a create form that

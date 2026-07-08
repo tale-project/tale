@@ -7,7 +7,6 @@ import {
 import { validateViewBindings } from '@/lib/shared/platform/function_bindings';
 import type { AutomationViewDoc } from '@/lib/shared/schemas/automation_views';
 import {
-  APP_MANIFEST_FILENAME,
   type AutomationManifest,
   AUTOMATION_MANIFEST_FILENAME,
   automationManifestSchema,
@@ -74,7 +73,7 @@ function formatKB(bytes: number): string {
  * `convex/automations/bundle_parse.ts` — the server re-runs every check, so this is
  * purely UX feedback before submission. The bundle must contain a SINGLE
  * top-level folder (its name becomes the automation slug) with `automation.json`
- * at its root (legacy manifest names are accepted too — see `file_utils.ts`).
+ * at its root.
  */
 export async function parseAutomationBundle(file: File): Promise<ParseResult> {
   if (!file.name.toLowerCase().endsWith('.zip')) {
@@ -139,10 +138,7 @@ export async function parseAutomationBundle(file: File): Promise<ParseResult> {
     if (segments.some((s) => s === '' || s === '..' || s === '.')) {
       return { success: false, error: `Entry path is unsafe: ${rel}` };
     }
-    // DUAL-ACCEPT: mirrors the server's `bundle_parse.ts` — a zip authored
-    // before the Automations rename shipped may still carry the legacy
-    // `app.json` (see `convex/automations/file_utils.ts`'s DUAL-READ note).
-    if (rel === AUTOMATION_MANIFEST_FILENAME || rel === APP_MANIFEST_FILENAME) {
+    if (rel === AUTOMATION_MANIFEST_FILENAME) {
       manifestEntry = entry;
       continue;
     }
@@ -156,8 +152,6 @@ export async function parseAutomationBundle(file: File): Promise<ParseResult> {
       error: `Bundle is missing ${AUTOMATION_MANIFEST_FILENAME} at the automation folder root.`,
     };
   }
-  const foundManifestName = manifestEntry.name.slice(stripPrefix.length);
-
   const manifestText = await manifestEntry.async('string');
   let manifest: AutomationManifest;
   try {
@@ -165,7 +159,7 @@ export async function parseAutomationBundle(file: File): Promise<ParseResult> {
   } catch (err) {
     return {
       success: false,
-      error: `${foundManifestName} rejected: ${err instanceof Error ? err.message : String(err)}`,
+      error: `${AUTOMATION_MANIFEST_FILENAME} rejected: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
@@ -173,7 +167,7 @@ export async function parseAutomationBundle(file: File): Promise<ParseResult> {
   if (manifestBytes > MAX_AUTOMATION_BUNDLE_FILE_BYTES) {
     return {
       success: false,
-      error: `${foundManifestName} exceeds per-file cap of ${formatKB(MAX_AUTOMATION_BUNDLE_FILE_BYTES)}.`,
+      error: `${AUTOMATION_MANIFEST_FILENAME} exceeds per-file cap of ${formatKB(MAX_AUTOMATION_BUNDLE_FILE_BYTES)}.`,
     };
   }
   let totalBytes = manifestBytes;
@@ -236,8 +230,7 @@ const VIEW_FILE_RE = /^views\/[^/]+\.json$/;
  * as a string (this path is UX feedback only; the server re-runs everything):
  * strict schema parse, binding allowlist, and `AgentChat.role ∈
  * manifest.roles`. Display strings are literals (platform-owned translations),
- * so there is no label-completeness check; a legacy `messages/` dir is carried
- * as inert assets.
+ * so there is no label-completeness check.
  */
 function validateViewDocuments(
   manifest: AutomationManifest,

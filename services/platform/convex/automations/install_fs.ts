@@ -8,17 +8,16 @@
  * apply. The org dir is authoritative after install — resolution never falls
  * back to the template; a later-deleted file surfaces as a broken install.
  *
- * Bundle layout (`template/automations/<slug>/`): `automation.json` (or the
- * legacy `app.json` — see `file_utils.ts` DUAL-READ) + `views/` + `messages/` +
- * `scripts/` + `agents/` + `workflows/` all copy into the org's automation
- * dir (the SHELL). Agents/workflows are AUTOMATION-SCOPED — resolved by the composite slug
- * `<automation>/<name>` and invisible to the global agent/workflow surfaces by
+ * Bundle layout (`template/automations/<slug>/`): `automation.json` + `views/`
+ * + `scripts/` + `agents/` all copy into the org's automation dir (the SHELL).
+ * Agents are AUTOMATION-SCOPED — resolved by the composite slug
+ * `<automation>/<name>` and invisible to the global agent surfaces by
  * construction, removed wholesale by the shell `rm` on uninstall. Only the
  * {@link FANOUT_DOMAINS} (`integrations/`, `skills/`) fan OUT into the org's
  * SHARED domain dirs, so only they are recorded in the removal ledger.
  *
  * A reinstall/sync overwrites every shell file from the catalog (the manifest —
- * which carries the inline workflow — plus agents, views, messages, icon, scripts).
+ * which carries the inline workflow — plus agents, views, icon, scripts).
  */
 import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -84,9 +83,7 @@ export interface PlannedFile {
 /**
  * Read + parse the automation's manifest from its bundle source (built-in catalog, or
  * the org's own automations dir for a privately-uploaded automation — see
- * {@link resolveAutomationBundleSourceDir}). DUAL-READ: accepts either the
- * canonical `automation.json` or the legacy `app.json` (see
- * `file_utils.ts#resolveManifestFilePath`).
+ * {@link resolveAutomationBundleSourceDir}).
  */
 export async function readAutomationBundleManifest(
   orgSlug: string,

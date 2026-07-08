@@ -92,10 +92,6 @@ describe('humanizeFieldKey', () => {
     expect(humanizeFieldKey('repo-notes')).toBe('Repo Notes');
   });
 
-  it('drops a trailing legacy "Placeholder" suffix', () => {
-    expect(humanizeFieldKey('repoPlaceholder')).toBe('Repo');
-  });
-
   it('handles a bare single-word key', () => {
     expect(humanizeFieldKey('repo')).toBe('Repo');
   });
@@ -105,7 +101,6 @@ describe('resolveConfigFieldLocale', () => {
   const field = {
     key: 'repository',
     label: 'GitHub repository',
-    labelKey: 'config.repo',
     placeholder: 'owner/repo',
     help: 'Where the desk opens PRs.',
   };
@@ -137,17 +132,7 @@ describe('resolveConfigFieldLocale', () => {
     });
   });
 
-  it('humanizes the deprecated labelKey when no literal label is set', () => {
-    const noLiteral = {
-      key: 'repository',
-      labelKey: 'config.repo',
-    };
-    expect(resolveConfigFieldLocale(noLiteral, undefined, 'en').label).toBe(
-      'Repo',
-    );
-  });
-
-  it('humanizes the field key when neither a literal label nor a labelKey is set', () => {
+  it('humanizes the field key when no literal label is set', () => {
     const bare = { key: 'testCommand' };
     expect(resolveConfigFieldLocale(bare, undefined, 'en').label).toBe(
       'Test Command',

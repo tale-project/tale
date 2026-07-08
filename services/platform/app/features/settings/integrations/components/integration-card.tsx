@@ -7,6 +7,7 @@ import {
   CatalogCard,
   CatalogCardIcon,
 } from '@/app/components/catalog/catalog-grid';
+import { CatalogLabels } from '@/app/components/catalog/catalog-labels';
 import { Image } from '@/app/components/ui/data-display/image';
 import {
   EntityRowActions,
@@ -17,6 +18,8 @@ import { useT } from '@/lib/i18n/client';
 interface IntegrationCardProps {
   title: string;
   description?: string;
+  /** Definition catalog chips, rendered in the card's meta row. */
+  labels?: string[];
   isActive?: boolean;
   status?: string;
   disabled?: boolean;
@@ -30,6 +33,7 @@ interface IntegrationCardProps {
 export function IntegrationCard({
   title,
   description,
+  labels,
   isActive,
   status,
   disabled,
@@ -72,6 +76,7 @@ export function IntegrationCard({
       title={title}
       description={description ?? title}
       badge={badge}
+      meta={<CatalogLabels labels={labels} />}
       onClick={onClick}
       disabled={disabled}
       ariaLabel={title}

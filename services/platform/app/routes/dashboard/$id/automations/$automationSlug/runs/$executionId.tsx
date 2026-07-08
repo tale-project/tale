@@ -2,6 +2,8 @@ import { VStack } from '@tale/ui/layout';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
+import { AutomationDetailShell } from '@/app/features/automations/components/automation-detail-shell';
 import { WorkflowDag } from '@/app/features/automations/registry/connected/workflow-dag';
 import { AutomationRuntimeProvider } from '@/app/features/automations/runtime/automation-runtime';
 import { useT } from '@/lib/i18n/client';
@@ -32,19 +34,26 @@ function AutomationRunDetail() {
     <AutomationRuntimeProvider
       value={{ organizationId, automationSlug, allowlist: [], config: {} }}
     >
-      <VStack gap={4}>
-        <Link
-          to="/dashboard/$id/automations/$automationSlug"
-          params={{ id: organizationId, automationSlug }}
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="size-4" />
-          {t('runs.backToApp')}
-        </Link>
-        {wf ? (
-          <WorkflowDag workflowSlug={wf} executionId={executionId} />
-        ) : null}
-      </VStack>
+      <AutomationDetailShell
+        organizationId={organizationId}
+        displayName={automationSlug}
+      >
+        <ContentArea>
+          <VStack gap={4}>
+            <Link
+              to="/dashboard/$id/automations/$automationSlug"
+              params={{ id: organizationId, automationSlug }}
+              className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
+            >
+              <ArrowLeft className="size-4" />
+              {t('runs.backToApp')}
+            </Link>
+            {wf ? (
+              <WorkflowDag workflowSlug={wf} executionId={executionId} />
+            ) : null}
+          </VStack>
+        </ContentArea>
+      </AutomationDetailShell>
     </AutomationRuntimeProvider>
   );
 }

@@ -40,7 +40,10 @@ import {
   serializeWorkflowJson,
   type WorkflowReadResult,
 } from './file_utils';
-import { computeSpecSyncStatus } from './specification_fingerprint';
+import {
+  computeSpecSyncStatus,
+  reconcileSpecificationMeta,
+} from './specification_fingerprint';
 
 export interface InlineWorkflowOwner {
   /** The org `automation.json` that carries the inline workflow. */
@@ -152,20 +155,41 @@ export async function readCurrentWorkflowContent(
  * Persist `config` to its home: the automation's inline `workflow` field when
  * `workflowSlug` is inline-owned (an atomic rewrite of `automation.json` that
  * preserves every OTHER manifest field), else the standalone workflow FILE.
- * The single WRITE seam behind the save/restore actions.
+ * The single WRITE seam behind the save/restore actions — which is why it also
+ * reconciles `specificationMeta` against the stored state
+ * (`reconcileSpecificationMeta`): no write path can silently un-stale an
+ * authored spec/graph pair. `trustPair` skips that (a history restore is a
+ * once-consistent pair restored wholesale).
  */
 export async function writeWorkflowDefinition(
   orgSlug: string,
   workflowSlug: string,
   config: WorkflowJsonConfig,
+  options?: { trustPair?: boolean },
 ): Promise<void> {
   const inline = await resolveInlineWorkflowOwner(orgSlug, workflowSlug);
   if (inline) {
-    const nextManifest = { ...inline.rawManifest, workflow: config };
+    const next = options?.trustPair
+      ? config
+      : reconcileSpecificationMeta(inline.workflow, config, Date.now());
+    const nextManifest = { ...inline.rawManifest, workflow: next };
     await atomicWrite(inline.manifestPath, serializeJson(nextManifest));
     return;
   }
   const filePath = resolveWorkflowFilePath(orgSlug, workflowSlug);
+  let next = config;
+  if (!options?.trustPair) {
+    const current = await readJsonFile<WorkflowJsonConfig>(
+      filePath,
+      MAX_FILE_SIZE_BYTES,
+      parseWorkflowJson,
+    );
+    next = reconcileSpecificationMeta(
+      current.ok ? current.data : undefined,
+      config,
+      Date.now(),
+    );
+  }
   await mkdir(path.dirname(filePath), { recursive: true });
-  await atomicWrite(filePath, serializeWorkflowJson(config));
+  await atomicWrite(filePath, serializeWorkflowJson(next));
 }

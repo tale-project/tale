@@ -62,8 +62,8 @@ function renderTable(
 }
 
 describe('buildBoundColumns — column defs', () => {
-  it('normalizes bare strings, inferring the badge kind for status/state', () => {
-    const defs = buildBoundColumns(['title', 'status'], {
+  it('infers the badge kind for status/state columns', () => {
+    const defs = buildBoundColumns([{ field: 'title' }, { field: 'status' }], {
       rows: [ROW],
     });
     expect(defs.map((d) => d.id)).toEqual(['title', 'status']);
@@ -113,7 +113,7 @@ describe('buildBoundColumns — column defs', () => {
       path: 'tasks/public_actions:createTask',
       mode: 'action',
     };
-    const withActions = buildBoundColumns(['title'], {
+    const withActions = buildBoundColumns([{ field: 'title' }], {
       rows: [ROW],
       actions: [action],
     });
@@ -122,31 +122,29 @@ describe('buildBoundColumns — column defs', () => {
     expect(last?.size).toBe(BOUND_ACTIONS_COLUMN_SIZE);
     expect(last?.meta).toMatchObject({ isAction: true });
 
-    const withRowActions = buildBoundColumns(['title'], {
+    const withRowActions = buildBoundColumns([{ field: 'title' }], {
       rows: [ROW],
       rowActions: { idField: '_id', render: () => null },
     });
     expect(withRowActions.at(-1)?.id).toBe('actions');
 
-    const plain = buildBoundColumns(['title'], { rows: [ROW] });
+    const plain = buildBoundColumns([{ field: 'title' }], { rows: [ROW] });
     expect(plain.at(-1)?.id).toBe('title');
   });
 });
 
 describe('buildBoundColumns — rendered cells', () => {
-  it('renders string columns with raw-key headers and the status badge', () => {
-    renderTable(['title', 'status']);
+  it('renders spec columns with raw-key headers and the status badge', () => {
+    renderTable([{ field: 'title' }, { field: 'status' }]);
     expect(screen.getByRole('columnheader', { name: 'title' })).toBeVisible();
     expect(screen.getByText('Fix login')).toBeVisible();
     expect(screen.getByText('in_progress')).toBeVisible();
   });
 
-  it('renders the literal labelKey verbatim, else the columnLabels map', () => {
-    renderTable([{ field: 'title', labelKey: 'Title' }, 'status'], {
-      columnLabels: { status: 'Zustand' },
-    });
+  it('renders the literal labelKey verbatim, else the raw field key', () => {
+    renderTable([{ field: 'title', labelKey: 'Title' }, { field: 'status' }]);
     expect(screen.getByRole('columnheader', { name: 'Title' })).toBeVisible();
-    expect(screen.getByRole('columnheader', { name: 'Zustand' })).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: 'status' })).toBeVisible();
   });
 
   it('renders number right-aligned, id mono, datetime formatted, two-line with its secondary field', () => {
@@ -164,7 +162,7 @@ describe('buildBoundColumns — rendered cells', () => {
   });
 
   it('lets a rowAccessory replace the status badge (status col only)', () => {
-    renderTable(['title', 'status'], {
+    renderTable([{ field: 'title' }, { field: 'status' }], {
       rowAccessory: {
         idField: '_id',
         // What the capacity chip does when parked: render an ambient chip
@@ -181,7 +179,7 @@ describe('buildBoundColumns — rendered cells', () => {
   });
 
   it('falls back to the status badge when the accessory returns it', () => {
-    renderTable(['title', 'status'], {
+    renderTable([{ field: 'title' }, { field: 'status' }], {
       rowAccessory: {
         idField: '_id',
         // Not parked: the accessory returns the supplied badge unchanged.
@@ -229,7 +227,7 @@ describe('buildBoundColumns — rendered cells', () => {
   });
 
   it('renders the BoundButton cluster and injected rowActions in the actions cell', () => {
-    renderTable(['title'], {
+    renderTable([{ field: 'title' }], {
       actions: [
         {
           label: 'Create task',
@@ -247,7 +245,7 @@ describe('buildBoundColumns — rendered cells', () => {
   });
 
   it('omits the injected rowActions affordance when its render returns nothing', () => {
-    renderTable(['title'], {
+    renderTable([{ field: 'title' }], {
       rowActions: { idField: '_id', render: () => null },
     });
     expect(screen.queryByRole('button', { name: /rerun-/ })).toBeNull();

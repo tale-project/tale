@@ -479,24 +479,27 @@
       "editor": "Editor",
       "executions": "Ausführungen",
       "configuration": "Konfiguration",
-      "triggers": "Trigger"
+      "triggers": "Trigger",
+      "integrations": "Integrationen",
+      "ariaLabel": "Bereiche der Automation"
     },
     "configuration": {
       "nameLabel": "Name",
       "descriptionLabel": "Beschreibung",
       "agentsTitle": "Agenten",
-      "workflowsTitle": "Workflows",
-      "workflowUpdateExemptTitle": "Der Workflow bleibt unverändert",
-      "workflowUpdateExemptDescription": "Neuinstallieren oder Synchronisieren aktualisiert alles außer den Workflow-Schritten. Für den neuesten Workflow deinstallierst du die Automatisierung und installierst sie neu.",
       "skillsTitle": "Skills",
-      "integrationsTitle": "Integrationen",
-      "empty": "Noch nichts zu verwalten",
       "status": {
         "ready": "Bereit",
         "needsSetup": "Einrichtung nötig",
         "connected": "Verbunden",
         "notConnected": "Nicht verbunden",
         "missing": "Fehlt"
+      },
+      "namePlaceholder": "Name der Automation",
+      "descriptionPlaceholder": "Was diese Automation tut",
+      "runtimeTitle": "Workflow-Einstellungen",
+      "validation": {
+        "nameRequired": "Name ist erforderlich"
       }
     },
     "triggers": {
@@ -514,7 +517,6 @@
       "title": "Automatisierungs-Assistent",
       "description": "Frag, wie diese Automatisierung funktioniert, was sie braucht und wie du sie anpasst."
     },
-    "subtitle": "Durchsuche den Katalog und installiere Automatisierungen für deine Organisation.",
     "searchPlaceholder": "Automatisierungen durchsuchen…",
     "noResults": {
       "title": "Keine passenden Automatisierungen",
@@ -570,49 +572,11 @@
     },
     "empty": {
       "title": "Noch keine Automatisierungen",
-      "description": "Installierte Automatisierungen erscheinen hier.",
-      "browseCatalog": "Katalog durchsuchen"
+      "description": "Installierte Automatisierungen erscheinen hier."
     },
     "notFound": {
       "title": "Automatisierung nicht gefunden",
       "description": "Dieses Pack ist nicht installiert."
-    },
-    "inbox": {
-      "title": "Posteingang",
-      "description": "Lies und beantworte deine Konversationen.",
-      "tab": {
-        "open": "Offen",
-        "closed": "Geschlossen",
-        "spam": "Spam",
-        "archived": "Archiviert"
-      },
-      "empty": {
-        "open": "Keine offenen Konversationen",
-        "closed": "Keine geschlossenen Konversationen",
-        "spam": "Kein Spam",
-        "archived": "Keine archivierten Konversationen"
-      },
-      "thread": {
-        "placeholder": "Wähle eine Konversation, um Details anzuzeigen"
-      },
-      "composer": {
-        "placeholder": "Nachricht eingeben"
-      },
-      "action": {
-        "close": "Konversation schließen",
-        "markSpam": "Als Spam markieren",
-        "reopen": "Konversation erneut öffnen",
-        "notSpam": "Kein Spam",
-        "delete": "Löschen",
-        "download": "Herunterladen"
-      },
-      "bulk": {
-        "close": "Schließen",
-        "archive": "Archivieren",
-        "markSpam": "Als Spam markieren",
-        "reopen": "Erneut öffnen",
-        "unarchive": "Dearchivieren"
-      }
     },
     "viewInvalid": {
       "title": "Diese Seite kann nicht angezeigt werden",
@@ -637,6 +601,7 @@
     "panel": {
       "title": "Automatisierungsdetails",
       "whatWillBeInstalled": "Was installiert wird",
+      "whatsInstalled": "Was installiert ist",
       "install": "Installieren",
       "sections": {
         "pages": "Seiten",
@@ -645,7 +610,7 @@
         "skills": "Skills",
         "integrations": "Integrationen",
         "folder": "Ordner",
-        "members": "Enthaltene Automatisierungen"
+        "members": "Automatisierungen"
       }
     },
     "bundle": {
@@ -685,7 +650,12 @@
       "uninstallBlocked": "Noch in Verwendung von: {projects}. Entferne die Automatisierung aus diesen Projekten, bevor du sie deinstallierst.",
       "uninstallBlockedCount": "Entferne die Automatisierung aus ihren {count} Projekten, bevor du sie deinstallierst.",
       "export": "Exportieren",
-      "exportFailed": "Automatisierung konnte nicht exportiert werden"
+      "exportFailed": "Automatisierung konnte nicht exportiert werden",
+      "uninstallBundle": "Bundle deinstallieren",
+      "uninstallBundleTitle": "Bundle deinstallieren?",
+      "uninstallBundleDescription": "Entfernt alle {{count}} Automationen, die dieses Bundle installiert hat, samt ihren Agenten und Einstellungen.",
+      "bundleUninstalled": "Bundle deinstalliert",
+      "bundleUninstallFailed": "Bundle konnte nicht deinstalliert werden"
     },
     "readiness": {
       "title": "Einrichtung abschließen",
@@ -721,9 +691,7 @@
       "overridesChanged": "Die Dateien haben sich während der Prüfung geändert. Starte erneut, um die aktuelle Liste zu sehen.",
       "reviewKind": {
         "agent": "Agenten",
-        "workflow": "Workflows",
         "view": "Seiten",
-        "message": "Texte",
         "integration": "Integrationen",
         "skill": "Skills",
         "manifest": "Manifest",
@@ -755,10 +723,6 @@
       "blocked": "Diese Ansicht darf {path} nicht aufrufen.",
       "awaitingSelection": "Wähle einen Eintrag aus, um ihn hier anzuzeigen."
     },
-    "thread": {
-      "deliveryQueued": "Wird gesendet",
-      "deliveryFailed": "Senden fehlgeschlagen"
-    },
     "detail": {
       "title": "Details",
       "activity": "Aktivität",
@@ -779,8 +743,6 @@
       "error": "Daten konnten nicht geladen werden: {error}",
       "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
       "needsConfig": "Konfiguriere diese Automatisierung, um Daten zu laden.",
-      "loadMore": "Mehr laden",
-      "loadingMore": "Wird geladen…",
       "created": "Erstellt",
       "start": "Starten",
       "markDone": "Als erledigt markieren",
@@ -858,15 +820,12 @@
       "moveTo": "Verschieben nach",
       "truncated": "Nur die ersten Karten werden angezeigt — die Liste wurde gekürzt."
     },
-    "composer": {
-      "send": "Senden",
-      "improve": "Verbessern",
-      "undo": "Rückgängig",
-      "improveFailed": "Die Nachricht konnte nicht verbessert werden.",
-      "placeholder": "Nachricht schreiben…"
-    },
     "chat": {
       "roleUnavailable": "Diese Automatisierung verknüpft die Rolle „{role}“ noch mit keinem Agenten."
+    },
+    "integrationsTab": {
+      "emptyTitle": "Keine Integrationen erforderlich",
+      "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
     }
   },
   "changelog": {
@@ -1970,6 +1929,153 @@
     "retry": "Erneut versuchen",
     "getApp": "App herunterladen",
     "reachingServer": "Verbindung zum Server wird hergestellt"
+  },
+  "conversations": {
+    "title": "Inbox",
+    "unknownCustomer": "Unbekannter Kunde",
+    "messagePlaceholder": "Nachricht eingeben",
+    "searchPlaceholder": "Konversationen durchsuchen",
+    "suggestEditsPlaceholder": "Änderungen am Text vorschlagen (optional)",
+    "fallbackImageAttachment": "Bildanhang",
+    "fallbackAttachment": "Anhang",
+    "status": {
+      "open": "Offen",
+      "closed": "Geschlossen",
+      "spam": "Spam",
+      "archived": "Archiviert"
+    },
+    "improvement": {
+      "title": "Nachrichtenverbesserung Vorschau",
+      "description": "Prüfe die KI-verbesserte Version und übernimm oder verwirf die Änderungen",
+      "original": "Original",
+      "improved": "Verbessert",
+      "reject": "Ablehnen",
+      "accept": "Änderungen übernehmen"
+    },
+    "bulkSend": {
+      "title": "{count, plural, one {# Nachricht senden} other {# Nachrichten senden}}",
+      "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "messageLabel": "Nachricht",
+      "messagePlaceholder": "Antwort eingeben...",
+      "send": "Senden"
+    },
+    "updating": "Konversationen werden aktualisiert...",
+    "bulk": {
+      "sendMessages": "Nachrichten senden",
+      "close": "Schließen",
+      "reopen": "Erneut öffnen",
+      "messagesSent": "Nachrichten gesendet",
+      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "sendFailed": "Nachrichten konnten nicht gesendet werden",
+      "resolved": "Konversationen abgeschlossen",
+      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "resolveFailed": "Konversationen konnten nicht abgeschlossen werden",
+      "reopened": "Konversationen erneut geöffnet",
+      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "reopenFailed": "Konversationen konnten nicht erneut geöffnet werden",
+      "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
+      "archive": "Archivieren",
+      "unarchive": "Dearchivieren",
+      "archived": "Konversationen archiviert",
+      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "archiveFailed": "Konversationen konnten nicht archiviert werden",
+      "unarchived": "Konversationen dearchiviert",
+      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "unarchiveFailed": "Konversationen konnten nicht dearchiviert werden",
+      "markSpam": "Als Spam markieren",
+      "markedAsSpam": "Konversationen als Spam markiert",
+      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "spamFailed": "Konversationen konnten nicht als Spam markiert werden"
+    },
+    "header": {
+      "moreActions": "Weitere Aktionen",
+      "customerInfo": "Kundeninfo",
+      "closeConversation": "Konversation schließen",
+      "closing": "Wird geschlossen...",
+      "reopenConversation": "Konversation erneut öffnen",
+      "reopening": "Wird erneut geöffnet...",
+      "markAsSpam": "Als Spam markieren",
+      "markingAsSpam": "Wird als Spam markiert...",
+      "toast": {
+        "closed": "Konversation wurde geschlossen.",
+        "closeFailed": "Beim Schließen der Konversation ist ein unerwarteter Fehler aufgetreten.",
+        "reopened": "Konversation wurde erneut geöffnet.",
+        "reopenFailed": "Beim erneuten Öffnen der Konversation ist ein unerwarteter Fehler aufgetreten.",
+        "markedAsSpam": "Konversation wurde als Spam markiert.",
+        "markAsSpamFailed": "Beim Markieren der Konversation als Spam ist ein unerwarteter Fehler aufgetreten."
+      }
+    },
+    "editor": {
+      "noContent": "Kein Inhalt zum Verbessern",
+      "improveFailed": "Inhalt konnte nicht verbessert werden. Bitte versuche es erneut.",
+      "sendFailed": "Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.",
+      "backToEditor": "Zurück zum Editor",
+      "improving": "Wird verbessert...",
+      "improveWithAi": "Mit KI verbessern",
+      "generateImprovement": "Verbesserung generieren",
+      "replyImproved": "Antwort verbessert",
+      "attachFile": "Datei anhängen",
+      "send": "Nachricht senden"
+    },
+    "attachment": {
+      "download": "Herunterladen",
+      "downloading": "Lade herunter...",
+      "attachments": "{count, plural, one {# Anhang} other {# Anhänge}}"
+    },
+    "panel": {
+      "uploadFailed": "Anhänge konnten nicht hochgeladen werden. Bitte versuche es erneut.",
+      "downloadFailed": "Anhänge konnten nicht heruntergeladen werden. Bitte versuche es erneut.",
+      "noSelected": "Keine Konversation ausgewählt",
+      "selectToView": "Wähle eine Konversation, um Details anzuzeigen",
+      "notFound": "Konversation nicht gefunden",
+      "noMessages": "Noch keine Nachrichten",
+      "invalidFileAttachment": "Ungültiger Dateianhang",
+      "defaultSubject": "Re: Konversation",
+      "customerEmailNotFound": "E-Mail kann nicht gesendet werden: Kunden-E-Mail nicht gefunden",
+      "replySubjectPrefix": "Re: {subject}",
+      "loadFailed": "Konversation konnte nicht geladen werden",
+      "loadFailedDescription": "Beim Laden dieser Konversation ist ein Fehler aufgetreten.",
+      "tryAgain": "Erneut versuchen",
+      "closedBanner": "Diese Konversation wurde am {date} geschlossen",
+      "closedBannerNoDate": "Diese Konversation wurde geschlossen",
+      "archivedBanner": "Diese Konversation wurde archiviert",
+      "spamBanner": "Diese Konversation wurde als Spam markiert",
+      "unarchive": "Dearchivieren",
+      "notSpam": "Kein Spam",
+      "delete": "Löschen",
+      "deleting": "Lösche...",
+      "deleteSuccess": "Konversation gelöscht.",
+      "deleteFailed": "Konversation konnte nicht gelöscht werden.",
+      "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
+    },
+    "list": {
+      "empty": "Keine Konversationen in diesem Tab"
+    },
+    "activate": {
+      "title": "Noch keine Konversationen",
+      "description": "Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.",
+      "noAutomationTitle": "Richte deine Inbox ein",
+      "noAutomationDescription": "Installiere eine E-Mail-Automatisierung (Gmail, Outlook oder IMAP), um hier Konversationen zu lesen und zu beantworten.",
+      "browseAutomations": "Automatisierungen durchsuchen"
+    },
+    "filter": {
+      "label": "Nach Lesestatus filtern",
+      "all": "Alle",
+      "read": "Gelesen",
+      "unread": "Ungelesen",
+      "channel": "Kanal",
+      "allChannels": "Alle Kanäle"
+    },
+    "category": {
+      "churnSurvey": "Abwanderungsumfrage",
+      "productRecommendation": "Produktempfehlung",
+      "serviceRequest": "Serviceanfrage"
+    },
+    "priority": {
+      "high": "Hoch",
+      "low": "Niedrig",
+      "medium": "Mittel"
+    }
   },
   "customers": {
     "title": "Kunden",
@@ -6751,7 +6857,7 @@
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
     "conversationInboundMessage": "Neue Konversationsnachricht",
-    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne Konversationen, um zu antworten.",
+    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne deine Inbox, um zu antworten.",
     "agentEscalation": "Agenten-Eskalation",
     "agentEscalationBody": "{agent} hat eskaliert: {reason}",
     "email": {
@@ -7848,12 +7954,6 @@
     }
   },
   "agentCatalog": {
-    "folders": {
-      "workforce": "Belegschaft",
-      "chat": "Chat",
-      "github": "GitHub",
-      "general": "Allgemein"
-    },
     "installed": "Agent installiert",
     "enabled": "Agent aktiviert",
     "disabled": "Agent deaktiviert",
@@ -7962,6 +8062,7 @@
   },
   "workflows": {
     "title": "Workflows",
+    "notFound": "Workflow nicht gefunden: {{slug}}",
     "aria": {
       "openNamed": "{name} öffnen",
       "openLoop": "Schleife öffnen"
@@ -7987,10 +8088,6 @@
     },
     "configuration": {
       "title": "Konfiguration",
-      "name": "Name",
-      "namePlaceholder": "Workflow-Namen eingeben",
-      "description": "Beschreibung",
-      "descriptionPlaceholder": "Workflow-Beschreibung eingeben",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Maximale Ausführungszeit in Millisekunden",
       "maxRetries": "Max. Wiederholungen",
@@ -8000,7 +8097,6 @@
       "variables": "Variablen (JSON)",
       "variablesHelp": "Diese Variablen stehen allen Schritten des Workflows zur Verfügung",
       "validation": {
-        "nameRequired": "Name ist erforderlich",
         "invalidJson": "Ungültiges JSON im Variablen-Feld"
       },
       "env": "Umgebung & Geheimnisse",
@@ -8274,23 +8370,23 @@
       }
     },
     "editorView": {
-      "graph": "Graph",
+      "showGraph": "Graph anzeigen",
+      "showSpecification": "Spezifikation anzeigen",
       "specification": "Spezifikation",
-      "ariaLabel": "Ansicht des Workflow-Editors",
       "regenerateGraph": "Graph neu generieren",
-      "regenerateSpecification": "Spezifikation neu generieren",
       "generateFromGraph": "Spezifikation aus Graph generieren",
       "emptyState": "Noch keine Spezifikation vorhanden. Schreib eine, oder generiere sie aus dem aktuellen Workflow-Graphen.",
       "placeholder": "Beschreibe Schritt für Schritt, was dieser Workflow macht…",
-      "staleBanner": "Der Graph hat sich geändert, seit diese Spezifikation zuletzt generiert wurde — generiere sie neu, um beides wieder in Einklang zu bringen.",
-      "neverSyncedBanner": "Diese Spezifikation wurde noch nicht mit dem Graphen synchronisiert.",
       "generateError": "Vorschau konnte nicht generiert werden. Versuch es erneut.",
       "diffTitle": "Generierten Graphen überprüfen",
       "diffDescription": "Vergleiche den aktuellen Graphen mit der aus deiner Spezifikation generierten Version.",
       "applyGraph": "Graph übernehmen",
       "validationErrors": "Validierungsfehler",
       "saveSuccess": "Spezifikation gespeichert",
-      "saveFailed": "Spezifikation konnte nicht gespeichert werden"
+      "saveFailed": "Spezifikation konnte nicht gespeichert werden",
+      "specStaleBanner": "Der Graph hat sich geändert, seit diese Spezifikation zuletzt aktualisiert wurde.",
+      "graphStaleBanner": "Die Spezifikation hat sich geändert — der Graph wurde noch nicht neu generiert.",
+      "updateFromGraph": "Aus dem Graphen aktualisieren"
     }
   }
 }

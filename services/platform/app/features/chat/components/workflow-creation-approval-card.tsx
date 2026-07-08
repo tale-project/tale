@@ -331,18 +331,6 @@ function WorkflowCreationApprovalCardComponent({
             <Text as="div" variant="label">
               {metadata.workflowName}
             </Text>
-            {metadata.workflowDescription && (
-              <div
-                className={cn(
-                  markdownWrapperStyles,
-                  'text-muted-foreground max-w-none text-xs line-clamp-2',
-                )}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {metadata.workflowDescription}
-                </ReactMarkdown>
-              </div>
-            )}
           </div>
         </HStack>
       </HStack>

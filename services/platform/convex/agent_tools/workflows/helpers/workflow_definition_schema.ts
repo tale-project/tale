@@ -10,15 +10,9 @@
 import { z } from 'zod/v4';
 
 export const workflowConfigSchema = z.object({
-  name: z
-    .string()
-    .describe(
-      'Human-readable workflow name (must be unique per organization).',
-    ),
-  description: z
-    .string()
-    .optional()
-    .describe('Optional description explaining what the workflow does.'),
+  // A workflow carries no name/description — its identity is the slug and
+  // its text is the `specification`; the owning automation supplies every
+  // user-facing display string.
   version: z
     .string()
     .optional()

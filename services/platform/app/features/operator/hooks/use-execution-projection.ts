@@ -410,10 +410,8 @@ export function useExecutionProjection(args: {
       if (step.stage && !stages.includes(step.stage)) stages.push(step.stage);
     }
 
-    const workflowName =
-      config && isRecord(config) && typeof config.name === 'string'
-        ? config.name
-        : undefined;
+    // A workflow's only identity is its slug — the operator header shows that.
+    const workflowName = live.execution.workflowSlug;
 
     const result: OperatorProjection = {
       status: live.execution.status,

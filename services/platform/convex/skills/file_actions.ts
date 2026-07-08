@@ -439,6 +439,7 @@ const listSkillsRowValidator = v.union(
     ),
     license: v.optional(v.string()),
     icon: v.optional(v.string()),
+    labels: v.optional(v.array(v.string())),
     hash: v.string(),
   }),
   v.object({
@@ -466,6 +467,7 @@ export type SkillListEntry =
       recommendedPackages?: { python?: string[]; node?: string[] };
       license?: string;
       icon?: string;
+      labels?: string[];
       hash: string;
     }
   | {
@@ -473,6 +475,24 @@ export type SkillListEntry =
       status: 'not_found' | 'corrupted' | 'symlink' | 'inaccessible';
       message: string;
     };
+
+/**
+ * The catalog twin's `icon:` for an org skill whose own SKILL.md predates the
+ * icon frontmatter (a bundle seeded before icons shipped keeps rendering the
+ * generic fallback otherwise — every skill "same icon"). Best-effort: any
+ * miss (no catalog twin, unparseable) yields undefined.
+ */
+async function readCatalogSkillIcon(slug: string): Promise<string | undefined> {
+  const content = await readFileSafe(
+    path.join(resolveCatalogSkillsDir(), slug, 'SKILL.md'),
+  );
+  if (content === null) return undefined;
+  try {
+    return parseSkillMd(content).meta.icon;
+  } catch {
+    return undefined;
+  }
+}
 
 export const listSkills = action({
   args: {
@@ -500,13 +520,15 @@ export const listSkills = action({
             message: result.message,
           };
         }
+        const icon = result.meta.icon ?? (await readCatalogSkillIcon(slug));
         return {
           slug,
           name: result.meta.name,
           description: result.meta.description,
           recommendedPackages: result.meta.recommendedPackages,
           license: result.meta.license,
-          icon: result.meta.icon,
+          icon,
+          labels: result.meta.labels,
           hash: result.versionHash,
         };
       }),

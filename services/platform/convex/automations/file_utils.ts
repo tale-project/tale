@@ -7,24 +7,16 @@
  * `views/*.json`, `messages/`, and `scripts/` (the `pack://<app>/scripts/...`
  * assets a workflow's sandbox step references).
  *
- * DUAL-READ (zero customer fs-tree migration): the config-domain dir was
- * `apps` and the manifest filename was `app.json` before the Automations
- * rename; both are read-compatible so an already-installed org keeps working
- * with no data migration. `resolveAutomationsDir` prefers the new
- * `<org>/automations/` dir but falls back to the legacy `<org>/apps/` dir
- * when only that exists on disk (an org scaffolded before this shipped never
- * gets an `automations/` dir created out-of-band). `resolveManifestFilePath`
- * prefers `automation.json` but falls back to `app.json` PER BUNDLE — so a
- * mix (some bundles installed before the rename, some after, in the SAME org
- * dir) resolves correctly file by file. Every WRITE (install/upload) emits
- * only the canonical new names; only READS dual-accept the legacy ones.
+ * A bundle dir carries exactly one manifest: a BUNDLE's `bundle.json` (an
+ * aggregator of member automations) or a single automation's
+ * `automation.json` (inline workflow); {@link isBundleDir} keys the schema
+ * choice on which one is present.
  */
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  APP_MANIFEST_FILENAME,
   AUTOMATION_MANIFEST_FILENAME,
   automationDisplayFolder,
   automationManifestSchema,
@@ -38,41 +30,27 @@ import {
   verifyPathWithinBase,
 } from '../lib/file_io';
 
-/** Legacy config-domain dir name — see the file header's DUAL-READ note. */
-const LEGACY_DOMAIN_DIR = 'apps';
 const DOMAIN_DIR = 'automations';
 
 export function resolveAutomationsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const root = getConfigRoot(DOMAIN_DIR);
-  const canonical = path.join(root, orgSlug, DOMAIN_DIR);
-  if (existsSync(canonical)) return canonical;
-  // Fall back to the legacy `apps/` dir only for an un-migrated org that still
-  // has one on disk; a fresh org (neither dir exists) resolves to the canonical
-  // `automations/` dir, so a scaffold/install writes there — matching the
-  // "prefers the new dir" DUAL-READ contract in this file's header.
-  const legacy = path.join(root, orgSlug, LEGACY_DOMAIN_DIR);
-  if (existsSync(legacy)) return legacy;
-  return canonical;
+  return path.join(getConfigRoot(DOMAIN_DIR), orgSlug, DOMAIN_DIR);
 }
 
 /**
  * Resolve the manifest file within an already-located bundle dir. Prefers a
- * BUNDLE's `bundle.json` (an aggregator, parsed by `bundleManifestSchema`), then
- * an automation's `automation.json`, then the legacy `app.json` (DUAL-READ, see
- * the file header). Callers that must distinguish a bundle from an automation
- * use {@link isBundleDir} (the presence of `bundle.json`) before choosing a
- * schema; this resolver only locates whichever manifest is on disk (e.g. for an
- * existence check or a folder read).
+ * BUNDLE's `bundle.json` (an aggregator, parsed by `bundleManifestSchema`) over
+ * an automation's `automation.json`. Callers that must distinguish a bundle
+ * from an automation use {@link isBundleDir} (the presence of `bundle.json`)
+ * before choosing a schema; this resolver only locates whichever manifest is
+ * on disk (e.g. for an existence check or a folder read).
  */
 export function resolveManifestFilePath(bundleDir: string): string {
   const bundle = path.join(bundleDir, BUNDLE_MANIFEST_FILENAME);
   if (existsSync(bundle)) return bundle;
-  const canonical = path.join(bundleDir, AUTOMATION_MANIFEST_FILENAME);
-  if (existsSync(canonical)) return canonical;
-  return path.join(bundleDir, APP_MANIFEST_FILENAME);
+  return path.join(bundleDir, AUTOMATION_MANIFEST_FILENAME);
 }
 
 /**
@@ -97,9 +75,7 @@ const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
  * source of installable automations the Automations catalog discovers and `installAutomation`
  * copies from. The catalog is the generic built-in dir
  * (`TALE_CONFIG_BUILTIN_DIR`), whose children are the domains, so automations live at
- * `<catalog>/automations/<slug>` with no `default`/org level and no fallback
- * (the catalog is redeployed fresh with every release, so it carries no
- * legacy state — no dual-read here, unlike the per-org dir/manifest below).
+ * `<catalog>/automations/<slug>` with no `default`/org level and no fallback.
  * Required: dev/prod/E2E all set the env.
  */
 export function resolveCatalogAutomationsDir(): string {
@@ -122,8 +98,8 @@ export function resolveCatalogAutomationDir(slug: string): string {
 
 /**
  * Slugs of the automations installed in this org, by scanning the org's automations
- * dir subdirectories (`resolveAutomationsDir` — new or legacy, see the file
- * header). The on-disk bundle is the source of truth for which automation owns a
+ * dir subdirectories (`resolveAutomationsDir`). The on-disk bundle is the
+ * source of truth for which automation owns a
  * resource, so the global agent/workflow lists use this to know which automation
  * dirs to also scan and tag. A missing dir means no installed automations.
  */

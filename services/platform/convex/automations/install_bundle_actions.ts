@@ -310,3 +310,107 @@ export const installBundle = action({
     return { ok: results.every((r) => r.ok), members: results };
   },
 });
+
+/**
+ * Uninstall a whole bundle: for each member (reverse install order) drop its
+ * project bindings (schedules first, same as "Remove from this project"),
+ * then run the full member uninstall. Not transactional across members —
+ * mirrors `installBundle`'s "do everything you can, report what didn't"
+ * posture. Members with no installation row are skipped, so a partially
+ * installed bundle uninstalls cleanly.
+ */
+export const uninstallBundle = action({
+  args: { organizationId: v.string(), bundleSlug: v.string() },
+  returns: v.object({
+    ok: v.boolean(),
+    members: v.array(
+      v.object({
+        automationSlug: v.string(),
+        ok: v.boolean(),
+        error: v.optional(v.string()),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    if (!isValidAutomationSlug(args.bundleSlug)) {
+      throw new ConvexError({
+        code: 'INVALID_SLUG',
+        message: `Invalid bundle slug: ${args.bundleSlug}`,
+      });
+    }
+    // Same gate as the per-member uninstall this fans out to.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const bundle = await readBundleManifest(orgSlug, args.bundleSlug);
+    if (!bundle) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `"${args.bundleSlug}" is not a bundle`,
+      });
+    }
+
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.automations.install_queries.listInstalledAutomationSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installed = new Set(installedRaw);
+
+    const results: Array<{
+      automationSlug: string;
+      ok: boolean;
+      error?: string;
+    }> = [];
+    for (const memberSlug of [...bundle.bundle.members].reverse()) {
+      if (!installed.has(memberSlug)) continue;
+      try {
+        const bindings = await ctx.runQuery(
+          internal.automations.install_queries.listAutomationBindingsInternal,
+          {
+            organizationId: args.organizationId,
+            automationSlug: memberSlug,
+          },
+        );
+        for (const binding of bindings) {
+          await ctx.runMutation(
+            internal.automations.install_mutations.deleteProjectSchedules,
+            {
+              organizationId: args.organizationId,
+              automationSlug: memberSlug,
+              projectId: binding.projectId,
+            },
+          );
+          await ctx.runMutation(
+            internal.automations.install_mutations.unbindAutomationFromProject,
+            {
+              organizationId: args.organizationId,
+              automationSlug: memberSlug,
+              projectId: binding.projectId,
+            },
+          );
+        }
+        await ctx.runAction(
+          internal.automations.install_actions.uninstallAutomationInternal,
+          {
+            organizationId: args.organizationId,
+            automationSlug: memberSlug,
+          },
+        );
+        results.push({ automationSlug: memberSlug, ok: true });
+      } catch (err) {
+        console.error(
+          `[uninstallBundle] member "${memberSlug}" of bundle "${args.bundleSlug}" failed:`,
+          err,
+        );
+        results.push({
+          automationSlug: memberSlug,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return { ok: results.every((r) => r.ok), members: results };
+  },
+});

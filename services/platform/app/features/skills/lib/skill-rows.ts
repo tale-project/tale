@@ -12,6 +12,8 @@ export interface SkillRow {
   description: string;
   /** Optional Iconify icon name from frontmatter, rendered on the catalog card. */
   icon?: string;
+  /** Frontmatter catalog chips, rendered in the card's meta row. */
+  labels?: string[];
   /** SHA-256 of SKILL.md at list-time, forwarded to deleteSkill for CAS. */
   hash?: string;
   status?: string;
@@ -47,6 +49,7 @@ export function toSkillRows(
       name: s.name,
       description: s.description,
       icon: typeof s.icon === 'string' ? s.icon : undefined,
+      labels: Array.isArray(s.labels) ? s.labels : undefined,
       hash: typeof s.hash === 'string' ? s.hash : undefined,
     });
   }

@@ -91,11 +91,9 @@ export interface CollectionSearchSpec {
 export interface CollectionProps {
   title?: string;
   query: { path: string; args?: unknown };
-  /** Columns to show — bare field names or column specs; if omitted, inferred
-   *  from the first row (minus id-like keys). */
+  /** Columns to show — column specs; if omitted, inferred from the first row
+   *  (minus id-like keys). */
   columns?: BoundColumn[];
-  /** Literal header text per column key. */
-  columnLabels?: Record<string, string>;
   actions?: BoundActionSpec[];
   /** When set, rows expand to show their workflow run inline (the execution
    *  "about" this subject). Generic — any domain list opts in. */
@@ -281,7 +279,6 @@ function CollectionBody({
   title,
   query,
   columns,
-  columnLabels,
   actions,
   subjectType,
   subjectIdField = '_id',
@@ -338,7 +335,6 @@ function CollectionBody({
     () =>
       buildBoundColumns(columns, {
         rows,
-        columnLabels,
         actions,
         rowActions: subjectType
           ? {
@@ -364,7 +360,7 @@ function CollectionBody({
             }
           : undefined,
       }),
-    [columns, columnLabels, actions, subjectType, subjectIdField, rows],
+    [columns, actions, subjectType, subjectIdField, rows],
   );
 
   // A `$state.` reference the args carry reads as "awaiting selection", not

@@ -32,7 +32,10 @@ import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { validateWorkflowDefinition } from '../workflow_engine/helpers/validation/validate_workflow_definition';
 import type { WorkflowReadResult } from './file_utils';
 import { renderWorkflowOutline } from './render_workflow_outline';
-import { computeGraphFingerprint } from './specification_fingerprint';
+import {
+  computeGraphFingerprint,
+  computeSpecHash,
+} from './specification_fingerprint';
 
 const MAX_RETRIES = 3;
 const MAX_SPECIFICATION_LENGTH = 20_000;
@@ -142,7 +145,7 @@ export const previewGraphFromSpecification = action({
     });
 
     const userId = newUserId('wf-spec-to-graph');
-    let prompt = `Workflow name: ${currentConfig.name}\n\nSpecification:\n${specification}`;
+    let prompt = `Workflow slug: ${args.workflowSlug}\n\nSpecification:\n${specification}`;
     let lastErrors: string[] = [];
     let lastWarnings: string[] = [];
 
@@ -162,7 +165,6 @@ export const previewGraphFromSpecification = action({
         );
 
         const validation = validateWorkflowDefinition(
-          result.object.workflowConfig,
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated stepsConfig is Record<string, unknown>-compatible
           result.object.stepsConfig as Array<Record<string, unknown>>,
         );
@@ -191,6 +193,7 @@ export const previewGraphFromSpecification = action({
           specification,
           specificationMeta: {
             sourceHash: computeGraphFingerprint(candidateBase),
+            specHash: computeSpecHash(specification),
             generatedAt: Date.now(),
             direction: 'spec_to_graph',
             model: modelData.modelId,
@@ -257,7 +260,7 @@ export const previewSpecificationFromGraph = action({
       throw new Error(`Workflow "${args.workflowSlug}" could not be read.`);
     }
     const config = current.config;
-    const outline = renderWorkflowOutline(config);
+    const outline = renderWorkflowOutline(args.workflowSlug, config);
     const sourceHash = computeGraphFingerprint(config);
 
     const { languageModel, modelData } = await resolveLanguageModelWithFallback(

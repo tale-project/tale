@@ -1,9 +1,7 @@
 {
   "title": "Google Drive",
   "description": "Import files from Google Drive into Tale's knowledge base.",
-  "metadata": {
-    "labels": ["Knowledge"]
-  },
+  "labels": ["Knowledge"],
   "version": 1,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

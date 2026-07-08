@@ -2,14 +2,13 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle, Info, RefreshCw, Save, Sparkles } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { AlertTriangle, Info, RefreshCw, Sparkles } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useRegisterActiveEditor } from '@/app/components/ui/editor';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
@@ -36,7 +35,7 @@ interface SyncedDraft {
 }
 
 // A specification draft lives in this component's local state, but the parent's
-// Graph⇄Specification pill toggle renders the two views as ternary branches, so
+// Graph⇄Specification toggle renders the two views as ternary branches, so
 // switching unmounts this component. Persist the in-progress draft per workflow
 // across that unmount so a casual toggle never silently discards unsaved text.
 // The cache is write-through (updated wherever the draft is set) and re-read on
@@ -47,20 +46,29 @@ const draftCacheKey = (organizationId: string, workflowSlug: string): string =>
   `${organizationId}:${workflowSlug}`;
 
 /**
- * Text ⇄ graph dual-view editor's text side (W5b). Context-free (no
+ * The workflow's SPECIFICATION — its only prose (a workflow carries no name
+ * or description): a full-height markdown text editor. Context-free (no
  * `WorkflowConfigProvider`) — like `WorkflowAIChatPanel`, it reads and saves
  * the workflow file directly so it can drop into either the standalone
  * `/workflows/$workflowId` editor or the automation detail's Editor tab
  * without a shared ancestor.
  *
- * Both LLM actions (`previewGraphFromSpecification`,
- * `previewSpecificationFromGraph`) are preview-only; this component owns the
- * only write path, via the same `saveWorkflowWithSnapshot` (compare-and-swap
- * on `expectedHash`) every other workflow editor surface uses. A plain text
- * save (the Save button) clears `specificationMeta` — it's no longer known
- * to be in sync with anything. A save right after "Regenerate specification"
- * (the draft still matches what that action returned) instead records the
- * fresh sync, so the banner reads `synced`, not `never_synced`.
+ * Saving goes through the page's SHARED Save cluster: the component registers
+ * itself as the active editor (`useRegisterActiveEditor`), so Save/Discard
+ * render in the tab strip like every other settings form. There is no
+ * standing "Regenerate" button — regeneration is offered exactly when it
+ * makes sense, on the sync banners:
+ *
+ *  - `spec_stale` (the graph moved) → "Update from graph" refreshes the draft
+ *    from the current graph (`previewSpecificationFromGraph`); saving then
+ *    records the fresh sync.
+ *  - `graph_stale` (the spec moved) → "Regenerate graph" previews a new graph
+ *    from the spec (`previewGraphFromSpecification`) behind a diff dialog;
+ *    applying commits both sides in sync.
+ *
+ * A plain save sends the config through `saveWorkflowWithSnapshot`, whose
+ * server-side reconcile keeps `specificationMeta` honest (an author-shipped
+ * pair diverging for the first time gets its baseline stamped there).
  */
 export function WorkflowSpecification({
   organizationId,
@@ -68,7 +76,6 @@ export function WorkflowSpecification({
   className,
 }: WorkflowSpecificationProps) {
   const { t } = useT('workflows');
-  const { t: tCommon } = useT('common');
   const {
     data: readResult,
     isLoading,
@@ -121,9 +128,20 @@ export function WorkflowSpecification({
 
   const isDirty = draft !== (config?.specification ?? '');
 
+  // The registered controller re-registers only on STATE flips (isDirty …),
+  // not per keystroke — so `save`/`reset` must read the live values through a
+  // ref rather than their closures (the same reason `useFormEditor` reads
+  // RHF's external store at save time).
+  const liveRef = useRef({ draft, syncedFrom, config, hash });
+  liveRef.current = { draft, syncedFrom, config, hash };
+
   const handleSave = useCallback(async () => {
+    const { draft, syncedFrom, config, hash } = liveRef.current;
     if (!config || hash === undefined) return;
     const trimmed = draft.trim();
+    // A draft that still matches a just-run "Update from graph" records that
+    // fresh sync; any other save carries the stored record and lets the
+    // server-side reconcile keep it honest.
     const specificationMeta =
       trimmed && syncedFrom && syncedFrom.text === draft
         ? {
@@ -131,7 +149,7 @@ export function WorkflowSpecification({
             generatedAt: Date.now(),
             direction: 'graph_to_spec' as const,
           }
-        : undefined;
+        : config.specificationMeta;
 
     try {
       await saveWorkflow.mutateAsync({
@@ -149,18 +167,32 @@ export function WorkflowSpecification({
     } catch (error) {
       console.error('[WorkflowSpecification] save failed:', error);
       toast({ title: t('editorView.saveFailed'), variant: 'destructive' });
+      throw error;
     }
-  }, [
-    config,
-    hash,
-    draft,
-    syncedFrom,
-    saveWorkflow,
-    organizationId,
-    workflowSlug,
-    refetch,
-    t,
-  ]);
+  }, [saveWorkflow, organizationId, workflowSlug, refetch, t]);
+
+  const handleDiscard = useCallback(() => {
+    setDraft(liveRef.current.config?.specification ?? '');
+    setSyncedFrom(null);
+  }, [setDraft]);
+
+  // The page's shared Save/Discard cluster (tab strip) drives this editor —
+  // the same active-editor contract every settings form implements.
+  const controller = useMemo(
+    () => ({
+      isDirty,
+      isSaving: saveWorkflow.isPending,
+      isValid: true,
+      isLoading,
+      dirtyKeys: isDirty
+        ? new Set<string>(['specification'])
+        : new Set<string>(),
+      save: handleSave,
+      reset: handleDiscard,
+    }),
+    [isDirty, saveWorkflow.isPending, isLoading, handleSave, handleDiscard],
+  );
+  useRegisterActiveEditor(controller);
 
   const handleRegenerateGraph = useCallback(async () => {
     setGraphErrors([]);
@@ -215,7 +247,7 @@ export function WorkflowSpecification({
     t,
   ]);
 
-  const handleRegenerateSpecification = useCallback(async () => {
+  const handleUpdateFromGraph = useCallback(async () => {
     try {
       const result = await generateSpecification.mutateAsync({
         organizationId,
@@ -252,38 +284,74 @@ export function WorkflowSpecification({
   }
 
   return (
-    <VStack
-      gap={3}
-      className={cn('min-h-0 flex-1 overflow-y-auto p-4', className)}
-    >
-      {specSyncStatus === 'stale' && (
+    <div className={cn('flex min-h-0 flex-1 flex-col gap-3 p-4', className)}>
+      {specSyncStatus === 'spec_stale' && (
         <Alert
           variant="warning"
           icon={AlertTriangle}
-          title={t('editorView.staleBanner')}
-        />
+          title={t('editorView.specStaleBanner')}
+        >
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={RefreshCw}
+            className="mt-2"
+            disabled={generateSpecification.isPending}
+            onClick={() => void handleUpdateFromGraph()}
+          >
+            {t('editorView.updateFromGraph')}
+          </Button>
+        </Alert>
       )}
-      {specSyncStatus === 'never_synced' && (
+      {specSyncStatus === 'graph_stale' && (
         <Alert
           variant="info"
           icon={Info}
-          title={t('editorView.neverSyncedBanner')}
-        />
+          title={t('editorView.graphStaleBanner')}
+        >
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={Sparkles}
+            className="mt-2"
+            disabled={!draft.trim() || generateGraph.isPending}
+            onClick={() => void handleRegenerateGraph()}
+          >
+            {t('editorView.regenerateGraph')}
+          </Button>
+        </Alert>
       )}
 
-      <Textarea
-        label={t('editorView.specification')}
+      {/* The editor fills the page; the floating mode toggle overlays its
+          bottom-center, so the bottom padding keeps text clear of it. */}
+      <textarea
+        aria-label={t('editorView.specification')}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={t('editorView.placeholder')}
-        rows={20}
-        className="min-h-96 font-mono text-xs leading-relaxed"
+        spellCheck={false}
+        className={cn(
+          'border-input bg-background text-foreground placeholder:text-muted-foreground',
+          'focus-visible:ring-ring min-h-64 w-full flex-1 resize-none rounded-lg border',
+          'p-4 pb-16 font-mono text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none',
+        )}
       />
 
-      {!draft && (
-        <Text variant="muted" className="text-sm">
-          {t('editorView.emptyState')}
-        </Text>
+      {!draft.trim() && (
+        <div className="flex items-center justify-between gap-3">
+          <Text variant="muted" className="text-sm">
+            {t('editorView.emptyState')}
+          </Text>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={RefreshCw}
+            disabled={generateSpecification.isPending}
+            onClick={() => void handleUpdateFromGraph()}
+          >
+            {t('editorView.generateFromGraph')}
+          </Button>
+        </div>
       )}
 
       <ValidationMessages
@@ -292,36 +360,6 @@ export function WorkflowSpecification({
         errorLabel={t('editorView.validationErrors')}
         warningLabel={t('sidePanel.validationWarnings')}
       />
-
-      <HStack gap={2} className="flex-wrap">
-        <Button
-          onClick={() => void handleSave()}
-          disabled={!isDirty || saveWorkflow.isPending}
-          icon={Save}
-        >
-          {saveWorkflow.isPending
-            ? t('sidePanel.saving')
-            : tCommon('actions.save')}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => void handleRegenerateGraph()}
-          disabled={!draft.trim() || generateGraph.isPending}
-          icon={Sparkles}
-        >
-          {t('editorView.regenerateGraph')}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => void handleRegenerateSpecification()}
-          disabled={generateSpecification.isPending}
-          icon={RefreshCw}
-        >
-          {config.specification
-            ? t('editorView.regenerateSpecification')
-            : t('editorView.generateFromGraph')}
-        </Button>
-      </HStack>
 
       {candidateConfig && (
         <WorkflowDiffDialog
@@ -337,6 +375,6 @@ export function WorkflowSpecification({
           onConfirm={() => void handleConfirmApplyGraph()}
         />
       )}
-    </VStack>
+    </div>
   );
 }

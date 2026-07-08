@@ -17,7 +17,6 @@ import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { AgentRowActions } from '../components/agent-row-actions';
 import type { AgentTableItem } from '../components/agents-table';
-import { folderLabel } from '../utils/folder-label';
 
 interface AgentsTableConfig {
   columns: ColumnDef<AgentTableItem>[];
@@ -46,9 +45,6 @@ export function useAgentsTableConfig({
   showFolderPath = false,
 }: AgentsTableConfigOptions): AgentsTableConfig {
   const { t } = useT('settings');
-  // Folder rows show the same localized display name as the catalog's folder
-  // sections, never the raw path segment (#2348).
-  const { t: tCatalog } = useT('agentCatalog');
   const { t: tTables } = useT('tables');
 
   const columns = useMemo<ColumnDef<AgentTableItem>[]>(
@@ -73,8 +69,11 @@ export function useAgentsTableConfig({
                 ) : (
                   <Folder className="text-muted-foreground size-4 shrink-0" />
                 )}
+                {/* Folder rows show the RAW path segment — table folder
+                    navigation renders paths verbatim, matching the flattened
+                    search prefix below and the documents table. */}
                 <Text as="span" variant="label" truncate>
-                  {folderLabel(tCatalog, row.original.name)}
+                  {row.original.name}
                 </Text>
                 {isAutomationFolder && (
                   <Badge variant="slate">{t('agents.automationBadge')}</Badge>
@@ -161,15 +160,7 @@ export function useAgentsTableConfig({
         },
       },
     ],
-    [
-      t,
-      tCatalog,
-      tTables,
-      organizationId,
-      onDuplicated,
-      onDeleted,
-      showFolderPath,
-    ],
+    [t, tTables, organizationId, onDuplicated, onDeleted, showFolderPath],
   );
 
   return {

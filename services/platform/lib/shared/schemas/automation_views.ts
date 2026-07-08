@@ -155,10 +155,9 @@ export const boundActionSchema = z
   .passthrough();
 
 /**
- * One table column: a bare field name (back-compat), or a spec the DataTable
- * mapper (`bound-columns`) turns into a typed `ColumnDef` — `kind` picks the
- * cell renderer, `size` feeds the column-size budget, `flex` grows the column
- * (`true` or a grow weight).
+ * One table column: a spec the DataTable mapper (`bound-columns`) turns into a
+ * typed `ColumnDef` — `kind` picks the cell renderer, `size` feeds the
+ * column-size budget, `flex` grows the column (`true` or a grow weight).
  */
 export const columnSpecSchema = z
   .object({
@@ -178,11 +177,8 @@ export const columnSpecSchema = z
   })
   .passthrough();
 
-/** A block's `columns` array — plain field names keep working. */
-const columnsSchema = z.array(z.union([z.string(), columnSpecSchema]));
-
-/** Literal header text per column key. */
-const columnLabelsSchema = z.record(z.string(), labelStringSchema);
+/** A block's `columns` array. */
+const columnsSchema = z.array(columnSpecSchema);
 
 /**
  * One declared input field — shared grammar between an automation manifest's
@@ -191,39 +187,31 @@ const columnLabelsSchema = z.record(z.string(), labelStringSchema);
  * the additive v2 extensions; everything else is the original manifest grammar.
  *
  * Display strings are LITERALS (`label`/`placeholder`/`help`, authored in
- * English) — per-bundle label catalogs are retired. A manifest translates its
- * config fields via its inline `i18n.<locale>.config.<key>` block
+ * English). A manifest translates its config fields via its inline
+ * `i18n.<locale>.config.<key>` block
  * (`automations.ts#automationManifestI18nSchema`), resolved through
  * `lib/shared/utils/resolve-automation-locale.ts`.
- * `labelKey`/`placeholderKey` stay ACCEPTED for back-compat (installed
- * manifests and old uploads carry them) but are DEPRECATED: no catalog exists
- * any more, so a consumer only humanizes the key's last segment as a fallback.
  */
 export const formFieldSchema = z.object({
   key: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'select']),
-  /** Literal field label; absent → the humanized `labelKey`/`key` fallback. */
+  /** Literal field label; absent → the humanized `key` fallback. */
   label: z.string().optional(),
-  /** DEPRECATED (retired bundle catalogs) — accepted, humanized as fallback. */
-  labelKey: z.string().optional(),
   /** Literal input placeholder — a format hint,
    *  e.g. "owner/repo or https://github.com/owner/repo". */
   placeholder: z.string().optional(),
-  /** DEPRECATED (retired bundle catalogs) — accepted but unused. */
-  placeholderKey: z.string().optional(),
   /** Literal help text rendered under the control. */
   help: z.string().optional(),
   /** Render a multi-line textarea instead of a single-line input — for
    *  free-text fields. `type` stays `'string'`; purely a presentation hint. */
   multiline: z.boolean().optional(),
   /** Choices for a `type: 'select'` field — `label` is the literal display
-   *  string; `labelKey` is the deprecated catalog twin (humanized fallback). */
+   *  string (absent → the humanized `value`). */
   options: z
     .array(
       z.object({
         value: z.string(),
         label: z.string().optional(),
-        labelKey: z.string().optional(),
       }),
     )
     .optional(),
@@ -330,7 +318,6 @@ const collectionPropsSchema = z
     title: labelStringSchema.optional(),
     query: queryBindingSchema,
     columns: columnsSchema.optional(),
-    columnLabels: columnLabelsSchema.optional(),
     actions: z.array(boundActionSchema).optional(),
     /** When set, rows expand to show their workflow run inline. */
     subjectType: z.string().optional(),
@@ -379,7 +366,6 @@ const externalListPropsSchema = z
     /** Client-side row filter (when_predicate grammar), e.g. `!pull_request`. */
     rowWhen: z.string().optional(),
     columns: columnsSchema.optional(),
-    columnLabels: columnLabelsSchema.optional(),
     actions: z.array(boundActionSchema).optional(),
     perPage: z.number().optional(),
     /** Hide rows already materialized in another Convex collection. */

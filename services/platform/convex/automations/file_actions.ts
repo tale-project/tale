@@ -2,8 +2,7 @@
 
 /**
  * Automation discovery for the Automations catalog. Reads each `<slug>/` bundle's manifest
- * (`automation.json`, or the legacy `app.json` — DUAL-READ, see
- * `file_utils.ts`) and its bundled `views/*.json` (the configurable pages).
+ * (`automation.json`) and its bundled `views/*.json` (the configurable pages).
  * Fully data-driven — a new automation dir appears in the hub with no code change. Malformed manifests
  * are skipped; a malformed VIEW becomes an `{ id, error }` stub in place (never
  * a silent drop, never a failed list) so the automation page can offer a repair.
@@ -33,9 +32,16 @@ import {
   isValidAutomationSlug,
   manifestDeclaresBundle,
 } from '../../lib/shared/schemas/automations';
+import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { errnoCode, readFileBufferSafe, readFileSafe } from '../lib/file_io';
+import {
+  atomicWrite,
+  errnoCode,
+  readFileBufferSafe,
+  readFileSafe,
+  serializeJson,
+} from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import {
@@ -43,6 +49,7 @@ import {
   resolveAutomationDir,
   resolveAutomationsDir,
   resolveBundleManifestPath,
+  resolveCatalogAutomationDir,
   resolveCatalogAutomationsDir,
   resolveManifestFilePath,
 } from './file_utils';
@@ -61,8 +68,8 @@ interface CatalogRow {
 /**
  * Enumerate the valid automation-slug subdirs of `dir` and parse each one's
  * manifest: a BUNDLE (`bundle.json`) via the strict `bundleManifestSchema`, an
- * ordinary automation (`automation.json`, DUAL-READ, see `file_utils.ts`) via
- * `automationManifestSchema`. Reads its bundled `icon.svg` as a data URI.
+ * ordinary automation (`automation.json`) via `automationManifestSchema`.
+ * Reads its bundled `icon.svg` as a data URI.
  * Malformed manifests are skipped with a console warning (never fail the whole
  * list — the discovery posture); a missing `dir` yields an empty list.
  * `includeHidden` controls whether a `hidden: true` automation (a bundle
@@ -146,6 +153,10 @@ function buildCatalogEntry(
     slug,
     name: manifest.name,
     description: manifest.description ?? '',
+    // A bundle member never gets its own catalog CARD (the grids filter on
+    // this) but its detail page — the workflow settings — must resolve.
+    ...(!manifestDeclaresBundle(manifest) &&
+      manifest.hidden === true && { hidden: true }),
     // Per-locale display overrides — the manifest translates itself; the
     // client resolves via `resolve-automation-locale.ts`.
     ...(manifest.i18n !== undefined && { i18n: manifest.i18n }),
@@ -208,8 +219,11 @@ export const listAutomations = action({
       args.organizationId,
     );
 
+    // Installed HIDDEN automations (a bundle's members) stay in this payload,
+    // tagged `hidden` — their detail pages (the workflow settings) must
+    // resolve; only the hub's card grid filters them out.
     const rows = await collectCatalogRows(resolveAutomationsDir(orgSlug), {
-      includeHidden: false,
+      includeHidden: true,
       label: 'listAutomations',
     });
 
@@ -335,17 +349,34 @@ export const listCatalogAutomations = action({
 export const getAutomationSummariesBySlug = action({
   args: { organizationId: v.string(), slugs: v.array(v.string()) },
   returns: v.array(
-    v.object({ slug: v.string(), name: v.string(), description: v.string() }),
+    v.object({
+      slug: v.string(),
+      name: v.string(),
+      description: v.string(),
+      requiredIntegrations: v.array(v.string()),
+    }),
   ),
   handler: async (
     ctx,
     args,
-  ): Promise<Array<{ slug: string; name: string; description: string }>> => {
+  ): Promise<
+    Array<{
+      slug: string;
+      name: string;
+      description: string;
+      requiredIntegrations: string[];
+    }>
+  > => {
     const { orgSlug } = await requireOrgMembershipById(
       ctx,
       args.organizationId,
     );
-    const out: Array<{ slug: string; name: string; description: string }> = [];
+    const out: Array<{
+      slug: string;
+      name: string;
+      description: string;
+      requiredIntegrations: string[];
+    }> = [];
     for (const slug of args.slugs) {
       if (!isValidAutomationSlug(slug)) continue;
       const manifest = await readAutomationOrBundleManifest(
@@ -357,6 +388,9 @@ export const getAutomationSummariesBySlug = action({
         slug,
         name: manifest.name,
         description: manifest.description ?? '',
+        requiredIntegrations: manifestDeclaresBundle(manifest)
+          ? []
+          : (manifest.requires?.integrations ?? []),
       });
     }
     return out;
@@ -498,8 +532,16 @@ export const exportAutomation = action({
       args.organizationId,
     );
 
+    // The org copy (installed / privately uploaded) wins; a not-yet-installed
+    // catalog automation exports its built-in bundle instead — export is not
+    // gated on installation.
     const automationDir = resolveAutomationDir(orgSlug, args.slug);
-    const files = await walkAutomationBundle(automationDir);
+    let files = await walkAutomationBundle(automationDir);
+    if (files.length === 0) {
+      files = await walkAutomationBundle(
+        resolveCatalogAutomationDir(args.slug),
+      );
+    }
     if (files.length === 0) {
       throw new ConvexError({
         code: 'NOT_FOUND',
@@ -580,3 +622,127 @@ async function walkAutomationBundle(
   out.sort((a, b) => a.rel.localeCompare(b.rel));
   return out;
 }
+
+/**
+ * Edit an installed automation's display identity — the manifest `name` +
+ * `description`, the automation's ONLY user-facing strings (its inline
+ * workflow carries none). Atomically rewrites the org manifest
+ * (`automation.json`, or `bundle.json` for a bundle) preserving every other
+ * field. The English literals are the edit target, so per-locale overrides of
+ * the edited fields are dropped — a stale translation must never shadow a
+ * manual rename; the rest of the `i18n` block survives. Also refreshes the
+ * denormalized `automationInstallations.automationName` nav cache.
+ */
+export const updateAutomationIdentity = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (!isValidAutomationSlug(args.slug)) {
+      throw new ConvexError({
+        code: 'INVALID_SLUG',
+        message: `Invalid automation slug: ${args.slug}`,
+      });
+    }
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const name = args.name.trim();
+    if (!name) {
+      throw new ConvexError({
+        code: 'INVALID_NAME',
+        message: 'Automation name must not be empty',
+      });
+    }
+    const description = args.description?.trim() || undefined;
+
+    const manifestPath = resolveManifestFilePath(
+      resolveAutomationDir(orgSlug, args.slug),
+    );
+    const content = await readFileSafe(manifestPath);
+    if (content === null) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Automation "${args.slug}" does not exist`,
+      });
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(content);
+    } catch {
+      throw new ConvexError({
+        code: 'INVALID_MANIFEST',
+        message: `Automation "${args.slug}" has an unparsable manifest`,
+      });
+    }
+    if (typeof raw !== 'object' || raw === null) {
+      throw new ConvexError({
+        code: 'INVALID_MANIFEST',
+        message: `Automation "${args.slug}" has an invalid manifest`,
+      });
+    }
+
+    const next: Record<string, unknown> = {
+      ...(raw as Record<string, unknown>),
+      name,
+    };
+    if (description === undefined) {
+      delete next.description;
+    } else {
+      next.description = description;
+    }
+    // Drop per-locale overrides of the two edited fields (see doc above).
+    if (typeof next.i18n === 'object' && next.i18n !== null) {
+      const i18n: Record<string, unknown> = {
+        ...(next.i18n as Record<string, unknown>),
+      };
+      for (const [locale, entry] of Object.entries(i18n)) {
+        if (typeof entry !== 'object' || entry === null) continue;
+        const rest: Record<string, unknown> = {
+          ...(entry as Record<string, unknown>),
+        };
+        delete rest.name;
+        delete rest.description;
+        if (Object.keys(rest).length === 0) {
+          delete i18n[locale];
+        } else {
+          i18n[locale] = rest;
+        }
+      }
+      if (Object.keys(i18n).length === 0) {
+        delete next.i18n;
+      } else {
+        next.i18n = i18n;
+      }
+    }
+
+    // Re-validate with the matching schema so a bad edit can never land.
+    const schema =
+      typeof next.bundle === 'object' && next.bundle !== null
+        ? bundleManifestSchema
+        : automationManifestSchema;
+    const parsed = schema.safeParse(next);
+    if (!parsed.success) {
+      throw new ConvexError({
+        code: 'INVALID_MANIFEST',
+        message: `Edited manifest failed validation: ${parsed.error.message}`,
+      });
+    }
+
+    await atomicWrite(manifestPath, serializeJson(next));
+    await ctx.runMutation(
+      internal.automations.install_mutations.patchAutomationName,
+      {
+        organizationId: args.organizationId,
+        automationSlug: args.slug,
+        automationName: name,
+      },
+    );
+    return null;
+  },
+});

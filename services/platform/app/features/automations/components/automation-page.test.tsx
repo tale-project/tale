@@ -124,6 +124,66 @@ vi.mock('../registry/automation-view', () => ({
   AutomationView: () => <div data-testid="automation-view" />,
 }));
 
+// The page shell (PageLayout + breadcrumb + the shared TabNavigation) has its
+// own coverage; a light stand-in keeps this file about what the PAGE owns —
+// branch selection, tab composition/gating/default — while preserving
+// `role="tab"` queries. `isActive` maps to `aria-selected`; the declared
+// `search.tab` is folded into the href so deep-link assertions stay real.
+vi.mock('./automation-detail-shell', () => ({
+  AutomationDetailShell: ({
+    displayName,
+    tabs,
+    tabsChildren,
+    children,
+  }: {
+    displayName?: string;
+    tabs?: {
+      label: string;
+      href: string;
+      search?: Record<string, unknown>;
+      isActive?: boolean;
+    }[];
+    tabsChildren?: ReactNode;
+    children?: ReactNode;
+  }) => (
+    <div>
+      <div data-testid="breadcrumb-name">{displayName}</div>
+      {tabs && (
+        <div role="tablist">
+          {tabs.map((tab) => (
+            <a
+              key={tab.label}
+              role="tab"
+              aria-selected={tab.isActive === true}
+              href={
+                typeof tab.search?.tab === 'string'
+                  ? `${tab.href}?tab=${tab.search.tab}`
+                  : tab.href
+              }
+            >
+              {tab.label}
+            </a>
+          ))}
+        </div>
+      )}
+      {tabsChildren}
+      {children}
+    </div>
+  ),
+}));
+
+// The Integrations tab pulls the settings catalog card + connect wizard —
+// irrelevant to the page's tab plumbing.
+vi.mock('./automation-integrations-tab', () => ({
+  AutomationIntegrationsTab: () => <div data-testid="integrations-tab" />,
+}));
+
+// Configuration's identity form pulls the workflow read/save + identity
+// action (Convex + QueryClient); its content has its own test file.
+vi.mock('./automation-configuration', () => ({
+  AutomationConfiguration: () => <div data-testid="configuration-tab" />,
+}));
+
 // The assistant panel pulls the chat/Convex stack; a marker keeps the
 // developer-gate assertion cheap (the panel only mounts for developers).
 vi.mock('./automation-assistant-panel', () => ({
@@ -193,7 +253,8 @@ describe('AutomationPage catalog discovery (#1979)', () => {
       />,
     );
 
-    expect(screen.getByText('Sample Automation')).toBeInTheDocument();
+    // Breadcrumb + the details header both carry the name.
+    expect(screen.getAllByText('Sample Automation')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Install' })).toBeInTheDocument();
     expect(screen.queryByText('Automation not found')).not.toBeInTheDocument();
   });
@@ -227,7 +288,7 @@ describe('AutomationPage catalog discovery (#1979)', () => {
       />,
     );
 
-    expect(screen.getByText('Installed Sample')).toBeInTheDocument();
+    expect(screen.getAllByText('Installed Sample').length).toBeGreaterThan(0);
     expect(screen.queryByText('Catalog Sample')).not.toBeInTheDocument();
   });
 
@@ -277,11 +338,11 @@ function installSampleAutomation(overrides: Partial<AutomationSummary> = {}) {
 
 /**
  * An installed automation with no views and no workflow (a non-developer, or
- * a developer without dev-tab access to anything else) collapses to the
- * Configuration tab's content DIRECTLY — no tab strip, ever a dead end.
+ * a developer without dev-tab access to anything else) still gets the shared
+ * strip — Configuration + Integrations — and lands on Configuration.
  */
 describe('AutomationPage renders an installed automation with nothing else to show', () => {
-  it('renders the header and the Configuration content with no tab strip', () => {
+  it('renders the breadcrumb name and the Configuration content', () => {
     installSampleAutomation({ views: [] });
 
     render(
@@ -291,56 +352,24 @@ describe('AutomationPage renders an installed automation with nothing else to sh
       />,
     );
 
-    // Stable header: automation name + description (Configuration repeats
-    // both further down, so there are two of each on the page).
-    expect(screen.getAllByText('Sample Automation')).toHaveLength(2);
-    expect(
-      screen.getAllByText(
-        'A discoverable automation from the built-in catalog.',
-      ),
-    ).toHaveLength(2);
-    // No views, no workflow → Configuration is the only tab → no tab strip;
-    // its entity sections are empty, so the localized empty state shows.
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Nothing to manage yet', level: 3 }),
-    ).toBeInTheDocument();
-  });
-
-  it('lists the manifest cast in the Configuration sections', () => {
-    installSampleAutomation({
-      views: [],
-      agents: ['sample-automation-helper'],
-      workflows: ['github/issue-fix'],
-      skills: ['browse-web'],
-    });
-
-    render(
-      <AutomationPage
-        organizationId="org_1"
-        automationSlug="sample-automation"
-      />,
-    );
-
-    // Not a developer, so the workflow doesn't earn Editor/Executions/
-    // Triggers tabs — Configuration still lists it as an entity row.
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    expect(screen.getByText('Agents')).toBeInTheDocument();
-    expect(screen.getByText('Sample Automation Helper')).toBeInTheDocument();
-    expect(screen.getByText('Workflows')).toBeInTheDocument();
-    // Workflow rows humanize the slug's base name; the raw slug stays muted.
-    expect(screen.getByText('Issue Fix')).toBeInTheDocument();
-    expect(screen.getByText('github/issue-fix')).toBeInTheDocument();
-    expect(screen.getByText('Skills')).toBeInTheDocument();
-    expect(screen.getByText('Browse Web')).toBeInTheDocument();
+    // The name lives in the breadcrumb.
+    expect(screen.getByText('Sample Automation')).toBeInTheDocument();
+    // No views, no workflow, non-developer → Configuration + Integrations.
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Configuration',
+      'Integrations',
+    ]);
+    // …and Configuration is the landing tab.
+    expect(screen.getByTestId('configuration-tab')).toBeInTheDocument();
   });
 });
 
 /**
- * The installed page's ONE top-level tab strip: any builtin/JSON view tabs
- * first (invalid ones as repair-stub tabs), then Configuration — the
- * Editor/Executions/Triggers tabs stay off the strip entirely for a
- * non-developer. Selection writes the `tab` search param.
+ * The installed page's ONE top-level tab strip: Configuration + Integrations
+ * always, any JSON view tabs after them (invalid ones as repair-stub tabs) —
+ * the Editor/Executions/Triggers tabs stay off the strip entirely for a
+ * non-developer. Each tab is a real link carrying its `?tab=` value.
  */
 describe('AutomationPage tab strip (views + Configuration)', () => {
   const viewAutomation = () =>
@@ -354,7 +383,7 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
       ] as AutomationSummary['views'],
     });
 
-  it('renders a tab per view plus a trailing Configuration tab, first view active', () => {
+  it('renders Configuration + Integrations plus a tab per view, first view active', () => {
     installSampleAutomation(viewAutomation());
 
     render(
@@ -366,26 +395,38 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Desk',
       'Configuration',
+      'Integrations',
+      'Desk',
     ]);
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    // A non-developer defaults to the first VIEW, not Configuration.
+    expect(screen.getByRole('tab', { name: 'Desk' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     // The active view tab renders the view body.
     expect(screen.getByTestId('automation-view')).toBeInTheDocument();
   });
 
-  it('writes the tab search param when a tab is selected', async () => {
+  it('links each tab to its ?tab deep link on the same route', () => {
     installSampleAutomation(viewAutomation());
 
-    const { user } = render(
+    render(
       <AutomationPage
         organizationId="org_1"
         automationSlug="sample-automation"
       />,
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Configuration' }));
-    expect(setUrlStateMock).toHaveBeenCalledWith('tab', 'configuration');
+    expect(screen.getByRole('tab', { name: 'Configuration' })).toHaveAttribute(
+      'href',
+      '/dashboard/org_1/automations/sample-automation?tab=configuration',
+    );
+    // The default tab (the first view here) clears the param instead.
+    expect(screen.getByRole('tab', { name: 'Desk' })).toHaveAttribute(
+      'href',
+      '/dashboard/org_1/automations/sample-automation',
+    );
   });
 
   it('deep-links ?tab=configuration to the Configuration panel', () => {
@@ -403,12 +444,7 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
       expect(
         screen.getByRole('tab', { name: 'Configuration' }),
       ).toHaveAttribute('aria-selected', 'true');
-      expect(
-        screen.getByRole('heading', {
-          name: 'Nothing to manage yet',
-          level: 3,
-        }),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId('configuration-tab')).toBeInTheDocument();
     } finally {
       urlStateMock.tab = null;
     }
@@ -464,10 +500,13 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
       />,
     );
 
-    // Nothing else to show a non-developer here (no views) → Configuration
-    // collapses to direct content, no tab strip — Editor/Executions/Triggers
-    // are never RENDERED (not just hidden).
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    // Editor/Executions/Triggers are never RENDERED for a non-developer
+    // (not just hidden) — only Configuration + Integrations remain.
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Configuration',
+      'Integrations',
+    ]);
     expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
     expect(screen.queryByTestId('executions-table')).not.toBeInTheDocument();
     expect(screen.queryByTestId('triggers-tab')).not.toBeInTheDocument();
@@ -484,11 +523,15 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
       />,
     );
 
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Configuration',
+      'Integrations',
+    ]);
     expect(screen.queryByTestId('editor-tab')).not.toBeInTheDocument();
   });
 
-  it('orders Editor, Executions, Configuration, Triggers for a developer with a workflow', () => {
+  it('orders Editor, Executions, Configuration, Triggers, Integrations for a developer with a workflow', () => {
     abilityMock.can.mockReturnValue(true);
     installSampleAutomation(workflowAutomation());
 
@@ -505,6 +548,7 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
       'Executions',
       'Configuration',
       'Triggers',
+      'Integrations',
     ]);
   });
 
@@ -526,7 +570,7 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
     expect(screen.getByTestId('editor-tab')).toBeInTheDocument();
   });
 
-  it('puts builtin/JSON view tabs before the developer tabs', () => {
+  it('puts JSON view tabs after the developer tabs', () => {
     abilityMock.can.mockReturnValue(true);
     installSampleAutomation(
       catalogAutomation({
@@ -550,14 +594,14 @@ describe('AutomationPage developer tabs (Editor/Executions/Configuration/Trigger
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Desk',
       'Editor',
       'Executions',
       'Configuration',
       'Triggers',
+      'Integrations',
+      'Desk',
     ]);
-    // Views lead the strip, but a developer with a workflow still defaults
-    // to Editor rather than the leading view tab.
+    // A developer with a workflow defaults to Editor.
     expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
       'aria-selected',
       'true',

@@ -45,7 +45,7 @@ async function seedInlineAutomation(
 }
 
 const WORKFLOW: WorkflowJsonConfig = {
-  name: 'Do the thing',
+  version: '1.0.0',
   steps: [
     {
       stepSlug: 'start',
@@ -61,7 +61,7 @@ describe('resolveInlineWorkflowOwner', () => {
   it('resolves an automation slug that carries an inline workflow', async () => {
     await seedInlineAutomation('create-github-pr', WORKFLOW);
     const owner = await resolveInlineWorkflowOwner(ORG, 'create-github-pr');
-    expect(owner?.workflow.name).toBe('Do the thing');
+    expect(owner?.workflow.version).toBe('1.0.0');
   });
 
   it('returns null for an automation with no inline workflow', async () => {
@@ -91,7 +91,7 @@ describe('readWorkflowDefinition — inline vs file', () => {
     const b = await readWorkflowDefinition(ORG, 'create-github-pr');
     expect(a.ok).toBe(true);
     if (!a.ok || !b.ok) throw new Error('expected ok');
-    expect(a.config.name).toBe('Do the thing');
+    expect(a.config.version).toBe('1.0.0');
     expect(a.hash).toBe(b.hash);
   });
 
@@ -100,12 +100,12 @@ describe('readWorkflowDefinition — inline vs file', () => {
     await mkdir(dir, { recursive: true });
     await writeFile(
       path.join(dir, 'my-workflow.json'),
-      JSON.stringify({ name: 'Standalone', steps: [] }),
+      JSON.stringify({ version: 'standalone-1', steps: [] }),
     );
     const res = await readWorkflowDefinition(ORG, 'my-workflow');
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error('expected ok');
-    expect(res.config.name).toBe('Standalone');
+    expect(res.config.version).toBe('standalone-1');
   });
 });
 
@@ -116,7 +116,7 @@ describe('writeWorkflowDefinition — inline write-back', () => {
       roles: { creator: 'create-github-pr/pr-creator' },
     });
 
-    const next: WorkflowJsonConfig = { ...WORKFLOW, name: 'Renamed' };
+    const next: WorkflowJsonConfig = { ...WORKFLOW, version: '2.0.0' };
     await writeWorkflowDefinition(ORG, 'create-github-pr', next);
 
     const raw = JSON.parse(
@@ -128,9 +128,9 @@ describe('writeWorkflowDefinition — inline write-back', () => {
       name: string;
       hidden: boolean;
       roles: Record<string, string>;
-      workflow: { name: string };
+      workflow: { version: string };
     };
-    expect(raw.workflow.name).toBe('Renamed');
+    expect(raw.workflow.version).toBe('2.0.0');
     // Other manifest fields survive the write-back untouched.
     expect(raw.name).toBe('Automation');
     expect(raw.hidden).toBe(true);
@@ -140,7 +140,7 @@ describe('writeWorkflowDefinition — inline write-back', () => {
     const read = await readWorkflowDefinition(ORG, 'create-github-pr');
     expect(read.ok).toBe(true);
     if (!read.ok) throw new Error('expected ok');
-    expect(read.config.name).toBe('Renamed');
+    expect(read.config.version).toBe('2.0.0');
   });
 
   it('current content reflects the last inline write (compare-and-swap basis)', async () => {
@@ -148,22 +148,22 @@ describe('writeWorkflowDefinition — inline write-back', () => {
     const before = await readCurrentWorkflowContent(ORG, 'create-github-pr');
     await writeWorkflowDefinition(ORG, 'create-github-pr', {
       ...WORKFLOW,
-      name: 'Changed',
+      version: '3.0.0',
     });
     const after = await readCurrentWorkflowContent(ORG, 'create-github-pr');
     expect(before).not.toEqual(after);
-    expect(after).toContain('Changed');
+    expect(after).toContain('3.0.0');
   });
 
   it('writes a standalone file for a non-automation slug', async () => {
     await writeWorkflowDefinition(ORG, 'my-workflow', {
-      name: 'Fresh',
+      version: 'fresh-1',
       steps: [],
     });
     const written = await readFile(
       path.join(configRoot, ORG, 'workflows', 'my-workflow.json'),
       'utf-8',
     );
-    expect(written).toContain('Fresh');
+    expect(written).toContain('fresh-1');
   });
 });

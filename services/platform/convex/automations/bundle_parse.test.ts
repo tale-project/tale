@@ -52,16 +52,6 @@ describe('parseAutomationBundleZip', () => {
     expect(parsed.totalBytes).toBeGreaterThan(0);
   });
 
-  it('accepts legacy automation.json and re-emits automation.json', async () => {
-    const bytes = await makeZip({
-      'my-automation/app.json': VALID_MANIFEST,
-      'my-automation/views/desk.json': '{"id":"desk","data":{"content":[]}}',
-    });
-    const parsed = await parseAutomationBundleZip(bytes);
-    expect(parsed.slug).toBe('my-automation');
-    expect(parsed.files[0].relPath).toBe('automation.json');
-  });
-
   it('strips macOS __MACOSX metadata before detecting the wrapper folder', async () => {
     const bytes = await makeZip({
       'my-automation/automation.json': VALID_MANIFEST,
@@ -111,13 +101,13 @@ describe('parseAutomationBundleZip', () => {
     const bytes = await makeZip({
       'my-automation/automation.json': JSON.stringify({
         name: 'My Automation',
-        workflow: { name: 'Run', steps: [] },
+        workflow: { version: 'run-1', steps: [] },
         agents: ['worker'],
       }),
       'my-automation/agents/worker.json': AGENT_JSON,
     });
     const parsed = await parseAutomationBundleZip(bytes);
-    expect(parsed.manifest.workflow?.name).toBe('Run');
+    expect(parsed.manifest.workflow?.version).toBe('run-1');
   });
 
   it('rejects a declared agent whose file is missing from the bundle', async () => {
@@ -271,21 +261,6 @@ describe('parseAutomationBundleZip — view documents', () => {
       }),
     });
     expect(await codeOf(bytes)).toBe('VIEW_ROLE_UNKNOWN');
-  });
-
-  it('accepts (and ignores) a legacy messages/ dir, even malformed JSON inside it', async () => {
-    // The retired per-bundle label catalog is no longer read or validated —
-    // an old package's messages/ dir is carried as an inert asset so it keeps
-    // uploading; nothing parses it any more (see the file header).
-    const bytes = await v2Bundle({
-      'my-automation/messages/en.json': '{ "automation.title": "Inbox" }',
-      'my-automation/messages/fr.json': '{oops not even valid json',
-    });
-    const parsed = await parseAutomationBundleZip(bytes);
-    expect(parsed.slug).toBe('my-automation');
-    expect(parsed.files.map((f) => f.relPath)).toEqual(
-      expect.arrayContaining(['messages/en.json', 'messages/fr.json']),
-    );
   });
 
   it('ignores nested view files discovery would never serve', async () => {

@@ -1,79 +1,87 @@
 'use client';
 
 /**
- * Registry of platform-rendered ("builtin") views an automation manifest can opt
- * into via `builtinViews: [{ id }]` (schema:
- * `lib/shared/schemas/automations.ts#automationBuiltinViewSchema` — a CLOSED id enum, so
- * the schema and this map grow together). The automation page renders these BEFORE
- * any bundled JSON views; each entry's title/description come from the
- * platform catalog, never from bundle labels — builtin views are platform UI.
+ * The Inbox builtin view — the one platform-rendered view an automation manifest
+ * can opt into via `builtinViews: [{ id: 'inbox' }]` (schema:
+ * `lib/shared/schemas/automations.ts#automationBuiltinViewSchema`, a closed id
+ * enum). Inbox does NOT render as a per-automation tab: it is the org-level
+ * `/conversations` page, and `builtinViews` is purely the signal that gates its
+ * nav entry (`@/app/hooks/use-navigation-items`, `mobile-bottom-nav.tsx`) and its
+ * route guard (`app/routes/dashboard/$id/conversations*`) — see
+ * `automationUsesInbox` below.
+ *
+ * `useBuiltinViewTitles` is the one survivor of the former per-id component
+ * registry: the pre-install preview panel (`automation-panel.tsx`) still lists a
+ * "Pages" chip for every builtin view an automation brings, so it still needs a
+ * label — reused here from the Inbox page's own title (`conversations.title`)
+ * instead of a second copy of the same string.
  */
-import type { ComponentType } from 'react';
+import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import type { AutomationBuiltinView } from '@/lib/shared/schemas/automations';
 
-import type { AutomationSummary } from '../hooks/use-automations';
-import { InboxView } from './inbox-view';
+import {
+  type AutomationSummary,
+  useAutomations,
+} from '../hooks/use-automations';
+import { useAutomationInstallStates } from '../hooks/use-install-state';
 
-export interface BuiltinViewProps {
-  /** The hosting automation — builtin views derive their scope (e.g. the provider
-   *  integration) from the manifest instead of duplicating it as config. */
-  automation: AutomationSummary;
+/** Whether an automation declares the Inbox builtin view — the nav-gate signal
+ *  for the org-level Inbox entry and the `/conversations` route guard. */
+export function automationUsesInbox(
+  automation: Pick<AutomationSummary, 'builtinViews'>,
+): boolean {
+  return automation.builtinViews?.some((view) => view.id === 'inbox') ?? false;
 }
 
-export type BuiltinViewId = AutomationBuiltinView['id'];
-
-export const BUILTIN_VIEW_COMPONENTS: Record<
-  BuiltinViewId,
-  ComponentType<BuiltinViewProps>
-> = {
-  inbox: InboxView,
-};
-
-/** Narrow a manifest-declared id to one this platform build can render. */
-export function isBuiltinViewId(id: string): id is BuiltinViewId {
-  return id in BUILTIN_VIEW_COMPONENTS;
+/**
+ * The org's Inbox availability: the INSTALLED automations that declare the
+ * `inbox` builtin view. `useAutomations` alone is NOT the install signal —
+ * builtin bundles are seeded into every org dir at create
+ * (`lib/shared/config/registry.ts`), so it lists the email automations even on
+ * a fresh org; the `automationInstallations` row
+ * (`useAutomationInstallStates`, absent = not installed) is the authoritative
+ * "installed" bit. `isLoading` covers both reads so gated UI (nav rail,
+ * mobile tab, the `/conversations` route guard) hides instead of flashing.
+ */
+export function useInboxAvailability(organizationId: string): {
+  isLoading: boolean;
+  /** At least one installed automation declares the inbox builtin view. */
+  hasInbox: boolean;
+  /** The installed inbox automations — the channel filter derives its
+   *  provider options from their `requiredIntegrations`. */
+  inboxAutomations: AutomationSummary[];
+} {
+  const { automations, isLoading: automationsLoading } =
+    useAutomations(organizationId);
+  const { bySlug, isLoading: statesLoading } =
+    useAutomationInstallStates(organizationId);
+  const isLoading = automationsLoading || statesLoading;
+  const inboxAutomations = useMemo(
+    () =>
+      isLoading
+        ? []
+        : automations.filter(
+            (automation) =>
+              automationUsesInbox(automation) && bySlug.has(automation.slug),
+          ),
+    [isLoading, automations, bySlug],
+  );
+  return {
+    isLoading,
+    hasInbox: inboxAutomations.length > 0,
+    inboxAutomations,
+  };
 }
 
-/** The renderable builtin views a summary declares, in manifest order. */
-export function knownBuiltinViews(
-  views: AutomationBuiltinView[] | undefined,
-): AutomationBuiltinView[] {
-  return (views ?? []).filter((view) => isBuiltinViewId(view.id));
-}
-
-interface BuiltinViewMeta {
-  title: string;
-  description: string;
-}
-
-function metaOf(
-  id: BuiltinViewId,
-  t: (key: string) => string,
-): BuiltinViewMeta {
-  switch (id) {
-    case 'inbox': {
-      return { title: t('inbox.title'), description: t('inbox.description') };
-    }
-    default: {
-      // Exhaustiveness: a new registry id without a header fails to compile.
-      const unhandled: never = id;
-      throw new Error(`Unknown builtin view: ${String(unhandled)}`);
-    }
-  }
-}
-
-/** A builtin view's localized header (platform catalog, not bundle labels). */
-export function useBuiltinViewMeta(id: BuiltinViewId): BuiltinViewMeta {
-  const { t } = useT('automations');
-  return metaOf(id, t);
-}
-
-/** Localized titles for the pre-install "Pages" chips, in manifest order. */
+/** Localized titles for the pre-install "Pages" chips, in manifest order — one
+ *  "Inbox" entry per declared builtin view (there is only ever one, today). */
 export function useBuiltinViewTitles(
   views: AutomationBuiltinView[] | undefined,
 ): string[] {
-  const { t } = useT('automations');
-  return knownBuiltinViews(views).map((view) => metaOf(view.id, t).title);
+  const { t } = useT('conversations');
+  return (views ?? [])
+    .filter((view) => view.id === 'inbox')
+    .map(() => t('title'));
 }

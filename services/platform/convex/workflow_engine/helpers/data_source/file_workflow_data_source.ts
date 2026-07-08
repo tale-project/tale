@@ -24,8 +24,8 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
     return {
       _id: this.workflowSlug,
       organizationId: this.organizationId,
-      name: this.config.name,
-      description: this.config.description,
+      // A workflow definition carries no display name — the slug is its identity.
+      name: this.workflowSlug,
       version: this.config.version ?? '1.0.0',
       status: 'active',
       workflowType: 'predefined',

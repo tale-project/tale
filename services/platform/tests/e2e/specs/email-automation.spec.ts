@@ -14,17 +14,17 @@ import { expect, test } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Email inbox apps — the surface that replaced the standalone conversations
- * inbox. Conversations render exclusively through the three org-scoped email
- * apps (`reply-outlook-emails` / `reply-gmail-emails` / `reply-imap-emails`); the legacy
- * `/dashboard/$id/conversations*` redirect stubs have since been removed
- * entirely (bookmarks to them now 404 like any other dead route).
+ * Email automations + the org-level Inbox. Conversations render on the
+ * standalone `/dashboard/$id/conversations/$status` surface (titled "Inbox");
+ * the three org-scoped email automations (`reply-outlook-emails` /
+ * `reply-gmail-emails` / `reply-imap-emails`) are its GATE: their manifests
+ * declare `builtinViews: [{ id: 'inbox' }]`, and the sidebar entry, mobile
+ * tab, and route guard all show the Inbox only while at least one of them is
+ * INSTALLED (`useInboxAvailability` — seeded org-dir files alone don't count).
  *
- * The inbox UI is the PLATFORM builtin view (`builtinViews: [{ id: 'inbox' }]`
- * in each manifest, rendered by `app/features/automations/builtin-views/`), so
- * its copy (tabs, empty states, placeholders) lives in platform i18n under
- * `automations.inbox.*` — resolved here via `t` like all platform chrome. The
- * automation display names stay bundle manifest literals, read from the
+ * Inbox copy (title, status tabs, empty states, filters) is platform i18n
+ * under `conversations.*` — resolved here via `t` like all platform chrome.
+ * Automation display names stay bundle manifest literals, read from the
  * fixture bundles the hermetic stack scaffolds into every worker org.
  */
 
@@ -35,16 +35,18 @@ const EMAIL_AUTOMATION_SLUGS = [
   'reply-imap-emails',
 ] as const;
 
+const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const PLATFORM_DIR = path.join(dirname, '..', '..', '..');
 
 /**
  * Seed one inbound conversation for the worker org, attributed to the Outlook
- * integration so the reply-outlook-emails app lists it. There is no UI path and no
- * public mutation that creates conversations (ingest is inbound email, which
- * the mock stack cannot deliver), so this drives the internal mutation through
- * the Convex CLI against the local self-hosted backend — the same pattern the
- * manual guide (`tests/manual/conversations.md`) documents.
+ * integration so the channel filter can single it out. There is no UI path
+ * and no public mutation that creates conversations (ingest is inbound email,
+ * which the mock stack cannot deliver), so this drives the internal mutation
+ * through the Convex CLI against the local self-hosted backend — the same
+ * pattern the manual guide (`tests/manual/conversations.md`) documents.
  */
 // verify-live: `bunx convex run` must resolve the e2e stack's local
 // deployment from services/platform (it does for the manual-QA stack; the
@@ -80,8 +82,18 @@ function seedOutlookConversation(
   );
 }
 
-test.describe('email inbox apps: hub catalog', () => {
-  test('the apps hub lists the three email inbox apps', async ({
+/** The sidebar rail's Inbox link (icon-only; the label is its aria-label).
+ *  The mobile bottom tab renders a button (not a link) and is display-none on
+ *  the desktop viewport, so this locator can't alias it. */
+function inboxNavLink(page: import('@playwright/test').Page) {
+  return page.getByRole('link', {
+    name: t('conversations.title'),
+    exact: true,
+  });
+}
+
+test.describe('email automations: hub catalog', () => {
+  test('the automations hub lists the three email automations', async ({
     page,
     org,
   }) => {
@@ -110,30 +122,56 @@ test.describe('email inbox apps: hub catalog', () => {
   });
 });
 
-test.describe('email inbox apps: install, inbox', () => {
-  test('installing Outlook renders the four-tab inbox', async ({
+test.describe('email automations: Inbox gating and flow', () => {
+  test('gates the Inbox on an installed email automation and lists seeded mail', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
     const outlookName = automationName(OUTLOOK_SLUG);
 
-    // Converge on "not installed" first so retries against this worker's org
-    // start clean (a failed earlier attempt may have left the app installed).
-    await uninstallOrgAutomationIfInstalled(page, organizationId, outlookName);
+    // Converge on "no email automation installed" first so retries against
+    // this worker's org start clean — the Inbox gate is "ANY of the three",
+    // so all three must be down before the hidden-state assertions hold.
+    for (const slug of EMAIL_AUTOMATION_SLUGS) {
+      await uninstallOrgAutomationIfInstalled(
+        page,
+        organizationId,
+        automationName(slug),
+      );
+    }
 
-    // Install from the pre-install details page (the app's own URL — hub
-    // cards are static containers whose Install button installs in place, so
-    // the details assertions navigate directly). Outlook is an org-scoped app
-    // requiring the (unconnected) outlook integration, so the details page's
-    // Install button opens the setup wizard.
+    // With no email automation installed the sidebar has NO Inbox entry.
+    // Anchor on a sibling rail link first — the entry is also hidden while
+    // the availability queries load, so a bare count-0 could pass early.
+    await expect(
+      page.getByRole('link', { name: t('navigation.automations') }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(inboxNavLink(page)).toHaveCount(0);
+
+    // A deep link must not crash: the route guard renders a friendly pointer
+    // to the Automations catalog instead of the inbox. (The bare route still
+    // redirects to /conversations/open first.)
+    await page.goto(`/dashboard/${organizationId}/conversations`);
+    await page.waitForURL(/\/conversations\/open(?:[/?#]|$)/, {
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+    await expect(
+      page.getByText(t('conversations.activate.noAutomationTitle')),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(
+      page.getByRole('link', {
+        name: t('conversations.activate.browseAutomations'),
+      }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // Install Outlook from its pre-install details page. Outlook is an
+    // org-scoped automation requiring the (unconnected) outlook integration,
+    // so the Install button opens the setup wizard.
     await page.goto(`/dashboard/${organizationId}/automations/${OUTLOOK_SLUG}`);
     await expect(
       page.getByText(t('automations.details.scopeOrg')).first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(
-      page.getByText(t('automations.details.requiresTitle')),
-    ).toBeVisible();
     await page
       .getByRole('button', { name: t('automations.install.install') })
       .click();
@@ -142,97 +180,116 @@ test.describe('email inbox apps: install, inbox', () => {
     // verify-live: expected steps Install → connect-outlook (skipped) → Done.
     await walkInstallWizard(wizard);
 
-    // The installed app page renders the platform Inbox builtin view (title
-    // from platform i18n): the four status tabs, opening on Open, with the
-    // thread pane awaiting a selection.
+    // The installed automation page is workflow settings only — the outlook
+    // connect step was skipped, so the readiness checklist asks to finish
+    // setup, and its tab strip (a navigation landmark of links) carries NO
+    // Inbox tab anymore (the Inbox is the org-level page).
     await page.goto(`/dashboard/${organizationId}/automations/${OUTLOOK_SLUG}`);
     await expect(
-      page.getByText(t('automations.inbox.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    const openTab = page.getByRole('tab', {
-      name: t('automations.inbox.tab.open'),
-    });
-    await expect(openTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(openTab).toHaveAttribute('aria-selected', 'true');
-    for (const key of [
-      'automations.inbox.tab.closed',
-      'automations.inbox.tab.spam',
-      'automations.inbox.tab.archived',
-    ]) {
-      await expect(page.getByRole('tab', { name: t(key) })).toBeVisible({
-        timeout: TIMEOUT.VISIBLE,
-      });
-    }
-    // The outlook connect step was skipped, so the readiness checklist asks
-    // to finish setup. verify-live: no other spec connects outlook.
-    await expect(
       page.getByText(t('automations.readiness.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Two visible tabpanels since the page-level view/Overview tab strip
-    // landed (the Inbox view panel wraps the inner status panel) — the
-    // innermost (last) one is the status tab's panel.
+    ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    const automationTabStrip = page.getByRole('navigation', {
+      name: t('automations.tabs.ariaLabel'),
+    });
     await expect(
-      page
-        .getByRole('tabpanel')
-        .last()
-        .getByText(t('automations.inbox.thread.placeholder')),
+      automationTabStrip.getByRole('link', {
+        name: t('automations.tabs.configuration'),
+        exact: true,
+      }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(
+      automationTabStrip.getByRole('link', {
+        name: t('conversations.title'),
+        exact: true,
+      }),
+    ).toHaveCount(0);
 
-    // Retried runs may have seeded open conversations already, so the
-    // deterministic empty-state check targets Spam — seeding never fills it.
-    await page
-      .getByRole('tab', { name: t('automations.inbox.tab.spam') })
-      .click();
+    // The sidebar Inbox entry appears once the install row lands, and leads
+    // to the org-level inbox.
+    await expect(inboxNavLink(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await inboxNavLink(page).click();
+    await page.waitForURL(/\/conversations\/open(?:[/?#]|$)/, {
+      timeout: TIMEOUT.NAV,
+    });
+
+    // Page chrome: the "Inbox" title (scoped to the visible <main> region —
+    // the adaptive header dual-renders it for mobile) and the four status
+    // tabs, which render as navigation links.
     await expect(
       page
-        .getByRole('tabpanel')
-        .last()
-        .getByText(t('automations.inbox.empty.spam')),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await openTab.click();
+        .getByRole('main')
+        .getByRole('heading', { name: t('conversations.title'), level: 1 }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    for (const status of STATUSES) {
+      await expect(
+        page.getByRole('link', {
+          name: t(`conversations.status.${status}`),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    }
 
     // A seeded conversation appears in the Open list. Rows are real buttons
-    // whose aria-label is the conversation subject (fallback: sender); the
-    // visible row also renders a sender heading (the customer's name, when
-    // the conversation has one — this seed has none, so the subject leads)
-    // and a cleaned one-line preview of the latest message. Selecting a row
-    // fills the thread pane and reveals the composer, which only the Open
-    // tab carries.
+    // whose accessible name is the conversation subject (fallback: customer
+    // name); the visible content (sender heading + one-line preview of the
+    // latest message) renders in the button's parent container.
     const subject = `E2E seeded conversation ${Date.now()}`;
     seedOutlookConversation(organizationId, subject);
     await page.reload();
     const row = page.getByRole('button', { name: subject });
     await expect(row).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    // The row button is a stretched overlay carrying only the aria-label; the
-    // visible content (sender heading + preview line) renders in its parent
-    // container — assert the seeded body's preview there.
     await expect(row.locator('..')).toContainText('Hello from the e2e seed');
+
+    // Selecting the row fills the reading pane (the seeded body renders there
+    // AND as row previews — retried runs may seed several rows with the same
+    // body, so assert the first visible match) and reveals the composer's
+    // Send action, which only open conversations carry.
     await row.click();
-    // …so once selected the body renders in the thread pane AND as row
-    // previews (retried runs seed several rows with the same body, so the
-    // match count is not deterministic — assert on the first visible one;
-    // the composer assertions below prove the selection actually landed).
     await expect(
       page
         .getByText('Hello from the e2e seed')
         .filter({ visible: true })
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // The composer is a Crepe/ProseMirror contenteditable — it exposes
-    // `role="textbox"` + `aria-label` (the placeholder copy), NOT a real
-    // `placeholder` attribute, so `getByPlaceholder` can't match it. Locate it
-    // by role + accessible name, the same affordance the component test asserts.
     await expect(
-      page.getByRole('textbox', {
-        name: t('automations.inbox.composer.placeholder'),
+      page.getByRole('button', { name: t('conversations.editor.send') }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // Channel filter: with Outlook installed the toolbar offers the channel
+    // dropdown (label = the integration's display title). Filtering by the
+    // Outlook channel rides the `?channel=` search param, keeps the seeded
+    // outlook row, and "All channels" clears the param again.
+    const channelTrigger = page.getByRole('button', {
+      name: t('conversations.filter.channel'),
+      exact: true,
+    });
+    await expect(channelTrigger).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await channelTrigger.click();
+    await expect(
+      page.getByRole('menuitemradio', {
+        name: t('conversations.filter.allChannels'),
       }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByRole('button', { name: t('automations.composer.send') }),
-    ).toBeVisible();
+    await page.getByRole('menuitemradio', { name: /outlook/i }).click();
+    await page.waitForURL(/[?&]channel=outlook(?:[&#]|$)/, {
+      timeout: TIMEOUT.NAV,
+    });
+    await expect(page.getByRole('button', { name: subject })).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+    await channelTrigger.click();
+    await page
+      .getByRole('menuitemradio', {
+        name: t('conversations.filter.allChannels'),
+      })
+      .click();
+    await page.waitForURL((url) => !url.searchParams.has('channel'), {
+      timeout: TIMEOUT.NAV,
+    });
 
     // Cleanup — uninstall (the seeded conversation data survives uninstall by
-    // design; nothing asserts an empty Open tab).
+    // design; the Inbox nav entry hides again with the last email automation).
     await uninstallOrgAutomationIfInstalled(page, organizationId, outlookName);
+    await expect(inboxNavLink(page)).toHaveCount(0);
   });
 });

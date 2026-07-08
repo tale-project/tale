@@ -97,8 +97,7 @@ const specHandler = (
 ).handler;
 
 const baseWorkflowConfig = {
-  name: 'Test Workflow',
-  description: 'A test workflow',
+  version: '1.0.0',
   steps: [
     {
       stepSlug: 'start',
@@ -159,10 +158,10 @@ describe('previewGraphFromSpecification', () => {
     expect(mockGenerateObject).not.toHaveBeenCalled();
   });
 
-  it('builds a candidate config on a valid first attempt, preserving name/description', async () => {
+  it('builds a candidate config on a valid first attempt, preserving version', async () => {
     mockGenerateObject.mockResolvedValue({
       object: {
-        workflowConfig: { name: 'Test Workflow' },
+        workflowConfig: {},
         stepsConfig: [
           {
             stepSlug: 'start',
@@ -203,8 +202,7 @@ describe('previewGraphFromSpecification', () => {
         specificationMeta: { direction: string; sourceHash: string };
       };
     };
-    expect(ok.config.name).toBe('Test Workflow');
-    expect(ok.config.description).toBe('A test workflow');
+    expect(ok.config.version).toBe('1.0.0');
     expect(ok.config.specification).toBe('Start, then finish.');
     expect(ok.config.specificationMeta.direction).toBe('spec_to_graph');
     expect(ok.config.specificationMeta.sourceHash).toBeTruthy();
@@ -214,7 +212,7 @@ describe('previewGraphFromSpecification', () => {
     mockGenerateObject
       .mockResolvedValueOnce({
         object: {
-          workflowConfig: { name: 'Test Workflow' },
+          workflowConfig: {},
           stepsConfig: [
             {
               stepSlug: 'start',
@@ -228,7 +226,7 @@ describe('previewGraphFromSpecification', () => {
       })
       .mockResolvedValueOnce({
         object: {
-          workflowConfig: { name: 'Test Workflow' },
+          workflowConfig: {},
           stepsConfig: [
             {
               stepSlug: 'start',
@@ -268,7 +266,7 @@ describe('previewGraphFromSpecification', () => {
   it('returns errors after exhausting retries', async () => {
     mockGenerateObject.mockResolvedValue({
       object: {
-        workflowConfig: { name: 'Test Workflow' },
+        workflowConfig: {},
         stepsConfig: [],
       },
     });
@@ -318,7 +316,7 @@ describe('previewSpecificationFromGraph', () => {
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape asserted by the test's own expectations
     const { specification } = result as { specification: string };
-    expect(specification).toContain('# Test Workflow');
+    expect(specification).toContain('# wf-1');
     expect(mockGenerateText).toHaveBeenCalledTimes(3);
   });
 

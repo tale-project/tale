@@ -232,11 +232,6 @@ function WorkflowRunApprovalCardComponent({
             <Text as="div" variant="label">
               {metadata.workflowName}
             </Text>
-            {metadata.workflowDescription && (
-              <Text as="div" variant="caption" className="line-clamp-2">
-                {metadata.workflowDescription}
-              </Text>
-            )}
           </div>
         </HStack>
       </HStack>

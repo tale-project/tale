@@ -11,7 +11,7 @@
  *   1. Client uploads the zip to `_storage` via `generateAutomationUploadUrl`.
  *   2. Client calls this action with `{ organizationId, storageId, force? }`.
  *   3. Server verifies the upload intent, reads + parses the zip (slug from the
- *      single top-level folder, valid `automation.json` (or legacy `app.json`) manifest, size / zip-slip
+ *      single top-level folder, valid `automation.json` manifest, size / zip-slip
  *      guards), and either:
  *        - refuses a slug that shadows a BUILTIN catalog automation, OR
  *        - returns `{ ok: false, status: 'needs_confirm', slug }` when a private

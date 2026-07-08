@@ -122,7 +122,7 @@ function paginated(
 }
 
 const QUERY = { path: 'tasks/queries:listTasksByProjectPaginated', args: {} };
-const COLUMNS = ['title', 'status'];
+const COLUMNS = [{ field: 'title' }, { field: 'status' }];
 const LOAD_MORE = 'common.pagination.loadMore';
 
 function taskRows(n: number) {

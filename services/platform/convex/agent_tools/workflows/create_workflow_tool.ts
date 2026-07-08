@@ -30,6 +30,12 @@ Requires user approval — an approval card rendered separately by the UI will b
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
 Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.`,
     inputSchema: z.object({
+      workflowSlug: z
+        .string()
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+        .describe(
+          'Unique kebab-case slug identifying the workflow (its only identity — workflows carry no display name).',
+        ),
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
@@ -64,7 +70,6 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
 
       // Validate workflow definition before creating approval
       const validation = validateWorkflowDefinition(
-        args.workflowConfig,
         args.stepsConfig as Array<Record<string, unknown>>,
       );
 
@@ -85,8 +90,9 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
             .createWorkflowCreationApproval,
           {
             organizationId,
-            workflowName: args.workflowConfig.name,
-            workflowDescription: args.workflowConfig.description,
+            // The slug IS the workflow's identity — approval cards label with it.
+            workflowName: args.workflowSlug,
+            workflowSlug: args.workflowSlug,
             workflowConfig: {
               ...args.workflowConfig,
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated config is Record<string, unknown> but TS infers broader z.object type
@@ -108,8 +114,8 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
-          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowSlug}". The user must approve this workflow creation before it will be created. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+          message: `Workflow "${args.workflowSlug}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

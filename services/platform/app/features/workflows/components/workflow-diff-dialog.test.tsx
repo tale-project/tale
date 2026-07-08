@@ -9,14 +9,12 @@ import { render } from '@/tests/utils/render';
 import { WorkflowDiffDialog } from './workflow-diff-dialog';
 
 const baseConfig: WorkflowJsonConfig = {
-  name: 'Test Workflow',
-  description: 'A test workflow',
+  version: '1.0.0',
   steps: [],
 };
 
 const candidateConfig: WorkflowJsonConfig = {
-  name: 'Test Workflow',
-  description: 'An updated version',
+  version: '2.0.0',
   steps: [],
 };
 

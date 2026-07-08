@@ -48,14 +48,6 @@ import {
 } from './connected/chart-card';
 import { Collection, type CollectionProps } from './connected/collection';
 import {
-  conversationListBlock,
-  type ConversationListProps,
-} from './connected/conversation-list';
-import {
-  conversationThreadBlock,
-  type ConversationThreadProps,
-} from './connected/conversation-thread';
-import {
   detailPanelBlock,
   type DetailPanelProps,
 } from './connected/detail-panel';
@@ -64,10 +56,6 @@ import {
   type ExternalListProps,
 } from './connected/external-list';
 import { formBlock, type FormBlockProps } from './connected/form';
-import {
-  messageComposerBlock,
-  type MessageComposerProps,
-} from './connected/message-composer';
 import { ReviewQueue, type ReviewQueueProps } from './connected/review';
 import { RunList, type RunListProps } from './connected/run-list';
 import { statGridBlock, type StatGridProps } from './connected/stat-grid';
@@ -111,9 +99,6 @@ interface TaleComponents {
   DetailPanel: Partial<DetailPanelProps>;
   Form: Partial<FormBlockProps>;
   Board: Partial<BoardProps>;
-  ConversationList: Partial<ConversationListProps>;
-  ConversationThread: Partial<ConversationThreadProps>;
-  MessageComposer: Partial<MessageComposerProps>;
   AgentChat: Partial<AgentChatBlockProps>;
 }
 
@@ -254,7 +239,6 @@ export const taleConfig: Config<TaleComponents> = {
           title,
           query,
           columns,
-          columnLabels,
           actions,
           subjectType,
           subjectIdField,
@@ -270,7 +254,6 @@ export const taleConfig: Config<TaleComponents> = {
               title={title}
               query={query}
               columns={columns}
-              columnLabels={columnLabels}
               actions={actions}
               subjectType={subjectType}
               subjectIdField={subjectIdField}
@@ -339,7 +322,6 @@ export const taleConfig: Config<TaleComponents> = {
           itemsKey,
           rowWhen,
           columns,
-          columnLabels,
           actions,
           perPage,
           excludeBy,
@@ -351,7 +333,6 @@ export const taleConfig: Config<TaleComponents> = {
               itemsKey={itemsKey}
               rowWhen={rowWhen}
               columns={columns}
-              columnLabels={columnLabels}
               actions={actions}
               perPage={perPage}
               excludeBy={excludeBy}
@@ -379,16 +360,6 @@ export const taleConfig: Config<TaleComponents> = {
     ),
     Form: registerConnectedBlock<TaleComponents['Form']>('Form', formBlock),
     Board: registerConnectedBlock<TaleComponents['Board']>('Board', boardBlock),
-    ConversationList: registerConnectedBlock<
-      TaleComponents['ConversationList']
-    >('ConversationList', conversationListBlock),
-    ConversationThread: registerConnectedBlock<
-      TaleComponents['ConversationThread']
-    >('ConversationThread', conversationThreadBlock),
-    MessageComposer: registerConnectedBlock<TaleComponents['MessageComposer']>(
-      'MessageComposer',
-      messageComposerBlock,
-    ),
     AgentChat: registerConnectedBlock<TaleComponents['AgentChat']>(
       'AgentChat',
       agentChatBlock,

@@ -59,8 +59,8 @@ export function groupCatalogItems<T>(
 
 /**
  * Localized title for a folder section. Known folders have dedicated keys
- * (`folders.chat` … in the caller's namespace); unknown folders fall back to a
- * capitalized form of the raw value so a new department still renders a sane
+ * (`folders.github` … in the caller's namespace); unknown folders fall back to
+ * a capitalized form of the raw value so a new department still renders a sane
  * label even before a translation exists. `defaultValue` keeps i18next from
  * surfacing a raw key while the localized string lands.
  */

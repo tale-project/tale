@@ -24,10 +24,12 @@ import {
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { X } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 
 import { folderLabel } from '@/app/components/catalog/catalog-section';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { startCase } from '@/lib/utils/string';
 
@@ -37,6 +39,11 @@ import {
   type AutomationSummary,
   useBundleMemberSummaries,
 } from '../hooks/use-automations';
+import {
+  deriveBundleInstallStatus,
+  useAutomationInstallActions,
+  useAutomationInstallStates,
+} from '../hooks/use-install-state';
 import {
   type RequiredIntegration,
   useRequiredIntegrations,
@@ -155,17 +162,49 @@ export function AutomationPanel({
   };
   const isBundle = automation.kind === 'bundle';
 
+  // A bundle carries no install row of its own — its state derives from its
+  // members'. Reactive, so the heading and footer flip the moment a wizard
+  // commit or an uninstall lands.
+  const { bySlug: installStates } = useAutomationInstallStates(organizationId);
+  const bundleInstalled =
+    isBundle &&
+    deriveBundleInstallStatus(automation.members ?? [], installStates) !==
+      'not-installed';
+  const { uninstallBundle, isPending: uninstallPending } =
+    useAutomationInstallActions(organizationId);
+  const [uninstallOpen, setUninstallOpen] = useState(false);
+  const handleUninstallBundle = async () => {
+    try {
+      await uninstallBundle(automation.slug);
+      toast({ title: t('install.bundleUninstalled'), variant: 'success' });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('install.bundleUninstallFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setUninstallOpen(false);
+    }
+  };
+
   const builtinViewTitles = useBuiltinViewTitles(automation.builtinViews);
-  const { required } = useRequiredIntegrations(
-    organizationId,
-    automation.requiredIntegrations,
-  );
   // A bundle's members are HIDDEN (no catalog card/chip data of their own —
   // `automation.workflows`/`agents`/`skills` are empty on the bundle manifest
   // itself). This is their only pre-install "what's inside" read.
   const { members: bundleMembers } = useBundleMemberSummaries(
     organizationId,
     isBundle ? (automation.members ?? []) : [],
+  );
+  // A bundle manifest declares no `requires.integrations` of its own — its
+  // Integrations section is the deduped union of its members' requirements.
+  const memberIntegrationSlugs = useMemo(
+    () => [...new Set(bundleMembers.flatMap((m) => m.requiredIntegrations))],
+    [bundleMembers],
+  );
+  const { required } = useRequiredIntegrations(
+    organizationId,
+    isBundle ? memberIntegrationSlugs : automation.requiredIntegrations,
   );
 
   const chipGroups: ChipGroup[] = [
@@ -311,7 +350,7 @@ export function AutomationPanel({
               <AutomationIcon automation={automation} className="size-5" />
             </Row>
             <VStack gap={1} className="min-w-0">
-              <Text as="span" className="text-lg font-semibold">
+              <Text as="span" className="text-sm font-medium">
                 {display.name}
               </Text>
               <HStack gap={2} className="flex-wrap items-center">
@@ -335,7 +374,11 @@ export function AutomationPanel({
           {sections.length > 0 && (
             <Stack gap={3}>
               <Text className="font-medium">
-                {t('panel.whatWillBeInstalled')}
+                {t(
+                  bundleInstalled
+                    ? 'panel.whatsInstalled'
+                    : 'panel.whatWillBeInstalled',
+                )}
               </Text>
               <SectionRowGroup>
                 {sections.map((section, index) => (
@@ -363,12 +406,43 @@ export function AutomationPanel({
       </div>
 
       <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
-        <HStack justify="end" align="center">
-          <Button onClick={() => setWizardOpen(true)}>
-            {t('panel.install')}
-          </Button>
+        <HStack justify="end" align="center" gap={2}>
+          {bundleInstalled ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setUninstallOpen(true)}
+                disabled={uninstallPending}
+              >
+                {t('install.uninstall')}
+              </Button>
+              <Button onClick={() => setWizardOpen(true)}>
+                {t('install.reinstall')}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => setWizardOpen(true)}>
+              {t('panel.install')}
+            </Button>
+          )}
         </HStack>
       </div>
+
+      {isBundle && (
+        <DeleteDialog
+          open={uninstallOpen}
+          onOpenChange={setUninstallOpen}
+          title={t('install.uninstallBundleTitle')}
+          description={t('install.uninstallBundleDescription', {
+            count: (automation.members ?? []).length,
+          })}
+          preview={{ primary: display.name }}
+          warning={t('install.uninstallWarning')}
+          deleteText={t('install.uninstallBundle')}
+          isDeleting={uninstallPending}
+          onDelete={() => void handleUninstallBundle()}
+        />
+      )}
 
       {isBundle ? (
         <BundleInstallWizard

@@ -46,7 +46,6 @@ interface Step {
 
 interface PackWorkflow {
   file: string;
-  name: string;
   workflowId: string;
   events: Array<{ eventType: string; eventFilter?: Record<string, string> }>;
   schedules: Array<{ cron: string }>;
@@ -86,7 +85,6 @@ function loadPack(): PackWorkflow[] {
       : '';
     return {
       file,
-      name: doc.name,
       workflowId,
       events: doc.triggers?.events ?? [],
       schedules: doc.triggers?.schedules ?? [],

@@ -300,7 +300,7 @@ describe('shared fragments', () => {
     ).toBe(true);
   });
 
-  it('columnSpecSchema accepts specs while bare column strings keep working', () => {
+  it('columnSpecSchema accepts specs and rejects unknown kinds', () => {
     expect(
       columnSpecSchema.safeParse({
         field: 'createdAt',
@@ -320,7 +320,7 @@ describe('shared fragments', () => {
           type: 'Collection',
           props: {
             query: { path: 'tasks/queries:listTasksByProjectPaginated' },
-            columns: ['title', { field: 'status', kind: 'badge' }],
+            columns: [{ field: 'title' }, { field: 'status', kind: 'badge' }],
           },
         },
       ]),
@@ -405,8 +405,8 @@ describe('shared fragments', () => {
       formFieldSchema.safeParse({
         key: 'priority',
         type: 'select',
-        labelKey: 'form.priority',
-        options: [{ value: 'high', labelKey: 'form.high' }],
+        label: 'Priority',
+        options: [{ value: 'high', label: 'High' }],
         required: true,
       }).success,
     ).toBe(true);
@@ -414,7 +414,7 @@ describe('shared fragments', () => {
       formFieldSchema.safeParse({
         key: 'x',
         type: 'date',
-        labelKey: 'form.x',
+        label: 'X',
       }).success,
     ).toBe(false);
   });
@@ -504,14 +504,14 @@ describe('v2 block vocabulary — one sample per block parses', () => {
             {
               key: 'subject',
               type: 'string',
-              labelKey: 'inbox.subject',
+              label: 'Subject',
               required: true,
             },
             {
               key: 'priority',
               type: 'select',
-              labelKey: 'inbox.priority',
-              options: [{ value: 'high', labelKey: 'inbox.high' }],
+              label: 'Priority',
+              options: [{ value: 'high', label: 'High' }],
             },
           ],
           initial: { subject: '' },

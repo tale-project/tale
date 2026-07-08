@@ -6621,7 +6621,19 @@
       }
     },
     "notificationPreferences": {
+      "actionableEmail": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
       "automationAlerts": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
+      "conversationMessages": {
         "ft": {
           "type": "boolean"
         },
@@ -11921,6 +11933,12 @@
         },
         "optional": true
       },
+      "sandboxWorkdir": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "shareToken": {
         "ft": {
           "type": "string"
@@ -13038,6 +13056,10 @@
             {
               "type": "literal",
               "value": "dashboard"
+            },
+            {
+              "type": "literal",
+              "value": "conversation"
             }
           ]
         },
@@ -13103,6 +13125,10 @@
             {
               "type": "literal",
               "value": "workforce_digest"
+            },
+            {
+              "type": "literal",
+              "value": "conversation_message"
             }
           ]
         },

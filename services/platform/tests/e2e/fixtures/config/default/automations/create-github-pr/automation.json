@@ -17,21 +17,6 @@
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {
-    "name": "Create a GitHub pull request",
-    "i18n": {
-      "en": {
-        "name": "Create a GitHub pull request",
-        "description": "Runs the PR Creator agent against an assigned task and posts its summary as a task comment."
-      },
-      "de": {
-        "name": "Einen GitHub-Pull-Request erstellen",
-        "description": "Führt den PR-Creator-Agenten für eine zugewiesene Aufgabe aus und postet dessen Zusammenfassung als Aufgabenkommentar."
-      },
-      "fr": {
-        "name": "Créer une pull request GitHub",
-        "description": "Exécute l'agent PR Creator sur une tâche attribuée et publie son résumé en commentaire de la tâche."
-      }
-    },
     "specification": "# Create a GitHub pull request\n\nRuns the **PR Creator** agent against a single task assigned to it and turns the agent's result into a task comment. The workflow is deliberately thin: the real work — cloning the repo, implementing the fix, pushing, and waiting for CI — happens inside the agent, not the graph.\n\n## Trigger\n\nThis workflow has no schedule or event trigger of its own. A task normally reaches the PR Creator through the platform's own task-assignment loop, so this workflow is the directly-runnable equivalent (for example, from the workflow editor's **Run** action) and the canonical place the agent's contract lives as data.\n\n## Steps\n\n1. **Start** — receives the assigned task as input.\n2. **PR Creator resolves the issue** — runs the PR Creator agent on the task in a durable sandbox step, so a long CI wait never times the step out. The agent clones the repo, finds or adopts the canonical open pull request for the issue (never opening a competing one), implements the fix, verifies it with the project's own tests, pushes, and waits for CI to go green.\n3. **Did the run succeed?** — a durable run always reports success on its port, so the real verdict is read from the agent's result payload.\n4. **Dispatched to an external runtime?** — a defensive branch for an external-daemon hand-off that the PR Creator never actually takes today.\n\n## Decision points\n\n- **Succeeded** → post the agent's harvested summary (its fixed *Summary*, *Pull request*, *Tests*, and *CI* headers) verbatim as a task comment.\n- **Dispatched externally** → finish without a comment; the external runtime reports on its own.\n- **Failed** → post a short comment explaining why the PR Creator could not resolve the issue.\n\n## Outcome\n\nExactly one task comment — a success summary or a failure note — and then the workflow ends. The pull request itself is left open on GitHub for the review step to pick up.",
     "version": "1.0.0",
     "config": {

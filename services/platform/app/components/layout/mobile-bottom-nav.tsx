@@ -6,6 +6,7 @@ import {
   Bot,
   BrainIcon,
   Folder,
+  Inbox,
   LayoutGrid,
   MessageCircle,
   MoreHorizontal,
@@ -16,6 +17,7 @@ import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import { useT } from '@/lib/i18n/client';
@@ -65,7 +67,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
   const { t: tProjects } = useT('projects');
+  const { t: tConversations } = useT('conversations');
   const [moreOpen, setMoreOpen] = useState(false);
+  // Same nav-gate signal as the desktop rail (`use-navigation-items.ts`): the
+  // Inbox tab only shows once at least one INSTALLED automation declares the
+  // `inbox` builtin view; hidden while the availability reads load.
+  const { hasInbox: hasInboxAutomation } = useInboxAvailability(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
   // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
   // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
@@ -91,6 +98,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         gate: () => ability.can('read', 'projects'),
       },
       {
+        key: 'inbox',
+        label: tConversations('title'),
+        icon: Inbox,
+        to: `/dashboard/${organizationId}/conversations`,
+        activePrefix: `/dashboard/${organizationId}/conversations`,
+        gate: () => hasInboxAutomation,
+      },
+      {
         key: 'agents',
         label: tNav('agents'),
         icon: Bot,
@@ -99,7 +114,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         gate: () => ability.can('write', 'agents'),
       },
     ],
-    [ability, organizationId, tNav, tProjects],
+    [
+      ability,
+      organizationId,
+      tNav,
+      tProjects,
+      tConversations,
+      hasInboxAutomation,
+    ],
   );
 
   const overflow = useMemo<OverflowItem[]>(

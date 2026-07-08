@@ -107,7 +107,7 @@ export function useAssistantChat({
   const workflow = useMemo(() => {
     if (!readResult || !readResult.ok) return null;
     return {
-      name: readResult.config.name,
+      name: workflowSlug,
       metadata: readResult.config.metadata,
     };
   }, [readResult]);

@@ -16,8 +16,10 @@ import type {
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
-import { computeGraphFingerprint } from '../../workflows/specification_fingerprint';
-import { sanitizeWorkflowName } from './create_bound_workflow_tool';
+import {
+  computeGraphFingerprint,
+  computeSpecHash,
+} from '../../workflows/specification_fingerprint';
 
 const VALID_STEP_TYPES = new Set<StepType>([
   'start',
@@ -118,12 +120,9 @@ export const executeApprovedWorkflowCreation = internalAction({
     }
 
     try {
-      const workflowSlug =
-        metadata.workflowSlug || sanitizeWorkflowName(metadata.workflowName);
+      const workflowSlug = metadata.workflowSlug;
 
       const baseConfig: WorkflowJsonConfig = {
-        name: metadata.workflowConfig.name,
-        description: metadata.workflowConfig.description,
         version: metadata.workflowConfig.version,
         config: metadata.workflowConfig.config,
         steps: metadata.stepsConfig.map((step, index) => ({
@@ -145,6 +144,7 @@ export const executeApprovedWorkflowCreation = internalAction({
             specification: metadata.workflowConfig.specification,
             specificationMeta: {
               sourceHash: computeGraphFingerprint(baseConfig),
+              specHash: computeSpecHash(metadata.workflowConfig.specification),
               generatedAt: Date.now(),
               direction: 'graph_to_spec',
             },
@@ -468,9 +468,6 @@ export const executeApprovedWorkflowUpdate = internalAction({
 
         updatedConfig = {
           ...currentConfig,
-          name: metadata.workflowConfig.name ?? currentConfig.name,
-          description:
-            metadata.workflowConfig.description ?? currentConfig.description,
           version: metadata.workflowConfig.version ?? currentConfig.version,
           config: metadata.workflowConfig.config ?? currentConfig.config,
           steps: metadata.stepsConfig.map((step, index) => ({
@@ -495,6 +492,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
             specification: metadata.workflowConfig.specification,
             specificationMeta: {
               sourceHash: computeGraphFingerprint(updatedConfig),
+              specHash: computeSpecHash(metadata.workflowConfig.specification),
               generatedAt: Date.now(),
               direction: 'graph_to_spec',
             },

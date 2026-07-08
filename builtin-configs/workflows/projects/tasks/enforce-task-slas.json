@@ -1,20 +1,4 @@
 {
-  "name": "Enforce task SLAs",
-  "description": "Hourly due-date watchdog with an escalation ladder, each level firing AT MOST ONCE per task (levels are stamped atomically in the sweep): (1) due within 24h → inbox warning to the owner; (2) past due → nudge comment on the task; (3) overdue 24h+ → inbox escalation to the project creator and org admins; (4) overdue 72h+ → the same human escalation fires again as a reminder. Pushing the due date out resets the ladder. Tune thresholds on the sweep steps or deactivate the schedule on the workflow's Triggers tab.",
-  "i18n": {
-    "en": {
-      "name": "Enforce task SLAs",
-      "description": "Hourly due-date watchdog with an escalation ladder from owner warnings up to human escalation."
-    },
-    "de": {
-      "name": "Aufgaben-SLAs durchsetzen",
-      "description": "Stündlicher Fälligkeitswächter mit Eskalationsleiter, von Eigentümerwarnungen bis zur Eskalation an Menschen."
-    },
-    "fr": {
-      "name": "Appliquer les SLA des tâches",
-      "description": "Surveillance horaire des échéances avec une échelle d'escalade, des alertes au propriétaire jusqu'à l'escalade humaine."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

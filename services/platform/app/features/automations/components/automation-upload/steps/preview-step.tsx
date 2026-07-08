@@ -25,7 +25,7 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
   const { slug, manifest, assets, totalBytes } = parsedBundle;
   const fileCount = assets.length + 1;
   const scope = automationScope(manifest);
-  const workflows = manifest.workflow ? [manifest.workflow.name] : [];
+  const workflows = manifest.workflow ? [slug] : [];
   const agents = manifest.agents ?? [];
   const requiredIntegrations = manifest.requires?.integrations ?? [];
 

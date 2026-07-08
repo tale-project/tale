@@ -88,7 +88,7 @@ function page(numbers: number[], hasNextPage: boolean) {
 const PROPS = {
   source: { path: 'integrations/public_actions:listGitHubIssues' },
   itemsKey: 'data',
-  columns: ['number', 'title'],
+  columns: [{ field: 'number' }, { field: 'title' }],
   perPage: 3,
   excludeBy: {
     query: { path: 'tasks/queries:listTasksByProject' },

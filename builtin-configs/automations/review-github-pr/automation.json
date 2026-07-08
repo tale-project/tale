@@ -17,21 +17,6 @@
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {
-    "name": "Review and finalize GitHub pull requests",
-    "i18n": {
-      "en": {
-        "name": "Review and finalize GitHub pull requests",
-        "description": "Reviews each pull request awaiting review, then either approves it for a human to merge or sends it back to the PR Creator with feedback."
-      },
-      "de": {
-        "name": "GitHub-Pull-Requests prüfen und abschließen",
-        "description": "Prüft jeden Pull Request, der auf Review wartet, und genehmigt ihn entweder zur menschlichen Zusammenführung oder schickt ihn mit Feedback zurück an den PR Creator."
-      },
-      "fr": {
-        "name": "Examiner et finaliser les pull requests GitHub",
-        "description": "Examine chaque pull request en attente de revue, puis l'approuve pour une fusion humaine ou la renvoie au PR Creator avec des commentaires."
-      }
-    },
     "specification": "# Review and finalize GitHub pull requests\n\nA scheduled poll that closes the loop the *Create GitHub pull requests* automation opens: it reviews each pull request awaiting review and decides whether it is ready for a human to merge or needs another pass.\n\n## Trigger\n\nRuns on a schedule, every five minutes. It keeps no in-memory loop state between runs — a task's own labels carry the rework tally across separate scheduled runs.\n\n## Steps\n\n1. **Start.**\n2. **List tasks assigned to the PR Creator** — every non-terminal task the create step left with the PR Creator agent.\n3. **Skip loop if no candidates** — go straight to the end when the list is empty.\n4. **Loop through candidate tasks** — for each task in turn:\n   - **Only tasks awaiting review** — skip any task not parked at *In review*.\n   - **Load the full task** — read its labels and external reference.\n   - **PR Reviewer re-tests and reports** — run the PR Reviewer agent in a durable sandbox; it re-tests the branch, confirms CI, and writes a structured review.\n   - **Post the review findings** as a task comment (or a short note if the review run itself failed).\n   - **Merge gate** — a toolless LLM reads only that report and answers whether the change is ready to merge.\n\n## Decision points\n\n- **Approved** → comment that the change is ready and leave the task at *In review*; a human merges it on GitHub, the system of record for merges.\n- **Not approved, budget remaining** → bump the `rework:N` label, reassign the task to the PR Creator, and reopen it at *To do* so the platform runs the creator again with the reviewer's feedback.\n- **Not approved, budget exhausted** → once the rework tally reaches the cap (three loops), stop looping, comment that the limit was reached, and leave the task at *In review* for a human to take over.\n\n## Outcome\n\nEvery reviewed pull request is either approved for a human merge, sent back for another automated attempt, or handed off to a human after the rework cap — with a task comment recording each verdict.",
     "version": "1.0.0",
     "config": {

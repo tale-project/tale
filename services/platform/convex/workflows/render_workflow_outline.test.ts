@@ -17,7 +17,6 @@ function step(overrides: Partial<WorkflowJsonConfig['steps'][number]>) {
 describe('renderWorkflowOutline', () => {
   it('walks steps in execution order via nextSteps, not file order', () => {
     const config: WorkflowJsonConfig = {
-      name: 'Order test',
       steps: [
         step({ stepSlug: 'finish', stepType: 'output', name: 'Finish' }),
         step({
@@ -34,7 +33,7 @@ describe('renderWorkflowOutline', () => {
       ],
     };
 
-    const outline = renderWorkflowOutline(config);
+    const outline = renderWorkflowOutline('test-workflow', config);
     const order = ['start', 'middle', 'finish'].map((slug) =>
       outline.indexOf(`## ${slug} `),
     );
@@ -44,7 +43,6 @@ describe('renderWorkflowOutline', () => {
 
   it('emits config, JEXL expressions, and templates verbatim', () => {
     const config: WorkflowJsonConfig = {
-      name: 'Verbatim test',
       steps: [
         step({
           stepSlug: 'check',
@@ -68,7 +66,7 @@ describe('renderWorkflowOutline', () => {
       ],
     };
 
-    const outline = renderWorkflowOutline(config);
+    const outline = renderWorkflowOutline('test-workflow', config);
     expect(outline).toContain('steps.find.output.data != null');
     expect(outline).toContain('Hello {{steps.find.output.data.name}}');
     expect(outline).toContain('You are a friendly assistant.');
@@ -76,7 +74,6 @@ describe('renderWorkflowOutline', () => {
 
   it('still includes steps unreachable from the entry step', () => {
     const config: WorkflowJsonConfig = {
-      name: 'Orphan test',
       steps: [
         step({
           stepSlug: 'start',
@@ -89,19 +86,18 @@ describe('renderWorkflowOutline', () => {
       ],
     };
 
-    const outline = renderWorkflowOutline(config);
+    const outline = renderWorkflowOutline('test-workflow', config);
     expect(outline).toContain('## orphan (action)');
   });
 
   it('renders a placeholder for a workflow with no steps', () => {
-    const config: WorkflowJsonConfig = { name: 'Empty', steps: [] };
-    const outline = renderWorkflowOutline(config);
+    const config: WorkflowJsonConfig = { steps: [] };
+    const outline = renderWorkflowOutline('test-workflow', config);
     expect(outline).toContain('This workflow has no steps yet.');
   });
 
   it('is deterministic for the same input', () => {
     const config: WorkflowJsonConfig = {
-      name: 'Determinism test',
       steps: [
         step({
           stepSlug: 'start',
@@ -112,6 +108,8 @@ describe('renderWorkflowOutline', () => {
         step({ stepSlug: 'finish', stepType: 'output', name: 'Finish' }),
       ],
     };
-    expect(renderWorkflowOutline(config)).toBe(renderWorkflowOutline(config));
+    expect(renderWorkflowOutline('test-workflow', config)).toBe(
+      renderWorkflowOutline('test-workflow', config),
+    );
   });
 });

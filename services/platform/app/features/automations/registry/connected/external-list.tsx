@@ -64,11 +64,8 @@ export interface ExternalListProps {
   itemsKey?: string;
   /** Client-side row filter (when_predicate grammar), e.g. `!pull_request`. */
   rowWhen?: string;
-  /** Columns to show — bare field names or column specs; if omitted, inferred
-   *  from the first row. */
+  /** Columns to show — column specs; if omitted, inferred from the first row. */
   columns?: BoundColumn[];
-  /** Literal header text per column key. */
-  columnLabels?: Record<string, string>;
   /** Per-row actions, bound to the row via `BoundButton`. */
   actions?: BoundActionSpec[];
   /** Page size; when set, the block paginates (`perPage` + cursor args) and
@@ -113,7 +110,6 @@ export function ExternalList({
   itemsKey,
   rowWhen,
   columns,
-  columnLabels,
   actions,
   perPage,
   excludeBy,
@@ -188,10 +184,9 @@ export function ExternalList({
     () =>
       buildBoundColumns(columns, {
         rows: visibleRows,
-        columnLabels,
         actions,
       }),
-    [columns, columnLabels, actions, visibleRows],
+    [columns, actions, visibleRows],
   );
 
   // A `$state.` reference the source args carry reads as "awaiting selection",

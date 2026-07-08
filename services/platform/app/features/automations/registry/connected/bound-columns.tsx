@@ -6,7 +6,7 @@
  * `ColumnDef`s for the platform `DataTable` — per-kind cell renderers
  * (`cell-kinds`), typed skeleton meta, the declared `size` feeding the
  * column-size budget, `flex`/`align` meta, literal headers with the
- * legacy capitalized-key fallback, and the trailing actions column rendering
+ * capitalized-key fallback, and the trailing actions column rendering
  * the `BoundButton` cluster. Also home to the small shared plumbing both list
  * blocks need around the mapping: stable row ids for rows that may carry no
  * `_id` (external rows), and the `$state.` scan that decides whether an
@@ -30,8 +30,8 @@ import { BoundButton, type BoundActionSpec } from './bound-button';
 /** One declared column — `z.infer` of the view schema (no runtime twin). */
 export type ColumnSpec = z.infer<typeof columnSpecSchema>;
 
-/** A block's `columns` entry: bare field name (back-compat) or a spec. */
-export type BoundColumn = string | ColumnSpec;
+/** A block's `columns` entry. */
+export type BoundColumn = ColumnSpec;
 
 /** The row shape every bound list works over (already record-filtered). */
 export type BoundRow = Record<string, unknown>;
@@ -80,8 +80,6 @@ export function useBoundRowIds(): (row: BoundRow) => string {
 export interface BoundColumnsContext {
   /** Loaded rows — used only to infer columns when none are declared. */
   rows: BoundRow[];
-  /** Legacy per-column header map (literal header text per column key). */
-  columnLabels?: Record<string, string>;
   /** View-config per-row actions, rendered as a `BoundButton` cluster. */
   actions?: BoundActionSpec[];
   /** Injected per-row action (e.g. subject re-run) merged into the actions
@@ -98,14 +96,12 @@ export interface BoundColumnsContext {
   };
 }
 
-/** Normalize `columns` to specs; infer from the first row when undeclared. */
+/** Infer columns from the first row when undeclared. */
 function normalizeColumns(
   columns: BoundColumn[] | undefined,
   rows: BoundRow[],
 ): ColumnSpec[] {
-  if (columns && columns.length > 0) {
-    return columns.map((c) => (typeof c === 'string' ? { field: c } : c));
-  }
+  if (columns && columns.length > 0) return [...columns];
   const first = rows[0];
   return first
     ? Object.keys(first)
@@ -123,9 +119,9 @@ function inferKind(spec: ColumnSpec): CellKind {
 
 /**
  * Build the `ColumnDef[]` for a bound list block. Header precedence:
- * `labelKey` (a literal, rendered verbatim) → the legacy `columnLabels` map →
- * the raw field key CSS-capitalized (the old table's fallback). The actions
- * column is appended when view actions or an injected row action exist.
+ * `labelKey` (a literal, rendered verbatim) → the raw field key
+ * CSS-capitalized (the old table's fallback). The actions column is appended
+ * when view actions or an injected row action exist.
  */
 export function buildBoundColumns(
   columns: BoundColumn[] | undefined,
@@ -138,7 +134,7 @@ export function buildBoundColumns(
     const align =
       spec.align ??
       (kind === 'number' || kind === 'datetime' ? 'right' : undefined);
-    const label = spec.labelKey ?? ctx.columnLabels?.[field];
+    const label = spec.labelKey;
     // The two-line kind's muted second line (`columnSpecSchema.secondaryField`).
     const secondaryField =
       typeof spec.secondaryField === 'string' ? spec.secondaryField : undefined;

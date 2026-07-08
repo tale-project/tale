@@ -84,17 +84,6 @@ describe('parseAutomationBundle — view validation mirror', () => {
     expect(res.error).toContain('capabilities.functions');
   });
 
-  it('accepts (and ignores) a legacy messages/ dir, even malformed JSON inside it', async () => {
-    // The retired per-bundle label catalog is no longer read or validated —
-    // an old package's messages/ dir is carried as an inert asset.
-    const res = await parseAutomationBundle(
-      await bundle({ 'my-automation/messages/de.json': '{oops not json' }),
-    );
-    expect(res.success, res.success ? '' : res.error).toBe(true);
-    if (!res.success) return;
-    expect(res.data.assets.map((a) => a.relPath)).toContain('messages/de.json');
-  });
-
   it('rejects an AgentChat role not declared in manifest.roles', async () => {
     const res = await parseAutomationBundle(
       await bundle({

@@ -24,6 +24,8 @@ export interface IntegrationListItem {
   slug: string;
   title: string;
   description?: string;
+  /** Definition catalog chips, rendered in the card's meta row. */
+  labels?: string[];
   type?: 'rest_api' | 'sql';
   authMethod: string;
   operationCount: number;
@@ -196,6 +198,7 @@ export function Integrations({
               key={integration.slug}
               title={integration.title}
               description={integration.description}
+              labels={integration.labels}
               isActive={integration.isActive === true}
               status={
                 typeof integration.status === 'string'

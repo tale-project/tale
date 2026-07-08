@@ -87,7 +87,16 @@
       "additionalProperties": false,
       "properties": {
         "agentKind": {
-          "enum": ["claude-code", "cursor"],
+          "enum": [
+            "claude-code",
+            "cursor",
+            "opencode",
+            "hermes",
+            "gemini",
+            "codex",
+            "pi",
+            "openclaw"
+          ],
           "type": "string"
         },
         "authMode": {
@@ -1182,75 +1191,59 @@
                               "required": ["path", "mode"],
                               "type": "object"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -1572,75 +1565,59 @@
                               },
                               "type": "array"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -2132,9 +2109,6 @@
                                   "label": {
                                     "type": "string"
                                   },
-                                  "labelKey": {
-                                    "type": "string"
-                                  },
                                   "multiline": {
                                     "type": "boolean"
                                   },
@@ -2143,9 +2117,6 @@
                                       "additionalProperties": false,
                                       "properties": {
                                         "label": {
-                                          "type": "string"
-                                        },
-                                        "labelKey": {
                                           "type": "string"
                                         },
                                         "value": {
@@ -2158,9 +2129,6 @@
                                     "type": "array"
                                   },
                                   "placeholder": {
-                                    "type": "string"
-                                  },
-                                  "placeholderKey": {
                                     "type": "string"
                                   },
                                   "required": {
@@ -4128,75 +4096,59 @@
                                 "required": ["path", "mode"],
                                 "type": "object"
                               },
-                              "columnLabels": {
-                                "additionalProperties": {
-                                  "type": "string"
-                                },
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "type": "object"
-                              },
                               "columns": {
                                 "items": {
-                                  "anyOf": [
-                                    {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "align": {
+                                      "enum": ["left", "center", "right"],
                                       "type": "string"
                                     },
-                                    {
-                                      "additionalProperties": {},
-                                      "properties": {
-                                        "align": {
-                                          "enum": ["left", "center", "right"],
-                                          "type": "string"
-                                        },
-                                        "field": {
-                                          "type": "string"
-                                        },
-                                        "flex": {
-                                          "anyOf": [
-                                            {
-                                              "type": "number"
-                                            },
-                                            {
-                                              "type": "boolean"
-                                            }
-                                          ]
-                                        },
-                                        "kind": {
-                                          "enum": [
-                                            "text",
-                                            "badge",
-                                            "datetime",
-                                            "number",
-                                            "id",
-                                            "two-line"
-                                          ],
-                                          "type": "string"
-                                        },
-                                        "labelKey": {
-                                          "type": "string"
-                                        },
-                                        "secondaryField": {
-                                          "type": "string"
-                                        },
-                                        "size": {
+                                    "field": {
+                                      "type": "string"
+                                    },
+                                    "flex": {
+                                      "anyOf": [
+                                        {
                                           "type": "number"
                                         },
-                                        "valueLabels": {
-                                          "additionalProperties": {
-                                            "type": "string"
-                                          },
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "type": "object"
+                                        {
+                                          "type": "boolean"
                                         }
+                                      ]
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "text",
+                                        "badge",
+                                        "datetime",
+                                        "number",
+                                        "id",
+                                        "two-line"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "labelKey": {
+                                      "type": "string"
+                                    },
+                                    "secondaryField": {
+                                      "type": "string"
+                                    },
+                                    "size": {
+                                      "type": "number"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
                                       },
-                                      "required": ["field"],
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
                                       "type": "object"
                                     }
-                                  ]
+                                  },
+                                  "required": ["field"],
+                                  "type": "object"
                                 },
                                 "type": "array"
                               },
@@ -4518,75 +4470,59 @@
                                 },
                                 "type": "array"
                               },
-                              "columnLabels": {
-                                "additionalProperties": {
-                                  "type": "string"
-                                },
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "type": "object"
-                              },
                               "columns": {
                                 "items": {
-                                  "anyOf": [
-                                    {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "align": {
+                                      "enum": ["left", "center", "right"],
                                       "type": "string"
                                     },
-                                    {
-                                      "additionalProperties": {},
-                                      "properties": {
-                                        "align": {
-                                          "enum": ["left", "center", "right"],
-                                          "type": "string"
-                                        },
-                                        "field": {
-                                          "type": "string"
-                                        },
-                                        "flex": {
-                                          "anyOf": [
-                                            {
-                                              "type": "number"
-                                            },
-                                            {
-                                              "type": "boolean"
-                                            }
-                                          ]
-                                        },
-                                        "kind": {
-                                          "enum": [
-                                            "text",
-                                            "badge",
-                                            "datetime",
-                                            "number",
-                                            "id",
-                                            "two-line"
-                                          ],
-                                          "type": "string"
-                                        },
-                                        "labelKey": {
-                                          "type": "string"
-                                        },
-                                        "secondaryField": {
-                                          "type": "string"
-                                        },
-                                        "size": {
+                                    "field": {
+                                      "type": "string"
+                                    },
+                                    "flex": {
+                                      "anyOf": [
+                                        {
                                           "type": "number"
                                         },
-                                        "valueLabels": {
-                                          "additionalProperties": {
-                                            "type": "string"
-                                          },
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "type": "object"
+                                        {
+                                          "type": "boolean"
                                         }
+                                      ]
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "text",
+                                        "badge",
+                                        "datetime",
+                                        "number",
+                                        "id",
+                                        "two-line"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "labelKey": {
+                                      "type": "string"
+                                    },
+                                    "secondaryField": {
+                                      "type": "string"
+                                    },
+                                    "size": {
+                                      "type": "number"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
                                       },
-                                      "required": ["field"],
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
                                       "type": "object"
                                     }
-                                  ]
+                                  },
+                                  "required": ["field"],
+                                  "type": "object"
                                 },
                                 "type": "array"
                               },
@@ -5078,9 +5014,6 @@
                                     "label": {
                                       "type": "string"
                                     },
-                                    "labelKey": {
-                                      "type": "string"
-                                    },
                                     "multiline": {
                                       "type": "boolean"
                                     },
@@ -5089,9 +5022,6 @@
                                         "additionalProperties": false,
                                         "properties": {
                                           "label": {
-                                            "type": "string"
-                                          },
-                                          "labelKey": {
                                             "type": "string"
                                           },
                                           "value": {
@@ -5104,9 +5034,6 @@
                                       "type": "array"
                                     },
                                     "placeholder": {
-                                      "type": "string"
-                                    },
-                                    "placeholderKey": {
                                       "type": "string"
                                     },
                                     "required": {
@@ -7085,75 +7012,59 @@
                             "required": ["path", "mode"],
                             "type": "object"
                           },
-                          "columnLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
-                          },
                           "columns": {
                             "items": {
-                              "anyOf": [
-                                {
+                              "additionalProperties": {},
+                              "properties": {
+                                "align": {
+                                  "enum": ["left", "center", "right"],
                                   "type": "string"
                                 },
-                                {
-                                  "additionalProperties": {},
-                                  "properties": {
-                                    "align": {
-                                      "enum": ["left", "center", "right"],
-                                      "type": "string"
-                                    },
-                                    "field": {
-                                      "type": "string"
-                                    },
-                                    "flex": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number"
-                                        },
-                                        {
-                                          "type": "boolean"
-                                        }
-                                      ]
-                                    },
-                                    "kind": {
-                                      "enum": [
-                                        "text",
-                                        "badge",
-                                        "datetime",
-                                        "number",
-                                        "id",
-                                        "two-line"
-                                      ],
-                                      "type": "string"
-                                    },
-                                    "labelKey": {
-                                      "type": "string"
-                                    },
-                                    "secondaryField": {
-                                      "type": "string"
-                                    },
-                                    "size": {
+                                "field": {
+                                  "type": "string"
+                                },
+                                "flex": {
+                                  "anyOf": [
+                                    {
                                       "type": "number"
                                     },
-                                    "valueLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
+                                    {
+                                      "type": "boolean"
                                     }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "text",
+                                    "badge",
+                                    "datetime",
+                                    "number",
+                                    "id",
+                                    "two-line"
+                                  ],
+                                  "type": "string"
+                                },
+                                "labelKey": {
+                                  "type": "string"
+                                },
+                                "secondaryField": {
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "type": "number"
+                                },
+                                "valueLabels": {
+                                  "additionalProperties": {
+                                    "type": "string"
                                   },
-                                  "required": ["field"],
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "type": "object"
                                 }
-                              ]
+                              },
+                              "required": ["field"],
+                              "type": "object"
                             },
                             "type": "array"
                           },
@@ -7471,75 +7382,59 @@
                             },
                             "type": "array"
                           },
-                          "columnLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
-                          },
                           "columns": {
                             "items": {
-                              "anyOf": [
-                                {
+                              "additionalProperties": {},
+                              "properties": {
+                                "align": {
+                                  "enum": ["left", "center", "right"],
                                   "type": "string"
                                 },
-                                {
-                                  "additionalProperties": {},
-                                  "properties": {
-                                    "align": {
-                                      "enum": ["left", "center", "right"],
-                                      "type": "string"
-                                    },
-                                    "field": {
-                                      "type": "string"
-                                    },
-                                    "flex": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number"
-                                        },
-                                        {
-                                          "type": "boolean"
-                                        }
-                                      ]
-                                    },
-                                    "kind": {
-                                      "enum": [
-                                        "text",
-                                        "badge",
-                                        "datetime",
-                                        "number",
-                                        "id",
-                                        "two-line"
-                                      ],
-                                      "type": "string"
-                                    },
-                                    "labelKey": {
-                                      "type": "string"
-                                    },
-                                    "secondaryField": {
-                                      "type": "string"
-                                    },
-                                    "size": {
+                                "field": {
+                                  "type": "string"
+                                },
+                                "flex": {
+                                  "anyOf": [
+                                    {
                                       "type": "number"
                                     },
-                                    "valueLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
+                                    {
+                                      "type": "boolean"
                                     }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "text",
+                                    "badge",
+                                    "datetime",
+                                    "number",
+                                    "id",
+                                    "two-line"
+                                  ],
+                                  "type": "string"
+                                },
+                                "labelKey": {
+                                  "type": "string"
+                                },
+                                "secondaryField": {
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "type": "number"
+                                },
+                                "valueLabels": {
+                                  "additionalProperties": {
+                                    "type": "string"
                                   },
-                                  "required": ["field"],
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "type": "object"
                                 }
-                              ]
+                              },
+                              "required": ["field"],
+                              "type": "object"
                             },
                             "type": "array"
                           },
@@ -8027,9 +7922,6 @@
                                 "label": {
                                   "type": "string"
                                 },
-                                "labelKey": {
-                                  "type": "string"
-                                },
                                 "multiline": {
                                   "type": "boolean"
                                 },
@@ -8038,9 +7930,6 @@
                                     "additionalProperties": false,
                                     "properties": {
                                       "label": {
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
                                         "type": "string"
                                       },
                                       "value": {
@@ -8053,9 +7942,6 @@
                                   "type": "array"
                                 },
                                 "placeholder": {
-                                  "type": "string"
-                                },
-                                "placeholderKey": {
                                   "type": "string"
                                 },
                                 "required": {
@@ -10007,75 +9893,59 @@
                               "required": ["path", "mode"],
                               "type": "object"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -10397,75 +10267,59 @@
                               },
                               "type": "array"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -10957,9 +10811,6 @@
                                   "label": {
                                     "type": "string"
                                   },
-                                  "labelKey": {
-                                    "type": "string"
-                                  },
                                   "multiline": {
                                     "type": "boolean"
                                   },
@@ -10968,9 +10819,6 @@
                                       "additionalProperties": false,
                                       "properties": {
                                         "label": {
-                                          "type": "string"
-                                        },
-                                        "labelKey": {
                                           "type": "string"
                                         },
                                         "value": {
@@ -10983,9 +10831,6 @@
                                     "type": "array"
                                   },
                                   "placeholder": {
-                                    "type": "string"
-                                  },
-                                  "placeholderKey": {
                                     "type": "string"
                                   },
                                   "required": {
@@ -12956,75 +12801,59 @@
                             "required": ["path", "mode"],
                             "type": "object"
                           },
-                          "columnLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
-                          },
                           "columns": {
                             "items": {
-                              "anyOf": [
-                                {
+                              "additionalProperties": {},
+                              "properties": {
+                                "align": {
+                                  "enum": ["left", "center", "right"],
                                   "type": "string"
                                 },
-                                {
-                                  "additionalProperties": {},
-                                  "properties": {
-                                    "align": {
-                                      "enum": ["left", "center", "right"],
-                                      "type": "string"
-                                    },
-                                    "field": {
-                                      "type": "string"
-                                    },
-                                    "flex": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number"
-                                        },
-                                        {
-                                          "type": "boolean"
-                                        }
-                                      ]
-                                    },
-                                    "kind": {
-                                      "enum": [
-                                        "text",
-                                        "badge",
-                                        "datetime",
-                                        "number",
-                                        "id",
-                                        "two-line"
-                                      ],
-                                      "type": "string"
-                                    },
-                                    "labelKey": {
-                                      "type": "string"
-                                    },
-                                    "secondaryField": {
-                                      "type": "string"
-                                    },
-                                    "size": {
+                                "field": {
+                                  "type": "string"
+                                },
+                                "flex": {
+                                  "anyOf": [
+                                    {
                                       "type": "number"
                                     },
-                                    "valueLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
+                                    {
+                                      "type": "boolean"
                                     }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "text",
+                                    "badge",
+                                    "datetime",
+                                    "number",
+                                    "id",
+                                    "two-line"
+                                  ],
+                                  "type": "string"
+                                },
+                                "labelKey": {
+                                  "type": "string"
+                                },
+                                "secondaryField": {
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "type": "number"
+                                },
+                                "valueLabels": {
+                                  "additionalProperties": {
+                                    "type": "string"
                                   },
-                                  "required": ["field"],
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "type": "object"
                                 }
-                              ]
+                              },
+                              "required": ["field"],
+                              "type": "object"
                             },
                             "type": "array"
                           },
@@ -13342,75 +13171,59 @@
                             },
                             "type": "array"
                           },
-                          "columnLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
-                          },
                           "columns": {
                             "items": {
-                              "anyOf": [
-                                {
+                              "additionalProperties": {},
+                              "properties": {
+                                "align": {
+                                  "enum": ["left", "center", "right"],
                                   "type": "string"
                                 },
-                                {
-                                  "additionalProperties": {},
-                                  "properties": {
-                                    "align": {
-                                      "enum": ["left", "center", "right"],
-                                      "type": "string"
-                                    },
-                                    "field": {
-                                      "type": "string"
-                                    },
-                                    "flex": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number"
-                                        },
-                                        {
-                                          "type": "boolean"
-                                        }
-                                      ]
-                                    },
-                                    "kind": {
-                                      "enum": [
-                                        "text",
-                                        "badge",
-                                        "datetime",
-                                        "number",
-                                        "id",
-                                        "two-line"
-                                      ],
-                                      "type": "string"
-                                    },
-                                    "labelKey": {
-                                      "type": "string"
-                                    },
-                                    "secondaryField": {
-                                      "type": "string"
-                                    },
-                                    "size": {
+                                "field": {
+                                  "type": "string"
+                                },
+                                "flex": {
+                                  "anyOf": [
+                                    {
                                       "type": "number"
                                     },
-                                    "valueLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
+                                    {
+                                      "type": "boolean"
                                     }
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "text",
+                                    "badge",
+                                    "datetime",
+                                    "number",
+                                    "id",
+                                    "two-line"
+                                  ],
+                                  "type": "string"
+                                },
+                                "labelKey": {
+                                  "type": "string"
+                                },
+                                "secondaryField": {
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "type": "number"
+                                },
+                                "valueLabels": {
+                                  "additionalProperties": {
+                                    "type": "string"
                                   },
-                                  "required": ["field"],
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "type": "object"
                                 }
-                              ]
+                              },
+                              "required": ["field"],
+                              "type": "object"
                             },
                             "type": "array"
                           },
@@ -13898,9 +13711,6 @@
                                 "label": {
                                   "type": "string"
                                 },
-                                "labelKey": {
-                                  "type": "string"
-                                },
                                 "multiline": {
                                   "type": "boolean"
                                 },
@@ -13909,9 +13719,6 @@
                                     "additionalProperties": false,
                                     "properties": {
                                       "label": {
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
                                         "type": "string"
                                       },
                                       "value": {
@@ -13924,9 +13731,6 @@
                                   "type": "array"
                                 },
                                 "placeholder": {
-                                  "type": "string"
-                                },
-                                "placeholderKey": {
                                   "type": "string"
                                 },
                                 "required": {
@@ -15878,75 +15682,59 @@
                               "required": ["path", "mode"],
                               "type": "object"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -16268,75 +16056,59 @@
                               },
                               "type": "array"
                             },
-                            "columnLabels": {
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "type": "object"
-                            },
                             "columns": {
                               "items": {
-                                "anyOf": [
-                                  {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "align": {
+                                    "enum": ["left", "center", "right"],
                                     "type": "string"
                                   },
-                                  {
-                                    "additionalProperties": {},
-                                    "properties": {
-                                      "align": {
-                                        "enum": ["left", "center", "right"],
-                                        "type": "string"
-                                      },
-                                      "field": {
-                                        "type": "string"
-                                      },
-                                      "flex": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "boolean"
-                                          }
-                                        ]
-                                      },
-                                      "kind": {
-                                        "enum": [
-                                          "text",
-                                          "badge",
-                                          "datetime",
-                                          "number",
-                                          "id",
-                                          "two-line"
-                                        ],
-                                        "type": "string"
-                                      },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
-                                      "secondaryField": {
-                                        "type": "string"
-                                      },
-                                      "size": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "flex": {
+                                    "anyOf": [
+                                      {
                                         "type": "number"
                                       },
-                                      "valueLabels": {
-                                        "additionalProperties": {
-                                          "type": "string"
-                                        },
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "type": "object"
+                                      {
+                                        "type": "boolean"
                                       }
+                                    ]
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "text",
+                                      "badge",
+                                      "datetime",
+                                      "number",
+                                      "id",
+                                      "two-line"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "labelKey": {
+                                    "type": "string"
+                                  },
+                                  "secondaryField": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
                                     },
-                                    "required": ["field"],
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
                                     "type": "object"
                                   }
-                                ]
+                                },
+                                "required": ["field"],
+                                "type": "object"
                               },
                               "type": "array"
                             },
@@ -16828,9 +16600,6 @@
                                   "label": {
                                     "type": "string"
                                   },
-                                  "labelKey": {
-                                    "type": "string"
-                                  },
                                   "multiline": {
                                     "type": "boolean"
                                   },
@@ -16839,9 +16608,6 @@
                                       "additionalProperties": false,
                                       "properties": {
                                         "label": {
-                                          "type": "string"
-                                        },
-                                        "labelKey": {
                                           "type": "string"
                                         },
                                         "value": {
@@ -16854,9 +16620,6 @@
                                     "type": "array"
                                   },
                                   "placeholder": {
-                                    "type": "string"
-                                  },
-                                  "placeholderKey": {
                                     "type": "string"
                                   },
                                   "required": {
@@ -18838,79 +18601,59 @@
                                     "required": ["path", "mode"],
                                     "type": "object"
                                   },
-                                  "columnLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
-                                  },
                                   "columns": {
                                     "items": {
-                                      "anyOf": [
-                                        {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "align": {
+                                          "enum": ["left", "center", "right"],
                                           "type": "string"
                                         },
-                                        {
-                                          "additionalProperties": {},
-                                          "properties": {
-                                            "align": {
-                                              "enum": [
-                                                "left",
-                                                "center",
-                                                "right"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "field": {
-                                              "type": "string"
-                                            },
-                                            "flex": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "number"
-                                                },
-                                                {
-                                                  "type": "boolean"
-                                                }
-                                              ]
-                                            },
-                                            "kind": {
-                                              "enum": [
-                                                "text",
-                                                "badge",
-                                                "datetime",
-                                                "number",
-                                                "id",
-                                                "two-line"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "labelKey": {
-                                              "type": "string"
-                                            },
-                                            "secondaryField": {
-                                              "type": "string"
-                                            },
-                                            "size": {
+                                        "field": {
+                                          "type": "string"
+                                        },
+                                        "flex": {
+                                          "anyOf": [
+                                            {
                                               "type": "number"
                                             },
-                                            "valueLabels": {
-                                              "additionalProperties": {
-                                                "type": "string"
-                                              },
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "type": "object"
+                                            {
+                                              "type": "boolean"
                                             }
+                                          ]
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "text",
+                                            "badge",
+                                            "datetime",
+                                            "number",
+                                            "id",
+                                            "two-line"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "labelKey": {
+                                          "type": "string"
+                                        },
+                                        "secondaryField": {
+                                          "type": "string"
+                                        },
+                                        "size": {
+                                          "type": "number"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
                                           },
-                                          "required": ["field"],
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
                                           "type": "object"
                                         }
-                                      ]
+                                      },
+                                      "required": ["field"],
+                                      "type": "object"
                                     },
                                     "type": "array"
                                   },
@@ -19244,79 +18987,59 @@
                                     },
                                     "type": "array"
                                   },
-                                  "columnLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
-                                  },
                                   "columns": {
                                     "items": {
-                                      "anyOf": [
-                                        {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "align": {
+                                          "enum": ["left", "center", "right"],
                                           "type": "string"
                                         },
-                                        {
-                                          "additionalProperties": {},
-                                          "properties": {
-                                            "align": {
-                                              "enum": [
-                                                "left",
-                                                "center",
-                                                "right"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "field": {
-                                              "type": "string"
-                                            },
-                                            "flex": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "number"
-                                                },
-                                                {
-                                                  "type": "boolean"
-                                                }
-                                              ]
-                                            },
-                                            "kind": {
-                                              "enum": [
-                                                "text",
-                                                "badge",
-                                                "datetime",
-                                                "number",
-                                                "id",
-                                                "two-line"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "labelKey": {
-                                              "type": "string"
-                                            },
-                                            "secondaryField": {
-                                              "type": "string"
-                                            },
-                                            "size": {
+                                        "field": {
+                                          "type": "string"
+                                        },
+                                        "flex": {
+                                          "anyOf": [
+                                            {
                                               "type": "number"
                                             },
-                                            "valueLabels": {
-                                              "additionalProperties": {
-                                                "type": "string"
-                                              },
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "type": "object"
+                                            {
+                                              "type": "boolean"
                                             }
+                                          ]
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "text",
+                                            "badge",
+                                            "datetime",
+                                            "number",
+                                            "id",
+                                            "two-line"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "labelKey": {
+                                          "type": "string"
+                                        },
+                                        "secondaryField": {
+                                          "type": "string"
+                                        },
+                                        "size": {
+                                          "type": "number"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
                                           },
-                                          "required": ["field"],
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
                                           "type": "object"
                                         }
-                                      ]
+                                      },
+                                      "required": ["field"],
+                                      "type": "object"
                                     },
                                     "type": "array"
                                   },
@@ -19816,9 +19539,6 @@
                                         "label": {
                                           "type": "string"
                                         },
-                                        "labelKey": {
-                                          "type": "string"
-                                        },
                                         "multiline": {
                                           "type": "boolean"
                                         },
@@ -19827,9 +19547,6 @@
                                             "additionalProperties": false,
                                             "properties": {
                                               "label": {
-                                                "type": "string"
-                                              },
-                                              "labelKey": {
                                                 "type": "string"
                                               },
                                               "value": {
@@ -19842,9 +19559,6 @@
                                           "type": "array"
                                         },
                                         "placeholder": {
-                                          "type": "string"
-                                        },
-                                        "placeholderKey": {
                                           "type": "string"
                                         },
                                         "required": {
@@ -21911,79 +21625,59 @@
                                       "required": ["path", "mode"],
                                       "type": "object"
                                     },
-                                    "columnLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
-                                    },
                                     "columns": {
                                       "items": {
-                                        "anyOf": [
-                                          {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "align": {
+                                            "enum": ["left", "center", "right"],
                                             "type": "string"
                                           },
-                                          {
-                                            "additionalProperties": {},
-                                            "properties": {
-                                              "align": {
-                                                "enum": [
-                                                  "left",
-                                                  "center",
-                                                  "right"
-                                                ],
-                                                "type": "string"
-                                              },
-                                              "field": {
-                                                "type": "string"
-                                              },
-                                              "flex": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "number"
-                                                  },
-                                                  {
-                                                    "type": "boolean"
-                                                  }
-                                                ]
-                                              },
-                                              "kind": {
-                                                "enum": [
-                                                  "text",
-                                                  "badge",
-                                                  "datetime",
-                                                  "number",
-                                                  "id",
-                                                  "two-line"
-                                                ],
-                                                "type": "string"
-                                              },
-                                              "labelKey": {
-                                                "type": "string"
-                                              },
-                                              "secondaryField": {
-                                                "type": "string"
-                                              },
-                                              "size": {
+                                          "field": {
+                                            "type": "string"
+                                          },
+                                          "flex": {
+                                            "anyOf": [
+                                              {
                                                 "type": "number"
                                               },
-                                              "valueLabels": {
-                                                "additionalProperties": {
-                                                  "type": "string"
-                                                },
-                                                "propertyNames": {
-                                                  "type": "string"
-                                                },
-                                                "type": "object"
+                                              {
+                                                "type": "boolean"
                                               }
+                                            ]
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "text",
+                                              "badge",
+                                              "datetime",
+                                              "number",
+                                              "id",
+                                              "two-line"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "labelKey": {
+                                            "type": "string"
+                                          },
+                                          "secondaryField": {
+                                            "type": "string"
+                                          },
+                                          "size": {
+                                            "type": "number"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
                                             },
-                                            "required": ["field"],
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
                                             "type": "object"
                                           }
-                                        ]
+                                        },
+                                        "required": ["field"],
+                                        "type": "object"
                                       },
                                       "type": "array"
                                     },
@@ -22320,79 +22014,59 @@
                                       },
                                       "type": "array"
                                     },
-                                    "columnLabels": {
-                                      "additionalProperties": {
-                                        "type": "string"
-                                      },
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "type": "object"
-                                    },
                                     "columns": {
                                       "items": {
-                                        "anyOf": [
-                                          {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "align": {
+                                            "enum": ["left", "center", "right"],
                                             "type": "string"
                                           },
-                                          {
-                                            "additionalProperties": {},
-                                            "properties": {
-                                              "align": {
-                                                "enum": [
-                                                  "left",
-                                                  "center",
-                                                  "right"
-                                                ],
-                                                "type": "string"
-                                              },
-                                              "field": {
-                                                "type": "string"
-                                              },
-                                              "flex": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "number"
-                                                  },
-                                                  {
-                                                    "type": "boolean"
-                                                  }
-                                                ]
-                                              },
-                                              "kind": {
-                                                "enum": [
-                                                  "text",
-                                                  "badge",
-                                                  "datetime",
-                                                  "number",
-                                                  "id",
-                                                  "two-line"
-                                                ],
-                                                "type": "string"
-                                              },
-                                              "labelKey": {
-                                                "type": "string"
-                                              },
-                                              "secondaryField": {
-                                                "type": "string"
-                                              },
-                                              "size": {
+                                          "field": {
+                                            "type": "string"
+                                          },
+                                          "flex": {
+                                            "anyOf": [
+                                              {
                                                 "type": "number"
                                               },
-                                              "valueLabels": {
-                                                "additionalProperties": {
-                                                  "type": "string"
-                                                },
-                                                "propertyNames": {
-                                                  "type": "string"
-                                                },
-                                                "type": "object"
+                                              {
+                                                "type": "boolean"
                                               }
+                                            ]
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "text",
+                                              "badge",
+                                              "datetime",
+                                              "number",
+                                              "id",
+                                              "two-line"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "labelKey": {
+                                            "type": "string"
+                                          },
+                                          "secondaryField": {
+                                            "type": "string"
+                                          },
+                                          "size": {
+                                            "type": "number"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
                                             },
-                                            "required": ["field"],
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
                                             "type": "object"
                                           }
-                                        ]
+                                        },
+                                        "required": ["field"],
+                                        "type": "object"
                                       },
                                       "type": "array"
                                     },
@@ -22899,9 +22573,6 @@
                                           "label": {
                                             "type": "string"
                                           },
-                                          "labelKey": {
-                                            "type": "string"
-                                          },
                                           "multiline": {
                                             "type": "boolean"
                                           },
@@ -22910,9 +22581,6 @@
                                               "additionalProperties": false,
                                               "properties": {
                                                 "label": {
-                                                  "type": "string"
-                                                },
-                                                "labelKey": {
                                                   "type": "string"
                                                 },
                                                 "value": {
@@ -22925,9 +22593,6 @@
                                             "type": "array"
                                           },
                                           "placeholder": {
-                                            "type": "string"
-                                          },
-                                          "placeholderKey": {
                                             "type": "string"
                                           },
                                           "required": {
@@ -25007,75 +24672,59 @@
                                   "required": ["path", "mode"],
                                   "type": "object"
                                 },
-                                "columnLabels": {
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  },
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "type": "object"
-                                },
                                 "columns": {
                                   "items": {
-                                    "anyOf": [
-                                      {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "align": {
+                                        "enum": ["left", "center", "right"],
                                         "type": "string"
                                       },
-                                      {
-                                        "additionalProperties": {},
-                                        "properties": {
-                                          "align": {
-                                            "enum": ["left", "center", "right"],
-                                            "type": "string"
-                                          },
-                                          "field": {
-                                            "type": "string"
-                                          },
-                                          "flex": {
-                                            "anyOf": [
-                                              {
-                                                "type": "number"
-                                              },
-                                              {
-                                                "type": "boolean"
-                                              }
-                                            ]
-                                          },
-                                          "kind": {
-                                            "enum": [
-                                              "text",
-                                              "badge",
-                                              "datetime",
-                                              "number",
-                                              "id",
-                                              "two-line"
-                                            ],
-                                            "type": "string"
-                                          },
-                                          "labelKey": {
-                                            "type": "string"
-                                          },
-                                          "secondaryField": {
-                                            "type": "string"
-                                          },
-                                          "size": {
+                                      "field": {
+                                        "type": "string"
+                                      },
+                                      "flex": {
+                                        "anyOf": [
+                                          {
                                             "type": "number"
                                           },
-                                          "valueLabels": {
-                                            "additionalProperties": {
-                                              "type": "string"
-                                            },
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "type": "object"
+                                          {
+                                            "type": "boolean"
                                           }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "text",
+                                          "badge",
+                                          "datetime",
+                                          "number",
+                                          "id",
+                                          "two-line"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "labelKey": {
+                                        "type": "string"
+                                      },
+                                      "secondaryField": {
+                                        "type": "string"
+                                      },
+                                      "size": {
+                                        "type": "number"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
                                         },
-                                        "required": ["field"],
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
                                         "type": "object"
                                       }
-                                    ]
+                                    },
+                                    "required": ["field"],
+                                    "type": "object"
                                   },
                                   "type": "array"
                                 },
@@ -25401,75 +25050,59 @@
                                   },
                                   "type": "array"
                                 },
-                                "columnLabels": {
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  },
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "type": "object"
-                                },
                                 "columns": {
                                   "items": {
-                                    "anyOf": [
-                                      {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "align": {
+                                        "enum": ["left", "center", "right"],
                                         "type": "string"
                                       },
-                                      {
-                                        "additionalProperties": {},
-                                        "properties": {
-                                          "align": {
-                                            "enum": ["left", "center", "right"],
-                                            "type": "string"
-                                          },
-                                          "field": {
-                                            "type": "string"
-                                          },
-                                          "flex": {
-                                            "anyOf": [
-                                              {
-                                                "type": "number"
-                                              },
-                                              {
-                                                "type": "boolean"
-                                              }
-                                            ]
-                                          },
-                                          "kind": {
-                                            "enum": [
-                                              "text",
-                                              "badge",
-                                              "datetime",
-                                              "number",
-                                              "id",
-                                              "two-line"
-                                            ],
-                                            "type": "string"
-                                          },
-                                          "labelKey": {
-                                            "type": "string"
-                                          },
-                                          "secondaryField": {
-                                            "type": "string"
-                                          },
-                                          "size": {
+                                      "field": {
+                                        "type": "string"
+                                      },
+                                      "flex": {
+                                        "anyOf": [
+                                          {
                                             "type": "number"
                                           },
-                                          "valueLabels": {
-                                            "additionalProperties": {
-                                              "type": "string"
-                                            },
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "type": "object"
+                                          {
+                                            "type": "boolean"
                                           }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "text",
+                                          "badge",
+                                          "datetime",
+                                          "number",
+                                          "id",
+                                          "two-line"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "labelKey": {
+                                        "type": "string"
+                                      },
+                                      "secondaryField": {
+                                        "type": "string"
+                                      },
+                                      "size": {
+                                        "type": "number"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
                                         },
-                                        "required": ["field"],
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
                                         "type": "object"
                                       }
-                                    ]
+                                    },
+                                    "required": ["field"],
+                                    "type": "object"
                                   },
                                   "type": "array"
                                 },
@@ -25965,9 +25598,6 @@
                                       "label": {
                                         "type": "string"
                                       },
-                                      "labelKey": {
-                                        "type": "string"
-                                      },
                                       "multiline": {
                                         "type": "boolean"
                                       },
@@ -25976,9 +25606,6 @@
                                           "additionalProperties": false,
                                           "properties": {
                                             "label": {
-                                              "type": "string"
-                                            },
-                                            "labelKey": {
                                               "type": "string"
                                             },
                                             "value": {
@@ -25991,9 +25618,6 @@
                                         "type": "array"
                                       },
                                       "placeholder": {
-                                        "type": "string"
-                                      },
-                                      "placeholderKey": {
                                         "type": "string"
                                       },
                                       "required": {
@@ -28005,79 +27629,59 @@
                                     "required": ["path", "mode"],
                                     "type": "object"
                                   },
-                                  "columnLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
-                                  },
                                   "columns": {
                                     "items": {
-                                      "anyOf": [
-                                        {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "align": {
+                                          "enum": ["left", "center", "right"],
                                           "type": "string"
                                         },
-                                        {
-                                          "additionalProperties": {},
-                                          "properties": {
-                                            "align": {
-                                              "enum": [
-                                                "left",
-                                                "center",
-                                                "right"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "field": {
-                                              "type": "string"
-                                            },
-                                            "flex": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "number"
-                                                },
-                                                {
-                                                  "type": "boolean"
-                                                }
-                                              ]
-                                            },
-                                            "kind": {
-                                              "enum": [
-                                                "text",
-                                                "badge",
-                                                "datetime",
-                                                "number",
-                                                "id",
-                                                "two-line"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "labelKey": {
-                                              "type": "string"
-                                            },
-                                            "secondaryField": {
-                                              "type": "string"
-                                            },
-                                            "size": {
+                                        "field": {
+                                          "type": "string"
+                                        },
+                                        "flex": {
+                                          "anyOf": [
+                                            {
                                               "type": "number"
                                             },
-                                            "valueLabels": {
-                                              "additionalProperties": {
-                                                "type": "string"
-                                              },
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "type": "object"
+                                            {
+                                              "type": "boolean"
                                             }
+                                          ]
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "text",
+                                            "badge",
+                                            "datetime",
+                                            "number",
+                                            "id",
+                                            "two-line"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "labelKey": {
+                                          "type": "string"
+                                        },
+                                        "secondaryField": {
+                                          "type": "string"
+                                        },
+                                        "size": {
+                                          "type": "number"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
                                           },
-                                          "required": ["field"],
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
                                           "type": "object"
                                         }
-                                      ]
+                                      },
+                                      "required": ["field"],
+                                      "type": "object"
                                     },
                                     "type": "array"
                                   },
@@ -28411,79 +28015,59 @@
                                     },
                                     "type": "array"
                                   },
-                                  "columnLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
-                                  },
                                   "columns": {
                                     "items": {
-                                      "anyOf": [
-                                        {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "align": {
+                                          "enum": ["left", "center", "right"],
                                           "type": "string"
                                         },
-                                        {
-                                          "additionalProperties": {},
-                                          "properties": {
-                                            "align": {
-                                              "enum": [
-                                                "left",
-                                                "center",
-                                                "right"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "field": {
-                                              "type": "string"
-                                            },
-                                            "flex": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "number"
-                                                },
-                                                {
-                                                  "type": "boolean"
-                                                }
-                                              ]
-                                            },
-                                            "kind": {
-                                              "enum": [
-                                                "text",
-                                                "badge",
-                                                "datetime",
-                                                "number",
-                                                "id",
-                                                "two-line"
-                                              ],
-                                              "type": "string"
-                                            },
-                                            "labelKey": {
-                                              "type": "string"
-                                            },
-                                            "secondaryField": {
-                                              "type": "string"
-                                            },
-                                            "size": {
+                                        "field": {
+                                          "type": "string"
+                                        },
+                                        "flex": {
+                                          "anyOf": [
+                                            {
                                               "type": "number"
                                             },
-                                            "valueLabels": {
-                                              "additionalProperties": {
-                                                "type": "string"
-                                              },
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "type": "object"
+                                            {
+                                              "type": "boolean"
                                             }
+                                          ]
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "text",
+                                            "badge",
+                                            "datetime",
+                                            "number",
+                                            "id",
+                                            "two-line"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "labelKey": {
+                                          "type": "string"
+                                        },
+                                        "secondaryField": {
+                                          "type": "string"
+                                        },
+                                        "size": {
+                                          "type": "number"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
                                           },
-                                          "required": ["field"],
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
                                           "type": "object"
                                         }
-                                      ]
+                                      },
+                                      "required": ["field"],
+                                      "type": "object"
                                     },
                                     "type": "array"
                                   },
@@ -28983,9 +28567,6 @@
                                         "label": {
                                           "type": "string"
                                         },
-                                        "labelKey": {
-                                          "type": "string"
-                                        },
                                         "multiline": {
                                           "type": "boolean"
                                         },
@@ -28994,9 +28575,6 @@
                                             "additionalProperties": false,
                                             "properties": {
                                               "label": {
-                                                "type": "string"
-                                              },
-                                              "labelKey": {
                                                 "type": "string"
                                               },
                                               "value": {
@@ -29009,9 +28587,6 @@
                                           "type": "array"
                                         },
                                         "placeholder": {
-                                          "type": "string"
-                                        },
-                                        "placeholderKey": {
                                           "type": "string"
                                         },
                                         "required": {
@@ -31049,75 +30624,59 @@
                   "required": ["path", "mode"],
                   "type": "object"
                 },
-                "columnLabels": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "type": "object"
-                },
                 "columns": {
                   "items": {
-                    "anyOf": [
-                      {
+                    "additionalProperties": {},
+                    "properties": {
+                      "align": {
+                        "enum": ["left", "center", "right"],
                         "type": "string"
                       },
-                      {
-                        "additionalProperties": {},
-                        "properties": {
-                          "align": {
-                            "enum": ["left", "center", "right"],
-                            "type": "string"
-                          },
-                          "field": {
-                            "type": "string"
-                          },
-                          "flex": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "boolean"
-                              }
-                            ]
-                          },
-                          "kind": {
-                            "enum": [
-                              "text",
-                              "badge",
-                              "datetime",
-                              "number",
-                              "id",
-                              "two-line"
-                            ],
-                            "type": "string"
-                          },
-                          "labelKey": {
-                            "type": "string"
-                          },
-                          "secondaryField": {
-                            "type": "string"
-                          },
-                          "size": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "flex": {
+                        "anyOf": [
+                          {
                             "type": "number"
                           },
-                          "valueLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
+                          {
+                            "type": "boolean"
                           }
+                        ]
+                      },
+                      "kind": {
+                        "enum": [
+                          "text",
+                          "badge",
+                          "datetime",
+                          "number",
+                          "id",
+                          "two-line"
+                        ],
+                        "type": "string"
+                      },
+                      "labelKey": {
+                        "type": "string"
+                      },
+                      "secondaryField": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      },
+                      "valueLabels": {
+                        "additionalProperties": {
+                          "type": "string"
                         },
-                        "required": ["field"],
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "type": "object"
                       }
-                    ]
+                    },
+                    "required": ["field"],
+                    "type": "object"
                   },
                   "type": "array"
                 },
@@ -31435,75 +30994,59 @@
                   },
                   "type": "array"
                 },
-                "columnLabels": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "type": "object"
-                },
                 "columns": {
                   "items": {
-                    "anyOf": [
-                      {
+                    "additionalProperties": {},
+                    "properties": {
+                      "align": {
+                        "enum": ["left", "center", "right"],
                         "type": "string"
                       },
-                      {
-                        "additionalProperties": {},
-                        "properties": {
-                          "align": {
-                            "enum": ["left", "center", "right"],
-                            "type": "string"
-                          },
-                          "field": {
-                            "type": "string"
-                          },
-                          "flex": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "boolean"
-                              }
-                            ]
-                          },
-                          "kind": {
-                            "enum": [
-                              "text",
-                              "badge",
-                              "datetime",
-                              "number",
-                              "id",
-                              "two-line"
-                            ],
-                            "type": "string"
-                          },
-                          "labelKey": {
-                            "type": "string"
-                          },
-                          "secondaryField": {
-                            "type": "string"
-                          },
-                          "size": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "flex": {
+                        "anyOf": [
+                          {
                             "type": "number"
                           },
-                          "valueLabels": {
-                            "additionalProperties": {
-                              "type": "string"
-                            },
-                            "propertyNames": {
-                              "type": "string"
-                            },
-                            "type": "object"
+                          {
+                            "type": "boolean"
                           }
+                        ]
+                      },
+                      "kind": {
+                        "enum": [
+                          "text",
+                          "badge",
+                          "datetime",
+                          "number",
+                          "id",
+                          "two-line"
+                        ],
+                        "type": "string"
+                      },
+                      "labelKey": {
+                        "type": "string"
+                      },
+                      "secondaryField": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      },
+                      "valueLabels": {
+                        "additionalProperties": {
+                          "type": "string"
                         },
-                        "required": ["field"],
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "type": "object"
                       }
-                    ]
+                    },
+                    "required": ["field"],
+                    "type": "object"
                   },
                   "type": "array"
                 },
@@ -31980,9 +31523,6 @@
                       "label": {
                         "type": "string"
                       },
-                      "labelKey": {
-                        "type": "string"
-                      },
                       "multiline": {
                         "type": "boolean"
                       },
@@ -31991,9 +31531,6 @@
                           "additionalProperties": false,
                           "properties": {
                             "label": {
-                              "type": "string"
-                            },
-                            "labelKey": {
                               "type": "string"
                             },
                             "value": {
@@ -32006,9 +31543,6 @@
                         "type": "array"
                       },
                       "placeholder": {
-                        "type": "string"
-                      },
-                      "placeholderKey": {
                         "type": "string"
                       },
                       "required": {
@@ -33684,9 +33218,6 @@
         "label": {
           "type": "string"
         },
-        "labelKey": {
-          "type": "string"
-        },
         "multiline": {
           "type": "boolean"
         },
@@ -33695,9 +33226,6 @@
             "additionalProperties": false,
             "properties": {
               "label": {
-                "type": "string"
-              },
-              "labelKey": {
                 "type": "string"
               },
               "value": {
@@ -33710,9 +33238,6 @@
           "type": "array"
         },
         "placeholder": {
-          "type": "string"
-        },
-        "placeholderKey": {
           "type": "string"
         },
         "required": {
@@ -34136,75 +33661,59 @@
                         "required": ["path", "mode"],
                         "type": "object"
                       },
-                      "columnLabels": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "type": "object"
-                      },
                       "columns": {
                         "items": {
-                          "anyOf": [
-                            {
+                          "additionalProperties": {},
+                          "properties": {
+                            "align": {
+                              "enum": ["left", "center", "right"],
                               "type": "string"
                             },
-                            {
-                              "additionalProperties": {},
-                              "properties": {
-                                "align": {
-                                  "enum": ["left", "center", "right"],
-                                  "type": "string"
-                                },
-                                "field": {
-                                  "type": "string"
-                                },
-                                "flex": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "boolean"
-                                    }
-                                  ]
-                                },
-                                "kind": {
-                                  "enum": [
-                                    "text",
-                                    "badge",
-                                    "datetime",
-                                    "number",
-                                    "id",
-                                    "two-line"
-                                  ],
-                                  "type": "string"
-                                },
-                                "labelKey": {
-                                  "type": "string"
-                                },
-                                "secondaryField": {
-                                  "type": "string"
-                                },
-                                "size": {
+                            "field": {
+                              "type": "string"
+                            },
+                            "flex": {
+                              "anyOf": [
+                                {
                                   "type": "number"
                                 },
-                                "valueLabels": {
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  },
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "type": "object"
+                                {
+                                  "type": "boolean"
                                 }
+                              ]
+                            },
+                            "kind": {
+                              "enum": [
+                                "text",
+                                "badge",
+                                "datetime",
+                                "number",
+                                "id",
+                                "two-line"
+                              ],
+                              "type": "string"
+                            },
+                            "labelKey": {
+                              "type": "string"
+                            },
+                            "secondaryField": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "number"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
                               },
-                              "required": ["field"],
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "type": "object"
                             }
-                          ]
+                          },
+                          "required": ["field"],
+                          "type": "object"
                         },
                         "type": "array"
                       },
@@ -34522,75 +34031,59 @@
                         },
                         "type": "array"
                       },
-                      "columnLabels": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "type": "object"
-                      },
                       "columns": {
                         "items": {
-                          "anyOf": [
-                            {
+                          "additionalProperties": {},
+                          "properties": {
+                            "align": {
+                              "enum": ["left", "center", "right"],
                               "type": "string"
                             },
-                            {
-                              "additionalProperties": {},
-                              "properties": {
-                                "align": {
-                                  "enum": ["left", "center", "right"],
-                                  "type": "string"
-                                },
-                                "field": {
-                                  "type": "string"
-                                },
-                                "flex": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "boolean"
-                                    }
-                                  ]
-                                },
-                                "kind": {
-                                  "enum": [
-                                    "text",
-                                    "badge",
-                                    "datetime",
-                                    "number",
-                                    "id",
-                                    "two-line"
-                                  ],
-                                  "type": "string"
-                                },
-                                "labelKey": {
-                                  "type": "string"
-                                },
-                                "secondaryField": {
-                                  "type": "string"
-                                },
-                                "size": {
+                            "field": {
+                              "type": "string"
+                            },
+                            "flex": {
+                              "anyOf": [
+                                {
                                   "type": "number"
                                 },
-                                "valueLabels": {
-                                  "additionalProperties": {
-                                    "type": "string"
-                                  },
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "type": "object"
+                                {
+                                  "type": "boolean"
                                 }
+                              ]
+                            },
+                            "kind": {
+                              "enum": [
+                                "text",
+                                "badge",
+                                "datetime",
+                                "number",
+                                "id",
+                                "two-line"
+                              ],
+                              "type": "string"
+                            },
+                            "labelKey": {
+                              "type": "string"
+                            },
+                            "secondaryField": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "number"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
                               },
-                              "required": ["field"],
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "type": "object"
                             }
-                          ]
+                          },
+                          "required": ["field"],
+                          "type": "object"
                         },
                         "type": "array"
                       },
@@ -35078,9 +34571,6 @@
                             "label": {
                               "type": "string"
                             },
-                            "labelKey": {
-                              "type": "string"
-                            },
                             "multiline": {
                               "type": "boolean"
                             },
@@ -35089,9 +34579,6 @@
                                 "additionalProperties": false,
                                 "properties": {
                                   "label": {
-                                    "type": "string"
-                                  },
-                                  "labelKey": {
                                     "type": "string"
                                   },
                                   "value": {
@@ -35104,9 +34591,6 @@
                               "type": "array"
                             },
                             "placeholder": {
-                              "type": "string"
-                            },
-                            "placeholderKey": {
                               "type": "string"
                             },
                             "required": {
@@ -37038,75 +36522,59 @@
                           "required": ["path", "mode"],
                           "type": "object"
                         },
-                        "columnLabels": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "type": "object"
-                        },
                         "columns": {
                           "items": {
-                            "anyOf": [
-                              {
+                            "additionalProperties": {},
+                            "properties": {
+                              "align": {
+                                "enum": ["left", "center", "right"],
                                 "type": "string"
                               },
-                              {
-                                "additionalProperties": {},
-                                "properties": {
-                                  "align": {
-                                    "enum": ["left", "center", "right"],
-                                    "type": "string"
-                                  },
-                                  "field": {
-                                    "type": "string"
-                                  },
-                                  "flex": {
-                                    "anyOf": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "boolean"
-                                      }
-                                    ]
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "text",
-                                      "badge",
-                                      "datetime",
-                                      "number",
-                                      "id",
-                                      "two-line"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "labelKey": {
-                                    "type": "string"
-                                  },
-                                  "secondaryField": {
-                                    "type": "string"
-                                  },
-                                  "size": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "flex": {
+                                "anyOf": [
+                                  {
                                     "type": "number"
                                   },
-                                  "valueLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
+                                  {
+                                    "type": "boolean"
                                   }
+                                ]
+                              },
+                              "kind": {
+                                "enum": [
+                                  "text",
+                                  "badge",
+                                  "datetime",
+                                  "number",
+                                  "id",
+                                  "two-line"
+                                ],
+                                "type": "string"
+                              },
+                              "labelKey": {
+                                "type": "string"
+                              },
+                              "secondaryField": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "number"
+                              },
+                              "valueLabels": {
+                                "additionalProperties": {
+                                  "type": "string"
                                 },
-                                "required": ["field"],
+                                "propertyNames": {
+                                  "type": "string"
+                                },
                                 "type": "object"
                               }
-                            ]
+                            },
+                            "required": ["field"],
+                            "type": "object"
                           },
                           "type": "array"
                         },
@@ -37424,75 +36892,59 @@
                           },
                           "type": "array"
                         },
-                        "columnLabels": {
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "type": "object"
-                        },
                         "columns": {
                           "items": {
-                            "anyOf": [
-                              {
+                            "additionalProperties": {},
+                            "properties": {
+                              "align": {
+                                "enum": ["left", "center", "right"],
                                 "type": "string"
                               },
-                              {
-                                "additionalProperties": {},
-                                "properties": {
-                                  "align": {
-                                    "enum": ["left", "center", "right"],
-                                    "type": "string"
-                                  },
-                                  "field": {
-                                    "type": "string"
-                                  },
-                                  "flex": {
-                                    "anyOf": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "boolean"
-                                      }
-                                    ]
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "text",
-                                      "badge",
-                                      "datetime",
-                                      "number",
-                                      "id",
-                                      "two-line"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "labelKey": {
-                                    "type": "string"
-                                  },
-                                  "secondaryField": {
-                                    "type": "string"
-                                  },
-                                  "size": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "flex": {
+                                "anyOf": [
+                                  {
                                     "type": "number"
                                   },
-                                  "valueLabels": {
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    },
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "type": "object"
+                                  {
+                                    "type": "boolean"
                                   }
+                                ]
+                              },
+                              "kind": {
+                                "enum": [
+                                  "text",
+                                  "badge",
+                                  "datetime",
+                                  "number",
+                                  "id",
+                                  "two-line"
+                                ],
+                                "type": "string"
+                              },
+                              "labelKey": {
+                                "type": "string"
+                              },
+                              "secondaryField": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "number"
+                              },
+                              "valueLabels": {
+                                "additionalProperties": {
+                                  "type": "string"
                                 },
-                                "required": ["field"],
+                                "propertyNames": {
+                                  "type": "string"
+                                },
                                 "type": "object"
                               }
-                            ]
+                            },
+                            "required": ["field"],
+                            "type": "object"
                           },
                           "type": "array"
                         },
@@ -37980,9 +37432,6 @@
                               "label": {
                                 "type": "string"
                               },
-                              "labelKey": {
-                                "type": "string"
-                              },
                               "multiline": {
                                 "type": "boolean"
                               },
@@ -37991,9 +37440,6 @@
                                   "additionalProperties": false,
                                   "properties": {
                                     "label": {
-                                      "type": "string"
-                                    },
-                                    "labelKey": {
                                       "type": "string"
                                     },
                                     "value": {
@@ -38006,9 +37452,6 @@
                                 "type": "array"
                               },
                               "placeholder": {
-                                "type": "string"
-                              },
-                              "placeholderKey": {
                                 "type": "string"
                               },
                               "required": {
@@ -39675,20 +39118,6 @@
           },
           "type": "array"
         },
-        "bundle": {
-          "additionalProperties": false,
-          "properties": {
-            "members": {
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
-            }
-          },
-          "required": ["members"],
-          "type": "object"
-        },
         "capabilities": {
           "additionalProperties": false,
           "properties": {
@@ -39831,23 +39260,441 @@
           },
           "type": "array"
         },
-        "workflows": {
-          "items": {
-            "type": "string"
+        "workflow": {
+          "additionalProperties": false,
+          "properties": {
+            "config": {
+              "additionalProperties": false,
+              "properties": {
+                "models": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "retryPolicy": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "backoffMs": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxRetries": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["maxRetries", "backoffMs"],
+                  "type": "object"
+                },
+                "secrets": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "envVar": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": ["envVar"],
+                    "type": "object"
+                  },
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "timeout": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "variables": {
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "metadata": {
+              "additionalProperties": {},
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "requires": {
+              "additionalProperties": false,
+              "properties": {
+                "integrations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "minVersion": {
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                        "type": "integer"
+                      },
+                      "name": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "operations": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": ["name"],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": ["integrations"],
+              "type": "object"
+            },
+            "specification": {
+              "maxLength": 20000,
+              "type": "string"
+            },
+            "specificationMeta": {
+              "additionalProperties": false,
+              "properties": {
+                "direction": {
+                  "enum": ["graph_to_spec", "spec_to_graph", "authored"],
+                  "type": "string"
+                },
+                "generatedAt": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "sourceHash": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "specHash": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": ["sourceHash", "generatedAt", "direction"],
+              "type": "object"
+            },
+            "steps": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "config": {
+                    "additionalProperties": {},
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "i18n": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "propertyNames": {
+                      "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nextSteps": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "order": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "stepSlug": {
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "stepType": {
+                    "enum": [
+                      "start",
+                      "trigger",
+                      "llm",
+                      "condition",
+                      "action",
+                      "loop",
+                      "output",
+                      "sandbox"
+                    ],
+                    "type": "string"
+                  },
+                  "ui": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "labelKey": {
+                        "type": "string"
+                      },
+                      "params": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cardinality": {
+                            "type": "string"
+                          },
+                          "display": {
+                            "type": "string"
+                          },
+                          "entryKind": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "key": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "labelKey": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["key", "labelKey", "type"],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "layout": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "verdictLabels": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "render": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "stage": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["render"],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "stepSlug",
+                  "name",
+                  "stepType",
+                  "config",
+                  "nextSteps"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "triggers": {
+              "additionalProperties": false,
+              "properties": {
+                "events": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "eventFilter": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "eventType": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": ["eventType"],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "schedules": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "cron": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      },
+                      "variables": {
+                        "additionalProperties": {},
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": ["cron"],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "version": {
+              "type": "string"
+            }
           },
-          "type": "array"
+          "required": ["steps"],
+          "type": "object"
         }
       },
       "required": ["name"],
+      "type": "object"
+    },
+    "automations.bundleManifestSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle": {
+          "additionalProperties": false,
+          "properties": {
+            "members": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": ["members"],
+          "type": "object"
+        },
+        "folder": {
+          "maxLength": 64,
+          "pattern": "^(?!.*__)[a-z0-9][a-z0-9_-]*(\\/[a-z0-9][a-z0-9_-]*)*$",
+          "type": "string"
+        },
+        "i18n": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "config": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "help": {
+                      "maxLength": 1000,
+                      "type": "string"
+                    },
+                    "label": {
+                      "maxLength": 200,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "placeholder": {
+                      "maxLength": 500,
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "name": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": ["org", "project"],
+          "type": "string"
+        }
+      },
+      "required": ["name", "bundle"],
       "type": "object"
     },
     "branding.brandingFormSchema": {
       "additionalProperties": false,
       "properties": {
         "accentColor": {
-          "type": "string"
-        },
-        "brandColor": {
           "type": "string"
         },
         "faviconDarkFilename": {
@@ -40891,6 +40738,9 @@
           "type": "string"
         },
         "refreshToken": {
+          "type": "string"
+        },
+        "scope": {
           "type": "string"
         }
       },
@@ -44119,35 +43969,12 @@
           },
           "type": "object"
         },
-        "i18n": {
-          "additionalProperties": {
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "propertyNames": {
-            "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
-            "type": "string"
-          },
-          "type": "object"
-        },
         "metadata": {
           "additionalProperties": {},
           "propertyNames": {
             "type": "string"
           },
           "type": "object"
-        },
-        "name": {
-          "maxLength": 200,
-          "minLength": 1,
-          "type": "string"
         },
         "requires": {
           "additionalProperties": false,
@@ -44190,7 +44017,7 @@
           "additionalProperties": false,
           "properties": {
             "direction": {
-              "enum": ["graph_to_spec", "spec_to_graph"],
+              "enum": ["graph_to_spec", "spec_to_graph", "authored"],
               "type": "string"
             },
             "generatedAt": {
@@ -44202,6 +44029,10 @@
               "type": "string"
             },
             "sourceHash": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "specHash": {
               "minLength": 1,
               "type": "string"
             }
@@ -44409,7 +44240,7 @@
           "type": "string"
         }
       },
-      "required": ["name", "steps"],
+      "required": ["steps"],
       "type": "object"
     }
   }

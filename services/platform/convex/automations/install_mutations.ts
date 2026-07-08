@@ -503,3 +503,31 @@ export const deregisterWorkflow = internalMutation({
     return null;
   },
 });
+
+/**
+ * Refresh the denormalized `automationName` cache after a manifest identity
+ * edit (`file_actions.updateAutomationIdentity`) — the manifest stays the
+ * source of truth; this only keeps the nav-label cache in step.
+ */
+export const patchAutomationName = internalMutation({
+  args: {
+    organizationId: v.string(),
+    automationSlug: v.string(),
+    automationName: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('automationInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('automationSlug', args.automationSlug),
+      )
+      .unique();
+    if (row) {
+      await ctx.db.patch(row._id, { automationName: args.automationName });
+    }
+    return null;
+  },
+});

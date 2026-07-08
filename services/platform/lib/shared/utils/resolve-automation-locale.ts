@@ -56,17 +56,13 @@ export function resolveAutomationLocale(
 }
 
 /**
- * Humanize a config field's identifier — the fallback when a field carries
- * neither an i18n override nor a literal `label`: the last segment of the
- * DEPRECATED catalog `labelKey` (or the field `key`), start-cased, with the
- * legacy `…Placeholder` suffix dropped so a label never literally reads
- * "… Placeholder". Local start-case (no lodash): `testCommand` → "Test
- * Command" is close enough for a legacy-only path.
+ * Humanize a config field's `key` — the fallback when a field carries neither
+ * an i18n override nor a literal `label`: the last segment, start-cased.
+ * Local start-case (no lodash): `testCommand` → "Test Command".
  */
 export function humanizeFieldKey(key: string): string {
   const last = key.split('.').pop() || key;
   const spaced = last
-    .replace(/Placeholder$/, '')
     .replaceAll(/[_-]+/g, ' ')
     .replaceAll(/([a-z\d])([A-Z])/g, '$1 $2')
     .trim();
@@ -76,14 +72,11 @@ export function humanizeFieldKey(key: string): string {
 /**
  * One config field's localized display strings: i18n override
  * (`i18n.<locale>.config.<key>`) → the field's literal `label`/`placeholder`/
- * `help` → the humanized deprecated `labelKey`/field key (label only;
- * placeholder/help stay absent rather than echoing noise).
+ * `help` → the humanized field `key` (label only; placeholder/help stay
+ * absent rather than echoing noise).
  */
 export function resolveConfigFieldLocale(
-  field: Pick<
-    AutomationConfigField,
-    'key' | 'label' | 'labelKey' | 'placeholder' | 'placeholderKey' | 'help'
-  >,
+  field: Pick<AutomationConfigField, 'key' | 'label' | 'placeholder' | 'help'>,
   i18n: AutomationManifestI18n | undefined,
   locale: string,
 ): { label: string; placeholder?: string; help?: string } {
@@ -91,7 +84,7 @@ export function resolveConfigFieldLocale(
   return {
     label:
       pickField([...layers.map((l) => l?.label), field.label]) ??
-      humanizeFieldKey(field.labelKey ?? field.key),
+      humanizeFieldKey(field.key),
     placeholder: pickField([
       ...layers.map((l) => l?.placeholder),
       field.placeholder,

@@ -10,15 +10,19 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
  * (`manifest.workflows[0]`), rendered with the SAME components the standalone
  * `/dashboard/$id/workflows/$workflowId` route uses: `WorkflowConfigProvider`
  * + `WorkflowSteps` (the canvas) + `WorkflowSidePanel` (step config / test
- * run) + `WorkflowAIChatPanel` (the canvas assistant). A Graph/Specification
- * pill toggle (W5b) sits above both views — `useWorkflowEditorView` persists
- * the choice in a cookie shared across every workflow, layered under an
- * optional `?view=` URL override.
+ * run) + `WorkflowAIChatPanel` (the canvas assistant). The Graph ⇄
+ * Specification mode toggle (W5b) lives in the canvas's bottom-center toolbar
+ * (and the same-styled floating bar over the text editor) —
+ * `useWorkflowEditorView` persists the choice in a cookie shared across every
+ * workflow, layered under an optional `?view=` URL override.
  */
-import { Tabs } from '@tale/ui/tabs';
-import { lazy, useCallback, useMemo, useState } from 'react';
+import { lazy, useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
+import {
+  EditorViewFloatingBar,
+  EditorViewToggle,
+} from '@/app/features/workflows/components/editor-view-toggle';
 import { ExecutionStatusProvider } from '@/app/features/workflows/components/execution-status-context';
 import { WorkflowAIChatPanel } from '@/app/features/workflows/components/workflow-ai-chat-panel';
 import { WorkflowSidePanel } from '@/app/features/workflows/components/workflow-sidepanel';
@@ -51,9 +55,12 @@ const WorkflowSteps = lazy(() =>
 function EditorCanvas({
   organizationId,
   workflowSlug,
+  viewToggle,
 }: {
   organizationId: string;
   workflowSlug: string;
+  /** The Graph ⇄ Specification toggle, rendered in the canvas toolbar. */
+  viewToggle?: ReactNode;
 }) {
   const { locale } = useLocale();
   const { config } = useWorkflowConfig();
@@ -142,6 +149,7 @@ function EditorCanvas({
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
               steps={steps as StepDef[]}
               onOpenAIChat={handleOpenAIChat}
+              viewToggle={viewToggle}
             />
           </SuspenseBoundary>
         </Stack>
@@ -149,7 +157,7 @@ function EditorCanvas({
         {isAIChatOpen && !isUrlSidePanelOpen && (
           <WorkflowAIChatPanel
             workflowSlug={workflowSlug}
-            workflowName={config.name}
+            workflowName={workflowSlug}
             organizationId={organizationId}
             onClose={handleCloseAIChat}
             panelWidth={panelWidth}
@@ -183,7 +191,6 @@ export function AutomationWorkflowEditorTab({
   workflowSlug: string;
 }) {
   const { t } = useT('automations');
-  const { t: tWorkflows } = useT('workflows');
   const { data: readResult, isLoading } = useReadWorkflow(
     organizationId,
     workflowSlug,
@@ -208,29 +215,20 @@ export function AutomationWorkflowEditorTab({
     );
   }
 
+  const viewToggle = (
+    <EditorViewToggle view={editorView} onViewChange={setEditorView} />
+  );
+
   return (
     <Stack gap={0} className="min-h-0 flex-1">
-      <Tabs
-        variant="pill"
-        value={editorView}
-        onValueChange={(value) =>
-          setEditorView(value === 'specification' ? 'specification' : 'graph')
-        }
-        listAriaLabel={tWorkflows('editorView.ariaLabel')}
-        className="shrink-0 px-3 pt-3"
-        items={[
-          { value: 'graph', label: tWorkflows('editorView.graph') },
-          {
-            value: 'specification',
-            label: tWorkflows('editorView.specification'),
-          },
-        ]}
-      />
       {editorView === 'specification' ? (
-        <WorkflowSpecification
-          organizationId={organizationId}
-          workflowSlug={workflowSlug}
-        />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <WorkflowSpecification
+            organizationId={organizationId}
+            workflowSlug={workflowSlug}
+          />
+          <EditorViewFloatingBar>{viewToggle}</EditorViewFloatingBar>
+        </div>
       ) : (
         <WorkflowConfigProvider
           workflowSlug={workflowSlug}
@@ -239,6 +237,7 @@ export function AutomationWorkflowEditorTab({
           <EditorCanvas
             organizationId={organizationId}
             workflowSlug={workflowSlug}
+            viewToggle={viewToggle}
           />
         </WorkflowConfigProvider>
       )}

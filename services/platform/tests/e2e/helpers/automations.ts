@@ -14,10 +14,10 @@ import { t } from './i18n';
  * Automation copy lives in TWO places, and the specs must read each from its
  * source:
  *
- * - Platform chrome (hub heading, Install/Uninstall, wizard buttons) AND the
- *   platform-rendered builtin views (the email Inbox — `automations.inbox.*`)
- *   are platform i18n — resolve through `t('automations.…')` as everywhere
- *   else.
+ * - Platform chrome (hub heading, Install/Uninstall, wizard buttons) is
+ *   platform i18n — resolve through `t('automations.…')` as everywhere else.
+ *   (The org-level Inbox the email automations gate is platform i18n too,
+ *   under `conversations.*`.)
  * - Automation names come from each bundle's `automation.json` manifest
  *   (internal identifiers keep the `automation` spelling). The fixture bundles under
  *   `fixtures/config/default/automations/` are what the hermetic stack

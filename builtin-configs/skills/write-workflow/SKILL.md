@@ -1,16 +1,19 @@
 ---
 name: write-workflow
 icon: lucide:git-branch
+labels: ['Authoring']
 description: 'Use this skill whenever you create or update a workflow in a Tale organization — a trigger→steps definition that runs on an event, on a schedule, or on demand. Triggers include: "automate this task", "build or edit a workflow", "run X every morning", "when Y happens, do Z", or an automation that needs a new process. Never author a workflow definition without it — and never create one before listing the existing workflows and ruling out reuse. The installable bundle a workflow lives in is an "automation" — for the bundle use write-automation; for the agents acting inside a step use write-agent.'
 ---
 
 # write-workflow
 
-A workflow is one JSON definition: a named set of steps wired by `nextSteps`, optionally declaring
-its triggers and integration dependencies. Org workflows live at `workflows/[folder/]<name>.json` —
-the **slug is the relative path without extension** (e.g. `github/review-pull-request-in-github`).
-An automation's own workflows live inside its bundle under `apps/<automation>/workflows/` (see
-`write-automation`).
+A workflow is one JSON definition: a set of steps wired by `nextSteps`, optionally declaring its
+triggers and integration dependencies. A workflow carries **no name or description** — its identity
+is its slug and its intent lives in the `specification` text; the automation that owns it carries
+every display string. Standalone org workflows live at `workflows/[folder/]<name>.json` — the
+**slug is the relative path without extension** (e.g. `github/review-pull-request-in-github`). An
+automation's single workflow lives INLINE in its `automation.json` under `workflow`, and its slug
+IS the automation slug (see `write-automation`).
 
 ## Reuse before you create — tick every box
 
@@ -21,8 +24,10 @@ An automation's own workflows live inside its bundle under `apps/<automation>/wo
 
 ## Top-level fields
 
-- `name` (required, 1–200); `description` (≤2000); `i18n` — per-locale `name`/`description`
-  overrides keyed by locale (`de`, `fr`, …). Step names stay engine-internal and untranslated.
+- `specification` (≤20000) — free-text markdown describing what the workflow does and why; the
+  workflow's only prose. Keep it in sync with the graph: the editor tracks spec/graph divergence
+  and offers regeneration in either direction. No `name`, `description`, or `i18n` — step names
+  stay engine-internal and untranslated.
 - `config` — `timeout`, `retryPolicy` (`maxRetries`, `backoffMs`), `variables` (free-form record),
   `secrets` (name → `{ "envVar": "..." }` — never a literal secret), `models` (workflow-level
   fallback chain for LLM steps that set neither `model` nor `models`).

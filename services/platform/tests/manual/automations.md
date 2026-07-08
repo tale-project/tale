@@ -32,9 +32,8 @@ the dashboard URL; `{slug}` is an automation's directory slug (e.g.
 > project-scoped automation is reached only via its `{slug}` (from the hub's
 > membership list or the project nav). The run-detail route takes a
 > `?wf=<workflowSlug>` search param; without it the DAG canvas is empty by
-> design (`validateSearch` in the route file). Every legacy `/apps` URL (org +
-> project scope, `/runs/…` sub-pages included, query preserved)
-> `beforeLoad`-redirects to its `/automations` twin.
+> design (`validateSearch` in the route file). There are no legacy `/apps`
+> routes — a bare `/apps/...` URL falls through to the generic splat 404.
 
 ## Prerequisites
 

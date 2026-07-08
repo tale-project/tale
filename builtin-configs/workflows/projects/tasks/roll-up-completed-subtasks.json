@@ -1,20 +1,4 @@
 {
-  "name": "Roll up completed subtasks",
-  "description": "Closes the loop on decomposed work: when the last open subtask of a parent task is done or cancelled, the parent moves to In review with a rollup comment — so the human gate (review-gate workflow, for agent-assigned parents) signs off on the whole, not just the parts. Upward cascades are bounded by construction: each level parks at In review and needs a human approval before it can close and trigger the next level.",
-  "i18n": {
-    "en": {
-      "name": "Roll up completed subtasks",
-      "description": "When the last open subtask closes, moves the parent task to In review with a rollup comment for human sign-off."
-    },
-    "de": {
-      "name": "Abgeschlossene Teilaufgaben zusammenführen",
-      "description": "Wenn die letzte offene Teilaufgabe geschlossen wird, verschiebt es die übergeordnete Aufgabe mit einem Zusammenfassungskommentar in Überprüfung."
-    },
-    "fr": {
-      "name": "Regrouper les sous-tâches terminées",
-      "description": "Quand la dernière sous-tâche ouverte se ferme, déplace la tâche parente en revue avec un commentaire récapitulatif pour validation humaine."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],

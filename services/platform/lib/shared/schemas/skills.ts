@@ -119,6 +119,9 @@ const rawFrontmatterSchema = z
           'icon must be an Iconify name like "lucide:book-open" (a "set:name" pair of lowercase letters/digits/hyphens)',
       })
       .optional(),
+    /** Catalog chips (literal display strings, e.g. "Documents") — rendered
+     *  on the skill's catalog card, mirroring automation manifest `labels`. */
+    labels: z.array(z.string().min(1).max(40)).max(8).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
@@ -153,6 +156,8 @@ export interface SkillFrontmatter {
    * on the skill's catalog card. Absent → a default glyph.
    */
   icon?: string;
+  /** Catalog chips shown on the skill's card (mirrors automation `labels`). */
+  labels?: string[];
   metadata?: Record<string, unknown>;
   /**
    * Verbatim copy of frontmatter keys not covered by the known fields above.
@@ -169,6 +174,7 @@ const KNOWN_KEBAB_KEYS = new Set<string>([
   'license',
   'disable-model-invocation',
   'icon',
+  'labels',
   'metadata',
 ]);
 
@@ -192,6 +198,7 @@ function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
     out.disableModelInvocation = raw['disable-model-invocation'];
   }
   if (raw.icon !== undefined) out.icon = raw.icon;
+  if (raw.labels !== undefined) out.labels = raw.labels;
   if (raw.metadata !== undefined) out.metadata = raw.metadata;
   return out;
 }

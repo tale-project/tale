@@ -120,10 +120,10 @@ export function SkillDetailPanel({
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // File selection in the bundle tree. `null` = show the skill overview (no
-  // file selected by default); a path = show that file. Lives in component
-  // state — no URL mirror, since the panel itself has no route.
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  // File selection in the bundle tree. SKILL.md is the root file, so it opens
+  // selected (the overview IS its rendering); an asset path shows that file.
+  // Lives in component state — no URL mirror, since the panel has no route.
+  const [selectedFile, setSelectedFile] = useState<string>(SKILL_MD);
 
   // SKILL.md editor (item 13): edits the frontmatter description + markdown
   // body in place. Only meaningful on the overview; selecting an asset exits it.
@@ -155,15 +155,14 @@ export function SkillDetailPanel({
   // Files in the bundle = SKILL.md + every asset (undefined while loading).
   const fileCount = skill ? assets.length + 1 : undefined;
 
-  // The overview (description + instructions) stands in for SKILL.md itself, so
-  // both the null selection and an explicit SKILL.md click show it; a real asset
-  // path shows the read-only viewer.
-  const showOverview = selectedFile === null || selectedFile === SKILL_MD;
+  // The overview (description + instructions) stands in for SKILL.md itself;
+  // a real asset path shows the read-only viewer.
+  const showOverview = selectedFile === SKILL_MD;
 
   // Reset selection + editor whenever the panel is re-pointed at a different
   // skill — otherwise switching skills would carry over the wrong file/edit.
   useEffect(() => {
-    setSelectedFile(null);
+    setSelectedFile(SKILL_MD);
     setIsEditing(false);
   }, [slug]);
 
@@ -400,7 +399,7 @@ export function SkillDetailPanel({
                 <SkillAssetViewer
                   organizationId={organizationId}
                   skillSlug={slug}
-                  assetPath={selectedFile ?? ''}
+                  assetPath={selectedFile}
                 />
               ) : isEditing ? (
                 <Stack gap={4} className="p-4">

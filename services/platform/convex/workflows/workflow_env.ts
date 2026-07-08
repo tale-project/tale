@@ -273,21 +273,16 @@ export const deleteWorkflowEnvInternal = internalMutation({
 });
 
 /**
- * Delete every env/secret entry for an installed automation's workflow(s).
+ * Delete every env/secret entry for an installed automation's workflow.
  * Internal — called by automation uninstall. An automation's single workflow
- * now lives INLINE and its slug IS the automation slug (bare), so sweep the
- * EXACT bare slug; ALSO sweep the legacy `<automationSlug>/` scoped namespace (a
- * prior version's `<slug>/<name>` workflow env would otherwise orphan and
- * silently reattach on a later reinstall). A sibling automation
- * (`<automationSlug>-2`) sorts outside both. Mirrors
- * `agents/agent_env.ts::deleteAutomationAgentEnvInternal`.
+ * lives INLINE and its slug IS the automation slug (bare), so sweep exactly
+ * that slug. Mirrors `agents/agent_env.ts::deleteAutomationAgentEnvInternal`.
  */
 export const deleteAutomationWorkflowEnvInternal = internalMutation({
   args: { organizationId: v.string(), automationSlug: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // The inline workflow, keyed by the bare automation slug.
-    const exactRows = await ctx.db
+    const rows = await ctx.db
       .query('workflowEnv')
       .withIndex('by_org_workflow', (q) =>
         q
@@ -295,23 +290,7 @@ export const deleteAutomationWorkflowEnvInternal = internalMutation({
           .eq('workflowSlug', args.automationSlug),
       )
       .collect();
-    // Legacy scoped namespace `<automationSlug>/…`. Exclusive upper bound = the
-    // code point right after '/' (0x2F -> 0x30), so ['<app>/', '<app>' + next)
-    // is exactly this automation's old scoped workflows.
-    const prefix = `${args.automationSlug}/`;
-    const prefixEnd = `${args.automationSlug}${String.fromCharCode(
-      '/'.charCodeAt(0) + 1,
-    )}`;
-    const scopedRows = await ctx.db
-      .query('workflowEnv')
-      .withIndex('by_org_workflow', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .gte('workflowSlug', prefix)
-          .lt('workflowSlug', prefixEnd),
-      )
-      .collect();
-    for (const row of [...exactRows, ...scopedRows]) {
+    for (const row of rows) {
       await ctx.db.delete(row._id);
     }
     return null;

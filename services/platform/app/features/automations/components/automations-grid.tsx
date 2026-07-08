@@ -16,8 +16,15 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate } from '@tanstack/react-router';
-import { Download, LayoutGrid } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, FileDown, LayoutGrid, Package } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { CatalogGridSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
 import {
@@ -33,7 +40,10 @@ import {
 import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
 import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { downloadBase64File } from '@/lib/utils/download';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import {
@@ -41,6 +51,7 @@ import {
   useAutomationCatalog,
   useAutomations,
 } from '../hooks/use-automations';
+import { useExportAutomation } from '../hooks/use-export-automation';
 import {
   type AutomationInstallState,
   deriveBundleInstallStatus,
@@ -72,16 +83,6 @@ function InstallBadge({
     return <Badge variant="yellow">{t('install.setup')}</Badge>;
   }
   return <Badge variant="green">{t('install.installed')}</Badge>;
-}
-
-/** A bundle card's kind badge — always shown, distinct from install state. */
-function BundleKindBadge({ memberCount }: { memberCount: number }) {
-  const { t } = useT('automations');
-  return (
-    <Badge variant="outline">
-      {t('bundle.memberCount', { count: memberCount })}
-    </Badge>
-  );
 }
 
 /** A bundle's DERIVED install state (no `automationInstallations` row of its own —
@@ -140,6 +141,7 @@ function isAutomationEntryInstalled(
  * The not-yet-installed card's ⋯ menu: a quick Install (the same
  * wizard-vs-one-click branch the card itself used to run on click, now a
  * fast path alongside the whole-card click that opens the preview panel) +
+ * Export (of the catalog bundle — export is not gated on installation) +
  * Delete for a private (uploaded) bundle. Combined into ONE dropdown — via
  * `useAutomationDeleteAction` — so a card never shows two ⋯ triggers.
  */
@@ -163,6 +165,24 @@ function NotInstalledMenu({
       automationName: automation.name,
       organizationId,
     });
+  const { mutateAsync: exportAutomation } = useExportAutomation();
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await exportAutomation({
+        organizationId,
+        slug: automation.slug,
+      });
+      downloadBase64File(result.filename, result.dataBase64, 'application/zip');
+    } catch (error) {
+      console.error('[NotInstalledMenu] export failed:', error);
+      toast({ title: t('install.exportFailed'), variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, exportAutomation, organizationId, automation.slug, t]);
 
   const actions = [
     {
@@ -171,6 +191,13 @@ function NotInstalledMenu({
       icon: Download,
       onClick: onInstall,
       disabled: isPending,
+    },
+    {
+      key: 'export',
+      label: t('install.export'),
+      icon: FileDown,
+      onClick: () => void handleExport(),
+      disabled: exporting,
     },
     ...(isPrivate ? [deleteAction] : []),
   ];
@@ -194,12 +221,16 @@ export interface AutomationsGridProps {
   initialSlug?: string;
   /** Called after `initialSlug` has been handled so the caller can clear the URL. */
   onInitialSlugConsumed?: () => void;
+  /** Right-aligned toolbar slot (the page's Add-automation menu) — rendered
+   *  in the search row, below the tab switch. */
+  toolbarAction?: ReactNode;
 }
 
 export function AutomationsGrid({
   organizationId,
   initialSlug,
   onInitialSlugConsumed,
+  toolbarAction,
 }: AutomationsGridProps) {
   const { t } = useT('automations');
   const navigate = useNavigate();
@@ -223,6 +254,18 @@ export function AutomationsGrid({
       a.name.localeCompare(b.name),
     );
   }, [installed, catalog]);
+  // member slug → its owning bundle summary — installed members card under
+  // Installed with an extra "Uninstall bundle" action.
+  const bundleByMember = useMemo(() => {
+    const map = new Map<string, AutomationSummary>();
+    for (const automation of automations) {
+      if (automation.kind !== 'bundle') continue;
+      for (const member of automation.members ?? []) {
+        map.set(member, automation);
+      }
+    }
+    return map;
+  }, [automations]);
   // A private (uploaded) automation lives in the org's automations dir but not the built-in
   // catalog. It's the only kind the UI offers a Delete for (the server refuses
   // any built-in slug regardless), and it earns a "Private" badge so it's
@@ -262,10 +305,17 @@ export function AutomationsGrid({
   const tabbedAutomations = useMemo(
     () =>
       tab === 'installed'
-        ? automations.filter((automation) =>
-            isAutomationEntryInstalled(automation, bySlug),
+        ? // What's actually installed: real install rows — a bundle's MEMBERS
+          // card here (each with an "Uninstall bundle" action), never the
+          // bundle itself (it has no installation of its own).
+          automations.filter(
+            (automation) =>
+              automation.kind !== 'bundle' &&
+              isAutomationEntryInstalled(automation, bySlug),
           )
-        : automations,
+        : // The catalog: the bundle is the browsable unit; its hidden
+          // members never card here.
+          automations.filter((automation) => automation.hidden !== true),
     [automations, tab, bySlug],
   );
   const filteredAutomations = useCatalogSearch(
@@ -343,16 +393,42 @@ export function AutomationsGrid({
     // preview panel and its ⋯ menu is always "Install" (idempotent per
     // member, so it doubles as "finish setup"/"reinstall").
     const isInstalled = !isBundle && state != null;
+    const owningBundle = bundleByMember.get(automation.slug);
+    const icon = (
+      <CatalogCardIcon>
+        <AutomationIcon
+          automation={automation}
+          className="text-muted-foreground size-5"
+        />
+      </CatalogCardIcon>
+    );
     return (
       <CatalogCard
         key={automation.slug}
         media={
-          <CatalogCardIcon>
-            <AutomationIcon
-              automation={automation}
-              className="text-muted-foreground size-5"
-            />
-          </CatalogCardIcon>
+          isBundle ? (
+            // A bundle is marked on the icon tile (corner glyph + hover
+            // detail), not with a title-row chip — the badge slot stays
+            // reserved for INSTALL state alone.
+            <Tooltip
+              content={t('bundle.memberCount', {
+                count: (automation.members ?? []).length,
+              })}
+              side="top"
+            >
+              <div className="relative">
+                {icon}
+                <span className="bg-background ring-border absolute -right-1.5 -bottom-1.5 rounded-md p-0.5 ring-1">
+                  <Package
+                    aria-hidden="true"
+                    className="text-muted-foreground size-3"
+                  />
+                </span>
+              </div>
+            </Tooltip>
+          ) : (
+            icon
+          )
         }
         title={automation.name}
         description={automation.description}
@@ -360,15 +436,10 @@ export function AutomationsGrid({
           <>
             {isPrivate && <Badge variant="slate">{t('private')}</Badge>}
             {isBundle ? (
-              <>
-                <BundleKindBadge
-                  memberCount={(automation.members ?? []).length}
-                />
-                <BundleInstallStateBadge
-                  memberSlugs={automation.members ?? []}
-                  bySlug={bySlug}
-                />
-              </>
+              <BundleInstallStateBadge
+                memberSlugs={automation.members ?? []}
+                bySlug={bySlug}
+              />
             ) : (
               <InstallBadge state={state} />
             )}
@@ -401,6 +472,15 @@ export function AutomationsGrid({
               automationName={automation.name}
               organizationId={organizationId}
               context="org"
+              bundle={
+                owningBundle
+                  ? {
+                      slug: owningBundle.slug,
+                      name: owningBundle.name,
+                      memberCount: (owningBundle.members ?? []).length,
+                    }
+                  : undefined
+              }
             />
           ) : (
             <NotInstalledMenu
@@ -431,6 +511,7 @@ export function AutomationsGrid({
               placeholder: t('searchPlaceholder'),
               disabled: true,
             }}
+            action={toolbarAction}
           />
           <CatalogGridSkeleton menu />
         </Stack>
@@ -457,6 +538,7 @@ export function AutomationsGrid({
           onChange: (e) => setSearchQuery(e.target.value),
           placeholder: t('searchPlaceholder'),
         }}
+        action={toolbarAction}
       />
       {filteredAutomations.length === 0 ? (
         searchQuery.trim().length > 0 ? (
@@ -466,19 +548,12 @@ export function AutomationsGrid({
             description={t('noResults.description')}
           />
         ) : (
-          // The Installed tab with nothing installed yet — point the operator
-          // at the catalog instead of dead-ending on an empty state.
+          // The Installed tab with nothing installed yet — the All tab sits
+          // right above, so the empty state needs no extra CTA.
           <EmptyState
             icon={LayoutGrid}
             title={t('empty.title')}
             description={t('empty.description')}
-            action={
-              tab === 'installed' ? (
-                <Button variant="secondary" onClick={() => setTab('all')}>
-                  {t('empty.browseCatalog')}
-                </Button>
-              ) : undefined
-            }
           />
         )
       ) : hasFolders ? (

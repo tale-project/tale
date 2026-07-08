@@ -1,6 +1,7 @@
 ---
 name: write-integration
 icon: lucide:plug
+labels: ['Authoring']
 description: 'Use this skill whenever you create or update an integration in a Tale organization — a connector definition for a REST API, SQL database, or IMAP/SMTP mailbox. Triggers include: "connect X", "add an operation to an integration", "set up OAuth / an API key for …", or a workflow or automation that needs an external system. Never author a connector without it — and never create one before listing the existing integrations; if one already reaches the system, add the missing operation to it instead. Workflows call integrations from action steps (write-workflow); automations declare them in requires.integrations (write-automation).'
 ---
 
@@ -29,7 +30,9 @@ prevent.
 
 ## The fields that matter
 
-- `type` — `rest_api` | `sql` | `imap_smtp` and `description` (≤2000), `version` (integer).
+- `type` — `rest_api` | `sql` | `imap_smtp` and `description` (≤2000), `version` (integer),
+  `labels` (≤8 literal display chips like `["Developer"]`, shown on the catalog card — the same
+  vocabulary automation manifests and skill frontmatter use).
 - `operations` — the callable surface, one entry per operation: `name` (required), `title`,
   `description`, `operationType` (`read` | `write`), `requiresApproval` (route the call through an
   approval card), `requiredScopes`, `parametersSchema` (a JSON-Schema object for the params).

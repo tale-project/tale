@@ -39,13 +39,43 @@ vi.mock('@tanstack/react-router', () => ({
 
 // Controllable per test: the required-integrations connect state the panel
 // shows BEFORE install (the same three states `AutomationConfiguration` shows
-// after).
+// after). `requiredSlugsSpy` records the slugs the panel asked for — the
+// bundle aggregation test asserts the deduped member union arrives here.
 let mockRequired: unknown[] = [];
+let requiredSlugsSpy: readonly string[] = [];
 vi.mock('../hooks/use-required-integrations', () => ({
-  useRequiredIntegrations: () => ({
-    required: mockRequired,
-    blockedSlugs: [],
+  useRequiredIntegrations: (_orgId: string, slugs: readonly string[]) => {
+    requiredSlugsSpy = slugs;
+    return {
+      required: mockRequired,
+      blockedSlugs: [],
+      isLoading: false,
+    };
+  },
+}));
+
+// The org-level install rows + lifecycle actions need a Convex client; the
+// derive helper stays REAL (pure) so the installed-bundle footer test
+// exercises the actual member → bundle status derivation.
+let mockInstallStates = new Map<
+  string,
+  {
+    automationSlug: string;
+    status: 'active' | 'broken';
+    installedAt: number;
+    blockedIntegrations: string[];
+  }
+>();
+const uninstallBundleMock = vi.fn(() => Promise.resolve());
+vi.mock('../hooks/use-install-state', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/use-install-state')>()),
+  useAutomationInstallStates: () => ({
+    bySlug: mockInstallStates,
     isLoading: false,
+  }),
+  useAutomationInstallActions: () => ({
+    uninstallBundle: uninstallBundleMock,
+    isPending: false,
   }),
 }));
 
@@ -84,7 +114,10 @@ function automationSummary(
 
 beforeEach(() => {
   mockRequired = [];
+  requiredSlugsSpy = [];
   mockBundleMembers = [];
+  mockInstallStates = new Map();
+  uninstallBundleMock.mockClear();
 });
 
 describe('AutomationPanel', () => {
@@ -258,19 +291,21 @@ describe('AutomationPanel', () => {
       });
     }
 
-    it("lists each member's name + brief instead of a single automation's contents", () => {
-      mockBundleMembers = [
-        {
-          slug: 'reply-gmail-emails',
-          name: 'Reply to Gmail emails',
-          description: 'Read, triage, and reply to Gmail.',
-        },
-        {
-          slug: 'reply-outlook-emails',
-          name: 'Reply to Outlook emails',
-          description: 'Read, triage, and reply to Outlook.',
-        },
-      ];
+    const gmailMember = {
+      slug: 'reply-gmail-emails',
+      name: 'Reply to Gmail emails',
+      description: 'Read, triage, and reply to Gmail.',
+      requiredIntegrations: ['gmail'],
+    };
+    const outlookMember = {
+      slug: 'reply-outlook-emails',
+      name: 'Reply to Outlook emails',
+      description: 'Read, triage, and reply to Outlook.',
+      requiredIntegrations: ['outlook', 'gmail'],
+    };
+
+    it("lists each member's name + brief under 'Automations' instead of a single automation's contents", () => {
+      mockBundleMembers = [gmailMember, outlookMember];
 
       render(
         <AutomationPanel
@@ -283,11 +318,70 @@ describe('AutomationPanel', () => {
       );
 
       expect(screen.getByText('What will be installed')).toBeInTheDocument();
+      expect(screen.getByText('Automations')).toBeInTheDocument();
       expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
       expect(
         screen.getByText('Read, triage, and reply to Gmail.'),
       ).toBeInTheDocument();
       expect(screen.getByText('Reply to Outlook emails')).toBeInTheDocument();
+    });
+
+    it("resolves the Integrations section from the members' deduped requirement union", () => {
+      mockBundleMembers = [gmailMember, outlookMember];
+
+      render(
+        <AutomationPanel
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org_1"
+          automation={bundleAutomation()}
+          isPrivate={false}
+        />,
+      );
+
+      // The bundle manifest itself declares no `requires.integrations` — the
+      // panel must ask for the members' union, deduped, in member order.
+      expect(requiredSlugsSpy).toEqual(['gmail', 'outlook']);
+    });
+
+    it('shows "What\'s installed" + Reinstall/Uninstall once every member has an install row', async () => {
+      mockBundleMembers = [gmailMember, outlookMember];
+      mockInstallStates = new Map(
+        ['reply-gmail-emails', 'reply-outlook-emails'].map((slug) => [
+          slug,
+          {
+            automationSlug: slug,
+            status: 'active' as const,
+            installedAt: 1,
+            blockedIntegrations: [],
+          },
+        ]),
+      );
+
+      const { user } = render(
+        <AutomationPanel
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org_1"
+          automation={bundleAutomation()}
+          isPrivate={false}
+        />,
+      );
+
+      expect(screen.getByText("What's installed")).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Install' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Reinstall' }),
+      ).toBeInTheDocument();
+
+      // Uninstall goes through the confirm dialog before calling the action.
+      await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Uninstall bundle' }),
+      );
+      expect(uninstallBundleMock).toHaveBeenCalledWith('email-bundle');
     });
 
     it('opens the bundle wizard (not the single-automation wizard) from the footer Install button', async () => {

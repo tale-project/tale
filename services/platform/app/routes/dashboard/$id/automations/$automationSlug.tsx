@@ -15,16 +15,14 @@ export const Route = createFileRoute(
  * `agents/$agentId` — no pathname compare, so it's robust to any URL-encoded
  * slug.)
  *
- * A flex column (not a plain block div) so the index route's Editor tab can
- * chain `flex-1 min-h-0` up to the parent `automations.tsx` layout's
- * `PageLayout` and have the workflow canvas fill the available height instead
- * of collapsing to its own (empty) content height; every other tab just
- * renders at its natural height inside this same box, and the ancestor
- * `PageLayout` still scrolls if content overflows.
+ * Every child owns its full page shell (`AutomationDetailShell` — breadcrumb
+ * + tab strip + `PageLayout`), so this layout only forwards; the flex column
+ * keeps the Editor tab's `flex-1 min-h-0` chain intact so the canvas fills
+ * the page.
  */
 function AutomationLayout() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
       <Outlet />
     </div>
   );

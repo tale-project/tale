@@ -48,11 +48,12 @@ function orderStepsForOutline(steps: WorkflowStep[]): WorkflowStep[] {
   return ordered;
 }
 
-export function renderWorkflowOutline(config: WorkflowJsonConfig): string {
-  const lines: string[] = [`# ${config.name}`];
-  if (config.description) {
-    lines.push('', config.description);
-  }
+export function renderWorkflowOutline(
+  workflowSlug: string,
+  config: WorkflowJsonConfig,
+): string {
+  // A workflow's identity is its slug (it carries no name/description).
+  const lines: string[] = [`# ${workflowSlug}`];
 
   const ordered = orderStepsForOutline(config.steps);
 

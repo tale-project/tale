@@ -1,6 +1,7 @@
 ---
 name: write-skill
 icon: lucide:graduation-cap
+labels: ['Authoring']
 description: 'Use this skill whenever you create or update a skill in a Tale organization — a SKILL.md bundle that teaches agents a capability or procedure. Triggers include: "write/add a skill", "teach the agent to …", "package this procedure so agents can reuse it", or an agent that keeps needing the same instructions. Never author a SKILL.md without it — and never create one before listing the existing skills and ruling out reuse. To make an agent load a skill, bind it via skillBindings (write-agent); to ship skills inside an installable bundle, use write-automation.'
 ---
 
@@ -30,7 +31,10 @@ loads it, so the description carries the invocation.
 - Optional: `license` (≤120 chars); `recommended-packages` with `python`/`node` spec lists (≤20
   each, ≤120 chars per spec — advisory only, never auto-installed);
   `disable-model-invocation: true` (the skill is never auto-loaded; explicit recall only);
-  `metadata` (free-form record). Unknown keys are preserved, not rejected.
+  `icon` (an Iconify `set:name` like `lucide:book-open`, shown on the catalog card);
+  `labels` (≤8 literal display chips like `["Documents"]`, shown on the catalog card — the same
+  vocabulary automation manifests use); `metadata` (free-form record). Unknown keys are
+  preserved, not rejected.
 
 ```markdown
 ---

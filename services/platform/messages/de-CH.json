@@ -246,15 +246,5 @@
         "description": "Vorgeschlagene Aufgaben landen hier — aus Automatisierungen oder von deinem Team — bis du sie startest oder schliesst."
       }
     }
-  },
-  "automations": {
-    "inbox": {
-      "action": {
-        "close": "Konversation schliessen"
-      },
-      "bulk": {
-        "close": "Schliessen"
-      }
-    }
   }
 }

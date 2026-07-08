@@ -54,6 +54,9 @@ export interface AutomationSummary {
   i18n?: AutomationManifestI18n;
   /** Install/runtime scope declared in the manifest (absent ⇒ 'org'). */
   scope: AutomationScope;
+  /** A bundle's member — never gets its own catalog card, but its detail
+   *  page (the workflow settings) resolves like any installed automation. */
+  hidden?: boolean;
   /** Lucide icon name from the manifest — the fallback when no `iconUrl`. */
   icon?: string;
   /** The bundled `icon.svg` as a data URI; preferred over `icon`. */
@@ -160,6 +163,9 @@ export interface BundleMemberSummary {
   slug: string;
   name: string;
   description: string;
+  /** The member's declared integration dependencies — the bundle panel
+   *  aggregates these into its own Integrations section. */
+  requiredIntegrations: string[];
 }
 
 /**

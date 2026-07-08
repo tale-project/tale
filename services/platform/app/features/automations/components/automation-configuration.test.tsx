@@ -35,17 +35,43 @@ vi.mock('../hooks/use-automation-agent-readiness', () => ({
 vi.mock('../hooks/use-automation-text', () => ({
   useAutomationDisplay:
     () => (automation: { name: string; description?: string }) => ({
-      name: automation.name,
+      name: `LOCALIZED ${automation.name}`,
       description: automation.description ?? '',
     }),
 }));
 
-vi.mock('../hooks/use-required-integrations', () => ({
-  useRequiredIntegrations: () => ({
-    required: [],
-    blockedSlugs: [],
+// Developer-gating: presettable per test (default non-developer).
+const { abilityMock } = vi.hoisted(() => ({
+  abilityMock: { can: vi.fn(() => false) },
+}));
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => abilityMock,
+}));
+
+// The identity/runtime form's data plumbing — Convex actions + the workflow
+// read — stubbed to their call shapes; saving isn't exercised here.
+const { readWorkflowMock } = vi.hoisted(() => ({
+  readWorkflowMock: vi.fn(() => ({
+    data: undefined,
     isLoading: false,
-  }),
+    refetch: vi.fn(),
+  })),
+}));
+vi.mock('@/app/features/workflows/hooks/file-queries', () => ({
+  useReadWorkflow: readWorkflowMock,
+}));
+vi.mock('@/app/features/workflows/hooks/file-mutations', () => ({
+  useSaveWorkflow: () => ({ mutateAsync: vi.fn() }),
+}));
+vi.mock('../hooks/use-update-automation-identity', () => ({
+  useUpdateAutomationIdentity: () => ({ mutateAsync: vi.fn() }),
+}));
+vi.mock('../hooks/use-automations', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/use-automations')>()),
+  useInvalidateAutomations: () => vi.fn(),
+}));
+vi.mock('@/app/features/workflows/components/workflow-env-editor', () => ({
+  WorkflowEnvEditor: () => <div data-testid="env-editor" />,
 }));
 
 function catalogAutomation(
@@ -67,41 +93,108 @@ function catalogAutomation(
   };
 }
 
-describe('AutomationConfiguration — workflow update-exempt notice', () => {
-  it('shows a dismissible info notice in the Workflows section when the automation has ≥1 workflow', async () => {
-    const { user } = render(
-      <AutomationConfiguration
-        organizationId="org_1"
-        automationSlug="sample-automation"
-        automation={catalogAutomation({
-          workflows: ['sample-automation/flow'],
-        })}
-      />,
-    );
-
-    expect(
-      screen.getByText('This workflow keeps its own steps'),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(
-      screen.queryByText('This workflow keeps its own steps'),
-    ).not.toBeInTheDocument();
-    // The workflow row itself stays — only the notice is dismissed.
-    expect(screen.getByText('Flow')).toBeInTheDocument();
-  });
-
-  it('never shows the notice when the automation declares no workflow', () => {
+describe('AutomationConfiguration — identity', () => {
+  it('shows the localized identity read-only for a non-developer', () => {
+    abilityMock.can.mockReturnValue(false);
     render(
       <AutomationConfiguration
         organizationId="org_1"
         automationSlug="sample-automation"
-        automation={catalogAutomation({ workflows: [] })}
+        automation={catalogAutomation()}
+      />,
+    );
+
+    expect(screen.getByText('LOCALIZED Sample Automation')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('renders the editable identity form (RAW manifest literals) for a developer', () => {
+    abilityMock.can.mockReturnValue(true);
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation()}
+      />,
+    );
+
+    // The form edits the English source strings, never the localized display.
+    expect(screen.getByLabelText('Name')).toHaveValue('Sample Automation');
+    expect(screen.getByLabelText('Description')).toHaveValue(
+      'A discoverable automation from the built-in catalog.',
+    );
+    // No workflow → no runtime settings, no env editor.
+    expect(screen.queryByText('Workflow settings')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('env-editor')).not.toBeInTheDocument();
+  });
+
+  it('adds the workflow runtime settings + env editor when the automation has a workflow', () => {
+    abilityMock.can.mockReturnValue(true);
+    readWorkflowMock.mockReturnValue({
+      data: {
+        ok: true,
+        hash: 'h1',
+        config: {
+          steps: [],
+          config: {
+            timeout: 120000,
+            retryPolicy: { maxRetries: 2, backoffMs: 500 },
+          },
+        },
+      } as never,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation({ workflows: ['sample-automation'] })}
+      />,
+    );
+
+    expect(screen.getByText('Workflow settings')).toBeInTheDocument();
+    expect(screen.getByLabelText('Timeout (ms)')).toHaveValue(120000);
+    expect(screen.getByTestId('env-editor')).toBeInTheDocument();
+  });
+});
+
+describe('AutomationConfiguration — entity sections', () => {
+  it('lists the manifest cast without Workflows or Integrations sections', () => {
+    abilityMock.can.mockReturnValue(false);
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation({
+          agents: ['sample-automation-helper'],
+          skills: ['browse-web'],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Agents')).toBeInTheDocument();
+    expect(screen.getByText('Sample Automation Helper')).toBeInTheDocument();
+    expect(screen.getByText('Skills')).toBeInTheDocument();
+    expect(screen.getByText('Browse Web')).toBeInTheDocument();
+    // The Editor tab IS the workflow and Integrations have their own tab.
+    expect(screen.queryByText('Workflows')).not.toBeInTheDocument();
+    expect(screen.queryByText('Integrations')).not.toBeInTheDocument();
+  });
+
+  it('shows the empty state for a bare automation', () => {
+    abilityMock.can.mockReturnValue(false);
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation()}
       />,
     );
 
     expect(
-      screen.queryByText('This workflow keeps its own steps'),
-    ).not.toBeInTheDocument();
+      screen.getByRole('heading', { name: 'Nothing to manage yet', level: 3 }),
+    ).toBeInTheDocument();
   });
 });

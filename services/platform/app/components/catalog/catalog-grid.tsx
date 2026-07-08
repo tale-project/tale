@@ -52,15 +52,18 @@ interface CatalogCardProps {
   /**
    * TEXT-ONLY summary (it renders inside a `<p>` and clamps to two lines).
    * Badges, label chips, and any other block content belong in the `badge` /
-   * `meta` slots — an element inside the description is invalid HTML.
+   * `meta` slots — an element inside the description is invalid HTML. The
+   * two-line box is RESERVED even when absent/short, so cards never stagger.
    */
   description?: ReactNode;
-  /** Top-right slot — owns the card's status badge(s). */
+  /** Top-right slot — owns the card's status badge(s). Its row height is
+   *  reserved either way. */
   badge?: ReactNode;
   /**
    * Meta row under the description — owns the card's label/requirement chips
    * (e.g. `LabelBadges`, provenance chips). Never fold these into
-   * `description` or the `actions` footer.
+   * `description` or the `actions` footer. The row is reserved even when
+   * empty, so labelled and unlabelled cards share one anatomy.
    */
   meta?: ReactNode;
   /**
@@ -117,22 +120,27 @@ export function CatalogCard({
       <div className="flex items-start gap-3">
         {media ? <div className="shrink-0">{media}</div> : null}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-start justify-between gap-2">
+          {/* Every slot RESERVES its space (`min-h-*`) whether or not the card
+              fills it — a card with no badge, a one-line description, or no
+              labels must render the exact same anatomy as its densest
+              neighbor, so a grid row never staggers. */}
+          {/* FIXED height (`h-6.5` = a Badge's outer box) with vertical
+              centering — the title must sit at the same y whether or not a
+              badge is present, and the row must never grow. */}
+          <div className="flex h-6.5 items-center justify-between gap-2">
             <span className="text-foreground line-clamp-1 text-sm font-medium tracking-tight">
               {title}
             </span>
             {badge ? <span className="shrink-0">{badge}</span> : null}
           </div>
-          {description ? (
-            <p className="text-muted-foreground line-clamp-2 text-sm leading-snug">
-              {description}
-            </p>
-          ) : null}
+          <p className="text-muted-foreground line-clamp-2 min-h-[2lh] text-sm leading-snug">
+            {description}
+          </p>
         </div>
       </div>
-      {meta ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>
-      ) : null}
+      <div className="mt-2 flex min-h-6 flex-wrap items-center gap-1.5">
+        {meta}
+      </div>
       {actions ? (
         // `relative` lifts the footer above the stretched `link` overlay
         // (positioned siblings paint in DOM order), keeping every action

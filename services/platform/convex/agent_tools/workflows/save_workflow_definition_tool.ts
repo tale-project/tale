@@ -89,7 +89,6 @@ Inform the user the update is ready for review. Only say the approval card has b
 
       // Validate workflow definition before creating approval
       const validation = validateWorkflowDefinition(
-        args.workflowConfig,
         args.stepsConfig as Array<Record<string, unknown>>,
       );
 
@@ -130,7 +129,7 @@ Inform the user the update is ready for review. Only say the approval card has b
           {
             organizationId,
             workflowSlug: args.workflowSlug,
-            workflowName: currentConfig.name,
+            workflowName: args.workflowSlug,
             workflowVersion: currentConfig.version ?? '1.0.0',
             updateSummary: args.updateSummary,
             workflowConfig: {
@@ -154,8 +153,8 @@ Inform the user the update is ready for review. Only say the approval card has b
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${currentConfig.name}". The user must approve this update before changes will be applied. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
-          message: `Workflow update for "${currentConfig.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${args.workflowSlug}". The user must approve this update before changes will be applied. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
+          message: `Workflow update for "${args.workflowSlug}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

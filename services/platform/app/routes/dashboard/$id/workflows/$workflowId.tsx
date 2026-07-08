@@ -4,16 +4,26 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Center, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
-import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Navigate,
+  Outlet,
+  useLocation,
+} from '@tanstack/react-router';
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import { HeaderBreadcrumbs } from '@/app/components/layout/header-breadcrumbs';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
+import { useAutomations } from '@/app/features/automations/hooks/use-automations';
+import {
+  EditorViewFloatingBar,
+  EditorViewToggle,
+} from '@/app/features/workflows/components/editor-view-toggle';
 import { ExecutionStatusProvider } from '@/app/features/workflows/components/execution-status-context';
 import { WorkflowAIChatPanel } from '@/app/features/workflows/components/workflow-ai-chat-panel';
 import { WorkflowNavigation } from '@/app/features/workflows/components/workflow-navigation';
@@ -203,12 +213,18 @@ function WorkflowDetailLayout() {
   const { id: organizationId, workflowId } = Route.useParams();
   const workflowSlug = urlParamToSlug(workflowId);
   const { t } = useT('workflows');
+  const { t: tCommon } = useT('common');
 
   const {
     data: readResult,
     isLoading,
     refetch,
   } = useReadWorkflow(organizationId, workflowSlug);
+
+  // Canonicalize: an automation-owned (inline) workflow's home is the
+  // automation detail page — its slug IS the automation slug (checked below,
+  // after every hook, on POSITIVE confirmation only).
+  const { automations } = useAutomations(organizationId);
 
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -238,21 +254,48 @@ function WorkflowDetailLayout() {
     return readResult.config;
   }, [readResult]);
 
+  // An installed automation with this exact (bare) slug owns the workflow —
+  // its settings live on the automation page. Redirecting only when the
+  // installed list POSITIVELY carries the slug means a cold load can never
+  // misroute; standalone workflows (integration sync templates, foldered
+  // slugs) render here as before.
+  if (
+    !workflowSlug.includes('/') &&
+    automations.some((a) => a.slug === workflowSlug)
+  ) {
+    return (
+      <Navigate
+        to="/dashboard/$id/automations/$automationSlug"
+        params={{ id: organizationId, automationSlug: workflowSlug }}
+        replace
+      />
+    );
+  }
+
   if (isLoading || (notFoundResult && isRetrying)) {
     return (
       <PageLayout
         header={
           <Skeletonize loading>
             <AdaptiveHeaderRoot standalone={false} className="gap-2">
-              <Heading level={1} size="base" truncate>
-                <span className="text-muted-foreground hidden md:inline">
-                  {t('title')}&nbsp;&nbsp;
-                </span>
-                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                <SkeletonBox>
-                  <span className="inline-block h-4 w-32 align-middle" />
-                </SkeletonBox>
-              </Heading>
+              <HeaderBreadcrumbs
+                ariaLabel={tCommon('aria.breadcrumb')}
+                crumbs={[
+                  {
+                    key: 'workflows',
+                    content: (
+                      <span className="text-muted-foreground">
+                        {t('title')}
+                      </span>
+                    ),
+                  },
+                ]}
+                leaf={
+                  <SkeletonBox>
+                    <span className="inline-block h-4 w-32 align-middle" />
+                  </SkeletonBox>
+                }
+              />
             </AdaptiveHeaderRoot>
             {/* Real tab strip: the static tab labels are known at load and
                 stay real text; only the trailing assistant/history actions
@@ -321,18 +364,25 @@ function WorkflowDetailLayout() {
       <PageLayout
         header={
           <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <span className="text-muted-foreground hidden md:inline">
-                {t('title')}&nbsp;&nbsp;
-              </span>
-            </Heading>
+            <HeaderBreadcrumbs
+              ariaLabel={tCommon('aria.breadcrumb')}
+              crumbs={[
+                {
+                  key: 'workflows',
+                  content: (
+                    <span className="text-muted-foreground">{t('title')}</span>
+                  ),
+                },
+              ]}
+              leaf={getSlugBaseName(workflowSlug)}
+            />
           </AdaptiveHeaderRoot>
         }
         organizationId={organizationId}
       >
         <Center className="flex-1">
           <Heading level={2} size="sm">
-            Workflow not found: {getSlugBaseName(workflowSlug)}
+            {t('notFound', { slug: getSlugBaseName(workflowSlug) })}
           </Heading>
         </Center>
       </PageLayout>
@@ -370,6 +420,7 @@ function WorkflowDetailInner({
 }: WorkflowDetailInnerProps) {
   const location = useLocation();
   const { t } = useT('workflows');
+  const { t: tCommon } = useT('common');
   const { locale } = useLocale();
   const { config } = useWorkflowConfig();
   const { hasActiveTrigger } = useWorkflowActivity(
@@ -466,13 +517,18 @@ function WorkflowDetailInner({
       header={
         <>
           <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <span className="text-muted-foreground hidden md:inline">
-                {t('title')}&nbsp;&nbsp;
-              </span>
-              <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-              {config.name}
-            </Heading>
+            <HeaderBreadcrumbs
+              ariaLabel={tCommon('aria.breadcrumb')}
+              crumbs={[
+                {
+                  key: 'workflows',
+                  content: (
+                    <span className="text-muted-foreground">{t('title')}</span>
+                  ),
+                },
+              ]}
+              leaf={getSlugBaseName(workflowSlug)}
+            />
           </AdaptiveHeaderRoot>
           <WorkflowNavigation
             organizationId={organizationId}
@@ -493,53 +549,47 @@ function WorkflowDetailInner({
         <Row gap={0} align="stretch" className="relative min-h-0 flex-1">
           <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {isExactWorkflowPage ? (
-              <>
-                <Tabs
-                  variant="pill"
-                  value={editorView}
-                  onValueChange={(value) =>
-                    setEditorView(
-                      value === 'specification' ? 'specification' : 'graph',
-                    )
-                  }
-                  listAriaLabel={t('editorView.ariaLabel')}
-                  className="shrink-0 px-4 pt-3"
-                  items={[
-                    { value: 'graph', label: t('editorView.graph') },
-                    {
-                      value: 'specification',
-                      label: t('editorView.specification'),
-                    },
-                  ]}
-                />
-                {editorView === 'specification' ? (
+              editorView === 'specification' ? (
+                <div className="relative flex min-h-0 flex-1 flex-col">
                   <WorkflowSpecification
                     organizationId={organizationId}
                     workflowSlug={workflowSlug}
                   />
-                ) : (
-                  <SuspenseBoundary
-                    fallback={
-                      // The ReactFlow canvas is a genuine code-split chunk, so a
-                      // fallback is unavoidable while it downloads — but reuse the
-                      // SAME step-card placeholder as the route-level loading state
-                      // instead of a generic text skeleton. Otherwise the skeleton
-                      // visibly "blinks": canvas placeholder → text lines → canvas.
-                      <Skeletonize loading className="contents">
-                        <WorkflowCanvasSkeleton />
-                      </Skeletonize>
-                    }
-                  >
-                    <WorkflowSteps
-                      hasActiveTrigger={hasActiveTrigger}
-                      className="flex-1"
-                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
-                      steps={steps as StepDef[]}
-                      onOpenAIChat={handleOpenAIChat}
+                  <EditorViewFloatingBar>
+                    <EditorViewToggle
+                      view={editorView}
+                      onViewChange={setEditorView}
                     />
-                  </SuspenseBoundary>
-                )}
-              </>
+                  </EditorViewFloatingBar>
+                </div>
+              ) : (
+                <SuspenseBoundary
+                  fallback={
+                    // The ReactFlow canvas is a genuine code-split chunk, so a
+                    // fallback is unavoidable while it downloads — but reuse the
+                    // SAME step-card placeholder as the route-level loading state
+                    // instead of a generic text skeleton. Otherwise the skeleton
+                    // visibly "blinks": canvas placeholder → text lines → canvas.
+                    <Skeletonize loading className="contents">
+                      <WorkflowCanvasSkeleton />
+                    </Skeletonize>
+                  }
+                >
+                  <WorkflowSteps
+                    hasActiveTrigger={hasActiveTrigger}
+                    className="flex-1"
+                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to StepDef shape; component only reads display fields
+                    steps={steps as StepDef[]}
+                    onOpenAIChat={handleOpenAIChat}
+                    viewToggle={
+                      <EditorViewToggle
+                        view={editorView}
+                        onViewChange={setEditorView}
+                      />
+                    }
+                  />
+                </SuspenseBoundary>
+              )
             ) : (
               <Outlet />
             )}
@@ -548,7 +598,7 @@ function WorkflowDetailInner({
           {isAIChatOpen && !isUrlSidePanelOpen && !isSpecificationView && (
             <WorkflowAIChatPanel
               workflowSlug={workflowSlug}
-              workflowName={config.name}
+              workflowName={getSlugBaseName(workflowSlug)}
               organizationId={organizationId}
               onClose={handleCloseAIChat}
               panelWidth={panelWidth}

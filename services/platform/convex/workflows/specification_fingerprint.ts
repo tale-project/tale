@@ -5,10 +5,12 @@
  * `specification` (W5b).
  *
  * The fingerprint is a hash of the parts of the config that the specification
- * describes — `steps` and `triggers` — NOT the whole file (name/description/
- * metadata changes shouldn't mark a spec stale). `specificationMeta.sourceHash`
- * records this fingerprint as of the last sync; comparing it against the
- * CURRENT graph's fingerprint is what tells a synced spec from a stale one.
+ * describes — `steps` and `triggers` — NOT the whole file (metadata changes
+ * shouldn't mark a spec stale). `specificationMeta` records the last
+ * KNOWN-CONSISTENT pair: the graph fingerprint (`sourceHash`) and the spec
+ * text hash (`specHash`) as of the last sync. Comparing each against the
+ * CURRENT config tells which side moved. NO meta means the pair is
+ * author-shipped and trusted as consistent — a fresh install reads as synced.
  *
  * Pure — no Convex ctx, no I/O. `'use node'` only because it reuses `sha256`
  * from `lib/file_io.ts` (node:crypto), matching every other consumer of that
@@ -22,7 +24,7 @@ import { serializeJson, sha256 } from '../lib/file_io';
 /** The slice of a workflow config the specification describes and the graph fingerprint covers. */
 export type WorkflowGraphShape = Pick<WorkflowJsonConfig, 'steps' | 'triggers'>;
 
-export type SpecSyncStatus = 'absent' | 'never_synced' | 'synced' | 'stale';
+export type SpecSyncStatus = 'absent' | 'synced' | 'spec_stale' | 'graph_stale';
 
 /**
  * Deterministic hash of a workflow's graph (`steps` + `triggers`), canonicalized
@@ -37,24 +39,84 @@ export function computeGraphFingerprint(config: WorkflowGraphShape): string {
   return sha256(serializeJson(canonical));
 }
 
+/** Deterministic hash of the spec text (trimmed, so whitespace-only edits never mark the graph stale). */
+export function computeSpecHash(specification: string): string {
+  return sha256(specification.trim());
+}
+
 /**
  * Classify the sync state between a workflow's `specification` text and its
  * current step graph:
  * - `absent` — no specification text at all.
- * - `never_synced` — a specification exists but was never round-tripped
- *   through the sync actions (hand-written, or written before this feature).
- * - `synced` — `specificationMeta.sourceHash` matches the graph's current
- *   fingerprint.
- * - `stale` — the graph changed since the specification was last generated
- *   (or vice versa).
+ * - `synced` — no meta (an author-shipped pair, trusted as consistent), or
+ *   both recorded hashes match the current config.
+ * - `graph_stale` — the specification changed since the last sync; the graph
+ *   should be regenerated from it. Wins over `spec_stale` when both sides
+ *   moved: an edited spec is an explicit statement of intent.
+ * - `spec_stale` — the graph changed since the last sync; the specification
+ *   should be updated from it.
  */
 export function computeSpecSyncStatus(
   config: WorkflowGraphShape &
     Pick<WorkflowJsonConfig, 'specification' | 'specificationMeta'>,
 ): SpecSyncStatus {
-  if (!config.specification || !config.specification.trim()) return 'absent';
-  if (!config.specificationMeta) return 'never_synced';
-  return config.specificationMeta.sourceHash === computeGraphFingerprint(config)
+  const spec = config.specification;
+  if (!spec || !spec.trim()) return 'absent';
+  const meta = config.specificationMeta;
+  if (!meta) return 'synced';
+  if (meta.specHash !== undefined && meta.specHash !== computeSpecHash(spec)) {
+    return 'graph_stale';
+  }
+  return meta.sourceHash === computeGraphFingerprint(config)
     ? 'synced'
-    : 'stale';
+    : 'spec_stale';
+}
+
+/**
+ * Keep `specificationMeta` honest across ANY definition write (the single
+ * invariant every write path shares — UI saves, agent tools, restores go
+ * through `definition_store.writeWorkflowDefinition`, which calls this):
+ *
+ * - No spec on the incoming config → no meta (it means nothing without one).
+ * - Incoming carries its own meta → that save IS a sync (a regeneration
+ *   apply / an explicit stamp) — trust it verbatim.
+ * - Stored has meta, incoming doesn't → carry the stored record forward; a
+ *   plain edit must never erase the last-known-consistent pair.
+ * - NEITHER side has meta (an author-shipped pair) and the save moves the
+ *   spec or the graph → stamp the baseline from the PRE-SAVE stored state,
+ *   so the side that moved reads stale instead of silently "synced".
+ */
+export function reconcileSpecificationMeta(
+  stored: WorkflowJsonConfig | undefined,
+  incoming: WorkflowJsonConfig,
+  now: number,
+): WorkflowJsonConfig {
+  if (!incoming.specification?.trim()) {
+    if (!incoming.specificationMeta) return incoming;
+    const { specificationMeta: _dropped, ...rest } = incoming;
+    return rest;
+  }
+  if (incoming.specificationMeta) return incoming;
+  if (stored?.specificationMeta) {
+    return { ...incoming, specificationMeta: stored.specificationMeta };
+  }
+  if (stored?.specification?.trim()) {
+    const specChanged =
+      computeSpecHash(stored.specification) !==
+      computeSpecHash(incoming.specification);
+    const graphChanged =
+      computeGraphFingerprint(stored) !== computeGraphFingerprint(incoming);
+    if (specChanged || graphChanged) {
+      return {
+        ...incoming,
+        specificationMeta: {
+          sourceHash: computeGraphFingerprint(stored),
+          specHash: computeSpecHash(stored.specification),
+          generatedAt: now,
+          direction: 'authored',
+        },
+      };
+    }
+  }
+  return incoming;
 }

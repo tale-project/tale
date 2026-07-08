@@ -149,39 +149,33 @@ const workflowTriggersSchema = z.object({
 });
 
 /**
- * Per-locale overrides for the workflow's user-facing `name`/`description`,
- * mirroring the agent i18n-first model. Absent locales fall back to the
- * top-level `name`/`description` (English). A STEP's own `name`/`description`
- * translate independently via {@link workflowStepI18nSchema} on each step.
- */
-const workflowI18nSchema = z.record(
-  z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-  z.object({
-    name: z.string().min(1).max(200).optional(),
-    description: z.string().max(2000).optional(),
-  }),
-);
-
-/**
- * Provenance for `specification` — the direction the text/graph pair was last
- * synced in, plus the graph fingerprint
- * (`workflows/specification_fingerprint.ts::computeGraphFingerprint`) as of
- * that sync. Comparing `sourceHash` against the CURRENT graph fingerprint is
- * how `computeSpecSyncStatus` tells a synced spec from a stale one; absent
- * entirely means the spec was hand-written and never round-tripped.
+ * The last KNOWN-CONSISTENT specification/graph pair: the graph fingerprint
+ * (`workflows/specification_fingerprint.ts::computeGraphFingerprint`) and the
+ * spec-text hash (`computeSpecHash`) as of the last sync, plus the direction
+ * that sync ran in (`authored` = a baseline stamped from the pre-edit stored
+ * state when one side first diverged). `computeSpecSyncStatus` compares both
+ * hashes against the CURRENT config to tell which side moved. Absent entirely
+ * means the pair is author-shipped and trusted as consistent — a fresh
+ * install carries no meta and reads as synced.
  */
 const workflowSpecificationMetaSchema = z.object({
   sourceHash: z.string().min(1),
+  /** Hash of the trimmed spec text at the last sync; absent on metas written
+   *  before this field existed (then only the graph side is compared). */
+  specHash: z.string().min(1).optional(),
   generatedAt: z.number().int().positive(),
-  direction: z.enum(['graph_to_spec', 'spec_to_graph']),
+  direction: z.enum(['graph_to_spec', 'spec_to_graph', 'authored']),
   model: z.string().optional(),
 });
 
+/**
+ * A workflow carries NO name/description of its own — its sole identity is
+ * the slug, and its sole text is the `specification`. The automation that
+ * owns an inline workflow provides every user-facing display string
+ * (`automation.json` name/description + i18n); a standalone workflow (an
+ * integration sync template) displays by slug.
+ */
 export const workflowJsonSchema = z.object({
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
-  /** Per-locale name/description overrides; see {@link workflowI18nSchema}. */
-  i18n: workflowI18nSchema.optional(),
   version: z.string().optional(),
   config: workflowConfigSchema.optional(),
   // Documented metadata keys: `autoInstall?: boolean` (provision this

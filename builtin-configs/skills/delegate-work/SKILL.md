@@ -1,6 +1,7 @@
 ---
 name: delegate-work
 icon: lucide:users
+labels: ['Agents']
 description: "Use this skill whenever a task is big enough to split across subagents — several independent deliverables, the same mechanical change across many files or call sites, or research questions that can run in parallel. It owns the delegation discipline: decide split vs solo, cut the work into self-contained units with explicit file boundaries, write each subagent a complete brief (goal, scope in and out, context it can't discover itself, expected return format), never let two agents edit the same file, review every returned result like a stranger's diff, and integrate and verify the merged whole yourself — the delegator owns the done-gate. Load it when a task lists multiple independent deliverables, when a search-codebase sweep returns many disjoint sites, or when you're about to repeat the same edit many times. With no subagent capability, keep the decomposition and run the units sequentially. Never split deeply coupled work, and never ship a subagent's output unreviewed."
 ---
 

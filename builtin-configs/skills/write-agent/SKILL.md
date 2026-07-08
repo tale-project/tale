@@ -1,6 +1,7 @@
 ---
 name: write-agent
 icon: lucide:bot
+labels: ['Authoring']
 description: 'Use this skill whenever you create or update an agent in a Tale organization — a chat assistant, an image generator, or an external coding agent (Claude Code / Cursor). Triggers include: "create an agent", "change an agent''s instructions, model, or tools", "give an agent a skill or integration", or an automation that needs its own agent. Never author an agent definition without it — and never create one before listing the existing agents and ruling out reuse. For the trigger→steps definitions an agent participates in, use write-workflow; for the installable bundle that groups agents, use write-automation.'
 ---
 

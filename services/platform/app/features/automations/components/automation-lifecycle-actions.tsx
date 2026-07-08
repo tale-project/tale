@@ -11,7 +11,13 @@
  *    (`AUTOMATION_HAS_BOUND_PROJECTS`); we surface that as a clear toast, and when the
  *    bound-project count is known we block it up front with a hint. */
 import { ConvexError } from 'convex/values';
-import { Download, FolderMinus, RotateCw, Trash2 } from 'lucide-react';
+import {
+  Download,
+  FolderMinus,
+  PackageMinus,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -44,6 +50,12 @@ interface AutomationLifecycleActionsProps {
    * Uninstall is blocked up front with a hint (the server refuses it anyway).
    */
   boundProjectCount?: number;
+  /**
+   * Set when this automation is a BUNDLE MEMBER (context 'org'): adds an
+   * "Uninstall bundle" action that tears down the whole bundle — every
+   * member's project bindings, then every member.
+   */
+  bundle?: { slug: string; name: string; memberCount: number };
   /** Extra classes for the ⋯ trigger (e.g. card overlay positioning). */
   triggerClassName?: string;
   onChanged?: () => void;
@@ -56,11 +68,12 @@ export function AutomationLifecycleActions({
   context,
   projectId,
   boundProjectCount,
+  bundle,
   triggerClassName,
   onChanged,
 }: AutomationLifecycleActionsProps) {
   const { t } = useT('automations');
-  const { uninstall, removeFromProject } =
+  const { uninstall, uninstallBundle, removeFromProject } =
     useAutomationInstallActions(organizationId);
   // Reinstall runs through the shared preflight flow: preview → override-list
   // confirm dialog → reinstall with the confirmed overrides.
@@ -69,7 +82,11 @@ export function AutomationLifecycleActions({
     dialog: reinstallDialog,
     isPending: reinstallPending,
   } = useReinstallWithPreflight(organizationId, onChanged);
-  const dialogs = useEntityRowDialogs(['uninstall', 'removeFromProject']);
+  const dialogs = useEntityRowDialogs([
+    'uninstall',
+    'removeFromProject',
+    'uninstallBundle',
+  ]);
   const [busy, setBusy] = useState(false);
   const { mutateAsync: exportAutomation } = useExportAutomation();
   const [exporting, setExporting] = useState(false);
@@ -153,6 +170,26 @@ export function AutomationLifecycleActions({
     }
   }, [busy, uninstall, automationSlug, t, dialogs, onChanged]);
 
+  const handleUninstallBundle = useCallback(async () => {
+    if (busy || !bundle) return;
+    setBusy(true);
+    try {
+      await uninstallBundle(bundle.slug);
+      toast({ title: t('install.bundleUninstalled'), variant: 'success' });
+      dialogs.setOpen.uninstallBundle(false);
+      onChanged?.();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('install.bundleUninstallFailed'),
+        variant: 'destructive',
+      });
+      dialogs.setOpen.uninstallBundle(false);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, uninstallBundle, bundle, t, dialogs, onChanged]);
+
   const blockedByBindings = (boundProjectCount ?? 0) > 0;
 
   const exportAction = {
@@ -200,6 +237,17 @@ export function AutomationLifecycleActions({
               dialogs.open.uninstall();
             },
           },
+          ...(bundle
+            ? [
+                {
+                  key: 'uninstallBundle',
+                  label: t('install.uninstallBundle'),
+                  icon: PackageMinus,
+                  destructive: true,
+                  onClick: () => dialogs.open.uninstallBundle(),
+                },
+              ]
+            : []),
         ];
 
   return (
@@ -224,6 +272,22 @@ export function AutomationLifecycleActions({
         isLoading={busy}
         onConfirm={() => void handleRemoveFromProject()}
       />
+
+      {bundle && (
+        <DeleteDialog
+          open={dialogs.isOpen.uninstallBundle}
+          onOpenChange={dialogs.setOpen.uninstallBundle}
+          title={t('install.uninstallBundleTitle')}
+          description={t('install.uninstallBundleDescription', {
+            count: bundle.memberCount,
+          })}
+          preview={{ primary: bundle.name }}
+          warning={t('install.uninstallWarning')}
+          deleteText={t('install.uninstallBundle')}
+          isDeleting={busy}
+          onDelete={() => void handleUninstallBundle()}
+        />
+      )}
 
       <DeleteDialog
         open={dialogs.isOpen.uninstall}

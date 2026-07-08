@@ -393,6 +393,7 @@ describe('getAutomationSummariesBySlug', () => {
         name: 'Reply to Gmail emails',
         description: 'Read, triage, and reply to Gmail.',
         hidden: true,
+        requires: { integrations: ['gmail'] },
       }),
     );
     await writeAutomation(
@@ -411,8 +412,14 @@ describe('getAutomationSummariesBySlug', () => {
         slug: 'reply-gmail-emails',
         name: 'Reply to Gmail emails',
         description: 'Read, triage, and reply to Gmail.',
+        requiredIntegrations: ['gmail'],
       },
-      { slug: 'reply-outlook-emails', name: 'Outlook', description: '' },
+      {
+        slug: 'reply-outlook-emails',
+        name: 'Outlook',
+        description: '',
+        requiredIntegrations: [],
+      },
     ]);
   });
 
@@ -428,7 +435,12 @@ describe('getAutomationSummariesBySlug', () => {
     } as never);
 
     expect(summaries).toEqual([
-      { slug: 'reply-gmail-emails', name: 'Gmail', description: '' },
+      {
+        slug: 'reply-gmail-emails',
+        name: 'Gmail',
+        description: '',
+        requiredIntegrations: [],
+      },
     ]);
   });
 

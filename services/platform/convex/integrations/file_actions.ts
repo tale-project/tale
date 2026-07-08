@@ -163,6 +163,7 @@ export const listIntegrations = action({
             slug,
             title: result.config.title,
             description: result.config.description,
+            labels: result.config.labels,
             type: result.config.type,
             authMethod: result.config.authMethod,
             supportedAuthMethods: result.config.supportedAuthMethods,

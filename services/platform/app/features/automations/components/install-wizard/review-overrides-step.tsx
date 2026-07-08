@@ -21,9 +21,7 @@ import type { AutomationInstallPreviewEntry } from '../../hooks/use-install-stat
 /** Stable display order for the grouped kinds. */
 const KIND_ORDER = [
   'agent',
-  'workflow',
   'view',
-  'message',
   'integration',
   'skill',
   'manifest',
@@ -67,9 +65,7 @@ export function OverrideEntriesList({
             {kindEntries.map((entry) => (
               <li key={`${entry.domain}:${entry.path}`}>
                 <Text as="span" variant="muted" className="font-mono text-sm">
-                  {(kind === 'agent' || kind === 'workflow') && entry.slug
-                    ? entry.slug
-                    : entry.path}
+                  {kind === 'agent' && entry.slug ? entry.slug : entry.path}
                 </Text>
               </li>
             ))}

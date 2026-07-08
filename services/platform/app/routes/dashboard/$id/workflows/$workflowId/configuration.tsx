@@ -14,7 +14,6 @@ import {
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { WorkflowEnvEditor } from '@/app/features/workflows/components/workflow-env-editor';
 import { useSaveWorkflow } from '@/app/features/workflows/hooks/file-mutations';
 import { useReadWorkflow } from '@/app/features/workflows/hooks/file-queries';
@@ -32,9 +31,9 @@ export const Route = createFileRoute(
   component: ConfigurationPage,
 });
 
+/** Runtime settings only — a workflow has no name/description; the owning
+ *  automation carries every display string and the spec carries the intent. */
 interface ConfigurationForm {
-  name: string;
-  description: string;
   timeout: number;
   maxRetries: number;
   backoffMs: number;
@@ -62,11 +61,6 @@ function ConfigurationPage() {
   const schema = useMemo(
     () =>
       z.object({
-        name: z
-          .string()
-          .trim()
-          .min(1, tWorkflows('configuration.validation.nameRequired')),
-        description: z.string(),
         timeout: z.number().int().min(1000),
         maxRetries: z.number().int().min(0).max(10),
         backoffMs: z.number().int().min(100),
@@ -89,8 +83,6 @@ function ConfigurationPage() {
   const data = useMemo<ConfigurationForm | undefined>(() => {
     if (!config) return undefined;
     return {
-      name: config.name ?? '',
-      description: config.description ?? '',
       timeout: config.config?.timeout ?? 300000,
       maxRetries: config.config?.retryPolicy?.maxRetries ?? 3,
       backoffMs: config.config?.retryPolicy?.backoffMs ?? 1000,
@@ -119,8 +111,6 @@ function ConfigurationPage() {
           workflowSlug,
           config: {
             ...config,
-            name: values.name.trim(),
-            description: values.description.trim() || undefined,
             config: {
               ...config.config,
               timeout: values.timeout,
@@ -197,23 +187,6 @@ function ConfigurationPage() {
                 including the timeout / max-retries grid, gets consistent
                 vertical spacing instead of butting together. */}
             <Stack gap={5}>
-              <Input
-                id="name"
-                label={tWorkflows('configuration.name')}
-                placeholder={tWorkflows('configuration.namePlaceholder')}
-                errorMessage={errors.name?.message}
-                {...register('name')}
-              />
-
-              <Textarea
-                id="description"
-                label={tWorkflows('configuration.description')}
-                placeholder={tWorkflows('configuration.descriptionPlaceholder')}
-                rows={4}
-                errorMessage={errors.description?.message}
-                {...register('description')}
-              />
-
               <Grid cols={2} gap={4}>
                 <FormSection>
                   <Input

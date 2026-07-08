@@ -83,7 +83,7 @@ export function Form({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   // View-authored fields carry literals only — the no-arg resolver chain
-  // (literal `label` → humanized legacy `labelKey`/key).
+  // (literal `label` → humanized `key`).
   const text = useConfigFieldText();
   const runtime = useAutomationRuntime();
   const viewState = useOptionalViewState();

@@ -295,17 +295,14 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       fileBaseFor: () => SSO_CONNECTION_KEY, // 'connection' (no extension)
     },
   },
-  // First-class automations: each `automations/<slug>/` is a bundle (manifest +
-  // views/messages/scripts + the app's own app-scoped agents/workflows), copied
-  // whole into every org at create. Read directly from disk by the
-  // `listAutomations` action (node-direct), so it is NOT mirrored into
+  // First-class automations: each `automations/<slug>/` is a bundle (manifest
+  // with the inline workflow + views/scripts + the automation's own scoped
+  // agents), copied whole into every org at create. Read directly from disk by
+  // the `listAutomations` action (node-direct), so it is NOT mirrored into
   // `configCache`. The DB `automationInstallations` row is the authoritative
   // "installed" signal; the seeded files are the install SOURCE.
-  // Order-independent: an app bundles its own agents/workflows, so it has no
-  // cross-domain seed dependency. DUAL-READ: an org scaffolded before this
-  // domain was renamed from `apps` keeps its bundles at the legacy `apps/` dir
-  // (`convex/automations/file_utils.ts` resolves either) — no fs-tree
-  // migration needed.
+  // Order-independent: an automation bundles its own agents, so it has no
+  // cross-domain seed dependency.
   {
     name: 'automations',
     layout: 'bundle',

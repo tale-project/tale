@@ -120,7 +120,7 @@ const tasksTab = {
             },
           ],
           columns: [
-            'title',
+            { field: 'title', labelKey: 'Title' },
             {
               field: 'status',
               kind: 'badge',
@@ -134,12 +134,8 @@ const tasksTab = {
                 cancelled: 'Cancelled',
               },
             },
-            'priority',
+            { field: 'priority', labelKey: 'Priority' },
           ],
-          columnLabels: {
-            title: 'Title',
-            priority: 'Priority',
-          },
           subjectType: 'task',
           actions: [
             {

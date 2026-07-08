@@ -13,6 +13,7 @@ import {
   CatalogCardIcon,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
+import { CatalogLabels } from '@/app/components/catalog/catalog-labels';
 import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
 import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
@@ -297,6 +298,7 @@ export function SkillsCatalog({
                   </Badge>
                 ) : undefined
               }
+              meta={<CatalogLabels labels={row.labels} />}
               onClick={() => setDetailSlug(row.slug)}
               ariaLabel={row.name}
               menu={

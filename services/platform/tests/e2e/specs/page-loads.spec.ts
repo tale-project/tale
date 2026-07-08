@@ -50,31 +50,6 @@ function routeCases(): readonly RouteCase[] {
           .first(),
     },
     {
-      // Legacy `/automations/{slug}/{tab}` (a workflow detail tab from before
-      // the Workflows rename — the segment can't be an automation page, so it
-      // still redirects): lands on `/workflows/{slug}/executions`; the
-      // executions search input proves the tab mounted for the seeded
-      // workflow.
-      key: 'automation-tab-legacy-redirect',
-      path: (id) => `/dashboard/${id}/automations/test/executions`,
-      anchor: (page) =>
-        page.getByPlaceholder(t('workflows.executions.searchPlaceholder')),
-    },
-    {
-      // D3: a bare `/automations/{slug}` predates the Automations rename too
-      // (when this URL space belonged to a workflow directly). `test` isn't a
-      // real automation (only the seeded email/GitHub automations are),
-      // so `automations/$automationSlug`'s `beforeLoad` falls back to the standalone
-      // workflow route; the Editor nav tab proves the workflow detail page
-      // mounted for the seeded workflow. A REAL automation slug would win
-      // instead (never reaching this fallback) — covered by the automation
-      // detail unit/component tests, not this render-smoke spec.
-      key: 'automation-bare-slug-legacy-redirect',
-      path: (id) => `/dashboard/${id}/automations/test`,
-      anchor: (page) =>
-        page.getByRole('link', { name: t('workflows.navigation.editor') }),
-    },
-    {
       // `/docs` embeds Swagger UI (no redirect, no translated heading); the
       // `swagger-ui-standalone` <main> landmark mounts ahead of the lazy chunk.
       key: 'docs-swagger',

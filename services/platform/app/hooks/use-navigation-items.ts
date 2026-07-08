@@ -6,10 +6,12 @@ import {
   Workflow,
   Bot,
   Folder,
+  Inbox,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -55,8 +57,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
   const { t: tProjects } = useT('projects');
+  const { t: tConversations } = useT('conversations');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
+  // The Inbox entry is gated on at least one INSTALLED automation declaring
+  // the `inbox` builtin view — `useInboxAvailability` intersects the seeded
+  // org-dir list with the install rows and stays `hasInbox: false` while
+  // loading, so the entry never flashes in then out.
+  const { hasInbox: hasInboxAutomation } = useInboxAvailability(businessId);
   return useMemo(
     (): NavigationItems => ({
       primary: [
@@ -130,6 +138,17 @@ export function useNavigationItems(businessId: string): NavigationItems {
           href: `/dashboard/${businessId}/automations`,
           icon: Workflow,
         },
+        ...(hasInboxAutomation
+          ? [
+              {
+                label: tConversations('title'),
+                to: '/dashboard/$id/conversations',
+                params: { id: businessId },
+                href: `/dashboard/${businessId}/conversations`,
+                icon: Inbox,
+              },
+            ]
+          : []),
         {
           // Single Settings entry. The index route redirects to the
           // permission-appropriate landing page (org settings for admins,
@@ -145,6 +164,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
       ],
       pinned: [],
     }),
-    [businessId, tNav, tKnowledge, tProjects, newChatShortcut],
+    [
+      businessId,
+      tNav,
+      tKnowledge,
+      tProjects,
+      tConversations,
+      hasInboxAutomation,
+      newChatShortcut,
+    ],
   );
 }
