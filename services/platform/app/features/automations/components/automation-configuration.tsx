@@ -10,9 +10,10 @@
  * (the active-editor pattern every settings page uses); everyone else sees the
  * identity read-only. Below: the control-panel sections — Agents (readiness
  * rows, falling back to the manifest cast) and Skills, each row linking to the
- * resource's own management surface (Integrations have their own tab). A bare
- * automation gets a localized empty state below the identity block. Workflow
- * env/secrets live on their own Environment tab now, not here.
+ * resource's own management surface (Integrations have their own tab). Each
+ * section renders only when the automation declares members — a bare
+ * automation shows just the identity block. Workflow env/secrets live on
+ * their own Environment tab now, not here.
  */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';

@@ -179,8 +179,11 @@ describe('diffAutomationInstall — kind/slug classification', () => {
     expect(map.get('automation:views/main.json')).toMatchObject({
       kind: 'view',
     });
+    // The per-bundle `messages/` label catalog is retired (automations
+    // translate via the manifest's inline `i18n` block — see
+    // schemas/automations.ts). A stray messages file is a plain asset.
     expect(map.get('automation:messages/en.json')).toMatchObject({
-      kind: 'message',
+      kind: 'asset',
     });
     expect(map.get('integrations:github/definition.json')).toMatchObject({
       kind: 'integration',

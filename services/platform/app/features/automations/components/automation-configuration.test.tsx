@@ -205,7 +205,7 @@ describe('AutomationConfiguration — entity sections', () => {
     expect(screen.queryByText('Integrations')).not.toBeInTheDocument();
   });
 
-  it('shows the empty state for a bare automation', () => {
+  it('shows only the identity block for a bare automation (no entity sections)', () => {
     abilityMock.can.mockReturnValue(false);
     render(
       <AutomationConfiguration
@@ -215,8 +215,14 @@ describe('AutomationConfiguration — entity sections', () => {
       />,
     );
 
+    // The read-only identity block always renders …
+    expect(screen.getByText('LOCALIZED Sample Automation')).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Nothing to manage yet', level: 3 }),
+      screen.getByText('A discoverable automation from the built-in catalog.'),
     ).toBeInTheDocument();
+    // … and a bare automation adds nothing else: no section headings.
+    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
+    expect(screen.queryByText('Agents')).not.toBeInTheDocument();
+    expect(screen.queryByText('Skills')).not.toBeInTheDocument();
   });
 });
