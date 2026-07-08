@@ -11,10 +11,16 @@
  * node-only by location; pure planning + injected I/O for tests.
  */
 
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { isTruthy } from './dev-modes';
 
@@ -361,7 +367,9 @@ function isConvexBackendRunning(): boolean {
  * Run maintenance before `convex dev` in the dev orchestrator. Safe to call when
  * external Convex mode is active — callers should skip earlier.
  */
-export function runConvexLocalMaintenance(platformRoot: string): MaintenanceResult {
+export function runConvexLocalMaintenance(
+  platformRoot: string,
+): MaintenanceResult {
   const paths = convexLocalPaths(platformRoot);
   const entries = listModuleBlobEntries(
     readdirSync,
@@ -386,7 +394,11 @@ export function runConvexLocalMaintenance(platformRoot: string): MaintenanceResu
     plan,
     {
       listModuleBlobs: () =>
-        listModuleBlobEntries(readdirSync, (path) => statSync(path), paths.modulesDir),
+        listModuleBlobEntries(
+          readdirSync,
+          (path) => statSync(path),
+          paths.modulesDir,
+        ),
       removePaths: (toRemove) => {
         for (const path of toRemove) {
           // Snapshot artifacts can be directories (extracted imports/exports),

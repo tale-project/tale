@@ -200,7 +200,13 @@ export async function runSetupChecks(
   const moduleStorage = await checkConvexModuleStorage(
     deps.convexModuleStats?.() ?? null,
   );
-  return [checkBun(deps.bunVersion), appPort, convexPort, convexCli, moduleStorage];
+  return [
+    checkBun(deps.bunVersion),
+    appPort,
+    convexPort,
+    convexCli,
+    moduleStorage,
+  ];
 }
 
 /** True when no hard check failed — the gate `main()` uses for its exit code. */
@@ -285,7 +291,11 @@ async function main() {
   const platformRoot = join(import.meta.dir, '..');
   const paths = convexLocalPaths(platformRoot);
   const moduleEntries = existsSync(paths.modulesDir)
-    ? listModuleBlobEntries(readdirSync, (path) => statSync(path), paths.modulesDir)
+    ? listModuleBlobEntries(
+        readdirSync,
+        (path) => statSync(path),
+        paths.modulesDir,
+      )
     : [];
   const results = await runSetupChecks({
     bunVersion: Bun.version,

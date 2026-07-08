@@ -12,7 +12,11 @@ import {
   type ModuleBlobEntry,
 } from './convex-local-maintenance';
 
-function blob(path: string, mtimeMs: number, sizeBytes: number): ModuleBlobEntry {
+function blob(
+  path: string,
+  mtimeMs: number,
+  sizeBytes: number,
+): ModuleBlobEntry {
   return { path, mtimeMs, sizeBytes };
 }
 
@@ -39,10 +43,7 @@ describe('selectModuleBlobsToPrune', () => {
 describe('summarizeModuleBlobs', () => {
   it('totals count and bytes', () => {
     expect(
-      summarizeModuleBlobs([
-        blob('/a.blob', 1, 100),
-        blob('/b.blob', 2, 250),
-      ]),
+      summarizeModuleBlobs([blob('/a.blob', 1, 100), blob('/b.blob', 2, 250)]),
     ).toEqual({ count: 2, totalBytes: 350 });
   });
 });

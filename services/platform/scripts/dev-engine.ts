@@ -38,6 +38,7 @@ import { detectCapabilities } from '@tale/shared/terminal';
 import { configureReporter } from '@tale/shared/tux';
 import kill from 'tree-kill';
 
+import { runConvexLocalMaintenance } from './convex-local-maintenance';
 import {
   onConvexReady,
   onHealthTick,
@@ -69,9 +70,6 @@ import {
   viteClassifier,
   warnLine,
 } from './dev-output';
-import {
-  runConvexLocalMaintenance,
-} from './convex-local-maintenance';
 import { deriveDevSecrets } from './dev-secrets';
 
 const platformRoot = join(import.meta.dir, '..');

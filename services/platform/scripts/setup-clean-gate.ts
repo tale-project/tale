@@ -27,7 +27,6 @@ export function canDestroyLocalConvex(
   }
   return {
     ok: false,
-    reason:
-      `Non-interactive run refused. Set ${DESTROY_LOCAL_CONVEX_ENV}=${DESTROY_LOCAL_CONVEX_ENV_VALUE} only when a human explicitly approved wiping local Convex dev data.`,
+    reason: `Non-interactive run refused. Set ${DESTROY_LOCAL_CONVEX_ENV}=${DESTROY_LOCAL_CONVEX_ENV_VALUE} only when a human explicitly approved wiping local Convex dev data.`,
   };
 }
