@@ -8013,6 +8013,7 @@
       "owningTeamHelp": "Les membres de cette équipe ont un accès complet. Les administrateurs de l'organisation ont toujours accès.",
       "alsoSharedWith": "Également partagé avec",
       "alsoSharedWithHelp": "Choisis d'autres équipes qui devraient voir ce projet.",
+      "noAdditionalTeams": "Aucune équipe supplémentaire",
       "visibility": "Visibilité",
       "visibilityTeam": "Équipe uniquement",
       "visibilityShared": "Équipes spécifiques",
