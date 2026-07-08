@@ -1,15 +1,23 @@
 #!/usr/bin/env node
-// Integration-dispatch MCP bridge (stdio). Exposes two tools to Claude Code so
-// the agent can use the org's connected integrations WITHOUT the third-party
-// credential ever entering the container:
+// Platform-dispatch MCP bridge (stdio). Exposes four tools to the coding agent
+// so it can use the org's connected integrations AND its granted platform
+// workspace tools WITHOUT any credential entering the container:
 //
 //   integration({slug, operation, args})  → POST <URL>/execute
 //   integration_status()                  → POST <URL>/status
+//   workspace_tool({tool, args})          → POST <TOOLS_URL>/execute
+//   workspace_status()                    → POST <TOOLS_URL>/status
 //
-// It is a thin relay: it forwards {slug, operation, args} to the platform and
-// returns the structured result. The credential is resolved server-side; the
-// bridge only carries the per-session key (Authorization: Bearer) the platform
-// uses to resolve org + grants. It NEVER calls the third party itself.
+// It is a thin relay: it forwards the call to the platform and returns the
+// structured result. Credentials, grants, and tool execution stay server-side;
+// the bridge only carries the per-session key (Authorization: Bearer) the
+// platform uses to resolve org + grants. It NEVER calls the third party itself.
+//
+// <TOOLS_URL> is derived from TALE_INTEGRATIONS_URL (…/api/integrations →
+// …/api/tools) so both surfaces ride ONE env contract and no adapter needs a
+// second variable. Against an older platform without /api/tools the derived
+// endpoint 404s and workspace_tool reports a plain failure — harmless, since
+// such a platform grants no tools either.
 //
 // Dependency-free: a hand-rolled, newline-delimited JSON-RPC 2.0 loop (the MCP
 // stdio transport). stdout is the protocol channel — only JSON-RPC lines go
@@ -21,6 +29,13 @@ const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'tale-integrations', version: '1.0.0' };
 
 const BASE_URL = (process.env.TALE_INTEGRATIONS_URL || '').replace(/\/$/, '');
+// Workspace-tool endpoints live beside the integration ones; derived rather
+// than a second env var (see header). Empty when the base URL doesn't have
+// the expected shape — workspace_tool then reports "not configured" instead
+// of misrouting tool bodies to the integration endpoints.
+const TOOLS_BASE_URL = BASE_URL.endsWith('/integrations')
+  ? `${BASE_URL.slice(0, -'/integrations'.length)}/tools`
+  : '';
 // Fail closed: the per-session dispatch token is the ONLY credential this bridge
 // presents. No fallback to ANTHROPIC_AUTH_TOKEN — that is a different credential
 // (the LLM gateway key); presenting it to the integration endpoint would be a
@@ -66,6 +81,41 @@ const TOOLS = [
       'any with a non-empty `blockers` array. Always reflects current config.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'workspace_tool',
+    description:
+      "Call one of the platform workspace tools granted to this agent — the " +
+      "organization's knowledge base and Documents hub, executed by the " +
+      'platform (NOT the local filesystem; files under /user/... are a ' +
+      'different, local thing). Example: workspace_tool({tool:"rag_search", ' +
+      'args:{operation:"search", query:"..."}}) searches org knowledge; ' +
+      'document_find / document_retrieve browse and read hub documents; ' +
+      'document_write saves files to the hub. Call workspace_status first to ' +
+      'see which tools are granted. If the result has status "unavailable" or ' +
+      '"invalid_args", relay the message to the user and do not retry blindly. ' +
+      'If status is "requires_approval", tell the user to approve the card in ' +
+      'the chat — the write runs automatically once approved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tool: {
+          type: 'string',
+          description: 'The workspace tool name, e.g. "rag_search".',
+        },
+        args: { type: 'object', description: 'Tool arguments.' },
+      },
+      required: ['tool'],
+    },
+  },
+  {
+    name: 'workspace_status',
+    description:
+      'List the platform workspace tools granted to this agent (knowledge ' +
+      'search, document read/write, …). Call this before relying on ' +
+      'workspace_tool. Tools are granted per agent by the user on the ' +
+      "agent's Tools tab; an ungranted tool cannot be called.",
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 function send(message) {
@@ -80,12 +130,12 @@ function sendError(id, code, message) {
   send({ jsonrpc: '2.0', id, error: { code, message } });
 }
 
-async function callPlatform(path, body) {
-  if (!BASE_URL || !TOKEN) {
-    return { ok: false, text: 'integration bridge is not configured' };
+async function callPlatform(path, body, baseUrl = BASE_URL) {
+  if (!baseUrl || !TOKEN) {
+    return { ok: false, text: 'platform bridge is not configured' };
   }
   try {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -144,6 +194,24 @@ async function handleToolCall(name, args) {
   }
   if (name === 'integration_status') {
     const res = await callPlatform('/status', {});
+    return toolText(res.text, !res.ok);
+  }
+  if (name === 'workspace_tool') {
+    const tool = typeof args.tool === 'string' ? args.tool : '';
+    const callArgs =
+      args.args && typeof args.args === 'object' ? args.args : {};
+    if (!tool) {
+      return toolText('"tool" is required.', true);
+    }
+    const res = await callPlatform(
+      '/execute',
+      { tool, args: callArgs },
+      TOOLS_BASE_URL,
+    );
+    return toolText(res.text, !res.ok);
+  }
+  if (name === 'workspace_status') {
+    const res = await callPlatform('/status', {}, TOOLS_BASE_URL);
     return toolText(res.text, !res.ok);
   }
   return toolText(`Unknown tool: ${name}`, true);

@@ -115,6 +115,7 @@ import {
   sandboxSessionsTable,
   sandboxSessionTokensTable,
   sandboxIntegrationCallsTable,
+  sandboxToolCallsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
@@ -303,6 +304,7 @@ export default defineSchema({
   sandboxAdmissionTickets: sandboxAdmissionTicketsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
+  sandboxToolCalls: sandboxToolCallsTable,
   sandboxUserEnv: sandboxUserEnvTable,
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,

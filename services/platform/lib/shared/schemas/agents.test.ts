@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentJsonSchema, agentRoutingSchema } from './agents';
+import {
+  agentJsonSchema,
+  agentRoutingSchema,
+  EXTERNAL_AGENT_TOOL_NAMES,
+} from './agents';
 
 const baseAgent = {
   displayName: 'Test',
@@ -275,15 +279,49 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     ).toBe(false);
   });
 
-  it('rejects loop-only fields (toolNames/workflows) on an external-agent', () => {
-    expect(
-      agentJsonSchema.safeParse({ ...externalBase, toolNames: ['run_code'] })
-        .success,
-    ).toBe(false);
+  it('rejects workflows (loop-only) on an external-agent', () => {
     expect(
       agentJsonSchema.safeParse({
         ...externalBase,
         workflows: ['some-workflow'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts bridgeable workspace toolNames on an external-agent', () => {
+    // toolNames is the sandbox workspace-tool grant set — the whole
+    // EXTERNAL_AGENT_TOOL_NAMES subset is valid.
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        toolNames: [...EXTERNAL_AGENT_TOOL_NAMES],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects loop-coupled toolNames on an external-agent', () => {
+    for (const name of ['run_code', 'request_human_input', 'file_write']) {
+      expect(
+        agentJsonSchema.safeParse({ ...externalBase, toolNames: [name] })
+          .success,
+      ).toBe(false);
+    }
+    // One loop-coupled name poisons a mixed list — the whole config fails.
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        toolNames: ['rag_search', 'run_code'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('still rejects toolNames on an image-generation agent', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Image Agent',
+        supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        primaryBehavior: 'image-generation' as const,
+        toolNames: ['rag_search'],
       }).success,
     ).toBe(false);
   });

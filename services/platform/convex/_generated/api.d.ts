@@ -43,6 +43,8 @@ import type * as agent_tools_database_helpers_types from "../agent_tools/databas
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
 import type * as agent_tools_discussions_discussion_read_tool from "../agent_tools/discussions/discussion_read_tool.js";
 import type * as agent_tools_discussions_discussion_write_tool from "../agent_tools/discussions/discussion_write_tool.js";
+import type * as agent_tools_dispatch_http from "../agent_tools/dispatch_http.js";
+import type * as agent_tools_dispatch_internal from "../agent_tools/dispatch_internal.js";
 import type * as agent_tools_documents_document_find_tool from "../agent_tools/documents/document_find_tool.js";
 import type * as agent_tools_documents_document_retrieve_tool from "../agent_tools/documents/document_retrieve_tool.js";
 import type * as agent_tools_documents_document_write_tool from "../agent_tools/documents/document_write_tool.js";
@@ -1050,6 +1052,7 @@ import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
 import type * as node_only_sandbox_workflow_skills from "../node_only/sandbox/workflow_skills.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
+import type * as node_only_sandbox_workspace_tool_context from "../node_only/sandbox/workspace_tool_context.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -1213,6 +1216,7 @@ import type * as rag_lib_secret_scanner from "../rag/lib/secret_scanner.js";
 import type * as rag_lib_semantic_cache from "../rag/lib/semantic_cache.js";
 import type * as rag_search from "../rag/search.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
+import type * as sandbox_dispatch_auth from "../sandbox/dispatch_auth.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
 import type * as sandbox_session_naming from "../sandbox/session_naming.js";
@@ -1739,6 +1743,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
   "agent_tools/discussions/discussion_read_tool": typeof agent_tools_discussions_discussion_read_tool;
   "agent_tools/discussions/discussion_write_tool": typeof agent_tools_discussions_discussion_write_tool;
+  "agent_tools/dispatch_http": typeof agent_tools_dispatch_http;
+  "agent_tools/dispatch_internal": typeof agent_tools_dispatch_internal;
   "agent_tools/documents/document_find_tool": typeof agent_tools_documents_document_find_tool;
   "agent_tools/documents/document_retrieve_tool": typeof agent_tools_documents_document_retrieve_tool;
   "agent_tools/documents/document_write_tool": typeof agent_tools_documents_document_write_tool;
@@ -2746,6 +2752,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
   "node_only/sandbox/workflow_skills": typeof node_only_sandbox_workflow_skills;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
+  "node_only/sandbox/workspace_tool_context": typeof node_only_sandbox_workspace_tool_context;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
@@ -2909,6 +2916,7 @@ declare const fullApi: ApiFromModules<{
   "rag/lib/semantic_cache": typeof rag_lib_semantic_cache;
   "rag/search": typeof rag_search;
   "sandbox/admission": typeof sandbox_admission;
+  "sandbox/dispatch_auth": typeof sandbox_dispatch_auth;
   "sandbox/quota_policy": typeof sandbox_quota_policy;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
   "sandbox/session_naming": typeof sandbox_session_naming;

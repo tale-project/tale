@@ -84,6 +84,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 80,
     shards: 4,
   },
+  // Workspace-tool dispatch (in-sandbox MCP bridge → /api/tools/execute).
+  // Same posture as integrations:dispatch — per-session token bucket on an
+  // otherwise-unmetered surface.
+  'tools:dispatch': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 80,
+    shards: 4,
+  },
   'external:integration-test': {
     kind: 'token bucket',
     rate: 10,
