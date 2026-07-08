@@ -39,6 +39,7 @@ export function createDocumentsMentionSource(
             title: row.title,
             subtitle: row.folderPath || undefined,
             data: {
+              kind: 'document',
               documentId: row.documentId,
               fileId: row.fileId,
               title: row.title,

@@ -1946,7 +1946,8 @@
       "resizeAria": "Resize chat panel",
       "fullscreen": "Expand to full screen",
       "exitFullscreen": "Exit full screen"
-    }
+    },
+    "kbFolderChipFiles": "{count} files"
   },
   "common": {
     "optional": "optional",
@@ -2236,7 +2237,9 @@
       "teammateChipLabel": "Teammate",
       "removeDocumentMention": "Remove reference to {title}",
       "removeActorMention": "Remove mention of {name}",
-      "limitReached": "You can reference up to {max} documents per message"
+      "limitReached": "You can reference up to {max} documents per message",
+      "sectionFolders": "Folders",
+      "folderChipLabel": "Folder"
     }
   },
   "connectivity": {

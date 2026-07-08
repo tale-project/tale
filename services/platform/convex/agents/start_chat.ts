@@ -54,6 +54,16 @@ export const startChat = internalMutation({
         }),
       ),
     ),
+    /** `@`-mentioned folders (display metadata; files pre-merged above). */
+    referencedFolders: v.optional(
+      v.array(
+        v.object({
+          folderId: v.id('folders'),
+          name: v.string(),
+          fileCount: v.number(),
+        }),
+      ),
+    ),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(userContextValidator),
     agentConfig: v.any(),
@@ -174,6 +184,7 @@ export const startChat = internalMutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       referencedFiles: args.referencedFiles,
+      referencedFolders: args.referencedFolders,
       additionalContext: args.additionalContext,
       userContext: args.userContext,
       agentConfig: mergedConfig,

@@ -107,7 +107,8 @@ export const runChatTurnGeneration = internalAction({
     arenaBranchThreadId: v.optional(v.string()),
     /** `@`-mentioned knowledge-base documents, already resolved + authorized
      *  by `chatWithAgentTurn`. Threaded to startChat → startAgentChat, where
-     *  they become the enriched marker block + the pinned RAG scope. */
+     *  they become the enriched marker block + the pinned RAG scope. Folder
+     *  pins arrive pre-expanded into this same list. */
     referencedFiles: v.optional(
       v.array(
         v.object({
@@ -116,6 +117,18 @@ export const runChatTurnGeneration = internalAction({
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),
+        }),
+      ),
+    ),
+    /** `@`-mentioned folders (display metadata only — their files are
+     *  already merged into `referencedFiles`). Drives the folder marker
+     *  block + the sent-bubble folder chips. */
+    referencedFolders: v.optional(
+      v.array(
+        v.object({
+          folderId: v.id('folders'),
+          name: v.string(),
+          fileCount: v.number(),
         }),
       ),
     ),
@@ -570,6 +583,7 @@ export const runChatTurnGeneration = internalAction({
           maxSteps: args.maxSteps,
           attachments: args.attachments,
           referencedFiles: args.referencedFiles,
+          referencedFolders: args.referencedFolders,
           additionalContext: args.additionalContext,
           userContext: args.userContext,
           agentConfig,

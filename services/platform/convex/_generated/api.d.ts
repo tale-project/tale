@@ -195,6 +195,7 @@ import type * as agents_queries from "../agents/queries.js";
 import type * as agents_recover_stuck_chat_turns from "../agents/recover_stuck_chat_turns.js";
 import type * as agents_resolve_agent_config from "../agents/resolve_agent_config.js";
 import type * as agents_resolve_referenced_files from "../agents/resolve_referenced_files.js";
+import type * as agents_resolve_referenced_folders from "../agents/resolve_referenced_folders.js";
 import type * as agents_resolve_role_to_agent from "../agents/resolve_role_to_agent.js";
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
@@ -480,6 +481,7 @@ import type * as folders_internal_mutations from "../folders/internal_mutations.
 import type * as folders_internal_queries from "../folders/internal_queries.js";
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
+import type * as folders_search_folders_for_mention from "../folders/search_folders_for_mention.js";
 import type * as governance_budget_enforcement from "../governance/budget_enforcement.js";
 import type * as governance_chat_filter_categories from "../governance/chat_filter/categories.js";
 import type * as governance_chat_filter_detector from "../governance/chat_filter/detector.js";
@@ -1888,6 +1890,7 @@ declare const fullApi: ApiFromModules<{
   "agents/recover_stuck_chat_turns": typeof agents_recover_stuck_chat_turns;
   "agents/resolve_agent_config": typeof agents_resolve_agent_config;
   "agents/resolve_referenced_files": typeof agents_resolve_referenced_files;
+  "agents/resolve_referenced_folders": typeof agents_resolve_referenced_folders;
   "agents/resolve_role_to_agent": typeof agents_resolve_role_to_agent;
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
@@ -2173,6 +2176,7 @@ declare const fullApi: ApiFromModules<{
   "folders/internal_queries": typeof folders_internal_queries;
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
+  "folders/search_folders_for_mention": typeof folders_search_folders_for_mention;
   "governance/budget_enforcement": typeof governance_budget_enforcement;
   "governance/chat_filter/categories": typeof governance_chat_filter_categories;
   "governance/chat_filter/detector": typeof governance_chat_filter_detector;

@@ -3,7 +3,7 @@
 import { Row } from '@tale/ui/layout';
 import { Highlight } from '@tale/ui/search';
 import { Text } from '@tale/ui/text';
-import { ArrowUpRight, Bot, Loader, User } from 'lucide-react';
+import { ArrowUpRight, Bot, Folder, Loader, User } from 'lucide-react';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
@@ -11,24 +11,34 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { MentionActorOption } from '../../tasks/lib/mention-actor-options';
-import type { KbMention } from '../hooks/use-kb-mentions';
+import type {
+  KbDocumentMention,
+  KbFolderMention,
+} from '../hooks/use-kb-mentions';
 import { AnchoredMentionPopoverShell } from './anchored-mention-popover-shell';
 
-export type MentionSectionId = 'agents' | 'teammates' | 'documents';
+export type MentionSectionId = 'agents' | 'teammates' | 'documents' | 'folders';
 
 /**
- * One selectable row of the unified `@`-mention picker. `document` rows pin a
- * knowledge-base chip, `actor` rows insert a plain-text `@handle`, and
- * `action` rows are a section's actionable empty state ("Upload documents",
- * "Invite teammates") — real options so they stay keyboard-reachable through
- * the same combobox navigation as entity rows.
+ * One selectable row of the unified `@`-mention picker. `document` and
+ * `folder` rows pin a knowledge-base chip, `actor` rows insert a plain-text
+ * `@handle`, and `action` rows are a section's actionable empty state
+ * ("Upload documents", "Invite teammates") — real options so they stay
+ * keyboard-reachable through the same combobox navigation as entity rows.
  */
 export type MentionRow =
   | {
       kind: 'document';
       id: string;
-      data: KbMention;
+      data: KbDocumentMention;
       /** Folder path shown under the title (mirrors the search result). */
+      subtitle?: string;
+    }
+  | {
+      kind: 'folder';
+      id: string;
+      data: KbFolderMention;
+      /** Parent-folder path shown under the name. */
       subtitle?: string;
     }
   | { kind: 'actor'; id: string; data: MentionActorOption }
@@ -252,6 +262,37 @@ export function MentionPopover({
                       >
                         @{actor.handle}
                       </Text>
+                    </>,
+                  );
+                }
+                if (row.kind === 'folder') {
+                  const folder = row.data;
+                  return renderOption(
+                    row,
+                    flatIndex,
+                    <>
+                      <Folder
+                        className="text-muted-foreground size-4 shrink-0"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1">
+                        <Text
+                          as="span"
+                          variant="label"
+                          className="block truncate"
+                        >
+                          <Highlight text={folder.title} terms={terms} />
+                        </Text>
+                        {row.subtitle && (
+                          <Text
+                            as="span"
+                            variant="caption"
+                            className="text-muted-foreground block truncate"
+                          >
+                            {row.subtitle}
+                          </Text>
+                        )}
+                      </span>
                     </>,
                   );
                 }

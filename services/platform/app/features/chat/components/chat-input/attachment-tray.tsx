@@ -2,7 +2,7 @@
 
 import { HStack, Row, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Bot, Eye, Loader, RotateCcw, User, X } from 'lucide-react';
+import { Bot, Eye, Folder, Loader, RotateCcw, User, X } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -12,7 +12,7 @@ import { middleEllipsis } from '@/lib/utils/format/file';
 
 import type { MentionActorOption } from '../../../tasks/lib/mention-actor-options';
 import type { FileAttachment } from '../../hooks/use-convex-file-upload';
-import type { KbMention } from '../../hooks/use-kb-mentions';
+import { kbMentionKey, type KbMention } from '../../hooks/use-kb-mentions';
 import {
   AttachmentStatusLabel,
   type IndexingStatusInfo,
@@ -29,7 +29,8 @@ interface TranscriptPreview {
 interface AttachmentTrayProps {
   kbMentionsEnabled: boolean;
   kbMentions?: KbMention[];
-  removeKbMention?: (documentId: Id<'documents'>) => void;
+  /** Removes a chip by its `kbMentionKey`. */
+  removeKbMention?: (key: string) => void;
   /** Actor `@`-mention chips, derived from the composer text (the text is the
    *  source of truth — see chat-input's actorMentionChips). */
   actorMentions?: MentionActorOption[];
@@ -114,18 +115,25 @@ export function AttachmentTray({
       {kbMentionsEnabled &&
         kbMentions?.map((mention) => (
           <Row
-            key={mention.documentId}
+            key={kbMentionKey(mention)}
             gap={3}
             className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
           >
-            <DocumentIcon
-              fileName={
-                mention.extension
-                  ? `${mention.title}.${mention.extension}`
-                  : mention.title
-              }
-              mimeType={mention.fileType}
-            />
+            {mention.kind === 'document' ? (
+              <DocumentIcon
+                fileName={
+                  mention.extension
+                    ? `${mention.title}.${mention.extension}`
+                    : mention.title
+                }
+                mimeType={mention.fileType}
+              />
+            ) : (
+              <Folder
+                className="text-muted-foreground size-4 shrink-0"
+                aria-hidden
+              />
+            )}
             <VStack className="min-w-0 flex-1 gap-1">
               <Text as="div" variant="label" title={mention.title}>
                 {middleEllipsis(mention.title, 28)}
@@ -135,7 +143,11 @@ export function AttachmentTray({
                 variant="caption"
                 className="text-muted-foreground/50"
               >
-                {tComposer('mention.documentChipLabel')}
+                {mention.kind === 'document'
+                  ? tComposer('mention.documentChipLabel')
+                  : tComposer('mention.folderChipLabel', {
+                      defaultValue: 'Folder',
+                    })}
               </Text>
             </VStack>
             <button
@@ -143,7 +155,7 @@ export function AttachmentTray({
               aria-label={tComposer('mention.removeDocumentMention', {
                 title: mention.title,
               })}
-              onClick={() => removeKbMention?.(mention.documentId)}
+              onClick={() => removeKbMention?.(kbMentionKey(mention))}
               className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
             >
               <X className="text-muted-foreground size-3" />

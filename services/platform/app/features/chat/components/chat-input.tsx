@@ -19,6 +19,7 @@ import { DataNoticeFooter } from '@/app/features/governance/components/data-noti
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
@@ -66,6 +67,7 @@ import {
 } from './dictation-button';
 import { createDocumentsMentionSource } from './documents-mention-source';
 import { ExternalAgentModeToggle } from './external-agent-mode-toggle';
+import { createFoldersMentionSource } from './folders-mention-source';
 import {
   flattenMentionSections,
   MentionPopover,
@@ -201,7 +203,7 @@ interface ChatInputProps extends Omit<
    */
   kbMentions?: KbMention[];
   addKbMention?: (mention: KbMention) => boolean;
-  removeKbMention?: (documentId: Id<'documents'>) => void;
+  removeKbMention?: (key: string) => void;
   clearKbMentions?: () => KbMention[];
   /**
    * Mentionable actors (teammates + agents) for the `@`-mention picker's
@@ -401,6 +403,24 @@ export function ChatInput({
     () => kbMentionState.results.slice(0, 8),
     [kbMentionState.results],
   );
+  // Folder pins ride the same KB-mention contract; in a project thread the
+  // project's folders join the hub folders (server re-verifies access).
+  const folderMentionSource = useMemo(
+    () =>
+      createFoldersMentionSource({
+        organizationId,
+        projectId: projectId ? toId<'projects'>(projectId) : undefined,
+      }),
+    [organizationId, projectId],
+  );
+  const folderMentionState = folderMentionSource(mentionQuery, {
+    active: mentionPickerOpen && kbMentionsEnabled,
+    open: mentionPickerOpen && kbMentionsEnabled,
+  });
+  const folderMentionResults = useMemo(
+    () => folderMentionState.results.slice(0, 5),
+    [folderMentionState.results],
+  );
   // Same server-aligned filter the Tasks composer uses, so every picker ranks
   // actors identically.
   const filteredActorOptions = useMemo(
@@ -500,7 +520,7 @@ export function ChatInput({
     }
     if (kbMentionsEnabled) {
       const documentRows: MentionRow[] = kbMentionResults.flatMap((result) =>
-        result.data
+        result.data && result.data.kind === 'document'
           ? [
               {
                 kind: 'document' as const,
@@ -535,6 +555,31 @@ export function ChatInput({
           ? tComposer('mention.emptyDocuments')
           : undefined,
       });
+      // Folders: no actionable empty state — an org without folders simply
+      // has no section (documents above already carries the "get content
+      // in" call to action).
+      const folderRows: MentionRow[] = folderMentionResults.flatMap((result) =>
+        result.data && result.data.kind === 'folder'
+          ? [
+              {
+                kind: 'folder' as const,
+                id: result.id,
+                data: result.data,
+                subtitle: result.subtitle,
+              },
+            ]
+          : [],
+      );
+      if (folderRows.length > 0 || folderMentionState.status === 'loading') {
+        sections.push({
+          id: 'folders',
+          label: tComposer('mention.sectionFolders', {
+            defaultValue: 'Folders',
+          }),
+          loading: folderMentionState.status === 'loading',
+          rows: folderRows,
+        });
+      }
     }
     return sections;
   }, [
@@ -543,6 +588,8 @@ export function ChatInput({
     filteredActorOptions,
     kbMentionResults,
     kbMentionState.status,
+    folderMentionResults,
+    folderMentionState.status,
     mentionQuery,
     navigate,
     organizationId,

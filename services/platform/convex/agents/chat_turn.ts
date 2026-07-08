@@ -35,7 +35,11 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
 import { normalizeMessageKey } from './auto_route_helpers';
-import { resolveReferencedFiles } from './resolve_referenced_files';
+import {
+  MAX_KB_REFERENCES,
+  resolveReferencedFiles,
+} from './resolve_referenced_files';
+import { resolveReferencedFolders } from './resolve_referenced_folders';
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -66,6 +70,12 @@ export const chatWithAgentTurn = mutation({
      * `KB_REF_INVALID` before anything is marked generating.
      */
     referencedDocumentIds: v.optional(v.array(v.id('documents'))),
+    /**
+     * Knowledge-base FOLDERS pinned via the same picker. Each expands to
+     * its subtree's RAG-indexed documents at send time (bounded); documents
+     * and folders share the cap of 5 references per turn.
+     */
+    referencedFolderIds: v.optional(v.array(v.id('folders'))),
     /**
      * Cache pre-warm. Fired on composer focus/typing: resolves the agent +
      * config exactly as a real turn would and primes the prompt cache with one
@@ -199,14 +209,45 @@ export const chatWithAgentTurn = mutation({
     // synchronously (client toast) and never leaves the thread generating.
     // The thread's persisted project wins; args.projectId covers the first
     // send into a not-yet-persisted project thread (access-validated above).
-    const referencedFiles =
+    const docRefCount = args.referencedDocumentIds?.length ?? 0;
+    const folderRefCount = args.referencedFolderIds?.length ?? 0;
+    // Documents and folders share the per-turn reference cap.
+    if (docRefCount + folderRefCount > MAX_KB_REFERENCES) {
+      throw new ConvexError({ code: 'KB_REF_INVALID' });
+    }
+    const threadProjectId = meta.projectId ?? args.projectId;
+    const directFiles =
       args.referencedDocumentIds && args.referencedDocumentIds.length > 0
         ? await resolveReferencedFiles(ctx, {
             organizationId: args.organizationId,
             userId: authUser.userId,
             referencedDocumentIds: args.referencedDocumentIds,
-            threadProjectId: meta.projectId ?? args.projectId,
+            threadProjectId,
           })
+        : undefined;
+    const folderRefs =
+      args.referencedFolderIds && args.referencedFolderIds.length > 0
+        ? await resolveReferencedFolders(ctx, {
+            organizationId: args.organizationId,
+            userId: authUser.userId,
+            referencedFolderIds: args.referencedFolderIds,
+            threadProjectId,
+          })
+        : undefined;
+    // Union: folder expansions defer to direct pins on the same file.
+    const directFileIds = new Set(
+      (directFiles ?? []).map((file) => file.fileId),
+    );
+    const mergedFiles = [
+      ...(directFiles ?? []),
+      ...(folderRefs?.files ?? []).filter(
+        (file) => !directFileIds.has(file.fileId),
+      ),
+    ];
+    const referencedFiles = mergedFiles.length > 0 ? mergedFiles : undefined;
+    const referencedFolders =
+      folderRefs && folderRefs.folders.length > 0
+        ? folderRefs.folders
         : undefined;
 
     // Supersede an in-flight generation: if this thread is already generating,
@@ -304,6 +345,7 @@ export const chatWithAgentTurn = mutation({
         requestStartMs,
         arenaBranchThreadId: args.arenaBranchThreadId,
         referencedFiles,
+        referencedFolders,
         priorAgentSlug,
       },
     );

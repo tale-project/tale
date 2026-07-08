@@ -37,6 +37,7 @@ import {
 import {
   appendKbReferenceBlock,
   type KbReferencedFile,
+  type KbReferencedFolder,
 } from './kb_reference_block';
 import type {
   SerializableAgentConfig,
@@ -83,6 +84,9 @@ export interface StartAgentChatArgs {
    * per-turn auto-RAG query.
    */
   referencedFiles?: KbReferencedFile[];
+  /** Pinned folders (display metadata; files pre-merged into
+   *  `referencedFiles`). Rendered as their own marker block → folder chip. */
+  referencedFolders?: KbReferencedFolder[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
   /** User environment context (timezone, language, UI locale) for template variables */
@@ -319,18 +323,21 @@ export async function startAgentChat(
     }
   }
   const referencedFiles = prewarm ? [] : (args.referencedFiles ?? []);
+  const referencedFolders = prewarm ? [] : (args.referencedFolders ?? []);
 
   // Build message content with attachment markdown, then append the
-  // knowledge-base reference block for `@`-mentioned documents. The block
-  // reuses the enriched attachment marker format, so the client renders the
-  // refs as file chips and strips the block from the bubble body with zero
-  // new display plumbing (see kb_reference_block.ts).
+  // knowledge-base reference block for `@`-mentioned documents and folders.
+  // The file block reuses the enriched attachment marker format, so the
+  // client renders the refs as file chips and strips the block from the
+  // bubble body with zero new display plumbing; folder pins get their own
+  // marker → folder chip (see kb_reference_block.ts).
   const messageWithAttachments = hasAttachments
     ? await buildMessageWithAttachments(ctx, trimmedMessage, attachments)
     : trimmedMessage;
   const messageContent = appendKbReferenceBlock(
     messageWithAttachments,
     referencedFiles,
+    referencedFolders,
   );
 
   // Save user message if not a duplicate

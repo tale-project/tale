@@ -1947,7 +1947,8 @@
       "resizeAria": "Redimensionner le panneau de discussion",
       "fullscreen": "Passer en plein écran",
       "exitFullscreen": "Quitter le plein écran"
-    }
+    },
+    "kbFolderChipFiles": "{count} fichiers"
   },
   "common": {
     "optional": "facultatif",
@@ -2237,7 +2238,9 @@
       "teammateChipLabel": "Coéquipier",
       "removeDocumentMention": "Supprimer la référence à {title}",
       "removeActorMention": "Supprimer la mention de {name}",
-      "limitReached": "Tu peux référencer jusqu’à {max} documents par message"
+      "limitReached": "Tu peux référencer jusqu’à {max} documents par message",
+      "sectionFolders": "Dossiers",
+      "folderChipLabel": "Dossier"
     }
   },
   "connectivity": {

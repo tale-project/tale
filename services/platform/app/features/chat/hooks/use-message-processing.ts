@@ -38,6 +38,21 @@ const INTERNAL_ENRICHED_BLOCK =
 const ENRICHED_ATTACHMENT_MARKER =
   /\*\(fileId: ([a-z0-9]+) \| fileName: (.+?) \| fileType: (.+?) \| fileSize: (\d+)\)\*/g;
 
+// Folder pin marker (kb_reference_block.ts::buildKbFolderBlock) — key names
+// differ from the file marker on purpose so neither regex can match the
+// other's block.
+const KB_FOLDER_MARKER =
+  /\*\(kbFolderId: ([a-z0-9]+) \| folderName: (.+?) \| folderFileCount: (\d+)\)\*/g;
+const INTERNAL_KB_FOLDER_BLOCK =
+  /\n?\n?[^\n]+\n\*\(kbFolderId: [a-z0-9]+ \| folderName: .+? \| folderFileCount: \d+\)\*/g;
+
+/** A pinned folder parsed back off the message body for the sent bubble. */
+export interface KbFolderRef {
+  folderId: string;
+  name: string;
+  fileCount: number;
+}
+
 export function extractFileAttachments(text: string): FileAttachment[] {
   const attachments: FileAttachment[] = [];
   for (const match of text.matchAll(ENRICHED_ATTACHMENT_MARKER)) {
@@ -52,10 +67,23 @@ export function extractFileAttachments(text: string): FileAttachment[] {
   return attachments;
 }
 
+export function extractKbFolderRefs(text: string): KbFolderRef[] {
+  const refs: KbFolderRef[] = [];
+  for (const match of text.matchAll(KB_FOLDER_MARKER)) {
+    refs.push({
+      folderId: match[1],
+      name: match[2],
+      fileCount: Number(match[3]),
+    });
+  }
+  return refs;
+}
+
 export function stripInternalFileReferences(text: string) {
   return text
     .replace(INTERNAL_ATTACHMENT_MARKER, '')
     .replace(INTERNAL_ENRICHED_BLOCK, '')
+    .replace(INTERNAL_KB_FOLDER_BLOCK, '')
     .replace(INTERNAL_FILE_REF, '')
     .replace(INTERNAL_FILEID_ITALIC, '')
     .trim();
@@ -75,6 +103,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   timestamp: Date;
   attachments?: FileAttachment[];
+  /** `@`-pinned folders, parsed from the folder marker block. */
+  folderRefs?: KbFolderRef[];
   fileParts?: FilePart[];
   _creationTime?: number;
   order?: number;
@@ -499,6 +529,8 @@ export function useMessageProcessing(
           m.role === 'user' && m.text
             ? extractFileAttachments(m.text)
             : undefined;
+        const folderRefs =
+          m.role === 'user' && m.text ? extractKbFolderRefs(m.text) : undefined;
 
         return {
           id: m.id,
@@ -509,6 +541,8 @@ export function useMessageProcessing(
           timestamp: new Date(m._creationTime),
           attachments:
             attachments && attachments.length > 0 ? attachments : undefined,
+          folderRefs:
+            folderRefs && folderRefs.length > 0 ? folderRefs : undefined,
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
           order: m.order,

@@ -5,7 +5,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
-import type { KbMention } from '../hooks/use-kb-mentions';
+import type { KbDocumentMention } from '../hooks/use-kb-mentions';
 import {
   flattenMentionSections,
   MentionPopover,
@@ -21,8 +21,9 @@ vi.mock('./anchored-mention-popover-shell', () => ({
   }) => <div data-testid="mention-popover-shell">{children}</div>,
 }));
 
-function kbMention(n: number): KbMention {
+function kbMention(n: number): KbDocumentMention {
   return {
+    kind: 'document',
     documentId: `doc_${n}` as Id<'documents'>,
     fileId: `file_${n}` as Id<'_storage'>,
     title: `Document ${n}`,

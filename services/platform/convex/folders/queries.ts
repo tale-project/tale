@@ -7,8 +7,10 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { hasKnowledgeHubFolderAccess } from './access';
 import { findFolderByPath } from './find_folder_by_path';
+import { searchFoldersForMention as searchFoldersForMentionHelper } from './search_folders_for_mention';
 
 export const listFolders = query({
   args: {
@@ -156,6 +158,48 @@ export const listFolderChildrenByPath = query({
       });
     }
     return children;
+  },
+});
+
+/**
+ * Title search for the chat composer's `@` folder mention picker: hub
+ * folders the user can see, plus the thread project's folders when the
+ * composer sits in a project thread (project read access re-verified here —
+ * an inaccessible or foreign project silently contributes nothing).
+ */
+export const searchFoldersForMention = query({
+  args: {
+    organizationId: v.string(),
+    query: v.string(),
+    projectId: v.optional(v.id('projects')),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return [];
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+
+    let projectId = args.projectId;
+    if (projectId) {
+      const access = await resolveProjectAccessForUser(ctx, projectId, {
+        userId: authUser.userId,
+        organizationId: args.organizationId,
+      });
+      if (!access.canRead) projectId = undefined;
+    }
+
+    return await searchFoldersForMentionHelper(ctx, {
+      organizationId: args.organizationId,
+      term: args.query,
+      userTeamIds,
+      projectId,
+    });
   },
 });
 

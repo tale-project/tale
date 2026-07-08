@@ -1946,7 +1946,8 @@
       "resizeAria": "Chat-Bereich vergrößern",
       "fullscreen": "Auf Vollbild erweitern",
       "exitFullscreen": "Vollbild beenden"
-    }
+    },
+    "kbFolderChipFiles": "{count} Dateien"
   },
   "common": {
     "optional": "optional",
@@ -2236,7 +2237,9 @@
       "teammateChipLabel": "Teammitglied",
       "removeDocumentMention": "Verweis auf {title} entfernen",
       "removeActorMention": "Erwähnung von {name} entfernen",
-      "limitReached": "Du kannst pro Nachricht bis zu {max} Dokumente referenzieren"
+      "limitReached": "Du kannst pro Nachricht bis zu {max} Dokumente referenzieren",
+      "sectionFolders": "Ordner",
+      "folderChipLabel": "Ordner"
     }
   },
   "connectivity": {

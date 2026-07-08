@@ -23,6 +23,13 @@ export interface KbReferencedFile {
   fileSize: number;
 }
 
+/** A pinned folder (display metadata; its files ride `KbReferencedFile[]`). */
+export interface KbReferencedFolder {
+  folderId: string;
+  name: string;
+  fileCount: number;
+}
+
 export function buildKbReferenceBlock(
   refs: readonly KbReferencedFile[],
 ): string {
@@ -34,11 +41,30 @@ export function buildKbReferenceBlock(
     .join('\n\n');
 }
 
+/**
+ * Folder marker — deliberately shaped so `ENRICHED_ATTACHMENT_MARKER`
+ * cannot match it (different key names); the client extracts it with its
+ * own `KB_FOLDER_MARKER` regex to render a folder chip, and strips it from
+ * the visible prose the same way.
+ */
+export function buildKbFolderBlock(
+  folders: readonly KbReferencedFolder[],
+): string {
+  return folders
+    .map(
+      (folder) =>
+        `📁 Referenced folder from the knowledge base: ${folder.name}\n*(kbFolderId: ${folder.folderId} | folderName: ${folder.name} | folderFileCount: ${folder.fileCount})*`,
+    )
+    .join('\n\n');
+}
+
 export function appendKbReferenceBlock(
   message: string,
   refs: readonly KbReferencedFile[],
+  folders: readonly KbReferencedFolder[] = [],
 ): string {
-  if (refs.length === 0) return message;
-  const block = buildKbReferenceBlock(refs);
-  return message ? `${message}\n\n${block}` : block;
+  const parts = [message];
+  if (folders.length > 0) parts.push(buildKbFolderBlock(folders));
+  if (refs.length > 0) parts.push(buildKbReferenceBlock(refs));
+  return parts.filter(Boolean).join('\n\n');
 }
