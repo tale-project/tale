@@ -3,18 +3,22 @@ import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 
 import type { KbMention } from '../hooks/use-kb-mentions';
 
 interface DocumentsMentionSourceConfig {
   organizationId: string;
+  /** The thread's project — its files join the hub docs in results. */
+  projectId?: Id<'projects'>;
 }
 
 /**
  * Build a {@link SearchSource} over RAG-indexed, user-accessible knowledge
- * documents for the composer's `@`-mention picker. Backed by the
- * `searchDocumentsForMention` query (title search through the shared
- * `runEntitySearch` seam); skipped entirely while the picker is closed.
+ * documents (plus the current project's files in a project thread) for the
+ * composer's `@`-mention picker. Backed by the `searchDocumentsForMention`
+ * query (title search through the shared `runEntitySearch` seam); skipped
+ * entirely while the picker is closed.
  *
  * Returned from a `useMemo` so its identity stays stable across renders
  * (the SearchSource contract — it is called as a hook).
@@ -22,13 +26,13 @@ interface DocumentsMentionSourceConfig {
 export function createDocumentsMentionSource(
   config: DocumentsMentionSourceConfig,
 ): SearchSource<KbMention> {
-  const { organizationId } = config;
+  const { organizationId, projectId } = config;
   return (query, { active }) => {
     const trimmed = query.trim();
 
     const { data: rows } = useConvexQuery(
       api.documents.queries.searchDocumentsForMention,
-      active ? { organizationId, query: trimmed } : 'skip',
+      active ? { organizationId, query: trimmed, projectId } : 'skip',
     );
 
     const results = useMemo<SearchResult<KbMention>[]>(

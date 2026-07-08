@@ -12,6 +12,7 @@ import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { isActiveDocument } from './_helpers';
 import { canReadDocument, hasKnowledgeHubDocumentAccess } from './access';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
@@ -118,12 +119,16 @@ export const getDocumentById = query({
  * Title search for the chat composer's `@` knowledge-base mention picker.
  * Returns slim rows for RAG-indexed, user-accessible documents only (the
  * picker must not offer a document that the pinned-turn retrieval could not
- * actually search). Same auth contract as `listDocumentsPaginated`.
+ * actually search). Same auth contract as `listDocumentsPaginated`. In a
+ * project thread the project's own files join the results (project read
+ * access re-verified here — an inaccessible or foreign project silently
+ * contributes nothing, mirroring `searchFoldersForMention`).
  */
 export const searchDocumentsForMention = query({
   args: {
     organizationId: v.string(),
     query: v.string(),
+    projectId: v.optional(v.id('projects')),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -137,10 +142,20 @@ export const searchDocumentsForMention = query({
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
+    let projectId = args.projectId;
+    if (projectId) {
+      const access = await resolveProjectAccessForUser(ctx, projectId, {
+        userId: authUser.userId,
+        organizationId: args.organizationId,
+      });
+      if (!access.canRead) projectId = undefined;
+    }
+
     return await searchDocumentsForMentionHelper(ctx, {
       organizationId: args.organizationId,
       term: args.query,
       userTeamIds,
+      projectId,
     });
   },
 });

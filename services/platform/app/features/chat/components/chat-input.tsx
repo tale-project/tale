@@ -390,10 +390,16 @@ export function ChatInput({
   const mentionQuery = mentionTrigger?.query ?? '';
 
   // SearchSource contract: stable identity, called unconditionally every
-  // render (it is a hook); inactive renders pass 'skip' to Convex.
+  // render (it is a hook); inactive renders pass 'skip' to Convex. In a
+  // project thread the project's own files join the hub docs (server
+  // re-verifies access).
   const mentionSource = useMemo(
-    () => createDocumentsMentionSource({ organizationId }),
-    [organizationId],
+    () =>
+      createDocumentsMentionSource({
+        organizationId,
+        projectId: projectId ? toId<'projects'>(projectId) : undefined,
+      }),
+    [organizationId, projectId],
   );
   const kbMentionState = mentionSource(mentionQuery, {
     active: mentionPickerOpen && kbMentionsEnabled,
