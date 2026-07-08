@@ -1,59 +1,38 @@
 ---
 title: Einen Workflow mit Freigabe bauen
-description: Verdrahte einen Drei-Schritt-Workflow, bei dem eine menschliche Freigabe zwischen Entwurf und Versand sitzt, lass ihn von Anfang bis Ende laufen und prüf den Audit-Trail.
+description: Lass den KI-Editor einen Drei-Schritt-Workflow bauen, bei dem eine menschliche Entscheidung zwischen Entwurf und Versand sitzt, genehmige seinen Vorschlag und lies danach das Journal des Laufs.
 ---
 
-Ein Workflow mit Freigabe ist die Form, zu der du greifst, wenn die Arbeit aus Entwurf, Entscheidung und Aktion besteht — und du einen Menschen zwischen Entwurf und Aktion willst. Das Freigabe-Gate pausiert den Lauf, bis jemand „Genehmigen" klickt; der nächste Schritt feuert nur bei grünem Licht. Dieser Spaziergang baut auf einer frischen Org einen Daily-Summary-Workflow mit einem Freigabe-Gate.
+Ein Workflow mit einer menschlichen Entscheidung in der Mitte ist die Form, zu der du greifst, wenn die Arbeit aus Entwurf, Review und Aktion besteht — und du eine Person zwischen Entwurf und Aktion willst. Der Lauf pausiert als **Wartet auf Eingabe**, bis jemand antwortet; der nächste Schritt feuert nur bei grünem Licht. Dieser Spaziergang baut so einen Daily-Summary-Workflow, und unterwegs begegnest du beiden menschlichen Toren: dem Genehmigen des KI-Editor-Vorschlags und dem Beantworten des pausierten Laufs.
 
-Du brauchst eine Editor-Rolle und einen Agent, der einen Entwurf produziert (der erste nützliche Agent aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) reicht). Die konzeptuelle Seite lebt in [Workflow-Konzepte](/de/platform/workflows/concepts) und [Freigabe-Konzepte](/de/platform/approvals/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
+Du brauchst eine Editor-Rolle und einen Agent, der einen Entwurf produziert (der erste nützliche Agent aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) reicht). Die konzeptuelle Seite lebt in [Automatisierungskonzepte](/de/platform/automations/concepts) und [Genehmigungs-Konzepte](/de/platform/approvals/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
 
-## Bevor du beginnst
+## Bevor du anfängst
 
-Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Workflow-Bearbeitung ist auf Editor und höher begrenzt. Du hast einen Entwurfs-Agent bereit; ohne ihn hat Schritt 2 des Workflows nichts aufzurufen. Du bist Mitglied des Freigeber-Pools, den du in Schritt 3 zuweist, oder du hast eine Kollegin bereit, die genehmigt, damit der Lauf tatsächlich weiterläuft.
+Prüf drei Dinge. Deine Rolle ist mindestens Editor — Workflow-Bearbeitung ist ab Editor aufwärts freigeschaltet. Du hast einen Entwurfs-Agent bereit; ohne ihn hat der Entwurfs-Schritt nichts aufzurufen. Und du kannst das Review selbst beantworten — der pausierte Lauf wartet auf einen Menschen, und in diesem Spaziergang bist du das.
 
-## Schritt 1 — Das Workflow-Gerüst erstellen
+## Schritt 1 — Einen Workflow im Editor öffnen
 
-Der erste Zug ist die Workflow-Definition — der geordnete Behälter, in dem die Schritte leben. Leg aus der App, der der Workflow gehören soll, einen neuen Workflow an und setze:
+Workflows leben in der Automatisierung, die sie antreiben: Öffne die Automatisierung, und ihr Tab **Editor** ist der Workflow, mit dem Schritt-Graphen auf der Leinwand. Öffne für diesen Spaziergang einen Workflow, der dir gehört, oder einen aus dem Task-Ops-Paket deiner Org — alles funktioniert, was du bearbeiten darfst, denn die neue Definition baut ohnehin der KI-Editor für dich.
 
-- **Name** — `Daily inbox summary`
-- **Trigger** — vorerst **Manuell**; du kannst ihn auf einen Schedule wechseln, sobald der Lauf funktioniert
-- **Inputs** — leer lassen
+## Schritt 2 — Dem KI-Editor den Workflow beschreiben
 
-Als Entwurf speichern. Das Gerüst existiert, hat aber keine Schritte; jetzt ausgeführt, käme er sofort zurück.
+Schalte den **KI-Editor** in der Leinwand-Werkzeugleiste ein und beschreib die ganze Form in einer Nachricht:
 
-## Schritt 2 — Den Entwurfs-Schritt hinzufügen
+> Lass jeden Werktag um 08:00 den Agent <dein Agent> die ungelesenen Kundennachrichten von gestern in einen Absatz zusammenfassen, dann einen Menschen den Entwurf prüfen, und schick nur den freigegebenen Text an den Team-Kanal.
 
-Der Entwurfs-Schritt ist der Agent-Aufruf. Klick **Schritt hinzufügen > Agent aufrufen** und konfiguriere:
+Der KI-Editor antwortet mit einer Vorschlagskarte — **Workflow erstellen** mit der Schrittzahl, oder **Workflow aktualisieren**, wenn er den geöffneten umbaut. Solange die Karte aussteht, passiert an der Definition nichts: Klapp sie auf, prüf die gelisteten Schritte — ein **LLM**-Schritt für den Entwurf, die Review-Pause, der Versand — und genehmige sie. Die Änderung wird angewendet und versioniert wie jedes manuelle Speichern.
 
-- **Agent** — der Entwurfs-Agent, den du bereit hast
-- **Prompt** — `Summarise yesterday's unread customer messages into a paragraph and propose a single team-wide reply.`
-- **Output-Variable** — `draft`
+## Schritt 3 — Den Zeitplan anhängen
 
-Speichern. Der Workflow hat jetzt einen Schritt; ein Lauf produziert eine `draft`-Variable, tut damit aber nichts.
+Wechsle zum Tab **Trigger** und klick **Zeitplan hinzufügen**. Nimm die Vorlage **Täglich** und pass den Cron auf Werktage an (`0 8 * * 1-5`) — oder beschreib die Zeit in Alltagssprache und klick **Generieren**, damit die KI den Cron schreibt. **Workflow-Variablen** füllt sich aus dem Eingabeschema des Workflows vor; lass es wie vorgeschlagen. Die Zeile erscheint mit bereits eingeschaltetem **Aktiv**-Schalter.
 
-## Schritt 3 — Das Freigabe-Gate hinzufügen
+## Schritt 4 — Laufen lassen und das Review beantworten
 
-Das Freigabe-Gate ist die Naht zwischen Agent-Entwurf und Aktion. Klick **Schritt hinzufügen > Freigabe-Gate** und konfiguriere:
+Zurück im Editor: Öffne **Workflow testen**, füg das vorgeschlagene Eingabe-JSON ein und klick **Ausführen**. Das Panel spiegelt den Lauf Schritt für Schritt: Der Entwurfs-Schritt feuert, dann pausiert der Lauf — **Wartet auf Eingabe** — und das Review kommt als Formular-Karte mit dem Entwurf an. Füll sie aus und klick **Antwort absenden**, um freizugeben, oder **Anders antworten**, um im Freitext zurückzugeben; der Lauf setzt mit deiner Antwort fort und der Versand-Schritt feuert.
 
-- **Titel** — `Review daily summary`
-- **Body** — `{{ draft }}`, damit der Freigeber den ganzen Text auf der Karte sieht
-- **Freigeber-Pool** — ein Team oder eine explizite User-Liste, in der du drin bist
-- **Timeout** — 30 Minuten, eskaliere auf Fehlschlag
+Öffne den Tab **Ausführungen** und klapp den Lauf auf: Das Journal zeigt einen Eintrag pro Schritt — den Entwurf des Agents, wer das Review beantwortet hat und wie, und den Versand mit seiner Ausgabe. Dieses Journal ist der Audit-Trail; derselbe Datensatz entsteht für jeden künftigen geplanten Lauf.
 
-Speichern. Der Workflow pausiert jetzt auf diesem Schritt und wartet auf eine Entscheidung; Ablehnen beendet den Lauf.
+## Wo das hinführt
 
-## Schritt 4 — Den Aktions-Schritt hinzufügen und ausführen
-
-Der Aktions-Schritt feuert nur, wenn das Gate auf Genehmigen aufgelöst wird. Klick **Schritt hinzufügen > Mail senden** (oder eine Aktion, die deine Org verdrahtet hat) und konfiguriere:
-
-- **An** — deine eigene Adresse für diesen Spaziergang
-- **Betreff** — `Daily inbox summary`
-- **Body** — `{{ draft }}`
-
-Speichern und **Veröffentlichen**. Klick **Ausführen**. Der Entwurfs-Schritt feuert; das Freigabe-Gate erscheint als Karte in deinem Posteingang; klick **Genehmigen**; der Mail-Schritt feuert; der Lauf endet. Die Execution-Ansicht zeigt drei Zeilen — Entwurf, Gate-Entscheidung, Mail — mit Zeitstempeln und dem Akteur am Gate.
-
-## Wo das eingesetzt wird
-
-Drei Schritte mit einem Gate sind der kleinste nützliche Workflow-mit-Freigabe: Agent entwirft, Mensch entscheidet, System handelt. Dieselbe Form skaliert — Manuell gegen Schedule tauschen, ein zweites Gate vor einem destruktiven Schritt einziehen, bei der Entscheidung verzweigen statt bei Ablehnung zu scheitern.
-
-Für die Zustands-Maschine des Gates und die Routing-Regeln siehe [Freigaben in Workflows](/de/platform/workflows/approvals-in-workflows). Für die vier Stücke, aus denen jeder Workflow besteht, siehe [Workflow-Konzepte](/de/platform/workflows/concepts).
+Entwerfen, entscheiden, handeln — mit der Entscheidung bei einem Menschen — ist der kleinste nützliche Workflow mit Freigabe, und du hast ihn gebaut, ohne einen einzigen Schritt von Hand zu setzen: Der KI-Editor hat vorgeschlagen, du hast genehmigt, der Lauf hat gefragt, du hast geantwortet. Dieselbe Form skaliert — häng ein zweites Review vor einen destruktiven Schritt, oder lass dir von [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) die übrigen Tore rund um einen Workflow zeigen. Für das Vokabular hinter Definition, Trigger und Ausführung ist [Automatisierungskonzepte](/de/platform/automations/concepts) die Seite, die dieser Spaziergang vorausgesetzt hat.

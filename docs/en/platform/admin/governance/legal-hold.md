@@ -5,6 +5,12 @@ description: The dual-controlled freeze that pauses retention sweeps and erasure
 
 Legal hold is the mechanism Tale ships for preserving evidence under litigation hold. A hold pins a target — a user, a document, a thread, a workflow execution, or the whole organisation — out of reach of the retention sweep and the data-subject erasure cascade. Admins and Owners read this page when counsel asks them to preserve a custodian's data, when a release request needs the dual-control sign-off, or when an audit reconciles which holds were in force on a given date.
 
+<Frame caption="Governance > Legal hold — the active-holds table with the Place legal hold action above the dual-control release-requests queue.">
+
+![The Legal hold governance page showing an empty active-holds table with a Place legal hold button above the empty release-requests queue.](/images/platform/governance-legal-hold.webp)
+
+</Frame>
+
 ## A worked placement
 
 To place a hold on a user, open **Settings > Governance > Legal hold** and click **Place legal hold**. Pick the target type — user, thread, document, execution, or organisation — pick the specific target, add a reason, and link the hold to a matter if one is open. The hold takes effect immediately; retention sweeps skip the target's rows, the erasure cascade reports them as **Skipped by hold**, and the target row carries the **On legal hold** badge in every list where it appears.

@@ -1,22 +1,42 @@
 ---
 title: Tutorials
-description: Rollenbasierte Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis.
+description: Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis.
 ---
 
-Tutorials ist der Abschnitt, in dem du Walkthroughs zu gängigen Aufgaben von Anfang bis Ende liest. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis; vorausgesetzt wird, dass du die passende Rolle hast und entweder Cloud oder selbst gehostet einsatzbereit ist.
+Tutorials sind Walkthroughs von Anfang bis Ende: Jedes bringt eine frische Instanz von „Ich möchte X tun" zu einem funktionierenden, verifizierten Ergebnis. Vorausgesetzt werden die passende Rolle und ein laufender Arbeitsbereich; die Konzept-Seiten unter [Plattform](/de/platform) erklären das mentale Modell, die Tutorials zeigen den Mechanismus von vorne bis hinten.
 
-Die Reiter unten sind nach Rolle indiziert: wähl die Rolle, in der du arbeitest, und dann die Aufgabe. Konzept-Seiten unter [Plattform](/de/platform) erklären das mentale Modell; die Tutorials hier zeigen den Mechanismus von vorne bis hinten.
+Bist du noch keinen [Einstieg](/de/get-started/quickstart) durchgegangen, fang dort an — die Tutorials bauen auf den Handgriffen des ersten Tages auf, die dort abgedeckt sind.
 
-## Seiten in diesem Abschnitt
+## Wähl nach Rolle
 
-**[Mitglieder-Tutorials](/de/tutorials/member/chat-effectively)** — effektiv chatten, Projekte nutzen, Sprach-Konversationen führen.
+<CardGroup cols="2">
 
-**[Redakteurs-Tutorials](/de/tutorials/editor/first-agent-end-to-end)** — einen ersten Agent von Anfang bis Ende bauen, Wissen anbinden, Workflows mit Genehmigungen aufsetzen, zwischen Agents delegieren.
+<Card title="Mitglieder-Tutorials" icon="message-circle" href="/de/tutorials/member/chat-effectively">
 
-**[Entwickler-Tutorials](/de/tutorials/developer/call-tale-from-a-script)** — Tale aus einem Skript aufrufen, Workflows per Webhook triggern, eigene Tools bauen, einen MCP-Server aufsetzen.
+Effektiv chatten, in Projekten arbeiten, Sprach-Konversationen führen.
 
-**[Verwaltungs-Tutorials](/de/tutorials/admin/office-add-in)** — das Office-Add-in installieren, Meeting-Transkription verdrahten, einen lokalen Anbieter verbinden, SSO mit OIDC, Modelle pro Team einschränken.
+</Card>
+
+<Card title="Redakteurs-Tutorials" icon="bot" href="/de/tutorials/editor/first-agent-end-to-end">
+
+Einen ersten Agent von Anfang bis Ende bauen, Wissen anbinden, zwischen Agents delegieren, Workflows mit Genehmigungen ausliefern.
+
+</Card>
+
+<Card title="Entwickler-Tutorials" icon="terminal" href="/de/tutorials/developer/call-tale-from-a-script">
+
+Tale aus einem Skript aufrufen, Workflows per Webhook auslösen, eigene Tools bauen, einen MCP-Server aufsetzen.
+
+</Card>
+
+<Card title="Verwaltungs-Tutorials" icon="shield" href="/de/tutorials/admin/office-add-in">
+
+Das Office-Add-in installieren, Meeting-Transkription verdrahten, einen lokalen Anbieter verbinden.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 
-Tutorials zitieren die Feature-Referenzen unter [Plattform](/de/platform) für das konzeptuelle Gerüst; sobald du eines durchgegangen bist, lohnt sich die zugehörige Konzept-Seite als zweite Lektüre. Falls du nicht weißt, mit welchem Tutorial du starten sollst, ist [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) das, was am ehesten einem „Hallo Welt" für das Produkt entspricht — die meisten Produktfähigkeiten, die du später berührst, tauchen dort schon auf.
+Tutorials zitieren die Feature-Referenzen unter [Plattform](/de/platform) für das konzeptuelle Gerüst; sobald du eines durchgegangen bist, lohnt sich die zugehörige Konzept-Seite als zweite Lektüre. Weißt du nicht, welches Tutorial du wählen sollst: [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) ist das, was einem „Hallo Welt" für das Produkt am nächsten kommt — die meisten Produktfähigkeiten, die du später anfasst, tauchen dort schon auf.

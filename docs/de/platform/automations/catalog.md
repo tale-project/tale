@@ -5,6 +5,12 @@ description: Wie der Automatisierungen-Katalog funktioniert — das Seitenpanel,
 
 Der Automatisierungen-Katalog (**Automatisierungen** in der Seitenleiste) ist der Ort, an dem Inhaber, Admins und Entwickler jede Automatisierung durchsuchen, die der Organisation zur Verfügung steht, und entscheiden, welche installiert sind. Diese Seite deckt den Katalog selbst ab — das Seitenpanel, das eine Karte öffnet, den Installations-Assistenten und die Aktionen Neu installieren, Deinstallieren und Aktualisieren, die danach folgen. Was jede mitgelieferte Automatisierung tatsächlich tut, steht auf [Mitgelieferte Automatisierungen](/de/platform/automations/builtin); das mentale Modell für die Bestandteile, die eine Automatisierung bündelt, steht auf [Automatisierungskonzepte](/de/platform/automations/concepts).
 
+<Frame caption="Der Automatisierungen-Katalog — jede Karte ist eine installierbare Automatisierung; das Bundle installiert alle seine Mitglieder über einen Assistenten.">
+
+![Der Automatisierungen-Katalog auf dem Tab Alle Automatisierungen, mit Karten für die drei E-Mail-Automatisierungen und das Bundle GitHub-Issues lösen, jede mit Icon und Beschreibung.](/images/platform/automations-catalog.webp)
+
+</Frame>
+
 ## Eine Automatisierung installieren
 
 Klick auf eine Karte, und ihr Seitenpanel öffnet sich — dasselbe Klick-zur-Vorschau-Muster, das [Einstellungen > Integrationen](/de/platform/integrations/overview) für seinen eigenen Katalog nutzt. Das Panel listet, was die Installation hinzufügt: seine Seiten, Workflows, Agents, Skills und die Integrationen, die es braucht, plus das Projekt, das es anvisiert, wenn es projektgebunden ist. Klick auf **Installieren**, und der Assistent öffnet sich.

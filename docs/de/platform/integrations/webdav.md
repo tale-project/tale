@@ -1,93 +1,79 @@
 ---
 title: WebDAV
-description: Hänge den Dokumentenspeicher deiner Organisation als Netzlaufwerk im Finder, Datei-Explorer oder einem beliebigen WebDAV-Client ein. Erzeuge ein App-Passwort unter Einstellungen > WebDAV und verbinde dich vom Gerät aus.
+description: Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät.
 ---
 
-WebDAV verwandelt Tales Dokumentenspeicher in einen Remote-Ordner, den du wie ein Netzlaufwerk einhängen kannst. Aus dem Finder auf dem Mac, dem Datei-Explorer unter Windows, der Files-App auf iOS oder einem Linux-Dateimanager verbindest du dich mit einer URL und authentifizierst dich mit einem App-Passwort; von dort erscheint die Dokumentenhierarchie unter deiner Organisation als Ordner zum Durchsuchen, Hochladen und Bearbeiten. Es ist derselbe Speicher wie der Dokumenten-Hub in der Web-Oberfläche — was du in der einen Oberfläche siehst, siehst du auch in der anderen.
+WebDAV verwandelt Tales Dokumentenspeicher in einen entfernten Ordner, den du wie jedes geteilte Netzlaufwerk einhängst. Der dahinterliegende Speicher ist derselbe, den der Dokumenten-Hub zeigt — was du in den eingehängten Ordner legst, erscheint in der UI, und umgekehrt. Alles Nötige liegt auf einem Panel: **Einstellungen > API > WebDAV** trägt die Verbindungsdaten und den App-Passwort-Generator.
 
-Diese Seite ist der Einrichtungsleitfaden. Die Protokoll-Referenz findest du unter [Entwickeln > WebDAV-API](/develop/webdav-api).
+<Frame caption="Einstellungen > API > WebDAV — oben die vorbefüllten Verbindungsdaten, darunter der App-Passwort-Generator.">
 
-## Bevor du beginnst
+![Die WebDAV-Einstellungsseite mit einer Verbindungs-URL, einem Benutzernamensfeld mit der Konto-E-Mail, einer Erklärung, dass das Passwort ein erzeugtes App-Passwort ist, und einer leeren App-Passwort-Tabelle mit einem Erzeugen-Button.](/images/platform/settings-webdav.webp)
 
-Der WebDAV-Endpunkt authentifiziert mit **App-Passwörtern** — kurzen Zufallsgeheimnissen, die du pro Gerät unter Einstellungen erzeugst. Dein Haupt-Konto-Passwort funktioniert hier nicht; die Plattform akzeptiert es auf dem WebDAV-Endpunkt nicht, und es wäre unsicher, dies zu tun (jeder WebDAV-Client speichert Zugangsdaten im System-Schlüsselbund, abspielbar für alles, was diesen Schlüsselbund lesen kann). App-Passwörter erlauben Zugriffsscope pro Gerät und Widerruf pro Gerät, ohne sonst etwas zu drehen.
+</Frame>
 
-Eine Anmerkung zum Benutzernamen-Feld: Das App-Passwort ist die einzige Berechtigung, die der Server tatsächlich prüft — der Benutzername wird nicht mit deinem Konto abgeglichen. Die Konvention ist, deine Tale-Konto-E-Mail einzutragen, damit Audit-Logs und das Zeilen-Label lesbar bleiben, und die meisten Client-UIs erwarten ohnehin eine E-Mail-ähnliche Zeichenkette — die Auth-Entscheidung fällt aber allein auf dem Passwort.
+## Ein App-Passwort erzeugen
 
-Du benötigst außerdem den **Organisations-Slug** deiner Org und die **Site-URL** deines Deployments. Beides ist im Panel Einstellungen > WebDAV sichtbar, und das Panel füllt die Verbindungsdaten unten beim Passwort-Generator vor.
+Der Endpunkt authentifiziert mit App-Passwörtern — kurzen Geheimnissen, die du pro Gerät prägst — weil jeder WebDAV-Client seinen Zugangsnachweis im System-Schlüsselbund ablegt, und dorthin gehört ein begrenztes, widerrufbares Geheimnis statt deines Konto-Passworts. Dein Konto-Passwort funktioniert an diesem Endpunkt nicht.
 
-Zum Erzeugen eines App-Passworts brauchst du **Admin**- oder **Developer**-Rechte in der Organisation — dieselbe Berechtigung, die auch API-Schlüssel absichert. Ein einfaches Mitglied sieht beim Öffnen von Einstellungen > WebDAV statt des Generators einen Zugriff-verweigert-Hinweis; bitte eine Org-Admin, ein Passwort auszustellen oder dir die Berechtigung zu erteilen.
+Klicke auf **Erzeugen**, benenne das Passwort nach dem Gerät (`MacBook Finder`, `ops-laptop rclone`) und kopiere es — nutze eines pro Gerät; das vollständige Passwort erscheint nur einmal. Danach behält die Tabelle nur die Bezeichnung und ein kurzes Präfix, genug, um die Zeile wiederzuerkennen, wenn du sie widerrufst. Das Erzeugen verlangt dieselbe Berechtigung, die auch API-Schlüssel schützt; Mitglieder ohne sie bitten einen Admin.
 
-## App-Passwort generieren
+Für den Benutzernamen nimm deine Tale-Konto-E-Mail. Der Server prüft tatsächlich nur das Passwort, aber die E-Mail hält Audit-Zeilen lesbar und entspricht dem, was Client-Dialoge erwarten.
 
-Öffne **Einstellungen > WebDAV** und tippe ein Label, das den Verwendungszweck beschreibt — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Klicke **Erzeugen**. Das vollständige Passwort erscheint einmal, mit einer Kopier-Schaltfläche daneben; kopiere es in den Verbindungsdialog deines Geräts oder in deinen Passwort-Manager, bevor du das Panel schließt. Nach dem Verwerfen sind nur die ersten vier Zeichen aus der Tabelle sichtbar, was reicht, um die Zeile beim späteren Widerruf zu identifizieren.
+## Von deinem Gerät verbinden
 
-Du kannst beliebig viele App-Passwörter halten. Der Plan ist eines pro Gerät — verlierst du das Gerät oder nutzt es nicht mehr, widerrufst du diese Zeile, ohne einen anderen konfigurierten Client zu stören.
+Die Adresse ist die URL vom Panel — `https://<your-site>/dav/<orgSlug>/documents/`.
 
-## Verbinden vom macOS Finder
+<Tabs>
 
-Drücke im Finder **⌘K** (Mit Server verbinden). Die Adresse ist `https://<deine-Site>/dav/<orgSlug>/documents/` — kopiere sie aus dem Verbindungsdaten-Panel. Wenn der Finder nach Zugangsdaten fragt, nutze deine Tale-Konto-E-Mail als Benutzernamen und das App-Passwort. Der Finder hängt die Freigabe in der Seitenleiste ein; von dort kannst du den Dokumentbaum durchsuchen, Dateien zum Hochladen hineinziehen, zum Herunterladen herausziehen sowie direkt umbenennen und löschen.
+<Tab title="macOS Finder">
 
-Die erste PROPFIND kann bei einem großen Dokumentenbaum einige Sekunden dauern — der Finder fordert eine Depth-1-Auflistung des eingehängten Pfads an, und die Plattform antwortet aus demselben Convex-Baum wie die Dokumenten-Hub-Oberfläche. Nach dem ersten Laden ist das Durchsuchen schnell.
+Drücke **⌘K** (Mit Server verbinden), füge die URL ein und melde dich mit deiner E-Mail und dem App-Passwort an. Die Freigabe erscheint in der Seitenleiste; zieh Dateien hinein zum Hochladen, hinaus zum Herunterladen, und benenne um oder lösche direkt an Ort und Stelle. Das erste Auflisten eines großen Baums kann ein paar Sekunden dauern.
 
-## Verbinden vom Windows-Datei-Explorer
+</Tab>
 
-Wähle unter **Dieser PC** den Punkt **Netzlaufwerk verbinden**. Der Ordner ist `https://<deine-Site>/dav/<orgSlug>/documents/`. Wähle einen Laufwerksbuchstaben, lass **Bei Anmeldung wiederherstellen** aktiviert und klicke **Verbindung mit anderen Anmeldeinformationen herstellen**. Nutze deine Tale-Konto-E-Mail und das App-Passwort.
+<Tab title="Windows">
 
-Windows erzwingt ein **Standard-Größenlimit von 50 MB** für einzelne Dateien über WebDAV. Um es anzuheben, öffne `regedit` und bearbeite `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WebClient\Parameters\FileSizeLimitInBytes` — setze es auf einen Dezimalwert bis `4294967295` (4 GB). Starte danach den **WebClient**-Dienst neu. Dieses Limit wird von Windows erzwungen, nicht von Tale, also funktionieren Dateien unter dem Limit ohne den Registry-Eingriff.
+Wähle in **Dieser PC** die Option **Netzlaufwerk verbinden**, füge die URL als Ordner ein und wähle **Verbindung mit anderen Anmeldeinformationen herstellen**. Windows deckelt WebDAV-Übertragungen standardmäßig bei 50 MB pro Datei — erhöhe `FileSizeLimitInBytes` unter dem Registrierungsschlüssel `WebClient\Parameters` und starte den WebClient-Dienst neu. Auf einem Nicht-Standard-HTTPS-Port setze `BasicAuthLevel` unter demselben Schlüssel auf `2`.
 
-Lehnt der Datei-Explorer mit **„Der eingegebene Ordner scheint nicht gültig zu sein“** ab, liegt die Ursache fast immer an Windows' Default-Weigerung, Basic-Auth über HTTPS auf Non-Port-443-Ursprüngen zu nutzen. Läuft dein Deployment auf einem nicht-standard HTTPS-Port, setze `BasicAuthLevel` unter demselben Registry-Schlüssel auf `2`.
+</Tab>
 
-## Verbinden von iOS Files
+<Tab title="iOS Files">
 
-Tippe in Files auf das Drei-Punkte-Menü oben rechts und wähle **Mit Server verbinden**. Die Adresse ist dieselbe `https://<deine-Site>/dav/<orgSlug>/documents/`. Nutze deine Tale-Konto-E-Mail und das App-Passwort. iOS Files unterstützt Durchsuchen und Herunterladen; direktes Bearbeiten wird für App-Formate mit iOS-Pendant unterstützt.
+Tippe auf das Dreipunkt-Menü, wähle **Mit Server verbinden** und gib dieselbe URL und dieselben Zugangsdaten ein. Die Dateien-App unterstützt Durchsuchen und Herunterladen; Bearbeiten an Ort und Stelle funktioniert für Formate mit einer iOS-App.
 
-## Verbinden mit rclone
+</Tab>
 
-Für Batch-Uploads oder skriptgesteuerten Sync ist `rclone` der zuverlässigste WebDAV-Client:
+<Tab title="rclone">
 
 ```bash
 rclone config create tale webdav \
-    url=https://<deine-Site>/dav/<orgSlug>/documents/ \
+    url=https://<your-site>/dav/<orgSlug>/documents/ \
     vendor=other \
-    user=<deine-Email> \
-    pass=$(rclone obscure '<App-Passwort>')
+    user=<your-email> \
+    pass=$(rclone obscure '<app-password>')
 rclone copy ./local-folder tale: --progress
 ```
 
-`vendor=other` ist die richtige Einstellung — Tales WebDAV-Server ist generisch, kein benannter Geschmack (`nextcloud`, `owncloud`, `sharepoint`), den rclone namentlich erkennt.
+`vendor=other` ist richtig — Tales Server ist generisch, keine benannte Spielart, die rclone kennt.
 
-## Was geht und was nicht
+</Tab>
 
-Lesen und Schreiben im **documents**-Namespace spiegeln, was du in der Dokumenten-Hub-Oberfläche tun kannst. Dateien, die du über WebDAV hochlädst, landen im selben Speicher mit derselben Aufbewahrung, Indexierung und Suche; das Quell-Feld am Dokument wird auf `webdav` gesetzt, damit du sie in Audit-Logs und Reports filtern kannst. Über MKCOL erzeugte Ordner erscheinen sofort in der Oberfläche.
+</Tabs>
 
-Der **.trash**-Namespace ist nur lesbar — `https://<deine-Site>/dav/<orgSlug>/.trash/` listet Dokumente auf, die du soft-gelöscht hast, aber noch im Aufbewahrungszeitraum stehen. Du kannst Dateien aus dem Trash zur Wiederherstellung herunterladen, aber Schreibvorgänge dort werden mit 403 abgelehnt. Stelle über die Dokumenten-Hub-Oberfläche wieder her.
+## Was das eingehängte Laufwerk kann
 
-Einige Clients senden PROPFIND mit **Depth: infinity** — eine Anfrage, den gesamten Baum in einer Antwort zu dumpen. Tale lehnt das mit `403` ab, um Runaway-Antworten auf großen Speichern zu verhindern. Jeder Mainstream-Client (Finder, Datei-Explorer, iOS, rclone, cadaver) nutzt Depth 0 oder 1, sodass du dem in der Praxis nie begegnen wirst.
-
-## Sperren
-
-Tale implementiert WebDAV-Class-2-Sperren. Öffnest du eine Datei in einer App, die Sperren respektiert (Microsoft Office, LibreOffice, BBEdit, einige Texteditoren), sperrt die App die Ressource für die Dauer des Edits; ein anderer Client, der während dieses Fensters auf denselben Pfad zu schreiben versucht, erhält `423 Locked`. Sperren laufen automatisch nach höchstens einer Stunde ab, selbst wenn die App abstürzt; musst du eine festsitzende Sperre früher räumen, widerrufe das App-Passwort, das sie hält — Tale gibt jede unter einem widerrufenen App-Passwort gehaltene Sperre in derselben Operation frei.
+Lese- und Schreibzugriffe spiegeln deine Berechtigungen im Dokumenten-Hub, Dateien, die du hochlädst, landen im Index und in der Suche wie direkte Uploads, und ihr Quellfeld steht auf `webdav` zum Filtern in Audit-Ansichten. Projekt-Dateien sind die Ausnahme: Der **Wissen**-Tab eines Projekts ist auf dieses eine Projekt begrenzt und taucht nie über WebDAV auf, das eingehängte Laufwerk zeigt also nur den org-weiten Dokumenten-Hub. Der Namensraum `.trash/` listet weich gelöschte Dokumente schreibgeschützt — lade zur Wiederherstellung herunter, stelle über die UI wieder her. Editoren, die WebDAV-Locks nehmen (Office, LibreOffice), bekommen sie; ein konkurrierender Schreibzugriff während einer Bearbeitung erhält `423 Locked`.
 
 ## Widerrufen
 
-Klicke zum Widerruf auf das Papierkorb-Symbol neben der Zeile. Die Zeile bleibt für den Audit-Trail in der Tabelle und wird als **widerrufen** ausgezeichnet. Eine in-flight Anfrage mit dem widerrufenen Passwort wird abgeschlossen; die nächste wird abgelehnt. Es gibt keinen Undo — erzeuge ein neues Passwort, wenn du die falsche Zeile widerrufen hast.
+Widerrufe ein Passwort mit dem Papierkorb-Symbol auf seiner Zeile — die nächste Anfrage damit wird abgewiesen, andere Geräte bleiben unberührt, und alle Locks, die es hielt, werden freigegeben. Es gibt kein Zurück; präge ein neues Passwort, wenn du die falsche Zeile widerrufst.
 
-## Fehlerbehebung
+<Warning>
 
-Eine Anfrage, die `401` zurückgibt, nachdem sie gestern noch funktionierte, bedeutet fast immer, dass das App-Passwort widerrufen wurde oder abgelaufen ist. Der Benutzername selbst wird nicht geprüft — nur das Passwort — also löst ein Tippfehler im Benutzernamen kein 401 aus, aber ein falsches, widerrufenes oder fehlerhaft eingefügtes Passwort tut es.
+Basic Auth sendet das App-Passwort mit jeder Anfrage. Hänge nur über HTTPS ein, lass das Passwort im Schlüsselbund des Betriebssystems und füge es nie in eine URL der Form `https://user:pass@host/` ein — Shell-Verlauf und Proxy-Logs überleben das Laufwerk. Widerrufe sofort bei jedem Verdacht auf ein Leck.
 
-Eine Anfrage, die `423 Locked` zurückgibt, bedeutet, der Pfad ist von einem anderen Client gesperrt. Warte den Ablauf ab, wechsle auf einen anderen Dateinamen oder widerrufe das App-Passwort, das die Sperre hält.
+</Warning>
 
-Hängt ein Finder-Mount beim ersten Durchsuchen, ist meist Convex langsam beim Beantworten einer großen PROPFIND auf einem tiefen Baum — warte ab. Kehrt es nie zurück, prüfe, ob dein Konto noch Mitglied des in der URL stehenden Organisations-Slugs ist; der WebDAV-Endpunkt lehnt Anfragen von Nicht-Mitgliedern mit `403` ab.
+## Wo das hingehört
 
-Ein `502` bei GET zeigt an, dass die Plattform die Dokument-Metadaten holen konnte, aber die Blob-Bytes nicht aus dem Speicher. Prüfe die Convex-Logs auf Speicher-Fehler und bestätige, dass `ADMIN_KEY` in der Plattform-Umgebung gesetzt ist — der WebDAV-Server liest Blobs über einen admin-authentifizierten Client.
-
-## Sicherheit
-
-WebDAV nutzt HTTP Basic, das heißt das App-Passwort wird bei jeder Anfrage gesendet — kein Session-Cookie, das abläuft, kein Refresh-Token, einfach die nackte Berechtigung jedes Mal über die Leitung, wenn der Client mit dem Server spricht. Hänge die Freigabe nur über HTTPS ein; über reines HTTP kann jeder auf der Strecke zwischen dir und dem Server das Passwort mitlesen. Lass deinen OS-Schlüsselbund (macOS Keychain, Windows Credential Manager, GNOME Keyring) das Passwort halten — füge es nie in die `https://user:pass@host/...`-Kurzform ein, weil die meisten Werkzeuge URLs in Shell-History, Crash-Reports und Proxy-Access-Logs protokollieren, wo die Berechtigung den Mount weit überdauern würde.
-
-Vermutest du, dass ein Passwort geleakt ist, widerrufe die Zeile in **Einstellungen > WebDAV** sofort. Der Widerruf ist instant; die nächste Anfrage mit dem geleakten Passwort wird abgelehnt. Andere Geräte mit eigenen App-Passwörtern bleiben unberührt.
-
-## Wo das hinpasst
-
-WebDAV steht neben dem [Dokumenten-Hub](/platform/knowledge/documents) (dieselben Daten, durch die Web-Oberfläche betrachtet), [Integrationen](/platform/integrations/overview) (Drittanbieter-Systeme, aus denen Tale zieht) und [API-Keys](/platform/admin/api-keys) (organisationsweite REST-API-Zugangsdaten). WebDAV ist pro Benutzer — die Zugangsdaten authentifizieren als du, beschränkt auf Organisationen, in denen du Mitglied bist. Für Maschine-zu-Maschine-Dokumentenimport sind API-Keys plus die REST-API meist die bessere Wahl.
+WebDAV ist die gerätezugewandte Tür pro Nutzer zu denselben Daten wie der [Dokumenten-Hub](/de/platform/knowledge/documents); das Drahtprotokoll steht unter [WebDAV-API](/de/develop/webdav-api). Für Maschine-zu-Maschine-Importe sind [API-Schlüssel](/de/platform/admin/api-keys) plus die REST-API meist die bessere Wahl.

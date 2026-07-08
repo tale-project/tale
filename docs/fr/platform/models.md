@@ -1,23 +1,41 @@
 ---
-title: Modèles livrés en standard
-description: Quels fournisseurs et modèles une instance Tale toute neuve embarque — OpenRouter couvre le chat, la vision, les embeddings, la voix et la génération d'images via une seule clé.
+title: Catalogue de modèles
+description: Le catalogue de modèles derrière chaque sélecteur dans Tale — où il vit sous Paramètres > Providers, ce que veulent dire les étiquettes de capacité, quels défauts sont livrés et comment la liste reste à jour.
 ---
 
-Une instance Tale toute neuve embarque un seul fournisseur configuré : **OpenRouter**, couvrant le chat, la vision, les embeddings, la reconnaissance vocale, la synthèse vocale et la génération d'images. Les agents par défaut dans `builtin-configs/agents/` puisent dans les modèles OpenRouter, et la plupart des équipes restent sur les défauts pendant des semaines avant d'en changer. Une clé, un rate-limit, une facture — et tu peux toujours ajouter un fournisseur direct (OpenAI, un serveur Ollama/vLLM local, un proxy Bedrock) dès qu'une charge de travail l'exige. Cette page liste ce qui est livré et renvoie vers le catalogue complet.
+Chaque sélecteur de modèle dans Tale — le menu de modèle du composeur, la liaison de modèle d’un agent, les défauts qu’utilisent les services de crawl et de RAG — puise dans un seul catalogue : les modèles déclarés sur les fournisseurs d’IA de ton organisation. Une instance toute neuve embarque un seul fournisseur, **OpenRouter**, dont l’unique clé couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d’images. Cette page est la référence pour savoir où vit ce catalogue dans l’UI, ce que veulent dire les étiquettes sur chaque modèle, et ce qui est livré en standard.
 
-Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correctes au moment où `builtin-configs/providers/openrouter.json` a été écrit ; la vérité canonique, c'est le fichier JSON, et le « ce qui est joignable aujourd'hui » canonique est ce que montre la page **Paramètres > Providers** sur ton instance.
+<Frame caption="La liste de modèles du tiroir fournisseur — chaque modèle porte les étiquettes de capacité qui décident dans quels sélecteurs il apparaît.">
 
-## Le fournisseur par défaut
+![Le tiroir de détails du fournisseur sous Paramètres > Providers, montrant une liste de modèles cherchable où chaque ligne porte des étiquettes de capacité comme Chat et Génération d’images, avec les actions Récupérer les modèles, Synchroniser depuis le catalogue et Ajouter un modèle au-dessus.](/images/platform/settings-provider-models.webp)
 
-| Fournisseur    | Rôle par défaut                                                                       | Pourquoi celui-ci                                                                                                                                                     | Documentation                                        |
-| -------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **OpenRouter** | Chat, vision, embeddings, reconnaissance vocale, synthèse vocale, génération d'images | Une seule clé donne accès à des dizaines de modèles frontier et open-weight — plus des modèles audio et image — avec une tarification cohérente et un seul rate-limit | [openrouter.ai/models](https://openrouter.ai/models) |
+</Frame>
 
-OpenRouter est un endpoint compatible OpenAI que Tale appelle en HTTPS avec un bearer token. Tu peux le remplacer (ou ajouter d'autres fournisseurs à côté, y compris un serveur Ollama ou vLLM local) en éditant le JSON sous `TALE_CONFIG_DIR/<orgSlug>/providers/` de ton instance — sous le layout org-first, les catalogues de fournisseurs sont par-org (chaque org a son propre sous-arbre `providers/`).
+## Où vit le catalogue
 
-## OpenRouter — chat, vision, embeddings
+Ouvre **Paramètres > Providers** et clique sur une ligne de fournisseur. Le tiroir liste tout ce que le fournisseur déclare : son URL de base et sa clé API, ses **Modèles par défaut**, et la liste **Modèles** elle-même — cherchable, avec **Afficher plus** après les dix premiers. **Ajouter un modèle** déclare une nouvelle entrée à la main ; **Récupérer les modèles** tire la liste que l’API du fournisseur rapporte. Les modèles qu’un admin marque **Masqué des sélecteurs de modèles** restent résolvables pour les liaisons existantes mais cessent d’apparaître dans les menus — c’est ainsi que les versions supplantées prennent leur retraite sans casser les anciens agents.
 
-OpenRouter est une passerelle multi-modèles. La configuration livrée choisit `deepseek-v4-flash` comme modèle de chat par défaut, `qwen3-vl-32b-instruct` pour la vision et `qwen3-embedding-8b` pour les embeddings — tous choisis pour le rapport vitesse/qualité au moment de l'écriture. La liste complète ci-dessous reprend chaque modèle visible de la `openrouter.json` livrée, régénérée par le job de catalogue hebdomadaire pour qu'elle ne dérive jamais de la configuration :
+Chaque modèle porte une ou plusieurs étiquettes de capacité : **Chat**, **Vision**, **Embedding**, **Transcription**, **Synthèse vocale**, **Génération d'images**, **Édition d'images**. Les étiquettes sont porteuses — elles décident dans quels sélecteurs un modèle apparaît et quelle capacité de la plateforme a le droit de l’appeler. Un modèle sans étiquette correspondante n’apparaît jamais là où cette capacité est requise.
+
+## Les défauts livrés
+
+La carte **Modèles par défaut** nomme quel modèle chaque capacité d’arrière-plan utilise quand rien de plus spécifique n’est lié :
+
+| Capacité            | Défaut livré       |
+| ------------------- | ------------------ |
+| Chat                | DeepSeek V4 Flash  |
+| Vision              | Qwen3 VL 32B       |
+| Embedding           | Qwen3 Embedding 8B |
+| Génération d’images | FLUX.2 [pro]       |
+| Transcription       | Whisper v1         |
+
+La synthèse vocale pour le [mode vocal](/fr/platform/chat/voice-mode) est livrée via le GPT-4o mini TTS d’OpenAI à travers la même clé OpenRouter, et la [génération d’images](/fr/platform/agents/image-generation) retombe sur FLUX.2 [pro].
+
+## Comment la liste reste à jour
+
+Les modèles dérivent plus vite que la doc. Deux mécanismes sur la page **Providers** gardent le catalogue à jour : la carte **Catalogue de modèles** rafraîchit les capacités des modèles — tarification, fenêtre de contexte, raisonnement, vision — depuis le catalogue public d’OpenRouter chaque jour, et la bascule **Auto-sync hebdomadaire de la config fournisseur** fusionne les nouvelles versions phares une fois par semaine dans la config fournisseur de l’org, masque les versions supplantées et laisse intact tout champ que tu as personnalisé.
+
+La liste livrée ci-dessous est régénérée depuis la même source, elle correspond donc à ce que voit une instance toute neuve :
 
 <!-- MODELS_TABLE:START -->
 
@@ -79,30 +97,8 @@ OpenRouter est une passerelle multi-modèles. La configuration livrée choisit `
 
 <!-- MODELS_TABLE:END -->
 
-Le catalogue complet et à jour vit sur [openrouter.ai/models](https://openrouter.ai/models). Tout modèle exposé par OpenRouter peut être ajouté à ton instance en éditant le tableau `models` dans `<orgSlug>/providers/openrouter.json` sous `TALE_CONFIG_DIR` (par-org sous le layout org-first).
+Le catalogue complet et en direct vit sur [openrouter.ai/models](https://openrouter.ai/models) ; n’importe quel modèle qu’OpenRouter expose peut être ajouté à ton instance depuis le même tiroir.
 
-## OpenRouter — reconnaissance et synthèse vocales
+## Où cela s’inscrit
 
-La même clé OpenRouter couvre la boucle audio dont le [mode vocal](/fr/platform/chat/voice-mode) a besoin :
-
-- **openai/whisper-1** — reconnaissance vocale. Le fournisseur de transcription chaque fois qu'un utilisateur enregistre un message. La configuration livrée définit `transcriptionMode: "json-base64"`, ce qui sélectionne le format de transcription audio d'OpenRouter.
-- **openai/gpt-4o-mini-tts-2025-12-15** — synthèse vocale. Le fournisseur de voix par défaut pour les réponses d'agent lues en audio, avec des voix mappées par locale.
-
-Les versions de modèles TTS sont datées et changent, donc confirme le slug actuel dans les collections **Speech-to-Text** et **Text-to-Speech** sur [openrouter.ai/models](https://openrouter.ai/models) et mets à jour l'`id` plus l'entrée `defaults` correspondante ensemble s'il change. Tu préfères appeler Whisper ou gpt-4o-mini-tts directement contre OpenAI ? Ajoute un fournisseur `openai.json` pointant vers `https://api.openai.com/v1` et laisse `transcriptionMode` non défini (le format `multipart` par défaut est ce qu'OpenAI attend).
-
-## OpenRouter — génération d'images
-
-La génération et l'édition d'images passent par le chemin multimodal `/chat/completions` d'OpenRouter. Le modèle image par défaut est FLUX.2 [pro] ; la liste livrée :
-
-- **Black Forest Labs** — FLUX.2 [max], FLUX.2 [pro], FLUX.2 [flex] — chacun génère et édite des images (image de référence).
-- **Google** — Nano Banana (Gemini 2.5 Flash Image) — génération plus édition par image de référence.
-
-Le catalogue plus large vit sur [openrouter.ai/models](https://openrouter.ai/models) (collection Image).
-
-## Échanger ou ajouter des fournisseurs
-
-OpenRouter est le défaut, pas une obligation. Remplace-le par un autre endpoint compatible OpenAI, ou ajoute d'autres fournisseurs à côté, en éditant le JSON dans `TALE_CONFIG_DIR/<orgSlug>/providers/` — pointe un fichier vers ton API, définis son tableau `models`, et Tale recharge au prochain démarrage. Une instance Ollama locale, un cluster vLLM privé, un contrat OpenAI direct, ou un proxy Bedrock entrent tous dans la même forme. La mécanique vit sous [Configuration → providers](/fr/self-hosted/configuration/providers) ; le formulaire UI admin pour la même configuration est sur [Providers](/fr/platform/admin/providers).
-
-## Où ça s'inscrit
-
-Les modèles sont la couche en dessous de chaque agent, chaque réponse de chat, chaque sortie vocale et chaque image que la plateforme produit. La lecture suivante dépend de pourquoi tu es venu — [Concepts d'agent](/fr/platform/agents/concepts) parcourt comment un modèle se lie aux trois autres boutons d'un agent, et [Mode Arène](/fr/platform/chat/arena-mode) est le workflow pour choisir un défaut quand plus d'un modèle pourrait faire le travail.
+Les modèles sont la couche sous chaque agent, chaque réponse de chat, chaque sortie vocale et chaque image que la plateforme rend. OpenRouter est le défaut, pas une obligation — ajouter un fournisseur direct, un serveur Ollama ou vLLM local, ou une seconde passerelle est du travail d’admin couvert par [Providers](/fr/platform/admin/providers), et la forme basée fichier de la même configuration vit sous [Configuration → providers](/fr/self-hosted/configuration/providers). Pour choisir entre des modèles de chat quand plus d’un pourrait faire le travail, [Mode arène](/fr/platform/chat/arena-mode) est le workflow bâti exactement pour cette question.

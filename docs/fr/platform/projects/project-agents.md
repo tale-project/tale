@@ -1,37 +1,48 @@
 ---
-title: Agents de projet
-description: Agents scopés au Projet versus agents d'organisation — quand opter pour chaque, comment les agents de Projet supplantent les agents d'organisation dans le sélecteur, et comment fonctionne la publication dans un Projet.
+title: Agents et modèles dans un projet
+description: L’onglet Agents et modèles choisit quels agents et modèles les membres voient dans un projet — Recommandés épingle les favoris en haut, Restreints n’autorise rien d’autre.
 ---
 
-Un agent de Projet est un agent qui n'existe qu'à l'intérieur du Projet. Il apparaît dans le sélecteur d'agents du chat pour les membres du Projet, et nulle part ailleurs ; il hérite automatiquement des Files et Instructions du Projet ; supprimer le Projet le supprime. Va vers des agents de Projet quand un agent a besoin d'instructions spécifiques au Projet qu'un agent générique d'organisation ne devrait pas porter.
+L’onglet **Agents et modèles** d’un projet décide quels agents et modèles les membres rencontrent quand ils discutent dans le projet. Il ne crée pas de nouveaux agents — les agents se construisent au niveau de l’organisation sous [Agents](/fr/platform/agents/concepts) — il organise le catalogue existant pour le contexte de ce projet, pour qu’un membre qui ouvre le sélecteur voie d’abord les bons outils pour le travail.
 
-Cette page couvre la différence entre agents de Projet et agents d'organisation, la règle d'ombre qui décide lequel apparaît quand les deux partagent un nom, et comment la publication change entre les deux portées.
+<Frame caption="L’onglet Agents et modèles — un choix Recommandés/Restreints pour les agents, un pour les modèles.">
 
-## Agents de Projet versus agents d'organisation
+![L’onglet Agents et modèles d’un projet montrant deux groupes de boutons radio, Agents et Modèles, offrant chacun un mode Recommandés et un mode Restreints avec un bouton d’ajout.](/images/platform/project-agents-models.webp)
 
-Un **agent d'organisation** vit dans la liste [Agents](/fr/platform/admin/agents) de l'organisation et apparaît dans n'importe quel chat auquel l'utilisateur a accès. Un **agent de Projet** ne vit que dans le Projet ; en dehors, il n'existe pas. Les formes sont les mêmes — mêmes instructions, connaissances, outils, modèle — seule la visibilité diffère.
+</Frame>
 
-## La règle d'ombre
+## Les deux modes
 
-Les agents de Projet et les agents d'organisation peuvent partager un nom. Quand ils le font, à l'intérieur du Projet **c'est l'agent de Projet qui l'emporte** — il supplante l'agent d'organisation dans le sélecteur. En dehors du Projet, c'est l'agent d'organisation qui apparaît. Ça permet à une équipe de prendre un agent à l'échelle de l'organisation (« Sales assistant ») et de le surcharger pour un compte précis avec des instructions supplémentaires, sans le renommer.
+Les agents et les modèles s’organisent séparément, chacun avec les deux mêmes modes :
 
-## Publier dans un Projet
+- **Recommandés** — les éléments que tu listes sont épinglés en haut du sélecteur ; tout ce que le membre pourrait normalement utiliser reste disponible en dessous. C’est le mode par défaut, et le bon pour orienter sans bloquer.
+- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet. Un membre qui choisit autre chose reçoit un refus clair : le composeur signale que l’agent ou le modèle n’est pas disponible dans ce projet et lui demande d’en choisir un autre.
 
-Créer un agent depuis l'intérieur du Projet produit automatiquement un agent de Projet. En créer un depuis la liste **Agents** de l'organisation produit un agent d'organisation auquel n'importe quel Projet peut choisir d'accéder. Pour déplacer un agent d'organisation dans un Projet, duplique-le dans l'onglet Agents du Projet — l'original reste à l'échelle de l'organisation ; le duplicata devient un agent de Projet que l'équipe peut éditer sans toucher à la copie d'organisation.
+L’ordre de la liste est l’ordre que voient les membres, et le premier élément est celui par défaut — glisse pour réordonner. **Ajouter un agent** et **Ajouter un modèle** étendent la liste.
 
-## Permissions
+<Warning>
 
-Les agents de Projet suivent l'adhésion au Projet. Les membres du Projet peuvent les exécuter ; les Éditeurs du Projet peuvent les éditer ; le propriétaire du Projet peut les supprimer. Les rôles Éditeur et Développeur au niveau organisation n'ont pas automatiquement accès aux agents d'un Projet — l'adhésion au Projet est le seul chemin d'entrée.
+En mode **Restreints**, une liste vide interdit le chat du projet à chaque membre — il ne reste rien à choisir. Ajoute au moins un élément avant d’enregistrer, ou rebascule sur **Recommandés**.
 
-## Quand opter pour chacun
+</Warning>
 
-| Utilise … quand                                                    | Agent de Projet | Agent d'organisation |
-| ------------------------------------------------------------------ | --------------- | -------------------- |
-| Les instructions sont spécifiques aux données de ce Projet         | ✓               |                      |
-| Le même prompt serait utile à chaque équipe                        |                 | ✓                    |
-| Tu veux une variante ponctuelle d'un agent d'organisation existant | ✓               |                      |
-| Tu veux partager un agent à travers plusieurs Projets              |                 | ✓                    |
+## Ce que vivent les membres
 
-## Où ça s'inscrit
+Dans le projet, le sélecteur d’agent et le sélecteur de modèle du composeur reflètent la curation — les éléments recommandés d’abord, les éléments restreints seulement. Un chat déplacé dans le projet avec un agent désormais interdit ne casse pas en silence : l’envoi est refusé avec le message d’agent non disponible, et le membre en choisit un autorisé. Hors du projet, rien ne change ; la curation se limite aux chats qui tournent dans le contexte du projet.
 
-Les agents de Projet sont la réponse à « on adore cet agent mais il doit se comporter autrement pour ce client ». La section [Agents](/fr/platform/agents/concepts) plus large est à l'échelle de l'organisation ; va vers elle quand le public est tout le monde. La suite naturelle est [Utiliser les projets](/fr/tutorials/member/use-projects), qui parcourt un Projet qui finit avec un agent de Projet qui fait un vrai travail.
+## Qui peut le modifier
+
+La modification de l’onglet suit les rôles de l’organisation : un rôle d’éditeur ou d’admin est requis pour enregistrer, et les membres qui ne l’ont pas voient le projet en lecture seule, avec un bandeau qui les renvoie vers un éditeur du projet. Les changements passent par **Enregistrer** dans la barre d’onglets — le même bloc unifié Enregistrer/Abandonner que les onglets Général et Instructions.
+
+## Quand recourir à chaque mode
+
+| Choisis … quand                                             | Recommandés | Restreints |
+| ----------------------------------------------------------- | ----------- | ---------- |
+| Le bon agent doit être le premier choix évident             | ✓           |            |
+| Les membres doivent garder l’accès au catalogue complet     | ✓           |            |
+| La conformité ou les coûts exigent une liste courte et fixe |             | ✓          |
+| Un modèle coûteux ne doit pas servir à ce travail           |             | ✓          |
+
+## Où cela s’inscrit
+
+Cet onglet est la curation côté projet d’un catalogue côté organisation : construire les agents, leurs instructions et leurs connaissances est le travail de la section [Agents](/fr/platform/agents/concepts) ; décider lesquels ce projet met en avant est le tien. Pour le comportement du sélecteur dans un chat, lis [Agents dans le chat](/fr/platform/chat/agents-in-chat).

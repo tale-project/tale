@@ -7,62 +7,68 @@ Les membres sont les personnes de ton organisation qui peuvent se connecter à T
 
 Six rôles couvrent presque chaque équipe à laquelle Tale est livré. Les Administrateurs et Propriétaires lisent cette page quand ils montent une équipe pour la première fois, quand un audit demande qui a quel accès, ou quand ils doivent décider entre Éditeur et Développeur pour un nouveau venu.
 
+<Frame caption="La section Membres sous Paramètres > Organisation — chaque compte et le rôle qui le borne.">
+
+![La page de paramètres Organisation avec sa section Membres listant le propriétaire de l’espace de travail et un bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
+
+</Frame>
+
 ## Une invitation mise en pratique
 
-Pour ajouter une personne à ton organisation, ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Le nouveau membre reçoit un lien e-mail valide 24 heures et atterrit dans le rôle par défaut que tu choisis — change le rôle dans le formulaire avant l'envoi s'il ne doit pas être Membre. Le défaut s'applique dès qu'il accepte l'invitation ; la promotion ultérieure est un changement en un clic dans la même vue Membres.
+Pour ajouter une personne à ton organisation, ouvre **Paramètres > Organisation**, fais défiler jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Le nouveau membre reçoit un lien e-mail valide 24 heures et atterrit dans le rôle par défaut que tu choisis — change le rôle dans le formulaire avant l’envoi s’il ne doit pas être Membre. Le défaut s’applique dès qu’il accepte l’invitation ; la promotion ultérieure est un changement en un clic dans la même section Membres.
 
 ## Les six rôles
 
-**Propriétaire** a chaque permission qu'a Administrateur, plus celle qui manque à Administrateur : transférer la propriété et supprimer l'organisation. La plupart des équipes ont exactement un Propriétaire ; certaines en gardent deux pour la continuité.
+**Propriétaire** a chaque permission qu’a Admin, plus celle qui manque à Admin : transférer la propriété et supprimer l’organisation. La plupart des équipes ont exactement un Propriétaire ; certaines en gardent deux pour la continuité.
 
-**Administrateur** gouverne l'organisation : membres, fournisseurs, branding, politiques de gouvernance, intégrations, le journal d'audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
+**Admin** gouverne l’organisation : membres, fournisseurs, branding, politiques de gouvernance, intégrations, le journal d’audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
 
-**Développeur** construit : agents, workflows, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu'un a besoin du plan API et de l'outillage d'intégration.
+**Développeur** construit : agents, automatisations, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’intégration.
 
-**Éditeur** organise et opère : agents, base de connaissances (documents, clients, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de prompts. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu'un fait le travail produit quotidien sans toucher au plan API ou intégrations.
+**Éditeur** organise et opère : agents, base de connaissances (documents, clients, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de prompts. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou intégrations.
 
-**Membre** exécute : chat, parcourt la base de connaissances, lit les conversations et approbations qui lui sont assignées. Les Membres n'écrivent que dans le feedback de message (pouce en haut / en bas). Va vers Membre comme défaut — la plupart des utilisateurs dans la plupart des organisations sont Membres.
+**Membre** exécute : chat, parcourt la base de connaissances, lit les conversations et approbations qui lui sont assignées. Les Membres n’écrivent que dans le feedback de message (pouce en haut / en bas). Va vers Membre comme défaut — la plupart des utilisateurs dans la plupart des organisations sont Membres.
 
-**Désactivé** n'a aucune permission. Utilise ça pour révoquer l'accès sans supprimer le compte ; les transcriptions et l'historique d'audit restent intacts, et réactiver restaure le rôle précédent.
+**Désactivé** n’a aucune permission. Utilise ça pour révoquer l’accès sans supprimer le compte ; les transcriptions et l’historique d’audit restent intacts, et réactiver restaure le rôle précédent.
 
 ## La matrice de permissions
 
-| Ressource                 | Propriétaire | Administrateur | Développeur | Éditeur | Membre | Désactivé |
-| ------------------------- | ------------ | -------------- | ----------- | ------- | ------ | --------- |
-| Agents                    | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Documents                 | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Produits                  | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Clients                   | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Fournisseurs              | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Projets                   | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Sites web                 | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Conversations             | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Messages de conversation  | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Approbations              | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Exécutions workflow       | R / W        | R / W          | R / W       | R       | R      | —         |
-| Traitement workflow       | R / W        | R / W          | R / W       | R       | R      | —         |
-| Intégrations              | R / W        | R / W          | R / W       | R       | R      | —         |
-| Configs OneDrive sync     | R / W        | R / W          | R / W       | R       | R      | —         |
-| Templates de prompts      | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Journaux d'audit          | R / W        | R / W          | R / W       | R / W   | R      | —         |
-| Politiques de gouvernance | R / W        | R / W          | R           | R       | R      | —         |
-| Feedback de messages      | R / W        | R / W          | R / W       | R / W   | R / W  | —         |
-| Serveurs MCP              | R / W        | R / W          | R / W       | R       | R      | —         |
+| Ressource                 | Propriétaire | Admin | Développeur | Éditeur | Membre | Désactivé |
+| ------------------------- | ------------ | ----- | ----------- | ------- | ------ | --------- |
+| Agents                    | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Documents                 | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Produits                  | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Clients                   | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Fournisseurs              | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Projets                   | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Sites web                 | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Conversations             | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Messages de conversation  | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Approbations              | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Exécutions workflow       | R / W        | R / W | R / W       | R       | R      | —         |
+| Traitement workflow       | R / W        | R / W | R / W       | R       | R      | —         |
+| Intégrations              | R / W        | R / W | R / W       | R       | R      | —         |
+| Configs OneDrive sync     | R / W        | R / W | R / W       | R       | R      | —         |
+| Templates de prompts      | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Journaux d’audit          | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Politiques de gouvernance | R / W        | R / W | R           | R       | R      | —         |
+| Feedback de messages      | R / W        | R / W | R / W       | R / W   | R / W  | —         |
+| Serveurs MCP              | R / W        | R / W | R / W       | R       | R      | —         |
 
-R = lecture, W = écriture, — = aucun accès. La matrice est la description faisant autorité de ce que chaque rôle peut faire sur les ressources que Tale piste ; les lignes sont l'ensemble qu'utilise le système de permissions interne au produit à la requête.
+R = lecture, W = écriture, — = aucun accès. La matrice est la description faisant autorité de ce que chaque rôle peut faire sur les ressources que Tale piste ; les lignes sont l’ensemble qu’utilise le système de permissions interne au produit à la requête.
 
 ## La surface Paramètres et le menu
 
-Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas Paramètres — le menu est caché. Les Développeurs voient Paramètres mais pas le sous-arbre gouvernance (sauf vues en lecture). Les Administrateurs et Propriétaires voient le menu complet. Les trois groupes de la barre latérale (`Toi`, `Workspace`, `Gouvernance`) reflètent ce partage : `Toi` est par utilisateur, `Workspace` est configuration, `Gouvernance` est la surface audit-et-politique qui demande l'accès Administrateur.
+Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs propres paramètres personnels. Les Développeurs voient les paramètres d’organisation mais pas le sous-arbre gouvernance (sauf vues en lecture). Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Environnement — chaque rôle), **Organisation** (la section Membres, Équipes, Fournisseurs IA, Branding, Gouvernance et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Développement** (la surface API et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
 
 ## Cas limites
 
-**Transférer la propriété** demande qu'un Propriétaire existant nomme un Administrateur ou Propriétaire actuel ; le nouveau rôle Propriétaire prend effet immédiatement. Le Propriétaire précédent devient Administrateur sauf rétrogradation explicite.
+**Transférer la propriété** demande qu’un Propriétaire existant nomme un Admin ou Propriétaire actuel ; le nouveau rôle Propriétaire prend effet immédiatement. Le Propriétaire précédent devient Admin sauf rétrogradation explicite.
 
-**Avertissement « dernier Administrateur ».** La vue Membres avertit quand on retire ou rétrograde le dernier Administrateur ou Propriétaire. L'action est autorisée — Tale ne te verrouille pas dehors — mais tu devrais garder au moins deux comptes Administrateur-ou-Propriétaire pour la continuité.
+**Avertissement « dernier Admin ».** La section Membres avertit quand on retire ou rétrograde le dernier Admin ou Propriétaire. L’action est autorisée — Tale ne te verrouille pas dehors — mais tu devrais garder au moins deux comptes Admin-ou-Propriétaire pour la continuité.
 
-**Réinitialiser la 2FA** se trouve sur la ligne du membre dans Membres. Réinitialiser efface le second facteur ; le sign-in suivant réenrôle.
+**Réinitialiser la 2FA** se trouve sur la ligne du membre dans la section Membres. Réinitialiser efface le second facteur ; le sign-in suivant réenrôle.
 
-## Où cela s'inscrit
+## Où cela s’inscrit
 
-Les rôles sont la surface d'accès que touche chaque autre page admin : le SSO les authentifie, les clés API leur appartiennent, les journaux d'audit les nomment, les politiques de gouvernance scopent le comportement par rôle. La lecture suivante dépend de ce que tu fais ensuite. Si tu câbles le sign-in à ton fournisseur d'identité, [authentification](/fr/self-hosted/configuration/authentication) couvre les quatre modes. Si tu scopes l'accès par équipe plutôt que par rôle seul, [Équipes](/fr/platform/admin/teams) couvre la couche par équipe.
+Les rôles sont la surface d’accès que touche chaque autre page admin : le SSO les authentifie, les clés API leur appartiennent, les journaux d’audit les nomment, les politiques de gouvernance scopent le comportement par rôle. La lecture suivante dépend de ce que tu fais ensuite. Si tu câbles le sign-in à ton fournisseur d’identité, [authentification](/fr/self-hosted/configuration/authentication) couvre les quatre modes. Si tu scopes l’accès par équipe plutôt que par rôle seul, [Équipes](/fr/platform/admin/teams) couvre la couche par équipe.

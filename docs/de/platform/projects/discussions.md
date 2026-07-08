@@ -1,29 +1,43 @@
 ---
 title: Diskussionen
-description: Mehrstimmige Diskussionsstränge innerhalb eines Projekts — Fragen klären und Entscheidungen treffen, mit Agenten, die per @Erwähnung dazukommen.
+description: Gespräche in Threads mit mehreren Teilnehmern in einem Projekt — eröffne ein Thema, sprich es mit dem Team durch und hol einen Agenten mit einer @-Erwähnung dazu.
 ---
 
-**Diskussionen** (im Reiter „Diskussionen“ eines Projekts) sind Gesprächsstränge, die zum Projekt gehören — neben dessen Aufgaben und Chats. Nutze sie wie ein Team ein Diskussionsforum: ein Thema eröffnen, es durchsprechen und abschließen — mit deinen Agenten nur eine @Erwähnung entfernt.
+**Diskussionen** sind Gespräche in Threads, die beim Projekt leben, neben seinen Chats und Aufgaben. Nutze sie so, wie ein Team ein Diskussionsboard nutzt: ein Thema eröffnen, es durchsprechen, es auflösen — mit den Agenten des Projekts eine @-Erwähnung entfernt. Sie verwenden die Nachrichtenfläche des Chats wieder, eine Diskussion liest und schreibt sich also wie ein Chat, aber sie gehört dem Projekt, und jedes Projektmitglied sieht sie, nicht nur die Person, die sie verfasst hat.
 
-Sie verwenden dieselbe Chat-Oberfläche, eine Diskussion liest und verfasst sich also wie ein Chat — gehört aber zum Projekt und ist für jedes Projektmitglied sichtbar, nicht nur für die verfassende Person.
+<Frame caption="Der Diskussionen-Tab — jede Zeile trägt ihre Kategorie und ihren Lebenszyklus-Status.">
 
-## Eröffnen und antworten
+![Der Diskussionen-Tab des Projekts Website-Relaunch mit zwei offenen Diskussionen, eine mit der Kategorie Fragen & Antworten, eine mit der Kategorie Entscheidungen.](/images/platform/project-discussions-list.webp)
 
-**Neue Diskussion** fragt nach Titel, Kategorie und einer Eröffnungsnachricht. Antworten funktionieren wie jedes Nachrichtenfeld. Diskussionen stellen **den Menschen zuerst**: Dein Beitrag wird immer gespeichert, und ein Agent antwortet nur, wenn du ihn hinzuziehst.
+</Frame>
 
-- **Erwähne einen Agenten** mit @ in deiner Nachricht, und dieser Agent antwortet im Strang — mit demselben Routing und derselben Generierung wie im Chat.
-- Ohne @Erwähnung ist der Beitrag nur eine Nachricht zwischen Menschen; kein Agent wird gerufen.
+## Eine Diskussion eröffnen
 
-## Kategorien und Lebenszyklus
+Klicke auf **Neue Diskussion**, gib ihr einen **Titel**, wähle eine **Kategorie** und schreib die Eröffnungsnachricht. Die Kategorien halten das Board überschaubar: **Allgemein**, **Fragen & Antworten**, **Ideen**, **Entscheidungen**, **Ankündigungen**, **Zeigen & Erzählen** und **Umfragen**. Antworten funktionieren wie jedes Nachrichtenfeld — der Platzhalter sagt es selbst: **Antworten… mit @ ein Teammitglied oder einen Agenten erwähnen**.
 
-Jede Diskussion hat eine **Kategorie** (Allgemein, Fragen & Antworten, Ideen, Entscheidungen, Ankündigungen, Zeigen & Erzählen, Umfragen), um das Forum zu ordnen.
+## Menschen zuerst, Agenten auf Zuruf
 
-Ihr **Lebenszyklus** ist davon unabhängig:
+Diskussionen sind menschenzentriert. Dein Beitrag wird immer als Nachricht zwischen Menschen gespeichert; ein Agent antwortet nur, wenn du einen dazuholst.
 
-- **Offen** — aktiv.
-- **Gelöst** — die Frage ist beantwortet oder die Entscheidung getroffen (jederzeit wieder zu öffnen).
-- **Gesperrt** — keine weiteren Antworten.
+- **Erwähne einen Agenten mit @** in einer Nachricht, und dieser Agent antwortet im Thread — dasselbe Routing und dieselbe Generierung wie im Chat, sichtbar für alle im Projekt.
+- Ohne @-Erwähnung wird nichts gerufen. Eine Diskussion kann ihr ganzes Leben lang laufen, ohne dass je ein Agent spricht.
 
-## Aus einer Diskussion Arbeit machen
+Das macht Diskussionen zur richtigen Fläche für Entscheidungen, die eine menschliche Spur brauchen und nur gelegentlich KI-Zuarbeit — bitte den Agenten mitten im Thread um die Daten und entscheide dann rund um sie.
 
-**Aufgabe erstellen** erzeugt aus der Diskussion eine Aufgabe auf dem Projektboard, mit einem Verweis zurück auf das Gespräch, aus dem sie stammt — so wird aus einer in der Diskussion getroffenen Entscheidung nachverfolgbare Arbeit, ohne sie neu zu tippen.
+## Lebenszyklus
+
+Die Kategorie einer Diskussion sagt, was sie ist; ihr Status sagt, wo sie steht:
+
+- **Offen** — aktiv, der Standard.
+- **Gelöst** — die Frage ist beantwortet oder die Entscheidung gefallen. **Wieder öffnen** holt sie jederzeit zurück.
+- **Gesperrt** — keine weiteren Antworten; der Composer ist deaktiviert und zeigt einen Sperrhinweis. **Entsperren** kehrt es um.
+
+Auflösen ist Buchführung, kein Archiv — gelöste Diskussionen bleiben im Tab lesbar und durchsuchbar.
+
+## Aus einer Diskussion wird Arbeit
+
+**Aufgabe erstellen** erzeugt aus der Diskussion eine Aufgabe auf dem Projekt-Board, zurückverlinkt auf das Gespräch, aus dem sie kam — eine in einer Diskussion gefallene Entscheidung wird nachverfolgbare Arbeit, ohne sie abzutippen. Die Diskussion merkt sich die Umwandlung: Sie zeigt **In Aufgabe umgewandelt** mit einem Link **Aufgabe ansehen**, und sie lässt sich nur einmal umwandeln.
+
+## Wo das hingehört
+
+Diskussionen füllen die Lücke zwischen einem persönlichen Chat (eine Person und ein Agent) und dem Aufgaben-Board (bereits entschiedene Arbeit): Sie sind der Ort, an dem ein Team entscheidet. Die Aufgaben, die sie erzeugen, fließen wie jede andere Board-Aufgabe in die [Aufgaben-Automatisierung](/de/platform/projects/task-automation), und die @-Erwähnungsmechanik entspricht [Agenten im Chat](/de/platform/chat/agents-in-chat).

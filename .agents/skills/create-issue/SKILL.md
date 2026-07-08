@@ -1,5 +1,7 @@
 ---
 name: create-issue
+icon: lucide:circle-dot
+labels: ['GitHub']
 description: 'Use this skill whenever you file a GitHub issue — a bug report, an improvement, a feature request, or an epic — and whenever you hit a defect or missing capability that is out of scope for the change at hand. It owns the filing discipline: search open and closed issues for duplicates first (comment and link instead of re-filing), ground the report in observed behaviour with a repro and code pointers, write to the house format (typed title, Problem / Current behaviour / Proposed change / Acceptance criteria), label from the existing label set, cross-link related issues, then file with gh issue create. Load it the moment a task says "file an issue", "create a ticket", "report a bug", "open an issue", or "track this". Never file an ungrounded or duplicate issue — it wastes the triage it was meant to start. To investigate and fix the defect use fix-bug; to land a finished change use create-pr.'
 ---
 

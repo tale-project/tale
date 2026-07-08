@@ -1,59 +1,38 @@
 ---
 title: Build a workflow with an approval
-description: Wire a three-step workflow where a human approval gate sits between the draft and the send, then run it end to end and inspect the audit trail.
+description: Have the AI editor build a three-step workflow where a human decision sits between the draft and the send, approve its proposal, then run it end to end and inspect the journal.
 ---
 
-A workflow with an approval is the shape you reach for when the work has a draft, a decision, and an action — and you want a human between the draft and the action. The approval gate pauses the run until someone clicks Approve; the next step only fires on a green light. This walk builds a daily-summary workflow with a one-step approval gate on a fresh org.
+A workflow with a human decision in the middle is the shape you reach for when the work has a draft, a review, and an action — and you want a person between the draft and the action. The run pauses as **Waiting for input** until someone answers; the next step only fires on a green light. This walk builds a daily-summary workflow that way, and you meet both human gates on the road: approving the AI editor's proposal, and answering the paused run.
 
-You need an Editor role and one agent that produces a draft (the first useful agent from [Build your first agent](/tutorials/editor/first-agent-end-to-end) works fine). The conceptual side lives in [Workflow concepts](/platform/workflows/concepts) and [Approval concepts](/platform/approvals/concepts); this walk is the end-to-end mechanic.
+You need an Editor role and one agent that produces a draft (the first useful agent from [Build your first agent](/tutorials/editor/first-agent-end-to-end) works fine). The conceptual side lives in [Automation concepts](/platform/automations/concepts) and [Approval concepts](/platform/approvals/concepts); this walk is the end-to-end mechanic.
 
 ## Before you begin
 
-Confirm three things. Your role is at least Editor — workflow editing is gated to Editor and above. You have a draft-producing agent ready to call; without it, Step 2 of the workflow has nothing to invoke. You are a member of the approver pool you will assign in Step 3, or you have a teammate ready to approve so the run actually progresses.
+Confirm three things. Your role is at least Editor — workflow editing is gated to Editor and above. You have a draft-producing agent ready to call; without it the draft step has nothing to invoke. And you can answer the review yourself — the paused run waits for a human, and in this walk that human is you.
 
-## Step 1 — Create the workflow shell
+## Step 1 — Open a workflow in the editor
 
-The first move is the workflow definition — the ordered container the steps live in. From the app that should own the workflow, create a new workflow and set:
+Workflows live inside the automation they power: open the automation and its **Editor** tab is the workflow, with the step graph on a canvas. For this walk, open a workflow you own or one your org's task-ops pack provisioned — anything you are allowed to edit works, because the AI editor builds the new definition for you either way.
 
-- **Name** — `Daily inbox summary`
-- **Trigger** — **Manual** for now; you can swap it for a schedule once the run works
-- **Inputs** — leave empty
+## Step 2 — Describe the workflow to the AI editor
 
-Save as a draft. The shell exists but has no steps; running it now would return immediately.
+Toggle the **AI editor** on the canvas toolbar and describe the whole shape in one message:
 
-## Step 2 — Add the draft step
+> Every weekday at 08:00, have the <your agent> agent summarise yesterday's unread customer messages into one paragraph, then ask a human to review the draft, and only send the approved text to the team channel.
 
-The draft step is the agent invocation. Click **Add step > Call agent** and configure:
+The AI editor answers with a proposal card — **Create workflow** with the step count, or **Update workflow** when it reworks the one you opened. Nothing touches the definition while the card is pending: expand it, check the steps it lists — an **LLM** step for the draft, the review pause, the send — and approve it. The change is applied and versioned like any manual save.
 
-- **Agent** — the draft-producing agent you have ready
-- **Prompt** — `Summarise yesterday's unread customer messages into a paragraph and propose a single team-wide reply.`
-- **Output variable** — `draft`
+## Step 3 — Attach the schedule
 
-Save. The workflow now has one step; running it produces a `draft` variable but does nothing with it.
+Switch to the **Triggers** tab and click **Add schedule**. Pick the **Every day** preset and adjust the cron to weekdays (`0 8 * * 1-5`) — or describe the timing in plain language and click **Generate** to let the AI write the cron. **Workflow variables** pre-fills from the workflow's input schema; leave it as proposed. The row appears with an **Active** toggle already on.
 
-## Step 3 — Add the approval gate
+## Step 4 — Run it and answer the review
 
-The approval gate is the seam between the agent's draft and the action. Click **Add step > Approval gate** and configure:
+Back in the editor, open **Test workflow**, paste the input JSON the panel proposes, and click **Execute**. The panel mirrors the run step by step: the draft step fires, then the run pauses — **Waiting for input** — and the review arrives as a form card holding the draft. Fill it and click **Submit response** to approve, or **Reply differently** to push back in free text; the run resumes with your answer and the send step fires.
 
-- **Title** — `Review daily summary`
-- **Body** — `{{ draft }}` so the approver sees the full text in the card
-- **Approver pool** — a team or an explicit list of users you are part of
-- **Timeout** — 30 minutes, escalate to fail
-
-Save. Running the workflow now pauses on this step and waits for a decision; rejecting ends the run.
-
-## Step 4 — Add the action step and run it
-
-The action step runs only when the gate resolves Approve. Click **Add step > Send mail** (or any action your org has wired) and configure:
-
-- **To** — your own address for this walk
-- **Subject** — `Daily inbox summary`
-- **Body** — `{{ draft }}`
-
-Save and **Publish** the workflow. Click **Run**. The draft step fires; the approval gate appears as a card in your inbox; click **Approve**; the mail step fires; the run completes. The execution view shows three rows — draft, gate decision, mail — with timestamps and the actor on the gate.
+Open the **Executions** tab and expand the run: the journal shows one entry per step — the draft the agent produced, who answered the review and what, and the send with its output. That journal is the audit trail; the same record appears for every future scheduled run.
 
 ## Where this fits
 
-Three steps with one gate is the smallest useful workflow-with-approval: agent drafts, human decides, system acts. The same shape scales — swap manual for a schedule trigger, add a second gate before a destructive step, branch on the decision instead of failing on Reject.
-
-For the gate's state machine and routing rules, see [Approvals in workflows](/platform/workflows/approvals-in-workflows). For the four pieces every workflow is made of, see [Workflow concepts](/platform/workflows/concepts).
+Draft, decide, act — with the decision a human's — is the smallest useful workflow-with-approval, and you built it without placing a single step by hand: the AI editor proposed, you approved, the run asked, you answered. The same shape scales — add a second review before a destructive step, or let [Approvals in workflows](/platform/automations/approvals-in-workflows) show you the other gates around a workflow. For the vocabulary behind definition, trigger, and execution, [Automation concepts](/platform/automations/concepts) is the page this walk assumed.

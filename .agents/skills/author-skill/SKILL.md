@@ -105,7 +105,7 @@ Decide who runs the skill, then pick its source of truth — three cases:
 
 - **Repo-dev guide** (Tale-specific, docs only) → [`.agents/skills/<name>/`](../). The source every
   coding agent reads; `skills:sync` mirrors it into `.claude/skills/` for Claude Code. May use repo
-  paths and link siblings by file. `author-skill`, `write-docs`, `write-translations` live here.
+  paths and link siblings by file. `author-skill` and `write-translations` live here.
 - **Generic workflow skill** (a senior-dev workflow that ALSO ships to product org agents) → source of
   truth under [`builtin-configs/skills/<name>/`](../../../builtin-configs/skills/), with its name in the
   `WORKFLOW_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts).

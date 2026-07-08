@@ -1,36 +1,104 @@
 ---
 title: Platform
-description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, workflows, knowledge, approvals, admin.
+description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, knowledge, approvals, admin.
 kind: index
 ---
 
 Platform is the canonical product reference: every user-visible feature in Tale, identical for Cloud and self-hosted. The pages here describe the UI someone clicks, the concept behind the UI, and the trade-offs between features that look similar.
 
-The section is organised by area, then by feature within an area. Most readers do not read it front to back — they land here from a search result or a link from a tutorial, and the page they landed on should answer the question they brought. The role-indexed entries (Member, Editor, Developer, Admin) at the bottom of this section are for someone setting up their first day with the product.
+The section is organised by area, then by feature within an area. Most readers do not read it front to back — they land here from a search result or a link from a tutorial, and the page they landed on should answer the question they brought.
 
-## Pages in this section
+## Feature areas
 
-**[Chat](/platform/chat/overview)** — threads, agents in chat, attachments, arena mode, voice mode, the canvas pane, sharing.
+<CardGroup cols="2">
 
-**[Projects](/platform/projects/overview)** — shared workspaces that bundle files, instructions, threads, and project-scoped agents.
+<Card title="Chat" icon="message-circle" href="/platform/chat/overview">
 
-**[Agents](/platform/agents/concepts)** — instructions, knowledge, tools, model, skills, workers, versioning, webhook triggers.
+The everyday entry point — threads, agents in chat, attachments, arena mode, voice mode, the Canvas pane, sharing.
 
-**[Automations](/platform/automations/concepts)** — installable bundles of integrations, agents, skills, and a workflow; the catalog, install wizard, and shipped bundles.
+</Card>
 
-**[Workflows](/platform/workflows/concepts)** — definitions, triggers, executions, metrics, approval gates.
+<Card title="Projects" icon="folder-open" href="/platform/projects/overview">
 
-**[Knowledge](/platform/knowledge/overview)** — documents, customers, products, vendors, websites, structured-data model.
+Shared workspaces that bundle files, instructions, threads, and project-scoped agents.
 
-**[Approvals](/platform/approvals/concepts)** — inline cards, workflow gates, the approver pool.
+</Card>
 
-**[Workspace](/platform/workspace/prompt-library)** — prompt library and document comparison.
+<Card title="Agents" icon="bot" href="/platform/agents/concepts">
 
-**[Integrations](/platform/integrations/overview)** — third-party SaaS pairings and MCP servers.
+Instructions, knowledge, tools, model — plus skills, workers, versioning, and webhook triggers.
 
-**[Member](/platform/member/overview)**, **[Editor](/platform/editor/overview)**, **[Developer](/platform/developer/overview)** — role-indexed quick tours for someone setting up their first day.
+</Card>
 
-**[Admin](/platform/admin/overview)** — organization settings, providers, branding, integrations, plus the governance sub-tree.
+<Card title="Automations" icon="layout-grid" href="/platform/automations/concepts">
+
+Installable bundles of integrations, agents, skills, and a workflow — the catalog, the install wizard, the editor and triggers behind each one, and the run history it leaves.
+
+</Card>
+
+<Card title="Knowledge" icon="library" href="/platform/knowledge/overview">
+
+Documents, customers, products, vendors, websites — the structured-data model agents cite.
+
+</Card>
+
+<Card title="Approvals" icon="check-check" href="/platform/approvals/concepts">
+
+Inline cards, workflow gates, and the approver pool that keeps humans in the loop.
+
+</Card>
+
+<Card title="Prompt library" icon="list-plus" href="/platform/workspace/prompt-library">
+
+Saved prompts with personal, team, and global visibility, plus version history.
+
+</Card>
+
+<Card title="Models" icon="cpu" href="/platform/models">
+
+The model catalog behind every picker — capability tags, defaults, and the shipped list.
+
+</Card>
+
+<Card title="Integrations" icon="plug" href="/platform/integrations/overview">
+
+Third-party SaaS pairings and MCP servers.
+
+</Card>
+
+</CardGroup>
+
+## Set up your first day
+
+Four role-indexed entries map the same features from the reader's side of the desk — what a Member, an Editor, a Developer, or an Admin actually touches on day one.
+
+<CardGroup cols="2">
+
+<Card title="Member" icon="user" href="/platform/member/overview">
+
+Chat, knowledge, personal preferences — the surface most people in most orgs use.
+
+</Card>
+
+<Card title="Editor" icon="pencil-ruler" href="/platform/editor/overview">
+
+The build surface — agents, knowledge curation, automations, projects.
+
+</Card>
+
+<Card title="Developer" icon="terminal" href="/platform/developer/overview">
+
+API keys, custom tools, webhooks, MCP servers — wiring Tale to external code.
+
+</Card>
+
+<Card title="Admin" icon="shield" href="/platform/admin/overview">
+
+Organization settings, providers, branding, integrations, and the governance sub-tree.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

@@ -1,20 +1,39 @@
 ---
-title: Agent categories
-description: A short tag on an agent that groups it in the chat picker and the org's agents list — defined per org, optional per agent.
+title: Agent folders
+description: How agents are grouped — folders derived from the agent's id, how automation-installed agents file themselves, and where the permission boundary actually lives.
 ---
 
-A **category** is a short tag on an agent — `Sales`, `Support`, `Marketing`, `Engineering` — that groups it in the chat picker and the org's agents list. Categories are an organisational sorting tool, not a permission boundary; an agent's role-based access is unchanged by the category it carries.
+Agents are grouped by folders, and a folder comes from the agent's id: name an agent `marketing/seo-writer` and it files under a `marketing` folder wherever agents are listed. Folders are an organisational sorting tool, not a permission boundary — who can use an agent is the **Access** section on its **General** page, unchanged by where it is filed.
 
-This page is short on purpose — categories are a small mechanic. The richer machinery sits one tab over on the org's settings.
+<Frame caption="The agents list with the chat folder expanded — the folder is the slug's prefix, the rows are its agents.">
 
-## Setting a category
+![The agents list showing the chat folder's agents — Assistant and Automation Assistant — each with a Type badge, default model, and tool count.](/images/platform/agents-list-expanded.webp)
 
-Open the agent and look on the **Instructions & model** tab; the category field is a single-select dropdown. Pick a category and save; the agent appears under that category in the picker the next time someone opens it. An agent without a category sits in a default bucket at the bottom of the list.
+</Frame>
 
-## Where categories are defined
+## File an agent into a folder
 
-The list of categories is org-wide and lives under the org's settings. Admins can add or rename categories; renaming a category cascades to every agent that used it. Removing a category leaves agents that used it in the default bucket — no agents are deleted.
+The folder is set where the agent's id is set: the **Name** field in the create dialog. The id must be lowercase letters, numbers, hyphens, and underscores, with a `/` separating the folder from the agent — and it can't change later, so pick the folder when you create the agent. The display name is independent; rename the agent freely without moving it.
+
+In the **Agents** list, folders render as collapsed rows with an agent count — click one to expand it, and the breadcrumb tracks where you are. The builtin agents ship pre-filed: the general assistants under `chat`, the GitHub agents under `github`.
+
+## Agents that arrive with an automation
+
+Installing an [automation](/platform/automations/concepts) files its agents like any others — the PR Creator and PR Reviewer from the Resolve GitHub issues bundle land in the same list, in the folder their id names. There is no separate agent store to browse: the [Automations catalog](/platform/automations/catalog) is where bundled agents come from, and the list is where they live afterwards.
+
+<Note>
+
+The chat picker does not group by folder — it is a searchable list with **Auto** on top, showing every agent that is enabled and visible in chat, with coding agents under their own **Coding agents** section.
+
+</Note>
+
+## When to reach for it
+
+| Use folders when…                               | Use team access when…                                  |
+| ----------------------------------------------- | ------------------------------------------------------ |
+| The agents list is getting long and needs order | An agent must only be usable by one team               |
+| Departments each own a set of agents            | You are drawing a permission boundary, not a directory |
 
 ## Where this fits
 
-Categories are the lightest available grouping for agents — they sort the picker, nothing more. Larger separations (Project agents versus org agents, per-team allowlists) live on [Project agents](/platform/projects/project-agents) and [Policies and limits](/platform/admin/governance/policies-and-limits) respectively.
+Folders are the lightest available grouping for agents — they sort the list and the catalog, nothing more. Larger separations live elsewhere: [Project agents](/platform/projects/project-agents) scope an agent to a Project, and [Policies and limits](/platform/admin/governance/policies-and-limits) govern what any agent may spend or do.

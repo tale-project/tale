@@ -5,6 +5,12 @@ description: How the Automations catalog works — the side panel a card opens, 
 
 The Automations catalog (**Automations** in the sidebar) is where Owners, Admins, and Developers browse every automation available to the organization and decide which ones are installed. This page covers the catalog itself — the side panel a card opens, the install wizard, and the reinstall, uninstall, and update actions that follow. What each shipped automation actually does lives on [Built-in automations](/platform/automations/builtin); the mental model for the pieces an automation bundles lives on [Automation concepts](/platform/automations/concepts).
 
+<Frame caption="The Automations catalog — every card is one installable automation; the bundle installs all its members through one wizard.">
+
+![The Automations catalog on the All automations tab, showing cards for the three email automations and the Resolve GitHub issues bundle, each with its icon and description.](/images/platform/automations-catalog.webp)
+
+</Frame>
+
 ## Installing one
 
 Click a card and its side panel opens — the same click-to-preview pattern [Settings > Integrations](/platform/integrations/overview) uses for its own catalog. The panel lists what installing adds: its pages, workflows, agents, skills, and the integrations it requires, plus which project it targets if it's project-scoped. Click **Install** and the wizard opens.

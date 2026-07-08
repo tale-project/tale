@@ -10,16 +10,40 @@ Dieser Abschnitt behandelt die Themen, die spezifisch für Cloud sind — Onboar
 
 ## Seiten in diesem Abschnitt
 
-**[Onboarding](/de/cloud/onboarding)** — registrieren, Organisation verifizieren, ersten Modell-Anbieter konfigurieren, ersten Agent veröffentlichen. Etwa eine Stunde für einen Redakteur.
+<CardGroup cols="2">
 
-**[Datenresidenz](/de/cloud/data-residency)** — wo deine Daten liegen, welche Sub-Auftragsverarbeiter sie berühren und was sich ändert, wenn du die Region wechselst.
+<Card title="Onboarding" icon="rocket" href="/de/cloud/onboarding">
 
-**[Abrechnung](/de/cloud/billing)** — Pläne, Sitze, abrechenbare Komponenten, Budgets, und wo du die Rechnung findest.
+Registrieren, Organisation verifizieren, ersten Modell-Anbieter konfigurieren, ersten Agent veröffentlichen. Etwa eine Stunde für einen Redakteur.
 
-**[Vertrauen und Compliance](/de/cloud/trust-and-compliance)** — die Zertifizierungen, die Tale mitbringt, die geteilte Verantwortung und was du als Nachweis vorlegen kannst.
+</Card>
 
-**[Auf selbst gehostet migrieren](/de/cloud/migrate-to-self-hosted)** — aus Cloud exportieren, selbst gehostete Instanz aufsetzen, importieren.
+<Card title="Datenresidenz" icon="map-pin" href="/de/cloud/data-residency">
+
+Wo deine Daten liegen, welche Sub-Auftragsverarbeiter sie berühren und was sich ändert, wenn du die Region wechselst.
+
+</Card>
+
+<Card title="Abrechnung" icon="credit-card" href="/de/cloud/billing">
+
+Pläne, Sitze, abrechenbare Komponenten, Budgets, und wo du die Rechnung findest.
+
+</Card>
+
+<Card title="Vertrauen und Compliance" icon="shield-check" href="/de/cloud/trust-and-compliance">
+
+Die Zertifizierungen, die Tale mitbringt, die geteilte Verantwortung und was du als Nachweis vorlegen kannst.
+
+</Card>
+
+<Card title="Auf selbst gehostet migrieren" icon="server" href="/de/cloud/migrate-to-self-hosted">
+
+Aus Cloud exportieren, selbst gehostete Instanz aufsetzen, importieren.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 
-Cloud ist die bequeme Eingangstür; Plattform ist der Ort, wo die eigentliche Arbeit stattfindet. Sobald deine Organisation eingeloggt ist und der erste Agent läuft, verbringt dein Team nahezu die gesamte Zeit auf den Plattform-Seiten, nicht hier. Die eine Seite, die sich bei jeder Änderung deiner Betriebslage erneut lesen lohnt, ist [Datenresidenz](/de/cloud/data-residency) — sie zeigt jedes externe System, das deine Daten kreuzen.
+Cloud ist die Eingangstür; Plattform ist der Ort, an dem die eigentliche Arbeit stattfindet. Sobald deine Organisation eingeloggt ist und der erste Agent läuft, verbringt dein Team nahezu die gesamte Zeit auf den Plattform-Seiten, nicht hier. Die eine Seite, die sich bei jeder Änderung deiner Betriebslage erneut lesen lohnt, ist [Datenresidenz](/de/cloud/data-residency) — sie zeigt jedes externe System, das deine Daten kreuzen.

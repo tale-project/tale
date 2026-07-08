@@ -1,64 +1,50 @@
 ---
 title: Documents
-description: The Documents area is where Editors upload files into the knowledge base, watch them index, and bind them to agents. This page covers uploading, the indexing pipeline, supported formats, and the per-document lifecycle.
+description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle — upload sources, RAG status, team scoping, folders, and reindexing.
 ---
 
-The Documents area is the knowledge base's file surface. Editors upload files — PDFs, Word documents, Markdown, plain text, code, spreadsheets, slide decks — and Tale runs each one through an indexing pipeline that extracts text, chunks it, embeds the chunks, and stores them so agents can retrieve relevant pieces at reply time. Once indexed, a document can be bound to one or more agents; bound agents see the document's chunks during RAG retrieval and cite them in replies.
+The Documents tab is the knowledge base's file surface. Editors upload files, Tale runs each one through the indexing pipeline — extract the text, chunk it, embed the chunks, store them — and agents whose knowledge scope covers the document retrieve relevant passages at reply time and cite them. This page covers the operator side: uploading, the status column, team scoping, folders, and the document lifecycle.
 
-This page covers the operator-facing side of Documents: uploading, what happens during indexing, supported formats, how the per-document lifecycle works, and how documents differ from the structured-data types (customers, products, vendors, websites) that share the knowledge base.
+<Frame caption="The Documents table — size, source, RAG status, and team scope per file.">
 
-## A worked upload
+![The Knowledge area's Documents tab listing three uploaded text files with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
 
-To upload a document, open **Knowledge > Documents** and drop the file onto the upload area, or click **Upload** and pick the file from disk. The document appears in the list immediately with status `Indexing`; Tale runs the pipeline in the background. When the status flips to `Indexed`, the document is ready to bind to agents. Pipeline failures surface with status `Error` and a one-line reason; the row carries a **Retry** button that re-runs the pipeline from scratch.
+</Frame>
 
-Binding the document to an agent is a separate step. Open the agent and add the document under its **Knowledge** tab; the next request the agent serves retrieves over the new document's chunks. A document with no bindings stays indexed but is invisible to every agent — useful when you want the document in the library but not yet in production.
+## Uploading
+
+Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device** and **From Microsoft 365**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text, and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload.
+
+Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
 
 ## Importing from Microsoft 365
 
-Documents can come from OneDrive or SharePoint instead of disk. Open **Knowledge > Documents > Upload documents > From Microsoft 365**, pick files or folders, and choose the import mode. **One-time import** brings the files in once; they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
+**From Microsoft 365** imports from OneDrive or SharePoint instead of disk: pick files or folders, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
 
-To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder, or a single synced file, also stops its sync. In every case the originals in OneDrive are untouched.
+To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in OneDrive are untouched.
 
-## What the indexing pipeline does
+## Scoping, folders, sources
 
-Indexing happens in four stages, in order:
+Each row carries a **Teams** cell — **Organization-wide** by default, or the teams you pick via **Assign team** in the row menu. A team-scoped document is invisible to members and agents outside the team; this is the knowledge base's access lever. Project files are outside this model entirely: a project's **Knowledge** tab holds files scoped to that one project, and they never appear in this library or in its team scoping — see [Manage files](/platform/projects/manage-files).
 
-- **Extract** — pull text out of the file. PDFs go through layout-aware extraction; Office documents and Markdown go through structure-aware extraction; images inside a document go through OCR.
-- **Chunk** — split the extracted text into retrieval-sized pieces, respecting headings and paragraph boundaries where the file's structure makes them visible.
-- **Embed** — call the embedding model from the org's configured provider to produce a vector for each chunk.
-- **Store** — write the chunks and their vectors to the search index, with the source file's metadata attached.
+**New folder** keeps large libraries navigable, and integrations bring their own structure: documents synced from OneDrive or SharePoint land under sync folders and show their origin in the **Source** column, which keeps citations traceable to the upstream system.
 
-The pipeline is idempotent on the source file's hash. Uploading the same file twice produces one indexed copy, not two. Editing the file and re-uploading replaces the old chunks with the new ones; agents see the update on the next retrieval.
+<Warning>
 
-## Supported formats
+Deleting a folder permanently deletes every file and subfolder inside it. Deleting a OneDrive sync folder also removes its auto-sync configuration and history — though never the files in OneDrive itself.
 
-The pipeline handles the file types that cover the bulk of org knowledge:
+</Warning>
 
-- **Text and code.** Markdown (`.md`), plain text (`.txt`), source code (every language Tale highlights — see the highlighter list).
-- **Documents.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
-- **Spreadsheets.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
-- **Slides.** PowerPoint (`.pptx`).
-- **Web pages.** HTML (`.html`) and the rendered output of a page crawl.
-- **Images.** PNG, JPG, GIF, BMP, TIFF, WEBP, with OCR applied to extract any text.
+## Reindex and delete
 
-Two different things happen to a file the pipeline does not index. An older Office file (`.doc`, `.xls`, `.ppt`) still uploads and stays available as a stored file, but Tale skips indexing — the row shows **Not indexed** rather than an indexing error, and agents cannot retrieve its content. A type the upload gate does not accept at all — an archive, an arbitrary binary — is refused on upload with an unsupported-file-type error and never lands. The list of accepted and indexed formats grows as the pipeline does.
+**Reindex** (row menu) re-runs the pipeline on the stored file — the right move after an indexing failure or when a document shows **Needs reindex**. **Delete** removes the document and its indexed chunks; the confirmation says it plainly — the action cannot be undone. Re-uploading the same file brings the content back as a fresh document.
 
-## The per-document lifecycle
-
-Each document carries a small set of fields beyond its content: a **title** (auto-extracted from the file's metadata, editable), a **source** (the file or the integration that brought it in), an **owner** (the member or team that uploaded it), **tags** (free-form labels for filtering), and a **visibility** (org-wide, team-scoped, or per-agent). The visibility lever is the document-level twin of the team-scoping done elsewhere — a team-scoped document is invisible to members outside the team even if their role would otherwise allow it.
-
-Documents synced from an integration carry the integration's source field. A document brought in by the OneDrive sync shows the OneDrive path; a document pulled from Confluence shows the page URL. The source field makes citations clickable back to the upstream system.
-
-## Deleting and re-indexing
-
-Click the document's row, then **Delete** to remove it from the library. Deletion removes the chunks from the search index on the next pass; in-flight retrievals complete, the next one does not see the document. There is no undo — re-uploading the same file restores it, but the document's audit history starts fresh.
-
-Re-indexing without deleting is the right move when the pipeline has improved between uploads. Click **Re-index** on the row; Tale runs the pipeline again on the stored source file and replaces the chunks atomically. The document does not blink out of agents' reach during the re-index.
+Clicking a document opens the preview, with a sidebar showing size, source, RAG status, teams, uploader, and modification date — the fastest way to check what a citation actually points at.
 
 ## Documents versus structured data
 
-The knowledge base has two halves. **Documents** are unstructured — text, prose, slides, anything the pipeline can chunk and embed. **Structured data** (customers, products, vendors, websites) are rows in typed tables — fields with names, validation, and explicit relationships. Reach for documents when the content is prose; reach for structured data when the content is a list of things with the same shape. See [Structured data](/platform/knowledge/structured-data) for the typed-table surface.
+Documents are the unstructured half of the knowledge base. When the content is a list of things with the same fields — customers, products, suppliers — a typed record serves agents better than a spreadsheet upload: exact values instead of retrieved passages. The decision rules live in [Structured data](/platform/knowledge/structured-data).
 
 ## Where this fits
 
-Documents are the most-used corner of the knowledge base — every agent that cites a source most likely cites a document. The natural next read is [Knowledge overview](/platform/knowledge/overview) for the cross-surface map, and [Agent knowledge](/platform/agents/knowledge) for how an agent binds to documents and retrieves over them at reply time.
+Documents are the most-used corner of the knowledge base — most citations in most replies point here. The retrieval side — how an agent's knowledge scope decides what it searches — is [Agent knowledge](/platform/agents/knowledge); the fact-sized sibling surface is [Knowledge entries](/platform/knowledge/knowledge-entries), which rides this same pipeline one document at a time.

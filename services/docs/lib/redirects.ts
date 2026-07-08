@@ -1,63 +1,99 @@
 /**
- * Permanent (301) redirects for docs pages whose slug moved. The docs server
- * has no database, so moved pages live in a compile-time map from the old
- * canonical slug (locale-less, the same shape `docs/nav.json` uses) to its
- * replacement. The resolver understands the site's URL shape: English serves
- * at the canonical path, URL-prefixed locales (`de`, `fr`) carry a language
- * segment, and every page also exists as a `.md` LLM artifact — all forms
- * redirect so inbound links, bookmarks, and crawlers land on the new page.
+ * Redirect map for moved or merged docs pages. The entries are read from
+ * [`/docs/redirects.json`](../../../docs/redirects.json) at build time —
+ * the same pattern as `lib/content/nav.ts` — so the bundled server carries
+ * the map and the runtime image never reads from `/docs`.
  *
- * When a docs page moves, add its old → new slug pair here in the same PR
- * that moves the markdown and updates `docs/nav.json`.
+ * Slugs are locale-less like `nav.json`'s (`platform/workspace/prompt-library`);
+ * one entry covers every base locale. `expandRedirects` produces the
+ * URL-level pairs (`/old`, `/de/old`, `/fr/old` → …) that `server.ts`
+ * serves as 301s and `scripts/prerender.ts` writes meta-refresh stubs for.
+ * The contract (targets exist, sources don't, no chains) is guarded by
+ * `tests/redirects.test.ts`.
  */
 
-import { isUrlPrefixedLocale } from '@tale/ui/i18n/locales';
+import redirectsJson from '../../../docs/redirects.json';
+import { BASE_LOCALES, type SupportedLocale } from './i18n/locales';
 
-/** Old canonical slug → new canonical slug (no leading slash, no locale). */
-export const MOVED_SLUGS: ReadonlyMap<string, string> = new Map([
-  // 2026-07: the Automations section became Workflows. `platform/automations/concepts`
-  // itself is deliberately NOT in this list any more — Apps became Automations
-  // (see below) and reclaimed that exact slug for unrelated, real content; redirecting
-  // it to Workflows would 301 every visitor straight off the new page.
-  ['platform/automations/workflows', 'platform/workflows/workflows'],
-  ['platform/automations/triggers', 'platform/workflows/triggers'],
-  ['platform/automations/execution-logs', 'platform/workflows/execution-logs'],
-  ['platform/automations/metrics', 'platform/workflows/metrics'],
-  [
-    'platform/automations/approvals-in-workflows',
-    'platform/workflows/approvals-in-workflows',
-  ],
-  // 2026-07: Apps became Automations — the fixed Conversations page and the
-  // standalone Agents catalog both retired in favour of the Automations
-  // catalog (installable bundles of integrations, agents, skills, a
-  // workflow, and builtin views).
-  ['platform/conversations/overview', 'platform/automations/builtin'],
-  ['platform/agents/catalog', 'platform/automations/concepts'],
-]);
+/** One locale-expanded redirect: site-relative `from` → `to` URL paths. */
+interface RedirectRoute {
+  locale: SupportedLocale;
+  from: string;
+  to: string;
+}
 
 /**
- * Resolves a request pathname against the moved-slug map. Returns the
- * replacement pathname — same locale prefix, same `.md` artifact suffix,
- * trailing slash dropped — or `null` when the path is not a moved page.
+ * Validate the parsed shape of `docs/redirects.json` and return the slug
+ * map. Throws with a pointed message so a malformed file fails the build
+ * (or server startup) instead of silently dropping redirects.
  */
-export function resolveMovedPath(pathname: string): string | null {
-  let slug = pathname.replace(/^\/+/, '').replace(/\/+$/, '');
-
-  let localePrefix = '';
-  const slashIndex = slug.indexOf('/');
-  const head = slashIndex === -1 ? slug : slug.slice(0, slashIndex);
-  if (isUrlPrefixedLocale(head)) {
-    localePrefix = `/${head}`;
-    slug = slashIndex === -1 ? '' : slug.slice(slashIndex + 1);
+export function parseRedirects(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || !('redirects' in value)) {
+    throw new Error(
+      'docs/redirects.json must be an object with a "redirects" key',
+    );
   }
-
-  let artifactSuffix = '';
-  if (slug.endsWith('.md')) {
-    artifactSuffix = '.md';
-    slug = slug.slice(0, -'.md'.length);
+  const redirects = (value as { redirects: unknown }).redirects;
+  if (
+    typeof redirects !== 'object' ||
+    redirects === null ||
+    Array.isArray(redirects)
+  ) {
+    throw new Error(
+      'docs/redirects.json "redirects" must be an object mapping old slug → new slug',
+    );
   }
+  for (const [from, to] of Object.entries(redirects)) {
+    if (typeof to !== 'string') {
+      throw new Error(
+        `docs/redirects.json entry "${from}" must map to a string slug, got ${typeof to}`,
+      );
+    }
+  }
+  return redirects as Record<string, string>;
+}
 
-  const target = MOVED_SLUGS.get(slug);
-  if (!target) return null;
-  return `${localePrefix}/${target}${artifactSuffix}`;
+/** The validated slug map, baked into the bundle at build time. */
+const DOCS_REDIRECTS: Record<string, string> = parseRedirects(redirectsJson);
+
+/** Site-relative URL for a (locale, slug) pair — mirrors `docPath` in
+ *  `lib/content/paths.ts` (English at the canonical path, `de`/`fr`
+ *  prefixed; a trailing `/index` collapses onto the directory URL). */
+function pathFor(locale: SupportedLocale, slug: string): string {
+  const cleaned = slug === 'index' ? '' : slug.replace(/\/index$/, '');
+  if (locale === 'en') return cleaned ? `/${cleaned}` : '/';
+  return cleaned ? `/${locale}/${cleaned}` : `/${locale}`;
+}
+
+/** Expand every locale-less slug pair into per-locale URL path pairs. */
+export function expandRedirects(
+  redirects: Record<string, string> = DOCS_REDIRECTS,
+): RedirectRoute[] {
+  const out: RedirectRoute[] = [];
+  for (const [from, to] of Object.entries(redirects)) {
+    for (const locale of BASE_LOCALES) {
+      out.push({
+        locale,
+        from: pathFor(locale, from),
+        to: pathFor(locale, to),
+      });
+    }
+  }
+  return out;
+}
+
+/** Lookup map of old URL path → new URL path across every base locale. */
+export function buildRedirectPathMap(
+  redirects: Record<string, string> = DOCS_REDIRECTS,
+): Map<string, string> {
+  return new Map(
+    expandRedirects(redirects).map((route) => [route.from, route.to]),
+  );
+}
+
+/** Normalize a request pathname for redirect matching — trailing slashes
+ *  are insignificant (`/old-page/` matches the `/old-page` entry). */
+export function normalizeRequestPath(pathname: string): string {
+  const trimmed = pathname.replace(/\/+$/, '');
+  return trimmed === '' ? '/' : trimmed;
 }

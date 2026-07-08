@@ -1,6 +1,7 @@
 ---
 name: search-codebase
 icon: lucide:file-search-2
+labels: ['Engineering']
 description: "Use this skill whenever you need to know where something lives in a codebase or what else a change touches — before any code change, when you're new to a repo, when a request names one screen and parallel ones may exist, or when a visible label or error must be traced to code. It owns three jobs: ORIENT (build the mental map from the repo layout and its enforced tooling — the configs are the conventions), FIND (trace a concept from user-visible vocabulary to i18n keys to symbol names to usages — what a thing is called and what it calls), and SWEEP (after changing one site, enumerate every other occurrence of the concept and change or rule out each — the request names one site; the task is the concept). Load it at Gate A of implement-feature, make-improvement, fix-bug, or implement-ui. Never change one copy of a duplicated concept without sweeping the rest. For facts outside the repo use deep-research."
 ---
 

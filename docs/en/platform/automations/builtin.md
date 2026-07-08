@@ -19,7 +19,7 @@ Tale ships automations out of the box: three single-purpose ones that turn a mai
 
 Every one of the three opens on its **Inbox** tab: four sub-tabs — **Open**, **Closed**, **Spam**, **Archived** — each a split view with the conversation list on the left and the selected thread on the right. Opening a conversation fills the right pane with its full message history; until you pick one, the pane reads **Select a conversation to view details**.
 
-The composer sits under the thread on **Open** — replies belong to active conversations, so the other three tabs are read-only. Write in **Type a message** and click **Send**; the reply goes out through the mailbox the conversation arrived on, with the recipient and subject line derived from the thread — there's nothing to address by hand. **Improve** rewrites your draft with AI before you send it.
+The composer sits under the thread on **Open** — replies belong to active conversations, so the other three tabs are read-only. Write in **Type a message** and click **Send**; the reply goes out through the mailbox the conversation arrived on, with the recipient and subject line derived from the thread — there's nothing to address by hand. **Improve** rewrites your draft with AI before you send it. On the IMAP automation, replies sent from the mailbox itself — from any mail client — sync into the conversation too, ordered with the rest of the thread.
 
 The thread header carries the status verbs for whichever conversation is selected — **Close conversation** and **Mark as spam** on an open thread, **Reopen conversation** on a closed or archived one, **Not spam** and the destructive **Delete** on spam. Selecting several rows in the list surfaces the same verbs as bulk actions.
 

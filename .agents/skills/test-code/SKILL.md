@@ -1,6 +1,7 @@
 ---
 name: test-code
 icon: lucide:flask-conical
+labels: ['Engineering']
 description: Use this skill whenever you test a change or prove it works — write tests that exercise real behaviour (happy path + one edge + one error), run them and watch red→green, drive the real app for anything user-visible, and codify the check so it can't silently break. Load it before writing or changing any test, adding an end-to-end spec, deciding what to cover, or whenever asked to "verify", "test", or "confirm it works". Never claim a change is done on a green typecheck alone — observe the real outcome.
 ---
 

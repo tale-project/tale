@@ -29,23 +29,22 @@ Verifiziere die Signatur, bevor du dem Body vertraust: HMAC-SHA256 über den roh
 
 ## Ein durchgespielter eingehender Trigger
 
-Wenn dein System einen Tale-Workflow feuern muss, poste an die Trigger-URL des Workflows:
+Wenn dein System einen Tale-Workflow feuern muss, poste an die Webhook-URL, die Tale erzeugt, sobald du dem Workflow einen Webhook-Trigger hinzufügst:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/workflows/triggers/<trigger-name> \
-  -H "Authorization: Bearer $TALE_TRIGGER_KEY" \
+curl -sS https://your-host.example.com/api/workflows/wh/<token> \
   -H "Idempotency-Key: order-12345" \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Der Trigger-Key ist ein Webhook-Trigger-bezogener API-Key, der neben dem Trigger im Workflow-Editor erzeugt wird. Der Body wird die Eingabe des ersten Workflow-Schritts. Die Antwort ist JSON mit einer `executionId`, die du beim Prüfen des Laufs zitieren kannst.
+Das Token im URL-Pfad ist der Berechtigungsnachweis — ein Authorization-Header ist nicht nötig; behandle also die ganze URL als Secret und lösch den Webhook, um sie zu widerrufen. Der Body wird die Eingabe des ersten Workflow-Schritts. Ein frisches Annehmen gibt `{ "status": "accepted", "workflowSlug": "..." }` zurück; ein Replay mit demselben `Idempotency-Key` gibt statt eines neuen Laufs die `executionId` des früheren zurück.
 
 ## Signieren und verifizieren
 
 Ausgehend: das pro-Endpoint-Signier-Secret wird einmal angezeigt, wenn du den Endpoint unter **Einstellungen > Integrations** oder im Webhook-Trigger-Panel des Workflow-Editors hinzufügst. Tale signiert jeden Body mit HMAC-SHA256 mit diesem Secret; Verifizierung ist String-Vergleich in konstanter Zeit.
 
-Eingehend: es gibt kein Signieren — das Bearer-Token ist die Auth. Wenn du das Token nicht geheim halten kannst, exponiere die Trigger-URL nicht.
+Eingehend: es gibt kein Signieren — das Token in der URL ist die Auth. Kannst du die URL nicht geheim halten, gib sie nicht heraus; lösch den Webhook, um sie zu rotieren.
 
 ```python
 import hmac, hashlib
@@ -77,4 +76,4 @@ Eingehende Retries sind die Verantwortung des Aufrufers — Tales Antwort zeigt 
 
 ## Wo das hingehört
 
-Webhooks sind die Naht zwischen Tale und externen Systemen auf beiden Seiten. Die [API-Referenz](/de/develop/api-reference) behandelt die synchrone Hälfte — die Endpoints, die du aufrufst, wenn du einen Wert sofort zurück willst. Die [Trigger-Referenz](/de/platform/workflows/triggers) deckt die Workflow-Seite eingehender Webhooks ab — die Konfiguration, die einen POST in einen Workflow-Lauf verwandelt.
+Webhooks sind die Naht zwischen Tale und externen Systemen auf beiden Seiten. Die [API-Referenz](/de/develop/api-reference) behandelt die synchrone Hälfte — die Endpoints, die du aufrufst, wenn du einen Wert sofort zurück willst. Die [Trigger-Referenz](/de/platform/automations/triggers) deckt die Workflow-Seite eingehender Webhooks ab — die Konfiguration, die einen POST in einen Workflow-Lauf verwandelt.

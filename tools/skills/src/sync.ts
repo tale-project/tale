@@ -86,6 +86,7 @@ const WORKFLOW_SKILLS: readonly string[] = [
   'deep-research',
   'delegate-work',
   'browse-web',
+  'write-docs',
 ];
 
 /**

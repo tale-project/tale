@@ -1,40 +1,62 @@
 ---
 title: Bases du chat
-description: Ce qui se passe entre la frappe sur Envoyer et l'arrivée de la réponse — composer, choix de l'agent, résolution du modèle, streaming, citations, et comment un chat est stocké.
+description: Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké.
 ---
 
-Cette page est le modèle mental pour tout dans l'onglet Chat. Elle nomme les parties du composer, suit un message unique de la touche pressée à la réponse en streaming, et explique comment un chat est stocké une fois arrivé. Une fois lue, le reste des pages chat se lit comme des variations sur le même flux.
+Cette page est le modèle mental pour tout ce qui vit dans l’onglet Chat. Elle nomme les parties du composeur, suit un message de la touche pressée à la réponse en streaming, et explique comment un chat est stocké une fois arrivé — lis-la une fois et le reste des pages de chat se lit comme des variations sur le même flux.
 
-Le flux est surtout invisible — Tale assemble une demi-douzaine de sous-systèmes pour qu'un chat ressemble à une seule conversation — mais les coutures comptent quand quelque chose se comporte de façon inattendue. Savoir quel sous-système possède quelle étape est la différence entre un rapport de bug utile et un rapport vague.
+<Frame caption="L’onglet Chat avec une réponse en streaming au-dessus du composeur.">
 
-## Le composer
+![Un fil de chat montrant une question d’utilisateur sur des retours d’onboarding et une réponse de l’assistant contenant un tableau markdown de trois thèmes.](/images/platform/chat-thread-reply.webp)
 
-Le composer est la bande de saisie en bas de l'écran. Trois contrôles comptent : le sélecteur d'agents à gauche, le sélecteur de modèles à côté, et le textarea avec **Envoyer le message** à droite. Le sélecteur d'agents expose chaque agent que l'organisation a marqué **Visible in chat**, plus un **Assistant** par défaut quand aucun agent n'est choisi. Le sélecteur de modèles expose chaque modèle tagué chat que la politique de l'agent autorise ; **Auto** laisse Tale résoudre à la requête. Les pièces jointes arrivent par collage, glisser-déposer, ou le contrôle d'upload — voir [Pièces jointes](/fr/platform/chat/attachments) pour ce qui est accepté.
+</Frame>
 
-## Le sélecteur d'agents
+## Le composeur
 
-Le sélecteur d'agents filtre par nom à mesure que tu tapes ; le défaut est un **Assistant** sans agent qui utilise le modèle de chat par défaut de l'organisation et aucune connaissance ou outil supplémentaire. Choisir un agent avant le premier message rend l'agent persistant pour tout le chat ; en choisir un en milieu de chat l'applique au message suivant et tout ce qui suit. Il n'y a pas de bascule « retour à aucun agent » — choisis **Assistant** pour revenir. La page [Agents dans le chat](/fr/platform/chat/agents-in-chat) couvre les règles en détail.
+Le composeur est la bande de saisie en bas de l’écran. Trois contrôles comptent : le sélecteur d’agents à gauche, le sélecteur de modèles à côté, et le champ de message avec l’envoi à droite. Les pièces jointes arrivent par collage, glisser-déposer ou le contrôle d’ajout — voir [Pièces jointes](/fr/platform/chat/attachments) pour ce qui est accepté.
 
-## Le sélecteur de modèles
+<Frame caption="Les trois contrôles du composeur — sélecteur d’agents, sélecteur de modèles, champ de message.">
 
-Le sélecteur de modèles liste les modèles que l'agent (ou l'organisation, quand aucun agent n'est choisi) a le droit d'utiliser. Chaque modèle porte un tag — **Chat**, **Vision**, **Image generation**, **Embedding** — qui signale à quoi il est bon. Choisir un modèle vision quand le message n'a pas d'image va bien ; choisir un modèle non-vision quand le message inclut une image laisse tomber l'image en silence. **Auto** choisit le primaire de l'agent ; quand le primaire est rate-limité ou indisponible, Tale tombe sur l'ordre de fallback que l'agent nomme.
+![La bande du composeur de chat avec le sélecteur d’agents, le sélecteur de modèles et le bouton d’envoi.](/images/platform/chat-composer.webp)
 
-## Rendu de la réponse et citations
+</Frame>
 
-La réponse arrive en streaming token par token. Les appels d'outils s'affichent comme des boîtes pliées que l'utilisateur peut déplier pour lire ce que l'agent a fait ; les sorties de **Run code** atterrissent dans le Canvas à droite. Quand l'agent récupère du savoir, des citations s'attachent aux phrases qu'elles soutiennent — survoler une citation montre le titre de la source ; cliquer ouvre la source. Les instructions de l'agent n'apparaissent jamais dans la réponse rendue ; elles sont une couche en dessous, façonnant le comportement plutôt que le texte.
+## Choisir un agent
 
-## Questions de l'agent
+Le sélecteur d’agents filtre par nom à mesure que tu tapes ; le défaut est un **Assistant** sans agent, qui utilise le modèle de chat par défaut de l’organisation et aucune connaissance ni outil supplémentaire. Choisir un agent avant le premier message le rend persistant pour tout le chat ; en choisir un en cours de chat s’applique à partir du message suivant.
 
-Un agent doté de l'outil human input peut s'interrompre en pleine tâche pour te poser une question — une carte **Question** apparaît dans le chat avec les champs dont l'agent a besoin, et la génération attend ta réponse. Remplis le formulaire et clique sur **Soumettre la réponse**, ou clique sur **Répondre différemment** pour répondre en texte libre. La carte répondue reste dans la transcription à l'endroit où la question a été posée, pour que l'échange se relise dans l'ordre. Si ta réponse était fausse ou incomplète, clique sur **Modifier la réponse** sur la carte répondue — le formulaire se rouvre prérempli, et **Mettre à jour la réponse** relance l'agent, la réponse corrigée remplaçant l'ancienne. La carte garde chaque réponse précédente : feuillette les versions avec les flèches à côté de la réponse, comme pour les messages modifiés.
+<Note>
 
-## Chats et la boîte de réception
+Il n’existe pas de bascule « rétablir sans agent » — choisis **Assistant** pour revenir en arrière. Les règles complètes vivent dans [Agents dans le chat](/fr/platform/chat/agents-in-chat).
 
-À l'intérieur du Chat, l'unité est un **chat** — c'est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s'appelle `threads`, et l'URL est `threads/$threadId` ; la doc suit l'UI et dit « chat » dans la prose. L'onglet **Boîte de réception** d'une automatisation installée est une tout autre surface — les conversations e-mail des clients que Gmail, Outlook ou IMAP/SMTP font arriver, pas une liste de chats. Deux sens de « conversation », deux surfaces — voir [Automatisations livrées](/fr/platform/automations/builtin) pour le sens de boîte de réception.
+</Note>
 
-## History et recherche
+## Choisir un modèle
 
-**History** est la liste de chaque chat que l'utilisateur peut reprendre dans cette organisation. Les nouveaux chats apparaissent en haut ; en sélectionner un ouvre le transcript complet. **Search chat** filtre l'History par titre ; la recherche texte intégrale sur les corps de messages est une opération par chat, pas à l'échelle de l'organisation. **Rename chat** pose un titre personnalisé qui remplace celui généré par le modèle ; **Delete chat** déplace le chat dans la [Corbeille](/fr/platform/admin/governance/trash) où la rétention le balaie après la fenêtre de grâce.
+Le sélecteur de modèles liste ce que l’agent (ou l’organisation, quand aucun agent n’est choisi) autorise. Chaque modèle porte un tag — **Chat**, **Vision**, **Génération d'images**, **Embedding** — qui signale ce à quoi il est bon. **Auto** choisit le modèle primaire de l’agent ; quand le primaire est limité en débit ou indisponible, Tale redescend l’ordre de repli que l’agent définit.
 
-## Où ça s'inscrit
+<Warning>
 
-Bases du chat est la page que tout le reste de la section affine : [Agents dans le chat](/fr/platform/chat/agents-in-chat) creuse le sélecteur, [Pièces jointes](/fr/platform/chat/attachments) le téléversement, [Mode vocal](/fr/platform/chat/voice-mode) les passations STT et TTS autour du même composer. Si tu es venu ici pour construire un agent plutôt que pour en utiliser un, saute à [Concepts d'agent](/fr/platform/agents/concepts) — le modèle à quatre boutons est le socle sur lequel repose chaque chat avec un agent.
+Choisir un modèle sans vision quand le message inclut une image abandonne l’image en silence — la réponse se lit comme si l’image n’avait jamais été envoyée.
+
+</Warning>
+
+## Lire la réponse
+
+La réponse arrive en streaming, token par token. Quand l’agent raisonne avant de répondre, une ligne de réflexion pliable apparaît au-dessus de la réponse. Les appels d’outils s’affichent comme des boîtes pliées que tu peux déplier pour lire ce que l’agent a fait ; la sortie d’**Exécuter du code** atterrit dans le Canevas, à droite, comme **Sortie de code** dans son arborescence de fichiers. Quand l’agent récupère des connaissances, des citations s’attachent aux phrases qu’elles soutiennent — survoler une citation montre le titre de la source, cliquer ouvre la source. Les instructions de l’agent n’apparaissent jamais dans la réponse rendue ; elles restent une couche en dessous et façonnent le comportement plutôt que le texte.
+
+## Les questions de l’agent
+
+Un agent doté de l’outil human input peut s’interrompre en pleine tâche pour te poser une question — une carte **Question** apparaît dans le chat avec les champs dont l’agent a besoin, et la génération attend ta réponse. Remplis le formulaire et clique sur **Soumettre la réponse**, ou clique sur **Répondre différemment** pour objecter en texte libre. Si ta réponse était fausse ou incomplète, clique sur **Modifier la réponse** sur la carte répondue — le formulaire se rouvre prérempli, et **Mettre à jour la réponse** relance l’agent, la réponse corrigée remplaçant l’ancienne. La carte garde chaque réponse précédente : feuillette les versions avec les flèches à côté de la réponse, comme pour les messages modifiés.
+
+## Conversations versus chats
+
+À l’intérieur du Chat, l’unité est un **chat** — c’est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s’appelle `threads`, et le slug d’URL est `threads/$threadId` ; la doc suit l’UI et dit « chat » dans la prose. La boîte de réception des canaux clients qu’ajoute une automatisation d’e-mail installée est une autre surface — une conversation là-bas est un fil client, pas un chat ; voir [Automatisations livrées](/fr/platform/automations/builtin) pour le sens de boîte de réception.
+
+## Historique et recherche
+
+**Afficher l'historique** au-dessus du composeur ouvre la barre latérale d’historique — chaque chat que tu peux reprendre dans cette organisation, du plus récent au plus ancien ; en sélectionner un ouvre le transcript complet. La recherche y filtre par titre ; la recherche en texte intégral dans les corps de messages est une opération par chat, pas à l’échelle de l’organisation. Renommer un chat pose un titre personnalisé qui remplace celui généré par le modèle ; supprimer un chat le déplace dans la [Corbeille](/fr/platform/admin/governance/trash), où la rétention le balaie après la fenêtre de grâce.
+
+## Où ça s’inscrit
+
+Bases du chat est la page que tout le reste de la section affine : [Agents dans le chat](/fr/platform/chat/agents-in-chat) creuse le sélecteur, [Pièces jointes](/fr/platform/chat/attachments) ce que fait le téléversement, [Mode vocal](/fr/platform/chat/voice-mode) les passations STT et TTS autour du même composer. Si tu es venu ici pour construire un agent plutôt que pour en utiliser un, saute à [Concepts d’agent](/fr/platform/agents/concepts) — le modèle mental à quatre boutons est le socle sur lequel repose chaque chat avec un agent.

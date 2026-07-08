@@ -7,6 +7,12 @@ API keys are the org-wide credentials Tale issues so external code can call its 
 
 The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a person; API keys are long-lived and tied to the organisation. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party integration to Tale; reach for the in-product UI when a person is at the keyboard.
 
+<Frame caption="Settings > API keys — where keys are created, rotated, and revoked.">
+
+![The REST API keys settings page with a Create API key button above the key list.](/images/get-started/settings-api-keys.webp)
+
+</Frame>
+
 ## Creating a key
 
 Open **Settings > API keys** and click **Create API key**. Give the key a name that says who or what will use it (`Billing sync`, `Slack relay`, `ops-cron`), pick the role it should carry, and pick the expiry. Tale shows the secret exactly once on creation — copy it into your password manager or your deployment system before you close the dialog. After that, only the key's prefix is visible from the table.

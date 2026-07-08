@@ -3,7 +3,7 @@ title: Automation assistant
 description: The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one.
 ---
 
-The **Automation assistant** is the chat agent pinned to whichever automation you opened — click **Assistant** on an automation's page and it answers with that automation's agents, workflow, skills, integrations, and configuration already in context. Admins and Developers use it to understand an unfamiliar automation, extend one instead of duplicating it, or get help authoring the pieces the automation page doesn't edit directly. It's the same assistant agent the [workflow editor](/platform/workflows/workflows) embeds, so a conversation started from one surface reads familiar from the other.
+The **Automation assistant** is the chat agent pinned to whichever automation you opened — click **Assistant** on an automation's page and it answers with that automation's agents, workflow, skills, integrations, and configuration already in context. Admins and Developers use it to understand an unfamiliar automation, extend one instead of duplicating it, or get help authoring the pieces the automation page doesn't edit directly. It's the same assistant agent [the workflow editor](/platform/automations/editor) embeds, so a conversation started from one surface reads familiar from the other.
 
 ## What it edits directly
 

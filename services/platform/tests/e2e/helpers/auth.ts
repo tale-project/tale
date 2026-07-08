@@ -89,7 +89,10 @@ export async function signInViaApi(
  * (`default` is never auto-created); a user who already has an org lands
  * straight on `/dashboard/<orgId>`, in which case the wizard is skipped.
  */
-export async function createOrgViaWizard(page: Page): Promise<string> {
+export async function createOrgViaWizard(
+  page: Page,
+  options?: { orgName?: string },
+): Promise<string> {
   // The wizard's forward actions run through Better Auth endpoints that
   // enforce the trusted-origin (CSRF) check for real browser requests. A
   // rejection leaves the wizard visually stuck with no error the locators can
@@ -128,7 +131,9 @@ export async function createOrgViaWizard(page: Page): Promise<string> {
       // Same shape as uniqueCredentials: a ms timestamp ALONE collides when
       // parallel workers bootstrap in the same instant, and the org slug
       // derives from the name — a collision 400s the create call.
-      const orgName = `E2E Org ${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const orgName =
+        options?.orgName ??
+        `E2E Org ${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
       await page
         .getByLabel(t('settings.organization.organizationName'))
         .fill(orgName);

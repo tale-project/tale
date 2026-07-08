@@ -1,11 +1,17 @@
 ---
 title: Teams
-description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, ist die Skopierungs-Ebene für alles unterhalb der Rollen-Ebene.
+description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
 ---
 
 Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte, Integrationen und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
 
 Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft funktioniert und wie die Team-Grenze mit den rollenbasierten Berechtigungen aus [Mitglieder und Rollen](/de/platform/admin/members-and-roles) zusammenspielt. Lies sie einmal, wenn du die Teams der Organisation aufsetzt; komm wieder, wenn du umorganisierst.
+
+<Frame caption="Einstellungen > Teams, bevor ein Team existiert — die leere Tabelle mit der Aktion Team erstellen.">
+
+![Die Teams-Einstellungsseite mit einer leeren Team-Tabelle, einer Schaltfläche Team erstellen und dem Hinweis, dass noch keine Teams existieren.](/images/platform/settings-teams.webp)
+
+</Frame>
 
 ## Was ein Team besitzt
 
@@ -17,7 +23,7 @@ Ein Team hält Mitgliedschaft und eine Menge ihm zugeordneter Ressourcen. Die Re
 - **Integrationen** — Integrationen, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Integrationen**), erscheinen nur in Pickern dieser Teams.
 - **Konversationen** — Kundenkanal-Konversationen können an ein Team geroutet werden; der Inbox-Filter respektiert den Team-Scope.
 
-Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _additive_ Skopierungs-Ebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
+Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _zusätzliche_ Eingrenzungsebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
 
 ## Ein Team erstellen
 
@@ -27,7 +33,7 @@ Die Team-Zeile trägt drei Untersichten: **Mitglieder** (wer im Team ist), **Res
 
 ## Mitglieder hinzufügen und entfernen
 
-Öffne die Team-Zeile und klick auf **Mitglieder hinzufügen**. Der Picker listet die Mitglieder der Organisation; eines anzuhaken fügt es dem Team hinzu. Ein Mitglied kann mehreren Teams angehören; sein Zugriff ist die Vereinigung jedes Teams, in dem es ist, plus der organisationsweiten Reichweite seiner Rolle. Ein Mitglied aus einem Team zu entfernen, entzieht beim nächsten Request die team-skopierte Sichtbarkeit; laufende Chats werden fertig, aber der nächste Thread sieht die Ressourcen des Teams nicht mehr.
+Öffne die Team-Zeile und klick auf **Mitglieder hinzufügen**. Der Picker listet die Mitglieder der Organisation; eines anzuhaken fügt es dem Team hinzu. Ein Mitglied kann mehreren Teams angehören; sein Zugriff ist die Vereinigung jedes Teams, in dem es ist, plus der organisationsweiten Reichweite seiner Rolle. Ein Mitglied aus einem Team zu entfernen, entzieht beim nächsten Request die team-gebundene Sichtbarkeit; laufende Chats werden fertig, aber der nächste Thread sieht die Ressourcen des Teams nicht mehr.
 
 ## Team versus Rolle
 
@@ -37,8 +43,8 @@ Wenn du eine Berechtigungs-Entscheidung brauchst, die bestehende Rollen und Team
 
 ## Ein Team löschen
 
-Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, jede team-skopierte Ressource, die es besass, wechselt auf organisationsweite Sichtbarkeit, und Mitglieder verlieren den team-skopierten Ausschnitt ihres Zugriffs. Es gibt kein Undo; verwaiste Ressourcen bleiben für alle erreichbar, deren Rolle es erlaubt, was selten das richtige Ergebnis ist. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
+Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, jede team-gebundene Ressource, die es besaß, wechselt auf organisationsweite Sichtbarkeit, und Mitglieder verlieren den team-gebundenen Ausschnitt ihres Zugriffs. Es gibt kein Undo; verwaiste Ressourcen bleiben für alle erreichbar, deren Rolle es erlaubt, was selten das richtige Ergebnis ist. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
 
 ## Wo das hingehört
 
-Teams sind die Skopierungs-Ebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du skopierst: [Prompt-Bibliothek](/de/platform/workspace/prompt-library) dafür, wie Prompts sich an Teams binden, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für den Hebel Erlaubte Teams, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.
+Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Prompt-Bibliothek](/de/platform/workspace/prompt-library) dafür, wie Prompts sich an Teams binden, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für den Hebel Erlaubte Teams, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.

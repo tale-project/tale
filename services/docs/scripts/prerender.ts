@@ -12,6 +12,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { expandRedirects } from '../lib/redirects';
+import { docsSiteUrl } from '../lib/seo/build';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -52,6 +54,61 @@ function setHtmlLang(template: string, locale: string): string {
   return template.replace(/<html lang="[^"]*"/, () => `<html lang="${locale}"`);
 }
 
+/**
+ * Static stub for a moved page (`docs/redirects.json`). Keeps old URLs
+ * working on plain static hosting where the Bun server's 301s don't run:
+ * the meta refresh navigates, canonical + robots keep crawlers on the new
+ * URL, and the anchor covers clients with refresh disabled.
+ */
+function redirectStub(locale: string, toUrl: string): string {
+  return `<!doctype html>
+<html lang="${locale}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="0;url=${toUrl}" />
+    <link rel="canonical" href="${toUrl}" />
+    <meta name="robots" content="noindex" />
+    <title>Redirecting…</title>
+  </head>
+  <body>
+    <p>This page has moved to <a href="${toUrl}">${toUrl}</a>.</p>
+  </body>
+</html>
+`;
+}
+
+/**
+ * Write one redirect stub per (redirect entry × locale) at the OLD path,
+ * same dist layout as prerendered routes. `prerendered` is the set of
+ * route URLs the content loop wrote — a redirect source that is still a
+ * real page would overwrite it, so it is skipped loudly instead
+ * (`tests/redirects.test.ts` fails the suite on the same conflict).
+ */
+async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
+  const siteUrl = docsSiteUrl();
+  let written = 0;
+  for (const redirect of expandRedirects()) {
+    if (prerendered.has(redirect.from)) {
+      console.warn(
+        `redirect source ${redirect.from} is still a prerendered page — skipping stub (fix docs/redirects.json)`,
+      );
+      continue;
+    }
+    const outPath = resolve(DIST, redirect.from.slice(1), 'index.html');
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(
+      outPath,
+      redirectStub(redirect.locale, `${siteUrl}${redirect.to}`),
+      'utf-8',
+    );
+    written += 1;
+  }
+  if (written > 0) {
+    process.stdout.write(`wrote ${written} redirect stubs\n`);
+  }
+}
+
 async function main() {
   const started = Date.now();
   const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
@@ -88,6 +145,8 @@ async function main() {
     await writeFile(outPath, final, 'utf-8');
     process.stdout.write('done\n');
   }
+
+  await writeRedirectStubs(seen);
 
   process.stdout.write(
     `prerendered ${seen.size} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,

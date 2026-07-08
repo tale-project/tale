@@ -1,36 +1,104 @@
 ---
 title: Plattform
-description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Workflows, Wissen, Genehmigungen, Verwaltung.
+description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Wissen, Genehmigungen, Verwaltung.
 kind: index
 ---
 
 Plattform ist die kanonische Produktreferenz: jedes nutzersichtbare Feature in Tale, identisch für Cloud und selbst gehostet. Die Seiten hier beschreiben die UI, die jemand anklickt, das Konzept dahinter und die Trade-offs zwischen Features, die ähnlich aussehen.
 
-Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature gegliedert. Die meisten Leser arbeiten ihn nicht von vorne bis hinten durch — sie landen aus einer Suche oder aus einem Tutorial-Link hier, und die Seite, auf der sie landen, sollte die Frage beantworten, die sie mitgebracht haben. Die rollenbasierten Einträge (Mitglied, Redakteur, Entwickler, Verwaltung) am Ende dieses Abschnitts richten sich an jemanden, der seinen ersten Tag mit dem Produkt einrichtet.
+Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature gegliedert. Die meisten Leser arbeiten ihn nicht von vorne bis hinten durch — sie landen aus einer Suche oder aus einem Tutorial-Link hier, und die Seite, auf der sie landen, sollte die Frage beantworten, die sie mitgebracht haben.
 
-## Seiten in diesem Abschnitt
+## Feature-Bereiche
 
-**[Chat](/de/platform/chat/overview)** — Konversationen, Agents im Chat, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
+<CardGroup cols="2">
 
-**[Projekte](/de/platform/projects/overview)** — geteilte Arbeitsbereiche, die Dateien, Anweisungen, Konversationen und projektgebundene Agents bündeln.
+<Card title="Chat" icon="message-circle" href="/de/platform/chat/overview">
 
-**[Agents](/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools, Modell, Fähigkeiten, Worker, Versionierung, Webhook-Trigger.
+Der alltägliche Einstieg — Konversationen, Agents im Chat, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
 
-**[Automatisierungen](/de/platform/automations/concepts)** — installierbare Bündel aus Integrationen, Agents, Skills und einem Workflow; der Katalog, der Installations-Assistent und die mitgelieferten Bundles.
+</Card>
 
-**[Workflows](/de/platform/workflows/concepts)** — Definitionen, Trigger, Ausführungen, Metriken, Genehmigungs-Gates.
+<Card title="Projekte" icon="folder-open" href="/de/platform/projects/overview">
 
-**[Wissen](/de/platform/knowledge/overview)** — Dokumente, Kunden, Produkte, Lieferanten, Websites, Modell für strukturierte Daten.
+Geteilte Arbeitsbereiche, die Dateien, Anweisungen, Konversationen und projektgebundene Agents bündeln.
 
-**[Genehmigungen](/de/platform/approvals/concepts)** — Inline-Karten, Workflow-Gates, der Genehmiger-Pool.
+</Card>
 
-**[Arbeitsbereich](/de/platform/workspace/prompt-library)** — Prompt-Bibliothek und Dokumentenvergleich.
+<Card title="Agents" icon="bot" href="/de/platform/agents/concepts">
 
-**[Integrationen](/de/platform/integrations/overview)** — Drittanbieter-Pairings und MCP-Server.
+Anweisungen, Wissen, Tools, Modell — plus Fähigkeiten, Worker, Versionierung und Webhook-Trigger.
 
-**[Mitglied](/de/platform/member/overview)**, **[Redakteur](/de/platform/editor/overview)**, **[Entwickler](/de/platform/developer/overview)** — rollenbasierte Schnelltouren für jemanden, der seinen ersten Tag einrichtet.
+</Card>
 
-**[Verwaltung](/de/platform/admin/overview)** — Organisationseinstellungen, Anbieter, Branding, Integrationen, plus der Governance-Unterzweig.
+<Card title="Automatisierungen" icon="layout-grid" href="/de/platform/automations/concepts">
+
+Installierbare Bündel aus Integrationen, Agents, Skills und einem Workflow — der Katalog, der Installations-Assistent, der Editor und die Trigger hinter jeder Automatisierung und die Laufhistorie, die sie hinterlässt.
+
+</Card>
+
+<Card title="Wissen" icon="library" href="/de/platform/knowledge/overview">
+
+Dokumente, Kunden, Produkte, Lieferanten, Websites — das Modell für strukturierte Daten, das Agents zitieren.
+
+</Card>
+
+<Card title="Genehmigungen" icon="check-check" href="/de/platform/approvals/concepts">
+
+Inline-Karten, Workflow-Gates und der Genehmiger-Pool, der Menschen in der Schleife hält.
+
+</Card>
+
+<Card title="Prompt-Bibliothek" icon="list-plus" href="/de/platform/workspace/prompt-library">
+
+Gespeicherte Prompts mit persönlicher, Team- und globaler Sichtbarkeit, plus Versionsverlauf.
+
+</Card>
+
+<Card title="Modelle" icon="cpu" href="/de/platform/models">
+
+Der Modellkatalog hinter jedem Picker — Fähigkeits-Tags, Standards und die ausgelieferte Liste.
+
+</Card>
+
+<Card title="Integrationen" icon="plug" href="/de/platform/integrations/overview">
+
+Drittanbieter-Pairings und MCP-Server.
+
+</Card>
+
+</CardGroup>
+
+## Richte deinen ersten Tag ein
+
+Vier rollenbasierte Einträge zeigen dieselben Features von der Seite des Lesers — was ein Mitglied, ein Redakteur, ein Entwickler oder die Verwaltung am ersten Tag tatsächlich anfasst.
+
+<CardGroup cols="2">
+
+<Card title="Mitglied" icon="user" href="/de/platform/member/overview">
+
+Chat, Wissen, persönliche Einstellungen — die Oberfläche, die die meisten Leute in den meisten Orgs nutzen.
+
+</Card>
+
+<Card title="Redakteur" icon="pencil-ruler" href="/de/platform/editor/overview">
+
+Die Bau-Oberfläche — Agents, Wissenspflege, Automatisierungen, Projekte.
+
+</Card>
+
+<Card title="Entwickler" icon="terminal" href="/de/platform/developer/overview">
+
+API-Schlüssel, eigene Tools, Webhooks, MCP-Server — Tale an externen Code anbinden.
+
+</Card>
+
+<Card title="Verwaltung" icon="shield" href="/de/platform/admin/overview">
+
+Organisationseinstellungen, Anbieter, Branding, Integrationen und der Governance-Unterzweig.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 

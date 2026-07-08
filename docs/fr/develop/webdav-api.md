@@ -3,7 +3,7 @@ title: API WebDAV
 description: Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites.
 ---
 
-Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Intégrations > WebDAV](/platform/integrations/webdav).
+Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Intégrations > WebDAV](/fr/platform/integrations/webdav).
 
 ## Schéma d’URL
 
@@ -130,4 +130,4 @@ Le serveur impose TLS au niveau du reverse proxy en production ; le mode dev sur
 
 ## Comment ça s’intègre
 
-WebDAV est la surface mount-protocole du même dépôt de documents que la [référence de l’API REST](/develop/api-reference) anime pour l’import en lot et la recherche — les deux voies écrivent dans la table que le [Hub de documents](/platform/knowledge/documents) lit, donc un fichier créé via Finder apparaît dans l’interface web sans aucune étape de synchronisation. Le protocole est le bon choix quand un utilisateur veut que ses documents se comportent comme un dossier local ; l’API REST est le bon choix quand un script ou un agent veut un contrôle au niveau de l’octet sur ce qui est écrit et quand. La RFC 4918 est l’autorité au niveau filaire pour tout ce qui se trouve sur cette page.
+WebDAV est la surface mount-protocole du même dépôt de documents que la [référence de l’API REST](/fr/develop/api-reference) anime pour l’import en lot et la recherche — les deux voies écrivent dans la table que le [Hub de documents](/fr/platform/knowledge/documents) lit, donc un fichier créé via Finder apparaît dans l’interface web sans aucune étape de synchronisation. Le protocole est le bon choix quand un utilisateur veut que ses documents se comportent comme un dossier local ; l’API REST est le bon choix quand un script ou un agent veut un contrôle au niveau de l’octet sur ce qui est écrit et quand. La RFC 4918 est l’autorité au niveau filaire pour tout ce qui se trouve sur cette page.

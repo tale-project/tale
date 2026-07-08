@@ -1,54 +1,46 @@
 ---
 title: Configure approvals
-description: Reference for the approval rules an Admin or Editor can attach to an agent, an integration, or a workflow step — when an approval is required, who decides, what happens on timeout.
+description: Where approval requirements are declared — per integration operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs.
 ---
 
-Approval rules are the configuration behind every approval card Tale surfaces. They name what triggers an approval, who is in the approver pool, and what happens when no one decides in time. Admins configure org-wide policies; Editors configure per-agent and per-workflow gates. This page is the reference for the fields you set on each rule and what they change about the running product.
+Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the integration or server that provides the capability. There is no central rules table to maintain — this page shows where each flag lives and how to read what will ask before it runs.
 
-The mental model of approvals — what a card is, what an approval leaves behind, the four trigger sources — lives on [Approval concepts](/platform/approvals/concepts). What follows is the configuration surface: where the rules live, the per-rule fields, and how rules compose when two fire at once.
+The model of what an approval card is and who decides it lives on [Approval concepts](/platform/approvals/concepts). What follows is the configuration surface, capability by capability.
 
-## A worked rule
+## Integration operations
 
-To require approval before an agent writes to the customer database, open **Settings > Governance > Approval rules** and click **New rule**. Pick the resource (`Customers — write`), pick the trigger (`Any agent`), pick the approver pool (`Team: Operations`), set the timeout (`24h`) and the timeout action (`Reject`). Save. The next time any agent tries to create or edit a customer, the write is held, an approval card lands in the Operations team's inbox, and the run continues only if someone clicks Approve within the day.
+Every integration declares its operations, and each operation carries its own approval flag. Open **Settings > Integrations**, click an integration, and its operations list badges the ones marked **Requires approval** — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
 
-The rule is in effect immediately; in-flight writes complete, the next one is held. Removing the rule lifts the hold on future writes; existing pending approvals stay pending until they resolve.
+For a custom integration, the flag is `requiresApproval` per operation in the `config.json` you package with **Add integration** — decide at authoring time which of its operations are consequential enough to ask.
 
-## Where rules live
+<Frame caption="The integrations catalog — each entry's detail view lists its operations and which of them require approval.">
 
-Three configuration surfaces produce approval rules; each one writes to the same underlying rules table.
+![The Settings Integrations page on the All integrations tab showing a card grid of twelve connectable services such as GitHub, Slack, and Gmail.](/images/platform/integrations-catalog.webp)
 
-- **Settings > Governance > Approval rules** is the org-wide surface. Admins create rules that apply to a resource (documents, customers, products, integrations, MCP servers, agent creation, skill installation) and pick the trigger pattern (any actor, specific roles, specific teams, specific agents).
-- **The agent editor's Governance tab** lets an Editor attach an agent-specific rule. The rule fires only for that agent's calls; it composes with any org-wide rule that also applies.
-- **The workflow step's Approval gate** lets the workflow author require approval at a specific step. This is the [Approvals in workflows](/platform/workflows/approvals-in-workflows) surface; the gate writes a one-off rule scoped to that step.
+</Frame>
 
-A resource can have multiple rules in effect; the engine runs them all and the action is held until every applicable rule approves. Reject from any rule ends the action.
+## MCP tools
 
-## Per-rule fields
+An MCP server's manifest marks which of its tools need sign-off. Open **Settings > API > MCP**, expand a server, and its **Discovered Tools** list badges each flagged tool with **Requires approval** — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review the list before activating one. [MCP servers](/platform/integrations/mcp-servers) covers registration.
 
-Every rule carries the same shape regardless of where it was authored.
+## Built-in write gates
 
-| Field             | Required              | Description                                                                                                                                                                                             |
-| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Name              | Yes                   | Human label shown on cards and in audit. Pick something the approver will recognise.                                                                                                                    |
-| Resource          | Yes                   | The thing being changed: a knowledge-base type (Documents, Customers, Products, Vendors, Websites), an integration call (`Integrations > Outbound`), agent creation, skill install, or a workflow step. |
-| Trigger pattern   | Yes                   | Who is acting: any actor, a specific role, a specific team, a specific agent. Restrictive patterns narrow the rule's reach.                                                                             |
-| Approver pool     | Yes                   | The eligible set: a team, a role, or an explicit member list. The first eligible approver to click decides.                                                                                             |
-| Exclude requester | Default               | The actor who triggered the action is removed from the pool. On by default; turning it off is rarely the right call.                                                                                    |
-| Timeout           | Yes                   | The window before the timeout action fires. Tale supports minutes, hours, and days.                                                                                                                     |
-| Timeout action    | Yes                   | What happens when the window closes with no decision: `Reject` (the action is abandoned), `Escalate` (route to a fallback pool), or `Approve` (auto-allow — only safe on low-risk resources).           |
-| Escalation pool   | If timeout = Escalate | The pool that gets the card on escalation. Same shape as Approver pool.                                                                                                                                 |
-| Comment policy    | Default               | Whether the approver may, must, or cannot leave a comment. Default is may.                                                                                                                              |
+Some gates ship on and are not configurable, because the action is consequential by nature:
 
-## How multiple rules compose
+- **Document writes** — an agent saving files to the document hub always asks (**Save to documents**).
+- **Knowledge writes** — an agent storing an org-wide fact always asks (**Save to knowledge base**).
+- **Workflow creation, updates, and runs** — an agent building, editing, or starting a workflow always asks; see [Approvals in workflows](/platform/automations/approvals-in-workflows).
 
-When a single action matches more than one rule, Tale evaluates them in parallel. The action is held until every rule resolves; an Approve on one is not enough if a second rule is still pending. A Reject on any rule ends the action and writes the rejection to the audit log. This is intentional — the strictest applicable rule wins, and a permissive rule cannot accidentally override a stricter one.
+<Note>
 
-If two rules target the same approver pool, the approver sees one card per rule; deciding each one is required. The cards link back to each other so the approver can see the full set of holds before making a call.
+The lever for these is not the approval flag but the capability itself: an agent without the document tools or workflow tools never produces the card. Trim the agent's [tool set](/platform/agents/tools) to remove the capability entirely.
 
-## Auditing and history
+</Note>
 
-Every rule change lands in the audit log with the actor, the timestamp, and the diff. The audit row also tracks every approval the rule produced — each card's actor, decision, comment, and resolution time. Reach for the rule's audit view (the **History** tab on the rule's row) when you want to see how often the rule fires and how long approvers typically take.
+## Verifying what will ask
+
+Before putting an agent in front of real systems, read its capabilities the way an approver would: the integration's operations list for flagged writes, the MCP server's **Discovered Tools** for flagged tools, and the agent's tool tab for whether it holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
 
 ## Where this fits
 
-Approval rules are the configuration plane behind [Approval concepts](/platform/approvals/concepts); the workflow-gate variant has its own surface under [Approvals in workflows](/platform/workflows/approvals-in-workflows). The natural next read depends on what you are wiring — for workflow gates the workflow page, for agent-write approvals the [Admin agents view](/platform/admin/agents) where the per-agent governance lives.
+Configuration here is distribution — flags live with the integrations and servers that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.

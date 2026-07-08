@@ -6,11 +6,7 @@
 //
 // Docs runs under an optional sub-path mount (Caddy can `handle_path /docs*`
 // and strip the prefix) — `DOCS_BASE_URL` carries that public prefix so
-// 302s emitted by the locale negotiator and the moved-slug 301s below stay
-// inside `/docs`.
-//
-// Moved pages 301 to their new slug before static serving and locale
-// negotiation; the old → new map lives in `lib/redirects.ts`.
+// 302s emitted by the locale negotiator stay inside `/docs`.
 
 import { resolve } from 'node:path';
 
@@ -20,13 +16,18 @@ import {
   startReactServer,
 } from '@tale/ui/server';
 
-import { resolveMovedPath } from './lib/redirects';
+import { buildRedirectPathMap, normalizeRequestPath } from './lib/redirects';
 
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
 
 const artifacts = await createPrecompiledServer({
   dir: resolve(import.meta.dir, 'dist-seo'),
 });
+
+// Old → new URL paths for moved or merged pages (`docs/redirects.json`,
+// baked into the bundle at build time). Checked before static serving so
+// stale inbound links 301 to the new locale-preserving path.
+const redirectPaths = buildRedirectPathMap();
 
 startReactServer({
   port: Number(process.env.PORT ?? 3002),
@@ -35,12 +36,13 @@ startReactServer({
   redirectPrefix: BASE_PATH,
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
-  extraRoutes: (_request, url) => {
-    const target = resolveMovedPath(url.pathname);
+  extraRoutes: (request, url) => {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+    const target = redirectPaths.get(normalizeRequestPath(url.pathname));
     if (!target) return null;
     return new Response(null, {
       status: 301,
-      headers: { Location: BASE_PATH + target + url.search },
+      headers: { Location: `${BASE_PATH}${target}${url.search}` },
     });
   },
   artifacts,

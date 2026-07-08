@@ -1,52 +1,54 @@
 ---
 title: Strukturierte Daten
-description: Tales Wissensdatenbank kennt vier eingebaute strukturierte Entitäten — Kunden, Produkte, Lieferanten, Websites — neben Dokumenten. Diese Seite erklärt, wann du eine strukturierte Aufzeichnung statt eines Dokuments wählst.
+description: Tales Wissensdatenbank bringt vier eingebaute strukturierte Entitäten mit — Kunden, Produkte, Lieferanten, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt.
 ---
 
-Tales Wissensdatenbank kennt zwei Formen nebeneinander. Dokumente sind freie Text-Blobs, aus denen der Agent Chunks abruft; strukturierte Aufzeichnungen sind typisierte Zeilen, aus denen der Agent Felder liest. Die Form, die du wählst, ist die wichtigste Entscheidung dafür, wie ein Agent dein Wissen nutzt — wählst du falsch, verwässert der Agent eine klare Antwort oder rät einen Wert, den du in der Datei stehen hast.
+Tales Wissensdatenbank führt zwei Formen nebeneinander. Dokumente sind Text, aus dem der Agent Chunks abruft; strukturierte Datensätze sind typisierte Zeilen, aus denen der Agent Felder liest. Die Form, die du wählst, ist die wichtigste Entscheidung dafür, wie ein Agent dein Wissen nutzt — liegst du falsch, verwässert der Agent entweder eine klare Antwort oder rät bei einem Wert, den du längst vorliegen hast.
 
-Diese Seite vermittelt dir das mentale Modell, wann jede Form die richtige ist. Lies sie, bevor du einen Ordner an Dateien lädst; komm zurück, wenn du in Versuchung gerätst, eine Tabelle als PDF hochzuladen.
+Diese Seite gibt dir das mentale Modell dafür, wann welche Form die richtige ist. Lies sie, bevor du einen Ordner voller Dateien lädst; komm zurück, wenn du versucht bist, eine Tabelle als PDF hochzuladen.
 
-## Dokumente vs. strukturierte Aufzeichnungen
+## Dokumente gegenüber strukturierten Datensätzen
 
-Ein Dokument ist frei: die Indexier-Pipeline extrahiert Text, chunked ihn, embeddet die Chunks und liefert sie zur Antwortzeit per RAG. Der Agent sieht Passagen und zitiert sie per Dateinamen. Das ist die richtige Form, wenn die Quelle Prosa ist — Verträge, Handbücher, Wissensdatenbank-Artikel, Besprechungsnotizen.
+Ein Dokument ist frei geformt: Die Indexierungs-Pipeline extrahiert Text, chunked ihn, bettet die Chunks ein und serviert zur Antwortzeit Passagen über den Abruf. Der Agent sieht Passagen und zitiert sie nach Quelle. Das ist die richtige Form, wenn der Inhalt Prosa ist — Verträge, Handbücher, Wissensdatenbank-Artikel, Meeting-Notizen.
 
-Eine strukturierte Aufzeichnung ist typisiert: die Entität hat bekannte Felder (ein Kunde hat `name`, `email`, `industry`; ein Produkt hat `sku`, `price`, `stock`). Der Agent liest die Felder direkt, joint über Entitäten hinweg und antwortet mit dem Wert. Das ist die richtige Form, wenn die Quelle eine Datenbankzeile ist — Accounts, Bestellungen, Teile, Lieferanten-Daten.
+Ein strukturierter Datensatz ist typisiert: Die Entität hat bekannte Felder (ein Kunde hat einen Namen, eine E-Mail, eine Branche; ein Produkt hat eine SKU, einen Preis, einen Bestand). Der Agent liest die Felder direkt, verknüpft über Entitäten hinweg und antwortet mit dem Wert. Das ist die richtige Form, wenn die Quelle eine Datenbankzeile ist — Konten, Bestellungen, Teile, Lieferantendaten.
 
-## Die vier eingebauten Modelle
+## Die vier eingebauten Entitäten
 
-Vier strukturierte Entitäts-Typen sind in jeder Tale-Instanz dabei:
+Vier strukturierte Tabs sitzen im Wissensbereich neben **Dokumente** und **Wissenseinträge**:
 
-- **Kunden** — die Personen und Organisationen, mit denen du Geschäfte machst.
+- **Kunden** — die Menschen und Organisationen, mit denen du Geschäfte machst.
 - **Produkte** — die Dinge, die du verkaufst.
-- **Lieferanten** — die Lieferanten, von denen du kaufst.
-- **Websites** — Seiten, die ein Crawler zeitgesteuert abruft; strukturiert als URL + gecrawlter Inhalt + Metadaten.
+- **Lieferanten** — die Zulieferer, bei denen du einkaufst.
+- **Websites** — öffentliche Seiten, die ein Crawler nach Zeitplan holt; der Datensatz hält Domain und Scan-Einstellungen, die indexierten Seiten halten den Inhalt ([Crawling](/de/platform/knowledge/crawling)).
 
-Plus **Dokumente** für alles andere.
+Strukturierte Datensätze teilen die Team-Bindungshebel der Wissensdatenbank: Ein team-gebundener Datensatz ist außerhalb des Teams genauso unsichtbar wie ein team-gebundenes Dokument.
 
-## Inhaltsmodelle für eigene Formen
+## Content-Modelle für eigene Formen
 
-Wenn die vier Eingebauten nicht passen, kannst du mit Inhaltsmodellen einen eigenen strukturierten Aufzeichnungs-Typ definieren. Ein Inhaltsmodell ist eine JSON-Schema-förmige Definition unter [Governance Inhaltsmodelle](/de/platform/admin/governance/content-models): benenne die Entität, deklarier ihre Felder, setz den Feldzugriff, und der neue Typ erscheint neben Kunden, Produkten, Lieferanten und Websites.
+Wenn die vier eingebauten Entitäten nicht passen, definierst du mit Content-Modellen einen eigenen strukturierten Datensatztyp: die Entität benennen, ihre Felder deklarieren, Zugriff pro Feld setzen — und der neue Typ erscheint neben den eingebauten. Die Definitionen liegen bei den [Content-Modellen](/de/platform/admin/governance/content-models) der Governance.
 
-Inhaltsmodelle kosten Governance-Aufmerksamkeit — jede Zugriffs- und Aufbewahrungsrichtlinie eines Felds liegt bei dir — also greif dazu, wenn die Daten wirklich eine neue Form sind, nicht eine leichte Variante einer der vier Eingebauten.
+<Note>
 
-## Zusammengesetzt — ein CRM-Agent
+Content-Modelle kosten Governance-Aufmerksamkeit — Zugriff und Aufbewahrung jedes Feldes liegen bei dir. Greif dazu, wenn die Daten wirklich eine neue Form sind, nicht eine leichte Variante einer der vier eingebauten.
 
-Ein CRM-Agent, der „Wo stehen wir mit Acme?" beantwortet, nutzt beide Formen. Die Kunden-Entität hat die kanonische Aufzeichnung von Acme — Name, primärer Kontakt, Branche, Status. Dokumente halten die Gesprächsnotizen und Verträge. Der Agent liest die Felder des Kunden direkt, holt Chunks aus den Dokumenten und antwortet mit beidem: dem strukturierten Status aus Kunden, dem letzten Kontext aus der jüngsten Gesprächsnotiz.
+</Note>
 
-Ohne strukturierte Aufzeichnungen muss der Agent Acme per Namen über PDFs hinweg finden und riskiert, zwei Kunden mit ähnlichen Namen zu verwechseln. Ohne Dokumente kennt der Agent Acmes Status, kann dir aber nicht sagen, was am Dienstag im Gespräch passiert ist.
+## Alles zusammen — ein CRM-Agent
 
-## Wann du danach greifst
+Ein CRM-Agent, der „Wo stehen wir mit Acme?“ beantwortet, nutzt beide Formen. Die Entität Kunden hält den kanonischen Datensatz — Name, Hauptkontakt, Branche, Status. Dokumente halten die Gesprächsnotizen und Verträge. Der Agent liest die Felder des Kunden direkt, ruft Passagen aus den Dokumenten ab und antwortet mit beidem: dem strukturierten Status aus Kunden, dem jüngsten Kontext aus der letzten Gesprächsnotiz.
 
-| Nutz … wenn                                                        | Dokumente | Strukturierte Aufzeichnung |
-| ------------------------------------------------------------------ | --------- | -------------------------- |
-| Die Quelle ist freie Prosa                                         | ✓         |                            |
-| Die Quelle hat typisierte Felder und du willst exakte Werte zurück |           | ✓                          |
-| Du musst über viele Aufzeichnungen joinen                          |           | ✓                          |
-| Der Agent soll Passagen per Stelle zitieren                        | ✓         |                            |
+Ohne strukturierte Datensätze muss der Agent Acme namentlich über PDFs hinweg suchen und riskiert, zwei ähnlich benannte Kunden zu verwechseln. Ohne Dokumente kennt der Agent Acmes Status, kann dir aber nicht sagen, was im Gespräch am Dienstag passiert ist.
 
-Freie Dokumente und typisierte Aufzeichnungen sind nicht austauschbar; die falsche Form macht den Agent schlechter im Job, den du wolltest.
+## Wann du wozu greifst
+
+| Nimm … wenn                                                        | Dokumente | Strukturierter Datensatz |
+| ------------------------------------------------------------------ | --------- | ------------------------ |
+| Die Quelle ist freie Prosa                                         | ✓         |                          |
+| Die Quelle hat typisierte Felder und du willst exakte Werte zurück |           | ✓                        |
+| Du musst über viele Datensätze hinweg verknüpfen                   |           | ✓                        |
+| Der Agent soll Passagen nach Fundstelle zitieren                   | ✓         |                          |
 
 ## Wo das hingehört
 
-Strukturierte Daten sind die Naht zwischen deinen operativen Daten und der Agent-Oberfläche. Nutz die vier Eingebauten für das, was sie abdecken; greif zu [Inhaltsmodellen](/de/platform/admin/governance/content-models), wenn eine fünfte Form auftaucht. Die nächste Lektüre, die sich lohnt, ist [Dokumente](/de/platform/knowledge/documents) — sie deckt die Dokument-Indexier-Pipeline ab und wie Agents zur Antwortzeit nach Chunks greifen.
+Strukturierte Daten sind die Naht zwischen deinen operativen Daten und der Agenten-Fläche. Nimm die vier eingebauten Entitäten für das, was sie abdecken; greif zu [Content-Modellen](/de/platform/admin/governance/content-models), wenn eine fünfte Form auftaucht. Die nächste Lektüre, die sich lohnt, ist [Dokumente](/de/platform/knowledge/documents) — die Indexierungs-Pipeline, die die unstrukturierte Hälfte bedient.

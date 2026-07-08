@@ -1,41 +1,67 @@
 # Screenshots
 
-How to capture, store, name, and embed images in the docs. Screenshots earn their place when a sentence cannot carry the layout — a panel with five regions, a chart, a diff view. A walkthrough that reads cleanly does not need one; reach for an image only when the words are doing worse than a picture would. This file is the contract for the ones you do add. The structural test that enforces it is [`services/docs/tests/images.test.ts`](../../../services/docs/tests/images.test.ts).
+Show, then tell: every UI step the reader performs is visualized, and every feature page opens
+with a hero shot of its surface. A screenshot earns its place when it carries the point — a
+location, a state, a layout — better than the sentence would; reach for words alone only when the
+picture would show nothing. This file is the contract for every image that ships; the repo's docs
+guide names the concrete pipeline, paths, and ceilings.
 
-Every image is a committed asset under `services/docs/public/`, referenced by an absolute `/images/...` path, and carries a full descriptive sentence as alt text. The capture is reproducible — platform UI through Playwright, CLI output through a sanitising script — so a maintainer can regenerate it after a redesign instead of guessing what the old one showed.
+## The manifest rule — no hand-captured screenshot ever ships
 
-## Where images live
+Every image is declared in the repo's screenshot manifest: one entry per image mapping a stable
+name to the route, the interaction steps that reach the state, the viewport, the crop, and the
+seeded data it expects. Regeneration is one command; an image that can't be regenerated from the
+manifest doesn't merge.
 
-Store optimised WebP under `services/docs/public/images/<section>/`, where `<section>` mirrors the docs area the image belongs to (`platform`, `self-hosted`, `cloud`, `develop`, `tutorials`). The docs site serves `public/` at the site root, so a file at `services/docs/public/images/platform/chat-composer.webp` is reachable at `/images/platform/chat-composer.webp`.
+Why: screenshots rot silently. The UI ships weekly; a hand-captured image is stale the day the
+surface changes, and nobody can tell what state produced it. The manifest is the coupling point —
+when a change touches a route, grep the manifest for it and regenerate the affected images in the
+same change.
 
-Use WebP, not PNG or JPG. WebP compresses screenshots well below the 200KB ceiling the test enforces; a heavier file is almost always an un-optimised PNG and fails the size check. Filenames are dash-case lowercase, the same rule as page slugs, and name the thing shown (`agent-tools-panel.webp`), not the capture order (`screenshot-3.webp`).
+## The believable-data rule — fix the seed, not the screenshot
 
-## How to embed
+The captured workspace must look like a real customer's: named people, plausible projects and
+documents, realistic counts and dates. Never `test test 123`, never lorem ipsum, never an
+obviously synthetic account name — and never real customer data, real emails, or real colleagues.
+The seed fixtures own believability; when a screenshot looks fake, fix the seed and recapture,
+don't retouch the image.
 
-Embed with absolute Markdown image syntax and a sentence-case alt that is a complete, descriptive sentence:
+## Locale rule — capture the source locale only
 
-```markdown
-![The chat composer with the model picker open, showing three available models.](/images/platform/chat-composer.webp)
-```
+Layout and interaction are locale-invariant, so one source-locale image serves every locale's
+page; the alt text and caption translate, the pixels don't. Capture a locale variant only when the
+visible string _is_ the subject — a translated label, a locale-specific format — and store it
+alongside the original with a locale suffix.
 
-The alt text is not a label — it is the sentence a screen-reader user hears in place of the image, and the fallback a sighted reader sees when the image fails to load. "Chat composer" fails; "The chat composer with the model picker open, showing three available models" passes. The test rejects an empty alt outright; reviewers reject a terse one.
+## Crop rules
 
-Lead with the image's effect the same way code blocks do: a sentence before or after the image names what the reader is looking at and why it matters. A bare image with no surrounding prose is the same Code Wall anti-pattern, one medium over.
+- **Capture the smallest region that carries the point** — an element or panel over a full page —
+  but keep exactly one orienting landmark (the dialog title, the active sidebar item) so the
+  reader knows where they are.
+- **Fixed viewport and device-pixel ratio across all captures** — mixed scales read as sloppy and
+  break visual rhythm.
+- **No browser chrome, no cursor, no half-open animations** — capture settled state.
+- **Respect the repo's format and size ceiling** — an over-budget file is an unoptimized export or
+  an under-cropped capture; tighten the crop before lowering the quality.
 
-## Capturing platform UI
+## Embedding
 
-Capture product screenshots through Playwright, reusing the existing harness at `services/platform/tests/e2e` so the capture runs against a real, seeded instance with the same auth and fixtures the tests use. Drive the app to the exact state, set a fixed viewport so images stay consistent across captures, and screenshot the specific element or region rather than the whole tab — a cropped panel reads better and stays under the size ceiling.
+Every screenshot lives in a frame with a caption, embedded with the repo's image syntax and a
+**full descriptive sentence as alt text**. Caption and alt do different jobs: the caption directs
+attention (what to look at here), the alt replaces the image (what a reader who can't see it needs
+to know). "Chat composer" fails as alt; "The chat composer with the model picker open, showing
+three available models." passes. Lead-in prose names why the reader is looking — a bare image with
+no surrounding prose is the code-wall anti-pattern in another medium.
 
-Keep the captured UI in the default locale (`en`) unless the screenshot's point is a string that differs per locale. Most screenshots show layout and interaction, which are identical across locales; a single EN image is correct for all three pages. Capture a `de` or `fr` variant only when the visible text is the subject — a translated label callout, a locale-specific date format — and store it under the same `<section>` path with a locale suffix.
+## CLI output
 
-## Capturing CLI output
-
-Capture CLI output through [`tools/cli/scripts/cli-sample-outputs.sh`](../../../tools/cli/scripts/cli-sample-outputs.sh), which runs the selected `tale` commands and pipes them through a sanitiser. Never paste a raw terminal capture: it leaks the real username, hostname, and any email in the output. The sanitiser replaces them with neutral stand-ins — `user@example.com` for emails, `tale` for the hostname, a generic home path for `$HOME` — so a published image never shows a real person.
-
-When a CLI sample is short and text-only, prefer a fenced code block over an image — it is searchable, translatable, and weightless. Reserve a CLI screenshot for output where colour or alignment is the point (a status table, a coloured diff), and even then run it through the sanitiser first.
+Prefer a fenced code block: it is searchable, translatable, and weightless. Reserve a terminal
+image for output where colour or alignment is the point — and even then capture through the
+repo's sanitizing path so no real username, hostname, or email ever ships.
 
 ## Where this fits
 
-Screenshots are committed assets with the same bar as prose: reproducible capture, descriptive alt text, optimised size, and a path that mirrors the docs taxonomy. The [`images.test.ts`](../../../services/docs/tests/images.test.ts) check is the floor — it catches a missing file, a blank alt, or an oversized asset — and these conventions are the rest, the part a test cannot judge. When you add the first screenshot to a page, you also add the asset under `public/images/<section>/` in the same PR; an image reference with no committed file fails the suite.
-
-The broader docs contract lives in [SKILL.md](SKILL.md); the per-locale rules for translated alt text and callouts live in the companion [`write-translations`](../write-translations/SKILL.md) skill. Read those for voice and locale parity; read this file before you reach for a capture tool.
+Screenshots carry the same bar as prose: reproducible, truthful, and owned by the page that embeds
+them. The repo's image checks are the floor (existence, alt, size); the manifest rule and
+believable-data rule are the parts a test can't judge. When you add a page's first screenshot, the
+asset, its manifest entry, and the page ship in the same change.

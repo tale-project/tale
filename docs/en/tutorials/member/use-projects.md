@@ -19,11 +19,11 @@ The project is the container the rest of the pieces live in. Open **Projects > N
 - **Description** — one sentence on what the project is for
 - **Members** — leave it private for now; you can add teammates after the first chat works
 
-Save. The project appears in the sidebar; clicking it opens an empty project view with tabs for Files, Threads, Agents, and Instructions.
+Save. The project appears in the sidebar; clicking it opens an empty project view with tabs for Knowledge, Threads, Agents, and Instructions.
 
 ## Step 2 — Upload the files once
 
-The project's files are visible to every chat inside the project, so this upload happens once and pays back on every later chat. Open the **Files** tab and drag in the three or four files you confirmed in the prerequisites.
+The project's files are visible to every chat inside the project, so this upload happens once and pays back on every later chat. Open the **Knowledge** tab and drag in the three or four files you confirmed in the prerequisites.
 
 Each file lands in the project's storage and indexes the same way a knowledge-base document does. Once the status is **Ready**, the files are reachable by any chat started inside the project.
 
@@ -31,13 +31,13 @@ Each file lands in the project's storage and indexes the same way a knowledge-ba
 
 Project instructions frame every chat in the project. They compose with the agent's own instructions: the project frames the work, the agent frames the reply. Open the **Instructions** tab and set:
 
-`You are working on the Acme account. The contract and the call notes in the Files tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
+`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
 
 Save. Every new chat in the project will now run with this preamble in addition to the agent's own instructions.
 
 ## Step 4 — Start a chat and verify the context follows
 
-Open the **Threads** tab and click **New chat**. Pick an agent — the default Assistant is fine for the first run — and ask a question one of the project's files answers (`What does the contract say about the renewal clause?`). The reply should cite the contract; the citation opens the file from the project's Files tab, not from the org-wide library.
+Open the **Threads** tab and click **New chat**. Pick an agent — the default Assistant is fine for the first run — and ask a question one of the project's files answers (`What does the contract say about the renewal clause?`). The reply should cite the contract; the citation opens the file from the project's Knowledge tab, not from the org-wide library.
 
 If the agent answers without citing, the project's files were not retrieved — usually because the chosen agent has no retrieval tool enabled. Switch to an agent with RAG on, or enable it on the Assistant for project use.
 

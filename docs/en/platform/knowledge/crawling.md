@@ -1,38 +1,40 @@
 ---
 title: Crawling
-description: How Tale turns a Website entity into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view.
+description: How Tale turns a website into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view.
 ---
 
-A Website is the structured-data shape for "a public site the agent should know about". You hand Tale a domain and a scan interval; the crawler discovers URLs, fetches pages, extracts main content, chunks and embeds the text, and serves the chunks back at reply time the same way it does for Documents. This page hands you the mental model and walks through what you see when a website goes from added to indexed.
+A Website is the knowledge base's shape for "a public site the agent should know about". You hand Tale a domain and a scan interval; the crawler discovers URLs, fetches pages, extracts the main content, chunks and embeds the text, and serves the chunks back at reply time the same way it does for Documents. This page walks what you see between adding a domain and agents citing its pages.
 
-Crawling is one half of the Websites story. The other half — what the structured Website record holds and how agents read it — lives in [Structured data](/platform/knowledge/structured-data). Read that first if the question is "should this be a website or a document"; read this if the question is "what does the crawler actually do".
+<Frame caption="Adding a website — domain plus scan interval is the whole form.">
+
+![The Add website dialog on the Websites tab, asking for a domain and a scan interval that defaults to every six hours.](/images/platform/websites-add-dialog.webp)
+
+</Frame>
 
 ## Adding a website
 
-Open **Knowledge > Websites** and click **Add website**. Two fields: **Domain** (for example `example.com`) and **Scan interval** (every hour, every 6 hours, every 12 hours, daily, every 5 days, every 7 days, every 30 days). Tale normalises the domain — `https://`, `www.`, trailing slashes are tolerated — and rejects anything that does not parse as a hostname. Save, and the website lands in the table with status **Scanning**.
+Open **Knowledge > Websites** and click **Add website**. The dialog has two fields: **Domain** (for example `example.com`) and **Scan interval** — every 1 hour, 6 hours (the default), 12 hours, 1 day, 5 days, 7 days, or 30 days. Tale normalises the domain — `https://`, `www.`, and trailing slashes are tolerated — and rejects anything that does not parse as a hostname. Click **Save**; the scheduler picks new websites up on its next tick, so the first scan starts within seconds.
 
-There is no auth field, no per-path include list, no per-path exclude list on the form. The crawler treats the domain as a public surface; anything that needs a session, a header, or a bypass is not in scope for Websites. For private content, upload [Documents](/platform/knowledge/documents) or wire an [integration](/platform/integrations/overview).
+<Note>
+
+There is no auth field and no include/exclude path list — the crawler sees exactly what an anonymous visitor sees. Anything behind a login belongs in [Documents](/platform/knowledge/documents) or an [integration](/platform/integrations/overview) instead.
+
+</Note>
 
 ## How URLs are discovered
 
-The crawler tries the cooperative path first and falls back to the rude one.
+The crawler tries the cooperative path first. It resolves the homepage and walks every sitemap the site publishes — `sitemap.xml`, sitemap indexes, gzipped and robots-declared sitemaps — collecting the URL list the site itself maintains. Sites with a healthy sitemap get complete coverage with no guessing.
 
-The first try is the site's sitemap. The crawler resolves the homepage, asks `ultimate-sitemap-parser` to walk every `sitemap.xml` and sitemap index it can find — including gzipped sitemaps and robots-declared sitemaps — and collects every URL the site itself published. Sites that maintain their sitemap get a clean, complete URL list with no link-graph guessing.
-
-When the sitemap is missing, broken, or empty, the crawler falls back to a breadth-first link walk from the homepage. It follows in-domain links only, drops external and social-media links, and strips navigation and footer chrome before extracting content. The fallback covers sites without a sitemap; it does not match a well-maintained sitemap for completeness.
+When the sitemap is missing, broken, or empty, the crawler falls back to a breadth-first link walk from the homepage: in-domain links only, external and social links dropped, navigation and footer chrome stripped before extraction. The fallback covers sitemap-less sites, but it cannot match a well-maintained sitemap for completeness.
 
 ## The scan schedule
 
-The scan interval you picked decides how often the crawler re-discovers URLs and re-fetches pages. Behind the table, a scheduler wakes every interval, asks the store which websites are due, and runs them with bounded concurrency. New websites have no last-scanned timestamp, so they are picked up on the next scheduler tick and start scanning within seconds of being added.
+The interval decides how often URLs are re-discovered and pages re-fetched. Each scan is incremental: unchanged pages are skipped, changed pages are re-extracted and re-embedded, new pages are added, removed pages are dropped from the index. Agents pointed at the website see the new content on the next retrieval — there is no separate publish step.
 
-Each scan is incremental: pages that have not changed are skipped, pages that have changed are re-extracted and re-embedded, new pages are added, removed pages are dropped from the index. Agents pointed at the website see the new content on the next retrieval.
+## Reading the table
 
-## What the table tells you
-
-Each row shows the domain, the scan interval, the status, the last-scanned timestamp, and an indexed-pages percentage. Status reads as **Idle** between scans, **Scanning** while a scan is in flight, **Active** when a scan completed successfully, **Error** when the last scan failed, or **Deleting** when a row is being removed. The percentage is `crawled / total` from the most recent scan — hover for the raw counts.
-
-Open a row to read the website's discovered title, description, and creation date. Click **View pages** for the page list — every URL the crawler has indexed, with the per-page word count, chunk count, last-crawled timestamp, and a search box that runs over the indexed chunks.
+Each row shows the domain, its **Status** — **Idle** between scans, **Scanning** in flight, **Active** after a successful scan, **Error** when the last scan failed, **Deleting** during removal — the **Indexed** percentage (hover for crawled-of-total page counts), the last **Scanned** time, and the **Interval**. Open a row for the site's discovered title and description; click **View pages** for the page list — every indexed URL with its word count, chunk count, and last-crawled time, plus a search box that runs over the indexed chunks, which is the quickest way to check what an agent would actually retrieve.
 
 ## Where this fits
 
-Crawling is the cheap way to bring a public site into agent context. You give it a domain and a cadence, and the rest is the crawler's problem — sitemap discovery, link-graph fallback, scheduled re-scans, incremental indexing. The trade-off is that the crawler only sees what an anonymous visitor sees. Anything behind a login lives in [Documents](/platform/knowledge/documents) or an [integration](/platform/integrations/overview). The next read worth queuing is [Structured data](/platform/knowledge/structured-data) — it covers how the Website record and the indexed pages fit alongside Customers, Products, and Vendors in the knowledge base.
+Crawling is the cheap way to bring a public site into agent context: a domain, a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an integration. For how the Website rows sit beside Customers, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).

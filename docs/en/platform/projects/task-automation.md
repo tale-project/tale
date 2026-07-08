@@ -5,6 +5,12 @@ description: The default task-ops pack — how assigning a task to an agent runs
 
 Assigning a board task to an AI agent puts it to work. The **task-ops pack** — eleven file-based workflows provisioned to every organization — covers the full lifecycle: triage, execution, review, escalation, SLA enforcement, and cleanup. Every workflow is a plain JSON file your organization owns: tune the thresholds, edit the prompts, or deactivate individual triggers on the workflow itself. A task an automation proposes sits in [Backlog](/platform/projects/backlog) until a human Starts it — from that moment on it's a board task like any other and enters the loop below.
 
+<Frame caption="The project task board — assigning a card to an agent is what starts the loop below.">
+
+![A kanban task board inside the Website relaunch project, showing five task cards across its status columns.](/images/platform/projects-task-board.webp)
+
+</Frame>
+
 ## The execution loop
 
 1. **Assign** a task to an agent (or let _unassigned triage_ score and route new tasks automatically — high-confidence matches auto-assign, the rest get a suggestion comment).
@@ -44,4 +50,8 @@ The assignee picker groups **Agents** and **Coding agents** separately and shows
 
 ## The kill switch
 
-The `task_automation` governance policy carries the master switch: setting `enabled: false` in the org's `governance/task-automation.json` config file stops the run path — in-flight work finishes, nothing new starts. Admin-only, audited.
+The `task_automation` governance policy carries the master switch: switching it off stops the run path — in-flight work finishes, nothing new starts. It is admin-only and audited; on a self-hosted instance the policy is one of the org's governance config files, alongside the limits covered on [Policies and limits](/platform/admin/governance/policies-and-limits).
+
+## Where this fits
+
+Task automation is what turns the project board from a to-do list into a delegation surface: a human assigns or approves, the pack runs everything in between, and the review gate keeps _Done_ a human decision. The natural next read is [Backlog](/platform/projects/backlog) for how proposed work enters the loop, and [The workflow editor](/platform/automations/editor) for tuning the pack's own workflows.

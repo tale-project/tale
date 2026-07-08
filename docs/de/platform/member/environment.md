@@ -7,6 +7,12 @@ Umgebungsvariablen & Geheimnisse ist dein persönlicher Speicher für Variablen,
 
 Diese Seite zeigt die zwei Arten von Eintrag, wie Geheimnisse geschützt werden, welche Regeln Name und Wert erfüllen müssen, und wo die Werte landen.
 
+<Frame caption="Einstellungen > Umgebung auf einem frischen Konto — der leere Speicher mit der Aktion Variable hinzufügen, die das Inline-Formular öffnet.">
+
+![Die Umgebungs-Einstellungsseite für ein neues Konto, mit einer leeren Variablen-Liste und einer Schaltfläche Variable hinzufügen darüber.](/images/platform/settings-environment.webp)
+
+</Frame>
+
 ## Variablen und Geheimnisse
 
 Öffne **Einstellungen > Umgebung**. **Variable hinzufügen** öffnet einen Dialog für einen neuen Eintrag, darunter steht die Liste dessen, was du gespeichert hast. Jeder Eintrag hat einen **Name** und einen **Wert**, dazu einen **Geheimnis**-Schalter, der entscheidet, wie der Wert gespeichert und angezeigt wird.

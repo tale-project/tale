@@ -1,54 +1,46 @@
 ---
 title: Configurer les approbations
-description: Référence pour les règles d'approbation qu'un Administrateur ou Éditeur peut attacher à un agent, une intégration ou une étape de workflow — quand une approbation est requise, qui décide, ce qui arrive au timeout.
+description: Là où les exigences d’approbation sont déclarées — par opération d’intégration, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter.
 ---
 
-Les règles d'approbation sont la configuration derrière chaque carte d'approbation que Tale fait remonter. Elles nomment ce qui déclenche une approbation, qui est dans le pool d'approbateurs, et ce qui arrive si personne ne décide à temps. Les Administrateurs configurent les politiques à l'échelle de l'org ; les Éditeurs configurent les gates par agent et par workflow. Cette page est la référence pour les champs que tu fixes sur chaque règle et ce qu'ils changent au produit en cours.
+Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’intégration ou le serveur qui fournit la capacité. Il n’y a pas de table centrale de règles à entretenir — cette page montre où vit chaque drapeau et comment lire ce qui demandera avant de s’exécuter.
 
-Le modèle mental des approbations — ce qu'est une carte, ce qu'une approbation laisse derrière, les quatre sources de déclenchement — vit sur [Concepts d'approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration : où vivent les règles, les champs par règle, et comment les règles composent quand deux se déclenchent en même temps.
+Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur [Concepts d’approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration, capacité par capacité.
 
-## Une règle mise en pratique
+## Opérations d’intégration
 
-Pour exiger une approbation avant qu'un agent n'écrive dans la base clients, ouvre **Paramètres > Gouvernance > Règles d'approbation** et clique sur **Nouvelle règle**. Choisis la ressource (`Clients — écriture`), choisis le déclencheur (`N'importe quel agent`), choisis le pool d'approbateurs (`Équipe : Opérations`), fixe le timeout (`24h`) et l'action de timeout (`Rejeter`). Enregistre. La prochaine fois qu'un agent essaie de créer ou modifier un client, l'écriture est retenue, une carte d'approbation atterrit dans l'inbox de l'équipe Opérations, et l'exécution ne continue que si quelqu'un clique sur Approuver dans la journée.
+Chaque intégration déclare ses opérations, et chaque opération porte son propre drapeau d’approbation. Ouvre **Paramètres > Intégrations**, clique sur une intégration, et sa liste d’opérations badge celles marquées **Nécessite une approbation** — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
 
-La règle est en vigueur immédiatement ; les écritures en vol se terminent, la suivante est retenue. Retirer la règle lève le hold sur les écritures futures ; les approbations en attente existantes restent en attente jusqu'à résolution.
+Pour une intégration personnalisée, le drapeau est `requiresApproval` par opération dans le `config.json` que tu empaquettes avec **Ajouter une intégration** — décide au moment de l’écriture lesquelles de ses opérations sont assez lourdes de conséquences pour demander.
 
-## Où vivent les règles
+<Frame caption="Le catalogue des intégrations — la vue de détail de chaque entrée liste ses opérations et lesquelles exigent une approbation.">
 
-Trois surfaces de configuration produisent des règles d'approbation ; chacune écrit dans la même table de règles sous-jacente.
+![La page Intégrations des Paramètres sur l’onglet Toutes les intégrations montrant une grille de cartes de douze services connectables comme GitHub, Slack et Gmail.](/images/platform/integrations-catalog.webp)
 
-- **Paramètres > Gouvernance > Règles d'approbation** est la surface à l'échelle de l'org. Les Administrateurs créent des règles qui s'appliquent à une ressource (documents, clients, produits, intégrations, serveurs MCP, création d'agent, installation de skill) et choisissent le motif de déclencheur (n'importe quel acteur, rôles spécifiques, équipes spécifiques, agents spécifiques).
-- **L'onglet Gouvernance de l'éditeur d'agent** laisse un Éditeur attacher une règle spécifique à l'agent. La règle ne se déclenche que pour les appels de cet agent ; elle compose avec toute règle à l'échelle de l'org qui s'applique aussi.
-- **Le gate d'approbation d'une étape de workflow** laisse l'auteur du workflow exiger une approbation à une étape précise. C'est la surface [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows) ; le gate écrit une règle ponctuelle cadrée à cette étape.
+</Frame>
 
-Une ressource peut avoir plusieurs règles en vigueur ; le moteur les exécute toutes et l'action est retenue jusqu'à ce que chaque règle applicable approuve. Un rejet sur n'importe quelle règle termine l'action.
+## Outils MCP
 
-## Champs par règle
+Le manifeste d’un serveur MCP marque lesquels de ses outils exigent un accord. Ouvre **Paramètres > API > MCP**, déplie un serveur, et sa liste **Outils découverts** badge chaque outil marqué avec **Nécessite une approbation** — ceux-là demandent dans le chat chaque fois qu’un agent les appelle. Le drapeau vient de l’auteur du serveur ; connecter un serveur, c’est accepter son contrat d’outils, donc relis la liste avant d’en activer un. [Serveurs MCP](/fr/platform/integrations/mcp-servers) couvre l’enregistrement.
 
-Chaque règle porte la même forme, peu importe où elle a été écrite.
+## Garde-fous d’écriture intégrés
 
-| Champ                    | Requis                 | Description                                                                                                                                                                                                                           |
-| ------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nom                      | Oui                    | Étiquette humaine montrée sur les cartes et dans l'audit. Choisis quelque chose que l'approbateur reconnaîtra.                                                                                                                        |
-| Ressource                | Oui                    | La chose qui change : un type de base de connaissances (Documents, Clients, Produits, Fournisseurs, Sites web), un appel d'intégration (`Intégrations > Sortant`), création d'agent, installation de skill, ou une étape de workflow. |
-| Motif de déclencheur     | Oui                    | Qui agit : n'importe quel acteur, un rôle spécifique, une équipe spécifique, un agent spécifique. Les motifs restrictifs rétrécissent la portée de la règle.                                                                          |
-| Pool d'approbateurs      | Oui                    | L'ensemble éligible : une équipe, un rôle, ou une liste de membres explicite. Le premier approbateur éligible qui clique décide.                                                                                                      |
-| Exclure le requêteur     | Défaut                 | L'acteur qui a déclenché l'action est retiré du pool. Activé par défaut ; le désactiver est rarement le bon choix.                                                                                                                    |
-| Timeout                  | Oui                    | La fenêtre avant que l'action de timeout se déclenche. Tale supporte minutes, heures et jours.                                                                                                                                        |
-| Action de timeout        | Oui                    | Ce qui arrive quand la fenêtre se ferme sans décision : `Rejeter` (l'action est abandonnée), `Escalader` (router vers un pool de repli) ou `Approuver` (auto-autoriser — sûr uniquement sur ressources peu risquées).                 |
-| Pool d'escalade          | Si timeout = Escalader | Le pool qui reçoit la carte à l'escalade. Même forme que le pool d'approbateurs.                                                                                                                                                      |
-| Politique de commentaire | Défaut                 | Si l'approbateur peut, doit, ou ne peut pas laisser un commentaire. Défaut : peut.                                                                                                                                                    |
+Certaines portes sont livrées actives et ne se configurent pas, parce que l’action est lourde de conséquences par nature :
 
-## Comment plusieurs règles composent
+- **Écritures de documents** — un agent qui enregistre des fichiers dans le hub documentaire demande toujours (**Enregistrer dans les documents**).
+- **Écritures de connaissances** — un agent qui stocke un fait à l’échelle de l’org demande toujours (**Enregistrer dans la base de connaissances**).
+- **Création, mises à jour et exécutions de workflows** — un agent qui construit, modifie ou démarre un workflow demande toujours ; voir [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
 
-Quand une seule action touche plus d'une règle, Tale les évalue en parallèle. L'action est retenue jusqu'à ce que chaque règle se résolve ; un Approuver sur une ne suffit pas si une seconde est encore en attente. Un Rejeter sur n'importe quelle règle termine l'action et écrit le rejet dans le journal d'audit. C'est intentionnel — la règle applicable la plus stricte gagne, et une règle permissive ne peut pas écraser une plus stricte par accident.
+<Note>
 
-Si deux règles ciblent le même pool d'approbateurs, l'approbateur voit une carte par règle ; décider chacune est requis. Les cartes se relient entre elles pour que l'approbateur voie l'ensemble complet des holds avant de trancher.
+Le levier pour celles-ci n’est pas le drapeau d’approbation mais la capacité elle-même : un agent sans les outils de documents ou de workflows ne produit jamais la carte. Taille le [jeu d’outils](/fr/platform/agents/tools) de l’agent pour retirer la capacité entièrement.
 
-## Audit et historique
+</Note>
 
-Chaque changement de règle atterrit dans le journal d'audit avec l'acteur, l'horodatage et le diff. La ligne d'audit suit aussi chaque approbation que la règle a produite — acteur, décision, commentaire et temps de résolution de chaque carte. Va vers la vue audit de la règle (l'onglet **Historique** sur la ligne de la règle) quand tu veux voir à quelle fréquence la règle se déclenche et combien de temps les approbateurs prennent typiquement.
+## Vérifier ce qui demandera
 
-## Où cela s'inscrit
+Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : la liste d’opérations de l’intégration pour les écritures marquées, les **Outils découverts** du serveur MCP pour les outils marqués, et l’onglet outils de l’agent pour savoir s’il tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
 
-Les règles d'approbation sont le plan de configuration derrière les [Concepts d'approbation](/fr/platform/approvals/concepts) ; la variante gate-de-workflow a sa propre surface sous [Approbations dans les workflows](/fr/platform/workflows/approvals-in-workflows). La lecture suivante naturelle dépend de ce que tu câbles — pour les gates de workflow la page workflow, pour les approbations d'écriture d'agent la [vue Admin des agents](/fr/platform/admin/agents) où vit la gouvernance par agent.
+## Où cela s’inscrit
+
+Configurer ici, c’est distribuer — les drapeaux vivent avec les intégrations et les serveurs qui possèdent les capacités. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de vie de carte que ces drapeaux produisent, et [Outils d’agent](/fr/platform/agents/tools) pour le versant capacité de la même frontière.

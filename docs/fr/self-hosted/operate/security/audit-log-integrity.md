@@ -1,56 +1,56 @@
 ---
-title: Audit-log integrity alerts
-description: How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence.
+title: Alertes d’intégrité du journal d’audit
+description: Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte — lire le constat, distinguer une falsification d’une lacune de configuration bénigne et préserver les preuves.
 ---
 
-Tale verifies every organisation's audit-log hash chain on a schedule and raises an alert the moment a verification fails. This page is the runbook for the operator or admin who received that alert: how to read the finding, how to separate a genuine tamper signal from an ordinary retention or configuration artifact, and what to preserve before you touch anything. The alert is deliberately loud because a real break is rare and serious — but most breaks that fire in practice have an everyday explanation, so the work is to rule those out methodically rather than to panic.
+Tale vérifie la chaîne de hachage du journal d’audit de chaque organisation selon un planning et lève une alerte à l’instant où une vérification échoue. Cette page est le runbook de l’opérateur ou de l’admin qui a reçu cette alerte : comment lire le constat, comment séparer un vrai signal de falsification d’un artefact ordinaire de rétention ou de configuration, et quoi préserver avant de toucher à quoi que ce soit. L’alerte est volontairement bruyante parce qu’une vraie rupture est rare et grave — mais la plupart des ruptures qui se déclenchent en pratique ont une explication banale, donc le travail consiste à les écarter méthodiquement plutôt qu’à paniquer.
 
-## What triggers it
+## Ce qui la déclenche
 
-A daily cron walks every organisation's append-only audit chain along with its retention and scrub checkpoints. When a chain fails to verify, the run does two things. It writes an in-band `security` audit row — on every failing run, so the durable record is always complete — and it raises an out-of-band notification to the organisation's admins, in the notification bell and in your Slack channel when one is connected.
+Un cron quotidien parcourt la chaîne d’audit en append-only de chaque organisation, avec ses points de contrôle de rétention et de scrub. Quand une chaîne ne se vérifie pas, l’exécution fait deux choses. Elle écrit une ligne d’audit in-band de catégorie `security` — à chaque exécution en échec, pour que l’enregistrement durable soit toujours complet — et elle lève une notification out-of-band vers les admins de l’organisation, dans la cloche de notifications et dans ton canal Slack quand il y en a un de connecté.
 
-The out-of-band alert is deduplicated. You get one notification when a break is first detected, and one more only if it changes — a different broken row, or a different failing checkpoint — not a fresh alarm each day for the same break. A subsequent clean run clears the alert on its own; a later, different break raises a new one.
+L’alerte out-of-band est dédupliquée. Tu reçois une notification à la première détection d’une rupture, et une autre seulement si elle change — une autre ligne rompue, ou un autre point de contrôle en échec — pas une nouvelle alarme chaque jour pour la même rupture. Une exécution propre ultérieure efface l’alerte d’elle-même ; une rupture différente, plus tard, en lève une nouvelle.
 
-## Tampering or a configuration gap
+## Falsification ou lacune de configuration
 
-The alert arrives in two shapes, and the title tells you which. **Audit log integrity check failed** is the critical one: the hash chain itself does not verify, or a signed checkpoint's signature does not match the configured key. Treat this as a possible tamper signal until you have explained it.
+L’alerte arrive sous deux formes, et le titre te dit laquelle. **Échec du contrôle d'intégrité du journal d'audit** est la critique : la chaîne de hachage elle-même ne se vérifie pas, ou la signature d’un point de contrôle signé ne correspond pas à la clé configurée. Traite-la comme un signal de falsification possible tant que tu ne l’as pas expliquée.
 
-**Audit log signatures can't be verified** is a calm warning, not a breach: a checkpoint is signed, but the deployment has no `TALE_AUDIT_SIGNING_KEY` configured to check that signature against. Nothing was forged — Tale cannot prove the checkpoint is authentic until you restore the key. The in-product panel mirrors the split: a healthy chain shows a green **Verified** badge, an active incident shows a red **Integrity alert active** badge, and an organisation the cron has not reached yet shows **Not yet checked**.
+**Les signatures du journal d'audit ne peuvent pas être vérifiées** est un avertissement calme, pas une intrusion : un point de contrôle est signé, mais le déploiement n’a aucune `TALE_AUDIT_SIGNING_KEY` configurée pour vérifier cette signature. Rien n’a été forgé — Tale ne peut simplement pas prouver que le point de contrôle est authentique tant que tu n’as pas restauré la clé. Le panneau dans le produit reflète la distinction : une chaîne saine montre le badge vert **Vérifié**, un incident actif le badge rouge **Alerte d'intégrité active**, et une organisation que le cron n’a pas encore atteinte montre **Pas encore vérifié**.
 
-## Open the integrity panel
+## Ouvrir le panneau d’intégrité
 
-An organisation's admins inspect the chain from **Settings > Governance > Logs**. The **Chain integrity** panel at the top of the page shows the status badge, the time of the last automated check, and a **Verify now** button that re-runs the same verification on demand. If you arrived from the notification, clicking the alert deep-links you straight to the flagged row in the audit table instead of the top of the log.
+Les admins d’une organisation inspectent la chaîne depuis **Paramètres > Gouvernance > Journaux d'audit**. Le panneau **Intégrité de la chaîne** en haut de la page montre le badge de statut, l’heure du dernier contrôle automatique et un bouton **Vérifier maintenant** qui relance la même vérification à la demande. Si tu arrives depuis la notification, cliquer sur l’alerte te mène directement à la ligne signalée dans le tableau d’audit au lieu du haut du journal.
 
-Run **Verify now** to see the structured finding. For a hash-chain break, the panel shows **Chain integrity broken** with the **Entry ID** of the first row that fails, when it **Occurred**, the **Expected hash**, and the **Stored hash** that did not match — plus an **Open this entry** button that reveals the row in the table. For a checkpoint problem, it shows **Checkpoint verification failed** with the **Checkpoint ID** and a **Reason**. Record these details before you change anything: they are the evidence.
+Lance **Vérifier maintenant** pour voir le constat structuré. Pour une rupture de la chaîne de hachage, le panneau montre **Intégrité de la chaîne rompue** avec l’**ID de l'entrée** de la première ligne en échec, le moment (**Survenue le**), le **Hachage attendu** et le **Hachage stocké** qui n’a pas correspondu — plus un bouton **Ouvrir cette entrée** qui révèle la ligne dans le tableau. Pour un problème de point de contrôle, il montre **Échec de la vérification du point de contrôle** avec l’**ID du point de contrôle** et une **Raison**. Note ces détails avant de changer quoi que ce soit : ils sont la preuve.
 
-## Rule out the benign causes
+## Écarter les causes bénignes
 
-A hash break is a tamper signal only when nothing legitimate explains it, and the verifier already accounts for the three ordinary events that cause almost every alert — so confirming one of them is your first move.
+Une rupture de hachage n’est un signal de falsification que si rien de légitime ne l’explique, et le vérificateur connaît déjà les trois événements ordinaires derrière presque toutes les alertes — les confirmer est ton premier geste.
 
-**A retention cut.** When retention hard-deletes old rows, the surviving chain head points at a row that no longer exists. The verifier re-anchors across the cut using a signed retention checkpoint, so a clean cut verifies normally. If instead you see **Audit log signatures can't be verified**, the cut itself is fine — the deployment is missing the `TALE_AUDIT_SIGNING_KEY` that authenticates the checkpoint. That is a configuration gap, not tampering.
+**Une coupe de rétention.** Quand la rétention supprime définitivement d’anciennes lignes, la tête de chaîne survivante pointe vers une ligne qui n’existe plus. Le vérificateur ré-ancre la chaîne par-dessus la coupe grâce à un point de contrôle de rétention signé — une coupe propre se vérifie donc normalement. Si tu vois à la place **Les signatures du journal d'audit ne peuvent pas être vérifiées**, la coupe elle-même va bien — il manque au déploiement la `TALE_AUDIT_SIGNING_KEY` qui authentifie le point de contrôle. C’est une lacune de configuration, pas une falsification.
 
-**A GDPR scrub.** Erasing a data subject blanks their fields in place, which would change those rows' hashes — so a scrub writes a signed scrub checkpoint covering the affected rows, and the verifier trusts them on that basis. A scrub should never surface as a break on a deployment that has a signing key.
+**Un scrub RGPD.** Effacer une personne concernée vide ses champs sur place, ce qui changerait les hachages de ces lignes — un scrub écrit donc un point de contrôle de scrub signé couvrant les lignes touchées, et le vérificateur leur fait confiance sur cette base. Un scrub ne devrait jamais apparaître comme une rupture sur un déploiement qui a une clé de signature.
 
-**Legacy pre-chain rows.** Rows written before audit hash-chaining existed carry no integrity hash. The verifier skips them automatically; they are not a break.
+**Les anciennes lignes d’avant la chaîne.** Les lignes écrites avant l’existence du chaînage de hachage d’audit ne portent aucun hachage d’intégrité. Le vérificateur les saute automatiquement ; ce n’est pas une rupture.
 
-A genuine tamper signal is a hash mismatch with none of these explanations: no retention cut at that point, no scrub covering the row, and the signing key present and correct.
+Un vrai signal de falsification est un écart de hachage sans aucune de ces explications : pas de coupe de rétention à cet endroit, pas de scrub couvrant la ligne, et la clé de signature présente et correcte.
 
-## Respond to a real break
+## Réagir à une vraie rupture
 
-If the finding survives that triage — a hash mismatch you cannot account for — treat it as a security incident and preserve evidence first. Audit rows are append-only by design; do not delete or edit any row, including the flagged one, because that destroys the record an investigation depends on.
+Si le constat survit à ce triage — un écart de hachage que tu ne peux pas expliquer —, traite-le comme un incident de sécurité et préserve d’abord les preuves. Les lignes d’audit sont en append-only par conception ; ne supprime ni ne modifie aucune ligne, y compris la ligne signalée, car cela détruit l’enregistrement dont une enquête dépend.
 
-1. Record the finding verbatim — the **Entry ID**, **Occurred** time, **Expected hash**, and **Stored hash** (or the **Checkpoint ID** and **Reason**) shown in the panel. Copy or screenshot them rather than relying on the alert alone.
-2. Confirm whether the signing key is configured on the host, so you can tell a real mismatch from an unverifiable checkpoint. This reports presence without printing the secret:
+1. Note le constat mot pour mot — l’**ID de l'entrée**, l’heure sous **Survenue le**, le **Hachage attendu** et le **Hachage stocké** (ou l’**ID du point de contrôle** et la **Raison**) affichés dans le panneau. Copie-les ou fais-en une capture plutôt que de te fier à la seule alerte.
+2. Confirme si la clé de signature est configurée sur l’hôte, pour distinguer un vrai écart d’un point de contrôle invérifiable. Ceci rapporte la présence sans imprimer le secret :
    ```bash
    grep -q '^TALE_AUDIT_SIGNING_KEY=' .env && echo configured || echo missing
    ```
-3. Correlate the break's timestamp with recent activity — a retention sweep, a data-subject scrub, a deploy, a database restore, or direct database access. A break that lines up with a maintenance action usually has an ordinary cause you can now name.
-4. If nothing explains it, escalate through your security incident policy and treat the database as potentially compromised until proven otherwise. Keep a backup snapshot from before and after the detected break for forensics.
+3. Corrèle l’horodatage de la rupture avec l’activité récente — une passe de rétention, un scrub de personne concernée, un déploiement, une restauration de base de données ou un accès direct à la base. Une rupture alignée sur une action de maintenance a le plus souvent une cause ordinaire que tu peux maintenant nommer.
+4. Si rien ne l’explique, escalade via ta politique d’incident de sécurité et traite la base de données comme potentiellement compromise jusqu’à preuve du contraire. Garde un snapshot de sauvegarde d’avant et d’après la rupture détectée pour l’investigation.
 
-## Clear the alert
+## Effacer l’alerte
 
-The alert is incident-based, not a recurring event. Once the break is resolved or explained — the key restored, the retention artifact understood, a tampered database rebuilt from a clean backup — the next daily run verifies cleanly and clears the alert on its own, and the **Chain integrity** badge returns to **Verified**. There is no acknowledge or dismiss step to remember. If a different break appears later, the check raises a fresh alert for that one, so muting is never necessary.
+L’alerte est liée à l’incident, pas récurrente. Une fois la rupture résolue ou expliquée — la clé restaurée, l’artefact de rétention compris, une base falsifiée reconstruite depuis une sauvegarde saine —, la prochaine exécution quotidienne se vérifie proprement et efface l’alerte d’elle-même, et le badge **Intégrité de la chaîne** revient à **Vérifié**. Il n’y a aucune étape d’accusé de réception ou de rejet à retenir. Si une rupture différente apparaît plus tard, le contrôle lève une nouvelle alerte pour celle-là — couper le son n’est donc jamais nécessaire.
 
-## Where this fits
+## Où cela s’inscrit
 
-An integrity alert is a prompt to investigate, not a verdict — the daily check runs loud so a rare real break cannot hide among the logs, and this runbook is how you separate that rare case from the retention and scrub artifacts behind most alerts. The mechanism the verifier checks — the SHA-256 hash chain and the HMAC-signed checkpoints — is documented in [Cryptography](/self-hosted/operate/security/cryptography), and the retention cuts that legitimately re-anchor it are in [Retention](/self-hosted/configuration/retention). The panel, columns, and export you use to read a flagged row live on the [Audit logs](/platform/admin/governance/audit-logs) reference; the [Hardening](/self-hosted/operate/security/hardening) checklist is where this monitoring gets switched on in the first place.
+Une alerte d’intégrité est une invitation à enquêter, pas un verdict — le contrôle quotidien tourne fort pour qu’une rare vraie rupture ne puisse pas se cacher parmi les journaux, et ce runbook est la façon de séparer ce cas rare des artefacts de rétention et de scrub derrière la plupart des alertes. Le mécanisme que le vérificateur contrôle — la chaîne de hachage SHA-256 et les points de contrôle signés en HMAC — est documenté dans [Cryptographie](/fr/self-hosted/operate/security/cryptography), et les coupes de rétention qui la ré-ancrent légitimement sont dans [Rétention](/fr/self-hosted/configuration/retention). Le panneau, les colonnes et l’export avec lesquels tu lis une ligne signalée vivent dans la référence [Journaux d'audit](/fr/platform/admin/governance/audit-logs) ; la checklist [Durcissement](/fr/self-hosted/operate/security/hardening) est l’endroit où ce monitoring s’allume en premier lieu.

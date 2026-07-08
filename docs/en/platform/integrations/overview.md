@@ -1,73 +1,53 @@
 ---
 title: Integrations
-description: Third-party systems Tale can read from and write to — communication, storage, identity, dev, knowledge — plus how the integration surface differs from MCP.
+description: The third-party systems Tale connects to — the catalog under Settings > Integrations, what each connector does, how connecting works, and how the surface differs from MCP.
 ---
 
-Integrations are the bridges between Tale and the rest of your stack. Agents call them as tools, workflows trigger them at steps, and the documents pipeline pulls files from them. Each integration is a single JSON config plus a credential the org stores once; once connected, anything in Tale can use it without re-authentication. This overview names the shipped integrations grouped by what they do.
+Integrations are the bridges between Tale and the rest of your stack: agents call them as tools, workflows call them at steps, and the knowledge pipeline pulls documents through them. The org connects each one once under **Settings > Integrations**; from then on, anything in Tale can use it without re-authenticating. This overview names the shipped catalog and the two ways to extend it.
 
-The shape of an integration is the same across every entry below — an OpenAI-compatible REST surface or an OAuth2 dance, with operations declared in a JSON config under `builtin-configs/integrations/`. Custom integrations follow the same shape; you do not need a code change to add one.
+<Frame caption="Settings > Integrations on the All integrations tab — the full catalog, each card one Connect away.">
 
-## How integrations differ from MCP
+![The Settings Integrations page showing a search field, an Add integration button, and a card grid of twelve services including Confluence, GitHub, Gmail, Slack, and Twilio.](/images/platform/integrations-catalog.webp)
 
-Two surfaces let an agent reach beyond Tale. **Integrations** are first-party, OAuth- or API-key-secured connectors the org configures once under **Settings > Integrations**. **MCP servers** are external processes (often self-hosted) exposing the Model Context Protocol; the org registers them under **Settings > MCP servers** and approves each tool the first time it is called. Reach for an integration when one exists for your target system; reach for [MCP servers](/platform/integrations/mcp-servers) when no integration covers what you need and you can host the bridge yourself.
+</Frame>
 
-## Communication
+## The catalog
 
-| Integration   | What it does                                            | Setup                                 |
-| ------------- | ------------------------------------------------------- | ------------------------------------- |
-| **Slack**     | Read channels, send messages, react to events.          | OAuth2 from the Slack workspace.      |
-| **Teams**     | Same shape for Microsoft Teams — channels and chats.    | OAuth via Microsoft Entra ID.         |
-| **Discord**   | Bot-driven message send and channel read.               | Discord bot token.                    |
-| **Gmail**     | Read inbox, send mail, label.                           | OAuth via Google.                     |
-| **Outlook**   | Read inbox, send mail, calendar reads.                  | OAuth via Microsoft Entra ID.         |
-| **IMAP/SMTP** | Receive and send mail via a private mailbox — no OAuth. | IMAP + SMTP host, port, and password. |
-| **Twilio**    | SMS, voice, WhatsApp Business.                          | Twilio account SID and auth token.    |
+The page has two tabs — **Connected** shows what the org already uses, **All integrations** the full catalog with a search field. Each card's description is the honest one-liner of what connecting buys you:
 
-## Storage and documents
+| Integration             | What it does                                                                                                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confluence**          | Import Confluence Cloud pages into Tale's knowledge base.                                                                                                                                                   |
+| **Discord**             | Post messages and manage channels in your Discord server.                                                                                                                                                   |
+| **GitHub**              | Manage repositories, issues, and pull requests on GitHub.                                                                                                                                                   |
+| **Gmail**               | Read, send, and organize email in Gmail.                                                                                                                                                                    |
+| **Google Drive**        | Import files from Google Drive into Tale's knowledge base.                                                                                                                                                  |
+| **IMAP / SMTP Mailbox** | Connect a private IMAP + SMTP mail server to the Inbox — no Gmail or Outlook account required; sending can go through a separate SMTP relay (Resend, SendGrid, Amazon SES, …) instead of the mailbox login. |
+| **Microsoft Outlook**   | Manage Outlook mail, calendar, and contacts.                                                                                                                                                                |
+| **Shopify**             | Sync products, customers, and orders from your Shopify store.                                                                                                                                               |
+| **Slack**               | Send messages and interact with channels in Slack.                                                                                                                                                          |
+| **Tavily**              | Real-time web search and page extraction for AI research.                                                                                                                                                   |
+| **Microsoft Teams**     | Send messages and manage channels in Microsoft Teams.                                                                                                                                                       |
+| **Twilio**              | Send SMS and make voice calls with Twilio.                                                                                                                                                                  |
 
-| Integration       | What it does                                                                                                                  | Setup                                                                       |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Microsoft 365** | OneDrive and SharePoint document sync into [Knowledge](/platform/knowledge/documents); single sign-on via Microsoft Entra ID. | OAuth via Microsoft Entra ID; the same tenant powers SSO and document sync. |
-| **Google Drive**  | Pull files from Drive folders into Knowledge.                                                                                 | OAuth via Google.                                                           |
-| **Confluence**    | Pull Confluence pages into Knowledge; agents cite the source page.                                                            | API token + base URL (cloud or self-hosted).                                |
-| **WebDAV**        | Read folders from any WebDAV server (Nextcloud, ownCloud, generic).                                                           | Server URL, username, password.                                             |
+## Connecting one
 
-Documents synced via any of these flow through the same indexing pipeline as direct uploads — see [Documents](/platform/knowledge/documents). The source field on each indexed document names the integration so citations point back to the original.
+Click **Connect** on a card. OAuth-backed services walk the vendor's consent flow; token-backed ones ask for the credential in an **Authentication** section. The detail view also lists the integration's operations — the ones badged **Requires approval** hold in chat until a person signs off, which is how outbound writes stay accountable ([Configure approvals](/platform/approvals/configure)).
 
-## Identity
+Documents imported through Confluence or Google Drive flow through the same indexing pipeline as direct uploads, and citations point back to the source — see [Documents](/platform/knowledge/documents).
 
-Microsoft 365 also covers identity. Connecting it under **Settings > Integrations** enables OneDrive and SharePoint reads; connecting it under **Settings > Authentication** enables single sign-on for the whole org through the same Entra ID tenant. The two paths share credentials and provisioning rules — see [Members and roles](/platform/admin/members-and-roles) for the role mapping.
+## Extending beyond the catalog
 
-## Knowledge and research
+**Add integration** uploads a custom connector — a small package of `config.json`, a `connector.js` or `.ts`, and an icon (as a `.zip` or individual files, 1 MB total). The preview shows its operations, allowed hosts, and connector code before you install, and the result appears in the catalog like any shipped entry.
 
-| Integration | What it does                                                                           | Setup                      |
-| ----------- | -------------------------------------------------------------------------------------- | -------------------------- |
-| **Tavily**  | Open-web search and page extraction for [Deep research](/platform/chat/deep-research). | API key from `tavily.com`. |
+When no connector fits and you can host the bridge yourself, register an [MCP server](/platform/integrations/mcp-servers) instead — a generic protocol surface rather than a vendor-specific connector.
 
-## Source control
+<Note>
 
-| Integration | What it does                                             | Setup                         |
-| ----------- | -------------------------------------------------------- | ----------------------------- |
-| **GitHub**  | Read repositories, search code, react to issues and PRs. | GitHub App or personal token. |
+WebDAV is not in this catalog because it points the other way: it serves Tale's documents to your devices as a network drive. See [WebDAV](/platform/integrations/webdav).
 
-## Vertical: commerce and hospitality
-
-| Integration | What it does                          | Setup                    |
-| ----------- | ------------------------------------- | ------------------------ |
-| **Shopify** | Read orders, customers, and products. | Shopify Admin API token. |
-
-## AI services
-
-| Integration  | What it does                                                            | Setup                                                                                        |
-| ------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **AI image** | Image-generation surface that wraps the configured image-tagged models. | No setup — uses the model providers under [Settings > Providers](/platform/admin/providers). |
-
-## Adding a custom integration
-
-Custom integrations follow the same JSON shape as the ones above. Drop a config into `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` declaring the operations, auth method, and allowed hosts; under the org-first layout each org's `integrations/` subtree is independent. The integration appears in **Settings > Integrations** for users to connect. The shape and validation rules live alongside the shipped configs in `builtin-configs/integrations/`.
-
-For richer or self-hosted bridges, [MCP servers](/platform/integrations/mcp-servers) are the alternative surface — every MCP server you register adds its tools to the agent toolbelt with per-tool approval.
+</Note>
 
 ## Where this fits
 
-Integrations are how agents act on the world outside Tale. The next read depends on what you came to do — for the agent author, [Agent tools](/platform/agents/tools) explains how an integration's operations surface as a tool family on the agent; for the org admin, [Settings > Integrations](/platform/admin/integrations) is where credentials are stored and rotated; for the developer wiring something new, [MCP server from scratch](/tutorials/developer/mcp-server-from-scratch) is the end-to-end build of a custom bridge.
+Integrations are how agents act on the world outside Tale. For the agent author, [Agent tools](/platform/agents/tools) shows how an integration's operations surface as tools; for the approver, [Configure approvals](/platform/approvals/configure) is where the write operations are held; for the builder with no connector to reach for, [MCP servers](/platform/integrations/mcp-servers) is the open-ended alternative.

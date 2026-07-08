@@ -5,6 +5,12 @@ description: Model-level controls — which models are allowed per role or team,
 
 Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role, user) with a default-model rule the resolver applies when no agent or conversation has overridden the choice. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.
 
+<Frame caption="Governance > Content & Models — the mandatory system-prompt prefix and suffix above the per-scope default-model rules.">
+
+![The Content and Models governance page showing the mandatory system-prompt prefix and suffix fields above an empty default-models rule table.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
 ## A worked default
 
 To set the default model for the Editor role, open **Settings > Governance > Default Models** and click **Add rule**. Pick **Role** as the scope, **Editor** as the target, then pick the provider and model. Save and the next request from any Editor without an explicit per-agent or per-conversation model lands on the rule's model. More specific scopes win — a user rule beats a team rule beats a role rule beats the org default.

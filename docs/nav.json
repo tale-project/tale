@@ -4,7 +4,14 @@
   "groups": [
     {
       "label": "start",
-      "pages": ["index"]
+      "pages": [
+        "index",
+        "get-started/quickstart",
+        "get-started/members",
+        "get-started/editors",
+        "get-started/developers",
+        "get-started/admins"
+      ]
     },
     {
       "label": "cloud",
@@ -151,18 +158,11 @@
             "platform/automations/concepts",
             "platform/automations/catalog",
             "platform/automations/builtin",
+            "platform/automations/editor",
+            "platform/automations/triggers",
+            "platform/automations/execution-logs",
+            "platform/automations/approvals-in-workflows",
             "platform/automations/assistant"
-          ]
-        },
-        {
-          "label": "workflows",
-          "pages": [
-            "platform/workflows/concepts",
-            "platform/workflows/workflows",
-            "platform/workflows/triggers",
-            "platform/workflows/execution-logs",
-            "platform/workflows/metrics",
-            "platform/workflows/approvals-in-workflows"
           ]
         },
         {
@@ -177,10 +177,7 @@
         },
         {
           "label": "workspace",
-          "pages": [
-            "platform/workspace/prompt-library",
-            "platform/workspace/document-comparison"
-          ]
+          "pages": ["platform/workspace/prompt-library"]
         },
         {
           "label": "approvals",

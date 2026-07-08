@@ -47,6 +47,7 @@
     "docker:test:sandbox-runtime": "bun services/platform/tests/integration/container-sandbox-runtime-test.ts",
     "docker:test:vulnerability": "bun services/platform/tests/integration/container-vulnerability-scan.ts",
     "docker:e2e": "bun services/platform/tests/integration/master-e2e-test.ts",
+    "docs:screenshots": "bun services/platform/tests/docs-screenshots/capture.ts",
     "commit": "bunx cz",
     "storybook": "bunx turbo run storybook",
     "storybook:ui": "bun run --filter @tale/ui storybook",

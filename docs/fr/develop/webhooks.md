@@ -3,7 +3,7 @@ title: Webhooks
 description: Déclencheurs webhook entrants (toi vers Tale) et webhooks d'événement sortants (Tale vers toi). Signature, idempotence, retraitements.
 ---
 
-Les webhooks sont la manière dont Tale et le reste de ta stack se parlent en asynchrone. Deux directions existent : entrant — ton système POST sur un déclencheur de workflow Tale pour tirer une exécution — et sortant — Tale POST sur ton URL quand quelque chose qui l'intéresse arrive. Les deux moitiés partagent le modèle d'auth (un bearer token), le schéma de signature (HMAC-SHA256 sur le body) et la politique de retraitement (backoff exponentiel avec jitter).
+Les webhooks sont la manière dont Tale et le reste de ta stack se parlent en asynchrone. Deux directions existent : entrant — ton système POST sur un déclencheur de workflow Tale pour tirer une exécution — et sortant — Tale POST sur ton URL quand quelque chose qui l'intéresse arrive. Les deux moitiés partagent la même politique de retraitement (backoff exponentiel avec jitter) mais s'authentifient différemment : les requêtes entrantes portent leur justificatif comme jeton dans l'URL, les livraisons sortantes sont signées en HMAC-SHA256 sur le body.
 
 Lis ceci quand tu câbles une intégration qui doit réagir à des événements dans une des directions. Reviens-y quand un webhook tire mais que le récepteur ne le voit pas, ou quand les retries ne se comportent pas comme tu l'attendais.
 
@@ -29,23 +29,22 @@ Vérifie la signature avant de faire confiance au body : HMAC-SHA256 sur le body
 
 ## Un déclencheur entrant mis en pratique
 
-Quand ton système doit tirer un workflow Tale, POST sur l'URL du déclencheur du workflow :
+Quand ton système doit tirer un workflow Tale, POST sur l'URL de webhook que Tale émet quand tu ajoutes un déclencheur webhook au workflow :
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/workflows/triggers/<trigger-name> \
-  -H "Authorization: Bearer $TALE_TRIGGER_KEY" \
+curl -sS https://your-host.example.com/api/workflows/wh/<token> \
   -H "Idempotency-Key: order-12345" \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-La clé de déclencheur est une clé API portée sur le déclencheur webhook, émise aux côtés du déclencheur dans l'éditeur de workflow. Le body devient l'entrée de la première étape du workflow. La réponse est du JSON avec un `executionId` que tu peux citer en vérifiant l'exécution.
+Le jeton dans le chemin de l'URL est le justificatif — aucun en-tête Authorization n'est requis ; traite donc l'URL entière comme un secret et supprime le webhook pour le révoquer. Le body devient l'entrée de la première étape du workflow. Une première acceptation renvoie `{ "status": "accepted", "workflowSlug": "..." }` ; un rejeu avec la même `Idempotency-Key` renvoie l'`executionId` de l'exécution d'origine au lieu d'en lancer une nouvelle.
 
 ## Signer et vérifier
 
 Sortant : le secret de signature par endpoint est affiché une fois quand tu ajoutes l'endpoint sous **Paramètres > Intégrations** ou dans le panneau de déclencheur webhook de l'éditeur de workflow. Tale signe chaque body en HMAC-SHA256 avec ce secret ; la vérification est une comparaison de chaînes en temps constant.
 
-Entrant : il n'y a pas de signature — le bearer token est l'auth. Si tu ne peux pas garder le token secret, n'expose pas l'URL du déclencheur.
+Entrant : il n'y a pas de signature — le jeton dans l'URL est l'auth. Si tu ne peux pas garder l'URL secrète, ne la distribue pas ; supprime le webhook pour la faire tourner.
 
 ```python
 import hmac, hashlib
@@ -77,4 +76,4 @@ Les retraitements entrants sont la responsabilité de l'appelant — la réponse
 
 ## Où cela s'inscrit
 
-Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/workflows/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.
+Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/automations/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.

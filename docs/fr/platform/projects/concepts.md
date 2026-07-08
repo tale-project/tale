@@ -1,48 +1,48 @@
 ---
 title: Concepts de projet
-description: Un projet est un espace partagé qui regroupe fichiers, instructions, conversations et agents liés au projet. Cette page donne le modèle mental pour choisir un projet plutôt qu'une conversation isolée.
+description: Un projet regroupe chats, fichiers, instructions, tâches et discussions dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé.
 ---
 
-Un projet est l'unité vers laquelle Tale se tourne quand un bloc de travail a besoin des mêmes fichiers, des mêmes instructions et des mêmes agents sur de nombreuses conversations. C'est un espace partagé qui regroupe quatre choses — fichiers, instructions, conversations et agents liés au projet —, des choses qui te suivent entre conversations pour que tu ne recolles pas le contexte à chaque fois.
+Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fichiers, des mêmes instructions et des mêmes surfaces de travail à travers beaucoup de chats et beaucoup de personnes. Cette page te donne le modèle mental — lis-la avant de créer ton premier projet, et reviens-y au moment de décider si un chat qui grossit mérite d’être promu en projet.
 
-Cette page te donne le modèle mental pour décider quand passer à un projet. Lis-la avant d'en démarrer un ; reviens-y quand tu te demandes si tu dois continuer à alimenter une conversation isolée ou promouvoir le contexte dans un projet.
+<Frame caption="L’onglet Général — identité, partage et bandeau de statistiques sont la porte d’entrée du projet.">
 
-## Les quatre pièces
+![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, la section de partage et un bandeau de statistiques indiquant deux fichiers et deux chats.](/images/platform/project-general-tab.webp)
 
-**Fichiers** sont le jeu de travail du projet — les documents, tableurs et images sur lesquels tu reviens. Les fichiers sont attachés au niveau du projet et visibles depuis chaque conversation à l'intérieur, sans le coût d'un nouveau téléversement ou d'une nouvelle récupération.
+</Frame>
 
-**Instructions** sont le system prompt au niveau du projet — la voix et les contraintes qui s'appliquent à chaque conversation. Elles composent avec les instructions propres de l'agent : les instructions du projet encadrent le travail, celles de l'agent encadrent la réponse.
+## Ce qu’un projet possède
 
-**Conversations** sont les fils. Chaque conversation dans le projet voit les fichiers et instructions du projet. Les conversations restent privées au projet ; elles n'apparaissent pas dans l'historique chat de l'organisation.
+Les **chats** démarrés dans le projet portent son contexte automatiquement. Ils restent les tiens jusqu’à ce que tu actives **Partager avec le projet** sur un chat — l’onglet Chats se divise en **Tes chats** et **Partagés avec le projet** en conséquence. Partager un chat masque tes souvenirs et tes instructions personnels dans les réponses que voient les autres membres.
 
-**Agents liés au projet** sont des agents portés sur le projet. Ils éclipsent les agents de l'organisation portant le même nom — quand les deux existent, la version projet l'emporte à l'intérieur du projet. Utilise des agents projet pour un comportement qui surprendrait des lecteurs hors du projet.
+Les **instructions** sont du contexte qui s’applique à chaque chat du projet — le cadre, les contraintes et le vocabulaire du travail — pour que personne ne les recolle chat par chat.
 
-## Modèle de partage
+Les **fichiers** de l’onglet **Connaissances** sont le matériel de référence où chaque chat du projet peut puiser, rangés dans une arborescence de dossiers que tu remplis une fois plutôt que de les rattacher chat par chat. Ils restent scopés à ce projet — ils n’apparaissent jamais dans la bibliothèque de l’organisation ni dans les sélecteurs `@` hors du projet — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
 
-Un projet appartient à son créateur par défaut ; le créateur peut ajouter des membres. Les membres voient les fichiers et conversations du projet, mais pas les conversations antérieures à leur adhésion à moins qu'elles soient explicitement partagées. Retirer un membre lui retire l'accès à la requête suivante ; les transcriptions qu'il a téléchargées restent sur son appareil.
+Les **tâches et les discussions** font du projet un endroit où mener le travail, pas seulement en parler : un tableau avec des statuts et de l’[automatisation](/fr/platform/projects/task-automation), et des [discussions en fils](/fr/platform/projects/discussions) pour les décisions.
 
-## Mis bout à bout — un projet de compte commercial
+**Agents et modèles** est une surface de curation : quels agents et modèles les membres voient en premier — ou voient tout court — dans ce projet ([Agents et modèles](/fr/platform/projects/project-agents)).
 
-Un projet de compte commercial regroupe les artefacts sur lesquels un commercial revient pour un client :
+## Création et identité
 
-- Fichiers : le contrat du client, les brouillons d'offre, les notes d'appel.
-- Instructions : « Tu travailles sur le compte Acme. Réfère les notes d'appel par date ; cite le contrat par numéro de section. »
-- Conversations : une par étape du deal — qualification, préparation de démo, offre, négociation.
-- Agents projet : un agent de synthèse de deal qui connaît la voix Acme, plus les agents par défaut de l'organisation.
+**Créer un projet** demande un nom et une **Clé du projet** — le préfixe des identifiants de tâches comme `WR-1`. La clé est fixe ; elle ne peut plus changer une fois le projet créé. La description, l’équipe propriétaire, l’icône et la couleur restent modifiables ensuite sur l’onglet **Général**, où les boutons unifiés **Enregistrer** et **Abandonner** siègent dans la barre d’onglets.
 
-Chaque conversation dans le projet voit les mêmes fichiers et instructions ; le commercial ouvre une nouvelle conversation par étape du deal et le contexte suit.
+## Le modèle de partage
+
+Le partage se fait par équipe, pas par invitation individuelle. Un projet démarre en **Toute l'organisation** ; choisir une équipe propriétaire le limite à cette équipe, et d’autres équipes s’ajoutent sur l’onglet Général. Les admins de l’organisation ont toujours accès. Renommer, archiver et supprimer vivent dans le menu de ligne de la liste des projets — la suppression demande ce qu’il advient du contenu : détacher les fichiers et les chats (ils redeviennent des documents de bibliothèque et des chats personnels) ou les supprimer aussi.
 
 ## Quand y recourir
 
-| Utilise … quand                                               | Projet | Conversation isolée |
-| ------------------------------------------------------------- | ------ | ------------------- |
-| Les mêmes fichiers s'appliquent à de nombreuses conversations | ✓      |                     |
-| Les mêmes instructions s'appliquent partout                   | ✓      |                     |
-| Plusieurs personnes travaillent sur le même bloc              | ✓      |                     |
-| La conversation est en un seul tir                            |        | ✓                   |
+| Choisis … quand                                            | Projet | Chat isolé |
+| ---------------------------------------------------------- | ------ | ---------- |
+| Les mêmes fichiers servent à beaucoup de chats             | ✓      |            |
+| Les mêmes instructions s’appliquent à beaucoup de chats    | ✓      |            |
+| Plusieurs personnes travaillent le même chantier           | ✓      |            |
+| Le travail a des tâches, des responsables et des décisions | ✓      |            |
+| La question est ponctuelle                                 |        | ✓          |
 
-Les conversations isolées sont la bonne forme quand tu explores une réponse une fois. Les projets sont la bonne forme quand le même ensemble de contexte suit le travail sur de nombreuses sessions.
+Un chat isolé est la bonne forme pour explorer une réponse une fois. Dès que le contexte doit survivre au chat, déménage-le — l’action **Déplacer vers un projet…** du composeur transporte un chat existant dans un projet.
 
-## Construis-en un
+## Où cela s’inscrit
 
-Les projets sont la couture entre agents et conversations : les fichiers, instructions, conversations et agents qui voyagent ensemble. La lecture suivante naturelle est [Utiliser les projets](/fr/tutorials/member/use-projects) — elle parcourt les quatre pièces sur un projet neuf, de la création à la première réponse qui cite les fichiers du projet.
+Les projets sont la couture où se rejoignent les chats, les connaissances et l’automatisation des tâches. La lecture suivante naturelle est [Utiliser les projets](/fr/tutorials/member/use-projects), qui déroule un projet neuf de bout en bout ; les pages par onglet de cette section approfondissent les [fichiers](/fr/platform/projects/manage-files), les [agents et modèles](/fr/platform/projects/project-agents) et les [discussions](/fr/platform/projects/discussions).

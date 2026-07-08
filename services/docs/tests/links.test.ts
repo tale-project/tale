@@ -4,16 +4,18 @@ import path from 'node:path';
 import { describe, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
-import { parseFrontmatter } from './lib/markdown';
+import { parseFrontmatter, stripFences } from './lib/markdown';
 import { CONTENT_ROOT } from './lib/paths';
 import { BASE_LOCALES, walkDocs } from './lib/walk';
 
 /**
- * Every relative or absolute-path Markdown link in the docs corpus must
- * resolve to a real `.md`/`.mdx` file. Catches links to pages that were
- * planned-but-not-written, removed without sweeping callers, or mistyped.
+ * Every internal page link in the docs corpus must resolve to a real
+ * `.md`/`.mdx` file — both Markdown `[text](target)` links and `href="…"`
+ * attributes on raw component tags (`<Card href="/cloud/billing">`). Catches
+ * links to pages that were planned-but-not-written, removed without sweeping
+ * callers, or mistyped.
  *
- * Scope rules:
+ * Scope rules (identical for both syntaxes):
  *   - External URLs (`http(s)://`, `mailto:`) are skipped.
  *   - Anchor-only links (`#section`) are skipped — that's
  *     `markdown-anchor-parity` territory.
@@ -28,38 +30,16 @@ import { BASE_LOCALES, walkDocs } from './lib/walk';
  * `en/` page resolves to `docs/en/cloud/billing.md`).
  */
 
-const FENCE_OPEN_OR_CLOSE = /^(\s*)(`{3,}|~{3,})/;
 const LINK = /\]\(([^)\s]+?)(?:#[^)\s]*)?\)/g;
+/** `href="…"` / `href='…'` on a raw tag; the backreference pins the quote. */
+const HREF = /\bhref=(["'])([^"']*)\1/g;
 
 interface LinkRef {
   file: string;
   line: number;
   url: string;
-}
-
-function stripFences(body: string): string {
-  const out: string[] = [];
-  let openMarker: string | null = null;
-  for (const line of body.split('\n')) {
-    const m = FENCE_OPEN_OR_CLOSE.exec(line);
-    if (m) {
-      const marker = m[2];
-      if (openMarker === null) {
-        openMarker = marker;
-        out.push('');
-        continue;
-      }
-      if (marker[0] === openMarker[0] && marker.length >= openMarker.length) {
-        openMarker = null;
-        out.push('');
-        continue;
-      }
-      out.push('');
-      continue;
-    }
-    out.push(openMarker !== null ? '' : line);
-  }
-  return out.join('\n');
+  /** Which syntax carried the link — names the rule in the finding. */
+  kind: 'markdown' | 'href';
 }
 
 function isDocsPageLink(url: string): boolean {
@@ -110,15 +90,29 @@ function extractLinks(relFile: string): LinkRef[] {
         file: relFile,
         line: frontmatterLines + i + 1,
         url,
+        kind: 'markdown',
+      });
+    }
+    HREF.lastIndex = 0;
+    while ((m = HREF.exec(line)) !== null) {
+      // Same anchor handling the LINK regex bakes in: check the page, not
+      // the `#section` suffix.
+      const url = m[2].replace(/#.*$/, '');
+      if (url === '' || !isDocsPageLink(url)) continue;
+      out.push({
+        file: relFile,
+        line: frontmatterLines + i + 1,
+        url,
+        kind: 'href',
       });
     }
   }
   return out;
 }
 
-describe('markdown link targets', () => {
+describe('page link targets', () => {
   it.each(BASE_LOCALES)(
-    'every relative-path link under %s/ resolves to a real page',
+    'every markdown link and component href under %s/ resolves to a real page',
     (locale) => {
       const localePrefix = locale + path.sep;
       const pages = walkDocs().filter((p) => p.startsWith(localePrefix));
@@ -130,8 +124,11 @@ describe('markdown link targets', () => {
           findings.push({
             file: link.file,
             line: link.line,
-            rule: 'link-target-missing',
-            detail: `link target "${link.url}" resolves to ${path.relative(CONTENT_ROOT, target)} which does not exist`,
+            rule:
+              link.kind === 'href'
+                ? 'href-target-missing'
+                : 'link-target-missing',
+            detail: `${link.kind === 'href' ? 'component href' : 'link target'} "${link.url}" resolves to ${path.relative(CONTENT_ROOT, target)} which does not exist`,
           });
         }
       }

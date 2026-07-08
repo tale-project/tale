@@ -1,64 +1,50 @@
 ---
 title: Documents
-description: La zone Documents est l'endroit où les Éditeurs téléversent des fichiers dans la base de connaissances, les regardent s'indexer et les lient aux agents. Cette page couvre le téléversement, la pipeline d'indexation, les formats supportés et le cycle de vie par document.
+description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie — sources de téléversement, statut RAG, portée par équipe, dossiers et réindexation.
 ---
 
-La zone Documents est la surface fichiers de la base de connaissances. Les Éditeurs téléversent des fichiers — PDF, documents Word, Markdown, texte brut, code, tableurs, présentations — et Tale fait passer chacun par une pipeline d'indexation qui extrait le texte, le découpe en chunks, embed les chunks et les range pour que les agents puissent récupérer les morceaux pertinents à la réponse. Une fois indexé, un document peut être lié à un ou plusieurs agents ; les agents liés voient les chunks du document pendant la récupération RAG et les citent dans les réponses.
+L’onglet Documents est la surface fichiers de la base de connaissances. Les éditeurs téléversent des fichiers, Tale fait passer chacun par le pipeline d’indexation — extraire le texte, le découper, calculer les embeddings, les stocker — et les agents dont le périmètre de connaissances couvre le document récupèrent les passages pertinents au moment de répondre et les citent. Cette page couvre le côté opérateur : le téléversement, la colonne de statut, la portée par équipe, les dossiers et le cycle de vie d’un document.
 
-Cette page couvre le côté opérateur de Documents : téléverser, ce qui arrive pendant l'indexation, les formats supportés, comment marche le cycle de vie par document, et en quoi les documents diffèrent des types de données structurées (clients, produits, fournisseurs, sites web) qui partagent la base de connaissances.
+<Frame caption="La table des documents — taille, source, statut RAG et portée d’équipe par fichier.">
 
-## Un téléversement mis en pratique
+![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
-Pour téléverser un document, ouvre **Connaissance > Documents** et lâche le fichier sur la zone de téléversement, ou clique sur **Téléverser** et choisis le fichier depuis le disque. Le document apparaît dans la liste immédiatement avec le statut `Indexation` ; Tale fait tourner la pipeline en arrière-plan. Quand le statut bascule sur `Indexé`, le document est prêt à être lié à des agents. Les échecs de pipeline apparaissent avec le statut `Erreur` et une raison en une ligne ; la ligne porte un bouton **Réessayer** qui refait tourner la pipeline de zéro.
+</Frame>
 
-Lier le document à un agent est une étape séparée. Ouvre l'agent et ajoute le document sous son onglet **Connaissance** ; la requête suivante que sert l'agent récupère sur les chunks du nouveau document. Un document sans liaison reste indexé mais est invisible à chaque agent — utile quand tu veux le document dans la bibliothèque mais pas encore en production.
+## Téléverser
+
+Ouvre **Connaissances > Documents** et clique sur **Téléverser des documents** — le menu propose **Depuis ton appareil** et **Depuis Microsoft 365**. Le portail de téléversement accepte les formats qui couvrent l’essentiel des connaissances d’une organisation : PDF, Word (`.doc`, `.docx`), texte OpenDocument (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, texte brut et images (JPG, PNG, GIF, WEBP). Tout le reste est refusé dès le téléversement.
+
+Téléverser et indexer sont deux faits distincts, et la colonne **Statut RAG** suit le second : **Indexation** pendant que le pipeline tourne, **Indexé** quand les agents peuvent récupérer le contenu, **Échoué** quand le pipeline a rencontré une erreur, et **Réindexation nécessaire** quand les fragments stockés sont périmés. Les formats modernes s’indexent ; le trio Office historique (`.doc`, `.xls`, `.ppt`) se téléverse et reste téléchargeable mais affiche **Non indexé** — les agents ne peuvent pas récupérer son contenu tant que tu ne l’as pas réenregistré au format moderne.
 
 ## Importer depuis Microsoft 365
 
-Les documents peuvent venir de OneDrive ou SharePoint au lieu du disque. Ouvre **Connaissance > Documents > Téléverser des documents > Depuis Microsoft 365**, choisis des fichiers ou des dossiers, puis le mode d'importation. **Importation unique** apporte les fichiers une fois ; ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d'un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l'espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s'importe toujours une seule fois.
+**Depuis Microsoft 365** importe depuis OneDrive ou SharePoint au lieu du disque : choisis des fichiers ou des dossiers, puis le mode d’importation. **Importation unique** apporte les fichiers une fois — ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d’un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l’espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s’importe toujours une seule fois.
 
-Pour arrêter la synchronisation — d'un dossier synchronisé entier ou d'un seul fichier synchronisé — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l'espace de travail et cessent d'être mis à jour. Supprimer un dossier synchronisé, ou un seul fichier synchronisé, arrête aussi sa synchronisation. Dans tous les cas, les fichiers dans OneDrive restent intacts.
+Pour arrêter la synchronisation — d’un dossier synchronisé entier ou d’un seul fichier synchronisé — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l’espace de travail et cessent d’être mis à jour. Supprimer un dossier ou un fichier synchronisé arrête aussi sa synchronisation. Dans tous les cas, les fichiers dans OneDrive restent intacts.
 
-## Ce que fait la pipeline d'indexation
+## Portée, dossiers, sources
 
-L'indexation arrive en quatre étapes, dans l'ordre :
+Chaque ligne porte une cellule **Équipes** — **Toute l'organisation** par défaut, ou les équipes que tu choisis via **Assigner une équipe** dans le menu de la ligne. Un document limité à une équipe est invisible pour les membres et les agents hors de cette équipe ; c’est le levier d’accès de la base de connaissances. Les fichiers de projet sont entièrement hors de ce modèle : l’onglet **Connaissances** d’un projet contient des fichiers scopés à ce seul projet, et ils n’apparaissent ni dans cette bibliothèque ni dans sa portée par équipe — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
 
-- **Extraire** — tirer du texte du fichier. Les PDF passent par une extraction consciente du layout ; les documents Office et Markdown passent par une extraction consciente de la structure ; les images dans un document passent par OCR.
-- **Découper** — couper le texte extrait en morceaux de taille récupération, en respectant les titres et frontières de paragraphes où la structure du fichier les rend visibles.
-- **Embed** — appeler le modèle d'embedding du fournisseur configuré de l'org pour produire un vecteur par chunk.
-- **Ranger** — écrire les chunks et leurs vecteurs dans l'index de recherche, avec les métadonnées du fichier source attachées.
+**Nouveau dossier** garde les grandes bibliothèques navigables, et les intégrations apportent leur propre structure : les documents synchronisés depuis OneDrive ou SharePoint atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
 
-La pipeline est idempotente sur le hash du fichier source. Téléverser le même fichier deux fois produit une copie indexée, pas deux. Modifier le fichier et le retéléverser remplace les anciens chunks par les nouveaux ; les agents voient la mise à jour à la récupération suivante.
+<Warning>
 
-## Formats supportés
+Supprimer un dossier supprime définitivement chaque fichier et sous-dossier qu’il contient. Supprimer un dossier de synchronisation OneDrive retire aussi sa configuration de synchronisation automatique et son historique — mais jamais les fichiers dans OneDrive lui-même.
 
-La pipeline gère les types de fichiers qui couvrent le gros de la connaissance d'org :
+</Warning>
 
-- **Texte et code.** Markdown (`.md`), texte brut (`.txt`), code source (chaque langage que Tale colorise — voir la liste du highlighter).
-- **Documents.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
-- **Tableurs.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
-- **Présentations.** PowerPoint (`.pptx`).
-- **Pages web.** HTML (`.html`) et la sortie rendue d'un crawl de page.
-- **Images.** PNG, JPG, GIF, BMP, TIFF, WEBP, avec OCR appliqué pour extraire tout texte.
+## Réindexer et supprimer
 
-Deux choses différentes arrivent à un fichier que la pipeline n'indexe pas. Un ancien fichier Office (`.doc`, `.xls`, `.ppt`) se téléverse quand même et reste disponible comme fichier stocké, mais Tale saute l'indexation — la ligne affiche **Non indexé** au lieu d'une erreur d'indexation, et les agents ne peuvent pas récupérer son contenu. Un type que le contrôle d'upload n'accepte pas du tout — une archive, un binaire quelconque — est refusé au téléversement avec une erreur « type de fichier non supporté » et n'arrive jamais. La liste des formats acceptés et indexés grandit en même temps que la pipeline.
+**Réindexer** (menu de la ligne) refait passer le pipeline sur le fichier stocké — le bon geste après un échec d’indexation ou quand un document affiche **Réindexation nécessaire**. **Supprimer** retire le document et ses fragments indexés ; la confirmation le dit sans détour — l’action est irréversible. Retéléverser le même fichier ramène le contenu sous la forme d’un nouveau document.
 
-## Le cycle de vie par document
+Cliquer sur un document ouvre l’aperçu, avec un panneau latéral qui montre la taille, la source, le statut RAG, les équipes, l’auteur du téléversement et la date de modification — le moyen le plus rapide de vérifier ce que vise réellement une citation.
 
-Chaque document porte un petit ensemble de champs au-delà de son contenu : un **titre** (auto-extrait des métadonnées du fichier, éditable), une **source** (le fichier ou l'intégration qui l'a amené), un **propriétaire** (le membre ou équipe qui l'a téléversé), des **tags** (étiquettes libres pour filtrer) et une **visibilité** (à l'échelle de l'org, cadrée équipe ou par agent). Le levier visibilité est le jumeau au niveau document du cadrage équipe fait ailleurs — un document cadré équipe est invisible aux membres hors de l'équipe même si leur rôle l'autoriserait sinon.
+## Documents ou données structurées
 
-Les documents synchronisés depuis une intégration portent le champ source de l'intégration. Un document amené par la sync OneDrive montre le chemin OneDrive ; un document tiré de Confluence montre l'URL de la page. Le champ source rend les citations cliquables vers le système amont.
+Les documents sont la moitié non structurée de la base de connaissances. Quand le contenu est une liste d’éléments partageant les mêmes champs — clients, produits, fournisseurs — une fiche typée sert mieux les agents qu’un tableur téléversé : des valeurs exactes au lieu de passages récupérés. Les règles de décision vivent dans [Données structurées](/fr/platform/knowledge/structured-data).
 
-## Supprimer et réindexer
+## Où cela s’inscrit
 
-Clique la ligne du document, puis **Supprimer** pour le retirer de la bibliothèque. La suppression retire les chunks de l'index de recherche à la prochaine passe ; les récupérations en vol se terminent, la suivante ne voit pas le document. Pas d'annulation — retéléverser le même fichier le restaure, mais l'historique d'audit du document repart frais.
-
-Réindexer sans supprimer est le bon mouvement quand la pipeline s'est améliorée entre téléversements. Clique sur **Réindexer** sur la ligne ; Tale refait tourner la pipeline sur le fichier source rangé et remplace les chunks atomiquement. Le document ne sort pas de la portée des agents pendant la réindexation.
-
-## Documents versus données structurées
-
-La base de connaissances a deux moitiés. Les **Documents** sont non structurés — texte, prose, présentations, tout ce que la pipeline peut découper et embed. Les **Données structurées** (clients, produits, fournisseurs, sites web) sont des lignes dans des tables typées — champs avec noms, validation et relations explicites. Va vers les documents quand le contenu est prose ; va vers les données structurées quand le contenu est une liste de choses avec la même forme. Voir [Données structurées](/fr/platform/knowledge/structured-data) pour la surface table-typée.
-
-## Où cela s'inscrit
-
-Les documents sont le coin le plus utilisé de la base de connaissances — chaque agent qui cite une source cite vraisemblablement un document. La lecture suivante naturelle est [Vue d'ensemble Connaissance](/fr/platform/knowledge/overview) pour la carte inter-surfaces, et [Connaissance d'agent](/fr/platform/agents/knowledge) pour comment un agent se lie aux documents et récupère sur eux à la réponse.
+Les documents sont le coin le plus utilisé de la base de connaissances — la plupart des citations, dans la plupart des réponses, pointent ici. Le volet récupération — comment le périmètre de connaissances d’un agent décide de ce qu’il interroge — est [Connaissances de l’agent](/fr/platform/agents/knowledge) ; la surface sœur au format fait est [Entrées de connaissances](/fr/platform/knowledge/knowledge-entries), qui emprunte le même pipeline un document à la fois.

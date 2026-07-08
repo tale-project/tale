@@ -5,6 +5,12 @@ description: The package allowlist and denylist that gate what sandboxed Run cod
 
 Run-code policy is the surface where you decide which Python and Node packages the sandbox can install at execution time. Skills with scripts and the Run code tool both run in the same sandbox; this policy is the single seam where you tighten or loosen what they can install. Admins and Owners read this page when an agent needs a new library, or when an audit asks why a package was blocked at a given time.
 
+<Frame caption="Governance > Run-code packages — the default-mode radiogroup above the Python and Node allow and deny lists.">
+
+![The Run-code policy governance page showing the Denylist and Allowlist mode radiogroup above the Python allow and deny list text areas.](/images/platform/governance-run-code-policy.webp)
+
+</Frame>
+
 ## A worked switch
 
 The default mode is **Denylist** with an empty list, which means every package is installable. To switch to a curated set, open **Settings > Governance > Run-code packages**, change the mode to **Allowlist**, and enumerate the packages you trust under **Python allow list** and **Node allow list**. Save and the next sandbox run that requests a package outside the list fails with the **not on the allow list** reason in the audit event.

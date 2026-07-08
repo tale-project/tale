@@ -5,9 +5,15 @@ description: Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgebo
 
 Run-code-Richtlinie ist die Oberfläche, auf der du entscheidest, welche Python- und Node-Pakete die Sandbox zur Laufzeit installieren kann. Skills mit Skripten und das Run-code-Tool laufen beide in derselben Sandbox; diese Richtlinie ist die einzige Naht, an der du anziehst oder lockerst, was sie installieren dürfen. Admins und Inhaber lesen diese Seite, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.
 
+<Frame caption="Governance > Run-code-Pakete — die Radiogruppe für den Standardmodus über den Zulassungs- und Sperrlisten für Python und Node.">
+
+![Die Governance-Seite Run-code-Richtlinie zeigt die Radiogruppe für die Modi Sperrliste und Zulassungsliste über den Textfeldern der Python-Zulassungs- und -Sperrliste.](/images/platform/governance-run-code-policy.webp)
+
+</Frame>
+
 ## Ein durchgespielter Wechsel
 
-Der Standardmodus ist **Sperrliste** mit leerer Liste, was bedeutet, dass jedes Paket installierbar ist. Um auf eine kuratierte Menge zu wechseln, öffne **Einstellungen > Governance > Run-code-Pakete**, ändere den Modus auf **Zulassungsliste** und liste die Pakete unter **Python-Zulassungsliste** und **Node-Zulassungsliste** auf, denen du vertraust. Speichern, und der nächste Sandbox-Lauf, der ein Paket außerhalb der Liste anfordert, scheitert mit dem Grund **nicht auf der Zulassungsliste** im Audit-Ereignis.
+Der Standardmodus ist **Sperrliste** mit leerer Liste, was bedeutet, dass jedes Paket installierbar ist. Um auf eine kuratierte Menge zu wechseln, öffne **Einstellungen > Richtlinien > Run-code-Pakete**, ändere den Modus auf **Zulassungsliste** und liste die Pakete unter **Python-Zulassungsliste** und **Node-Zulassungsliste** auf, denen du vertraust. Speichern, und der nächste Sandbox-Lauf, der ein Paket außerhalb der Liste anfordert, scheitert mit dem Grund **nicht auf der Zulassungsliste** im Audit-Ereignis.
 
 ## Die zwei Modi
 

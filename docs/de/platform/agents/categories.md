@@ -1,20 +1,39 @@
 ---
-title: Agent-Kategorien
-description: Ein kurzes Tag am Agent, das ihn im Chat-Picker und in der Agent-Liste der Org gruppiert — pro Org definiert, pro Agent optional.
+title: Agenten-Ordner
+description: Wie Agenten gruppiert werden — Ordner aus der Id des Agents, wie mit einer Automatisierung installierte Agenten sich einsortieren und wo die Berechtigungsgrenze wirklich liegt.
 ---
 
-Eine **Kategorie** ist ein kurzes Tag am Agent — `Sales`, `Support`, `Marketing`, `Engineering` — das ihn im Chat-Picker und in der Agent-Liste der Org gruppiert. Kategorien sind ein organisatorisches Sortierwerkzeug, keine Berechtigungsgrenze; der rollen-basierte Zugriff eines Agents bleibt von der getragenen Kategorie unberührt.
+Agenten sind nach Ordnern gruppiert, und ein Ordner entsteht aus der Id des Agents: nenn einen Agent `marketing/seo-writer`, und er liegt überall dort, wo Agenten gelistet werden, in einem `marketing`-Ordner. Ordner sind ein organisatorisches Sortierwerkzeug, keine Berechtigungsgrenze — wer einen Agent nutzen darf, regelt der Abschnitt **Zugriff** auf seiner Seite **Allgemein**, unabhängig davon, wo er einsortiert ist.
 
-Diese Seite ist absichtlich kurz — Kategorien sind ein kleiner Mechanismus. Die reichere Maschinerie sitzt einen Tab weiter in den Settings der Org.
+<Frame caption="Die Agentenliste mit ausgeklapptem chat-Ordner — der Ordner ist das Präfix des Slugs, die Zeilen sind seine Agenten.">
 
-## Eine Kategorie setzen
+![Die Agentenliste mit den Agenten des chat-Ordners — Assistant und Automation Assistant —, jeweils mit Typ-Badge, Standardmodell und Tool-Anzahl.](/images/platform/agents-list-expanded.webp)
 
-Öffne den Agent und schau auf dem **Instructions & model**-Tab nach; das Kategorie-Feld ist ein Single-Select-Dropdown. Wähl eine Kategorie und speichere; der Agent erscheint unter dieser Kategorie im Picker, sobald jemand ihn das nächste Mal öffnet. Ein Agent ohne Kategorie sitzt in einem Default-Bucket unten in der Liste.
+</Frame>
 
-## Wo Kategorien definiert sind
+## Einen Agent in einen Ordner legen
 
-Die Kategorie-Liste ist org-weit und lebt unter den Settings der Org. Admins können Kategorien hinzufügen oder umbenennen; eine Kategorie umzubenennen wirkt sich auf jeden Agent aus, der sie genutzt hat. Eine Kategorie zu entfernen lässt Agents, die sie genutzt haben, im Default-Bucket — keine Agents werden gelöscht.
+Der Ordner wird dort gesetzt, wo die Id des Agents gesetzt wird: im Feld **Name** des Erstell-Dialogs. Die Id muss aus Kleinbuchstaben, Ziffern, Bindestrichen und Unterstrichen bestehen, mit einem `/` zwischen Ordner und Agent — und sie kann sich später nicht ändern, also wähle den Ordner beim Erstellen. Der Anzeigename ist unabhängig; benenn den Agent frei um, ohne ihn zu verschieben.
 
-## Wo das hineinpasst
+In der **Agenten**-Liste erscheinen Ordner als eingeklappte Zeilen mit Agentenzahl — klicke einen an, um ihn auszuklappen, und die Breadcrumb-Leiste zeigt, wo du bist. Die eingebauten Agenten kommen voreinsortiert an: die allgemeinen Assistenten unter `chat`, die GitHub-Agenten unter `github`.
 
-Kategorien sind die leichteste verfügbare Gruppierung für Agents — sie sortieren den Picker, mehr nicht. Grössere Trennungen (Projekt-Agents gegenüber Org-Agents, Pro-Team-Allowlists) leben in [Projekt-Agents](/de/platform/projects/project-agents) bzw. [Policies and limits](/de/platform/admin/governance/policies-and-limits).
+## Agenten, die mit einer Automatisierung ankommen
+
+Die Installation einer [Automatisierung](/de/platform/automations/concepts) sortiert ihre Agenten ein wie alle anderen — der PR Creator und der PR Reviewer aus dem Bundle „GitHub-Issues lösen“ landen in derselben Liste, in dem Ordner, den ihre Id benennt. Einen eigenen Agenten-Store zum Stöbern gibt es nicht: Aus dem [Katalog der Automatisierungen](/de/platform/automations/catalog) kommen gebündelte Agenten, und in der Liste wohnen sie danach.
+
+<Note>
+
+Die Agentenauswahl im Chat gruppiert nicht nach Ordnern — sie ist eine durchsuchbare Liste mit **Auto** obenauf, die jeden Agent zeigt, der aktiviert und im Chat sichtbar ist; Coding-Agenten stehen in einem eigenen Abschnitt **Coding-Agenten**.
+
+</Note>
+
+## Wann du danach greifst
+
+| Nutze Ordner, wenn…                            | Nutze Team-Zugriff, wenn…                            |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| Die Agentenliste lang wird und Ordnung braucht | Ein Agent nur für ein Team nutzbar sein darf         |
+| Abteilungen je einen Satz Agenten besitzen     | Du eine Berechtigungsgrenze ziehst, kein Verzeichnis |
+
+## Wo das hingehört
+
+Ordner sind die leichteste verfügbare Gruppierung für Agenten — sie sortieren die Liste und den Katalog, mehr nicht. Größere Trennungen liegen woanders: [Projekt-Agenten](/de/platform/projects/project-agents) begrenzen einen Agent auf ein Projekt, und [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) regeln, was ein Agent ausgeben oder tun darf.

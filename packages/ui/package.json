@@ -109,6 +109,7 @@
     "./markdown/components/steps": "./src/markdown/components/steps.tsx",
     "./markdown/components/cards": "./src/markdown/components/cards.tsx",
     "./markdown/components/frame": "./src/markdown/components/frame.tsx",
+    "./markdown/components/image-zoom": "./src/markdown/components/image-zoom.tsx",
     "./markdown/components/accordion": "./src/markdown/components/accordion.tsx",
     "./markdown/components/mermaid": "./src/markdown/components/mermaid.tsx",
     "./markdown/components/registry": "./src/markdown/components/registry.tsx",

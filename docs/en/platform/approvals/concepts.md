@@ -1,49 +1,37 @@
 ---
 title: Approval concepts
-description: An approval is a card a human must click before an automated action proceeds. This page names the four trigger sources, the approver routing, and what an approval leaves behind in the audit log.
+description: An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind.
 ---
 
-An approval is the seam between an automated action and a human decision. It is a card a person must click — Approve, Reject, or Request changes — before the action proceeds. Editors and Developers configure where approvals are required; the approver pool decides them.
+An approval is the seam between an agent's initiative and your judgement: a card that appears in the chat where the action was attempted, holding that action until a person decides. Agents propose — a document write, an outbound API call, a workflow run — and nothing executes while the card is pending. The chat composer says so explicitly: **Respond to the pending request above to continue**.
 
-This page hands you the mental model for what an approval is, what fires one, and what each decision leaves behind. Read it before you configure a gate in a workflow or wire an agent that writes back to the knowledge base.
+This page is the mental model — what fires an approval, what the card offers, and what a decision leaves behind. The workflow-specific gates live on [Approvals in workflows](/platform/automations/approvals-in-workflows); where the requirements are declared lives on [Configure approvals](/platform/approvals/configure).
 
-## What an approval is
+## What fires an approval
 
-An approval lives as a row in the approvals table and as a card in the chat surface. The card carries the action's context (who triggered it, what is about to change, why an approval was required) and the three decision buttons. Approvers can leave a comment with their decision; the comment lands in the audit log alongside the action.
+Every card comes from an agent trying to act on something that outlives the conversation:
 
-Pending approvals surface in two places: inline in the chat where the action was attempted, and in the approver's inbox (the conversations area). Approvers can act from either surface; the decision propagates the same way.
+- **Plans** — an agent proposes a multi-step plan as a **Proposed plan** card; **Approve & execute** starts it.
+- **Document writes** — a **Save to documents** card holds files an agent wants to store; nothing lands in the document hub until approved.
+- **Knowledge writes** — a **Save to knowledge base** card holds a fact an agent wants to remember org-wide.
+- **Integration calls** — an operation flagged as requiring approval (outbound writes, typically) holds with the exact parameters shown.
+- **MCP tools** — a tool the server marks **Requires approval** asks before it runs.
+- **Workflow creation, updates, and runs** — the workflow-side gates, covered in [Approvals in workflows](/platform/automations/approvals-in-workflows).
 
-## The four trigger sources
+## The decisions on a card
 
-**Workflow gates.** A step in a workflow is configured as an approval gate. The run pauses until the gate resolves. See [Approvals in workflows](/platform/workflows/approvals-in-workflows).
+Every card carries the action's exact payload — the file, the fact, the parameters — and two decisions: approve (the button names the action, such as **Run workflow** or **Approve & execute**) or reject. Integration cards add a third path, **Suggest changes**: describe what is wrong in free text and the agent revises the call instead of abandoning it.
 
-**Document writes.** An agent attempts to write to the knowledge base — create or edit a document, a customer, a product, a vendor — and the governance policy on that resource requires sign-off. The write does not commit until approved.
+<Note>
 
-**Integration calls.** An agent attempts to call an external system through an integration that requires approval for outbound writes. The call is held until an approver clicks Approve.
+Approvals are decided in the conversation they interrupt — by whoever holds that chat. There is no separate approval inbox or routing to an approver pool; the person the agent works for is the person who decides.
 
-**Agent creation and skill installation.** When governance policy requires admin review, creating a new agent or installing a skill emits an approval card to the configured approver pool.
+</Note>
 
-## Approver routing
+## States and the trail
 
-Each approval is created with an approver pool — a team, a role, or an explicit list of users. The first eligible approver to click decides; the rest of the pool sees the card transition to a resolved state. If no one acts within the gate's timeout, the approval escalates per the gate's escalation policy (typically: re-route to a fallback pool, or fail the run).
-
-Approvers cannot approve their own request: the user who triggered the action is excluded from the eligible pool, even if they would otherwise be in it.
-
-## States and timeouts
-
-An approval has four lifecycle states:
-
-- **pending** — created, not yet decided.
-- **approved** — an approver clicked Approve; the action proceeds.
-- **rejected** — an approver clicked Reject; the action is abandoned, the run records the rejection.
-- **timed-out** — no decision within the configured window; either escalated or failed per policy.
-
-Every state transition lands in the audit log with the actor, the timestamp, and the comment. The transitions are append-only: a resolved approval cannot be re-opened.
-
-## Putting it together
-
-A finance-operations team configures three governance policies: workflow steps that send mail to external addresses require approval; agent writes to the customer database require approval; new MCP server installations require approval. Three trigger sources, one approver pool (the finance team's team), one audit trail. The team sees every pending approval in their inbox and every resolved decision in the audit log.
+A card moves through **Pending** to **Executing** to **Completed** — or **Rejected** — and keeps its resolved state in the transcript, so a chat rereads as a record of what was allowed. Each decision also lands in the [audit log](/platform/admin/governance/audit-logs) with the actor, the action, and the timestamp. Resolved cards cannot be re-opened; a retry means a fresh proposal and a fresh card.
 
 ## Where this fits
 
-Approvals are the surface where automation and accountability meet — they let you delegate the work to agents and workflows without giving up the record of who approved what. The natural next read is [Configure approvals](/platform/approvals/configure) for the per-resource policy fields, and [Approvals in workflows](/platform/workflows/approvals-in-workflows) for the workflow-gate specifics.
+Approvals are what let you hand agents real capabilities — files, APIs, workflows — without handing over the record of who allowed what. Read [Configure approvals](/platform/approvals/configure) next to see where a requirement is switched on, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for the gates around workflows.

@@ -15,13 +15,33 @@ The same surface in the Cloud and self-hosted tabs differs only in deployment sh
 
 ## Pages in this section
 
-**[API keys](/platform/admin/api-keys)** — Developers read this when they wire a script, a cron job, or an internal service to Tale's REST API; the surface is shared with Admin under Settings > API keys.
+<CardGroup cols="2">
 
-**[MCP servers](/platform/integrations/mcp-servers)** — Developers read this when they register an external MCP-protocol process and pick which of its tools the org's agents may call.
+<Card title="API keys" icon="key" href="/platform/admin/api-keys">
 
-**[Agent webhook triggers](/platform/agents/webhook-triggers)** — Developers read this when they want an external system to fire a specific agent on an inbound POST.
+Wire a script, a cron job, or an internal service to Tale's REST API. Shared with Admin under Settings > API keys.
 
-**[Agent tools](/platform/agents/tools)** — Developers read this when they extend an agent's toolbelt with a custom tool the org's agents can call.
+</Card>
+
+<Card title="MCP servers" icon="server" href="/platform/integrations/mcp-servers">
+
+Register an external MCP-protocol process and pick which of its tools the org's agents may call.
+
+</Card>
+
+<Card title="Agent webhook triggers" icon="webhook" href="/platform/agents/webhook-triggers">
+
+Fire a specific agent from an external system on an inbound POST.
+
+</Card>
+
+<Card title="Agent tools" icon="wrench" href="/platform/agents/tools">
+
+Extend an agent's toolbelt with a custom tool the org's agents can call.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

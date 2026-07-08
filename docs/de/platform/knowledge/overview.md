@@ -1,34 +1,56 @@
 ---
 title: Wissen
-description: Wissen ist der Bereich, in dem die Dokumente und strukturierten Daten der Organisation liegen, damit Agents sie zitieren können. Redakteure kuratieren ihn; Agents rufen zur Antwort-Zeit darüber ab. Diese Übersicht nennt die zwei Hälften und verweist auf die Per-Bereich-Seiten.
+description: Wissen ist die geteilte Bibliothek der Organisation — Dokumente, kleine Fakten, gecrawlte Websites und typisierte Datensätze —, in der Agenten ihre Antworten verankern. Diese Übersicht nennt die Tabs und verweist auf die Seiten pro Bereich.
 ---
 
-Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agents sie lesen können. Er hat zwei Hälften: **Dokumente** — unstrukturierte Dateien, die durch die Indexierungs-Pipeline laufen, damit Agents zur Antwort-Zeit relevante Chunks abrufen können — und **Strukturierte Daten** — typisierte Tabellen von Kunden, Produkten, Lieferanten und Websites, die Agents als Datensätze lesen, nicht als Prosa. Redakteure kuratieren beide Hälften; Agents sehen die Stücke, an die sie gebunden sind.
+Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf sechs Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte**, **Kunden** und **Lieferanten**.
 
-Der Wissens-Bereich ist der Ort, in den jeder Agent hineingreift, der seine Antworten in der Realität der Organisation verankern muss. Die Übersicht nennt die Hälften und die Per-Bereich-Seiten; das konzeptuelle Modell, wie ein Agent das Wissen nutzt, an das er gebunden ist, liegt unter [Agent-Wissen](/de/platform/agents/knowledge).
+<Frame caption="Der Dokumente-Tab — die meistgenutzte Ecke der Wissensdatenbank.">
 
-## Die zwei Hälften
+![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
 
-**Dokumente** ist die unstrukturierte Hälfte. Lass ein PDF, eine Markdown-Datei, ein Folien-Deck, eine Tabelle, eine Code-Datei einfallen; die Indexierungs-Pipeline extrahiert den Text, chunked ihn, bettet die Chunks ein und speichert sie, damit RAG-getaggte Tools zur Antwort-Zeit relevante Stücke abrufen. Der Inhalt muss kein Schema treffen; die Pipeline liest, was die Datei gibt.
+</Frame>
 
-**Strukturierte Daten** ist die typisierte Hälfte. Kunden, Produkte, Lieferanten und Websites sind erstklassige Tabellen mit benannten Feldern, Validierung und expliziten Beziehungen. Ein Agent liest einen strukturierten Datensatz so, wie er ein JSON-Objekt liest — Feld für Feld — und kann den Datensatz direkt zitieren. Greif zu strukturierten Daten, wenn der Inhalt über viele Zeilen dieselbe Form hat (jeder Kunde hat einen Namen, eine E-Mail, eine Stufe); greif zu Dokumenten, wenn der Inhalt Prosa ohne feste Form ist.
+## Die zwei Formen
 
-Die zwei Hälften teilen sich dieselben Sichtbarkeits- und Team-Skopierungs-Hebel. Ein team-skopierter Kunden-Datensatz ist für Mitglieder ausserhalb des Teams genauso unsichtbar wie ein team-skopiertes Dokument.
+Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die Dateien in Dokumente, die Fakten in Wissenseinträge, die Seiten, die ein Website-Crawl hereinholt — laufen durch die Indexierungs-Pipeline (extrahieren, chunken, einbetten, speichern), damit Agenten relevante Passagen abrufen und zitieren. **Typisierte Datensätze** — Produkte, Kunden, Lieferanten — sind Zeilen mit benannten Feldern, die Agenten als Daten lesen, nicht als Prosa: exakte Werte, kein Abruf-Rätselraten.
 
-## Wie Agents hineinreichen
+Die Form, die du wählst, entscheidet, wie ein Agent den Inhalt nutzen kann — deshalb ist [Strukturierte Daten](/de/platform/knowledge/structured-data) eine Entscheidungsseite, nicht nur eine Referenz.
 
-Ein Agent sieht die ganze Wissensdatenbank nicht standardmässig. Der **Wissen**-Tab des Agents ist der Ort, an dem du spezifische Dokumente, Kundenlisten, Produktkataloge oder Website-Crawls an den Agent bindest. Gebundene Ressourcen sind beim Abruf sichtbar; ungebundene nicht. Das ist Absicht — es hält die Vertrauensgrenze sichtbar und hindert einen Agent daran, etwas hereinzuziehen, das die Organisation nicht für ihn vorgesehen hat.
+## Wie Agenten hineingreifen
 
-Der Abruf selbst passiert zur Antwort-Zeit und wird von der RAG-getaggten Tool-Familie am Agent getrieben. Ein gebundenes Dokument wird von derselben Mechanik abgerufen, egal woher es kommt — ein direkter Upload, eine OneDrive-Sync, ein Confluence-Pull, ein Website-Crawl. Das Quell-Feld jedes indexierten Elements zeigt das Zitat zurück ans Original.
+Ein Agent sieht die ganze Bibliothek nicht von selbst. Der Tab **Wissen** des Agenten steuert seinen Abruf-Umfang — welche Teile der Bibliothek er zur Antwortzeit durchsucht —, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Den Abruf treiben die RAG-getaggten Tools des Agenten, und jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Agent-Wissen](/de/platform/agents/knowledge).
 
 ## Seiten in diesem Bereich
 
-**[Dokumente](/de/platform/knowledge/documents)** — Redakteure lesen das, wenn sie Dateien hochladen, die Indexierungs-Pipeline beobachten und den Per-Dokument-Lebenszyklus verwalten.
+<CardGroup cols="2">
 
-**[Wissenseinträge](/de/platform/knowledge/knowledge-entries)** — Redakteure lesen das, wenn sie die kleinen, themen-basierten Fakten verwalten, die Nutzer beitragen — mit Genehmigung aus dem Chat erfasst oder von Hand hinzugefügt — und die durch dieselbe Indexierungs-Pipeline fahren wie Dokumente.
+<Card title="Dokumente" icon="file-text" href="/de/platform/knowledge/documents">
 
-**[Strukturierte Daten](/de/platform/knowledge/structured-data)** — Redakteure lesen das, wenn sie typisierte Tabellen pflegen — Kunden, Produkte, Lieferanten, Websites — die Agents als Datensätze lesen.
+Dateien hochladen, die Indexierungs-Pipeline, unterstützte Formate und der Lebenszyklus pro Dokument.
+
+</Card>
+
+<Card title="Wissenseinträge" icon="book-open" href="/de/platform/knowledge/knowledge-entries">
+
+Kleine Fakten mit Themen-Schlüssel — aus dem Chat mit Freigabe erfasst oder von Hand hinzugefügt.
+
+</Card>
+
+<Card title="Crawling" icon="globe" href="/de/platform/knowledge/crawling">
+
+Aus einer öffentlichen Website wird Wissen — Domain, Scan-Intervall und die Ansicht der indexierten Seiten.
+
+</Card>
+
+<Card title="Strukturierte Daten" icon="table" href="/de/platform/knowledge/structured-data">
+
+Kunden, Produkte, Lieferanten, Websites — wann ein typisierter Datensatz ein Dokument schlägt.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 
-Wissen ist die Datenschicht, in der Agents ihre Antworten verankern; ohne sie wissen Agents nur, was das Modell schon weiss. Die natürliche nächste Lektüre hängt vom Inhalt ab, den du hereinbringst — für Dateien [Dokumente](/de/platform/knowledge/documents); für typisierte Datensätze [Strukturierte Daten](/de/platform/knowledge/structured-data); dafür, wie ein Agent bindet und abruft, [Agent-Wissen](/de/platform/agents/knowledge).
+Wissen ist die Datenschicht, auf der jede verankerte Antwort steht; ohne sie wissen Agenten nur, was das Modell ohnehin weiß. Bring Inhalte über den Tab herein, der zu ihrer Form passt, und binde dann Agenten daran — die natürliche nächste Lektüre ist [Dokumente](/de/platform/knowledge/documents) für Dateien, [Strukturierte Daten](/de/platform/knowledge/structured-data) für Datensätze und [Agent-Wissen](/de/platform/agents/knowledge) für die Abrufseite.

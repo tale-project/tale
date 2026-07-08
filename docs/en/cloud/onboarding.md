@@ -3,9 +3,9 @@ title: Cloud onboarding
 description: Sign-up to a production-ready organization in under an hour — create the org, invite the first admin, add a model provider, publish an agent, open chat.
 ---
 
-This tutorial walks from sign-up to a production-ready Cloud org with one working agent in under an hour. The result is an org where your team can sign in, pick a working agent, and ask it something useful — nothing fancy yet, just the foundation everything else builds on.
+This journey walks from sign-up to a production-ready Cloud org with one working agent in under an hour. The result is an org where your team can sign in, pick a working agent, and ask it something useful — nothing fancy yet, just the foundation everything else builds on.
 
-You need a working email address and the ability to verify it. The walk assumes no prior Tale knowledge; if anything below references a concept you have not met, the linked page introduces it. About half the time is in step 3 (adding the model provider) — the rest is mostly clicks.
+You need a working email address and the ability to verify it. The walk assumes no prior Tale knowledge; if anything below references a concept you have not met, the linked page introduces it. About half the time is in the provider step — the rest is mostly clicks.
 
 ## Before you begin
 
@@ -15,39 +15,77 @@ Pin down three things:
 - API credentials for at least one model provider (OpenAI, Anthropic, Azure, or a compatible local). The provider's portal shows where these live.
 - The region you want your data pinned to. Cloud offers Switzerland and the EU; pick once, switching later is a real migration.
 
-## Step 1 — Create your organization
+## From sign-up to a working agent
 
-Visit `tale.dev` and click **Sign up**. The form asks for your name, email, and a password; verify the email link when it arrives. The next screen asks for the **Organization name** — the display name your team will see in the corner of every page. Pick something that survives a rebrand.
+<Steps>
 
-The first user becomes the org's **Owner** automatically. You can see your role under **Settings > People** later if you forget.
+<Step title="Create your organization">
 
-## Step 2 — Invite the first admin
+Visit `tale.dev` and click **Get started**. The sign-up form asks for your name, email, and a password; verify the email link when it arrives. The next screen asks for the **Organization name** — the display name your team will see in the corner of every page. Pick something that survives a rebrand.
 
-Open **Settings > People** and click **Invite member**. Enter the admin's email and assign the **Admin** role. The invitee receives an email with a magic link; they sign up and land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — invite a second admin before doing anything that requires it.
+<Frame caption="The workspace step — the name your team sees everywhere.">
+
+![The create-organization wizard showing the organization name field on its workspace step.](/images/get-started/org-create-wizard.webp)
+
+</Frame>
+
+The first user becomes the org's **Owner** automatically. You can see your role in the **Members** section under **Settings > Organization** later if you forget.
+
+</Step>
+
+<Step title="Invite the first admin">
+
+Open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Enter the admin's email and assign the **Admin** role. The invitee receives an email with a magic link; they sign up and land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — invite a second admin before doing anything that requires it.
 
 For the role matrix (who can do what), see [Members and roles](/platform/admin/members-and-roles).
 
-## Step 3 — Add a model provider
+</Step>
 
-Open **Settings > Providers** and click **Add provider**. Pick the provider you have credentials for and paste the API key. Save. Tale validates the key in the background; a tick on the provider row means the key works. If validation fails, the row shows the error verbatim — the most common cause is whitespace around the key.
+<Step title="Add a model provider">
 
-This step is where most onboarding sessions stall. The provider portal is usually a different login, and the team has to dig for the key. If validation hangs for more than a minute, refresh the page — the key is saved as soon as **Save** confirms, the row just sometimes needs a reload to update.
+Open **Settings > AI providers** and click **Add provider**. Pick the provider you have credentials for and paste the API key. Save. Tale validates the key in the background; a confirmation on the provider row means the key works. If validation fails, the row shows the error verbatim — the most common cause is whitespace around the key.
 
-## Step 4 — Publish your first agent
+<Frame caption="A validated provider — from here every agent can answer.">
+
+![The AI providers settings page showing the OpenRouter provider entry.](/images/get-started/settings-providers.webp)
+
+</Frame>
+
+<Note>
+
+This step is where most onboarding sessions stall — the provider portal is usually a different login, and the team has to dig for the key. If validation hangs for more than a minute, refresh the page; the key is saved as soon as **Save** confirms — the row sometimes needs a reload to show it.
+
+</Note>
+
+</Step>
+
+<Step title="Publish your first agent">
 
 Open **Agents** and click **Create agent**. Pick the model you just added. Write a one-paragraph instructions block — the voice the agent should answer in, the domain it knows, the cases it refuses. Save. Flip **Visible in chat** on. The agent is now reachable from any chat in the org.
 
 For a deeper walk on what makes an agent good, see [Create an agent](/platform/agents/create).
 
-## Step 5 — Open chat
+</Step>
 
-Click **New chat** in the sidebar. Pick the agent from the picker, type a question the agent's domain covers, send. The reply streams back; if it lands the way you wrote the instructions to land, the org is done with onboarding.
+<Step title="Open chat">
+
+Click **New chat** in the sidebar. Pick the agent from the picker, type a question the agent's domain covers, send.
+
+<Check>
+
+The reply streams back — if it lands the way you wrote the instructions to land, the org is done with onboarding.
+
+</Check>
 
 Three follow-ups worth doing now while everything is fresh:
 
 - Open **Settings > Branding** and upload the org logo.
 - Set the org's default language under **Settings > Organization**.
 - Skim [Trust and compliance](/cloud/trust-and-compliance) so you know what to show an auditor before one asks.
+
+</Step>
+
+</Steps>
 
 ## Troubleshooting
 

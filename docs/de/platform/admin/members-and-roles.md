@@ -7,9 +7,15 @@ Mitglieder sind die Personen in deiner Organisation, die sich bei Tale anmelden 
 
 Sechs Rollen decken nahezu jedes Team ab, an das Tale ausgeliefert wird. Admins und Inhaber lesen diese Seite, wenn sie ein Team zum ersten Mal aufsetzen, wenn ein Audit fragt, wer welchen Zugriff hat, oder wenn sie wissen müssen, ob sie einem neuen Kollegen Redakteur oder Entwickler geben.
 
+<Frame caption="Der Mitglieder-Abschnitt unter Einstellungen > Organisation — jeder Account und die Rolle, die ihn begrenzt.">
+
+![Die Organisations-Einstellungsseite mit ihrem Mitglieder-Abschnitt, der den Inhaber des Workspace und eine Schaltfläche Mitglied hinzufügen zeigt.](/images/get-started/settings-organization-members.webp)
+
+</Frame>
+
 ## Eine durchgespielte Einladung
 
-Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Mitglieder** und klick auf **Mitglied hinzufügen**. Das neue Mitglied erhält einen E-Mail-Link, der 24 Stunden gültig ist, und landet in der Standardrolle, die du auswählst — ändere die Rolle vor dem Senden im Formular, falls sie nicht Mitglied werden soll. Der Default greift, sobald die Person die Einladung annimmt; eine Hochstufung später ist eine Ein-Klick-Änderung in derselben Mitglieder-Ansicht.
+Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klick auf **Mitglied hinzufügen**. Das neue Mitglied erhält einen E-Mail-Link, der 24 Stunden gültig ist, und landet in der Standardrolle, die du auswählst — ändere die Rolle vor dem Senden im Formular, falls sie nicht Mitglied werden soll. Der Default greift, sobald die Person die Einladung annimmt; eine Hochstufung später ist eine Ein-Klick-Änderung im selben Mitglieder-Abschnitt.
 
 ## Die sechs Rollen
 
@@ -53,16 +59,16 @@ R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Be
 
 ## Die Einstellungs-Oberfläche und das Menü
 
-Mitglieder, Redakteure und deaktivierte Benutzer sehen Einstellungen nicht — das Menü ist ausgeblendet. Entwickler sehen Einstellungen, aber nicht den Governance-Unterzweig (ausser Lese-Ansichten). Admins und Inhaber sehen das volle Menü. Die drei Sidebar-Gruppen (`Du`, `Workspace`, `Governance`) spiegeln diese Trennung: `Du` ist pro Benutzer, `Workspace` ist Konfiguration, `Governance` ist die Audit-und-Richtlinien-Oberfläche, die Admin-Zugriff braucht.
+Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (der Mitglieder-Abschnitt, Teams, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
 
 ## Randfälle
 
-**Eigentum übertragen** verlangt, dass ein bestehender Inhaber einen aktuellen Admin oder Inhaber nominiert; die neue Inhaber-Rolle wirkt sofort. Der vorherige Inhaber wird zu Admin, ausser er wird explizit herabgestuft.
+**Eigentum übertragen** verlangt, dass ein bestehender Inhaber einen aktuellen Admin oder Inhaber nominiert; die neue Inhaber-Rolle wirkt sofort. Der vorherige Inhaber wird zu Admin, außer er wird explizit herabgestuft.
 
-**Warnung „letzter Admin".** Die Mitglieder-Ansicht warnt, wenn der letzte Admin oder Inhaber entfernt oder herabgestuft wird. Die Aktion ist erlaubt — Tale sperrt dich nicht aus — aber du solltest mindestens zwei Admin- oder Inhaber-Accounts für Kontinuität halten.
+**Warnung „letzter Admin".** Der Mitglieder-Abschnitt warnt, wenn der letzte Admin oder Inhaber entfernt oder herabgestuft wird. Die Aktion ist erlaubt — Tale sperrt dich nicht aus — aber du solltest mindestens zwei Admin- oder Inhaber-Accounts für Kontinuität halten.
 
-**2FA zurücksetzen** liegt auf der Zeile des Mitglieds in Mitglieder. Zurücksetzen entfernt den zweiten Faktor; der nächste Sign-in registriert neu.
+**Zwei-Faktor zurücksetzen** liegt auf der Zeile des Mitglieds im Mitglieder-Abschnitt. Zurücksetzen entfernt den zweiten Faktor; der nächste Sign-in registriert neu.
 
 ## Wo das hingehört
 
-Rollen sind die Zugriffsoberfläche, die jede andere Admin-Seite berührt: SSO authentifiziert sie, API-Keys gehören ihnen, Audit-Logs benennen sie, Governance-Richtlinien skopieren Verhalten nach Rolle. Die nächste Lektüre hängt davon ab, was du als Nächstes tust. Wenn du Sign-in an deinen Identitätsanbieter verdrahtest, behandelt [Authentifizierung](/de/self-hosted/configuration/authentication) die vier Sign-in-Modi. Wenn du Zugriff nach Team statt nur nach Rolle skopierst, deckt [Teams](/de/platform/admin/teams) die Per-Team-Skopierungsebene ab.
+Rollen sind die Zugriffsoberfläche, die jede andere Admin-Seite berührt: SSO authentifiziert sie, API-Keys gehören ihnen, Audit-Logs benennen sie, Governance-Richtlinien grenzen Verhalten nach Rolle ein. Die nächste Lektüre hängt davon ab, was du als Nächstes tust. Wenn du Sign-in an deinen Identitätsanbieter verdrahtest, behandelt [Authentifizierung](/de/self-hosted/configuration/authentication) die vier Sign-in-Modi. Wenn du Zugriff nach Team statt nur nach Rolle eingrenzt, deckt [Teams](/de/platform/admin/teams) die Team-Ebene dieser Eingrenzung ab.

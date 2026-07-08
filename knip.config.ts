@@ -60,6 +60,11 @@ export default {
         // `integration/lib/**` + `static-site-test.ts` are reached via their graph.
         'tests/integration/container-*.ts',
         'tests/integration/master-e2e-test.ts',
+        // Docs screenshot capture runner — invoked as the root `docs:screenshots`
+        // script (`bun services/platform/tests/docs-screenshots/capture.ts`,
+        // hosted at root like docker:test* — a platform-local `bun tests/…`
+        // script crashes knip's script parser), never imported.
+        'tests/docs-screenshots/capture.ts',
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [

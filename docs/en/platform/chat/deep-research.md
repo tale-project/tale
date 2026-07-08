@@ -19,9 +19,15 @@ For narrow factual questions ("what is the capital of Senegal") plain chat is fa
 
 ## Open Deep research
 
-Open Chat. The composer shows a **Deep research** button (telescope icon) beside the agent picker; click it and the composer switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
+Open the composer's plus menu — modes live under its **Modes** header, and **Deep research** appears there once the Researcher agent is available. Pick it and the composer switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
 
-The Deep research button is visible when an Editor or above has bound the **Tavily** integration under [Settings > Integrations](/platform/integrations/overview); without Tavily, the agent surfaces a one-liner asking an admin to connect it.
+<Frame caption="Modes live in the composer's plus menu; entries appear as their requirements are met.">
+
+![The composer's plus menu open, showing an Add photos and files entry and a Modes section listing Arena Mode.](/images/platform/chat-composer-menu.webp)
+
+</Frame>
+
+The mode is available when an Editor or above has bound the **Tavily** integration under [Settings > Integrations](/platform/integrations/overview); without Tavily, the menu entry names the missing integration and clicking it opens the integration settings.
 
 ## The research plan
 

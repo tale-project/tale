@@ -9,17 +9,45 @@ Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Workflows
 
 ## Seiten in diesem Abschnitt
 
-**[API-Referenz](/de/develop/api-reference)** — Endpoints, Authentifizierung, OpenAI-kompatible Endpoints, Fehlermodell, Versionierung.
+<CardGroup cols="2">
 
-**[Webhooks](/de/develop/webhooks)** — ausgehend (Tale → du) und eingehend (du → Tale), Signieren, Idempotenz, Wiederholungen.
+<Card title="API-Referenz" icon="code" href="/de/develop/api-reference">
 
-**[KI-gestützte Entwicklung](/de/develop/ai-assisted-development)** — Tale-Agents nutzen, um Tale-Workflows zu schreiben; die `.agents/`-Skill-Dateien.
+Endpoints, Authentifizierung, OpenAI-kompatible Endpoints, Fehlermodell, Versionierung.
 
-**[Integrationen](/de/develop/integrations)** — Drittanbieter-Integrationen aus Entwicklersicht.
+</Card>
 
-**[Status-Seite](/de/develop/status-page)** — Vorfallsmeldungen für Cloud, Metrik-Verweise für selbst gehostet.
+<Card title="Webhooks" icon="webhook" href="/de/develop/webhooks">
 
-**[Rate Limits](/de/develop/rate-limits)** — Limits pro Key, pro IP, pro Organisation und wie ein 429 zu lesen ist.
+Ausgehend (Tale → du) und eingehend (du → Tale), Signieren, Idempotenz, Wiederholungen.
+
+</Card>
+
+<Card title="KI-gestützte Entwicklung" icon="sparkles" href="/de/develop/ai-assisted-development">
+
+Tale-Agents nutzen, um Tale-Workflows zu schreiben; die `.agents/`-Skill-Dateien.
+
+</Card>
+
+<Card title="Integrationen" icon="plug" href="/de/develop/integrations">
+
+Drittanbieter-Integrationen aus Entwicklersicht.
+
+</Card>
+
+<Card title="Status-Seite" icon="activity" href="/de/develop/status-page">
+
+Vorfallsmeldungen für Cloud, Metrik-Verweise für selbst gehostet.
+
+</Card>
+
+<Card title="Rate Limits" icon="gauge" href="/de/develop/rate-limits">
+
+Limits pro Key, pro IP, pro Organisation und wie ein 429 zu lesen ist.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 

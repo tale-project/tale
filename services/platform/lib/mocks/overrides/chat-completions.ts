@@ -31,6 +31,7 @@ import {
   CANNED_REPLY,
   MOCK_TRIGGERS,
 } from './canned';
+import { matchDocsReply } from './docs-replies';
 
 /** Canned content for structured-output requests (`response_format` json*). */
 const CANNED_JSON_REPLY = '{}';
@@ -126,6 +127,7 @@ function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
 
 type Scenario =
   | 'canned'
+  | 'docs'
   | 'reasoning'
   | 'nextSteps'
   | 'humanInputTool'
@@ -136,6 +138,12 @@ function userTexts(messages: ParsedMessage[]): string[] {
   return messages
     .filter((message) => message.role === 'user')
     .map((message) => message.text.toLowerCase());
+}
+
+/** Last user message, lowercased — the docs-reply match key. */
+function lastUserText(body: ChatCompletionRequest): string {
+  const users = userTexts(body.messages ?? []);
+  return users[users.length - 1] ?? '';
 }
 
 /**
@@ -165,6 +173,9 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.error)) return 'error';
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.nextSteps)) return 'nextSteps';
+  // Docs-pipeline phrases come last so an e2e trigger always wins; anything
+  // unmatched stays on the spec-pinned canned path.
+  if (matchDocsReply(last)) return 'docs';
   return 'canned';
 }
 
@@ -174,6 +185,8 @@ function scenarioContent(
   body: ChatCompletionRequest,
 ): string {
   switch (scenario) {
+    case 'docs':
+      return matchDocsReply(lastUserText(body))?.reply ?? CANNED_REPLY;
     case 'reasoning':
       return CANNED_REASONING_ANSWER;
     case 'nextSteps':
@@ -193,9 +206,18 @@ function completionId(): string {
 
 function jsonCompletion(body: ChatCompletionRequest): Response {
   const formatType = body.response_format?.type ?? '';
+  // Honour ONLY the docs scenario on the non-streamed path — the seeded demo
+  // chats issue plain (non-streamed) generation calls, and a docs phrase that
+  // silently fell back to the canned reply would ship a fake-looking shot. The
+  // streaming-chat e2e scenarios (nextSteps/reasoning/humanInput) must NOT leak
+  // here: thread-title generation is a non-streamed `generateText` call whose
+  // prompt is the user's first message, so routing it to `nextSteps` would
+  // surface the raw `[[NEXT_STEPS]]` marker as the thread title.
   const content = formatType.startsWith('json')
     ? CANNED_JSON_REPLY
-    : CANNED_REPLY;
+    : pickScenario(body) === 'docs'
+      ? scenarioContent('docs', body)
+      : CANNED_REPLY;
   return Response.json({
     id: completionId(),
     object: 'chat.completion',
@@ -311,10 +333,17 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
         return;
       }
 
-      // Reasoning scenario streams `reasoning_content` first; the SDK closes the
-      // reasoning block automatically on the first `content` delta.
-      if (scenario === 'reasoning') {
-        for (const delta of toDeltas(CANNED_REASONING)) {
+      // Reasoning streams `reasoning_content` first; the SDK closes the
+      // reasoning block automatically on the first `content` delta. Docs
+      // replies opt into the same path via their `reasoning` field.
+      const reasoningText =
+        scenario === 'reasoning'
+          ? CANNED_REASONING
+          : scenario === 'docs'
+            ? (matchDocsReply(lastUserText(body))?.reasoning ?? null)
+            : null;
+      if (reasoningText !== null) {
+        for (const delta of toDeltas(reasoningText)) {
           sendDelta({ reasoning_content: delta }, null);
           await pause();
         }

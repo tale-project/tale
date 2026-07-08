@@ -1,48 +1,48 @@
 ---
 title: Project concepts
-description: A project is a shared workspace that bundles files, instructions, threads, and project-scoped agents. This page hands you the mental model for when to reach for a project over a stand-alone conversation.
+description: A project bundles chats, files, instructions, tasks, and discussions into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat.
 ---
 
-A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same agents across many conversations. It is a shared workspace that bundles files, instructions, threads, and project-scoped agents — four things that follow you between conversations so you do not re-paste context every time.
+A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same working surfaces across many chats and many people. This page hands you the mental model — read it before you create your first project, and come back when you are deciding whether a growing chat should be promoted into one.
 
-This page hands you the mental model for when to reach for a project. Read it before you start one; come back when you are deciding whether to keep adding to a stand-alone conversation or promote the context to a project.
+<Frame caption="The General tab — identity, sharing, and the stats strip are the project's front door.">
 
-## The four pieces
+![The General tab of the Website relaunch project showing the name and description fields, the sharing section, and a stats strip reading two files and two chats.](/images/platform/project-general-tab.webp)
 
-**Files** are the project's working set — the documents, spreadsheets, and images you keep coming back to. Files are attached at the project level and visible to every conversation inside it, without the cost of re-uploading or re-retrieving.
+</Frame>
 
-**Instructions** are the project-level system prompt — the voice and constraints that apply to every conversation in the project. They compose with the agent's own instructions: project instructions frame the work, the agent's instructions frame the reply.
+## What a project owns
 
-**Threads** are the conversations. Every conversation inside the project sees the project's files and instructions. Threads stay private to the project; they do not appear in the org-wide chat history.
+**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see.
 
-**Project agents** are agents scoped to the project. They shadow the org-wide agents of the same name — when both exist, the project version wins inside the project. Use project agents for behaviour that would surprise readers outside the project.
+**Instructions** are context that applies to every chat in the project — the framing, constraints, and vocabulary of the work — so nobody re-pastes them per chat.
+
+**Files** on the **Knowledge** tab are reference material every chat in the project can draw on, held in a folder tree you upload into once rather than re-attaching per chat. They stay scoped to this project — they never surface in the org-wide library or in `@` pickers outside it — see [Manage files](/platform/projects/manage-files).
+
+**Tasks and Discussions** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), and [threaded discussions](/platform/projects/discussions) for decisions.
+
+**Agents & models** is a curation surface: which agents and models members see first — or see at all — inside this project ([Agents and models](/platform/projects/project-agents)).
+
+## Creating and identity
+
+**Create project** asks for a name and a **Project key** — the prefix for task IDs like `WR-1`. The key is fixed; it cannot be changed after the project is created. Description, owning team, icon, and color are editable later on the **General** tab, where the unified **Save** and **Discard** buttons sit in the tab strip.
 
 ## Sharing model
 
-A project belongs to its creator by default; the creator can add members. Members see the project's files and threads but not threads that pre-date their membership unless explicitly shared. Removing a member removes their access on the next request; existing conversation transcripts they downloaded stay on their device.
-
-## Putting it together — a sales-account project
-
-A sales-account project bundles the artifacts a salesperson keeps coming back to for one customer:
-
-- Files: the customer's contract, the proposal drafts, the call notes.
-- Instructions: "You are working on the Acme account. Reference the call notes by date; cite the contract by section number."
-- Threads: one for each deal stage — qualification, demo prep, proposal, negotiation.
-- Project agents: a deal-summariser agent that knows the Acme voice, plus the org's default agents.
-
-Every conversation in the project sees the same files and instructions; the salesperson opens a new thread per deal stage and the context follows.
+Sharing is by team, not by individual invitation. A project defaults to **Org-wide**; picking an owning team scopes it to that team, and additional teams can be added on the General tab. Org admins always have access. Renaming, archiving, and deleting live in the row menu on the projects list — deleting asks what happens to the content: detach the files and chats (they become library documents and personal chats) or delete them too.
 
 ## When to reach for it
 
-| Use … when                                            | Project | Stand-alone conversation |
-| ----------------------------------------------------- | ------- | ------------------------ |
-| The same files apply across many conversations        | ✓       |                          |
-| The same instructions apply across many conversations | ✓       |                          |
-| Multiple people work the same body of work            | ✓       |                          |
-| The conversation is one-shot                          |         | ✓                        |
+| Use … when                                    | Project | Stand-alone chat |
+| --------------------------------------------- | ------- | ---------------- |
+| The same files apply across many chats        | ✓       |                  |
+| The same instructions apply across many chats | ✓       |                  |
+| Multiple people work the same body of work    | ✓       |                  |
+| The work has tasks, owners, and decisions     | ✓       |                  |
+| The question is one-shot                      |         | ✓                |
 
-Stand-alone conversations are the right shape when you are exploring an answer once. Projects are the right shape when the same set of context follows the work across many sessions.
+A stand-alone chat is the right shape for exploring an answer once. The moment the context should outlive the chat, move it — the composer's **Move to project…** action carries an existing chat into a project.
 
-## Build one
+## Where this fits
 
-Projects are the seam between agents and conversations: the files, instructions, threads, and agents that travel together. The natural next read is [Use projects](/tutorials/member/use-projects) — it walks the four pieces end to end on a fresh project, from creation to the first reply that cites the project's files.
+Projects are the seam where chats, knowledge, and task automation meet. The natural next read is [Use projects](/tutorials/member/use-projects), which walks a fresh project end to end; the per-tab pages in this section go deeper on [files](/platform/projects/manage-files), [agents and models](/platform/projects/project-agents), and [discussions](/platform/projects/discussions).

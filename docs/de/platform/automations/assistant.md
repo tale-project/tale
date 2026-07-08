@@ -3,7 +3,7 @@ title: Automatisierungs-Assistent
 description: Der Chat-Agent, der auf eine Automatisierung fixiert ist — was er direkt editiert, was er für dich entwirft, und wie er bestehende Automatisierungen findet, bevor er eine neue baut.
 ---
 
-Der **Automatisierungs-Assistent** ist der Chat-Agent, der an die Automatisierung angeheftet ist, die du gerade geöffnet hast — klick auf **Assistent** auf der Seite einer Automatisierung, und er antwortet mit deren Agents, Workflow, Skills, Integrationen und Konfiguration bereits im Kontext. Admins und Entwickler nutzen ihn, um eine unbekannte Automatisierung zu verstehen, eine bestehende zu erweitern statt sie zu duplizieren, oder Hilfe beim Verfassen der Bestandteile zu bekommen, die die Automatisierungsseite nicht direkt editiert. Es ist derselbe Assistenten-Agent, den der [Workflow-Editor](/de/platform/workflows/workflows) einbettet, sodass sich eine dort begonnene Konversation auch von der anderen Oberfläche aus vertraut liest.
+Der **Automatisierungs-Assistent** ist der Chat-Agent, der an die Automatisierung angeheftet ist, die du gerade geöffnet hast — klick auf **Assistent** auf der Seite einer Automatisierung, und er antwortet mit deren Agents, Workflow, Skills, Integrationen und Konfiguration bereits im Kontext. Admins und Entwickler nutzen ihn, um eine unbekannte Automatisierung zu verstehen, eine bestehende zu erweitern statt sie zu duplizieren, oder Hilfe beim Verfassen der Bestandteile zu bekommen, die die Automatisierungsseite nicht direkt editiert. Es ist derselbe Assistenten-Agent, den der [Workflow-Editor](/de/platform/automations/editor) einbettet, sodass sich eine dort begonnene Konversation auch von der anderen Oberfläche aus vertraut liest.
 
 ## Was er direkt editiert
 

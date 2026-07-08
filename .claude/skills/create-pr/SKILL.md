@@ -1,6 +1,7 @@
 ---
 name: create-pr
 icon: lucide:git-pull-request-arrow
+labels: ['GitHub']
 description: 'Use this skill whenever you take a finished change to a pull request — it is the required pre-merge routine: walk the definition of done and the ripple map, run the full gate, verify the behaviour, review the diff, then open one focused PR with atomic conventional commits. Load it the moment a task says "open a PR", "ship it", "commit", "raise a pull request", or whenever a change is done in your head but not yet landed. Never open a PR or commit without it — the cross-cutting work (migration, translations, docs, tests) is what gets forgotten.'
 ---
 

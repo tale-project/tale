@@ -9,7 +9,13 @@ This page covers the sharing surface end to end: enabling sharing, who the link 
 
 ## Sharing a chat
 
-Open **More actions** on a chat in History and click **Share chat**. The dialog offers **Enable sharing** as a toggle and, once enabled, **Copy link**. Paste the link into the channel your team uses. **Anyone in your organization with the link can view this chat** — the link is scoped to the org, not the wider internet. Disabling sharing later invalidates the link; visitors land on a not-found page.
+Click **Share** in the chat's header. The **Share chat** dialog offers **Enable sharing** as a toggle and, once enabled, the share link with **Copy link** and **Preview** — the latter opens the read-only view the recipient will see. Paste the link into the channel your team uses.
+
+<Frame caption="The Share chat dialog — org-scoped link, copy, and preview.">
+
+![The Share chat dialog over a chat, showing the Enable sharing toggle switched on, the share link, and Copy link and Preview buttons.](/images/platform/chat-share-dialog.webp)
+
+</Frame> **Anyone in your organization with the link can view this chat** — the link is scoped to the org, not the wider internet. Disabling sharing later invalidates the link; visitors land on a not-found page.
 
 ## What the viewer sees
 

@@ -1,37 +1,105 @@
 ---
 title: Plateforme
-description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, workflows, connaissances, approbations, administration.
+description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, connaissances, approbations, administration.
 kind: index
 ---
 
-Plateforme est la référence produit canonique : chaque fonctionnalité visible par l'utilisateur dans Tale, identique pour Cloud et auto-hébergé. Les pages ici décrivent l'UI qu'on clique, le concept derrière l'UI, et les arbitrages entre fonctionnalités qui se ressemblent.
+Plateforme est la référence produit canonique : chaque fonctionnalité visible par l’utilisateur dans Tale, identique pour Cloud et auto-hébergé. Les pages ici décrivent l’UI qu’on clique, le concept derrière l’UI, et les arbitrages entre fonctionnalités qui se ressemblent.
 
-La section est organisée par domaine, puis par fonctionnalité au sein d'un domaine. La plupart des lecteurs ne la lisent pas de bout en bout — ils atterrissent ici depuis une recherche ou un lien de tutoriel, et la page sur laquelle ils tombent doit répondre à la question qu'ils ont apportée. Les entrées indexées par rôle (Membre, Éditeur, Développeur, Administration) en bas de cette section visent quelqu'un qui prépare sa première journée avec le produit.
+La section est organisée par domaine, puis par fonctionnalité au sein d’un domaine. La plupart des lecteurs ne la lisent pas de bout en bout — ils atterrissent ici depuis une recherche ou un lien de tutoriel, et la page sur laquelle ils tombent doit répondre à la question qu’ils ont apportée.
 
-## Pages de cette section
+## Domaines de fonctionnalités
 
-**[Chat](/fr/platform/chat/overview)** — conversations, agents dans le chat, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
+<CardGroup cols="2">
 
-**[Projets](/fr/platform/projects/overview)** — espaces partagés qui regroupent fichiers, instructions, conversations et agents liés au projet.
+<Card title="Chat" icon="message-circle" href="/fr/platform/chat/overview">
 
-**[Agents](/fr/platform/agents/concepts)** — instructions, connaissances, outils, modèle, compétences, workers, versionnage, déclencheurs webhook.
+Le point d’entrée quotidien — conversations, agents dans le chat, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
 
-**[Automatisations](/fr/platform/automations/concepts)** — bundles installables d'intégrations, d'agents, de compétences et d'un workflow ; le catalogue, l'assistant d'installation, les bundles livrés.
+</Card>
 
-**[Workflows](/fr/platform/workflows/concepts)** — définitions, déclencheurs, exécutions, métriques, points d'approbation.
+<Card title="Projets" icon="folder-open" href="/fr/platform/projects/overview">
 
-**[Connaissances](/fr/platform/knowledge/overview)** — documents, clients, produits, fournisseurs, sites web, modèle de données structurées.
+Espaces partagés qui regroupent fichiers, instructions, conversations et agents liés au projet.
 
-**[Approbations](/fr/platform/approvals/concepts)** — cartes inline, points dans les workflows, le pool d'approbateurs.
+</Card>
 
-**[Espace de travail](/fr/platform/workspace/prompt-library)** — bibliothèque de prompts et comparaison de documents.
+<Card title="Agents" icon="bot" href="/fr/platform/agents/concepts">
 
-**[Intégrations](/fr/platform/integrations/overview)** — appariements SaaS tiers et serveurs MCP.
+Instructions, connaissances, outils, modèle — plus compétences, workers, versionnage et déclencheurs webhook.
 
-**[Membre](/fr/platform/member/overview)**, **[Éditeur](/fr/platform/editor/overview)**, **[Développeur](/fr/platform/developer/overview)** — tours rapides indexés par rôle pour quelqu'un qui prépare sa première journée.
+</Card>
 
-**[Administration](/fr/platform/admin/overview)** — paramètres de l'organisation, fournisseurs, branding, intégrations, plus le sous-arbre gouvernance.
+<Card title="Automatisations" icon="layout-grid" href="/fr/platform/automations/concepts">
 
-## Où cela s'inscrit
+Des paquets installables qui regroupent intégrations, agents, compétences et un workflow — le catalogue, l’assistant d’installation, l’éditeur et les déclencheurs derrière chaque automatisation, et l’historique des runs qu’elle laisse.
 
-Plateforme est le puits gravitationnel — Cloud et auto-hébergé pointent tous deux ici pour la documentation des fonctionnalités, et chaque tutoriel cite des pages d'ici pour les concepts sous-jacents. La page à mettre en favori dès le premier jour est [Agents → concepts](/fr/platform/agents/concepts) — presque toutes les autres pages produit supposent le modèle mental à quatre boutons que cette page construit.
+</Card>
+
+<Card title="Connaissances" icon="library" href="/fr/platform/knowledge/overview">
+
+Documents, clients, produits, fournisseurs, sites web — le modèle de données structurées que les agents citent.
+
+</Card>
+
+<Card title="Approbations" icon="check-check" href="/fr/platform/approvals/concepts">
+
+Cartes inline, points dans les workflows et le pool d’approbateurs qui garde les humains dans la boucle.
+
+</Card>
+
+<Card title="Bibliothèque de prompts" icon="list-plus" href="/fr/platform/workspace/prompt-library">
+
+Prompts enregistrés avec visibilité personnelle, d’équipe et globale, plus l’historique des versions.
+
+</Card>
+
+<Card title="Modèles" icon="cpu" href="/fr/platform/models">
+
+Le catalogue de modèles derrière chaque sélecteur — étiquettes de capacité, valeurs par défaut et la liste livrée.
+
+</Card>
+
+<Card title="Intégrations" icon="plug" href="/fr/platform/integrations/overview">
+
+Appariements SaaS tiers et serveurs MCP.
+
+</Card>
+
+</CardGroup>
+
+## Prépare ta première journée
+
+Quatre entrées indexées par rôle cartographient les mêmes fonctionnalités du côté du lecteur — ce qu’un Membre, un Éditeur, un Développeur ou l’Administration touche réellement le premier jour.
+
+<CardGroup cols="2">
+
+<Card title="Membre" icon="user" href="/fr/platform/member/overview">
+
+Chat, connaissances, préférences personnelles — la surface que la plupart des gens utilisent dans la plupart des orgs.
+
+</Card>
+
+<Card title="Éditeur" icon="pencil-ruler" href="/fr/platform/editor/overview">
+
+La surface de construction — agents, curation des connaissances, automatisations, projets.
+
+</Card>
+
+<Card title="Développeur" icon="terminal" href="/fr/platform/developer/overview">
+
+Clés API, outils personnalisés, webhooks, serveurs MCP — brancher Tale à du code externe.
+
+</Card>
+
+<Card title="Administration" icon="shield" href="/fr/platform/admin/overview">
+
+Paramètres de l’organisation, fournisseurs, branding, intégrations et le sous-arbre gouvernance.
+
+</Card>
+
+</CardGroup>
+
+## Où cela s’inscrit
+
+Plateforme est le puits gravitationnel — Cloud et auto-hébergé pointent tous deux ici pour la documentation des fonctionnalités, et chaque tutoriel cite des pages d’ici pour les concepts sous-jacents. La page à mettre en favori dès le premier jour est [Agents → concepts](/fr/platform/agents/concepts) — presque toutes les autres pages produit supposent le modèle mental à quatre boutons que cette page construit.

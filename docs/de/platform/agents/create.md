@@ -1,64 +1,82 @@
 ---
 title: Einen Agent erstellen
-description: Vom leeren Create-agent-Dialog zu einem veröffentlichten Agent — Modell wählen, Instructions schreiben, Wissen anbinden, Tools einschalten und im Chat verifizieren.
+description: Vom Dialog Agent erstellen zum veröffentlichten Agent — benenne ihn, schreib Anweisungen, setz den Wissens-Scope, gewähre Tools und prüfe ihn im Chat.
 ---
 
-Dieses Tutorial führt vom leeren **Agent erstellen**-Dialog zu einem Agent, den du veröffentlichst und nutzt. Das Ergebnis ist ein funktionierender Agent, der seine Domäne kennt, die Tools hat, um auf das zu reagieren, was er liest, und aus jedem Chat in deiner Org erreichbar ist. Etwa fünfzehn Minuten, wenn du bereits einen Modell-Provider konfiguriert hast; länger, wenn du auch einen einrichten musst.
+Dieses Tutorial führt vom leeren Dialog **Agent erstellen** zu einem Agent, den du veröffentlichst und nutzt. Das Ergebnis ist ein funktionierender Agent, der seine Domäne kennt, die Tools hat, um auf das zu reagieren, was er liest, und aus jedem Chat deiner Organisation erreichbar ist. Etwa fünfzehn Minuten, wenn ein Modellanbieter schon konfiguriert ist; länger, wenn du erst einen einrichten musst.
 
-Du brauchst die Rolle Redakteur oder höher und einen unter **Einstellungen > Provider** konfigurierten Modell-Provider; die erste Voraussetzung unten verlinkt die Einrichtung, falls nicht. Die Stimme, die dieses Tutorial nutzt, ist dieselbe wie die in [Agent-Konzepte](/de/platform/agents/concepts) — lies diese Seite einmal, bevor du die Instructions deines ersten Agents schreibst.
+Das Tutorial nutzt einen Support-Triage-Agent als durchgehendes Beispiel — denselben, den [Agent-Konzepte](/de/platform/agents/concepts) einführt. Ersetze die Domäne frei durch deine eigene; die Schritte hängen nicht am Beispiel.
 
 ## Bevor du beginnst
 
-Stell sicher, dass zwei Dinge bereit sind:
+Stell sicher, dass zwei Dinge stehen:
 
-- Ein Modell-Provider ist unter **Einstellungen > Provider** konfiguriert. Cloud-User bekommen einen by default; Self-hosted-User folgen [Konfiguration → Provider](/de/self-hosted/configuration/providers).
-- Du hältst die Rolle Redakteur oder höher in dieser Org. Schau unter **Einstellungen > Personen**, wenn du nicht sicher bist; die Rolle steht in deiner Mitgliedszeile.
+- Ein Modellanbieter ist unter **Einstellungen > Anbieter** konfiguriert. Cloud-Nutzer bekommen standardmäßig einen; selbst gehostete Betreiber folgen [Konfiguration → Anbieter](/de/self-hosted/configuration/providers). Ohne Anbieter stoppt dich der Dialog: ein Agent braucht ein Modell, um zu laufen.
+- Du hast die Rolle Redakteur oder höher in dieser Organisation. Prüfe deine Mitgliederzeile unter **Einstellungen > Organisation**, wenn du unsicher bist.
 
-Das Tutorial nutzt einen Support-Triage-Agent als laufendes Beispiel — denselben, den [Agent-Konzepte](/de/platform/agents/concepts) einführt. Tausch deine eigene Domäne frei aus; die Schritte hängen nicht vom Beispiel ab.
+## Schritt 1 — Den Agent erstellen
 
-## Schritt 1 — Das primäre Modell wählen
+Öffne **Agenten** in der Seitenleiste und klicke auf **Agent erstellen**, dann wähle **Leer** (das Menü bietet auch **Aus Vorlage** und **Datei hochladen** für den Import von Agent-JSON). Der Dialog fragt nach vier Dingen: einem **Name** — der eindeutigen Id für Links und die API, die du später nicht ändern kannst; füge ein `/` ein, um den Agent in einem Ordner abzulegen, z. B. `marketing/seo-writer` —, einem **Anzeigename**, den Teamkollegen im Chat sehen, einer **Beschreibung** und der **Modell**-Liste. Das erste Modell ist der Standard, der Rest sind Fallbacks; zieh zum Umsortieren oder ergänze jederzeit weitere. Klicke auf **Weiter**, und der Editor öffnet sich auf dem Tab **Allgemein**.
 
-Öffne **Agents** in der Sidebar und klick **Create agent**. Der Dialog wirft dich auf den Tab **Instructions & model**. Öffne den Modell-Picker, und das Suchfeld erwartet einen Modellnamen oder eine Familie — tipp „gpt", „claude" oder „llama", um zu filtern. Wähl ein fähiges Modell als primäres; das Verhalten des Agents lehnt sich stark an diese Wahl. Der Picker zeigt auch einen Fallback-Slot — wähl ein kleineres, billigeres Modell, damit der Agent weiterläuft, wenn das primäre rate-limitiert ist.
+<Frame caption="Die Agentenliste — Agent erstellen sitzt oben rechts; die Ordnerzeilen entstehen aus Slugs mit einem /-Präfix.">
 
-## Schritt 2 — Die Instructions schreiben
+![Die Agentenliste mit ausgeklapptem chat-Ordner, die die Zeilen Assistant und Automation Assistant mit ihren Standardmodellen und Tool-Anzahlen zeigt.](/images/platform/agents-list-expanded.webp)
 
-Das Instructions-Feld ist reines Markdown. Drei Ratschläge aus der Praxis:
+</Frame>
 
-- **Öffne mit der Stimme.** Ein Absatz, der benennt, wer der Agent ist, wem er antwortet und welchen Ton er anschlägt. Das Modell behandelt das als stärkstes Signal.
-- **Benenne die Ablehnungsfälle explizit.** Drei oder vier Sätze, die sagen, was der Agent ablehnt und was er beim Ablehnen sagt.
-- **Widersteh der Versuchung, jedes Verhalten zu spezifizieren.** Lange Instructions verwässern in langen Konversationen. Gehört ein Verhalten in Code, lehn dich auf ein Tool; gehört es in Daten, lehn dich auf Wissen.
+## Schritt 2 — Die Anweisungen schreiben
 
-Speicher den Agent mit dem **Save**-Knopf oben rechts. Der Dialog bleibt offen mit der Agent-ID sichtbar in der URL — du kannst zurückkommen, um zu verfeinern.
+Öffne **Anweisungen & Modelle**. Das Feld **Systemanweisungen** ist reines Markdown, mit **Prompts durchsuchen** als Start aus der Prompt-Bibliothek der Organisation und Template-Variablen, die zur Laufzeit aufgelöst werden. Drei Ratschläge aus der Praxis:
 
-## Schritt 3 — Wissensquellen anbinden
+- **Beginne mit der Stimme.** Ein Absatz, der benennt, wer der Agent ist, wem er antwortet und welchen Ton er anschlägt. Das Modell behandelt das als stärkstes Signal.
+- **Benenne die Ablehnungsfälle explizit.** Drei oder vier Sätze, die sagen, was der Agent ablehnt und was er sagt, wenn er ablehnt.
+- **Widersteh dem Drang, jedes Verhalten zu spezifizieren.** Lange Anweisungen verwässern in langen Konversationen. Gehört ein Verhalten in Code, stütz dich auf ein Tool; gehört es in Daten, stütz dich auf Wissen.
 
-Wechsle zum **Knowledge**-Tab. Wissen ist das, worauf der Agent zugreifen kann; standardmässig ist nichts gebunden. Klick **Agent knowledge** und wähl aus den Dokumenten, Kunden, Produkten, Lieferanten oder Websites der Org. Der Agent wird zur Antwortzeit aus diesen Quellen abrufen und zitieren, was er genutzt hat.
+Derselbe Tab hält die Modell-Liste aus dem Dialog — das erste Modell ist das primäre, und jedes Modell darunter ist der nächste Fallback, wenn das darüber nicht verfügbar ist.
 
-Zwei Warnungen:
+<Frame caption="Anweisungen & Modelle — oben das System-Prompt, darunter die geordnete Modell-Liste.">
 
-- Bind die kleinste nützliche Menge. Ein gebundenes, aber selten abgerufenes Dokument kostet trotzdem Embedding-Zyklen.
-- Das hier gebundene Wissen kommt zusätzlich zu allem, was die Instructions des Agents direkt abzurufen sagen. Die Instructions benennen die Policy; die Bindung benennt die Oberfläche.
+![Der Tab Anweisungen & Modelle des Agenten-Editors mit dem Systemanweisungen-Feld samt Sprach-Tabs und einer geordneten Liste von fünf Modellen mit Umsortier-Reglern.](/images/platform/agent-editor-instructions.webp)
 
-## Schritt 4 — Die Tools einschalten
+</Frame>
 
-Wechsle zum **Tools**-Tab. Tools sind das, was der Agent jenseits von Textgenerierung tun kann. Die Schalter sind nach Familie gruppiert — Web, Dateien, RAG, Code-Ausführung, Sub-Agents, Workflows, MCP, Integrationen, Benutzereingaben. Schalt ein, was der Agent braucht, und lass den Rest aus. Jeder Schalter weitet die Vertrauensgrenze, also sei sparsam.
+## Schritt 3 — Den Wissens-Scope setzen
 
-Die Schalter, die besondere Überlegung brauchen:
+Wechsle zum Tab **Wissen**. Wähle einen **Abrufmodus** — **Tool** lässt den Agent bei Bedarf suchen, **Kontext** injiziert relevantes Wissen in jede Antwort, **Beides** tut beides, **Aus** schaltet die Wissensdatenbank ab. Setz dann den Scope des Durchsuchbaren: **Team-Dokumente einbeziehen**, **Organisationsdokumente einbeziehen** und **Agent-Dokumente**, die du nur für diesen Agent hochlädst. Binde die kleinste nützliche Menge — alles, was du einbeziehst, konkurriert bei jeder Frage um den Abruf.
 
-- **Run code** ist durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Org gegated. Wenn deine Org-Policy es verbietet, liest sich der Schalter als deaktiviert.
-- Chat-Agenten starten für einmalige Teilaufgaben selbst fokussierte **Worker**; [Agent-Worker](/de/platform/agents/delegation) deckt ab, wann das der richtige Zug ist.
+<Frame caption="Der Wissen-Tab — Abrufmodus, Dokument-Scopes und die indizierten Organisationsdokumente.">
 
-## Schritt 5 — Veröffentlichen und ausprobieren
+![Der Wissen-Tab des Agenten-Editors mit den Abrufmodus-Optionen, den Schaltern für Team- und Organisationsdokumente und drei indizierten Organisationsdokumenten.](/images/platform/agent-editor-knowledge.webp)
 
-Zurück auf **Instructions & model**, leg **Visible in chat** um und klick **Save**. Ein Toast bestätigt **Agent saved**. Öffne einen neuen Chat, wähl den Agent im Picker und sende eine Nachricht, die das gebundene Wissen und die Tools fordert. Antwortet der Agent so, wie du ihn geschrieben hast, bist du fertig; tut er es nicht, zeigt der **History**-Tab am Agent jede Änderung, die du gemacht hast, und lässt dich vergleichen oder wiederherstellen.
+</Frame>
 
-## Fehlersuche
+## Schritt 4 — Die Tools gewähren
 
-- **Save ist ausgegraut.** Das Instructions-Feld ist leer, oder der Modell-Picker hat keine Auswahl. Beides ist erforderlich.
-- **Der Agent erscheint nicht im Chat-Picker.** Bestätige, dass **Visible in chat** an ist. Wenn ja, bestätige, dass der wählende User Zugriff hat — Projekt-Agents erscheinen nicht ausserhalb ihres Projekts.
-- **Antworten sagen „kein Zugriff" auf ein Tool.** Eine Governance-Policy gated das Tool. Die Agent-Definition erlaubt es; die Runtime weigert sich. Schau in [Policies and limits](/de/platform/admin/governance/policies-and-limits).
-- **Retrieval gibt nichts zurück.** Die Wissensquellen, die du gebunden hast, enthalten vielleicht nicht das, was der Prompt gefragt hat. Überprüf, ob die Quelle indiziert ist, indem du sie aus [Dokumente](/de/platform/knowledge/documents) öffnest und bestätigst, dass die Chunks rendern.
+Wechsle zum Tab **Tools**. Tools sind einzelne Checkboxen, gruppiert nach Kategorie — Kunden, Produkte, Dateien, Workflows und mehr — plus einer Auswahl für den **Websuche**-Modus ganz oben. Gewähre, was der Agent braucht, und lass den Rest aus; jeder Schalter weitet die Vertrauensgrenze.
 
-## Wo das eingesetzt wird
+<Frame caption="Der Tools-Tab — eine Checkliste pro Tool nach Kategorie, mit dem Websuche-Modus obenauf.">
 
-Einen Agent zu erstellen ist der Moment, in dem sich der Rest der Plattform wie Tale anfühlt und nicht wie ein generischer Chat. Der natürliche nächste Spaziergang ist [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) — dieselbe Form, aber bindet einen Ordner voller PDFs und fordert die Zitierungs-Pipeline von Anfang bis Ende. Um zu sehen, wie ein Agent eine Teilaufgabe an einen Worker gibt, ist [Arbeit an einen Worker geben](/de/tutorials/editor/delegate-between-agents) der Durchlauf.
+![Der Tools-Tab des Agenten-Editors mit den Websuche-Modus-Optionen und Checkboxen pro Tool, gruppiert unter Kunden, Produkte, Lieferanten und Wissen.](/images/platform/agent-editor-tools.webp)
+
+</Frame>
+
+<Note>
+
+**Code ausführen** (unter **System**) führt Skripte in einer Sandbox aus und untersteht der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Organisation — die Checkbox gewährt das Tool, die Richtlinie entscheidet, was ein Lauf tun darf.
+
+</Note>
+
+## Schritt 5 — Sichtbar machen und ausprobieren
+
+Zurück auf **Allgemein**: Schalte **Im Chat sichtbar** ein und klicke auf **Speichern**. Eine Meldung bestätigt **Agent gespeichert**. Öffne einen neuen Chat, wähle den Agent in der Agentenauswahl und schick eine Nachricht, die das gewährte Wissen und die Tools fordert. Antwortet der Agent so, wie du es ihm geschrieben hast, bist du fertig; wenn nicht, zeigt der Button **Verlauf** oben rechts im Editor jede gespeicherte Version und lässt dich vergleichen oder wiederherstellen.
+
+## Fehlerbehebung
+
+- **Speichern scheitert mit einer Modell-Warnung.** Der Agent hat kein Modell gesetzt — ergänze eines auf dem Tab Anweisungen & Modelle, bevor du speicherst.
+- **Der Agent taucht nicht in der Agentenauswahl auf.** Bestätige, dass **Im Chat sichtbar** an ist; ist es aus, ist der Agent nur über Delegation erreichbar. Ist es an, prüfe den Abschnitt **Zugriff** — ein Agent, der einem Team zugewiesen ist, ist nur für dieses Team nutzbar.
+- **Antworten ignorieren das Wissen.** Der Abrufmodus steht womöglich auf **Aus**, die Scope-Schalter sind aus, oder das Dokument ist noch nicht im Zustand **Indiziert** — öffne es über [Dokumente](/de/platform/knowledge/documents) und prüfe.
+- **Ein Tool-Aufruf wird zur Laufzeit verweigert.** Eine Governance-Richtlinie sperrt das Tool: die Agent-Definition erlaubt es, die Laufzeit verweigert. Prüfe [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
+
+## Wo das gebraucht wird
+
+Einen Agent zu erstellen ist der Moment, in dem sich der Rest der Plattform nach Tale anfühlt statt nach generischem Chat. Der natürliche nächste Gang ist [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) — dieselbe Form, aber mit einem Ordner voller Dokumente und der Zitat-Pipeline von Anfang bis Ende. Um zu sehen, wie ein Agent eine Teilaufgabe an einen Worker gibt, ist [Arbeit an einen Worker geben](/de/tutorials/editor/delegate-between-agents) der Durchlauf.

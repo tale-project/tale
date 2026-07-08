@@ -1,29 +1,97 @@
 ---
 title: Documentation Tale
-description: Tale est l'orchestrateur pour agents IA. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.
+description: Tale est l’orchestrateur pour agents IA. Commence par le démarrage rapide, suis le parcours de démarrage de ton rôle ou plonge dans la référence des fonctionnalités.
 kind: index
 ---
 
-Tale est l'orchestrateur pour agents IA. Tu discutes avec des modèles sur tes propres documents, construis des agents qui prennent en charge une tâche de bout en bout, lances des workflows en arrière-plan et gères les conversations clients depuis une seule boîte de réception — avec les fournisseurs d'IA de ton choix et tes données ancrées dans la région que tu décides.
+Tale est l’orchestrateur pour agents IA. Tu discutes avec des modèles sur tes propres documents, tu construis des agents qui prennent une tâche en charge de bout en bout, tu lances des automatisations en arrière-plan et tu gères les conversations clients depuis une seule boîte de réception — avec les fournisseurs d’IA de ton choix et tes données ancrées dans une région que tu contrôles.
 
-Le produit ship en deux éditions ; chaque fonctionnalité, chaque API et chaque rôle est identique entre les deux. La seule différence : qui exploite la stack. Choisis ton édition, puis va dans la section qui correspond à ton quotidien.
+Chaque fonctionnalité, chaque API et chaque rôle est identique entre les deux éditions ; la seule différence est qui exploite la stack. Commence par le démarrage rapide, puis suis le parcours qui correspond à ton rôle.
 
-Nouveau ici ? Le chemin le plus rapide vers une instance qui tourne est le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) — installe la CLI, puis `tale init` et `tale dev`, et tu es connecté à ta propre organisation en quelques minutes.
+<CardGroup cols="1">
 
-Choisis l'entrée qui correspond à ce pour quoi tu es là. Un **utilisateur cloud** qui veut que Tale exploite la stack commence à [Cloud](/fr/cloud). Un **auto-hébergeur** qui monte une instance sur sa propre infrastructure commence à [Auto-hébergé](/fr/self-hosted). Un **bâtisseur de plateforme** — agents, workflows, intégrations — vit dans [Plateforme](/fr/platform), la référence canonique des fonctionnalités. Un **opérateur** qui garde une instance auto-hébergée à jour et observée va à [Exploiter](/fr/self-hosted/operate/container-architecture). Un **contributeur** qui modifie le code source commence par [Configuration contributeur](/fr/develop/contributor-setup).
+<Card title="Démarrage rapide — ta première réponse d’agent en 5 minutes" icon="zap" href="/fr/get-started/quickstart">
 
-## Pages de cette section
+D’une instance qui tourne à une réponse dans le chat, sur Cloud ou sur ta propre machine.
 
-**[Cloud](/fr/cloud)** — Tale exploite la stack ; choisis cette voie quand exploiter de l'infrastructure n'est pas l'endroit où ton équipe doit passer ses heures.
+</Card>
 
-**[Auto-hébergé](/fr/self-hosted)** — installe Tale dans ton propre VPC, sur du matériel on-premise ou dans un environnement coupé du réseau.
+</CardGroup>
 
-**[Plateforme](/fr/platform)** — la référence produit canonique, identique pour Cloud et auto-hébergé. La majorité de la lecture quotidienne se trouve ici.
+## Choisis ton parcours
 
-**[Tutoriels](/fr/tutorials/overview)** — des parcours indexés par rôle, de « je veux faire X » au résultat fonctionnel sur une instance neuve.
+Quatre parcours pour le premier jour, un par rôle. Chacun prend environ quinze minutes et se termine sur quelque chose qui fonctionne.
 
-**[Développement](/fr/develop/overview)** — REST API, webhooks, SDK d'intégration, workflows pour les contributeurs.
+<CardGroup cols="2">
 
-## Où cela s'inscrit
+<Card title="J’utilise Tale" icon="message-circle" href="/fr/get-started/members">
 
-Une fois ton édition et ton rôle choisis, le reste de la documentation est à un clic. Si tu connais déjà ton édition et que tu cherches la référence des fonctionnalités, va directement à [Plateforme](/fr/platform) — la documentation canonique de chaque fonctionnalité visible par l'utilisateur, identique entre les deux éditions. Le code source, les issues et les annonces de release vivent sur [GitHub](https://github.com/tale-project/tale).
+Ton premier chat, ton premier document, ton premier projet — le premier jour du membre.
+
+</Card>
+
+<Card title="Je construis des agents" icon="bot" href="/fr/get-started/editors">
+
+Publie un agent minimal et regarde-le répondre dans le chat — le premier jour de l’éditeur.
+
+</Card>
+
+<Card title="J’intègre Tale" icon="code" href="/fr/get-started/developers">
+
+Crée une clé API et envoie ta première requête authentifiée — le premier jour du développeur.
+
+</Card>
+
+<Card title="Je gère l’espace de travail" icon="shield" href="/fr/get-started/admins">
+
+Monte l’espace de travail, invite l’équipe, connecte un fournisseur — le premier jour de l’admin.
+
+</Card>
+
+</CardGroup>
+
+## Choisis ton édition
+
+<CardGroup cols="2">
+
+<Card title="Cloud" icon="cloud" href="/fr/cloud">
+
+Tale exploite la stack — choisis cette voie quand exploiter de l’infrastructure n’est pas là où ton équipe doit passer ses heures.
+
+</Card>
+
+<Card title="Auto-hébergé" icon="server" href="/fr/self-hosted">
+
+Installe Tale dans ton propre VPC, sur du matériel on-premise ou dans un environnement coupé du réseau.
+
+</Card>
+
+</CardGroup>
+
+## Aller plus loin
+
+<CardGroup cols="3">
+
+<Card title="Plateforme" icon="layout-dashboard" href="/fr/platform">
+
+La référence canonique des fonctionnalités, identique pour Cloud et auto-hébergé.
+
+</Card>
+
+<Card title="Tutoriels" icon="route" href="/fr/tutorials/overview">
+
+Des parcours indexés par rôle, de « je veux faire X » au résultat qui fonctionne.
+
+</Card>
+
+<Card title="Développement" icon="terminal" href="/fr/develop/overview">
+
+REST API, webhooks, SDK d’intégration, workflows pour les contributeurs.
+
+</Card>
+
+</CardGroup>
+
+## Où cela s’inscrit
+
+Une fois un parcours de démarrage terminé, le reste de la documentation est à un clic : [Plateforme](/fr/platform) est la référence canonique de chaque fonctionnalité visible par l’utilisateur, et les [Tutoriels](/fr/tutorials/overview) approfondissent des tâches complètes. Le code source, les issues et les annonces de release vivent sur [GitHub](https://github.com/tale-project/tale).

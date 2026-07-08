@@ -28,6 +28,7 @@ import {
   handleChatCompletions,
   isChatCompletionsRoute,
 } from './overrides/chat-completions';
+import { handleEmbeddings, isEmbeddingsRoute } from './overrides/embeddings';
 import { MockInstance, type MockResponse } from './prism-instance';
 import { MOCK_SPECS } from './registry';
 
@@ -176,6 +177,12 @@ export async function createGatewayHandler(): Promise<
     // The one non-spec route: deterministic streaming chat.
     if (isChatCompletionsRoute(request.method, pathname)) {
       return handleChatCompletions(request);
+    }
+
+    // Real-shaped embeddings (Prism's spec example is 1-dimensional, which
+    // the knowledge-db's vector(1536) column rejects).
+    if (isEmbeddingsRoute(request.method, pathname)) {
+      return handleEmbeddings(request);
     }
 
     const mount = matchMount(pathname, mounts);

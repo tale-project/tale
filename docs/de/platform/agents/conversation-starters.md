@@ -1,24 +1,28 @@
 ---
 title: Gesprächseinstiege
-description: Autorenarbeit für Beispielprompts, die ein Agent auf seinem leeren Chat-Bildschirm zeigt — hinzufügen, übersetzen und die Auto-Übersetzungs-Option.
+description: Die vorgeschlagenen Prompts pflegen, die ein Agent auf dem leeren Chat-Bildschirm zeigt — hinzufügen, ordnen, übersetzen und die Aktion Automatisch übersetzen.
 ---
 
-Ein **Starter** ist ein kurzer Beispielprompt, den der Agent auf einem leeren Chat-Bildschirm zeigt. Tipp einen an, und der Text fällt in den Composer; der User bearbeitet ihn bei Bedarf und sendet dann. Starters sind die kuratierten Einstiegspunkte des Agent-Autors in das, wofür der Agent gut ist.
+Ein Einstieg ist ein kurzer vorgeschlagener Prompt, den der Agent auf einem leeren Chat-Bildschirm zeigt. Tipp einen an, und der Text fällt in den Composer; der User passt ihn bei Bedarf an und schickt ihn ab. Einstiege sind die kuratierten Einstiegspunkte des Agent-Autors in das, wofür der Agent da ist — diese Seite ist die Autorenseite; wie sie beim User erscheinen, zeigt [Einstiege und Prompts](/de/platform/chat/starters-and-prompts).
 
-Diese Seite ist die Autorenseite. Die Userseite — wie Starters in einem frischen Chat rendern — liegt auf [Einstiege und Prompts](/de/platform/chat/starters-and-prompts).
+<Frame caption="Der Tab Gesprächseinstiege — eine geordnete Liste von Prompts mit Sprach-Tabs darüber.">
 
-## Einen Starter hinzufügen
+![Der Tab Gesprächseinstiege des Agenten-Editors mit vier englischen Gesprächseinstiegen samt Zieh-Griffen, Umsortier-Pfeilen und Entfernen-Buttons.](/images/platform/agent-editor-starters.webp)
 
-Öffne den Agent und wechsle zum **Starters**-Tab. **Add starter** öffnet einen Editor mit zwei Feldern: dem Starter-Titel (was der User als Kachel auf dem leeren Chat sieht) und dem Body (was in den Composer fällt, wenn der User die Kachel antippt). Speichern, und der Starter erscheint in jedem frischen Chat, der mit diesem Agent gewählt wurde.
+</Frame>
 
-## Defaults und Übersetzungen
+## Einstiege hinzufügen und ordnen
 
-Jeder Starter hat eine **default**-Version (der EN-Body) und eine optionale übersetzte Version pro Locale. Das Default ist das, was angezeigt wird, wenn für die Locale des Users keine Übersetzung existiert. Unübersetzte Starters werden in der Autorenansicht mit **untranslated** markiert; User in diesen Locales sehen das Default.
+Öffne den Agent und wechsle zum Tab **Gesprächseinstiege**. Jeder Einstieg ist ein Prompt mit bis zu 200 Zeichen; **Einstieg hinzufügen** hängt eine Zeile an, bis zu vier pro Agent — lass die Liste leer, um keine Vorschläge zu zeigen. Die Reihenfolge zählt, weil sie die Reihenfolge ist, die User sehen: zieh eine Zeile am Griff oder nutze die Pfeile, und entferne eine über das × in ihrer Zeile. Klicke auf **Speichern** — Einstiege reisen mit der Konfiguration des Agents wie jede andere Einstellung.
 
-## Auto-Übersetzung
+Schreib Einstiege so, wie ein User wirklich fragen würde: konkret, in der ersten Person, innerhalb der Domäne des Agents. Vier vage Prompts lesen sich schlechter als zwei scharfe.
 
-Der Starters-Tab zeigt eine **Auto-translate**-Aktion, die den Übersetzungs-Provider der Org aufruft, um fehlende Locales zu füllen. Die Übersetzungen werden als bearbeitbare Strings gespeichert — der Autor kann sie danach anpassen. Auto-Übersetzung respektiert die Übersetzungs-Provider-Konfiguration der Org; unkonfigurierte Provider scheitern mit einem Toast.
+## Übersetzen
 
-## Wo das hineinpasst
+Jeder Einstieg hat eine Standardversion (der Tab mit der Markierung **Standard**) und optional eine Übersetzung pro Sprache. Ein Sprach-Tab, dem seine Version noch fehlt, trägt die Markierung **Nicht übersetzt**, und User in dieser Sprache sehen den Standardtext. Wechsle auf einen Sprach-Tab, um Übersetzungen von Hand zu tippen — Übersetzungen überschreiben die bestehenden Zeilen; die Liste selbst (Anzahl und Reihenfolge) gehört der Standardsprache.
 
-Gesprächseinstiege sind die kleinste Oberfläche im Agent-Bereich — ein paar Sätze pro Stück, aber sie entscheiden, ob der leere Chat-Bildschirm einladend oder leer aussieht. Die Seite, die du damit paaren solltest, ist [Einstiege und Prompts](/de/platform/chat/starters-and-prompts), die zeigt, wie sie für den User rendern; der Rest des Agent-Verhaltens lebt in [Agent-Konzepte](/de/platform/agents/concepts).
+**Automatisch übersetzen** auf einem Sprach-Tab füllt die fehlenden Versionen in einem Schritt. Die Ergebnisse werden als gewöhnliche, bearbeitbare Strings gespeichert, also justiere danach, wo die Maschinen-Formulierung deine Stimme verfehlt; scheitert die Übersetzung, sagt es eine Meldung, und die Standardtexte bleiben stehen.
+
+## Wo das hingehört
+
+Gesprächseinstiege sind die kleinste Oberfläche im Agenten-Bereich — ein paar Sätze pro Stück, aber sie entscheiden, ob der leere Chat-Bildschirm einladend wirkt oder leer. Die Seite, die du daneben legst, ist [Einstiege und Prompts](/de/platform/chat/starters-and-prompts) — sie zeigt, wie sie beim User erscheinen; der Rest des Agent-Verhaltens liegt in [Agent-Konzepte](/de/platform/agents/concepts).

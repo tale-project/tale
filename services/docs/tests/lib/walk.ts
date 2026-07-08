@@ -38,13 +38,19 @@ export function walkDocs(
   out: string[] = [],
 ): string[] {
   if (!fs.existsSync(dir)) return out;
+  const atRoot = dir === CONTENT_ROOT;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
+      // Content lives only under locale dirs — root-level dirs like a stray
+      // scratch folder, and root-level files like AGENTS.md or nav.json, are
+      // repo plumbing, not pages.
+      if (atRoot && !LOCALE_PATTERN.test(entry.name)) continue;
       walkDocs(full, out);
       continue;
     }
+    if (atRoot) continue;
     if (entry.name.endsWith('.md') || entry.name.endsWith('.mdx')) {
       out.push(path.relative(CONTENT_ROOT, full));
     }

@@ -19,11 +19,11 @@ Das Projekt ist der Behälter, in dem die restlichen Teile leben. Öffne **Proje
 - **Beschreibung** — ein Satz, wofür das Projekt da ist
 - **Mitglieder** — vorerst privat lassen; du kannst Teammitglieder ergänzen, sobald der erste Chat funktioniert
 
-Speichern. Das Projekt erscheint in der Sidebar; ein Klick öffnet eine leere Projekt-Ansicht mit Tabs für Dateien, Threads, Agenten und Instruktionen.
+Speichern. Das Projekt erscheint in der Sidebar; ein Klick öffnet eine leere Projekt-Ansicht mit Tabs für Wissen, Threads, Agenten und Instruktionen.
 
 ## Schritt 2 — Die Dateien einmalig hochladen
 
-Die Projektdateien sind für jeden Chat im Projekt sichtbar, also passiert dieser Upload einmal und zahlt sich bei jedem späteren Chat aus. Öffne den **Dateien**-Tab und zieh die drei oder vier Dateien aus den Voraussetzungen hinein.
+Die Projektdateien sind für jeden Chat im Projekt sichtbar, also passiert dieser Upload einmal und zahlt sich bei jedem späteren Chat aus. Öffne den **Wissen**-Tab und zieh die drei oder vier Dateien aus den Voraussetzungen hinein.
 
 Jede Datei landet im Projekt-Speicher und indexiert sich genauso wie ein Wissensdatenbank-Dokument. Sobald der Status **Bereit** ist, erreicht jeder im Projekt gestartete Chat die Dateien.
 
@@ -31,13 +31,13 @@ Jede Datei landet im Projekt-Speicher und indexiert sich genauso wie ein Wissens
 
 Projekt-Instruktionen rahmen jeden Chat im Projekt. Sie komponieren mit den eigenen Instruktionen des Agenten: das Projekt rahmt die Arbeit, der Agent rahmt die Antwort. Öffne den **Instruktionen**-Tab und setze:
 
-`You are working on the Acme account. The contract and the call notes in the Files tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
+`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
 
 Speichern. Jeder neue Chat im Projekt läuft jetzt mit dieser Präambel zusätzlich zu den eigenen Instruktionen des Agenten.
 
 ## Schritt 4 — Einen Chat starten und prüfen, dass der Kontext mitgeht
 
-Öffne den **Threads**-Tab und klick **Neuer Chat**. Wähl einen Agent — der Default-Assistant reicht für den ersten Lauf — und stell eine Frage, die eine der Projektdateien beantwortet (`What does the contract say about the renewal clause?`). Die Antwort sollte den Vertrag zitieren; das Zitat öffnet die Datei aus dem Dateien-Tab des Projekts, nicht aus der Org-weiten Bibliothek.
+Öffne den **Threads**-Tab und klick **Neuer Chat**. Wähl einen Agent — der Default-Assistant reicht für den ersten Lauf — und stell eine Frage, die eine der Projektdateien beantwortet (`What does the contract say about the renewal clause?`). Die Antwort sollte den Vertrag zitieren; das Zitat öffnet die Datei aus dem Wissen-Tab des Projekts, nicht aus der Org-weiten Bibliothek.
 
 Antwortet der Agent ohne Zitat, wurden die Projektdateien nicht retrieved — meist weil der gewählte Agent kein Retrieval-Tool aktiviert hat. Wechsle auf einen Agent mit aktivem RAG oder aktivier es am Assistant für den Projektgebrauch.
 

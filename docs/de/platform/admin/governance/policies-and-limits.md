@@ -1,13 +1,19 @@
 ---
 title: Richtlinien und Limits
-description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht.
+description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — eingegrenzt nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht.
 ---
 
 Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitglieder und Agents verbrauchen können. Budgets deckeln Tokens, Kosten und Anfragen pro Abrechnungsperiode; Feature-Kontrollen schalten Web-Suche, Code-Ausführung und Datei-Upload pro Bereich um; Upload-Richtlinie regelt Dateitypen und Größen, die ein Mitglied anhängen darf; Aufbewahrungsrichtlinie entscheidet, wie lange jeder Datentyp lebt, bevor Cleanup eingreift. Admins und Inhaber lesen diese Seite, wenn eine Last über Budget ist, wenn ein Feature für eine Untermenge von Benutzern aus sein soll, oder wenn ein Regulierer ein Aufbewahrungsfenster benennt, das vom Default abweicht.
 
+<Frame caption="Governance > Richtlinien & Limits — die Tabelle der Budget-Regeln über der Upload-Richtlinie und den Aufbewahrungs-Kontrollen.">
+
+![Die Governance-Seite Richtlinien und Limits zeigt eine leere Tabelle der Budget-Regeln über den Feldern der Upload-Richtlinie für erlaubte Dateitypen, Größen und Volumen.](/images/platform/governance-policies-limits.webp)
+
+</Frame>
+
 ## Ein durchgespieltes Budget
 
-Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen > Governance > Budgets** und klick auf **Regel hinzufügen**. Wähle **Rolle** als Bereich, **Redakteur** als Ziel, setze die Periode auf **Monatlich** und trage einen Höchstbetrag in USD ein. Speichern, und die nächste Monats-Periode-Anfrage, die einen Redakteur über das Limit drücken würde, wird mit einem Budget-überschritten-Fehler abgelehnt. Eine Warnschwelle unter dem Limit löst eine Warnung aus, bevor das Limit erreicht wird. Engere Bereiche übersteuern weitere — eine Benutzerregel schlägt eine Team-Regel schlägt eine Rollen-Regel — und org-weite Limits wirken immer zusätzlich obendrauf.
+Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen > Richtlinien > Budgets** und klick auf **Regel hinzufügen**. Wähle **Rolle** als Bereich, **Redakteur** als Ziel, setze die Periode auf **Monatlich** und trage einen Höchstbetrag in USD ein. Speichern, und die nächste Monats-Periode-Anfrage, die einen Redakteur über das Limit drücken würde, wird mit einem Budget-überschritten-Fehler abgelehnt. Eine Warnschwelle unter dem Limit löst eine Warnung aus, bevor das Limit erreicht wird. Engere Bereiche übersteuern weitere — eine Benutzerregel schlägt eine Team-Regel schlägt eine Rollen-Regel — und org-weite Limits wirken immer zusätzlich obendrauf.
 
 ## Die vier Richtlinienebenen
 
@@ -29,7 +35,7 @@ Die Aufbewahrungsrichtlinie sitzt innerhalb von Grenzen, die der Betreiber geset
 
 ## Sitzungs-Leerlaufzeit
 
-Die Sitzungs-Leerlaufzeit meldet Mitglieder nach einer Phase der Inaktivität ab — die sitzungsgebundene Kontrolle, die Compliance-Rahmenwerke verlangen (SOC 2 CC6.1). Öffne **Einstellungen > Governance > Sicherheit & Überwachung**, schalte **Sitzungs-Leerlaufzeit aktivieren** ein und setze **Leerlaufzeit (Minuten)** (1–1440, Standard 30). Mitglieder sehen kurz vor dem Ablauf eine Warnung; danach meldet sich der aktive Tab ab, und die Anmeldeseite erklärt die Abmeldung, statt nur ein leeres Formular zu zeigen.
+Die Sitzungs-Leerlaufzeit meldet Mitglieder nach einer Phase der Inaktivität ab — die sitzungsgebundene Kontrolle, die Compliance-Rahmenwerke verlangen (SOC 2 CC6.1). Öffne **Einstellungen > Richtlinien > Sicherheit & Überwachung**, schalte **Sitzungs-Leerlaufzeit aktivieren** ein und setze **Leerlaufzeit (Minuten)** (1–1440, Standard 30). Mitglieder sehen kurz vor dem Ablauf eine Warnung; danach meldet sich der aktive Tab ab, und die Anmeldeseite erklärt die Abmeldung, statt nur ein leeres Formular zu zeigen.
 
 Das Fenster kann das installationsweite Limit nur verkürzen, niemals verlängern. Selbsthosting-Betreiber setzen diese harte Obergrenze per Umgebungsvariable (siehe die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference)); die Org-Richtlinie wirkt obendrauf, und das engere der beiden Fenster gewinnt. Ein Mitglied mehrerer Organisationen bekommt das engste Fenster über alle seine Organisationen.
 
