@@ -53,8 +53,14 @@ const SIZE_BUDGETS: Record<string, number> = {
   //   - document conversion: libreoffice + poppler + pandoc (~570 MB)
   //   - LaTeX/XeTeX for pandoc publication-grade PDF: texlive-xetex +
   //     latex-recommended + fonts-recommended + lang-chinese + lmodern (~660 MB)
-  // The amd64 image is ~4.0 GB as a result; ~10% headroom over that.
-  'sandbox-runtime': 4400,
+  //   - the baked external-agent CLIs (single-runtime-image doctrine): the
+  //     2026-07-07 wave — Codex (~290 MB, single-platform Rust binary),
+  //     OpenClaw (~170 MB), Pi (~80 MB) — landed on top of claude-code,
+  //     opencode, cursor, gemini and hermes, pushing amd64 from ~4.3 GB to
+  //     ~4.9 GB (their per-PR Build runs were concurrency-cancelled, so the
+  //     over-budget check never surfaced before merge).
+  // ~10% headroom over the ~4.9 GB amd64 image.
+  'sandbox-runtime': 5400,
 };
 
 const SERVICES = [
