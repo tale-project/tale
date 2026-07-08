@@ -180,6 +180,16 @@ export function SchedulesSection({
       title={t('triggers.schedules.title')}
       count={schedules?.length ?? 0}
       defaultOpen={(schedules?.length ?? 0) > 0}
+      action={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          <Plus className="mr-2 size-4" />
+          {t('triggers.schedules.createButton')}
+        </Button>
+      }
     >
       <DataTable
         columns={columns}
@@ -191,12 +201,6 @@ export function SchedulesSection({
           title: t('triggers.schedules.emptyTitle'),
           description: t('triggers.schedules.emptyDescription'),
         }}
-        actionMenu={
-          <Button variant="secondary" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            {t('triggers.schedules.createButton')}
-          </Button>
-        }
       />
 
       <ScheduleCreateDialog

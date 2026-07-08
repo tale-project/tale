@@ -387,7 +387,10 @@ function AppInstallWizardBody({
           t('installWizard.progress', { current, total, label })
         }
       >
-        <WizardProgress ariaLabel={t('installWizard.stepsAriaLabel')} />
+        <WizardProgress
+          segmented
+          ariaLabel={t('installWizard.stepsAriaLabel')}
+        />
 
         {needsProjectStep && (
           <WizardStep id="project" valid={selectedProjectId !== null}>
@@ -396,7 +399,7 @@ function AppInstallWizardBody({
                 {t('install.chooseProjectDescription')}
               </Text>
               <SearchableSelect
-                label={t('install.projectLabel')}
+                aria-label={t('install.projectLabel')}
                 placeholder={t('install.projectPlaceholder')}
                 searchPlaceholder={t('install.projectSearchPlaceholder')}
                 emptyText={t('install.noProjects')}

@@ -1,22 +1,20 @@
 import jexl from 'jexl';
-import {
-  first,
-  get,
-  isArray,
-  isString,
-  join,
-  last,
-  map,
-  orderBy,
-  reverse as lodashReverse,
-  size,
-  slice as lodashSlice,
-  toNumber,
-  toString,
-  toLower,
-  toUpper,
-  trim,
-} from 'lodash';
+import first from 'lodash/first';
+import get from 'lodash/get';
+import isArray from 'lodash/isArray';
+import isString from 'lodash/isString';
+import join from 'lodash/join';
+import last from 'lodash/last';
+import map from 'lodash/map';
+import orderBy from 'lodash/orderBy';
+import lodashReverse from 'lodash/reverse';
+import size from 'lodash/size';
+import lodashSlice from 'lodash/slice';
+import toLower from 'lodash/toLower';
+import toNumber from 'lodash/toNumber';
+import toString from 'lodash/toString';
+import toUpper from 'lodash/toUpper';
+import trim from 'lodash/trim';
 
 /**
  * Configure JEXL instance with custom transforms for workflow use cases

@@ -13,6 +13,7 @@ interface CollapsibleSectionProps {
   title: string;
   count?: number;
   defaultOpen?: boolean;
+  action?: ReactNode;
   children: ReactNode;
 }
 
@@ -22,6 +23,7 @@ export function CollapsibleSection({
   title,
   count,
   defaultOpen = false,
+  action,
   children,
 }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(() => defaultOpen);
@@ -29,29 +31,32 @@ export function CollapsibleSection({
 
   return (
     <section aria-labelledby={headingId}>
-      <Heading id={headingId} level={3} size="sm" weight="medium">
-        <button
-          type="button"
-          aria-expanded={isOpen}
-          aria-controls={`${id}-content`}
-          className="flex w-full items-center gap-2 py-1 select-none"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <ChevronRight
-            className={cn(
-              'size-3.5 text-muted-foreground transition-transform duration-200',
-              isOpen && 'rotate-90',
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <Heading id={headingId} level={3} size="sm" weight="medium">
+          <button
+            type="button"
+            aria-expanded={isOpen}
+            aria-controls={`${id}-content`}
+            className="flex items-center gap-2 py-1 select-none"
+            onClick={() => setIsOpen(!isOpen)}
+          >
+            <ChevronRight
+              className={cn(
+                'size-3.5 text-muted-foreground transition-transform duration-200',
+                isOpen && 'rotate-90',
+              )}
+            />
+            <Icon className="text-muted-foreground size-4" />
+            <span>{title}</span>
+            {typeof count === 'number' && (
+              <Badge variant="outline" className="ml-1 text-xs">
+                {count}
+              </Badge>
             )}
-          />
-          <Icon className="text-muted-foreground size-4" />
-          <span>{title}</span>
-          {typeof count === 'number' && (
-            <Badge variant="outline" className="ml-1 text-xs">
-              {count}
-            </Badge>
-          )}
-        </button>
-      </Heading>
+          </button>
+        </Heading>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
       {isOpen && (
         <div id={`${id}-content`} className="mt-2">
           {children}

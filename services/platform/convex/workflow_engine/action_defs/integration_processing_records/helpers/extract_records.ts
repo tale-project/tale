@@ -8,7 +8,7 @@
  * Anything else needs an explicit `recordsPath` (lodash get syntax).
  */
 
-import { get } from 'lodash';
+import get from 'lodash/get';
 
 import { isRecord } from '../../../../../lib/utils/type-utils';
 import { normalizeTimestampToMs } from './build_fetch_params';

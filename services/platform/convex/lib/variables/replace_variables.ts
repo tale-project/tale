@@ -1,4 +1,8 @@
-import { isArray, isString, map, toString, trim } from 'lodash';
+import isArray from 'lodash/isArray';
+import isString from 'lodash/isString';
+import map from 'lodash/map';
+import toString from 'lodash/toString';
+import trim from 'lodash/trim';
 import Mustache from 'mustache';
 
 import { isRecord } from '../../../lib/utils/type-utils';

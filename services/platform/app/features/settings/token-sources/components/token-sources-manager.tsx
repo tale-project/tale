@@ -23,7 +23,6 @@ import {
   Ellipsis,
   Loader2,
   Pencil,
-  Plus,
   Trash2,
   Variable,
   X,
@@ -225,8 +224,13 @@ function fromConfig(res: LoadedTokenSource): FormState {
 
 export function TokenSourcesManager({
   organizationId,
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
 }: {
   organizationId: string;
+  /** Controlled open state for the create panel (hoisted to SettingsSection). */
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -243,9 +247,18 @@ export function TokenSourcesManager({
     api.token_sources.file_actions.deleteTokenSource,
   );
 
-  // null = closed; { slug: null } = create; { slug } = edit.
-  const [panel, setPanel] = useState<{ slug: string | null } | null>(null);
+  // Create panel: controlled by SettingsSection.action when hoisted, else local.
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const createOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setCreateOpen = onCreateOpenChange ?? setInternalCreateOpen;
+  // Edit panel: the slug being edited (null = not editing).
+  const [editSlug, setEditSlug] = useState<string | null>(null);
   const [deleteRow, setDeleteRow] = useState<TokenSourceRow | null>(null);
+
+  const closePanel = useCallback(() => {
+    setCreateOpen(false);
+    setEditSlug(null);
+  }, [setCreateOpen]);
 
   const rows = useMemo<TokenSourceRow[]>(() => sources ?? [], [sources]);
 
@@ -314,7 +327,7 @@ export function TokenSourcesManager({
         size: ACTIONS_COLUMN_SIZE,
         cell: ({ row }: { row: Row<TokenSourceRow> }) => (
           <TokenSourceRowActions
-            onEdit={() => setPanel({ slug: row.original.slug })}
+            onEdit={() => setEditSlug(row.original.slug)}
             onDelete={() => setDeleteRow(row.original)}
           />
         ),
@@ -335,13 +348,7 @@ export function TokenSourcesManager({
         {...list.tableProps}
         columns={columnsWithActions}
         getRowId={(row) => row.slug}
-        onRowClick={(row) => setPanel({ slug: row.original.slug })}
-        actionMenu={
-          <Button onClick={() => setPanel({ slug: null })}>
-            <Plus className="mr-1.5 size-4" />
-            {t('tokenSources.new')}
-          </Button>
-        }
+        onRowClick={(row) => setEditSlug(row.original.slug)}
         emptyState={{
           icon: Variable,
           title: t('tokenSources.emptyTitle'),
@@ -365,15 +372,15 @@ export function TokenSourcesManager({
         onConfirm={() => void handleDelete()}
       />
 
-      {panel && (
+      {(createOpen || editSlug !== null) && (
         <TokenSourceFormSheet
           organizationId={organizationId}
-          editSlug={panel.slug}
+          editSlug={editSlug}
           onOpenChange={(open) => {
-            if (!open) setPanel(null);
+            if (!open) closePanel();
           }}
           onSaved={() => {
-            setPanel(null);
+            closePanel();
             void invalidate();
           }}
         />
