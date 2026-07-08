@@ -1001,8 +1001,6 @@
       "lockedExternal": "Ce chat s'exécute dans un bac à sable et garde son agent de code — démarre un nouveau chat pour en utiliser un autre.",
       "lockedExternalLabel": "Agent : {{agent}} (fixé pour ce chat sandbox)",
       "browseAutomations": "Parcourir les automatisations",
-      "codingAgentLabel": "Agent de code",
-      "codingAgentTooltip": "Exécute Claude Code ou Cursor dans un bac à sable isolé.",
       "sectionAgents": "Agents",
       "sectionCodingAgents": "Agents de code",
       "sectionImageAgents": "Image"
@@ -7008,7 +7006,6 @@
       "changesRequestedToast": "Modifications demandées — l'agent s'en occupe"
     },
     "agentRuns": {
-      "title": "Activité de l'agent",
       "working": "L'agent travaille…",
       "totalCost": "{amount} au total",
       "status": {
@@ -7957,8 +7954,6 @@
       "description": "Aucun agent ne correspond à ta recherche. Essaie un autre terme."
     },
     "title": "Catalogue d'agents",
-    "subtitle": "Parcours la main-d'œuvre IA par département et installe, active ou désactive des agents pour ton organisation.",
-    "menuItem": "Catalogue",
     "searchPlaceholder": "Rechercher des agents…",
     "categoryFilter": {
       "title": "Catégorie",

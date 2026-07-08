@@ -42,7 +42,7 @@ function resolveWorkflowName(args: {
 
 export type TaskActorPreviewRoute =
   | '/dashboard/$id/agents/$agentId'
-  | '/dashboard/$id/automations/$amId'
+  | '/dashboard/$id/automations/$automationSlug'
   | '/dashboard/$id/automations';
 
 export interface TaskActorPreview {
@@ -50,7 +50,7 @@ export interface TaskActorPreview {
   name: string;
   description?: string;
   viewTo: TaskActorPreviewRoute;
-  viewParams: { id: string; agentId?: string; amId?: string };
+  viewParams: { id: string; agentId?: string; automationSlug?: string };
   viewSearch?: { execution?: string };
 }
 
@@ -98,10 +98,10 @@ function workflowPreview(args: {
     name,
     description: wf?.description,
     viewTo: slug
-      ? '/dashboard/$id/automations/$amId'
+      ? '/dashboard/$id/automations/$automationSlug'
       : '/dashboard/$id/automations',
     viewParams: slug
-      ? { id: args.organizationId, amId: slugToUrlParam(slug) }
+      ? { id: args.organizationId, automationSlug: slugToUrlParam(slug) }
       : { id: args.organizationId },
     viewSearch: args.context?.wfExecutionId
       ? { execution: args.context.wfExecutionId }

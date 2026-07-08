@@ -6,8 +6,8 @@ import {
   useListAgents,
 } from '@/app/features/agents/hooks/queries';
 import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
-import { useListWorkflows } from '@/app/features/automations/hooks/file-queries';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useListWorkflows } from '@/app/features/workflows/hooks/file-queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import {

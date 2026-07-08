@@ -1000,8 +1000,6 @@
       "lockedExternal": "This chat runs in a sandbox and keeps its coding agent — start a new chat to use a different one.",
       "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)",
       "browseAutomations": "Browse automations",
-      "codingAgentLabel": "Coding agent",
-      "codingAgentTooltip": "Runs Claude Code or Cursor in an isolated sandbox.",
       "sectionAgents": "Agents",
       "sectionCodingAgents": "Coding agents",
       "sectionImageAgents": "Image agents"
@@ -7288,7 +7286,6 @@
       "changesRequestedToast": "Changes requested — the agent is on it"
     },
     "agentRuns": {
-      "title": "Agent activity",
       "working": "Agent is working…",
       "totalCost": "{amount} total",
       "status": {
@@ -7956,8 +7953,6 @@
       "description": "No agents match your search. Try a different term."
     },
     "title": "Agent catalog",
-    "subtitle": "Browse the AI workforce by department and install, enable, or disable agents for your organization.",
-    "menuItem": "Catalog",
     "searchPlaceholder": "Search agents…",
     "categoryFilter": {
       "title": "Category",

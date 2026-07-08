@@ -147,8 +147,8 @@ describe('buildTaskActorPreview', () => {
       kind: 'workflow',
       name: 'Status gate',
       description: 'Moves tasks through review.',
-      viewTo: '/dashboard/$id/automations/$amId',
-      viewParams: { id: 'org_1', amId: 'task-ops__status-gate' },
+      viewTo: '/dashboard/$id/automations/$automationSlug',
+      viewParams: { id: 'org_1', automationSlug: 'task-ops__status-gate' },
       viewSearch: { execution: 'exec_1' },
     });
   });

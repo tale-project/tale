@@ -49,7 +49,6 @@ import {
   agentRequiredIntegrations,
   toConfigurableAgent,
 } from '../utils/agent-list-item';
-import { folderLabel } from '../utils/folder-label';
 import { AgentCatalogIcon } from './agent-catalog-icon';
 
 interface AgentCatalogProps {
@@ -95,6 +94,20 @@ const CATEGORY_FILTERS: CategoryFilter[] = [
   'coding-agent',
   'image-agent',
 ];
+
+/**
+ * Localized title for a folder section. Known folders have dedicated keys
+ * (`agentCatalog.folders.*`); unknown folders fall back to a capitalized form
+ * of the raw value. `defaultValue` keeps i18next from surfacing a raw key.
+ */
+function folderLabel(t: TFunction, folder: string): string {
+  const fallback = folder
+    ? folder.charAt(0).toUpperCase() + folder.slice(1)
+    : t('folders.general', { defaultValue: 'General' });
+  if (!folder) return fallback;
+  return t(`folders.${folder}`, { defaultValue: fallback });
+}
+
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');
   const { i18n } = useTranslation();
@@ -139,7 +152,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
       if (!agent) continue;
       // App-owned agents are managed via their app (install/uninstall together),
       // never individually installable from the catalog — hide them here.
-      if (agent.appSlug) continue;
+      if (agent.automationSlug) continue;
       // Catalog hides agents explicitly flagged out of the template catalog,
       // unless they're already installed (e.g. github-bundled).
       if (

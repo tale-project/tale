@@ -1000,8 +1000,6 @@
       "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Coding-Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
       "lockedExternalLabel": "Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)",
       "browseAutomations": "Automatisierungen durchsuchen",
-      "codingAgentLabel": "Coding-Agent",
-      "codingAgentTooltip": "Führt Claude Code oder Cursor in einer isolierten Sandbox aus.",
       "sectionAgents": "Agenten",
       "sectionCodingAgents": "Coding-Agenten",
       "sectionImageAgents": "Bild"
@@ -7007,7 +7005,6 @@
       "changesRequestedToast": "Änderungen angefordert — der Agent arbeitet daran"
     },
     "agentRuns": {
-      "title": "Agentenaktivität",
       "working": "Agent arbeitet…",
       "totalCost": "{amount} gesamt",
       "status": {
@@ -7956,8 +7953,6 @@
       "description": "Keine Agenten passen zu deiner Suche. Versuch einen anderen Begriff."
     },
     "title": "Agentenkatalog",
-    "subtitle": "Durchsuche die KI-Belegschaft nach Abteilung und installiere, aktiviere oder deaktiviere Agenten für deine Organisation.",
-    "menuItem": "Katalog",
     "searchPlaceholder": "Agenten suchen…",
     "categoryFilter": {
       "title": "Kategorie",
