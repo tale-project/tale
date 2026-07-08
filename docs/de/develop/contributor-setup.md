@@ -62,7 +62,30 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN   # die PID zeigen, die den App-Port hält
 kill <PID>                         # sie stoppen
 ```
 
-Um die App stattdessen auf einem anderen Port laufen zu lassen, setz `PORT`: `PORT=3005 bun run dev`. Gerät das Convex-Deployment selbst in einen schlechten Zustand — ein veraltetes Schema nach einer abgebrochenen Migration, eine korrupte lokale SQLite-Datei — entfernt `bun run setup:clean` das Verzeichnis `services/platform/.convex/local/`, sodass der nächste Boot ein frisches Backend bootstrappt.
+Um die App stattdessen auf einem anderen Port laufen zu lassen, setz `PORT`: `PORT=3005 bun run dev`. Gerät das Convex-Deployment nach der automatischen Wartung in einen schlechten Zustand — veraltetes Schema nach abgebrochener Migration, korrupte lokale SQLite-Datei — siehe [Lokale Convex-Dev-Daten zurücksetzen](#lokale-convex-dev-daten-zurücksetzen) unten; lösch `.convex/local/` nicht beiläufig.
+
+## Wartung des lokalen Convex-Speichers
+
+Jeder `convex dev`-Push legt ein neues Function-Bundle unter `services/platform/.convex/local/default/convex_local_storage/modules/` ab. Die Convex-CLI räumt alte Blobs lokal nie auf — nach Monaten täglicher Entwicklung können Zehntausende Dateien (10+ GB) entstehen, und Cold Starts scheitern im 30-Sekunden-Fenster der CLI.
+
+`bun run dev` führt Wartung automatisch aus, bevor Convex startet:
+
+- **Prune**, wenn der Modul-Speicher 1.500 Blobs oder 2 GB überschreitet — behält die 1.000 neuesten Function-Bundle-Blobs unter `convex_local_storage/modules/`. SQLite-Datenbank, Uploads und Org-Konfig bleiben unberührt.
+- **Snapshot-Export-Artefakte löschen**, wenn die gecachte Convex-Backend-Version nicht mehr zur lokalen Deployment-Konfiguration passt — entfernt `export.zip` und Import/Export-Reste, die einen fehlgeschlagenen Re-Import auslösen können, ohne Dev-Daten zu löschen.
+
+Setz `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1`, um das zu deaktivieren. `bun run setup:check` warnt (nicht blockierend), wenn der Modul-Speicher den Prune-Schwellenwert schon überschreitet.
+
+## Lokale Convex-Dev-Daten zurücksetzen
+
+Nur als letzter Ausweg — löscht **alle** lokalen Convex-Dev-Daten: jede Tabelle in der lokalen SQLite-Datei, jeden Upload in `convex_local_storage/files/` und jedes Function-Bundle. Org-Konfig auf der Platte und `.env.local` bleiben unberührt.
+
+`bun run setup:clean` ist absichtlich abgesichert (Coding-Agenten dürfen es nicht laufen lassen, es sei denn, du hast ausdrücklich darum gebeten):
+
+1. Selbst im Terminal ausführen — nicht über einen Agenten.
+2. Beim Prompt die exakte Phrase `delete local convex` tippen (ein bloßes `y` wird abgelehnt).
+3. Nicht-interaktive Läufe (CI) brauchen `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — in Agent-Shells nie setzen.
+
+Probier zuerst automatische Wartung und normales `bun run dev`. Nur `bun run setup:clean` ausführen, wenn du den Verlust lokaler Conversations, Uploads und anderer Anonymous-Deployment-Daten akzeptierst.
 
 ## Hybrid-Modus gegen ein containerisiertes Convex
 

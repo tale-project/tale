@@ -62,7 +62,30 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN   # show the PID holding the app port
 kill <PID>                         # stop it
 ```
 
-To run the app on a different port instead, set `PORT`: `PORT=3005 bun run dev`. If the Convex deployment itself gets into a bad state — a stale schema after an aborted migration, a corrupt local SQLite file — `bun run setup:clean` removes `services/platform/.convex/local/` so the next boot bootstraps a fresh backend.
+To run the app on a different port instead, set `PORT`: `PORT=3005 bun run dev`. If the Convex deployment itself gets into a bad state after automatic maintenance — a stale schema after an aborted migration, a corrupt local SQLite file — see [Resetting local Convex dev data](#resetting-local-convex-dev-data) below; do not delete `.convex/local/` casually.
+
+## Convex local storage maintenance
+
+Every `convex dev` push stores a new function-bundle blob under `services/platform/.convex/local/default/convex_local_storage/modules/`. The Convex CLI never garbage-collects old blobs locally, so months of daily dev can accumulate tens of thousands of files (10+ GB) and make cold starts fail inside the CLI's 30-second backend-ready window.
+
+`bun run dev` runs maintenance automatically before it spawns Convex:
+
+- **Prune** when module storage exceeds 1,500 blobs or 2 GB — keeps the 1,000 newest function-bundle blobs under `convex_local_storage/modules/`. Your SQLite database, uploaded files, and org config are untouched.
+- **Clear snapshot export artifacts** when the cached Convex backend binary no longer matches the one recorded in your local deployment — removes `export.zip` and related import/export debris that can trigger a failed re-import on cold start, without wiping dev data.
+
+Set `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` to opt out. `bun run setup:check` warns (non-blocking) when module storage is already over the prune threshold.
+
+## Resetting local Convex dev data
+
+Last resort only — wipes **all** local Convex dev data: every table in the local SQLite file, every upload in `convex_local_storage/files/`, and every function bundle. Org config on disk and `.env.local` are untouched.
+
+`bun run setup:clean` is guarded on purpose (coding agents must not run it unless you explicitly asked):
+
+1. Run it yourself in a terminal — not through an agent.
+2. When prompted, type the exact phrase `delete local convex` (a bare `y` is rejected).
+3. Non-interactive runs (CI) require `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — never set that in agent shells.
+
+Try automatic maintenance and a normal `bun run dev` first. Only run `bun run setup:clean` when you accept losing local conversations, uploads, and other anonymous-deployment state.
 
 ## Hybrid mode against a containerised Convex
 
