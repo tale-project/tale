@@ -34,6 +34,7 @@ import {
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
   drainSessionExecResilient,
+  sessionDeleteFiles,
   sessionListFiles,
   sessionReadFile,
   sessionStageFiles,
@@ -41,6 +42,29 @@ import {
 
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
 const OUTPUT_DIR = '/user/output';
+
+/** Hidden staging area for inline `run_code` snippets, under the executable
+ * `/user/code` surface but never a threadFile — so it is invisible to
+ * sandboxState and can't collide with workspace scripts. Workspace-relative
+ * (the form `sessionStageFiles` / `sessionDeleteFiles` take). */
+const INLINE_CODE_DIR = 'code/.inline';
+
+const INLINE_EXT: Record<'python' | 'node' | 'bash', string> = {
+  python: 'py',
+  // `.mjs` so `node <path>` runs the snippet as ESM (`import` + top-level
+  // await) regardless of any user-staged /user/code/package.json.
+  node: 'mjs',
+  bash: 'sh',
+};
+
+/** Workspace-relative stage path for an inline snippet — extension-routed so
+ * `interpreterCommand` picks the right runtime. */
+export function inlineStagePath(
+  language: 'python' | 'node' | 'bash',
+  runId: string,
+): string {
+  return `${INLINE_CODE_DIR}/run-${runId}.${INLINE_EXT[language]}`;
+}
 
 // Explicit return type — the handler references `internal` (which transitively
 // includes this action), so TS cannot infer its return type without a cycle.
@@ -304,7 +328,20 @@ export const executeCodeInSession = internalAction({
     threadId: v.string(),
     uploadedBy: v.string(),
     // Absolute /user/code/<script> paths (already validated by run_code_tool).
+    // Empty in inline mode (exactly one of stepPaths / inlineCode is set).
     stepPaths: v.array(v.string()),
+    // Inline snippet mode: stage `content` as a hidden one-shot script and run
+    // it as the single step. Mutually exclusive with a non-empty stepPaths.
+    inlineCode: v.optional(
+      v.object({
+        content: v.string(),
+        language: v.union(
+          v.literal('python'),
+          v.literal('node'),
+          v.literal('bash'),
+        ),
+      }),
+    ),
     packagesByLang: v.optional(
       v.object({
         python: v.optional(v.array(v.string())),
@@ -334,6 +371,11 @@ export const executeCodeInSession = internalAction({
     ),
   }),
   handler: async (ctx, args): Promise<SessionExecResultShape> => {
+    if (args.stepPaths.length > 0 === (args.inlineCode !== undefined)) {
+      throw new Error(
+        'executeCodeInSession requires exactly one of stepPaths / inlineCode.',
+      );
+    }
     const { sessionId, created } = await ctx.runAction(
       internal.node_only.sandbox.thread_session.ensureThreadSession,
       {
@@ -370,15 +412,53 @@ export const executeCodeInSession = internalAction({
       await sessionStageFiles(sessionId, toStage);
     }
 
-    return runAndHarvestInSession(ctx, {
-      organizationId: args.organizationId,
-      workspaceThreadId: args.threadId,
-      sessionId,
-      stepPaths: args.stepPaths,
-      ...(args.packagesByLang !== undefined && {
-        packagesByLang: args.packagesByLang,
-      }),
-      ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-    });
+    // Inline mode: stage the snippet as a hidden one-shot script and run it
+    // as the single step. Deleted after the run (even a failed one) so a
+    // later `entryPath`/`steps` call in the same warm session can never
+    // execute a stale snippet.
+    let stepPaths = args.stepPaths;
+    let inlinePath: string | undefined;
+    if (args.inlineCode !== undefined) {
+      inlinePath = inlineStagePath(args.inlineCode.language, randomUUID());
+      const staged = await sessionStageFiles(sessionId, [
+        {
+          path: inlinePath,
+          contentBase64: Buffer.from(args.inlineCode.content, 'utf8').toString(
+            'base64',
+          ),
+        },
+      ]);
+      if (!staged.staged.some((f) => f.path === inlinePath)) {
+        const reason =
+          staged.skipped.find((s) => s.path === inlinePath)?.reason ??
+          'unknown';
+        throw new Error(`inline code staging failed: ${reason}`);
+      }
+      stepPaths = [`/user/${inlinePath}`];
+    }
+
+    try {
+      return await runAndHarvestInSession(ctx, {
+        organizationId: args.organizationId,
+        workspaceThreadId: args.threadId,
+        sessionId,
+        stepPaths,
+        ...(args.packagesByLang !== undefined && {
+          packagesByLang: args.packagesByLang,
+        }),
+        ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+      });
+    } finally {
+      if (inlinePath !== undefined) {
+        await sessionDeleteFiles(sessionId, [inlinePath]).catch(
+          (err: unknown) => {
+            console.warn(
+              `[session_exec] inline snippet cleanup failed for ${inlinePath}:`,
+              err,
+            );
+          },
+        );
+      }
+    }
   },
 });
