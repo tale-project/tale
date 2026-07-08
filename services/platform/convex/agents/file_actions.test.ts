@@ -338,7 +338,7 @@ describe('duplicateAgent', () => {
   });
 
   it('writes the copy into the same folder as a foldered source agent', async () => {
-    // Regression (#duplicate-lost-in-folder): a chat/ (or workforce/, github/)
+    // Regression (#duplicate-lost-in-folder): a chat/ (or github/)
     // agent must duplicate ALONGSIDE its source, not flatten to
     // org/agents/<slug>.json — otherwise the copy's derived `folder` is `''` and
     // the folder-scoped list view (`?folder=chat`) filters it out, so the user

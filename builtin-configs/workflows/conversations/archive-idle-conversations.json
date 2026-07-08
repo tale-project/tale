@@ -1,20 +1,4 @@
 {
-  "name": "Auto-archive idle conversations",
-  "description": "Automatically archive conversations that have been closed for over 30 days",
-  "i18n": {
-    "en": {
-      "name": "Auto-archive idle conversations",
-      "description": "Automatically archives conversations that have stayed closed for more than 30 days."
-    },
-    "de": {
-      "name": "Inaktive Konversationen automatisch archivieren",
-      "description": "Archiviert automatisch Konversationen, die seit mehr als 30 Tagen geschlossen sind."
-    },
-    "fr": {
-      "name": "Archiver automatiquement les conversations inactives",
-      "description": "Archive automatiquement les conversations restées fermées depuis plus de 30 jours."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Conversations"]

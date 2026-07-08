@@ -19,16 +19,16 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import {
-  appInstallationsTable,
-  appProjectBindingsTable,
-  appUploadClaimTable,
-  appUploadIntentTable,
-} from './apps/schema';
-import {
   auditIntegrityProgressTable,
   auditLogChainGenesisTable,
   auditLogsTable,
 } from './audit_logs/schema';
+import {
+  automationInstallationsTable,
+  automationProjectBindingsTable,
+  automationUploadClaimTable,
+  automationUploadIntentTable,
+} from './automations/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -115,6 +115,7 @@ import {
   sandboxSessionsTable,
   sandboxSessionTokensTable,
   sandboxIntegrationCallsTable,
+  sandboxToolCallsTable,
   sandboxUserEnvTable,
 } from './sandbox/sessions_schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
@@ -170,10 +171,10 @@ import {
 } from './workflows/triggers/schema';
 
 export default defineSchema({
-  appInstallations: appInstallationsTable,
-  appProjectBindings: appProjectBindingsTable,
-  appUploadClaims: appUploadClaimTable,
-  appUploadIntents: appUploadIntentTable,
+  automationInstallations: automationInstallationsTable,
+  automationProjectBindings: automationProjectBindingsTable,
+  automationUploadClaims: automationUploadClaimTable,
+  automationUploadIntents: automationUploadIntentTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
@@ -303,6 +304,7 @@ export default defineSchema({
   sandboxAdmissionTickets: sandboxAdmissionTicketsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
   sandboxIntegrationCalls: sandboxIntegrationCallsTable,
+  sandboxToolCalls: sandboxToolCallsTable,
   sandboxUserEnv: sandboxUserEnvTable,
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,

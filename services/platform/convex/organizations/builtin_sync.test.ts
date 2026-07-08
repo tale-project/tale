@@ -32,17 +32,18 @@ vi.mock('../_generated/api', () => ({
         syncDefaultWorkflowInstallations: 'syncDefaultWorkflowInstallations',
       },
     },
-    apps: {
+    automations: {
       install_mutations: {
-        listAppInstallationsInternal: 'listAppInstallationsInternal',
+        listAutomationInstallationsInternal:
+          'listAutomationInstallationsInternal',
       },
     },
   },
 }));
 
 // The auth gate and the two heavy dependency graphs (agents/internal_actions,
-// apps/install_actions) are unit-mocked — the sync's own fs logic is what
-// these tests exercise against real temp dirs.
+// automations/install_actions) are unit-mocked — the sync's own fs logic is
+// what these tests exercise against real temp dirs.
 const mockRequireDeveloperSettingsAccessById = vi.fn();
 vi.mock('../providers/auth', () => ({
   requireDeveloperSettingsAccessById: (...args: unknown[]) =>
@@ -57,9 +58,15 @@ vi.mock('../agents/internal_actions', () => ({
 
 const mockPrepareInstall = vi.fn();
 const mockEnsureOrgResources = vi.fn();
-vi.mock('../apps/install_actions', () => ({
+vi.mock('../automations/install_actions', () => ({
   prepareInstall: (...args: unknown[]) => mockPrepareInstall(...args),
   ensureOrgResources: (...args: unknown[]) => mockEnsureOrgResources(...args),
+}));
+
+const mockInvalidateSkillContextCache = vi.fn();
+vi.mock('../lib/agent_chat/skill_context_cache', () => ({
+  invalidateSkillContextCache: (...args: unknown[]) =>
+    mockInvalidateSkillContextCache(...args),
 }));
 
 const { syncDomainFromBuiltin } = await import('./builtin_sync');
@@ -69,7 +76,12 @@ type ActionConfig = {
     ctx: never,
     args: {
       organizationId: string;
-      domain: 'agents' | 'workflows' | 'integrations' | 'apps';
+      domain:
+        | 'agents'
+        | 'workflows'
+        | 'integrations'
+        | 'automations'
+        | 'skills';
     },
   ) => Promise<{ updated: number; backedUp: number }>;
 };
@@ -124,6 +136,24 @@ function catSrc(...parts: string[]): string {
   return path.join(catalogRoot, ...parts);
 }
 
+// Minimal but schema-VALID agent catalog fixture. `seedDomain` (invoked by
+// `syncDomainFromBuiltin` for the actual overwrite, via `writeFileFromCatalog`)
+// now validates each `.json` catalog file against its domain schema before
+// writing it (Phase 3 runtime guard) — a throwaway `{"slug":"x"}` fixture
+// would silently be skipped instead of copied. `extra` carries the test's own
+// marker fields (`slug`, `v`, ...) alongside the fields agentJsonSchema
+// requires; unknown keys are stripped by the schema on parse but this helper
+// only feeds the raw string through a validity CHECK — the exact string is
+// what lands on disk, so the marker fields still round-trip.
+function agentJson(extra: Record<string, unknown>): string {
+  return JSON.stringify({
+    displayName: 'x',
+    systemInstructions: 'You are a test agent.',
+    supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+    ...extra,
+  });
+}
+
 function orgDst(...parts: string[]): string {
   return path.join(configRoot, 'acme', ...parts);
 }
@@ -132,15 +162,23 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
   it('overwrites changed builtin agents, backs the previous version into the entry history, and counts', async () => {
     await writeText(
       catSrc('agents', 'chat', 'assistant.json'),
-      '{"slug":"assistant","v":"new"}',
+      agentJson({ slug: 'assistant', v: 'new' }),
     );
-    await writeText(catSrc('agents', 'coder.json'), '{"slug":"coder"}');
+    await writeText(
+      catSrc('agents', 'coder.json'),
+      agentJson({ slug: 'coder' }),
+    );
     // Org state: user-edited builtin, an untouched builtin, a user-added agent.
+    // The org-side files are never re-validated by the sync (only the
+    // catalog source is), so they can stay throwaway marker strings.
     await writeText(
       orgDst('agents', 'chat', 'assistant.json'),
       '{"slug":"assistant","v":"user-edited"}',
     );
-    await writeText(orgDst('agents', 'coder.json'), '{"slug":"coder"}');
+    await writeText(
+      orgDst('agents', 'coder.json'),
+      agentJson({ slug: 'coder' }),
+    );
     await writeText(orgDst('agents', 'my-own.json'), '{"slug":"my-own"}');
 
     const ctx = createMockCtx();
@@ -153,7 +191,7 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
     expect(result).toEqual({ updated: 1, backedUp: 1 });
     expect(
       await readFile(orgDst('agents', 'chat', 'assistant.json'), 'utf-8'),
-    ).toBe('{"slug":"assistant","v":"new"}');
+    ).toBe(agentJson({ slug: 'assistant', v: 'new' }));
     expect(existsSync(orgDst('agents', 'my-own.json'))).toBe(true);
 
     // The previous version landed in the SLUG-keyed history trail the
@@ -175,7 +213,10 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
   });
 
   it('adds new builtin entries without a backup and reports zero when nothing changed', async () => {
-    await writeText(catSrc('agents', 'newcomer.json'), '{"slug":"newcomer"}');
+    await writeText(
+      catSrc('agents', 'newcomer.json'),
+      agentJson({ slug: 'newcomer' }),
+    );
 
     const ctx = createMockCtx();
     const first = await syncHandler(ctx as never, {
@@ -199,7 +240,7 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
   it('preserves org-side secrets and existing history trails through an agents sync', async () => {
     await writeText(
       catSrc('agents', 'shipped.json'),
-      '{"slug":"shipped","v":2}',
+      agentJson({ slug: 'shipped', v: 2 }),
     );
     await writeText(
       orgDst('agents', 'shipped.json'),
@@ -258,7 +299,34 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
   });
 });
 
-describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
+describe('syncDomainFromBuiltin — bundle domains (integrations/automations/skills)', () => {
+  it('syncs the skills bundle domain and invalidates the org skill cache', async () => {
+    await writeText(
+      catSrc('skills', 'browse-web', 'SKILL.md'),
+      '---\nname: browse-web\ndescription: New\n---\nnew body\n',
+    );
+    await writeText(
+      orgDst('skills', 'browse-web', 'SKILL.md'),
+      '---\nname: browse-web\ndescription: Old\n---\nold body\n',
+    );
+
+    const result = await syncHandler(createMockCtx() as never, {
+      organizationId: 'org1',
+      domain: 'skills',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    expect(
+      await readFile(orgDst('skills', 'browse-web', 'SKILL.md'), 'utf-8'),
+    ).toContain('description: New');
+    // The whole previous bundle is preserved under the domain-root history.
+    const stamps = await readdir(orgDst('skills', '.history', 'browse-web'));
+    expect(stamps).toHaveLength(1);
+    // The chat runtime's skill snapshot cache drops so the next send picks
+    // up the refreshed bundles (same invalidation the upload path runs).
+    expect(mockInvalidateSkillContextCache).toHaveBeenCalledWith('acme');
+  });
+
   it('replaces only changed bundles, backing the whole previous bundle into the domain history', async () => {
     await writeText(
       catSrc('integrations', 'github', 'config.json'),
@@ -332,12 +400,27 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
   });
 
   it('re-runs the app install pipeline only for installed apps whose bundle changed', async () => {
-    await writeText(catSrc('apps', 'issue-desk', 'app.json'), '{"v":"new"}');
-    await writeText(catSrc('apps', 'crm', 'app.json'), '{"v":"same"}');
-    await writeText(orgDst('apps', 'issue-desk', 'app.json'), '{"v":"old"}');
-    await writeText(orgDst('apps', 'crm', 'app.json'), '{"v":"same"}');
+    await writeText(
+      catSrc('automations', 'issue-desk', 'automation.json'),
+      '{"v":"new"}',
+    );
+    await writeText(
+      catSrc('automations', 'crm', 'automation.json'),
+      '{"v":"same"}',
+    );
+    await writeText(
+      orgDst('automations', 'issue-desk', 'automation.json'),
+      '{"v":"old"}',
+    );
+    await writeText(
+      orgDst('automations', 'crm', 'automation.json'),
+      '{"v":"same"}',
+    );
     // A privately-uploaded app with no builtin counterpart stays untouched.
-    await writeText(orgDst('apps', 'private-app', 'app.json'), '{"mine":1}');
+    await writeText(
+      orgDst('automations', 'private-app', 'automation.json'),
+      '{"mine":1}',
+    );
 
     const ctx = createMockCtx();
     // Both catalog apps are installed; `private-app` too.
@@ -346,14 +429,19 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
 
     const result = await syncHandler(ctx as never, {
       organizationId: 'org1',
-      domain: 'apps',
+      domain: 'automations',
     });
 
     expect(result).toEqual({ updated: 1, backedUp: 1 });
     expect(
-      await readFile(orgDst('apps', 'issue-desk', 'app.json'), 'utf-8'),
+      await readFile(
+        orgDst('automations', 'issue-desk', 'automation.json'),
+        'utf-8',
+      ),
     ).toBe('{"v":"new"}');
-    expect(existsSync(orgDst('apps', 'private-app', 'app.json'))).toBe(true);
+    expect(
+      existsSync(orgDst('automations', 'private-app', 'automation.json')),
+    ).toBe(true);
 
     // Reinstall pipeline ran once, for the changed installed app only.
     expect(mockPrepareInstall).toHaveBeenCalledTimes(1);
@@ -361,9 +449,45 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
     expect(mockEnsureOrgResources).toHaveBeenCalledTimes(1);
   });
 
+  it('automations sync: refreshes a changed bundle from the catalog', async () => {
+    // automation.json changed → the whole bundle is replaced from the catalog.
+    await writeText(
+      catSrc('automations', 'issue-desk', 'automation.json'),
+      '{"v":"new"}',
+    );
+    await writeText(
+      orgDst('automations', 'issue-desk', 'automation.json'),
+      '{"v":"old"}',
+    );
+
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue(['issue-desk']);
+    mockPrepareInstall.mockResolvedValue({ manifest: {} });
+
+    const result = await syncHandler(ctx as never, {
+      organizationId: 'org1',
+      domain: 'automations',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    // automation.json (which carries the inline workflow) refreshed from the catalog.
+    expect(
+      await readFile(
+        orgDst('automations', 'issue-desk', 'automation.json'),
+        'utf-8',
+      ),
+    ).toBe('{"v":"new"}');
+  });
+
   it('a failing app reinstall does not fail the sync of the files', async () => {
-    await writeText(catSrc('apps', 'issue-desk', 'app.json'), '{"v":"new"}');
-    await writeText(orgDst('apps', 'issue-desk', 'app.json'), '{"v":"old"}');
+    await writeText(
+      catSrc('automations', 'issue-desk', 'automation.json'),
+      '{"v":"new"}',
+    );
+    await writeText(
+      orgDst('automations', 'issue-desk', 'automation.json'),
+      '{"v":"old"}',
+    );
 
     const ctx = createMockCtx();
     ctx.runQuery.mockResolvedValue(['issue-desk']);
@@ -373,11 +497,14 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
     try {
       const result = await syncHandler(ctx as never, {
         organizationId: 'org1',
-        domain: 'apps',
+        domain: 'automations',
       });
       expect(result).toEqual({ updated: 1, backedUp: 1 });
       expect(
-        await readFile(orgDst('apps', 'issue-desk', 'app.json'), 'utf-8'),
+        await readFile(
+          orgDst('automations', 'issue-desk', 'automation.json'),
+          'utf-8',
+        ),
       ).toBe('{"v":"new"}');
     } finally {
       warnSpy.mockRestore();

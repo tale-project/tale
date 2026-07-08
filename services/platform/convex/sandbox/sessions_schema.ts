@@ -85,6 +85,19 @@ export const sandboxSessionTokensTable = defineTable({
     allowedModels: v.array(v.string()),
     integrationGrants: v.array(v.string()),
     budgetCents: v.number(),
+    /** Workspace-tool grant set for /api/tools/execute — the external
+     * agent's `toolNames` (⊆ EXTERNAL_AGENT_TOOL_NAMES), snapshotted at
+     * token mint exactly like integrationGrants. Optional: pre-feature
+     * rows lack it (absent = no workspace tools). */
+    toolGrants: v.optional(v.array(v.string())),
+    /** Dispatch execution context for workspace tools — the turn's agent,
+     * thread, and user, so /api/tools/execute can synthesize the ToolCtx
+     * (agent knowledge scope, thread-bound file access, approval
+     * attribution) entirely server-side. Optional: only external-agent
+     * chat turns set them. */
+    agentSlug: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    userId: v.optional(v.string()),
   }),
   createdAt: v.number(),
   expiresAt: v.number(),
@@ -361,6 +374,30 @@ export const sandboxIntegrationCallsTable = defineTable({
   operationType: v.optional(v.string()), // 'read' | 'write' (best-effort)
   userId: v.optional(v.string()),
   // 'ok' | 'unavailable' | 'requires_approval' | 'error' | 'rate_limited'
+  outcome: v.string(),
+  /** Sorted param KEYS (never values) for debugging a misfire. */
+  paramsFingerprint: v.optional(v.string()),
+  calledAt: v.number(),
+})
+  .index('by_sessionId', ['sessionId'])
+  .index('by_organizationId', ['organizationId']);
+
+/**
+ * Audit row for every agent-initiated workspace-TOOL dispatch call (the
+ * in-sandbox MCP bridge → /api/tools/execute). Same forensic role as
+ * sandboxIntegrationCallsTable plays for the integration surface:
+ * who/what/when/outcome and a sorted param-KEY fingerprint, never param
+ * values. A separate table because the two surfaces are distinct concepts
+ * (first-party workspace tools vs third-party integrations) with different
+ * analytics downstream.
+ */
+export const sandboxToolCallsTable = defineTable({
+  organizationId: v.string(),
+  sessionId: v.string(),
+  tool: v.string(),
+  userId: v.optional(v.string()),
+  // 'ok' | 'unavailable' | 'invalid_args' | 'requires_approval' | 'error' |
+  // 'rate_limited'
   outcome: v.string(),
   /** Sorted param KEYS (never values) for debugging a misfire. */
   paramsFingerprint: v.optional(v.string()),

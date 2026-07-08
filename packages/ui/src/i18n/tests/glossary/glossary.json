@@ -372,7 +372,7 @@
       "en": "Editor",
       "de": "Redakteur",
       "fr": "Éditeur",
-      "_lintExclude": ["de"],
+      "_lintExclude": { "de": true },
       "_note": "Not enforced by lint in DE because the same English word also appears as a UI loanword for visual/IDE editors (`Workflow-Editor`, `KI-Editor`). Translate role-context occurrences by hand."
     },
     {
@@ -381,7 +381,7 @@
       "en": "Editors",
       "de": "Redakteure",
       "fr": "Éditeurs",
-      "_lintExclude": ["de"],
+      "_lintExclude": { "de": true },
       "_note": "Plural of role_editor — same DE lint exclusion."
     },
     {
@@ -430,7 +430,7 @@
       "key": "feature_workflow",
       "category": "feature",
       "en": "Workflow",
-      "_note": "One word. Established loanword in DE/FR."
+      "_note": "One word. Established loanword in DE/FR. The multi-step definition surface (`workflows.title`); the standalone Automations surface folded into it."
     },
     {
       "key": "feature_automation",
@@ -438,14 +438,15 @@
       "en": "Automation",
       "de": "Automatisierung",
       "fr": "Automatisation",
-      "_note": "Matches UI label `navigation.automations`. Distinct from Workflow — do not use interchangeably."
+      "_note": "The installable bundle (integrations + agents + workflows + pages) — the display name of what the code calls apps (`automations.title`). DE feminine (die Automatisierung); never the standalone German 'Automation'. Distinct from `feature_workflow`, the multi-step definition inside one."
     },
     {
       "key": "feature_automations",
       "category": "feature",
       "en": "Automations",
       "de": "Automatisierungen",
-      "fr": "Automatisations"
+      "fr": "Automatisations",
+      "_note": "Plural — the hub view. Matches UI label `navigation.automations`."
     },
     {
       "key": "feature_integration",

@@ -11,6 +11,11 @@ import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 
+// Server-side cap for the flat list-row preview. The ConversationList block
+// cleans the HTML client-side (cleanPreviewText) and renders a single
+// truncated line, so shipping more than this per row is dead weight.
+const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
+
 export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
@@ -217,6 +222,21 @@ export async function transformConversation(
     customer,
     messages,
     pendingApproval: pendingApproval || undefined,
+    // Flat single-level fields for the ConversationList block's item map —
+    // it reads row fields one level deep, so the nested customer/message
+    // data is surfaced here. `senderName` mirrors the old inbox row's
+    // heading source (the customer's name; the block falls back to the
+    // title client-side). `lastMessagePreview` is the latest message's RAW
+    // content — the block strips HTML client-side — capped so rows stay
+    // light. Both derive from data already loaded above: no extra reads.
+    senderName: customer.name,
+    lastMessagePreview:
+      messages.length > 0
+        ? messages[messages.length - 1].content.slice(
+            0,
+            LAST_MESSAGE_PREVIEW_MAX_CHARS,
+          )
+        : undefined,
   };
 
   // Doc<'conversations'> spread has branded Id<> types while ConversationItem expects plain strings

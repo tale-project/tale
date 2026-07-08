@@ -19,6 +19,7 @@
 
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import {
   fileBaseToPolicyType,
   isFilePolicyType,
@@ -123,7 +124,9 @@ export function parsePolicyJson(
   const parsed: unknown = JSON.parse(content);
   const result = POLICY_SCHEMAS[policyType].safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid ${policyType} config: ${result.error.message}`);
+    throw new Error(
+      zodErrorMessage(`Invalid ${policyType} config`, result.error),
+    );
   }
   return result.data;
 }
@@ -147,7 +150,7 @@ export function parseRetentionJson(content: string): RetentionDefaultsConfig {
   const parsed: unknown = JSON.parse(content);
   const result = retentionDefaultsConfigSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid retention config: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid retention config', result.error));
   }
   return result.data;
 }

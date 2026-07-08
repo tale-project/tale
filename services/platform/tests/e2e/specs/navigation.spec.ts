@@ -69,17 +69,6 @@ function navCases(organizationId: string): readonly NavCase[] {
           .first(),
     },
     {
-      key: 'conversations',
-      // The rail links to the "open" status; the base route redirects there too.
-      hrefSuffix: `/dashboard/${organizationId}/conversations/open`,
-      urlPattern: /\/conversations\/open(?:[/?#]|$)/,
-      anchor: (page) =>
-        page
-          .getByText(t('conversations.title'), { exact: true })
-          .filter({ visible: true })
-          .first(),
-    },
-    {
       key: 'knowledge',
       hrefSuffix: `/dashboard/${organizationId}/documents`,
       urlPattern: /\/documents(?:[/?#]|$)/,
@@ -93,16 +82,6 @@ function navCases(organizationId: string): readonly NavCase[] {
       anchor: (page) =>
         page
           .getByRole('heading', { name: t('settings.agents.title'), level: 1 })
-          .filter({ visible: true })
-          .first(),
-    },
-    {
-      key: 'automations',
-      hrefSuffix: `/dashboard/${organizationId}/automations`,
-      urlPattern: /\/automations(?:[/?#]|$)/,
-      anchor: (page) =>
-        page
-          .getByRole('heading', { name: t('automations.title'), level: 1 })
           .filter({ visible: true })
           .first(),
     },
@@ -252,9 +231,9 @@ test.describe('navigation: breadcrumbs', () => {
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     // Confirm we left the detail route. The "Agents" crumb links to `/agents`,
-    // which now redirects to the List tab (`/agents/all`), so accept either.
+    // which renders the roster directly (no redirect).
     await expect(page).toHaveURL(
-      new RegExp(`/dashboard/${organizationId}/agents(?:/all)?$`),
+      new RegExp(`/dashboard/${organizationId}/agents$`),
     );
   });
 });

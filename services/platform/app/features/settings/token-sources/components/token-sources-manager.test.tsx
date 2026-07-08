@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
@@ -77,27 +76,27 @@ vi.mock('@/app/hooks/use-list-page', () => ({
   useListPage: () => ({ tableProps: {} }),
 }));
 
-// Stub the DataTable down to its `actionMenu` slot so the create panel can be
-// opened; the table primitive carries its own accessibility suite.
+// Stub the DataTable out — the create/edit panel is now controlled via the
+// `panel` prop (owned by the route), so these tests drive it directly; the
+// table primitive carries its own accessibility suite.
 vi.mock('@/app/components/ui/data-table/data-table', () => ({
-  DataTable: ({ actionMenu }: { actionMenu?: ReactNode }) => (
-    <div>{actionMenu}</div>
-  ),
+  DataTable: () => <div />,
 }));
 
 import { TokenSourcesManager } from './token-sources-manager';
 
 describe('TokenSourcesManager', () => {
   it('opens an accessible, fully-labelled create panel', async () => {
-    const { user, baseElement } = render(
-      <TokenSourcesManager organizationId="org-1" />,
+    const { baseElement } = render(
+      <TokenSourcesManager
+        organizationId="org-1"
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
+      />,
     );
 
-    await user.click(
-      screen.getByRole('button', { name: /tokenSources\.new/i }),
-    );
-
-    // The sheet opened and every Select trigger has an accessible name (the
+    // The sheet is open (create mode) and every Select trigger has an
+    // accessible name (the
     // `label` prop wires `aria-labelledby` on the Radix combobox).
     expect(
       await screen.findByRole('combobox', { name: /tokenSources\.method/i }),
@@ -110,9 +109,12 @@ describe('TokenSourcesManager', () => {
   });
 
   it('groups the form into labelled sections (#2395)', async () => {
-    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
-    await user.click(
-      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    render(
+      <TokenSourcesManager
+        organizationId="org-1"
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
+      />,
     );
     await screen.findByRole('combobox', { name: /tokenSources\.method/i });
 
@@ -142,9 +144,12 @@ describe('TokenSourcesManager', () => {
       nextExpiryMs: 1_700_000_000_000,
     });
 
-    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
-    await user.click(
-      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    const { user } = render(
+      <TokenSourcesManager
+        organizationId="org-1"
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
+      />,
     );
     await user.type(
       await screen.findByRole('textbox', { name: /tokenSources\.endpoint/i }),
@@ -188,9 +193,12 @@ describe('TokenSourcesManager', () => {
       httpStatus: 401,
     });
 
-    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
-    await user.click(
-      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    const { user } = render(
+      <TokenSourcesManager
+        organizationId="org-1"
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
+      />,
     );
     await user.click(
       await screen.findByRole('button', { name: /tokenSources\.test$/i }),
@@ -219,9 +227,12 @@ describe('TokenSourcesManager', () => {
       },
     });
 
-    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
-    await user.click(
-      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    const { user } = render(
+      <TokenSourcesManager
+        organizationId="org-1"
+        panel={{ slug: null }}
+        onPanelChange={vi.fn()}
+      />,
     );
     await user.click(
       await screen.findByRole('button', { name: /tokenSources\.save$/i }),

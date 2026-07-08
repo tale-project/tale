@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../_generated/server', () => ({
   internalAction: vi.fn((config) => config),
-  // Pulled in transitively via workforce_ops -> guardrails (org-chart
-  // delegation merge); the parallelization assertions never execute them.
+  // Pulled in transitively via guardrails; the parallelization assertions
+  // never execute them.
   internalQuery: vi.fn((config) => config),
   internalMutation: vi.fn((config) => config),
   action: vi.fn((config) => config),
@@ -78,20 +78,6 @@ vi.mock('../../agent_tools/integrations/create_bound_integration_tool', () => ({
     }),
   ),
 }));
-
-const mockReadWorkforceRoster = vi.fn();
-// Escalation is chart-derived: give the test agent one direct report so the
-// escalation builder has work to do (the real chart math stays live). The
-// delegate_* tools that used to build from the same chart were replaced by
-// spawn_agent, which builds synchronously from the parent config.
-vi.mock('../../agents/workforce_ops', async (importOriginal) => {
-  const mod = await importOriginal<Record<string, unknown>>();
-  return {
-    ...mod,
-    readWorkforceRoster: (...args: unknown[]) =>
-      mockReadWorkforceRoster(...args),
-  };
-});
 
 vi.mock('../../agent_tools/workflows/create_bound_workflow_tool', () => ({
   createBoundWorkflowTool: vi.fn(() => ({
@@ -205,7 +191,7 @@ vi.mock('@convex-dev/agent', () => ({
     streamText: vi.fn(),
     generateText: vi.fn(),
   })),
-  // The escalation tool (chart members) builds through createTool.
+  // spawn_agent (and other bound tools) build through createTool.
   createTool: vi.fn((definition: unknown) => definition),
   listMessages: vi.fn().mockResolvedValue({ page: [] }),
   saveMessage: vi.fn().mockResolvedValue({ messageId: 'msg_1' }),
@@ -285,11 +271,6 @@ describe('runAgentGeneration — tool building parallelization', () => {
       metadata: {},
     });
 
-    mockReadWorkforceRoster.mockResolvedValue([
-      { slug: 'test-agent', delegates: ['writer-agent'] },
-      { slug: 'writer-agent' },
-    ]);
-
     const modelResult = {
       languageModel: {},
       modelData: {
@@ -314,7 +295,7 @@ describe('runAgentGeneration — tool building parallelization', () => {
     });
   });
 
-  it('calls integration, delegation, workflow, and governance queries in parallel', async () => {
+  it('calls integration, workflow, and governance queries in parallel', async () => {
     const callTimestamps: Array<{ name: string; start: number }> = [];
 
     // Add delays to detect sequential vs parallel execution
@@ -337,20 +318,6 @@ describe('runAgentGeneration — tool building parallelization', () => {
         );
       },
     );
-
-    mockReadWorkforceRoster.mockImplementation(() => {
-      callTimestamps.push({ name: 'escalation', start: Date.now() });
-      return new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              { slug: 'test-agent', delegates: ['writer-agent'] },
-              { slug: 'writer-agent' },
-            ]),
-          15,
-        ),
-      );
-    });
 
     mockCtx.runAction.mockImplementation((fn: string) => {
       if (fn === 'mock-readWorkflowForExecution') {
@@ -394,16 +361,15 @@ describe('runAgentGeneration — tool building parallelization', () => {
     await handler(mockCtx as never, baseArgs as never);
     const elapsed = Date.now() - start;
 
-    // All four categories should have been called
+    // All categories should have been called
     const names = callTimestamps.map((c) => c.name);
     expect(names).toContain('integration:slack');
     expect(names).toContain('integration:jira');
-    expect(names).toContain('escalation');
     expect(names).toContain('workflow');
     expect(names).toContain('governance');
 
     // With parallelization: ~15ms for the parallel group + overhead
-    // Sequential would be: 15ms * 5 = 75ms minimum
+    // Sequential would be: 15ms * 4 = 60ms minimum
     // Use a generous threshold but ensure it's less than sequential time
     expect(elapsed).toBeLessThan(200);
   });
@@ -416,8 +382,5 @@ describe('runAgentGeneration — tool building parallelization', () => {
 
     // Verify integration tools were fetched for both bindings
     expect(mockFetchOperationsWithSchema).toHaveBeenCalledTimes(2);
-
-    // Verify the chart was read for the escalation tool
-    expect(mockReadWorkforceRoster).toHaveBeenCalledTimes(1);
   });
 });

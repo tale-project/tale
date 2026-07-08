@@ -5,7 +5,7 @@ description: The Workers surface — a per-agent HTTP endpoint that external sys
 
 An agent's **Workers** tab exposes an HTTP endpoint another system can POST to. The POST runs the agent against the payload and returns the reply; nothing in the UI is involved. Reach for it when something outside Tale needs the agent to answer a question — a Slack bot, a form handler, a scheduled job.
 
-This page covers the Workers surface only. For the developer-facing equivalent (calling Tale from arbitrary scripts), see [Develop → API reference](/develop/api-reference); for inbound automation triggers that run a workflow rather than an agent, see [Automations → triggers](/platform/automations/triggers).
+This page covers the Workers surface only. For the developer-facing equivalent (calling Tale from arbitrary scripts), see [Develop → API reference](/develop/api-reference); for inbound triggers that run a workflow rather than an agent, see [Workflows → triggers](/platform/workflows/triggers).
 
 ## A worked Worker
 
@@ -21,4 +21,4 @@ The default payload is `{"message": "…"}`. Additional fields the agent's instr
 
 ## Where this fits
 
-Workers are the lightweight, per-agent equivalent of the API. They are useful when the integration is "this one agent does this one thing"; for richer flows, model the call as an [Automation](/platform/automations/concepts) and point the integration at the automation's webhook trigger. The [Trigger automation via webhook](/tutorials/developer/trigger-automation-via-webhook) tutorial walks the automation shape end to end.
+Workers are the lightweight, per-agent equivalent of the API. They are useful when the integration is "this one agent does this one thing"; for richer flows, model the call as a [workflow](/platform/workflows/concepts) and point the integration at the workflow's webhook trigger. The [Trigger a workflow via webhook](/tutorials/developer/trigger-automation-via-webhook) tutorial walks the workflow shape end to end.

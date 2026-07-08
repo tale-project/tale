@@ -112,9 +112,9 @@
         "title": "KI-Spezialisten\nfür jedes Team",
         "description": "Gib einem Agenten eine Rolle, verbinde ihn mit deinen Daten und wähle sein KI-Modell — in Minuten einsatzbereit. Kein Coding nötig.\n\nVom Kundensupport bis zur Compliance-Prüfung: Erstelle Spezialisten, die deine Wissensbasis nutzen und mit jeder Konversation besser werden."
       },
-      "automations": {
-        "eyebrow": "Automatisierungen",
-        "title": "Automatisierung ohne\nEngineering",
+      "workflows": {
+        "eyebrow": "Workflows",
+        "title": "Workflows ohne\nEngineering",
         "description": "Erstelle Workflows, die auf Events reagieren, mit KI Entscheidungen treffen und Schleifen ausführen, bis die Aufgabe erledigt ist. Änderungen sind live, sobald du speicherst.\n\nVom Kunden-Onboarding bis zur Eskalationskette: Automatisiere die wiederholende Arbeit, die dein Team ausbremst."
       }
     },
@@ -493,7 +493,7 @@
     "sendAriaLabel": "Senden"
   },
   "productMockOps": {
-    "heading": "Automatisierungen",
+    "heading": "Workflows",
     "today": "Heute",
     "rows": {
       "inventorySync": "Tägliche Inventar-Synchronisierung",

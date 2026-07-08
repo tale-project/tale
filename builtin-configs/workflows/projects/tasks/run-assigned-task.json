@@ -1,20 +1,4 @@
 {
-  "name": "Run an assigned task",
-  "description": "The execution loop of the task board: when a task is assigned to an AI agent, acknowledge by moving it to In progress, then either RUN the agent against the task and park the result at In review for a human — or, when the assignee is a manager on the org chart and the task is a root task labeled 'epic', DECOMPOSE it instead: the manager splits it into subtasks assigned to its direct reports (depth 1, enforced server-side), and the parent waits in In progress until the subtask-rollup workflow moves it to In review. On failure the task auto-rolls back to To do with an explanatory comment. Guardrail refusals (concurrency queue, budget pause, circuit breaker) skip the error comment — the guardrails already posted a more specific one. Tune or disable per org: this file is yours to edit, and the trigger can be deactivated in Automations. Agents bound to an external runtime (tale-daemon) dispatch instead of running inline: the task stays In progress until the daemon reports back (its completion moves the task to In review; failures roll back automatically).",
-  "i18n": {
-    "en": {
-      "name": "Run an assigned task",
-      "description": "When a task is assigned to an agent, it runs the work (or decomposes an epic) and parks the result at In review."
-    },
-    "de": {
-      "name": "Eine zugewiesene Aufgabe ausführen",
-      "description": "Wird eine Aufgabe einem Agenten zugewiesen, erledigt er die Arbeit (oder zerlegt ein Epic) und legt das Ergebnis zur Überprüfung ab."
-    },
-    "fr": {
-      "name": "Exécuter une tâche attribuée",
-      "description": "Quand une tâche est attribuée à un agent, il effectue le travail (ou décompose un epic) et place le résultat en revue."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],
@@ -72,106 +56,7 @@
         }
       },
       "nextSteps": {
-        "success": "role"
-      }
-    },
-    {
-      "stepSlug": "role",
-      "name": "Look up the assignee's org-chart role",
-      "stepType": "action",
-      "config": {
-        "type": "agent",
-        "parameters": {
-          "operation": "get_org_role",
-          "agentSlug": "{{input.assigneeId}}"
-        }
-      },
-      "nextSteps": {
-        "success": "is_epic"
-      }
-    },
-    {
-      "stepSlug": "is_epic",
-      "name": "Manager + root task labeled 'epic'?",
-      "stepType": "condition",
-      "config": {
-        "expression": "steps.role.output.data.isManager == true && !input.task.parentTaskId && input.task.labels && ('epic' in input.task.labels)",
-        "description": "Managers decompose epics for their team instead of working them solo. Subtasks (which have a parent) never decompose again — depth is exactly one, also enforced server-side."
-      },
-      "nextSteps": {
-        "true": "decompose",
-        "false": "run"
-      }
-    },
-    {
-      "stepSlug": "decompose",
-      "name": "Decompose the epic for the team",
-      "stepType": "action",
-      "config": {
-        "type": "agent",
-        "parameters": {
-          "operation": "decompose_task",
-          "agentSlug": "{{input.assigneeId}}",
-          "taskId": "{{input.task._id}}",
-          "maxSubtasks": 8
-        }
-      },
-      "nextSteps": {
-        "success": "decompose_created"
-      }
-    },
-    {
-      "stepSlug": "decompose_created",
-      "name": "Did decomposition produce subtasks?",
-      "stepType": "condition",
-      "config": {
-        "expression": "steps.decompose.output.data.ok == true && steps.decompose.output.data.subtasksCreated > 0",
-        "description": "Subtask assignments cascade into this same workflow per subtask; the parent stays In progress until the subtask-rollup workflow moves it to In review."
-      },
-      "nextSteps": {
-        "true": "done",
-        "false": "decompose_too_small"
-      }
-    },
-    {
-      "stepSlug": "decompose_too_small",
-      "name": "Run succeeded but nothing to split?",
-      "stepType": "condition",
-      "config": {
-        "expression": "steps.decompose.output.data.ok == true",
-        "description": "The manager judged the task too small to split — fall through to working it directly."
-      },
-      "nextSteps": {
-        "true": "run",
-        "false": "decompose_refused"
-      }
-    },
-    {
-      "stepSlug": "decompose_refused",
-      "name": "Guardrail refusal (decompose)?",
-      "stepType": "condition",
-      "config": {
-        "expression": "steps.decompose.output.data.refusedReason == 'queued' || steps.decompose.output.data.refusedReason == 'budget_paused' || steps.decompose.output.data.refusedReason == 'task_circuit_breaker' || steps.decompose.output.data.refusedReason == 'automation_disabled'"
-      },
-      "nextSteps": {
-        "true": "rollback_quiet",
-        "false": "decompose_fail_comment"
-      }
-    },
-    {
-      "stepSlug": "decompose_fail_comment",
-      "name": "Explain the decomposition failure",
-      "stepType": "action",
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "comment",
-          "taskId": "{{input.task._id}}",
-          "body": "[automated] ⚠️ {{input.assigneeId}} could not decompose this task: {{steps.decompose.output.data.error || 'unknown error'}} — returned to To do."
-        }
-      },
-      "nextSteps": {
-        "success": "rollback"
+        "success": "run"
       }
     },
     {

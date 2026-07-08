@@ -19,13 +19,12 @@
  *    server-side). Returns `{ok, subtasksCreated, ...}`.
  *  - `check_run_budget`: read-only circuit-breaker state for a (task, agent)
  *    pair — the pack's loop guard for mention chains and re-triggers.
- *  - `get_org_role`: the agent's position in the org chart (manager?,
- *    direct reports, manager slug) — drives decompose-vs-run branches and
- *    SLA manager escalation.
+ *  - `get_org_role`: compatibility shim for the retired org-chart layer —
+ *    always resolves to a chartless root (never a manager).
  *  - `list_task_candidates`: assignable agents for a task under the
  *    project's gates — input to the triage scoring step.
- *  - `reassign_or_unassign`: budget-pause handling — hand the task up the
- *    chart (guard-checked) or unassign it for triage to pick up.
+ *  - `reassign_or_unassign`: budget-pause handling — unassign the task for
+ *    triage to pick up (the manager hand-off retired with the org chart).
  *
  * `organizationId` comes from workflow context variables (like
  * `task_action.ts`); the dispatching execution id arrives via `extras` and
@@ -115,7 +114,7 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
   type: 'agent',
   title: 'Agent Operation',
   description:
-    'Workforce operations on org agents: run_on_task / run_on_discussion / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, requeue_queued_runs. organizationId is read from workflow context variables. (Roster admin — install/enable/disable/set_delegates — is intentionally NOT here: it is privilege-gated and lives in the agent_write tool, the catalog mutations, and the integration cascade.)',
+    'Task operations on org agents: run_on_task / run_on_discussion / decompose_task (never throw — {ok, error, refusedReason} rides output.data for condition branches), check_run_budget, get_org_role, list_task_candidates, reassign_or_unassign, requeue_queued_runs. organizationId is read from workflow context variables. (Roster admin — install/enable/disable — is intentionally NOT here: it is privilege-gated and lives in the agent_write tool, the catalog mutations, and the integration cascade.)',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('run_on_task'),
@@ -310,7 +309,7 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
 
       case 'get_org_role': {
         const result = await ctx.runAction(
-          internal.agents.workforce_ops.getOrgRole,
+          internal.agents.task_ops.getOrgRole,
           { organizationId, agentSlug: params.agentSlug },
         );
         return { operation: 'get_org_role', ...result };
@@ -318,7 +317,7 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
 
       case 'list_task_candidates': {
         const result = await ctx.runAction(
-          internal.agents.workforce_ops.listTaskCandidates,
+          internal.agents.task_ops.listTaskCandidates,
           { organizationId, taskId: toId<'tasks'>(params.taskId) },
         );
         return { operation: 'list_task_candidates', ...result };
@@ -326,7 +325,7 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
 
       case 'reassign_or_unassign': {
         const result = await ctx.runAction(
-          internal.agents.workforce_ops.reassignOrUnassign,
+          internal.agents.task_ops.reassignOrUnassign,
           {
             organizationId,
             taskId: toId<'tasks'>(params.taskId),

@@ -7,7 +7,7 @@ import { createPlaywrightConfig, devices } from '@tale/e2e/config';
  * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
  * (login/logout/password/2FA), onboarding, chat (+ threads/search/prompts),
  * conversations, agents, projects & tasks, knowledge, settings, governance, and
- * automation — against the real local stack: anonymous Convex backend + Vite,
+ * workflows — against the real local stack: anonymous Convex backend + Vite,
  * both booted by the webServer entries below via `scripts/dev.ts`. See
  * `tests/e2e/README.md` for the per-spec breakdown.
  *

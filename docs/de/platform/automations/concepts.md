@@ -1,50 +1,45 @@
 ---
-title: Automatisierungs-Konzepte
-description: Eine Automatisierung ist eine Workflow-Definition plus ein Trigger plus eine Ausführungshistorie. Diese Seite benennt die vier Stücke und zeigt, wie ein Tagesbericht hindurchfliesst.
+title: Automatisierungskonzepte
+description: Eine Automatisierung ist das installierbare Bündel aus Integrationen, Agents, Skills, einem Workflow und mitgelieferten Ansichten, das der Katalog in einem Schritt installiert. Diese Seite benennt die Bestandteile und wann du dazu statt zu einem einzelnen Agent oder Workflow greifst.
 ---
 
-Eine Automatisierung ist die Einheit, zu der Tale greift, wenn die Arbeit mehrstufig ist und du Genehmigungen, Zeitpläne oder externe Trigger zwischen den Schritten willst. Sie ist eine Workflow-Definition plus ein Trigger plus eine Ausführungshistorie — drei Dinge, die du komponierst, um eine wiederkehrende Aufgabe in einen Graphen zu verwandeln, der sich selbst ausführt.
+Eine Automatisierung ist die Einheit, zu der Tale greift, wenn eine Aufgabe mehr als ein bewegliches Teil braucht, das zusammengeschaltet werden muss — eine Integration, ein oder mehrere Agents, ein Workflow, manchmal eine eigene Seite —, und du das Ganze lieber in einem Schritt installiert und verbunden haben willst, statt es von Hand zusammenzusetzen. Inhaber, Admins und Entwickler installieren Automatisierungen aus dem Automatisierungen-Katalog; einmal installiert, nutzen Redakteure und Mitglieder, was mitgeliefert wurde — ein Posteingang-Tab, ein Backlog-Eintrag, ein Chat-Agent —, ohne wissen zu müssen, was darunterliegt. Diese Seite benennt die Bestandteile, die eine Automatisierung bündelt, wie ein Bundle mehrere Automatisierungen zusammenfasst, und wann eine Automatisierung die richtige Einheit ist statt eines einzelnen Agents oder Workflows.
 
-Diese Seite gibt dir das Vokabular, das der Rest des Automatisierungs-Abschnitts voraussetzt. Lies sie, bevor du einen Workflow baust, und komm zurück, wenn du nicht mehr weisst, ob ein Verhalten in einen Schritt, in den Trigger oder in ein Genehmigungs-Gate gehört.
+## Die Bestandteile
 
-## Die vier Stücke
+Das Manifest einer Automatisierung benennt bis zu fünf Arten von Bestandteilen, und die meisten Automatisierungen nutzen nur einen Teil davon.
 
-**Workflows** sind die Definition — die geordnete Menge an Schritten mit ihren Eingaben und Ausgaben. Schritte können sequenziell, parallel oder hinter einem bedingten Zweig laufen. Ein Workflow ist versioniert; jedes Speichern erzeugt eine neue Version, zu der du zurückrollen kannst.
+**Integrationen** sind die Anmeldedaten, die ihre Schritte und Agents brauchen — Gmail, GitHub, eine SQL-Datenbank. Eine Automatisierung speichert nie eine eigene Kopie einer Anmeldung; sie benennt nur, welche Integration sie braucht, und die Organisation verbindet diese Integration einmal — dieselbe Verbindung, die sich jede andere Automatisierung und jeder Agent teilt.
 
-**Trigger** entscheiden, wann ein Workflow läuft. Vier Trigger-Typen sind dabei: manuell (ein Knopf in der UI), Schedule (cron-förmig), Webhook (ein externes System postet an eine URL) und Event (etwas geschieht innerhalb von Tale — ein Dokument wird hochgeladen, ein Agent beendet eine Antwort).
+**Agents** sind die Chat- oder Aufgaben-Agents, die die Automatisierung installiert — ein Sichter, ein PR-Prüfer, ein Zusammenfasser. Einmal installiert, sind es ganz normale Agents: erwähnbar im Chat, zuweisbar auf einem Projekt-Board, editierbar im Agent-Editor.
 
-**Schritte** sind das, was läuft. Eingebaute Schritt-Typen rufen Agents auf, führen Sandbox-Code aus, treffen externe APIs, schreiben in die Wissensdatenbank, schicken Mail oder pausieren für User-Eingaben. Schritte, die die Aussenwelt berühren, sind in Idempotenz-Schlüssel gehüllt, damit ein Retry nicht doppelt feuert.
+**Ein Workflow** ist die eine gebündelte Trigger-und-Schritte-Definition der Automatisierung — das, was tatsächlich nach einem Zeitplan, über einen Webhook oder per Klick läuft. Nicht jede Automatisierung liefert einen mit: Die E-Mail-Automatisierungen auf [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) haben keinen, weil Mail lesen und beantworten eine Seite ist, kein geplanter Lauf.
 
-**Ausführungen** sind die Lauf-Historie. Jede Workflow-Auslösung erzeugt einen Ausführungs-Datensatz: wer ausgelöst hat, was jeder Schritt empfangen und ausgegeben hat, wo die Fehler waren, wie lange es gedauert hat. Das Ausführungs-Log ist Audit-Spur und Debugging-Oberfläche in einem.
+**Mitgelieferte Ansichten** sind Seiten, die die Automatisierung in die geteilte Ansichts-Registry der Plattform einträgt, etwa den Posteingang — die Plattform rendert die Seite selbst, die Automatisierung benennt nur, welche und worauf sie begrenzt ist.
 
-## Genehmigungen als Gates
+**Konfiguration** ist keine separate Einstellungsdatei. Eine Automatisierung, die einen Betriebswert braucht, liest ihn aus der Anmeldung einer Integration oder aus einer Trigger- oder Node-Variable des Workflows; der Tab **Konfiguration** der Automatisierung ist eine schreibgeschützte Zusammenfassung der obigen Bestandteile, kein Ort, um neue Einstellungen anzulegen.
 
-Ein Workflow-Schritt kann ein Genehmigungs-Gate sein. Der Lauf pausiert, eine Genehmigungs-Karte taucht im konfigurierten Genehmiger-Pool auf, und der nächste Schritt feuert erst, wenn ein Genehmiger auf Genehmigen klickt. Ablehnen beendet den Lauf; ein Timeout eskaliert oder schlägt fehl, je nach Konfiguration des Gates. Genehmigungen sind die Naht zwischen Automatisierung und menschlicher Beurteilung.
+## Bundles und versteckte Automatisierungen
 
-Die Konzept-Seite [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) deckt die Gate-Zustände und die Routing-Regeln im Detail ab.
+Ein Bundle fasst mehrere Automatisierungen zusammen, die nur gemeinsam installiert einen Sinn ergeben. [GitHub-Issues lösen](/de/platform/automations/builtin) installiert vier Automatisierungen — einen Sichter, einen Abgleicher, einen PR-Ersteller und einen PR-Prüfer — über einen gebündelten Assistenten, gebunden an das Projekt, das du wählst. Die meisten Mitglieder eines Bundles sind versteckt: Sie tauchen nie als eigene Karte im Katalog auf, weil eine Installation für sich allein ohne ihre Geschwister bedeutungslos wäre. Versteckt heisst nicht weg — der [Automatisierungs-Assistent](/de/platform/automations/assistant) findet und erklärt sie trotzdem; nur das Raster des Katalogs blendet sie aus.
 
-## Zusammengesetzt — eine Tagesbericht-Automatisierung
+## Alles zusammen — zwei Kombinationen
 
-Eine Tagesbericht-Automatisierung setzt die vier Stücke in eine Kette:
+**Auf Gmail-E-Mails antworten** kombiniert die kleinstmögliche Menge: eine Integration (Gmail) und eine mitgelieferte Ansicht (Posteingang) — kein Agent, kein Workflow. Verbinde Gmail, und der Posteingang-Tab ist die ganze Automatisierung.
 
-- Trigger: ein Schedule, der werktags um 08:00 feuert.
-- Schritt 1: ein Agent, der die Kundenkonversationen des Vortags aus dem Posteingang zusammenfasst.
-- Schritt 2: ein Genehmigungs-Gate, geroutet an die Teamleitung — Genehmigen zum Senden, Ablehnen zum Verwerfen.
-- Schritt 3: ein Mail-Schritt, der die genehmigte Zusammenfassung an die Team-Verteilerliste schickt.
-
-Jeder Lauf hält den Entwurf des Agents, die Entscheidung des Genehmigers und die Empfängerliste des Mail-Schritts fest. Schlägt ein Schritt fehl — der Agent läuft in den Timeout, der Genehmiger antwortet nicht, der Mail-Server ist nicht erreichbar — fängt die Ausführung den Fehler ein, und der gescheiterte Schritt ist aus der Ausführungs-Ansicht wiederholbar.
+**GitHub-Issues lösen** kombiniert jeden Bestandteil auf einmal: eine Integration (GitHub), vier Agents verteilt über seine vier versteckten Mitglieder, vier Workflows und keine mitgelieferte Ansicht — es arbeitet stattdessen über das bestehende Board und Backlog des Projekts statt über eine eigene Seite. Die Installation des Bundles verdrahtet alle vier in einem gebündelten Assistenten, gebunden an das Projekt, das du wählst.
 
 ## Wann du danach greifst
 
-| Nutz … wenn                                                  | Automatisierung | Agent | Cron-Job |
-| ------------------------------------------------------------ | --------------- | ----- | -------- |
-| Arbeit hat mehrere abhängige Schritte                        | ✓               |       |          |
-| Du brauchst eine menschliche Genehmigung zwischen Schritten  | ✓               |       |          |
-| Dasselbe Prompt kehrt wieder, aber immer einmalig            |                 | ✓     |          |
-| Du brauchst nur einen wiederkehrenden Shell-Befehl auf Linux |                 |       | ✓        |
+| Nutz … wenn                                                                           | Automatisierung | Agent | Workflow |
+| ------------------------------------------------------------------------------------- | --------------- | ----- | -------- |
+| Du willst ein fertig integriertes Feature in einem Schritt installieren               | ✓               |       |          |
+| Dieselbe Frage kehrt im Chat einfach wieder, kein externes System beteiligt           |                 | ✓     |          |
+| Du verdrahtest eine brandneue Integration und einen Trigger selbst                    |                 |       | ✓        |
+| Du brauchst Genehmigungen oder Zeitpläne zwischen Schritten und nichts Fertiges passt |                 |       | ✓        |
 
-Agents sind die richtige Form für einmalige Konversationen; Automatisierungen sind die richtige Form, wenn die Arbeit Etappen hat und du Eingabe, Ausgabe und Genehmiger jeder Etappe festhalten willst.
+Greif zuerst zu einer Automatisierung — prüf den Katalog, bevor du die Bestandteile selbst baust. Greif zu einem einzelnen Agent oder Workflow, wenn die Aufgabe wirklich neu ist und nichts Mitgeliefertes sie abdeckt.
 
 ## Bau eine
 
-Workflows, Trigger, Schritte und Ausführungen sind die vier Stücke, aus denen jede Tale-Automatisierung besteht: der Workflow ist das Rezept, der Trigger ist der Startschuss, die Schritte sind die Züge, die Ausführung ist die Aufzeichnung. Greif zu einer Automatisierung, wenn die Arbeit Etappen hat; greif zu einem Agent, wenn die Konversation in einer Stimme bleibt. Die natürliche nächste Lektüre ist [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) — sie geht die vier Stücke auf einer frischen Instanz durch.
+Eine Automatisierung ist das ganze Bündel, das ein echtes Feature braucht — die Integration, die es aufruft, die Agents und der Workflow, die die Arbeit erledigen, die Ansicht, die es rendert —, zusammengeschaltet und in einem Schritt installiert; greif zu einem einzelnen Agent oder Workflow nur, wenn du das Stück selbst baust. Die natürliche nächste Lektüre ist [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) — sie geht den Katalog, das Seitenpanel und den Installations-Assistenten von Anfang bis Ende durch.

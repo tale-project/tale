@@ -48,6 +48,12 @@ export const conversationsTable = defineTable({
     'status',
     'lastMessageAt',
   ])
+  .index('by_org_integration_status_lastMessageAt', [
+    'organizationId',
+    'integrationName',
+    'status',
+    'lastMessageAt',
+  ])
   .index('by_org_integration_channel', [
     'organizationId',
     'integrationName',

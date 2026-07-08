@@ -3,7 +3,7 @@ import { Row } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
-import { TASK_STATUS_ORDER } from '../lib/display';
+import { TRIAGED_TASK_STATUSES } from '../lib/display';
 import { partitionSubtasks } from '../lib/subtasks';
 import { BoardColumn } from './board-column';
 import { TaskCard, type TaskRow } from './task-card';
@@ -48,7 +48,8 @@ export function KanbanBoard({
         align="stretch"
         className="h-full snap-x overflow-x-auto px-0.5 pb-4"
       >
-        {TASK_STATUS_ORDER.map((status) => (
+        {/* No backlog lane: proposed tasks live on the Backlog triage tab. */}
+        {TRIAGED_TASK_STATUSES.map((status) => (
           <BoardColumn
             key={status}
             status={status}

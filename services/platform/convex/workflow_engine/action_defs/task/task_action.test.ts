@@ -5,11 +5,11 @@ import { taskAction } from './task_action';
 
 // The workflow engine calls `taskAction.execute` directly, WITHOUT validating
 // `parametersValidator` (see execute_action_node.ts), so a scheduled issue-desk
-// reconcile whose `variables` never received the app's `repository` config
-// reaches `list_open_external` with `owner`/`repo` undefined. The guard must
-// fail loudly with an actionable message — NOT degrade to an org-wide scan
-// (which would close tasks in repos this desk was never configured to touch)
-// and not surface the query's generic ArgumentValidationError.
+// reconcile whose `variables` never received an `owner`/`repo` value reaches
+// `list_open_external` with them undefined. The guard must fail loudly with an
+// actionable message — NOT degrade to an org-wide scan (which would close
+// tasks in repos this desk was never configured to touch) and not surface the
+// query's generic ArgumentValidationError.
 
 type ExecParams = Parameters<typeof taskAction.execute>[1];
 
@@ -35,7 +35,7 @@ describe('taskAction list_open_external — missing repo config', () => {
 
     await expect(
       taskAction.execute(stubCtx(), params, { organizationId: 'org_1' }),
-    ).rejects.toThrow(/requires both `owner` and `repo`.*repository config/s);
+    ).rejects.toThrow(/requires both `owner` and `repo`.*Triggers tab/s);
   });
 
   it('throws when owner is present but repo is missing', async () => {

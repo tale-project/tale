@@ -9,7 +9,8 @@
  */
 
 import { ConvexError } from 'convex/values';
-import { set, merge } from 'lodash';
+import merge from 'lodash/merge';
+import set from 'lodash/set';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';

@@ -5,7 +5,7 @@ description: Développement couvre la surface côté consommateur d'API — REST
 
 Développement est la section pour les intégrateurs et les contributeurs — tous ceux qui branchent Tale sur un autre système, construisent au-dessus de l'API ou livrent une modification du code source. Les pages ici décrivent la surface externe (REST, webhooks, endpoints compatibles OpenAI) et le workflow de contribution.
 
-Si tu es à l'intérieur du produit avec le rôle Développeur (construction d'agents, d'automatisations, d'outils sur mesure), l'onglet Plateforme couvre ton quotidien ; Développement sert quand tu es à l'extérieur du produit et que tu lui parles via le fil.
+Si tu es à l'intérieur du produit avec le rôle Développeur (construction d'agents, de workflows, d'outils sur mesure), l'onglet Plateforme couvre ton quotidien ; Développement sert quand tu es à l'extérieur du produit et que tu lui parles via le fil.
 
 ## Pages de cette section
 

@@ -75,6 +75,23 @@ export function isLoopProgress(
 }
 
 /**
+ * Display string for a primitive value: the string itself, or `String()` on a
+ * number/boolean/bigint. Returns `undefined` for objects, arrays, `null`, and
+ * `undefined` — callers render nothing instead of "[object Object]".
+ */
+export function primitiveString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value);
+  }
+  return undefined;
+}
+
+/**
  * Runtime-validate that a string belongs to a known set of values.
  * Returns `undefined` if the value is not in the set.
  */

@@ -44,10 +44,11 @@ export const GOVERNANCE_POLICY_TYPES = [
   // and per-admin daily filing rate limit. Defaults live in
   // `governance/dsar_policy.ts`.
   'dsar_governance',
-  // Org-wide workforce guardrail defaults: org concurrency cap, per-task
-  // circuit-breaker runs/hour, fleet default for per-agent concurrency, and
-  // what a budget pause does to the agent's open tasks. Config shape:
-  // `agentWorkforceConfigSchema` (lib/shared/schemas/governance.ts).
+  // RETIRED — the agent_workforce policy left the config registry (its
+  // knobs became fixed guardrail defaults) and migration 0.2.90/04 deletes
+  // the org files. The literal stays one release because this closed union
+  // validates EXISTING policyAcknowledgements rows at schema push time;
+  // drop it in the next release.
   'agent_workforce',
   // Agent-on-demand job guardrails for `spawn_agent`: org concurrency cap,
   // terminal-row TTL, stuck-run threshold. Missing row → schema defaults.

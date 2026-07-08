@@ -27,7 +27,11 @@ interface MockMetadata {
   organizationId?: string;
   isShared?: boolean;
   status?: string;
-  kind?: 'chat' | 'project_discussion' | 'task_discussion';
+  kind?:
+    | 'chat'
+    | 'project_discussion'
+    | 'task_discussion'
+    | 'automation_discussion';
 }
 
 interface BetterAuthMember {
@@ -415,6 +419,92 @@ describe('canAccessThread — discussion branch', () => {
     const result = await canAccessThread(ctx as never, 't_task_disc', authUser);
 
     expect(result).toEqual(meta);
+  });
+
+  it('grants a non-owner org member access to an automation_discussion without a projectId', async () => {
+    // App-embedded discussions (AgentChat block) are org-membership-gated like
+    // the other discussion kinds — and, unlike project/task discussions, may
+    // carry no projectId at all. Membership in the thread's org is the gate.
+    const meta: MockMetadata = {
+      _id: 'tm_app_disc',
+      threadId: 't_app_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'automation_discussion',
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_1',
+          organizationId: 'org_disc',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(
+      ctx as never,
+      't_app_disc',
+      authUser,
+      'org_disc',
+    );
+
+    expect(result).toEqual(meta);
+  });
+
+  it('denies an automation_discussion when the active-org hint differs from the thread org', async () => {
+    // Cross-org coherence: the caller is a member of BOTH orgs but is acting
+    // in org_other; the app thread lives in org_disc, so the hint must deny.
+    const meta: MockMetadata = {
+      _id: 'tm_app_disc',
+      threadId: 't_app_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'automation_discussion',
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_disc',
+          organizationId: 'org_disc',
+          userId: 'user_1',
+          role: 'member',
+        },
+        {
+          _id: 'm_other',
+          organizationId: 'org_other',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(
+      ctx as never,
+      't_app_disc',
+      authUser,
+      'org_other',
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('denies an automation_discussion to a non-member of the thread org', async () => {
+    const meta: MockMetadata = {
+      _id: 'tm_app_disc',
+      threadId: 't_app_disc',
+      userId: 'user_owner',
+      organizationId: 'org_disc',
+      kind: 'automation_discussion',
+    };
+    const ctx = createMockCtx({ metadata: meta, members: [] });
+
+    const result = await canAccessThread(ctx as never, 't_app_disc', authUser);
+
+    expect(result).toBeNull();
   });
 
   it('denies a non-owner who is not a member of the discussion org', async () => {

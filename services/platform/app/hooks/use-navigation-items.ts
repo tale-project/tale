@@ -2,16 +2,16 @@
 
 import {
   MessageCircle,
-  Inbox,
   BrainIcon,
-  LayoutGrid,
-  Network,
+  Workflow,
   Bot,
   Folder,
+  Inbox,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -56,10 +56,15 @@ export interface NavigationItems {
 export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
-  const { t: tConversations } = useT('conversations');
   const { t: tProjects } = useT('projects');
+  const { t: tConversations } = useT('conversations');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
+  // The Inbox entry is gated on at least one INSTALLED automation declaring
+  // the `inbox` builtin view — `useInboxAvailability` intersects the seeded
+  // org-dir list with the install rows and stays `hasInbox: false` while
+  // loading, so the entry never flashes in then out.
+  const { hasInbox: hasInboxAutomation } = useInboxAvailability(businessId);
   return useMemo(
     (): NavigationItems => ({
       primary: [
@@ -72,52 +77,12 @@ export function useNavigationItems(businessId: string): NavigationItems {
           shortcut: newChatShortcut,
         },
         {
-          label: tNav('apps'),
-          to: '/dashboard/$id/apps',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/apps`,
-          icon: LayoutGrid,
-        },
-        {
           label: tProjects('title'),
           to: '/dashboard/$id/projects',
           params: { id: businessId },
           href: `/dashboard/${businessId}/projects`,
           icon: Folder,
           can: ['read', 'projects'],
-        },
-        {
-          label: tNav('conversations'),
-          to: '/dashboard/$id/conversations/$status',
-          params: { id: businessId, status: 'open' },
-          href: `/dashboard/${businessId}/conversations/open`,
-          icon: Inbox,
-          subItems: [
-            {
-              label: tConversations('status.open'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'open' },
-              href: `/dashboard/${businessId}/conversations/open`,
-            },
-            {
-              label: tConversations('status.closed'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'closed' },
-              href: `/dashboard/${businessId}/conversations/closed`,
-            },
-            {
-              label: tConversations('status.spam'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'spam' },
-              href: `/dashboard/${businessId}/conversations/spam`,
-            },
-            {
-              label: tConversations('status.archived'),
-              to: '/dashboard/$id/conversations/$status',
-              params: { id: businessId, status: 'archived' },
-              href: `/dashboard/${businessId}/conversations/archived`,
-            },
-          ],
         },
         {
           label: tNav('knowledge'),
@@ -171,9 +136,19 @@ export function useNavigationItems(businessId: string): NavigationItems {
           to: '/dashboard/$id/automations',
           params: { id: businessId },
           href: `/dashboard/${businessId}/automations`,
-          icon: Network,
-          can: ['write', 'wfDefinitions'],
+          icon: Workflow,
         },
+        ...(hasInboxAutomation
+          ? [
+              {
+                label: tConversations('title'),
+                to: '/dashboard/$id/conversations',
+                params: { id: businessId },
+                href: `/dashboard/${businessId}/conversations`,
+                icon: Inbox,
+              },
+            ]
+          : []),
         {
           // Single Settings entry. The index route redirects to the
           // permission-appropriate landing page (org settings for admins,
@@ -189,6 +164,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
       ],
       pinned: [],
     }),
-    [businessId, tNav, tKnowledge, tConversations, tProjects, newChatShortcut],
+    [
+      businessId,
+      tNav,
+      tKnowledge,
+      tProjects,
+      tConversations,
+      hasInboxAutomation,
+      newChatShortcut,
+    ],
   );
 }

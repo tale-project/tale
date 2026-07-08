@@ -37,7 +37,7 @@ export async function resolveAgentConfigInline(
     modelId?: string;
   },
 ): Promise<InlineConfigResult & { orgLocale: string }> {
-  // Locate the backing file through the folder-aware index (chat/, workforce/,
+  // Locate the backing file through the folder-aware index (chat/,
   // github/, …); the flat `<slug>.json` fallback covers system agents and any
   // file written before the 60s index cache refreshed. Without this, every
   // foldered agent failed config load with "Agent not found".

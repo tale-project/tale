@@ -27,9 +27,9 @@ La réponse arrive en streaming token par token. Les appels d'outils s'affichent
 
 Un agent doté de l'outil human input peut s'interrompre en pleine tâche pour te poser une question — une carte **Question** apparaît dans le chat avec les champs dont l'agent a besoin, et la génération attend ta réponse. Remplis le formulaire et clique sur **Soumettre la réponse**, ou clique sur **Répondre différemment** pour répondre en texte libre. La carte répondue reste dans la transcription à l'endroit où la question a été posée, pour que l'échange se relise dans l'ordre. Si ta réponse était fausse ou incomplète, clique sur **Modifier la réponse** sur la carte répondue — le formulaire se rouvre prérempli, et **Mettre à jour la réponse** relance l'agent, la réponse corrigée remplaçant l'ancienne. La carte garde chaque réponse précédente : feuillette les versions avec les flèches à côté de la réponse, comme pour les messages modifiés.
 
-## Conversations versus chats
+## Chats et la boîte de réception
 
-À l'intérieur du Chat, l'unité est un **chat** — c'est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s'appelle `threads`, et l'URL est `threads/$threadId` ; la doc suit l'UI et dit « chat » dans la prose. L'onglet **Conversations** séparé (un cran plus loin dans la sidebar) est la boîte de réception des canaux clients, pas une liste de chats. Deux sens de « conversation », deux surfaces — voir [Aperçu des conversations](/fr/platform/conversations/overview) pour le sens de boîte de réception.
+À l'intérieur du Chat, l'unité est un **chat** — c'est le mot que chaque bouton et chaque toast utilise. Le modèle de données derrière s'appelle `threads`, et l'URL est `threads/$threadId` ; la doc suit l'UI et dit « chat » dans la prose. L'onglet **Boîte de réception** d'une automatisation installée est une tout autre surface — les conversations e-mail des clients que Gmail, Outlook ou IMAP/SMTP font arriver, pas une liste de chats. Deux sens de « conversation », deux surfaces — voir [Automatisations livrées](/fr/platform/automations/builtin) pour le sens de boîte de réception.
 
 ## History et recherche
 

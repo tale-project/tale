@@ -34,6 +34,8 @@ interface TabsProps {
   equalWidth?: boolean;
   /** Optional actions rendered to the right of the tab list */
   actions?: ReactNode;
+  /** Accessible name for the tablist itself (`aria-label` on `TabsPrimitive.List`) — set this when the tab strip has no adjacent visible heading that already names it. */
+  listAriaLabel?: string;
 }
 
 // `min-w-0` lets the flex child shrink past its content width so the
@@ -90,6 +92,7 @@ export function Tabs({
   variant = 'pill',
   equalWidth = false,
   actions,
+  listAriaLabel,
 }: TabsProps) {
   const hasContent = items.some((item) => item.content !== undefined);
 
@@ -102,6 +105,7 @@ export function Tabs({
     >
       <div className="flex min-w-0 items-center justify-between gap-4">
         <TabsPrimitive.List
+          aria-label={listAriaLabel}
           className={cn(listVariants({ variant, equalWidth }), listClassName)}
         >
           {items.map((item) => (

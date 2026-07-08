@@ -204,6 +204,78 @@ describe('listTasksByProject canEdit', () => {
   });
 });
 
+// The per-view server-side scope: the Board/List pass the triaged statuses
+// (everything but `backlog`), the Backlog triage tab passes `['backlog']` —
+// proposed tasks never reach the board payload and vice versa.
+describe('listTasksByProject statuses filter', () => {
+  async function seedStatusMix(t: T): Promise<Id<'projects'>> {
+    const projectId = await seedProject(t, 'A');
+    await seedMember(t, 'user_editor', 'editor');
+    await t.run(async (ctx) => {
+      let number = 1;
+      for (const status of ['backlog', 'todo', 'done'] as const) {
+        await ctx.db.insert('tasks', {
+          organizationId: ORG,
+          projectId,
+          title: `Task ${status}`,
+          status,
+          rank: `a${number}`,
+          number: number++,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: 0,
+          updatedAt: 0,
+        });
+      }
+    });
+    return projectId;
+  }
+
+  it('excludes backlog when scoped to the triaged statuses (board/list)', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedStatusMix(t);
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksByProject, {
+        projectId,
+        organizationId: ORG,
+        statuses: ['todo', 'in_progress', 'in_review', 'done', 'cancelled'],
+      });
+    expect(result.tasks.map((task) => task.status).sort()).toEqual([
+      'done',
+      'todo',
+    ]);
+  });
+
+  it('returns only backlog tasks when scoped to backlog (triage tab)', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedStatusMix(t);
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksByProject, {
+        projectId,
+        organizationId: ORG,
+        statuses: ['backlog'],
+      });
+    expect(result.tasks.map((task) => task.status)).toEqual(['backlog']);
+  });
+
+  it('returns every status when the scope is omitted (back-compat)', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedStatusMix(t);
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksByProject, {
+        projectId,
+        organizationId: ORG,
+      });
+    expect(result.tasks).toHaveLength(3);
+  });
+});
+
 // Commenting is a READ-level action on the unified task_discussion surface: any
 // org member who can read a task may post, exactly like a project discussion
 // reply — so `getTask` reports canComment true even for a read-only member who

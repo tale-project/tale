@@ -22,7 +22,7 @@ Bündle ihr Wissen, delegiere Aufgaben und bau deinen Schwarm aus Agents.
 
 ---
 
-Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Automatisierungen und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI, dann reichen zwei Befehle zum Start.
+Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Workflows und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI, dann reichen zwei Befehle zum Start.
 
 **Wähl deinen Weg:**
 
@@ -75,16 +75,16 @@ Eine ausführliche Einrichtungsanleitung findest du im [Self-hosted-Quickstart](
 
 ## Was kannst du tun?
 
-| Ziel                           | Wie                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------ |
-| **Eigene Agents bauen**        | JSON-Dateien in `agents/` bearbeiten — Anweisungen, Tools und Modelle definieren           |
-| **Automatisierungen bauen**    | JSON-Dateien in `workflows/` bearbeiten — Trigger, Bedingungen, Schleifen, KI-Schritte     |
-| **Integrationen hinzufügen**   | Dateien in `integrations/` bearbeiten — REST-APIs, SQL-Datenbanken, eigene Konnektoren     |
-| **Configs mit KI bauen**       | Projekt in deinem KI-Editor öffnen — `AGENTS.md` und `.tale/reference/` tragen die Schemas |
-| **Mit KI-Assistenten chatten** | Direkt in der Plattform — sofort einsatzbereit                                             |
-| **Wissensdatenbank aufbauen**  | Dokumente hochladen, Websites crawlen, Produkte und Kunden verwalten                       |
-| **Konversationen verwalten**   | Gemeinsamer Posteingang für Kunden-Konversationen mit KI-gestützten Antworten              |
-| **Backend-Daten ansehen**      | `tale convex admin` ausführen und das Convex Dashboard öffnen                              |
+| Ziel                           | Wie                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| **Eigene Agents bauen**        | JSON-Dateien in `agents/` bearbeiten — Anweisungen, Tools und Modelle definieren                                      |
+| **Workflows bauen**            | JSON-Dateien in `workflows/` bearbeiten — Trigger, Bedingungen, Schleifen, KI-Schritte                                |
+| **Integrationen hinzufügen**   | Dateien in `integrations/` bearbeiten — REST-APIs, SQL-Datenbanken, eigene Konnektoren                                |
+| **Configs mit KI bauen**       | Projekt in deinem KI-Editor öffnen — `AGENTS.md` und `.tale/reference/` tragen die Schemas                            |
+| **Mit KI-Assistenten chatten** | Direkt in der Plattform — sofort einsatzbereit                                                                        |
+| **Wissensdatenbank aufbauen**  | Dokumente hochladen, Websites crawlen, Produkte und Kunden verwalten                                                  |
+| **Kunden-E-Mails beantworten** | E-Mail-Automatisierung installieren (Gmail, Outlook, IMAP/SMTP) — gemeinsamer Posteingang mit KI-gestützten Antworten |
+| **Backend-Daten ansehen**      | `tale convex admin` ausführen und das Convex Dashboard öffnen                                                         |
 
 Alle Dateien in `agents/`, `workflows/` und `integrations/` werden live neu geladen — bearbeiten und Änderungen sofort sehen.
 
@@ -187,13 +187,13 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 </details>
 
 <details>
-<summary><strong>Für Bauende (Agents, Automatisierungen, Integrationen)</strong></summary>
+<summary><strong>Für Bauende (Agents, Workflows, Integrationen)</strong></summary>
 
 - **[Agent-Konzepte](https://tale.dev/docs/de/platform/agents/concepts)** — das Vier-Knöpfe-Modell hinter jedem Agent
 - **[Einen Agent erstellen](https://tale.dev/docs/de/platform/agents/create)** — spezialisierte KI-Assistenten von Anfang bis Ende
 - **[Agent-Tools](https://tale.dev/docs/de/platform/agents/tools)** — die eingebauten Tool-Familien
 - **[Projekte](https://tale.dev/docs/de/platform/projects/overview)** — geteilter Workspace für Dateien, Chats und Projekt-Agents
-- **[Automatisierungs-Konzepte](https://tale.dev/docs/de/platform/automations/concepts)** — Workflows, Trigger, Genehmigungstore
+- **[Workflow-Konzepte](https://tale.dev/docs/de/platform/workflows/concepts)** — Definitionen, Trigger, Genehmigungstore
 - **[Integrationen-Übersicht](https://tale.dev/docs/de/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
 - **[Modelle out of the box](https://tale.dev/docs/de/platform/models)** — OpenRouter als einziger Default-Provider, plus die ausgelieferten Modelllisten
 

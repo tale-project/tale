@@ -18,7 +18,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { decryptString } from '../../../../lib/crypto/decrypt_string';
 import { encryptString } from '../../../../lib/crypto/encrypt_string';
-import { atomicWrite, readFileSafe } from '../../../../lib/file_io';
+import {
+  atomicWrite,
+  readFileSafe,
+  removeDirSafe,
+  removeFileSafe,
+} from '../../../../lib/file_io';
 import {
   restoreFsTree,
   snapshotFsTree,
@@ -38,6 +43,8 @@ const ENCRYPTION_SECRET_HEX =
 const helpers: NodeMigrationHelpers = {
   atomicWrite,
   readFileSafe,
+  removeFileSafe,
+  removeDirSafe,
   snapshotFsTree,
   restoreFsTree,
 };

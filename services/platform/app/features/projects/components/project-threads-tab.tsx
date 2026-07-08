@@ -85,7 +85,7 @@ export function ProjectThreadsTab({
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         title={t('threads.yourChats')}
-        description={t('threads.shareToggleDisclosure')}
+        description={t('threads.subtitle')}
         action={
           <Button onClick={handleNewChat}>{t('overview.newChatCta')}</Button>
         }
@@ -97,37 +97,42 @@ export function ProjectThreadsTab({
             {t('threads.emptyYours')}
           </EmptyPlaceholder>
         ) : (
-          <div className="divide-y rounded-lg border">
-            {yours.map((thread) => (
-              <HStack
-                key={thread._id}
-                gap={3}
-                align="center"
-                className="px-4 py-3"
-              >
-                <MessageSquare
-                  className="text-muted-foreground size-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <Link
-                  to="/dashboard/$id/chat/$threadId"
-                  params={{
-                    id: organizationId,
-                    threadId: thread.threadId,
-                  }}
-                  className="min-w-0 flex-1 truncate text-sm hover:underline"
+          <div className="flex flex-col gap-3">
+            <Text variant="muted" className="text-sm">
+              {t('threads.shareToggleDisclosure')}
+            </Text>
+            <div className="divide-y rounded-lg border">
+              {yours.map((thread) => (
+                <HStack
+                  key={thread._id}
+                  gap={3}
+                  align="center"
+                  className="px-4 py-3"
                 >
-                  {thread.title ?? thread.threadId}
-                </Link>
-                <Switch
-                  checked={thread.sharedWithProject === true}
-                  onCheckedChange={(checked) =>
-                    void handleToggleShare(thread.threadId, checked)
-                  }
-                  label={t('threads.shareToggle')}
-                />
-              </HStack>
-            ))}
+                  <MessageSquare
+                    className="text-muted-foreground size-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <Link
+                    to="/dashboard/$id/chat/$threadId"
+                    params={{
+                      id: organizationId,
+                      threadId: thread.threadId,
+                    }}
+                    className="min-w-0 flex-1 truncate text-sm hover:underline"
+                  >
+                    {thread.title ?? thread.threadId}
+                  </Link>
+                  <Switch
+                    checked={thread.sharedWithProject === true}
+                    onCheckedChange={(checked) =>
+                      void handleToggleShare(thread.threadId, checked)
+                    }
+                    label={t('threads.shareToggle')}
+                  />
+                </HStack>
+              ))}
+            </div>
           </div>
         )}
       </FormSection>

@@ -47,7 +47,7 @@ export async function readWorkflowStructure(
       slug: args.workflowSlug,
       config,
       hash,
-      message: `Workflow "${config.name}" has ${config.steps.length} step(s).`,
+      message: `Workflow "${args.workflowSlug}" has ${config.steps.length} step(s).`,
     };
   } catch (error) {
     return {

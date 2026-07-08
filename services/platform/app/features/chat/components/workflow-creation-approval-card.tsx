@@ -18,8 +18,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import {
@@ -37,7 +35,6 @@ import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
-import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -331,18 +328,6 @@ function WorkflowCreationApprovalCardComponent({
             <Text as="div" variant="label">
               {metadata.workflowName}
             </Text>
-            {metadata.workflowDescription && (
-              <div
-                className={cn(
-                  markdownWrapperStyles,
-                  'text-muted-foreground max-w-none text-xs line-clamp-2',
-                )}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {metadata.workflowDescription}
-                </ReactMarkdown>
-              </div>
-            )}
           </div>
         </HStack>
       </HStack>
@@ -479,10 +464,12 @@ function WorkflowCreationApprovalCardComponent({
             </HStack>
             {metadata.createdWorkflowSlug && (
               <Link
-                to="/dashboard/$id/automations/$amId"
+                to="/dashboard/$id/workflows/$workflowId"
                 params={{
                   id: organizationId,
-                  amId: slugToUrlParam(metadata.createdWorkflowSlug ?? ''),
+                  workflowId: slugToUrlParam(
+                    metadata.createdWorkflowSlug ?? '',
+                  ),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

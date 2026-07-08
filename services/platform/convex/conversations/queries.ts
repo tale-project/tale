@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 import type { Doc } from '../_generated/dataModel';
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
+import { approxCountUnreadConversations as approxCountUnreadConversationsHelper } from './count_unread';
 import { getConversationWithMessages as getConversationWithMessagesHelper } from './get_conversation_with_messages';
 import { listConversationsPaginated as listConversationsPaginatedHelper } from './list_conversations_paginated';
 import { transformConversation } from './transform_conversation';
@@ -25,6 +26,7 @@ export const listConversationsPaginated = queryWithRLS({
     status: v.optional(conversationStatusValidator),
     priority: v.optional(v.string()),
     channel: v.optional(v.string()),
+    integrationName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listConversationsPaginatedHelper(ctx, args);
@@ -67,19 +69,43 @@ export const approxCountConversationsByStatus = queryWithRLS({
       v.literal('spam'),
       v.literal('archived'),
     ),
+    integrationName: v.optional(v.string()),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const { organizationId, status, integrationName } = args;
+    const query =
+      integrationName !== undefined
+        ? ctx.db
+            .query('conversations')
+            .withIndex('by_org_integration_status_lastMessageAt', (q) =>
+              q
+                .eq('organizationId', organizationId)
+                .eq('integrationName', integrationName)
+                .eq('status', status),
+            )
+        : ctx.db
+            .query('conversations')
+            .withIndex('by_organizationId_and_status', (q) =>
+              q.eq('organizationId', organizationId).eq('status', status),
+            );
     let count = 0;
-    for await (const _ of ctx.db
-      .query('conversations')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', args.status),
-      )) {
+    for await (const _ of query) {
       count++;
       if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;
+  },
+});
+
+export const approxCountUnreadConversations = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    integrationName: v.optional(v.string()),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    return await approxCountUnreadConversationsHelper(ctx, args);
   },
 });
 

@@ -19,6 +19,8 @@ Jedes Projekt trägt fünf Dinge, die aus seiner Sidebar sichtbar sind: **Files*
 
 **[Projekt-Agents](/de/platform/projects/project-agents)** — projektgebundene Agents gegenüber Org-Agents; die Schattenregel; Veröffentlichen in ein Projekt.
 
+**[Backlog](/de/platform/projects/backlog)** — vorgeschlagene Aufgaben, die eine Automatisierung oder ein Teammitglied eingespeist hat; aufs Board starten oder schliessen.
+
 ## Wo das hineinpasst
 
 Projekte sitzen in der Sidebar neben Chat. Der Übergang ist natürlich: Die meisten User starten eine Frage im Chat, merken, dass sie grösser als ein Chat ist, und verschieben sie in ein Projekt. Welche Seite du als Nächstes liest, hängt davon ab, ob du das Projekt baust oder darin arbeitest — [Projekte nutzen](/de/tutorials/member/use-projects) führt durch ein frisches Projekt von Anfang bis Ende; [Projekt-Konzepte](/de/platform/projects/concepts) benennt das Modell.

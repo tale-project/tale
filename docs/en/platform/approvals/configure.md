@@ -19,7 +19,7 @@ Three configuration surfaces produce approval rules; each one writes to the same
 
 - **Settings > Governance > Approval rules** is the org-wide surface. Admins create rules that apply to a resource (documents, customers, products, integrations, MCP servers, agent creation, skill installation) and pick the trigger pattern (any actor, specific roles, specific teams, specific agents).
 - **The agent editor's Governance tab** lets an Editor attach an agent-specific rule. The rule fires only for that agent's calls; it composes with any org-wide rule that also applies.
-- **The workflow step's Approval gate** lets the workflow author require approval at a specific step. This is the [Approvals in workflows](/platform/automations/approvals-in-workflows) surface; the gate writes a one-off rule scoped to that step.
+- **The workflow step's Approval gate** lets the workflow author require approval at a specific step. This is the [Approvals in workflows](/platform/workflows/approvals-in-workflows) surface; the gate writes a one-off rule scoped to that step.
 
 A resource can have multiple rules in effect; the engine runs them all and the action is held until every applicable rule approves. Reject from any rule ends the action.
 
@@ -51,4 +51,4 @@ Every rule change lands in the audit log with the actor, the timestamp, and the 
 
 ## Where this fits
 
-Approval rules are the configuration plane behind [Approval concepts](/platform/approvals/concepts); the workflow-gate variant has its own surface under [Approvals in workflows](/platform/automations/approvals-in-workflows). The natural next read depends on what you are wiring — for workflow gates the workflow page, for agent-write approvals the [Admin agents view](/platform/admin/agents) where the per-agent governance lives.
+Approval rules are the configuration plane behind [Approval concepts](/platform/approvals/concepts); the workflow-gate variant has its own surface under [Approvals in workflows](/platform/workflows/approvals-in-workflows). The natural next read depends on what you are wiring — for workflow gates the workflow page, for agent-write approvals the [Admin agents view](/platform/admin/agents) where the per-agent governance lives.

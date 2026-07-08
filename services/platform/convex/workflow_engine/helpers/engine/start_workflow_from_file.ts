@@ -90,7 +90,6 @@ export const startWorkflowFromFile = internalAction({
     }
 
     debugLog('startWorkflowFromFile Starting execution', {
-      workflowName: config.name,
       workflowSlug: args.workflowSlug,
     });
 

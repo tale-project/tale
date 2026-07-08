@@ -2,6 +2,7 @@
 
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import type {
   ProviderJson,
   ProviderSecrets,
@@ -83,7 +84,7 @@ export function parseProviderJson(content: string): ProviderJson {
   migrateModelDefaults(parsed);
   const result = providerJsonSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid provider JSON: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid provider JSON', result.error));
   }
   return result.data;
 }
@@ -93,7 +94,7 @@ export function parseProviderSecrets(
 ): ProviderSecrets {
   const result = providerSecretsSchema.safeParse(data);
   if (!result.success) {
-    throw new Error(`Invalid provider secrets: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid provider secrets', result.error));
   }
   return result.data;
 }

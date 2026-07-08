@@ -94,9 +94,13 @@ projects.auditLog
 # en.json so translators can land copy ahead of the UI without a
 # re-translate cycle. Remove these once the corresponding components
 # ship (Phase 7+: get-started cards, composer chip, picker, full
-# Agents & Models tab with effective-set messaging, files attach UX).
-projects.agents.addAgent
-projects.agents.addModel
+# Agents & Models tab with effective-set messaging).
+#
+# `addAgent` / `addModel` (Agents & Models tab), the `files.*` attach UX,
+# and the share/delete-confirmation dialogs (`alsoSharedWith*`,
+# `owningTeam*`, `deleteConfirmPhrase`, `deleteDialogTitle/Description`,
+# `deleteCascadeCheckbox`, `deleteSubmit`, `threads.share*`) have shipped —
+# removed from this list; the usage scanner finds them directly.
 projects.agents.allowedListLabel
 projects.agents.emptyAdminBody
 projects.agents.emptyAdminCta
@@ -115,10 +119,6 @@ projects.create.colorLabel
 projects.create.iconLabel
 projects.create.teamLabel
 projects.create.teamPlaceholder
-projects.files.addButton
-projects.files.attachError
-projects.files.attachSuccess
-projects.files.title
 projects.list.columnChats
 projects.list.columnFiles
 projects.list.emptyCta
@@ -136,13 +136,8 @@ projects.overview.getStartedShareBody
 projects.overview.lastActivity
 projects.overview.lastActivityNever
 projects.picker
-projects.settings.deleteConfirmPhrase
-projects.settings.deleteDialogDescription
-projects.settings.deleteDialogTitle
-projects.settings.deleteCascadeCheckbox
 projects.settings.deleteModeCascade
 projects.settings.deleteModeDetach
-projects.settings.deleteSubmit
 projects.settings.iconColor
 projects.settings.knowledge
 projects.settings.knowledgeMode
@@ -151,18 +146,11 @@ projects.settings.knowledgeModeTool
 projects.settings.knowledgeModeContext
 projects.settings.knowledgeModeBoth
 projects.settings.sharing
-projects.settings.alsoSharedWith
-projects.settings.alsoSharedWithHelp
-projects.settings.owningTeam
-projects.settings.owningTeamHelp
 projects.settings.visibility
 projects.settings.visibilityOrgWide
 projects.settings.visibilityShared
 projects.settings.visibilityTeam
 projects.threads.title
-projects.threads.shareSuccess
-projects.threads.unshareSuccess
-projects.threads.shareError
 
 # Audit-log table renders action / actorType / category / status / resourceType
 # from the stored audit row (closed enum sets in convex/audit_logs/schema.ts;
@@ -210,12 +198,33 @@ settings.agents.unsavedChanges.title
 # so the scanner can't tie them to a callsite. Driven by convex/collab/notify.ts.
 inbox
 
-# Tasks feature (Milestone 0 backend; board/table UI lands in Milestone 1).
-# status/priority/views labels are enum-driven dynamic lookups
-# (`t(`tasks.status.${status}`)` etc., driven by the taskStatus/taskPriority
-# unions in convex/tasks/schema.ts); the rest land ahead of the UI so
-# translators can work in parallel. Remove once the board UI ships.
-tasks
+# Tasks feature: the board UI has shipped. `status`/`priority` labels are
+# enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`
+# in task-status-badge.tsx / task-priority-icon.tsx / status-picker.tsx /
+# priority-picker.tsx, driven by the taskStatus/taskPriority unions in
+# convex/tasks/schema.ts) — the scanner's template-prefix match covers those
+# automatically, no allowlist entry needed.
+#
+# `activity.*` is different: TASK_ACTIVITY_LABEL_KEY (app/features/tasks/lib/
+# display.ts) maps a stored activity action onto a DOTTED key suffix (e.g.
+# `activity.created`), read at the task-modal.tsx / resource-detail.tsx
+# timeline via `t(\`tasks.${labelKey}\`)`. The scanner's lookup-table
+# heuristics only match single-segment values, not dotted ones, so it can't
+# tie these back to their keys.
+tasks.activity
+
+# Tasks: authored ahead of the UI shipping (archive/restore actions on a
+# task, comment replies, the generic entity label, the "Unassigned"
+# assignee-picker fallback, and the Table/Timeline view switcher options —
+# only Board/List/Backlog are wired today). Remove each once its component
+# ships and calls `t(...)` directly.
+tasks.actions.archive
+tasks.actions.reply
+tasks.actions.restore
+tasks.entityLabel
+tasks.fields.unassigned
+tasks.views.table
+tasks.views.timeline
 
 # Agent catalog: the install/enable/disable/uninstall success toasts are
 # raised via `t(okKey)` in agent-catalog.tsx, where `okKey` is the literal
@@ -227,13 +236,14 @@ agentCatalog.enabled
 agentCatalog.disabled
 agentCatalog.uninstalled
 
-# Department folder section headers, rendered via `t(`folders.${folder}`)` in
-# agent-catalog.tsx with a runtime folder key — the scanner can't follow the
-# template literal back to these keys.
-agentCatalog.folders.workforce
-agentCatalog.folders.chat
-agentCatalog.folders.github
-agentCatalog.folders.general
+# Folder section headers, rendered via `t(`folders.${folder}`)` in the shared
+# `folderLabel` helper (app/components/catalog/catalog-section.tsx) with a
+# runtime folder key — the scanner can't follow the template literal (or the
+# `t` passed as a parameter) back to these keys. (Agents table/breadcrumb
+# folder paths render RAW segments — only catalog section headings localize.)
+automations.folders.general
+automations.folders.email
+automations.folders.github
 
 # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
 # Runtimes) are driven by the API_NAV_ITEMS catalog in
@@ -257,18 +267,33 @@ toast.error.imageTooLarge
 toast.error.imageMimeUnsupported
 toast.error.imageTypeInvalid
 
-# Connected app blocks: a per-row action's button label is authored in the app's
-# view JSON as `labelKey` / `doneLabelKey` and resolved at render via
-# `t(action.labelKey)` / `t(action.doneLabelKey)` in bound-button.tsx — the
-# scanner can't tie these literals back to that runtime callsite. (The issue-desk
-# ExternalList "Create task" button, and its post-create "Created" done state;
-# the Tasks board's "Start" / "Mark done" / "Merge pull request" row actions.)
-apps.issues.createTask
-apps.list.created
-apps.list.start
-apps.list.markDone
-apps.list.merge
-apps.list.review
+# Connected automation blocks: a per-row action's button label is authored in
+# an automation's view JSON as `labelKey` / `doneLabelKey` and resolved at
+# render via `t(action.labelKey)` / `t(action.doneLabelKey)` in
+# bound-button.tsx — the scanner can't tie these literals back to that runtime
+# callsite. (No builtin bundle ships a view using them today, but they are the
+# generic action vocabulary any pack-authored or uploaded view resolves
+# against: "Create task" / "Created" / "Start" / "Mark done" / "Merge pull
+# request".)
+automations.issues.createTask
+automations.list.created
+automations.list.start
+automations.list.markDone
+automations.list.merge
+
+# Builtin workflow step labels: `ui.labelKey` / `ui.params.verdictLabels`
+# values are authored in a bundle's workflow JSON (e.g.
+# builtin-configs/automations/<slug>/workflows/…) and resolved at render via
+# `t(part.labelKey)` in part-envelope.tsx / status-panel.tsx — runtime values
+# the scanner can't tie back to these keys. (Manifest name/description/config
+# copy is NOT here — manifests translate themselves via their inline `i18n`
+# block.)
+automations.builtin
+
+# `readiness.mismatch.${code}` in automation-page.tsx — `code` is the
+# CredentialRuntimeMismatchCode union (lib/shared/agents/readiness.ts), a
+# runtime value the scanner can't tie back to these keys.
+automations.readiness.mismatch
 
 # Spawned-job card: the status line is `t(statusKey)` in job-card.tsx, where
 # `statusKey` comes from a job.status → key object map — a runtime lookup the
@@ -296,3 +321,14 @@ auth.sso.errors.multipleConnections
 # scope — an enum-driven dispatch the regex scanner can't follow.
 settings.skills.loadErrorDetail
 settings.skills.notFound
+# `common.aria.selectAll` / `common.aria.selectRow` label the data-table
+# selection checkboxes
+# (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
+# by every selectable table). Both are referenced via the
+# `i18n.t('common:aria.…')` colon form the usage scanner's `i18n.t()` matcher
+# can't tie back to a flat key, and the builder runs outside a hook so it
+# can't alias `useT('common')`. (`selectRow` used to escape orphaning through
+# a second `tCommon('aria.selectRow')` site in the removed Puck
+# conversation-list block; the column builder is now its only caller.)
+common.aria.selectAll
+common.aria.selectRow

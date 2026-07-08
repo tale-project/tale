@@ -4,13 +4,13 @@ description: Tale ist der Orchestrator für KI-Agents. Die Dokumentation ist nac
 kind: index
 ---
 
-Tale ist der Orchestrator für KI-Agents. Du chattest mit Modellen über deine eigenen Dokumente, baust Agents, die eine Aufgabe von Anfang bis Ende übernehmen, lässt Automatisierungen im Hintergrund laufen und verwaltest Kunden-Konversationen in einem einzigen Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten in einer Region, die du selbst bestimmst.
+Tale ist der Orchestrator für KI-Agents. Du chattest mit Modellen über deine eigenen Dokumente, baust Agents, die eine Aufgabe von Anfang bis Ende übernehmen, lässt Workflows im Hintergrund laufen und verwaltest Kunden-Konversationen in einem einzigen Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten in einer Region, die du selbst bestimmst.
 
 Das Produkt erscheint in zwei Editionen; jedes Feature, jede API und jede Rolle ist zwischen beiden identisch. Der einzige Unterschied: wer den Stack betreibt. Wähl deine Edition und spring dann in den Abschnitt, der zu deiner täglichen Arbeit passt.
 
 Neu hier? Der schnellste Weg zu einer laufenden Instanz ist der [Self-hosted Quickstart](/de/self-hosted/install/quickstart) — installier die CLI, dann `tale init` und `tale dev`, und du bist in Minuten in deiner eigenen Org angemeldet.
 
-Wähl den Einstieg, der zu dem passt, weshalb du hier bist. Ein **Cloud-Nutzer**, der will, dass Tale den Stack betreibt, beginnt bei [Cloud](/de/cloud). Ein **Selbst-Hoster**, der eine Instanz auf eigener Infrastruktur aufsetzt, beginnt bei [Selbst gehostet](/de/self-hosted). Ein **Plattform-Bauer** — Agents, Automatisierungen, Integrationen — lebt in [Plattform](/de/platform), der kanonischen Feature-Referenz. Ein **Operator**, der eine selbst gehostete Instanz gepatcht und beobachtet hält, geht zu [Betreiben](/de/self-hosted/operate/container-architecture). Ein **Contributor**, der den Quellcode ändert, beginnt mit [Contributor-Setup](/de/develop/contributor-setup).
+Wähl den Einstieg, der zu dem passt, weshalb du hier bist. Ein **Cloud-Nutzer**, der will, dass Tale den Stack betreibt, beginnt bei [Cloud](/de/cloud). Ein **Selbst-Hoster**, der eine Instanz auf eigener Infrastruktur aufsetzt, beginnt bei [Selbst gehostet](/de/self-hosted). Ein **Plattform-Bauer** — Agents, Workflows, Integrationen — lebt in [Plattform](/de/platform), der kanonischen Feature-Referenz. Ein **Operator**, der eine selbst gehostete Instanz gepatcht und beobachtet hält, geht zu [Betreiben](/de/self-hosted/operate/container-architecture). Ein **Contributor**, der den Quellcode ändert, beginnt mit [Contributor-Setup](/de/develop/contributor-setup).
 
 ## Seiten in diesem Abschnitt
 

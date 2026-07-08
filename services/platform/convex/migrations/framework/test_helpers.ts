@@ -20,7 +20,13 @@ import {
 } from '../../enterprise_sso/schema';
 import { dsarPolicyPendingChangesTable } from '../../governance/schema';
 import { configCacheTable } from '../../lib/config_cache/schema';
+import { jsonRecordValidator } from '../../lib/validators/json';
+import { projectsTable } from '../../projects/schema';
 import { ssoProvidersTable } from '../../sso_providers/schema';
+import {
+  wfEventSubscriptionsTable,
+  wfSchedulesTable,
+} from '../../workflows/triggers/schema';
 import { migrationLedgerTable, migrationSnapshotsTable } from './schema';
 
 /**
@@ -68,13 +74,57 @@ export const legacyModelSyncSettingsTable = defineTable({
 }).index('by_organizationId', ['organizationId']);
 
 /**
+ * Legacy `appInstallations`/`appProjectBindings` table names (pre-0.2.93 /04–/05)
+ * as they existed through v0.2.90, before `config` (the automation manifest's
+ * retired `requires.config` values) was dropped in the 0.2.91 config-to-schedule-variables
+ * cutover. The live schema (`automations/schema.ts`) uses `automationInstallations` /
+ * `automationProjectBindings`; these legacy-named tables remain here so 0.2.88/0.2.91
+ * migration round-trip tests can seed the OLD (config-bearing) shape.
+ */
+export const legacyAppInstallationsWithConfigTable = defineTable({
+  organizationId: v.string(),
+  appSlug: v.string(),
+  appName: v.optional(v.string()),
+  installedAt: v.number(),
+  installedBy: v.string(),
+  status: v.union(v.literal('active'), v.literal('broken')),
+  uninstalling: v.optional(v.boolean()),
+  requiredIntegrations: v.array(v.string()),
+  resources: v.array(
+    v.object({
+      domain: v.string(),
+      path: v.string(),
+      contentHash: v.string(),
+      adopted: v.optional(v.boolean()),
+    }),
+  ),
+  config: v.optional(jsonRecordValidator),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_org_slug', ['organizationId', 'appSlug']);
+
+export const legacyAppProjectBindingsWithConfigTable = defineTable({
+  organizationId: v.string(),
+  appSlug: v.string(),
+  projectId: v.id('projects'),
+  boundAt: v.number(),
+  boundBy: v.string(),
+  config: v.optional(jsonRecordValidator),
+})
+  .index('by_project', ['projectId'])
+  .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId']);
+
+/**
  * The minimal schema the v0.2.85 governance migrations touch: the framework's
  * own ledger/snapshot tables, the configCache mirror, the new
  * dsarPolicyPendingChanges table, and the legacy governancePolicies table.
  * Kept minimal (rather than re-deriving the full production schema) because
  * `convexTest` only needs the tables a test actually reads/writes — and a
  * re-`defineSchema` over the spread production tables trips convex-test's table
- * export.
+ * export. Also carries the current (unmodified) `projects`/`wfSchedules`/
+ * `wfEventSubscriptions` tables and the historical config-bearing app tables
+ * above, for the 0.2.88/0.2.91/0.2.92 app-config and trigger migrations'
+ * round-trip tests.
  */
 export const historicalSchema = defineSchema({
   migrationLedger: migrationLedgerTable,
@@ -89,6 +139,13 @@ export const historicalSchema = defineSchema({
   // Legacy tables for the 0.2.87 run_code / model_sync file-cutover migrations.
   orgPackagePolicy: legacyOrgPackagePolicyTable,
   modelSyncSettings: legacyModelSyncSettingsTable,
+  // Current (unmodified) tables the 0.2.88/0.2.91/0.2.92 migrations read
+  // alongside the historical config-bearing app tables below.
+  projects: projectsTable,
+  wfSchedules: wfSchedulesTable,
+  wfEventSubscriptions: wfEventSubscriptionsTable,
+  appInstallations: legacyAppInstallationsWithConfigTable,
+  appProjectBindings: legacyAppProjectBindingsWithConfigTable,
 });
 
 /** Normalize one glob key relative to the convex root, resolving `..`. */

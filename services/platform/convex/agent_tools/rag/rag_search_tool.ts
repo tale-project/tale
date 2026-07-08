@@ -192,6 +192,7 @@ const ragToolArgs = z.discriminatedUnion('operation', [
 export const ragSearchTool = {
   name: 'rag_search' as const,
   availability: 'any' as const,
+  sandboxBridge: true as const,
   tool: createTool({
     description: `Knowledge base tool for searching, retrieving, and listing indexed documents.
 

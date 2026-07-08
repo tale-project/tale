@@ -105,8 +105,19 @@ export async function addMessageToConversation(
 
   const now = Date.now();
   const existingMetadata = parentConversation.metadata ?? {};
+  // Heal a never-stamped conversation: rows without an `integrationName` are
+  // invisible to the per-integration inbox apps and unreplyable — the first
+  // message that names an integration stamps the row. Never overwrites an
+  // existing value.
+  const healIntegrationName =
+    !parentConversation.integrationName &&
+    typeof args.integrationName === 'string' &&
+    args.integrationName !== ''
+      ? { integrationName: args.integrationName }
+      : {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
+    ...healIntegrationName,
     metadata: {
       ...existingMetadata,
       last_message_at: now,

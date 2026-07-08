@@ -127,7 +127,7 @@ async function assembleAgentTools(
   agentSlug: string,
 ): Promise<{ tools?: ToolSet; system?: string; toolCount: number }> {
   const orgSlug = await resolveOrgSlug(ctx, organizationId);
-  // Folder-aware (chat/, workforce/, …) slug→path, flat fallback for system
+  // Folder-aware (chat/, github/, …) slug→path, flat fallback for system
   // agents / freshly-written files — matches the runtime config loaders.
   const rel = await resolveAgentRelativePath(orgSlug, agentSlug);
   const filePath = rel

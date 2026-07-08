@@ -73,7 +73,7 @@ const LiveBrowserPane = lazyComponent<{ available: boolean }>(() =>
 
 /**
  * Optional search params for the chat surface. `projectId` is set when the
- * user opens the chat from a project's "New chat in this project" CTA so
+ * user opens the chat from a project's "New chat" CTA so
  * `useSendMessage` can forward it to `chatWithAgent` for server-side
  * project-access validation.
  */

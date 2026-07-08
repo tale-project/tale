@@ -68,6 +68,10 @@ export interface EnvVarListEditorProps {
   isLoading: boolean;
   /** Disable while a parent operation is in flight. */
   disabled?: boolean;
+  /** Every row is a secret — hides the per-row Secret toggle and defaults new
+   *  rows to secret. For write-only stores (e.g. project secrets) where a
+   *  plaintext value never makes sense. */
+  forceSecret?: boolean;
   /** When provided, each row gains a token-source dropdown — picking one turns
    *  the row into a binding (its env var is filled from a rotating broker pool).
    *  Omitted on surfaces that don't support token sources (no behavior change). */
@@ -125,6 +129,7 @@ export function EnvVarListEditor({
   rows,
   isLoading,
   disabled = false,
+  forceSecret = false,
   tokenSources,
   onSet,
   onDelete,
@@ -149,6 +154,10 @@ export function EnvVarListEditor({
   // Keys present at the last snapshot — the delete set is computed against THIS,
   // not the current rows (a removed row is gone from `localRows`).
   const loadedKeys = useRef(new Set<string>());
+  // The full loaded snapshot — `isDirty` is derived by diffing the live rows
+  // against this, so an edit that nets back to the original state (add a row
+  // then remove it; retype a value back) correctly disarms Save + the blocker.
+  const loadedRows = useRef<Row[]>([]);
 
   // Warn on navigation away while env edits are unsaved; clears once `isDirty`
   // flips false after a successful save. No-ops gracefully outside a
@@ -161,33 +170,67 @@ export function EnvVarListEditor({
     if (isLoading || rows === undefined || dirty.current) return;
     const loaded = rows.map(toRow);
     loadedKeys.current = new Set(loaded.map((r) => r.key));
+    loadedRows.current = loaded;
     setLocalRows(loaded);
   }, [rows, isLoading]);
 
-  // A real, savable edit: guards the snapshot AND enables Save / arms the blocker.
-  const markDirty = (): void => {
+  // Whether the live rows differ from the loaded snapshot in a SAVABLE way —
+  // mirrors what `onSave` actually writes (deletes + upserts), so a net-zero
+  // edit reports clean. Drives Save's enabled state and the navigation blocker.
+  const computeDirty = (rowsNow: Row[]): boolean => {
+    const before = new Map(loadedRows.current.map((r) => [r.key, r]));
+    // A loaded key no longer backed by any row ⇒ a pending delete.
+    const stillPresent = new Set(
+      rowsNow.flatMap((r) => (r.existingKey !== null ? [r.existingKey] : [])),
+    );
+    for (const key of before.keys()) {
+      if (!stillPresent.has(key)) return true;
+    }
+    for (const r of rowsNow) {
+      if (r.existingKey === null) {
+        // A new row counts only once it carries a key (blank rows aren't saved).
+        if (r.key.trim() !== '') return true;
+        continue;
+      }
+      const was = before.get(r.existingKey);
+      if (!was) return true;
+      if (r.key.trim() !== r.existingKey) return true; // renamed
+      if (r.isSecret !== was.isSecret) return true; // Value⇄Secret toggled
+      if ((r.tokenSourceSlug ?? null) !== (was.tokenSourceSlug ?? null)) {
+        return true; // token-source binding changed
+      }
+      if (r.secretDirty) return true; // secret re-typed this session
+      // A plain var's value edit — a secret never exposes its stored value, so a
+      // masked (untouched) secret's display value is never a savable change.
+      if (!r.isSecret && r.value !== was.value) return true;
+    }
+    return false;
+  };
+
+  // Commit a row mutation: guard the server-reload snapshot (sticky until save)
+  // and re-derive the dirty flag from the diff against the loaded snapshot.
+  const commit = (next: Row[]): void => {
     dirty.current = true;
-    setIsDirty(true);
+    setLocalRows(next);
+    setIsDirty(computeDirty(next));
   };
   const patch = (i: number, p: Partial<Row>): void => {
-    markDirty();
-    setLocalRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
+    commit(localRows.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
   // Display-only row mutation: a stored secret's mask preview toggling on
-  // focus/blur. Guards the snapshot like a real edit, but must NOT mark the form
-  // dirty — the mask is never saved, so focusing a secret can't enable Save.
+  // focus/blur. Guards the snapshot like a real edit, but must NOT change the
+  // dirty flag — the mask is never saved, so focusing a secret can't enable Save.
   const patchDisplay = (i: number, p: Partial<Row>): void => {
     dirty.current = true;
     setLocalRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
   const addRow = (): void => {
-    markDirty();
-    setLocalRows((rs) => [
-      ...rs,
+    commit([
+      ...localRows,
       {
         key: '',
         value: '',
-        isSecret: false,
+        isSecret: forceSecret,
         existingKey: null,
         secretDirty: false,
         masked: false,
@@ -196,8 +239,7 @@ export function EnvVarListEditor({
     ]);
   };
   const removeRow = (i: number): void => {
-    markDirty();
-    setLocalRows((rs) => rs.filter((_, j) => j !== i));
+    commit(localRows.filter((_, j) => j !== i));
   };
   // A blank, never-saved row carries no data — drop it immediately. Any row with
   // content (a typed key, or one loaded from the server) goes through a
@@ -394,7 +436,7 @@ export function EnvVarListEditor({
             />
           )}
         </TableCell>
-        {!hasSources && (
+        {!hasSources && !forceSecret && (
           <TableCell className="w-0 align-middle">
             <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
               <Checkbox

@@ -17,7 +17,7 @@ Pour ajouter une personne à ton organisation, ouvre **Paramètres > Membres** e
 
 **Administrateur** gouverne l'organisation : membres, fournisseurs, branding, politiques de gouvernance, intégrations, le journal d'audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
 
-**Développeur** construit : agents, automatisations, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu'un a besoin du plan API et de l'outillage d'intégration.
+**Développeur** construit : agents, workflows, intégrations, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu'un a besoin du plan API et de l'outillage d'intégration.
 
 **Éditeur** organise et opère : agents, base de connaissances (documents, clients, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de prompts. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les intégrations mais pas les configurer. Va vers Éditeur quand quelqu'un fait le travail produit quotidien sans toucher au plan API ou intégrations.
 

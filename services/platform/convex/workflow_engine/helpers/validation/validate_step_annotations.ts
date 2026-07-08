@@ -8,8 +8,8 @@
  * - `ui.params.*` values outside their closed set       → warning (degrades)
  * - `ui.params.fields[].type` outside FIELD_TYPES       → warning
  * - `role` must be slug-shaped                          → error
- *   (resolvability against the org chart is a runtime/advisory concern, not
- *    checked here — a pack must validate without the target org's roster)
+ *   (resolvability against the org's roster is a runtime/advisory concern,
+ *    not checked here — a pack must validate without the target org's roster)
  */
 import { isFieldType } from '../../../../lib/shared/platform/field_types';
 import {

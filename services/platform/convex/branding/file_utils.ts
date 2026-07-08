@@ -13,6 +13,7 @@ import {
   brandingJsonSchema,
   type BrandingJsonConfig,
 } from '../../lib/shared/schemas/branding';
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import {
   getConfigRoot,
   safeJoinWithinDir,
@@ -71,7 +72,7 @@ export function parseBrandingJson(content: string): BrandingJsonConfig {
   const parsed: unknown = JSON.parse(content);
   const result = brandingJsonSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid branding JSON: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid branding JSON', result.error));
   }
   return result.data;
 }

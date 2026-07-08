@@ -5,7 +5,7 @@ description: Wire a three-step workflow where a human approval gate sits between
 
 A workflow with an approval is the shape you reach for when the work has a draft, a decision, and an action — and you want a human between the draft and the action. The approval gate pauses the run until someone clicks Approve; the next step only fires on a green light. This walk builds a daily-summary workflow with a one-step approval gate on a fresh org.
 
-You need an Editor role and one agent that produces a draft (the first useful agent from [Build your first agent](/tutorials/editor/first-agent-end-to-end) works fine). The conceptual side lives in [Automation concepts](/platform/automations/concepts) and [Approval concepts](/platform/approvals/concepts); this walk is the end-to-end mechanic.
+You need an Editor role and one agent that produces a draft (the first useful agent from [Build your first agent](/tutorials/editor/first-agent-end-to-end) works fine). The conceptual side lives in [Workflow concepts](/platform/workflows/concepts) and [Approval concepts](/platform/approvals/concepts); this walk is the end-to-end mechanic.
 
 ## Before you begin
 
@@ -13,7 +13,7 @@ Confirm three things. Your role is at least Editor — workflow editing is gated
 
 ## Step 1 — Create the workflow shell
 
-The first move is the workflow definition — the ordered container the steps live in. Open **Automations > New workflow** and set:
+The first move is the workflow definition — the ordered container the steps live in. From the app that should own the workflow, create a new workflow and set:
 
 - **Name** — `Daily inbox summary`
 - **Trigger** — **Manual** for now; you can swap it for a schedule once the run works
@@ -56,4 +56,4 @@ Save and **Publish** the workflow. Click **Run**. The draft step fires; the appr
 
 Three steps with one gate is the smallest useful workflow-with-approval: agent drafts, human decides, system acts. The same shape scales — swap manual for a schedule trigger, add a second gate before a destructive step, branch on the decision instead of failing on Reject.
 
-For the gate's state machine and routing rules, see [Approvals in workflows](/platform/automations/approvals-in-workflows). For the four pieces every workflow is made of, see [Automation concepts](/platform/automations/concepts).
+For the gate's state machine and routing rules, see [Approvals in workflows](/platform/workflows/approvals-in-workflows). For the four pieces every workflow is made of, see [Workflow concepts](/platform/workflows/concepts).

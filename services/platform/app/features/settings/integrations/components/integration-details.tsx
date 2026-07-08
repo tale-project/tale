@@ -2,10 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Row } from '@tale/ui/layout';
+import { SectionRow, SectionRowGroup } from '@tale/ui/section-row';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
-import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
+import { Check, ChevronRight, Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useCopyButton } from '@/app/hooks/use-copy';
@@ -13,56 +14,11 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type { Integration } from '../hooks/use-integration-manage';
-import { IntegrationRelatedAutomations } from './integration-manage/integration-related-automations';
 
 interface IntegrationDetailsProps {
   integration: Integration;
   connectorCodeLoading?: boolean;
   children?: React.ReactNode;
-}
-
-// ---------------------------------------------------------------------------
-// Section row — matches design: label + optional badge + chevron
-// ---------------------------------------------------------------------------
-
-function SectionRow({
-  label,
-  badge,
-  expanded,
-  onToggle,
-  isLast,
-  children,
-}: {
-  label: string;
-  badge?: React.ReactNode;
-  expanded: boolean;
-  onToggle: () => void;
-  isLast?: boolean;
-  children?: React.ReactNode;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-2 px-4 py-3"
-      >
-        <span className="text-foreground text-[13px] leading-tight font-medium tracking-[-0.078px]">
-          {label}
-        </span>
-        {badge && <span className="inline-flex">{badge}</span>}
-        <span className="text-muted-foreground ml-auto shrink-0">
-          {expanded ? (
-            <ChevronDown className="size-4" aria-hidden />
-          ) : (
-            <ChevronRight className="size-4" aria-hidden />
-          )}
-        </span>
-      </button>
-      {expanded && children}
-      {!isLast && <div className="bg-border h-px w-full" />}
-    </>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +276,6 @@ export function IntegrationDetails({
   if (allowedHosts.length > 0) sections.push('allowedHosts');
   if (hasConnectorCode && (lineCount > 0 || connectorCodeLoading))
     sections.push('connectorCode');
-  sections.push('automations');
   if (children) sections.push('update');
 
   const [expanded, setExpanded] = useState(new Set<string>());
@@ -337,7 +292,7 @@ export function IntegrationDetails({
   const lastSection = sections[sections.length - 1];
 
   return (
-    <div className="border-border overflow-hidden rounded-lg border">
+    <SectionRowGroup>
       {restOperations.length > 0 && (
         <SectionRow
           label={t('integrations.upload.operations')}
@@ -537,12 +492,6 @@ export function IntegrationDetails({
         </SectionRow>
       )}
 
-      <IntegrationRelatedAutomations
-        integrationName={integration.name ?? ''}
-        organizationId={integration.organizationId ?? ''}
-        isLast={lastSection === 'automations'}
-      />
-
       {children && (
         <>
           {lastSection !== 'update' && (
@@ -551,6 +500,6 @@ export function IntegrationDetails({
           {children}
         </>
       )}
-    </div>
+    </SectionRowGroup>
   );
 }

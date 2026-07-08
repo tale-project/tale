@@ -3,7 +3,7 @@ title: Trash
 description: The soft-delete recovery view for retention-trashed records — chat threads, documents, prompts, workflow runs — before they are permanently deleted at the end of the grace window. Admins and Owners read this when someone needs a deleted artefact back.
 ---
 
-Trash is the recovery surface for the rows retention has soft-deleted but not yet hard-deleted. When a chat thread, a document, a prompt template, or a workflow run exceeds its retention window, it moves here for the configured grace window before the next cleanup pass removes it for good. Admins and Owners read this page when a member asks for a deleted artefact back, when an automation deleted the wrong thing, or when an audit needs to know whether a row is still recoverable.
+Trash is the recovery surface for the rows retention has soft-deleted but not yet hard-deleted. When a chat thread, a document, a prompt template, or a workflow run exceeds its retention window, it moves here for the configured grace window before the next cleanup pass removes it for good. Admins and Owners read this page when a member asks for a deleted artefact back, when a workflow deleted the wrong thing, or when an audit needs to know whether a row is still recoverable.
 
 ## A worked restore
 

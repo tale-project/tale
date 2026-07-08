@@ -20,7 +20,7 @@ export const getInstallationInternal = internalQuery({
       installedAt: v.number(),
       installedBy: v.string(),
       contentHash: v.string(),
-      appSlug: v.optional(v.string()),
+      automationSlug: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -36,6 +36,9 @@ export const getInstallationInternal = internalQuery({
   },
 });
 
+// Raw upsert, callable directly with a mutation `ctx` (e.g. the OneDrive sync
+// provisioner) as well as through the `upsertInstallation` internalMutation
+// wrapper below — the two must not drift, so the logic lives here once.
 export async function upsertInstallationImpl(
   ctx: MutationCtx,
   args: {
@@ -43,7 +46,9 @@ export async function upsertInstallationImpl(
     workflowSlug: string;
     installedBy: string;
     contentHash: string;
-    appSlug?: string;
+    // Owning automation slug when this is an automation workflow; omitted for
+    // global workflows.
+    automationSlug?: string;
   },
 ): Promise<Id<'wfInstallations'>> {
   const existing = await ctx.db
@@ -60,7 +65,9 @@ export async function upsertInstallationImpl(
       installedAt: Date.now(),
       installedBy: args.installedBy,
       contentHash: args.contentHash,
-      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+      ...(args.automationSlug !== undefined
+        ? { automationSlug: args.automationSlug }
+        : {}),
     });
     return existing._id;
   }
@@ -71,7 +78,9 @@ export async function upsertInstallationImpl(
     installedAt: Date.now(),
     installedBy: args.installedBy,
     contentHash: args.contentHash,
-    ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+    ...(args.automationSlug !== undefined
+      ? { automationSlug: args.automationSlug }
+      : {}),
   });
 }
 
@@ -82,7 +91,7 @@ export const upsertInstallation = internalMutation({
     installedBy: v.string(),
     contentHash: v.string(),
     // Owning app slug when this is an app workflow; omitted for global workflows.
-    appSlug: v.optional(v.string()),
+    automationSlug: v.optional(v.string()),
   },
   returns: v.id('wfInstallations'),
   handler: async (ctx, args) => upsertInstallationImpl(ctx, args),

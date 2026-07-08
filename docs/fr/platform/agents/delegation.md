@@ -19,7 +19,7 @@ Un worker ne peut détenir au plus que ce que détient l'agent qui le lance. Tro
 
 - **La configuration de l'org** — les outils, skills et intégrations de l'agent, tels que configurés par tes admins. Rien à gérer par worker.
 - **La sélection par job** — l'agent choisit le plus petit ensemble dans ses propres capacités pour cette tâche (moins d'outils = un worker plus ciblé).
-- **Les exceptions de plateforme** — quelques outils ne se transmettent jamais, au premier rang l'outil de question à l'utilisateur : les questions d'un worker passent par l'agent, pour qu'une réponse ne parte jamais dans le vide. Les workers ne peuvent pas non plus lancer de workers.
+- **Les exceptions de plateforme** — quelques outils ne se transmettent jamais, au premier rang l'outil de question à l'utilisateur : les questions d'un worker passent par l'agent, pour qu'une réponse ne parte jamais dans le vide. Les workers ne peuvent pas non plus lancer de workers. Une exception va dans l'autre sens : chaque worker peut toujours lister et lire les fichiers du thread (téléversements, sorties générées) — écrire des fichiers ou exécuter du code reste une sélection explicite.
 
 Tout ce qui sort de ces bornes est silencieusement ignoré et signalé — la carte de job montre ce qui a été retranché, et l'agent s'adapte (en te disant par exemple qu'une intégration doit être connectée).
 
@@ -39,4 +39,4 @@ Un worker tourne dans le budget de tour restant de son agent et ne peut pas l'é
 | L'agent peut bien répondre directement                   |        | ✓          |          |
 | Le travail a des étapes fixes avec des validations entre |        |            | ✓        |
 
-Le coût d'un worker est une exécution de plus ; le gain, un contexte propre avec exactement les bonnes capacités pour la sous-tâche — et une carte de job qui montre ce qui s'est passé. Quand les étapes sont fixes et que tu veux des validations ou de la planification entre elles, une automatisation est la bonne forme.
+Le coût d'un worker est une exécution de plus ; le gain, un contexte propre avec exactement les bonnes capacités pour la sous-tâche — et une carte de job qui montre ce qui s'est passé. Quand les étapes sont fixes et que tu veux des validations ou de la planification entre elles, un workflow est la bonne forme.

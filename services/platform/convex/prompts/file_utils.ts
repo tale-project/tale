@@ -16,6 +16,7 @@
 
 import path from 'node:path';
 
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import {
   promptJsonSchema,
   type PromptJsonConfig,
@@ -55,7 +56,7 @@ export function parsePromptJson(content: string): PromptJsonConfig {
   const parsed: unknown = JSON.parse(content);
   const result = promptJsonSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid prompt JSON: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid prompt JSON', result.error));
   }
   return result.data;
 }

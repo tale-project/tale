@@ -51,9 +51,9 @@ export async function loadDelegateAgents(
   for (const name of delegateNames) {
     try {
       // Locate the backing file through the folder-aware index (chat/,
-      // workforce/, github/, …) — a flat `<slug>.json` fallback covers a
+      // github/, …) — a flat `<slug>.json` fallback covers a
       // brand-new file written before the 60s index cache refreshed. Without
-      // this, every foldered agent (the entire workforce) resolved to a
+      // this, every foldered agent resolved to a
       // non-existent flat path and was silently skipped as "not found".
       const rel = await resolveAgentRelativePath(orgSlug, name);
       const filePath = rel

@@ -5,7 +5,7 @@ import type { MigrationMeta } from '../../../framework/types';
  *
  * Per-project config means one schedule per bound project; existing installs
  * have a single org-level schedule (`projectId` unset). This assigns each
- * org-level, app-owned schedule to its app's binding so `setAppConfig(projectId)`
+ * org-level, app-owned schedule to its app's binding so `setAutomationConfig(projectId)`
  * can sync it and lifecycle (create-on-bind / delete-on-unbind) is keyed right.
  * Idempotent — skips a schedule that already has a `projectId`. `down` unsets
  * `projectId` on app-owned schedules.
@@ -14,7 +14,7 @@ import type { MigrationMeta } from '../../../framework/types';
  * For the rare case of an app bound to several projects, the schedule is assigned
  * to the FIRST binding; the reconcile run itself updates tasks across projects by
  * their external ref, and a per-project schedule for the others materializes on
- * the next (re)bind via `syncAppSchedules`.
+ * the next (re)bind via `syncAutomationSchedules`.
  */
 export const meta: MigrationMeta = {
   id: '0.2.88/02_app_schedules_per_project',

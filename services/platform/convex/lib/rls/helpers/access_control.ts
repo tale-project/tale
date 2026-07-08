@@ -17,7 +17,7 @@ type PlatformTable =
   | 'onedriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
-  | 'wfDefinitions' // file-based automations UI permission subject (DB-backed workflows removed)
+  | 'wfDefinitions' // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   | 'wfExecutions'
   | 'approvals'
   | 'websites'

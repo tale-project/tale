@@ -23,7 +23,7 @@ import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
-import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
+import { SecretRevealDialog } from '../../workflows/triggers/components/secret-reveal-dialog';
 import {
   useCreateAgentWebhook,
   useDeleteAgentWebhook,

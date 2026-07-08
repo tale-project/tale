@@ -1,20 +1,4 @@
 {
-  "name": "Triage unassigned tasks",
-  "description": "Routes new unassigned tasks to the right agent. When a root task is created without an assignee, the project's assignable agents are scored against the task by a small LLM rubric: high-confidence matches are auto-assigned (which starts the normal agent execution loop); everything else gets a suggestion comment so a human decides. Decomposition subtasks (which have a parent) and pre-assigned tasks are ignored. Tune the confidence bar in the 'confident' step or deactivate the trigger in Automations.",
-  "i18n": {
-    "en": {
-      "name": "Triage unassigned tasks",
-      "description": "Scores assignable agents against a new unassigned task and either auto-assigns the best match or leaves a suggestion comment."
-    },
-    "de": {
-      "name": "Nicht zugewiesene Aufgaben triagieren",
-      "description": "Bewertet zuweisbare Agenten gegen eine neue, nicht zugewiesene Aufgabe und weist die beste Übereinstimmung automatisch zu oder hinterlässt einen Vorschlagskommentar."
-    },
-    "fr": {
-      "name": "Trier les tâches non attribuées",
-      "description": "Évalue les agents attribuables face à une nouvelle tâche non attribuée et attribue automatiquement le meilleur candidat ou laisse un commentaire de suggestion."
-    }
-  },
   "version": "1.0.0",
   "metadata": {
     "labels": ["Tasks", "Automation"],
@@ -24,6 +8,13 @@
     "events": [
       {
         "eventType": "task.created"
+      },
+      {
+        "eventType": "task.status_changed",
+        "eventFilter": {
+          "fromStatus": "backlog",
+          "toStatus": "todo"
+        }
       }
     ]
   },
@@ -45,11 +36,11 @@
     },
     {
       "stepSlug": "guard",
-      "name": "Unassigned root tasks only",
+      "name": "Unassigned root tasks at To do only",
       "stepType": "condition",
       "config": {
-        "expression": "!input.task.assigneeId && !input.task.parentTaskId && !input.task.archivedAt && (input.task.status == 'backlog' || input.task.status == 'todo')",
-        "description": "Pre-assigned tasks already have an owner; subtasks were just placed by a decomposing manager; anything else is not triage's business."
+        "expression": "!input.task.assigneeId && !input.task.parentTaskId && !input.task.archivedAt && input.task.status == 'todo'",
+        "description": "Pre-assigned tasks already have an owner; subtasks were just placed by a decomposing manager. A task.created at 'backlog' (a synced proposal) is EXCLUDED here on purpose — it is scored only when the second trigger (task.status_changed backlog->todo) fires on a human 'Start', never on the bare creation event."
       },
       "nextSteps": {
         "true": "candidates",

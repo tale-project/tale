@@ -3,7 +3,7 @@ title: Discussions
 description: Threaded, multi-participant conversations inside a project — ask questions and make decisions, with agents joining when you @mention them.
 ---
 
-**Discussions** (a project's Discussions tab) are threaded conversations that live with a project, alongside its tasks and chats. Use them the way a team uses a discussion board: open a topic, talk it through, and resolve it — with the AI workforce one @mention away.
+**Discussions** (a project's Discussions tab) are threaded conversations that live with a project, alongside its tasks and chats. Use them the way a team uses a discussion board: open a topic, talk it through, and resolve it — with your agents one @mention away.
 
 They reuse the chat message surface, so a discussion reads and composes like a chat, but it belongs to the project and is visible to every project member (not just its author).
 

@@ -77,7 +77,6 @@ export const BrandingPreview = memo(function BrandingPreview({
   data,
 }: BrandingPreviewProps) {
   const { t } = useT('settings');
-  const { t: tConversations } = useT('conversations');
   const { resolvedTheme } = useTheme();
   const { appName, logoUrl, faviconUrl } = data;
   // Mirror the live app: the one picked accent is normalized into the same
@@ -184,13 +183,13 @@ export const BrandingPreview = memo(function BrandingPreview({
                   borderColor: accentColor || 'currentColor',
                 }}
               >
-                {tConversations('status.open')}
+                {t('branding.previewStatus.open')}
               </span>
               <span className="text-muted-foreground text-[10px]">
-                {tConversations('status.closed')}
+                {t('branding.previewStatus.closed')}
               </span>
               <span className="text-muted-foreground text-[10px]">
-                {tConversations('status.spam')}
+                {t('branding.previewStatus.spam')}
               </span>
             </Row>
 

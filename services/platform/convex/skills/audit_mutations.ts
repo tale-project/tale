@@ -14,7 +14,9 @@ import * as AuditLogHelpers from '../audit_logs/helpers';
 
 const ALLOWED_ACTIONS = [
   'upload_skill',
+  'create_skill',
   'duplicate_skill',
+  'update_skill',
   'delete_skill',
 ] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];

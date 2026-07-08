@@ -6,6 +6,7 @@ process.env.SITE_URL ??= 'http://localhost:6006';
 
 export default defineStorybookMain({
   stories: [
+    '../app/components/catalog/**/*.stories.@(ts|tsx)',
     '../app/components/ui/**/*.stories.@(ts|tsx)',
     '../app/components/icons/**/*.stories.@(ts|tsx)',
     '../app/components/theme/**/*.stories.@(ts|tsx)',

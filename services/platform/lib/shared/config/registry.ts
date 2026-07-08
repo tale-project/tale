@@ -137,7 +137,7 @@ const stripJson = (s: string | undefined): string | undefined =>
 export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   {
     name: 'agents',
-    // Tree (was flat): agents are organized in folders (chat/, workforce/,
+    // Tree (was flat): agents are organized in folders (chat/,
     // github/) for grouping. Identity is the explicit `slug` field in each
     // config (NOT the path), so files can move between folders without
     // breaking refs; the folder is organizational only.
@@ -295,15 +295,16 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       fileBaseFor: () => SSO_CONNECTION_KEY, // 'connection' (no extension)
     },
   },
-  // First-class apps: each `apps/<slug>/` is a bundle (manifest + views/
-  // messages/scripts + the app's own app-scoped agents/workflows), copied whole
-  // into every org at create. Read directly from disk by the `listApps` action
-  // (node-direct), so it is NOT mirrored into `configCache`. The DB
-  // `appInstallations` row is the authoritative "installed" signal; the seeded
-  // files are the install SOURCE. Order-independent: an app bundles its own
-  // agents/workflows, so it has no cross-domain seed dependency.
+  // First-class automations: each `automations/<slug>/` is a bundle (manifest
+  // with the inline workflow + views/scripts + the automation's own scoped
+  // agents), copied whole into every org at create. Read directly from disk by
+  // the `listAutomations` action (node-direct), so it is NOT mirrored into
+  // `configCache`. The DB `automationInstallations` row is the authoritative
+  // "installed" signal; the seeded files are the install SOURCE.
+  // Order-independent: an automation bundles its own agents, so it has no
+  // cross-domain seed dependency.
   {
-    name: 'apps',
+    name: 'automations',
     layout: 'bundle',
     readContext: 'node-direct',
     dataModel: 'runtime-state',

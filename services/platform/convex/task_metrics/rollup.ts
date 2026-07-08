@@ -1,13 +1,13 @@
 /**
- * Daily task-metrics rollup — the snapshot layer behind the workforce
- * dashboard, agent scorecards, and project metrics.
+ * Daily task-metrics rollup — the snapshot layer behind project metrics and
+ * the task KPI reads.
  *
  * `rollupOrgDay` recomputes ONE (org, UTC day) pair whole — delete-and-
  * rewrite of the `taskMetricsDaily` (per project) and `agentTaskMetricsDaily`
  * (per agent) rows — so re-running it is always safe (idempotent recompute,
  * the ops "recomputeDay" lever). Sources are scanned under hard caps; a day
  * that hits a cap is stamped `capped: true` (numbers become lower bounds)
- * and logged `[WorkforceRollup]`.
+ * and logged `[TaskMetricsRollup]`.
  *
  * `runDailyRollup` (03:00 UTC cron) sweeps all organizations in pages of
  * `MAX_ORGS_PER_RUN`, chaining itself with the Better Auth pagination cursor
@@ -439,7 +439,7 @@ export const rollupOrgDay = internalMutation({
     }
 
     if (capped) {
-      console.warn('[WorkforceRollup] day capped', {
+      console.warn('[TaskMetricsRollup] day capped', {
         organizationId: args.organizationId,
         dateKey: args.dateKey,
         activityRows,
@@ -534,7 +534,7 @@ export const runDailyRollup = internalAction({
         });
       } catch (error) {
         // One bad org must not stop the fleet sweep.
-        console.error('[WorkforceRollup] org rollup failed', {
+        console.error('[TaskMetricsRollup] org rollup failed', {
           organizationId,
           dateKey,
           error: error instanceof Error ? error.message : String(error),

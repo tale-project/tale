@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CircleSlash,
   File as FileIcon,
+  FolderUp,
   Loader2,
   Upload,
 } from 'lucide-react';
@@ -290,6 +291,7 @@ function UploadConfigsDialogContent({
             type="button"
             variant="link"
             size="sm"
+            icon={FolderUp}
             disabled={isImporting}
             onClick={() => folderInputRef.current?.click()}
           >

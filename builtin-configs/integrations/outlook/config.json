@@ -1,9 +1,7 @@
 {
   "title": "Microsoft Outlook",
   "description": "Manage Outlook mail, calendar, and contacts.",
-  "metadata": {
-    "labels": ["Email"]
-  },
+  "labels": ["Email"],
   "version": 2,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],

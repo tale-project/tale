@@ -2,8 +2,10 @@ import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { internal } from '../../../../_generated/api';
-import schema from '../../../../schema';
-import { buildModules } from '../../../framework/test_helpers';
+import {
+  buildModules,
+  historicalSchema,
+} from '../../../framework/test_helpers';
 import { meta } from './meta';
 
 const DIR = 'migrations/versions/v0_2_88/01_app_config_to_bindings';
@@ -14,7 +16,7 @@ const APP = 'issue-desk';
 
 describe('0.2.88/01 app_config_to_bindings', () => {
   it('up copies org install config onto a binding; down clears the copy', async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest(historicalSchema, modules);
     const projectId = await t.run(async (ctx) => {
       await ctx.db.insert('appInstallations', {
         organizationId: ORG,
@@ -63,7 +65,7 @@ describe('0.2.88/01 app_config_to_bindings', () => {
   });
 
   it('up leaves a binding that already has its own config', async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest(historicalSchema, modules);
     await t.run(async (ctx) => {
       await ctx.db.insert('appInstallations', {
         organizationId: ORG,

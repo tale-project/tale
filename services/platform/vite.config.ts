@@ -100,7 +100,7 @@ export default defineConfig({
       'zod',
       'lodash',
       'date-fns',
-      // Markdown rendering stack. Every consumer (chat, skills, automations,
+      // Markdown rendering stack. Every consumer (chat, skills, workflows,
       // changelog, workspace viewers, docs bodies) lives behind a code-split
       // route or a lazily-loaded dialog, so Vite's cold-start scanner never
       // reaches them. The first navigation that mounts a renderer then
@@ -125,7 +125,7 @@ export default defineConfig({
       'micromark-core-commonmark',
       'micromark-util-classify-character',
       'unist-util-visit',
-      // Charting stack (analytics + automation metrics) is behind lazy routes,
+      // Charting stack (analytics + project metrics) is behind lazy routes,
       // so the cold-start scanner never sees `recharts`. First chart mount
       // discovers it plus its transitive prop-types -> react-is, forcing a
       // re-optimization that 404s the in-flight `react-is-*.js` chunk.
@@ -137,7 +137,7 @@ export default defineConfig({
       // feature into its error boundary:
       //   - `diff`        -> prompt compare view (behind the chat prompt library)
       //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
-      //   - react-json-view -> the JSON input/viewer (automation step config panel)
+      //   - react-json-view -> the JSON input/viewer (workflow step config panel)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
       'diff',
       'elkjs/lib/elk.bundled.js',

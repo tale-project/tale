@@ -70,12 +70,29 @@ const workflowStepUiSchema = z.object({
           }),
         )
         .optional(),
-      // Maps a `gate` step's scalar verdict (e.g. "yes"/"no") to a pack label
-      // key, so the renderer can surface a clear verdict badge.
+      // Maps a `gate` step's scalar verdict (e.g. "yes"/"no") to the label
+      // shown for it, so the renderer can surface a clear verdict badge.
       verdictLabels: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
 });
+
+/**
+ * Per-locale overrides for a STEP's user-facing `name`/`description`,
+ * mirroring the workflow-level {@link workflowI18nSchema} and the manifest's
+ * `apps.ts#automationManifestI18nSchema`. Absent locales fall back to the step's own
+ * literal `name`/`description` (authored in English). Resolve via
+ * `resolveWorkflowStepText` (`lib/shared/utils/resolve-workflow-locale.ts`) —
+ * never index this directly. When present, inline step i18n takes precedence
+ * over a platform `ui.labelKey` catalog lookup (see that resolver's doc).
+ */
+const workflowStepI18nSchema = z.record(
+  z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+  z.object({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+  }),
+);
 
 const workflowStepSchema = z.object({
   stepSlug: z.string().min(1).regex(stepSlugRegex),
@@ -89,6 +106,8 @@ const workflowStepSchema = z.object({
   // renderer reads `ui` from the definition file, joined to live execution state).
   ui: workflowStepUiSchema.optional(),
   role: z.string().optional(),
+  /** Per-locale name/description overrides; see {@link workflowStepI18nSchema}. */
+  i18n: workflowStepI18nSchema.optional(),
 });
 
 const integrationDependencySchema = z.object({
@@ -130,24 +149,33 @@ const workflowTriggersSchema = z.object({
 });
 
 /**
- * Per-locale overrides for the workflow's user-facing `name`/`description`,
- * mirroring the agent i18n-first model. Absent locales fall back to the
- * top-level `name`/`description` (English). Step `name`s stay engine-internal
- * and untranslated.
+ * The last KNOWN-CONSISTENT specification/graph pair: the graph fingerprint
+ * (`workflows/specification_fingerprint.ts::computeGraphFingerprint`) and the
+ * spec-text hash (`computeSpecHash`) as of the last sync, plus the direction
+ * that sync ran in (`authored` = a baseline stamped from the pre-edit stored
+ * state when one side first diverged). `computeSpecSyncStatus` compares both
+ * hashes against the CURRENT config to tell which side moved. Absent entirely
+ * means the pair is author-shipped and trusted as consistent — a fresh
+ * install carries no meta and reads as synced.
  */
-const workflowI18nSchema = z.record(
-  z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-  z.object({
-    name: z.string().min(1).max(200).optional(),
-    description: z.string().max(2000).optional(),
-  }),
-);
+const workflowSpecificationMetaSchema = z.object({
+  sourceHash: z.string().min(1),
+  /** Hash of the trimmed spec text at the last sync; absent on metas written
+   *  before this field existed (then only the graph side is compared). */
+  specHash: z.string().min(1).optional(),
+  generatedAt: z.number().int().positive(),
+  direction: z.enum(['graph_to_spec', 'spec_to_graph', 'authored']),
+  model: z.string().optional(),
+});
 
+/**
+ * A workflow carries NO name/description of its own — its sole identity is
+ * the slug, and its sole text is the `specification`. The automation that
+ * owns an inline workflow provides every user-facing display string
+ * (`automation.json` name/description + i18n); a standalone workflow (an
+ * integration sync template) displays by slug.
+ */
 export const workflowJsonSchema = z.object({
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
-  /** Per-locale name/description overrides; see {@link workflowI18nSchema}. */
-  i18n: workflowI18nSchema.optional(),
   version: z.string().optional(),
   config: workflowConfigSchema.optional(),
   // Documented metadata keys: `autoInstall?: boolean` (provision this
@@ -157,11 +185,23 @@ export const workflowJsonSchema = z.object({
   triggers: workflowTriggersSchema.optional(),
   requires: requiresSchema.optional(),
   steps: z.array(workflowStepSchema).default([]),
+  /**
+   * Free-text natural-language description of the workflow, editable
+   * alongside the step graph and kept bidirectionally in sync with it (see
+   * `convex/workflows/specification_actions.ts`). Optional — most workflows
+   * have no specification until a user (or the assistant) generates one.
+   */
+  specification: z.string().max(20_000).optional(),
+  specificationMeta: workflowSpecificationMetaSchema.optional(),
 });
 
 export type WorkflowJsonConfig = z.infer<typeof workflowJsonSchema>;
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
+export type WorkflowStepI18n = z.infer<typeof workflowStepI18nSchema>;
 export type WorkflowIntegrationDependency = z.infer<
   typeof integrationDependencySchema
 >;
 export type StepType = z.infer<typeof stepTypeSchema>;
+type WorkflowSpecificationMeta = z.infer<
+  typeof workflowSpecificationMetaSchema
+>;

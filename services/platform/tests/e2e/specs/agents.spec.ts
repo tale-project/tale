@@ -22,8 +22,8 @@ test('lists the seeded agent and opens its editor tab navigation', async ({
   org,
 }) => {
   const { organizationId } = org;
-  // The agents table lives on the "All agents" tab (`/agents` redirects there).
-  await page.goto(`/dashboard/${organizationId}/agents/all`);
+  // The agents roster renders directly on the index route.
+  await page.goto(`/dashboard/${organizationId}/agents`);
 
   // The list loads via a filesystem-backed action behind a textless skeleton,
   // so wait for the seeded row to materialize.
@@ -62,7 +62,7 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   const agentSlug = `e2e-agent-${suffix}`;
   const agentDisplayName = `E2E Agent ${suffix}`;
 
-  await page.goto(`/dashboard/${organizationId}/agents/all`);
+  await page.goto(`/dashboard/${organizationId}/agents`);
   await expect(agentRow(page, SEEDED_AGENT_DISPLAY_NAME)).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
@@ -102,7 +102,7 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   // Back to the list and delete it via the per-row 3-dot menu.
-  await page.goto(`/dashboard/${organizationId}/agents/all`);
+  await page.goto(`/dashboard/${organizationId}/agents`);
   const newRow = agentRow(page, agentDisplayName);
   await expect(newRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await newRow

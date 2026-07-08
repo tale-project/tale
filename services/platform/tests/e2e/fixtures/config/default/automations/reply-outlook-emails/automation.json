@@ -1,0 +1,22 @@
+{
+  "name": "Reply to Outlook emails",
+  "description": "Read, triage, and reply to your organization's email conversations in Outlook.",
+  "i18n": {
+    "de": {
+      "name": "Auf Outlook-E-Mails antworten",
+      "description": "Lies, sortiere und beantworte die E-Mail-Konversationen deiner Organisation in Outlook."
+    },
+    "fr": {
+      "name": "Répondre aux e-mails Outlook",
+      "description": "Lis, trie et réponds aux conversations e-mail de ton organisation dans Outlook."
+    }
+  },
+  "icon": "mail",
+  "folder": "email",
+  "labels": ["Email", "Outlook"],
+  "scope": "org",
+  "builtinViews": [{ "id": "inbox" }],
+  "requires": {
+    "integrations": ["outlook"]
+  }
+}

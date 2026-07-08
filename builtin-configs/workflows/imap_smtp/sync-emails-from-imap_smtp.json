@@ -1,20 +1,4 @@
 {
-  "name": "Sync emails from IMAP mailbox",
-  "description": "Sync new inbound emails from INBOX and outbound sent mail from the configured Sent folder into conversations. Each scheduled run imports new INBOX messages, then reads the Sent folder for replies sent outside Tale (or confirms Tale-sent mail via RFC Message-ID deduplication).",
-  "i18n": {
-    "en": {
-      "name": "Sync emails from IMAP mailbox",
-      "description": "Imports new INBOX and Sent-folder messages into Tale conversations."
-    },
-    "de": {
-      "name": "E-Mails aus IMAP-Postfach synchronisieren",
-      "description": "Importiert neue Nachrichten aus INBOX und Gesendet-Ordner als Tale-Konversationen."
-    },
-    "fr": {
-      "name": "Synchroniser les e-mails depuis la boîte IMAP",
-      "description": "Importe les nouveaux messages de la boîte de réception et du dossier Envoyés dans les conversations Tale."
-    }
-  },
   "version": "1.1.0",
   "metadata": {
     "labels": ["Email", "IMAP"]

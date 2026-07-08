@@ -26,6 +26,7 @@ import {
   type SsoConnectionSecrets,
   ssoConnectionSecretsSchema,
 } from '../../lib/shared/schemas/enterprise_sso';
+import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import { resolveGovernanceDir } from '../governance/file_utils';
 import { safeJoinWithinDir } from '../lib/file_io';
 
@@ -78,7 +79,9 @@ export function parseSsoConnectionJson(content: string): SsoConnectionFile {
   const parsed: unknown = JSON.parse(content);
   const result = ssoConnectionFileSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid SSO connection config: ${result.error.message}`);
+    throw new Error(
+      zodErrorMessage('Invalid SSO connection config', result.error),
+    );
   }
   return result.data;
 }
@@ -95,7 +98,7 @@ export function parseSsoSecretsJson(content: string): SsoConnectionSecrets {
   const parsed: unknown = JSON.parse(content);
   const result = ssoConnectionSecretsSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`Invalid SSO secrets file: ${result.error.message}`);
+    throw new Error(zodErrorMessage('Invalid SSO secrets file', result.error));
   }
   return result.data;
 }

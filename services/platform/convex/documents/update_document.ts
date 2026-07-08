@@ -3,7 +3,7 @@
  */
 
 import { ConvexError } from 'convex/values';
-import _ from 'lodash';
+import merge from 'lodash/merge';
 
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Id } from '../_generated/dataModel';
@@ -96,7 +96,7 @@ export async function updateDocument(
   if (args.metadata !== undefined) {
     const existingMetadata = document.metadata;
     if (isRecord(existingMetadata) && isRecord(args.metadata)) {
-      updateData.metadata = _.merge({}, existingMetadata, args.metadata);
+      updateData.metadata = merge({}, existingMetadata, args.metadata);
     } else {
       updateData.metadata = args.metadata;
     }
