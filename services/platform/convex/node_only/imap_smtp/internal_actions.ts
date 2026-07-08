@@ -12,10 +12,12 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
+import { appendSentMessage as appendSentMessageHelper } from './helpers/append_sent_message';
 import { fetchMessages as fetchMessagesHelper } from './helpers/fetch_messages';
 import { sendMessage as sendMessageHelper } from './helpers/send_message';
 import { testConnection as testConnectionHelper } from './helpers/test_connection';
 import type {
+  AppendSentMessageResult,
   FetchMessagesResult,
   SendMessageResult,
   TestConnectionResult,
@@ -41,6 +43,7 @@ export const fetchMessages = internalAction({
   args: {
     imap: imapCredentialsValidator,
     mailbox: v.optional(v.string()),
+    sentFolder: v.optional(v.boolean()),
     since: v.optional(v.number()),
     maxResults: v.optional(v.number()),
     connectTimeoutMs: v.optional(v.number()),
@@ -50,12 +53,14 @@ export const fetchMessages = internalAction({
     // EmailType[] — plain JSON; validated structurally by the conversation flow.
     data: v.optional(v.array(v.any())),
     error: v.optional(v.string()),
+    warning: v.optional(v.string()),
     duration: v.optional(v.number()),
   }),
   handler: async (_ctx, args): Promise<FetchMessagesResult> => {
     return await fetchMessagesHelper({
       imap: args.imap,
       mailbox: args.mailbox,
+      sentFolder: args.sentFolder,
       since: args.since,
       maxResults: args.maxResults,
       connectTimeoutMs: args.connectTimeoutMs,
@@ -92,6 +97,41 @@ export const sendMessage = internalAction({
   }),
   handler: async (_ctx, args): Promise<SendMessageResult> => {
     return await sendMessageHelper(args);
+  },
+});
+
+export const appendSentMessage = internalAction({
+  args: {
+    imap: imapCredentialsValidator,
+    from: v.string(),
+    to: v.array(v.string()),
+    cc: v.optional(v.array(v.string())),
+    bcc: v.optional(v.array(v.string())),
+    subject: v.string(),
+    text: v.optional(v.string()),
+    html: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.array(v.string())),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          filename: v.string(),
+          contentType: v.string(),
+          url: v.string(),
+        }),
+      ),
+    ),
+    sentMailbox: v.optional(v.string()),
+    connectTimeoutMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    mailboxPath: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (_ctx, args): Promise<AppendSentMessageResult> => {
+    return await appendSentMessageHelper(args);
   },
 });
 

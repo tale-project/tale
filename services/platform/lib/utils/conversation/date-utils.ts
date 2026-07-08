@@ -37,5 +37,17 @@ export function groupMessagesByDate(messages: Message[]): MessageGroup[] {
     }
   });
 
-  return Array.from(groupMap.values());
+  return Array.from(groupMap.entries())
+    .sort(([dateKeyA], [dateKeyB]) => dateKeyA.localeCompare(dateKeyB))
+    .map(([, group]) => ({
+      date: group.date,
+      messages: [...group.messages].sort((a, b) => {
+        const timeA = dayjs(a.timestamp).valueOf();
+        const timeB = dayjs(b.timestamp).valueOf();
+        if (timeA !== timeB) {
+          return timeA - timeB;
+        }
+        return a.id.localeCompare(b.id);
+      }),
+    }));
 }

@@ -2,6 +2,7 @@
  * Transform conversation to include computed fields (business logic)
  */
 
+import { compareConversationMessages } from '../../lib/shared/conversations/message-order';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { getPendingApprovalForResource } from '../approvals/helpers';
@@ -92,23 +93,8 @@ export async function transformConversation(
     };
   }
 
-  // Sort messages: first by deliveredAt (null values last), then by _creationTime
-  messageDocs.sort((a, b) => {
-    // If both have deliveredAt, sort by deliveredAt ascending
-    if (a.deliveredAt !== undefined && b.deliveredAt !== undefined) {
-      return a.deliveredAt - b.deliveredAt;
-    }
-    // If only a has null deliveredAt, b comes first
-    if (a.deliveredAt === undefined && b.deliveredAt !== undefined) {
-      return 1;
-    }
-    // If only b has null deliveredAt, a comes first
-    if (a.deliveredAt !== undefined && b.deliveredAt === undefined) {
-      return -1;
-    }
-    // If both have null deliveredAt, sort by _creationTime ascending
-    return a._creationTime - b._creationTime;
-  });
+  // Sort chronologically by the same timestamp shown in the UI (sentAt).
+  messageDocs.sort(compareConversationMessages);
 
   debugLog('messageDocs', messageDocs.length);
   debugLog('conversation', conversation._id);

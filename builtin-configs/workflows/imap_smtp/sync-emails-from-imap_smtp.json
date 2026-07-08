@@ -1,21 +1,21 @@
 {
   "name": "Sync emails from IMAP mailbox",
-  "description": "Sync new inbound emails from a private IMAP mailbox into conversations. Each scheduled run reads the most recently delivered inbound message as a cursor, fetches messages newer than it over IMAP, and creates conversations from them.",
+  "description": "Sync new inbound emails from INBOX and outbound sent mail from the configured Sent folder into conversations. Each scheduled run imports new INBOX messages, then reads the Sent folder for replies sent outside Tale (or confirms Tale-sent mail via RFC Message-ID deduplication).",
   "i18n": {
     "en": {
       "name": "Sync emails from IMAP mailbox",
-      "description": "Imports new IMAP mailbox messages into Tale conversations."
+      "description": "Imports new INBOX and Sent-folder messages into Tale conversations."
     },
     "de": {
       "name": "E-Mails aus IMAP-Postfach synchronisieren",
-      "description": "Importiert neue Nachrichten aus dem IMAP-Postfach als Tale-Konversationen."
+      "description": "Importiert neue Nachrichten aus INBOX und Gesendet-Ordner als Tale-Konversationen."
     },
     "fr": {
       "name": "Synchroniser les e-mails depuis la boîte IMAP",
-      "description": "Importe les nouveaux messages de la boîte IMAP dans les conversations Tale."
+      "description": "Importe les nouveaux messages de la boîte de réception et du dossier Envoyés dans les conversations Tale."
     }
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "metadata": {
     "labels": ["Email", "IMAP"]
   },
@@ -134,7 +134,7 @@
       },
       "nextSteps": {
         "true": "insert_emails_to_conversation",
-        "false": "noop"
+        "false": "query_latest_outbound_message"
       }
     },
     {
@@ -146,6 +146,104 @@
         "parameters": {
           "operation": "create_from_email",
           "emails": "{{steps.fetch_new_emails.output.data.result.data || steps.fetch_latest_emails.output.data.result.data}}",
+          "status": "{{config.conversationStatus}}",
+          "integrationName": "imap_smtp"
+        }
+      },
+      "nextSteps": {
+        "success": "query_latest_outbound_message"
+      }
+    },
+    {
+      "stepSlug": "query_latest_outbound_message",
+      "name": "Query Latest Outbound Message",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "query_latest_outbound_message_for_sync",
+          "channel": "email",
+          "integrationName": "imap_smtp"
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_sent_cursor"
+      }
+    },
+    {
+      "stepSlug": "check_has_sent_cursor",
+      "name": "Check Has Sent Cursor",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.query_latest_outbound_message.output.data.message != null",
+        "description": "Check if we have a previously synced outbound message to use as the sent-folder cursor"
+      },
+      "nextSteps": {
+        "true": "fetch_new_sent_emails",
+        "false": "fetch_latest_sent_emails"
+      }
+    },
+    {
+      "stepSlug": "fetch_new_sent_emails",
+      "name": "Fetch New Sent Emails (Incremental)",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "imap_smtp",
+          "operation": "list_messages",
+          "params": {
+            "mailbox": "sent",
+            "since": "{{steps.query_latest_outbound_message.output.data.message.sentAt || steps.query_latest_outbound_message.output.data.message.deliveredAt}}",
+            "maxResults": 25
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_sent_emails"
+      }
+    },
+    {
+      "stepSlug": "fetch_latest_sent_emails",
+      "name": "Fetch Latest Sent Emails (First Run)",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "imap_smtp",
+          "operation": "list_messages",
+          "params": {
+            "mailbox": "sent",
+            "maxResults": 25
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_sent_emails"
+      }
+    },
+    {
+      "stepSlug": "check_has_sent_emails",
+      "name": "Check Has Sent Emails",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.fetch_new_sent_emails.output.data.result.data|length > 0) || (steps.fetch_latest_sent_emails.output.data.result.data|length > 0)",
+        "description": "Check if any sent emails were fetched from either path"
+      },
+      "nextSteps": {
+        "true": "insert_sent_emails_to_conversation",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "insert_sent_emails_to_conversation",
+      "name": "Insert Sent Emails to Conversation",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "create_from_sent_email",
+          "emails": "{{steps.fetch_new_sent_emails.output.data.result.data || steps.fetch_latest_sent_emails.output.data.result.data}}",
           "status": "{{config.conversationStatus}}",
           "integrationName": "imap_smtp"
         }
