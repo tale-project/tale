@@ -222,7 +222,7 @@ describe('transformConversation flat list-row fields', () => {
     return ctx as unknown as QueryCtx;
   }
 
-  function makeMessageDoc(content: string): Record<string, unknown> {
+  function makeMessageDocWithContent(content: string): Record<string, unknown> {
     return {
       _id: 'msg_1',
       _creationTime: 1_700_000_100_000,
@@ -271,7 +271,7 @@ describe('transformConversation flat list-row fields', () => {
 
   it('carries the latest message content RAW (HTML intact) on lastMessagePreview', async () => {
     const raw = '<p>Hello <b>there</b></p>';
-    const ctx = createMockCtxWithMessage(makeMessageDoc(raw));
+    const ctx = createMockCtxWithMessage(makeMessageDocWithContent(raw));
     const conversation = makeConversation();
     const customer = makeCustomerDoc();
 
@@ -283,7 +283,7 @@ describe('transformConversation flat list-row fields', () => {
 
   it('caps lastMessagePreview at 200 characters', async () => {
     const long = 'x'.repeat(500);
-    const ctx = createMockCtxWithMessage(makeMessageDoc(long));
+    const ctx = createMockCtxWithMessage(makeMessageDocWithContent(long));
     const conversation = makeConversation();
     const customer = makeCustomerDoc();
 

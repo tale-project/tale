@@ -12,9 +12,9 @@ interface MessageGroup<T> {
  * missing or invalid one), preserving encounter order. Structural on purpose:
  * the conversation blocks group their own normalized message shapes.
  */
-export function groupMessagesByDate<T extends { timestamp?: string }>(
-  messages: T[],
-): MessageGroup<T>[] {
+export function groupMessagesByDate<
+  T extends { timestamp?: string; id: string },
+>(messages: T[]): MessageGroup<T>[] {
   const groupMap = new Map<string, MessageGroup<T>>();
 
   messages.forEach((message) => {
