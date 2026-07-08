@@ -1,4 +1,9 @@
-import { isBoolean, isNil, isNumber, isString, toString, trim } from 'lodash';
+import isBoolean from 'lodash/isBoolean';
+import isNil from 'lodash/isNil';
+import isNumber from 'lodash/isNumber';
+import isString from 'lodash/isString';
+import toString from 'lodash/toString';
+import trim from 'lodash/trim';
 import Mustache from 'mustache';
 
 import { buildContext } from './build_context';

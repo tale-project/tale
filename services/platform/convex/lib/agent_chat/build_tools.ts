@@ -1,6 +1,6 @@
 'use node';
 
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 
 import { isRecord, narrowStringUnion } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
