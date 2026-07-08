@@ -139,13 +139,21 @@ export async function runStepsInSession(
   const abort = new AbortController();
   const stdoutParts: string[] = [];
   const stderrParts: string[] = [];
-  const runExec = async (command: string[], perTimeout: number) =>
+  const runExec = async (
+    command: string[],
+    perTimeout: number,
+    // Steps run from /user/code (staging created it — a step implies a staged
+    // script). Installs run from the workspace root: /user always exists,
+    // while /user/code doesn't on a fresh session with nothing staged (an
+    // install-only call), and runnerd rejects a non-existent cwd.
+    cwd: '/user/code' | '/user' = '/user/code',
+  ) =>
     drainSessionExecResilient(
       sessionId,
       {
         execId: randomUUID(),
         command,
-        cwd: '/user/code',
+        cwd,
         collectOutput: true,
         timeoutMs: perTimeout,
       },
@@ -172,7 +180,7 @@ export async function runStepsInSession(
     installs.push({ tool: 'npm', command: ['npm', 'install', '-g', ...node] });
   }
   for (const { tool, command } of installs) {
-    const r = await runExec(command, installTimeoutMs);
+    const r = await runExec(command, installTimeoutMs, '/user');
     const failed = r.status !== 'completed' || (r.exitCode ?? 0) !== 0;
     // Install-only runs (and failures) surface installer stdout — it carries
     // the resolved versions / the resolver error. Successful script runs drop

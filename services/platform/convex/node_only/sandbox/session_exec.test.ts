@@ -85,11 +85,16 @@ function execResult(over: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function callArg(call: number): { command: string[]; timeoutMs: number } {
+function callArg(call: number): {
+  command: string[];
+  timeoutMs: number;
+  cwd: string;
+} {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test helper over the mocked wire body
   return drainSessionExecResilient.mock.calls[call][1] as {
     command: string[];
     timeoutMs: number;
+    cwd: string;
   };
 }
 
@@ -123,6 +128,9 @@ describe('runStepsInSession — install semantics', () => {
       '--no-input',
       'pandas',
     ]);
+    // Installs run from the workspace root — /user/code may not exist yet on
+    // a fresh session with nothing staged, and runnerd rejects a missing cwd.
+    expect(callArg(0).cwd).toBe('/user');
   });
 
   it('fails the run when pip exits non-zero: INSTALL_FAILED, nothing else runs', async () => {
@@ -183,6 +191,8 @@ describe('runStepsInSession — install semantics', () => {
     expect(callArg(0).timeoutMs).toBe(120_000);
     expect(callArg(1).timeoutMs).toBe(30_000);
     expect(callArg(1).command).toEqual(['python3', '/user/code/a.py']);
+    expect(callArg(0).cwd).toBe('/user');
+    expect(callArg(1).cwd).toBe('/user/code');
   });
 
   it('keeps a caller-raised timeout for the install too, capped at 300s', async () => {
