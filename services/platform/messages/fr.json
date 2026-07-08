@@ -1471,8 +1471,6 @@
     },
     "workdir": {
       "label": "Répertoire de travail",
-      "chipTooltip": "Là où l'agent démarre à chaque message. Pointe-le vers le dossier d'un dépôt dans l'espace de travail : l'agent y retrouve les instructions et les skills propres à ce dépôt.",
-      "rootLabel": "workspace",
       "placeholder": "ex. tale",
       "helper": "Relatif à la racine de l'espace de travail. S'applique dès ton prochain message ; tant que le dossier n'existe pas encore, l'agent reste à la racine.",
       "save": "Enregistrer",
@@ -1488,6 +1486,8 @@
     "sandbox": {
       "label": "Sandbox",
       "tooltip": "S'exécute dans une VM sandbox isolée avec son propre espace de travail persistant — elle peut exécuter de vraies commandes et installer des paquets, à l'écart de ton ordinateur.",
+      "settingsTitle": "Paramètres de la sandbox",
+      "settingsHint": "Clique pour modifier les paramètres de la sandbox de cette conversation.",
       "working": "En cours",
       "workingTooltip": "L'agent exécute actuellement une tâche dans sa sandbox.",
       "sleeping": "En veille",

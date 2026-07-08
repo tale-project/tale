@@ -49,8 +49,8 @@ vi.mock('./model-selector', () => ({
 vi.mock('./external-agent-mode-toggle', () => ({
   ExternalAgentModeToggle: () => null,
 }));
-vi.mock('./sandbox-state-indicator', () => ({
-  SandboxStateIndicator: () => <div data-testid="sandbox-stub" />,
+vi.mock('./sandbox-chip', () => ({
+  SandboxChip: () => <div data-testid="sandbox-stub" />,
 }));
 vi.mock('./sandbox-workdir-chip', () => ({
   SandboxWorkdirChip: () => null,

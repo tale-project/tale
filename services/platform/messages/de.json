@@ -1470,8 +1470,6 @@
     },
     "workdir": {
       "label": "Arbeitsverzeichnis",
-      "chipTooltip": "Hier startet der Agent bei jeder Nachricht. Zeig auf einen Repo-Ordner im Arbeitsbereich, damit der Agent dessen eigene Anweisungen und Skills nutzt.",
-      "rootLabel": "workspace",
       "placeholder": "z. B. tale",
       "helper": "Relativ zum Stammverzeichnis des Arbeitsbereichs. Gilt ab deiner nächsten Nachricht; solange der Ordner noch nicht existiert, läuft der Agent im Stammverzeichnis.",
       "save": "Speichern",
@@ -1487,6 +1485,8 @@
     "sandbox": {
       "label": "Sandbox",
       "tooltip": "Läuft in einer isolierten Sandbox-VM mit eigenem dauerhaftem Arbeitsbereich — sie kann echte Befehle ausführen und Pakete installieren, sicher von deinem Computer getrennt.",
+      "settingsTitle": "Sandbox-Einstellungen",
+      "settingsHint": "Klicke, um die Sandbox-Einstellungen dieser Konversation zu ändern.",
       "working": "Arbeitet",
       "workingTooltip": "Der Agent führt gerade eine Aufgabe in seiner Sandbox aus.",
       "sleeping": "Schläft",

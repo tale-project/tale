@@ -75,8 +75,7 @@ import {
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
-import { SandboxStateIndicator } from './sandbox-state-indicator';
-import { SandboxWorkdirChip } from './sandbox-workdir-chip';
+import { SandboxChip } from './sandbox-chip';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
@@ -1328,14 +1327,10 @@ export function ChatInput({
                       organizationId={organizationId}
                       disabled={attachDisabled}
                     />
-                    <SandboxWorkdirChip
+                    <SandboxChip
                       threadId={threadId}
                       organizationId={organizationId}
                       disabled={attachDisabled}
-                    />
-                    <SandboxStateIndicator
-                      threadId={threadId}
-                      organizationId={organizationId}
                     />
                     {/* No Workspace-files / Live-browser pills here: on desktop
                         the right-edge pane strips are the open affordance, and
