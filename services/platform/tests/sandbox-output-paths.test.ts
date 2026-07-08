@@ -37,4 +37,14 @@ describe('run_code tool — container path contract', () => {
   it('points deliverables at the real harvest dir /user/output', () => {
     expect(runCodeToolSource).toContain('/user/output');
   });
+
+  it('teaches every mode with a copy-paste JSON example', () => {
+    for (const example of [
+      '"mode": "inline"',
+      '"mode": "script"',
+      '"mode": "install"',
+    ]) {
+      expect(runCodeToolSource).toContain(example);
+    }
+  });
 });

@@ -181,7 +181,9 @@ type JSONSchema7Object = Record<string, unknown>;
  * All properties become optional except those required by every variant
  * (typically just the discriminator field like `operation`).
  */
-function flattenUnionSchema(schema: JSONSchema7Object): JSONSchema7Object {
+export function flattenUnionSchema(
+  schema: JSONSchema7Object,
+): JSONSchema7Object {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON Schema oneOf/anyOf are arrays of schema objects
   const variants = (schema.oneOf ?? schema.anyOf) as
     | JSONSchema7Object[]

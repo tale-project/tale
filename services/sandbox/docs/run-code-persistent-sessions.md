@@ -154,9 +154,9 @@ just stay there:
 - **Packages.** Installed in a turn, they persist in the workspace (pip/npm
   target under the persistent `/user`), so re-declaring `packages` becomes
   optional, not required. This removes the `/dev/null` "install-only" hack: a
-  bare `pip install …` step in a persistent session simply persists. (We can
-  still accept a `packages`-only `run_code` with no `entryPath`/`steps` as a
-  first-class "prepare env" call — a small, separate ergonomics win.)
+  bare `pip install …` step in a persistent session simply persists. (The
+  first-class "prepare env" call shipped as `run_code`'s `mode: "install"` —
+  packages-only, no script.)
 
 ## 7. `run_code` always returns the sandbox state manifest
 

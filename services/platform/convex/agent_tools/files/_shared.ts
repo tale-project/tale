@@ -237,6 +237,44 @@ export function packageBaseName(spec: string): string {
   return delim === -1 ? trimmed : trimmed.slice(0, delim);
 }
 
+/**
+ * THE run_code package-policy semantics — the runtime gate
+ * (`run_code_tool.ts`) and the admin policy tester (`run-code-policy.tsx`)
+ * both decide through this function so they can never drift: matching is on
+ * the spec's base name, case-insensitive (pip normalizes names per PEP 503;
+ * npm names are lowercase by registry rule), and an explicit deny always
+ * wins — even in allowlist mode.
+ */
+export type PackagePolicyDecision =
+  | { allowed: true; reason: 'allowlist_match' | 'denylist_not_matched' }
+  | { allowed: false; reason: 'deny_match' | 'allowlist_miss' };
+
+export function evaluatePackageAgainstPolicy(
+  spec: string,
+  bucket: 'python' | 'node',
+  policy: {
+    defaultMode: 'allowlist' | 'denylist';
+    pythonAllow: string[];
+    pythonDeny: string[];
+    nodeAllow: string[];
+    nodeDeny: string[];
+  },
+): PackagePolicyDecision {
+  const base = packageBaseName(spec).toLowerCase();
+  const norm = (list: string[]) => list.map((s) => s.trim().toLowerCase());
+  const deny = norm(bucket === 'python' ? policy.pythonDeny : policy.nodeDeny);
+  if (deny.includes(base)) return { allowed: false, reason: 'deny_match' };
+  if (policy.defaultMode === 'allowlist') {
+    const allow = norm(
+      bucket === 'python' ? policy.pythonAllow : policy.nodeAllow,
+    );
+    return allow.includes(base)
+      ? { allowed: true, reason: 'allowlist_match' }
+      : { allowed: false, reason: 'allowlist_miss' };
+  }
+  return { allowed: true, reason: 'denylist_not_matched' };
+}
+
 /** Convert a `_shared.ts` zod refinement helper signature into the form
  *  consumed by zod's `.superRefine(val, ctx)` callback. */
 export function makeZodPackagesRefiner(): (

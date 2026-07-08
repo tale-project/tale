@@ -75,6 +75,7 @@ import type * as agent_tools_human_input_actions from "../agent_tools/human_inpu
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
+import type * as agent_tools_inline_language from "../agent_tools/inline_language.js";
 import type * as agent_tools_integrations_approval_result from "../agent_tools/integrations/approval_result.js";
 import type * as agent_tools_integrations_capture_sources from "../agent_tools/integrations/capture_sources.js";
 import type * as agent_tools_integrations_create_bound_integration_tool from "../agent_tools/integrations/create_bound_integration_tool.js";
@@ -1770,6 +1771,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
+  "agent_tools/inline_language": typeof agent_tools_inline_language;
   "agent_tools/integrations/approval_result": typeof agent_tools_integrations_approval_result;
   "agent_tools/integrations/capture_sources": typeof agent_tools_integrations_capture_sources;
   "agent_tools/integrations/create_bound_integration_tool": typeof agent_tools_integrations_create_bound_integration_tool;
