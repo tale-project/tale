@@ -168,21 +168,18 @@ export function UploadStep({ onBundleParsed }: UploadStepProps) {
         </FileUpload.DropZone>
       </FileUpload.Root>
 
-      <Row gap={3} align="center" justify="center">
-        <span className="bg-border h-px flex-1" />
-        <Text variant="caption">{t('upload.or', { defaultValue: 'or' })}</Text>
-        <span className="bg-border h-px flex-1" />
-      </Row>
-
       <Row justify="center">
         <Button
           type="button"
-          variant="secondary"
+          variant="link"
+          size="sm"
+          icon={FolderUp}
           disabled={isParsing}
           onClick={() => folderInputRef.current?.click()}
         >
-          <FolderUp className="size-4" />
-          {t('upload.selectFolder', { defaultValue: 'Select folder' })}
+          {t('upload.selectFolder', {
+            defaultValue: 'Select a folder instead',
+          })}
         </Button>
         <input
           ref={folderInputRef}

@@ -100,10 +100,10 @@ function FlowCenterToolbar({
         {centerActions}
         {onOpenAi && (
           <Button
+            variant="secondary"
             size="icon"
             title={t('flow.aiEditor')}
             onClick={onOpenAi}
-            className="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
           >
             <Sparkles className="size-4" />
           </Button>

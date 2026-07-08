@@ -242,6 +242,17 @@ export function WebhooksSection({
       title={t('triggers.webhooks.title')}
       count={webhooks?.length ?? 0}
       defaultOpen={(webhooks?.length ?? 0) > 0}
+      action={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleCreate}
+          disabled={isCreating}
+        >
+          <Plus className="mr-2 size-4" />
+          {t('triggers.webhooks.createButton')}
+        </Button>
+      }
     >
       <DataTable
         columns={columns}
@@ -253,16 +264,6 @@ export function WebhooksSection({
           title: t('triggers.webhooks.emptyTitle'),
           description: t('triggers.webhooks.emptyDescription'),
         }}
-        actionMenu={
-          <Button
-            variant="secondary"
-            onClick={handleCreate}
-            disabled={isCreating}
-          >
-            <Plus className="mr-2 size-4" />
-            {t('triggers.webhooks.createButton')}
-          </Button>
-        }
       />
 
       {createdUrl && (

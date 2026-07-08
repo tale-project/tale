@@ -99,6 +99,11 @@ export function TabNavigation({
   // Track if we should animate (only after initial render)
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const hasInitialized = useRef(false);
+  // Whether the tab strip actually overflows its container. The trailing
+  // action group's left shadow is a "tabs scroll under here" affordance, so it
+  // must only show when there is something to scroll — otherwise it reads as a
+  // stray shadow floating beside the buttons on a wide viewport.
+  const [isScrollable, setIsScrollable] = useState(false);
 
   // Filter items by ability
   const accessibleItems = useMemo(
@@ -172,10 +177,23 @@ export function TabNavigation({
     }
   }, [activeIndex]);
 
+  // Measure whether the tab strip overflows (drives the trailing shadow).
+  const measureScrollable = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const next = scroller.scrollWidth - scroller.clientWidth > 1;
+    setIsScrollable((prev) => (prev === next ? prev : next));
+  }, []);
+
   // Update indicator on active item change
   useEffect(() => {
     updateIndicator();
   }, [updateIndicator]);
+
+  // Re-measure overflow when the item set changes (and on mount).
+  useEffect(() => {
+    measureScrollable();
+  }, [measureScrollable, accessibleItems.length]);
 
   // Re-measure once web fonts finish loading — belt-and-braces. The indicator
   // width/left come from `offsetWidth`/`offsetLeft`, measured against whatever
@@ -282,6 +300,7 @@ export function TabNavigation({
     const indicator = indicatorRef.current;
     if (indicator) indicator.style.transition = 'none';
     updateIndicator();
+    measureScrollable();
     if (resizeRestoreTimerRef.current) {
       clearTimeout(resizeRestoreTimerRef.current);
     }
@@ -391,9 +410,17 @@ export function TabNavigation({
 
       {/* Trailing action group — pinned to the right, outside the scroll area,
           so it stays in view while the tabs scroll under it. The left shadow +
-          background fade make the scrolling tabs visibly slide beneath it. */}
+          background fade make the scrolling tabs visibly slide beneath it —
+          shown ONLY when the strip actually overflows, else it reads as a stray
+          shadow floating beside the buttons on a wide viewport. */}
       {children && (
-        <div className="bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3 shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]">
+        <div
+          className={cn(
+            'bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3',
+            isScrollable &&
+              'shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]',
+          )}
+        >
           {children}
         </div>
       )}

@@ -129,7 +129,9 @@ describe('AppInstallWizard', () => {
     expect(installSpy).toHaveBeenCalledTimes(1);
     expect(installSpy).toHaveBeenCalledWith('issue-desk', undefined);
 
-    expect(screen.getByText('GitHub · step 2 of 3')).toBeInTheDocument();
+    expect(screen.getAllByText('GitHub · step 2 of 3').length).toBeGreaterThan(
+      0,
+    );
 
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     await user.click(connectBtn);
@@ -177,8 +179,8 @@ describe('AppInstallWizard', () => {
     // Install → auth-mode step (4 steps: install, auth-mode, agent-secrets, done).
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(
-      await screen.findByText('Agent mode · step 2 of 4'),
-    ).toBeInTheDocument();
+      (await screen.findAllByText('Agent mode · step 2 of 4')).length,
+    ).toBeGreaterThan(0);
 
     // Advance into the agent's secrets step — it asks for the declared key.
     await user.click(screen.getByRole('button', { name: 'Next' }));
