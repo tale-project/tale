@@ -1067,11 +1067,14 @@ export async function runDevFleet() {
         );
       }
 
-      // Convex never GCs old function-bundle blobs locally; prune or reset
-      // before the pre-warm so cold starts stay inside the CLI's 30s window.
-      // Non-essential: a maintenance failure must never block backend bring-up.
+      // Non-essential prune/snapshot cleanup must never block backend bring-up,
+      // but a missing live module blob is fatal — continuing would boot into
+      // the half-dead state (chat/crons InternalServerError + WS drop).
       try {
         const maintenance = runConvexLocalMaintenance(platformRoot);
+        if (maintenance.integrityError) {
+          throw new Error(maintenance.integrityError);
+        }
         if (maintenance.warning) {
           warnLine(maintenance.warning);
         }
@@ -1079,9 +1082,11 @@ export async function runDevFleet() {
           infoLine(maintenance.message);
         }
       } catch (err) {
-        warnLine(
-          `Convex local maintenance skipped (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('module storage is incomplete')) {
+          throw err;
+        }
+        warnLine(`Convex local maintenance skipped (non-fatal): ${msg}`);
       }
 
       // One live line for the whole backend bring-up: the `npx convex dev

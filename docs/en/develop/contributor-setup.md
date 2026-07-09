@@ -70,10 +70,11 @@ Every `convex dev` push stores a new function-bundle blob under `services/platfo
 
 `bun run dev` runs maintenance automatically before it spawns Convex:
 
-- **Prune** when module storage exceeds 1,500 blobs or 2 GB — keeps the 1,000 newest function-bundle blobs under `convex_local_storage/modules/`. Your SQLite database, uploaded files, and org config are untouched.
+- **Prune** when module storage exceeds 1,500 blobs or 2 GB — deletes only unreferenced historical function-bundle blobs under `convex_local_storage/modules/`, keeping every blob the current deployment still loads (plus up to 1,000 newest unreferenced leftovers). Your SQLite database, uploaded files, and org config are untouched. If the deployment's live references can't be read, or look empty while blobs remain on disk, prune is skipped rather than guessing.
+- **Integrity gate** — if a live module blob is already missing on disk, `bun run dev` stops with a clear error pointing at `setup:clean`. Continuing would boot into a half-dead backend (chat and crons fail with opaque server errors).
 - **Clear snapshot export artifacts** when the cached Convex backend binary no longer matches the one recorded in your local deployment — removes `export.zip` and related import/export debris that can trigger a failed re-import on cold start, without wiping dev data.
 
-Set `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` to opt out. `bun run setup:check` warns (non-blocking) when module storage is already over the prune threshold.
+Set `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` to opt out of prune/snapshot cleanup (the integrity gate still runs). `bun run setup:check` warns (non-blocking) when module storage is already over the prune threshold.
 
 ## Resetting local Convex dev data
 
