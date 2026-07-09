@@ -1070,23 +1070,24 @@ export async function runDevFleet() {
       // Non-essential prune/snapshot cleanup must never block backend bring-up,
       // but a missing live module blob is fatal — continuing would boot into
       // the half-dead state (chat/crons InternalServerError + WS drop).
+      // Gate on the typed `integrityError` field (not a message substring) so a
+      // wording change cannot demote the fatal path to a warn.
+      let maintenance: ReturnType<typeof runConvexLocalMaintenance> | null =
+        null;
       try {
-        const maintenance = runConvexLocalMaintenance(platformRoot);
-        if (maintenance.integrityError) {
-          throw new Error(maintenance.integrityError);
-        }
-        if (maintenance.warning) {
-          warnLine(maintenance.warning);
-        }
-        if (maintenance.message) {
-          infoLine(maintenance.message);
-        }
+        maintenance = runConvexLocalMaintenance(platformRoot);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('module storage is incomplete')) {
-          throw err;
-        }
         warnLine(`Convex local maintenance skipped (non-fatal): ${msg}`);
+      }
+      if (maintenance?.integrityError) {
+        throw new Error(maintenance.integrityError);
+      }
+      if (maintenance?.warning) {
+        warnLine(maintenance.warning);
+      }
+      if (maintenance?.message) {
+        infoLine(maintenance.message);
       }
 
       // One live line for the whole backend bring-up: the `npx convex dev
