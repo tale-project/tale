@@ -12,7 +12,7 @@ import { UploadConfigsDialog } from '@/app/features/shared/upload-configs/upload
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useSaveAgent } from '../hooks/mutations';
+import { useInstallCatalogAgent, useSaveAgent } from '../hooks/mutations';
 import { useListAgents } from '../hooks/queries';
 import { CreateAgentDialog } from './agent-create-dialog';
 
@@ -42,6 +42,7 @@ export function AgentsActionMenu({
   const { t } = useT('settings');
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
+  const { mutateAsync: installAgent } = useInstallCatalogAgent();
   const { agents } = useListAgents(organizationId);
   const existingNames = useMemo(
     () => collectStringField(agents, 'name'),
@@ -104,6 +105,18 @@ export function AgentsActionMenu({
             isNew: !overwrite,
             config: entry.json,
           });
+          // Install (enable) the uploaded agent so it appears in the
+          // installed-only Agents list — the config file is the source, the
+          // install record makes it live (same pairing as Blank create). A
+          // failure (e.g. non-admin) leaves the file in place to install later.
+          try {
+            await installAgent({ organizationId, agentSlug: entry.baseName });
+          } catch (installErr) {
+            console.warn(
+              '[AgentsActionMenu] agent uploaded but auto-install failed',
+              installErr,
+            );
+          }
         }}
         onAfterAllSaved={() => {
           toast({
