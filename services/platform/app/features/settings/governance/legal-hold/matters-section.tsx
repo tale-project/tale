@@ -161,6 +161,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           approxRowCount={matters?.length}
           getRowId={(row) => String(row._id)}
           emptyState={{
+            icon: Archive,
             title: t('legalHold.sections.matters.empty.title'),
             description: t('legalHold.sections.matters.empty.description'),
           }}

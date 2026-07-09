@@ -3,6 +3,7 @@
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { ShieldOff } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -110,6 +111,7 @@ export function BlockCountersTable({
       caption={t('logs.blockCounters.tableCaption')}
       isLoading={isLoading}
       emptyState={{
+        icon: ShieldOff,
         title: t('logs.blockCounters.emptyTitle'),
         description: t('logs.blockCounters.empty'),
       }}

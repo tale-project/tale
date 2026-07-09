@@ -3,6 +3,7 @@
 import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { UsePaginatedQueryResult } from 'convex/react';
+import { ScrollText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -162,6 +163,7 @@ export function AuditLogTable({
         caption={copy.tableCaption}
         stickyLayout={stickyLayout}
         emptyState={{
+          icon: ScrollText,
           title: copy.emptyTitle,
           description: copy.emptyDescription,
         }}
