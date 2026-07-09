@@ -381,6 +381,130 @@ export const listProjectFolders = query({
 });
 
 /**
+ * Top-level setup folder for a project, or null when `setupFolderName` is
+ * empty / the folder is absent. Callers (desk packs) pass the folder name —
+ * the platform never hardcodes a product-specific setup slug.
+ */
+async function findProjectSetupFolder(
+  ctx: QueryCtx,
+  organizationId: string,
+  projectId: Id<'projects'>,
+  setupFolderName: string,
+): Promise<Doc<'folders'> | null> {
+  // Same root filter as listProjectRootFolders — do not pin parentId on the
+  // index (omitted-at-insert parentId can miss an eq(undefined) probe).
+  const folders = await ctx.db
+    .query('folders')
+    .withIndex('by_org_project_parent_name', (q) =>
+      q.eq('organizationId', organizationId).eq('projectId', projectId),
+    )
+    .collect();
+  return (
+    folders.find(
+      (f) => f.parentId === undefined && f.name === setupFolderName,
+    ) ?? null
+  );
+}
+
+/**
+ * Top-level folders of a project (parentId unset). Same access rule as
+ * `listProjectFolders`. Used by desk UIs that treat each root folder as a
+ * quarter / period.
+ *
+ * When `setupFolderName` is set, that root is excluded from the list and its
+ * id is repeated on every row as `setupFolderId` so Start can bind
+ * `externalUrl` without a second query. When omitted, every root is returned
+ * and `setupFolderId` is null.
+ */
+export const listProjectRootFolders = query({
+  args: {
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+    /** Pack-declared setup root to exclude (e.g. `_setup` from a desk view). */
+    setupFolderName: v.optional(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('folders'),
+      name: v.string(),
+      setupFolderId: v.union(v.id('folders'), v.null()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return [];
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
+
+    // Collect every project folder (same index prefix as listProjectFolders),
+    // then keep roots in memory. Pinning `parentId: undefined` on the index
+    // can miss rows whose parentId field was omitted at insert (Convex strips
+    // undefined on write) depending on index encoding — filter is the safe
+    // match for "top-level".
+    const folders = await ctx.db
+      .query('folders')
+      .withIndex('by_org_project_parent_name', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .collect();
+
+    const roots = folders.filter((f) => f.parentId === undefined);
+    const setupName = args.setupFolderName?.trim() || null;
+    const setupFolderId = setupName
+      ? (roots.find((f) => f.name === setupName)?._id ?? null)
+      : null;
+
+    return roots
+      .filter((f) => (setupName ? f.name !== setupName : true))
+      .map((f) => ({ _id: f._id, name: f.name, setupFolderId }));
+  },
+});
+
+/**
+ * A project's top-level setup folder by pack-declared name, or null when
+ * `setupFolderName` is empty / the folder is absent / inaccessible. Same
+ * access rule as `listProjectFolders`.
+ */
+export const getProjectSetupFolder = query({
+  args: {
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+    setupFolderName: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id('folders'),
+      name: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const setupName = args.setupFolderName.trim();
+    if (!setupName) return null;
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return null;
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return null;
+
+    const folder = await findProjectSetupFolder(
+      ctx,
+      project.organizationId,
+      args.projectId,
+      setupName,
+    );
+    if (!folder) return null;
+    return { _id: folder._id, name: folder.name };
+  },
+});
+
+/**
  * List threads inside a project. The caller chooses scope:
  *   - 'mine'   only the caller's threads (regardless of shared flag)
  *   - 'shared' threads with sharedWithProject=true (regardless of owner)

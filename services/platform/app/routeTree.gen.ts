@@ -127,6 +127,7 @@ import { Route as DashboardIdAgentsAgentIdEnvironmentRouteImport } from './route
 import { Route as DashboardIdAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/agents/$agentId/conversation-starters';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
 import { Route as DashboardIdProjectsProjectIdTasksIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/index';
+import { Route as DashboardIdProjectsProjectIdAutomationsIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/index';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId';
 import { Route as DashboardIdProjectsProjectIdTasksListRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/list';
 import { Route as DashboardIdProjectsProjectIdTasksBoardRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/board';
@@ -815,6 +816,12 @@ const DashboardIdProjectsProjectIdTasksIndexRoute =
     path: '/tasks/',
     getParentRoute: () => DashboardIdProjectsProjectIdRoute,
   } as any);
+const DashboardIdProjectsProjectIdAutomationsIndexRoute =
+  DashboardIdProjectsProjectIdAutomationsIndexRouteImport.update({
+    id: '/automations/',
+    path: '/automations/',
+    getParentRoute: () => DashboardIdProjectsProjectIdRoute,
+  } as any);
 const DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute =
   DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport.update({
     id: '/$requestId',
@@ -991,6 +998,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
+  '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
@@ -1102,6 +1110,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
+  '/dashboard/$id/projects/$projectId/automations': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
@@ -1231,6 +1240,7 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/tasks/board': typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
+  '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsExecutionIdRoute;
@@ -1359,6 +1369,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+    | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
@@ -1470,6 +1481,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+    | '/dashboard/$id/projects/$projectId/automations'
     | '/dashboard/$id/projects/$projectId/tasks'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
@@ -1598,6 +1610,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/board'
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+    | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$executionId';
@@ -2442,6 +2455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdTasksIndexRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdRoute;
     };
+    '/dashboard/$id/projects/$projectId/automations/': {
+      id: '/dashboard/$id/projects/$projectId/automations/';
+      path: '/automations';
+      fullPath: '/dashboard/$id/projects/$projectId/automations/';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsIndexRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdRoute;
+    };
     '/dashboard/$id/settings/governance/data-subject-requests/$requestId': {
       id: '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
       path: '/$requestId';
@@ -2896,6 +2916,7 @@ interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdTasksBacklogRoute: typeof DashboardIdProjectsProjectIdTasksBacklogRoute;
   DashboardIdProjectsProjectIdTasksBoardRoute: typeof DashboardIdProjectsProjectIdTasksBoardRoute;
   DashboardIdProjectsProjectIdTasksListRoute: typeof DashboardIdProjectsProjectIdTasksListRoute;
+  DashboardIdProjectsProjectIdAutomationsIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   DashboardIdProjectsProjectIdTasksIndexRoute: typeof DashboardIdProjectsProjectIdTasksIndexRoute;
 }
 
@@ -2927,6 +2948,8 @@ const DashboardIdProjectsProjectIdRouteChildren: DashboardIdProjectsProjectIdRou
       DashboardIdProjectsProjectIdTasksBoardRoute,
     DashboardIdProjectsProjectIdTasksListRoute:
       DashboardIdProjectsProjectIdTasksListRoute,
+    DashboardIdProjectsProjectIdAutomationsIndexRoute:
+      DashboardIdProjectsProjectIdAutomationsIndexRoute,
     DashboardIdProjectsProjectIdTasksIndexRoute:
       DashboardIdProjectsProjectIdTasksIndexRoute,
   };

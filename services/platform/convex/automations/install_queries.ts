@@ -16,7 +16,7 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
  *
  * State here is strictly ORG-LEVEL — one entry per installed automation. A project-scoped
  * automation's project memberships live in `automationProjectBindings` (see `listAutomationBindings`
- * for the hub, `listProjectAutomations` for a project's nav strip).
+ * for the hub, `listProjectAutomations` for a project's Automations list).
  */
 export const getAutomationInstallState = query({
   args: { organizationId: v.string() },

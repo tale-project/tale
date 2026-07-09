@@ -584,6 +584,8 @@ export function AutomationConfiguration({
 
       {isProjectScoped && (
         <AutomationProjectsSection
+          organizationId={organizationId}
+          automationSlug={automationSlug}
           options={projectsEditor.options}
           selection={projectsEditor.selection}
           onSelectionChange={projectsEditor.setSelection}

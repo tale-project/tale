@@ -497,25 +497,28 @@ function AutomationInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    if (mode !== 'install') return;
-    // Land somewhere useful (#2611), mirroring the bundle wizard: a
-    // project-scoped install's work happens on the bound project's Tasks
-    // page (its Backlog), so Finish opens that surface instead of the
-    // automation's own Editor tab. An org-scoped automation has no such
-    // surface — its ORG-level detail page (the same target the catalog card
-    // opens) is the useful one; the project-nested route would double the
-    // page padding (project layout's own PageLayout + ContentArea).
-    if (targetProjectId !== undefined) {
-      void navigate({
-        to: '/dashboard/$id/projects/$projectId/tasks',
-        params: { id: organizationId, projectId: targetProjectId },
-      });
-      return;
+    // After install, land where the operator was working: the project-nested
+    // automation page when a project was selected (or pre-bound), otherwise
+    // the org-level detail the catalog card opens. Project-nested detail
+    // routes bare-outlet under Automations chrome (no project-shell padding).
+    if (mode === 'install') {
+      const finishProjectId = projectId ?? selectedProjectId;
+      if (finishProjectId) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            projectId: finishProjectId,
+            automationSlug,
+          },
+        });
+      } else {
+        void navigate({
+          to: '/dashboard/$id/automations/$automationSlug',
+          params: { id: organizationId, automationSlug },
+        });
+      }
     }
-    void navigate({
-      to: '/dashboard/$id/automations/$automationSlug',
-      params: { id: organizationId, automationSlug },
-    });
   };
 
   // The Done step's deep link into the Triggers tab (`?tab=triggers` on the

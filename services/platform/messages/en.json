@@ -815,6 +815,8 @@
       "boundProjectsTitle": "Bound projects",
       "boundProjectsDescription": "Run this automation in specific projects. Add a project to bind it; remove one to unbind it there.",
       "boundProjectsPlaceholder": "Bind projects…",
+      "boundProjectLinksLabel": "Open bound projects",
+      "openBoundProject": "Open in {name}",
       "noProjectsAvailable": "No projects available.",
       "saveFailed": "Couldn't update this automation's projects.",
       "notInProjectTitle": "Not added to this project",
@@ -4978,6 +4980,7 @@
       "files": "Knowledge",
       "instructions": "Instructions",
       "threads": "Chats",
+      "automations": "Automations",
       "agents": "Agents & models",
       "settings": "Settings"
     },
@@ -5248,6 +5251,14 @@
     "editor": {
       "slugFallback": "unavailable",
       "slugEditorEmptyLockout": "Empty list locks every member out of this project. Add at least one item or switch back to \"All\"."
+    },
+    "automations": {
+      "title": "Automations",
+      "description": "Automations bound to this project.",
+      "emptyTitle": "No automations on this project",
+      "emptyDescription": "Install a project automation from the Automations hub, then add this project.",
+      "emptyCta": "Browse Automations",
+      "statusBroken": "Needs repair"
     }
   },
   "pwa": {
@@ -5679,6 +5690,8 @@
         "noModelsFound": "No models found",
         "removeModel": "Remove",
         "embeddingModelWarning": "Embedding-only model — not usable for chat",
+        "modelNotInCatalog": "Not in the {provider} catalog — add it under Settings > Providers, or pick another model.",
+        "modelNotInAnyCatalog": "Not in any provider catalog — add it under Settings > Providers, or pick another model.",
         "viaProvider": "via {provider}",
         "modelSelector": {
           "moveUp": "Move model up",

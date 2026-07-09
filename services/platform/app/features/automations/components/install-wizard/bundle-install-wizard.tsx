@@ -503,27 +503,32 @@ function BundleInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // Land somewhere useful (#2611): a project-scoped bundle's members feed
-    // the bound project's Tasks page, so Finish opens that work surface —
-    // never a hidden member's Editor. Without a project (org-scoped bundle),
-    // fall back to the first member's ORG-level detail page (no single
-    // "bundle page" exists).
-    if (targetProjectId !== undefined) {
-      void navigate({
-        to: '/dashboard/$id/projects/$projectId/tasks',
-        params: { id: organizationId, projectId: targetProjectId },
-      });
-      return;
-    }
+    // No single "bundle page" exists (each member is its own automation) — land
+    // on the first member's detail. Prefer the project-nested URL when a
+    // project was selected (or pre-bound); otherwise the org-level page the
+    // catalog opens. Project-nested detail routes bare-outlet under
+    // Automations chrome (no project-shell padding).
     const first = preview[0];
     if (first) {
-      void navigate({
-        to: '/dashboard/$id/automations/$automationSlug',
-        params: {
-          id: organizationId,
-          automationSlug: first.automationSlug,
-        },
-      });
+      const finishProjectId = projectId ?? selectedProjectId;
+      if (finishProjectId) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            projectId: finishProjectId,
+            automationSlug: first.automationSlug,
+          },
+        });
+      } else {
+        void navigate({
+          to: '/dashboard/$id/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            automationSlug: first.automationSlug,
+          },
+        });
+      }
     }
   };
 

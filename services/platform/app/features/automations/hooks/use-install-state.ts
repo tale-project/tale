@@ -72,7 +72,7 @@ export function deriveBundleInstallStatus(
   return 'not-installed';
 }
 
-/** One automation bound to a project — drives the in-project nav entry. */
+/** One automation bound to a project — drives the project Automations list. */
 export interface ProjectAutomation {
   automationSlug: string;
   automationName: string;
