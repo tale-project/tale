@@ -47,6 +47,7 @@ export function KnowledgePool() {
       <DemoShell
         label={t('demos.knowledge.label')}
         title={t('demos.knowledge.windowTitle')}
+        activeNav="knowledge"
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
       >
         <div className="flex h-full flex-col gap-4 p-4 md:gap-5 md:p-6">
@@ -84,7 +85,7 @@ export function KnowledgePool() {
             >
               <div
                 className={cn(
-                  'bg-accent-base absolute inset-0 origin-top scale-y-0 transition-transform duration-700 md:origin-left md:scale-y-100 md:scale-x-0',
+                  'bg-brand-base absolute inset-0 origin-top scale-y-0 transition-transform duration-700 md:origin-left md:scale-y-100 md:scale-x-0',
                   beat >= BEAT.flow && 'scale-y-100 md:scale-x-100',
                 )}
               />
@@ -166,7 +167,7 @@ function SourceCard({
       }}
       className={cn(
         'border-border-base bg-surface-site flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all duration-300',
-        highlighted && 'ring-accent-base/30 border-accent-base/40 ring-2',
+        highlighted && 'ring-brand-base/35 border-brand-base/50 ring-2',
       )}
     >
       <Icon aria-hidden className="text-fg-muted size-4 shrink-0" />

@@ -1,5 +1,16 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowUp, Check, FileText, Sparkles } from 'lucide-react';
+import {
+  ArrowUp,
+  Bookmark,
+  Bot,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Mic,
+  Plus,
+  Sparkles,
+} from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -52,6 +63,7 @@ export function HeroOrchestration() {
     <DemoShell
       label={t('demos.hero.label')}
       title={t('demos.hero.windowTitle')}
+      activeNav="chat"
       className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
     >
       <div className="flex h-full flex-col gap-4 p-4 text-left md:gap-5 md:p-6">
@@ -83,6 +95,13 @@ export function HeroOrchestration() {
 
         <div className="min-h-0 flex-1">
           {beat >= BEAT.clause1 ? (
+            <p className="text-fg-subtle mb-2 flex items-center gap-1 text-xs">
+              <ChevronRight aria-hidden className="size-3" />
+              <Sparkles aria-hidden className="size-3" />
+              {t('demos.hero.thought')}
+            </p>
+          ) : null}
+          {beat >= BEAT.clause1 ? (
             <DemoStreamText
               segments={replySegments}
               visible={visibleClauses}
@@ -111,13 +130,32 @@ export function HeroOrchestration() {
           ) : null}
         </div>
 
-        <div className="border-border-base bg-surface-site flex shrink-0 items-center justify-between gap-3 rounded-xl border px-4 py-2.5">
+        {/* Composer — mirrors the real chat surface: input line, then the
+            agent + model pickers left and voice/send right. */}
+        <div className="border-border-base bg-surface-site flex shrink-0 flex-col gap-2.5 rounded-xl border px-3.5 pt-3 pb-2.5">
           <span className="text-fg-subtle truncate text-sm">
             {t('demos.hero.inputPlaceholder')}
           </span>
-          <span className="bg-accent-base text-accent-fg flex size-7 shrink-0 items-center justify-center rounded-full">
-            <ArrowUp aria-hidden className="size-4" />
-          </span>
+          <div className="flex items-center gap-2">
+            <Plus aria-hidden className="text-fg-subtle size-4" />
+            <Bookmark aria-hidden className="text-fg-subtle size-3.5" />
+            <span className="text-fg-muted ml-1 inline-flex items-center gap-1 text-xs font-medium">
+              <Bot aria-hidden className="size-3.5" />
+              {t('demos.hero.composerAgent')}
+              <ChevronDown aria-hidden className="size-3" />
+            </span>
+            <span className="text-fg-muted inline-flex items-center gap-1 text-xs font-medium">
+              <Sparkles aria-hidden className="size-3" />
+              {t('demos.hero.chipAuto')}
+              <ChevronDown aria-hidden className="size-3" />
+            </span>
+            <span className="ml-auto flex items-center gap-2.5">
+              <Mic aria-hidden className="text-fg-subtle size-4" />
+              <span className="bg-brand-base text-brand-fg flex size-7 shrink-0 items-center justify-center rounded-full">
+                <ArrowUp aria-hidden className="size-4" />
+              </span>
+            </span>
+          </div>
         </div>
       </div>
     </DemoShell>

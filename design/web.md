@@ -40,16 +40,20 @@ the web defines a marketing-surface family in
 [`services/web/app/globals.css`](../services/web/app/globals.css) — its dark values sit deliberately
 above the app's `bg-base` for a warmer feel:
 
-| Utility                              | Use                                       |
-| ------------------------------------ | ----------------------------------------- |
-| `bg-surface-site`                    | section backgrounds                       |
-| `bg-surface-site-raised`             | cards and demo window frames on a section |
-| `bg-surface-site-inset`              | image/illustration wells, inner panels    |
-| `bg-surface-site-deep`               | small logo/icon tiles                     |
-| `bg-surface-site-active`             | active segmented-control state            |
-| `bg-surface-promo` / `text-fg-promo` | the pricing promo chip                    |
+| Utility                                                     | Use                                           |
+| ----------------------------------------------------------- | --------------------------------------------- |
+| `bg-surface-site`                                           | section backgrounds                           |
+| `bg-surface-site-raised`                                    | cards and demo window frames on a section     |
+| `bg-surface-site-inset`                                     | image/illustration wells, inner panels        |
+| `bg-surface-site-deep`                                      | small logo/icon tiles                         |
+| `bg-surface-site-active`                                    | active segmented-control state                |
+| `bg-surface-promo` / `text-fg-promo`                        | the pricing promo chip                        |
+| `bg-surface-wash`                                           | the tinted stage product windows sit on       |
+| `bg-brand-base` / `hover:bg-brand-strong` / `text-brand-fg` | primary CTAs and live accents (brand #056CFF) |
 
 New marketing surface values go into that `@theme` block (plus its `.dark` overrides), never inline.
+The brand accent is for _action and life_ — primary buttons, step markers, connector fills, active
+rings, send buttons — never for body text or large fills.
 
 ## Animated product demos — the doctrine
 
@@ -67,10 +71,13 @@ and follow one contract:
   users get a static illustration), playback starts on mount (hero) or first scroll-into-view, and
   pauses while the tab is hidden. Play once — no restarts; only subtle idle loops (a soft pulse) may
   repeat.
-- **Framed by `DemoShell`.** A labelled `role="img"` window (localized one-sentence `aria-label`,
-  everything inside `aria-hidden`) with a **fixed aspect ratio** so the box is reserved before mount
-  (CLS 0). Give mobile a taller ratio than desktop and size fixed wells against the **German**
-  strings — de is the layout stress test.
+- **Framed by `DemoShell` — a 1:1 depiction of the app.** The frame reproduces the product's real
+  anatomy (icon nav rail in sidebar order, top bar with Share/actions — reference the captures in
+  `services/docs/public/images/platform/`), is a labelled `role="img"` window (localized
+  one-sentence `aria-label`, everything inside `aria-hidden`), and has a **fixed aspect ratio** so
+  the box is reserved before mount (CLS 0). Demos sit on a `bg-surface-wash` stage. Give mobile a
+  taller ratio than desktop and size fixed wells against the **German** strings — de is the layout
+  stress test.
 - **Text primitives, not the markdown engine.** `demo-typing-text` / `demo-stream-text` reuse the
   globals.css `.stream-reveal`/`.animate-cursor-blink` primitives. Never pull `IncrementalMarkdown`
   (remark/rehype/katex/shiki) into the marketing bundle.

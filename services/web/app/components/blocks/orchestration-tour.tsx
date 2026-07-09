@@ -99,7 +99,7 @@ function TourRow({
     >
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:items-start md:gap-20">
         <div className="flex flex-col gap-2">
-          <p className="text-fg-subtle text-sm">{stepLabel}</p>
+          <p className="text-brand-base text-sm font-medium">{stepLabel}</p>
           <h3
             className="text-fg-base text-3xl font-medium whitespace-pre-line md:text-[48px]"
             style={{ letterSpacing: '-2.14px', lineHeight: 1.1 }}
@@ -114,7 +114,9 @@ function TourRow({
           {t(`tour.${stageKey}.description`)}
         </p>
       </div>
-      <Demo />
+      <div className="bg-surface-wash rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
+        <Demo />
+      </div>
     </motion.div>
   );
 }

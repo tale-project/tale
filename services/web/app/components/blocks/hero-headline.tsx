@@ -51,7 +51,10 @@ export function HeroHeadline() {
             }
             className="flex flex-wrap items-center justify-center gap-3"
           >
-            <Button asChild className="rounded-[10px] text-base">
+            <Button
+              asChild
+              className="bg-brand-base hover:bg-brand-strong text-brand-fg rounded-[10px] border-transparent text-base"
+            >
               <LocalizedLink to="/request-demo">
                 {t('hero.ctaPrimary')}
               </LocalizedLink>
@@ -78,7 +81,9 @@ export function HeroHeadline() {
         }
         className="mt-10 w-full px-4 pb-14 md:mt-16 md:px-6 md:pb-20"
       >
-        <HeroOrchestration />
+        <div className="bg-surface-wash mx-auto max-w-5xl rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
+          <HeroOrchestration />
+        </div>
       </motion.div>
     </section>
   );

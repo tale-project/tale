@@ -41,7 +41,10 @@ export function SiteHeader() {
           {t('readDocs')}
         </a>
       </Button>
-      <Button asChild className="text-sm">
+      <Button
+        asChild
+        className="bg-brand-base hover:bg-brand-strong text-brand-fg border-transparent text-sm"
+      >
         <LocalizedLink to="/request-demo">{t('requestDemo')}</LocalizedLink>
       </Button>
     </>

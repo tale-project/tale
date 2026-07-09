@@ -51,6 +51,7 @@ export function AutomationRun() {
       <DemoShell
         label={t('demos.automation.label')}
         title={t('demos.automation.windowTitle')}
+        activeNav="automations"
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
       >
         <div className="flex h-full flex-col gap-5 p-4 md:gap-6 md:p-6">
@@ -147,8 +148,7 @@ function StepNode({
     <div
       className={cn(
         'border-border-base bg-surface-site flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all duration-300',
-        state === 'active' &&
-          'ring-accent-base/30 border-accent-base/40 ring-2',
+        state === 'active' && 'ring-brand-base/35 border-brand-base/50 ring-2',
         state === 'dimmed' && 'opacity-45',
       )}
     >
@@ -189,7 +189,7 @@ function Connector({ filled }: { filled: boolean }) {
     >
       <div
         className={cn(
-          'bg-accent-base absolute inset-0 origin-top scale-y-0 transition-transform duration-500 md:origin-left md:scale-y-100 md:scale-x-0',
+          'bg-brand-base absolute inset-0 origin-top scale-y-0 transition-transform duration-500 md:origin-left md:scale-y-100 md:scale-x-0',
           filled && 'scale-y-100 md:scale-x-100',
         )}
       />

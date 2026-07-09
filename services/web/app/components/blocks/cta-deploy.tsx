@@ -57,7 +57,10 @@ export function CtaDeploy() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild>
+            <Button
+              asChild
+              className="bg-brand-base hover:bg-brand-strong text-brand-fg border-transparent"
+            >
               <LocalizedLink to="/request-demo">
                 {t('cta.primary')}
               </LocalizedLink>

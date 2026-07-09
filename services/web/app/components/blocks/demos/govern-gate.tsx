@@ -43,6 +43,7 @@ export function GovernGate() {
       <DemoShell
         label={t('demos.govern.label')}
         title={t('demos.govern.windowTitle')}
+        activeNav="automations"
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
       >
         <div className="grid h-full grid-cols-1 gap-4 p-4 md:grid-cols-2 md:gap-5 md:p-6">
@@ -76,7 +77,7 @@ export function GovernGate() {
                       }
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.3, ease: easeOut }}
-                      className="bg-accent-base text-accent-fg inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                      className="bg-brand-base text-brand-fg inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
                     >
                       <Check
                         aria-hidden
@@ -94,7 +95,7 @@ export function GovernGate() {
                             : { scale: 1 }
                         }
                         transition={{ duration: 0.15 }}
-                        className="bg-accent-base text-accent-fg inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium"
+                        className="bg-brand-base text-brand-fg inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium"
                       >
                         {t('demos.govern.approve')}
                       </motion.span>
@@ -119,7 +120,7 @@ export function GovernGate() {
               <div className="bg-surface-site-inset mt-2 h-1.5 overflow-hidden rounded-full">
                 <div
                   className={cn(
-                    'bg-accent-base h-full origin-left rounded-full transition-transform duration-700 ease-out',
+                    'bg-brand-base h-full origin-left rounded-full transition-transform duration-700 ease-out',
                     beat >= BEAT.stats ? 'scale-x-100' : 'scale-x-0',
                   )}
                   style={{ width: `${BUDGET_PERCENT}%` }}

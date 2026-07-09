@@ -76,7 +76,7 @@
   "home": {
     "hero": {
       "title": "Der Orchestrator für KI-Agents",
-      "subtitle": "Verbinde die Agents und CLIs, die dein Team bereits nutzt — Claude Code, Codex, Cursor und mehr. Bündle ihr Wissen, delegiere Aufgaben und betreib den ganzen Schwarm auf deiner eigenen Infrastruktur: deine Daten, deine Regeln, entwickelt in der Schweiz.",
+      "subtitle": "Verbinde Claude Code, Codex, Cursor und alle Agents deines Teams. Bündle ihr Wissen, delegiere echte Arbeit — auf deiner eigenen Infrastruktur.",
       "ctaPrimary": "Demo anfragen",
       "ctaSecondary": "Loslegen"
     },
@@ -93,6 +93,8 @@
         "reply4": "beiden Kunden kann also eine Lösung bis Freitag zugesagt werden.",
         "citation1": "eskalations-log.pdf",
         "citation2": "Wissen · Eskalations-Richtlinie",
+        "thought": "1 s überlegt · 16 Tokens",
+        "composerAgent": "Assistant",
         "status": "Belegt mit 2 Quellen",
         "inputPlaceholder": "Frag einfach…"
       },

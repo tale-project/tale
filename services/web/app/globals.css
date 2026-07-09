@@ -12,6 +12,13 @@
   --color-surface-site-active: #ffffff;
   --color-surface-promo: #9bc4ff;
   --color-fg-promo: #021a3f;
+  /* Brand accent (design/branding.md: #056CFF) — buttons, links, live
+     states. `wash` is the tinted stage marketing sections sit product
+     windows on. */
+  --color-brand-base: #056cff;
+  --color-brand-strong: #0356d6;
+  --color-brand-fg: #ffffff;
+  --color-surface-wash: #eef3fb;
 }
 
 .dark {
@@ -20,6 +27,10 @@
   --color-surface-site-inset: #151515;
   --color-surface-site-deep: #0a0a0b;
   --color-surface-site-active: #404045;
+  --color-brand-base: #3b82f6;
+  --color-brand-strong: #2f6fe0;
+  --color-brand-fg: #ffffff;
+  --color-surface-wash: #10151d;
 }
 
 /* Marquee track. The track contains the logos rendered twice; translating

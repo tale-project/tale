@@ -67,6 +67,7 @@ export function ConnectAgents() {
       <DemoShell
         label={t('demos.connect.label')}
         title={t('demos.connect.windowTitle')}
+        activeNav="agents"
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
       >
         <div className="flex h-full items-center justify-center p-4 md:p-6">
@@ -136,7 +137,7 @@ function Wire({ filled }: { filled: boolean }) {
     >
       <div
         className={cn(
-          'bg-accent-base absolute inset-0 origin-left scale-x-0 transition-transform duration-700',
+          'bg-brand-base absolute inset-0 origin-left scale-x-0 transition-transform duration-700',
           filled && 'scale-x-100',
         )}
       />

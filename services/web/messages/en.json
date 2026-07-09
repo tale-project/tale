@@ -76,7 +76,7 @@
   "home": {
     "hero": {
       "title": "The Orchestrator for AI Agents",
-      "subtitle": "Connect the agents and CLIs your team already uses — Claude Code, Codex, Cursor, and more. Pool their knowledge, delegate tasks, and run the whole swarm on your own infrastructure: your data, your rules, built in Switzerland.",
+      "subtitle": "Connect Claude Code, Codex, Cursor, and every agent your team uses. Pool their knowledge, delegate real work — on your own infrastructure.",
       "ctaPrimary": "Request demo",
       "ctaSecondary": "Get started"
     },
@@ -93,6 +93,8 @@
         "reply4": "so both customers can be promised a resolution by Friday.",
         "citation1": "escalations-log.pdf",
         "citation2": "Knowledge · Escalation policy",
+        "thought": "Thought for 1s · 16 tokens",
+        "composerAgent": "Assistant",
         "status": "Grounded in 2 sources",
         "inputPlaceholder": "Ask anything…"
       },
