@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ExternalLink } from '@/app/components/layout/external-link';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
-import { DOCS_URL } from '@/lib/docs-url';
+import { GET_STARTED_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import { useSkipEntrance } from '@/lib/motion/entrance';
 
@@ -56,19 +56,21 @@ export function CtaDeploy() {
               {t('cta.description')}
             </p>
           </div>
+          {/* Self-hosted first: the quickstart is the primary action here
+              too; the demo request stays the quieter alternative. */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button
               asChild
               className="bg-brand-base hover:bg-brand-strong text-brand-fg border-transparent"
             >
+              <ExternalLink href={GET_STARTED_URL} showIcon={false}>
+                {t('hero.ctaSecondary')}
+              </ExternalLink>
+            </Button>
+            <Button asChild variant="secondary">
               <LocalizedLink to="/request-demo">
                 {t('cta.primary')}
               </LocalizedLink>
-            </Button>
-            <Button asChild variant="secondary">
-              <ExternalLink href={DOCS_URL} showIcon={false}>
-                {t('cta.secondary')}
-              </ExternalLink>
             </Button>
           </div>
 

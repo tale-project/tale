@@ -23,7 +23,7 @@ function RootComponent() {
   const locale = useCurrentLocale();
 
   return (
-    <div className="flex min-h-screen flex-col bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)]">
+    <div className="bg-surface-site flex min-h-screen flex-col text-[color:var(--color-fg-base)]">
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
       <a
         href="#main"

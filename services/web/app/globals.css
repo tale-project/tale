@@ -5,11 +5,13 @@
    feel. These definitions are the only place the values may appear — blocks
    use the generated `bg-surface-*` utilities, never a raw hex. */
 @theme {
-  --color-surface-site: #ffffff;
-  --color-surface-site-raised: #fcfcfd;
-  --color-surface-site-inset: #fafafa;
-  --color-surface-site-deep: #ffffff;
-  --color-surface-site-active: #ffffff;
+  /* No pure white: the light surfaces sit a notch warm of #fff so large
+     areas stay easy on the eye. */
+  --color-surface-site: #fafaf8;
+  --color-surface-site-raised: #fefefd;
+  --color-surface-site-inset: #f2f2ef;
+  --color-surface-site-deep: #fefefd;
+  --color-surface-site-active: #fefefd;
   --color-surface-promo: #9bc4ff;
   --color-fg-promo: #021a3f;
   /* Brand accent (design/branding.md: #056CFF) — buttons, links, live

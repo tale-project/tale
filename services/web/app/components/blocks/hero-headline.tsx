@@ -51,22 +51,24 @@ export function HeroHeadline() {
             }
             className="flex flex-wrap items-center justify-center gap-3"
           >
+            {/* Self-hosted first: the open-source quickstart is the primary
+                action; the demo request stays secondary (and in the header). */}
             <Button
               asChild
               className="bg-brand-base hover:bg-brand-strong text-brand-fg rounded-[10px] border-transparent text-base"
             >
-              <LocalizedLink to="/request-demo">
-                {t('hero.ctaPrimary')}
-              </LocalizedLink>
+              <ExternalLink href={GET_STARTED_URL} showIcon={false}>
+                {t('hero.ctaSecondary')}
+              </ExternalLink>
             </Button>
             <Button
               asChild
               variant="secondary"
               className="rounded-[10px] text-base"
             >
-              <ExternalLink href={GET_STARTED_URL} showIcon={false}>
-                {t('hero.ctaSecondary')}
-              </ExternalLink>
+              <LocalizedLink to="/request-demo">
+                {t('hero.ctaPrimary')}
+              </LocalizedLink>
             </Button>
           </motion.div>
         </div>
@@ -81,8 +83,27 @@ export function HeroHeadline() {
         }
         className="mt-10 w-full px-4 pb-14 md:mt-16 md:px-6 md:pb-20"
       >
-        <div className="bg-surface-wash mx-auto max-w-5xl rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
-          <HeroOrchestration />
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
+          {/* Unsplash alpine backdrop (Unsplash License — free commercial
+              use), self-hosted; a themed overlay keeps the window legible. */}
+          <img
+            src="/marketing/hero-bg.webp"
+            alt=""
+            aria-hidden
+            width={1800}
+            height={1200}
+            loading="eager"
+            fetchPriority="high"
+            draggable={false}
+            className="absolute inset-0 h-full w-full object-cover select-none"
+          />
+          <div
+            aria-hidden
+            className="from-surface-site/40 to-surface-site/10 dark:from-surface-site/75 dark:to-surface-site/45 absolute inset-0 bg-gradient-to-b"
+          />
+          <div className="relative">
+            <HeroOrchestration />
+          </div>
         </div>
       </motion.div>
     </section>
