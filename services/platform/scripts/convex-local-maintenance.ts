@@ -63,6 +63,11 @@ export interface MaintenanceDeps {
   listModuleBlobs: () => ModuleBlobEntry[];
   removePaths: (paths: string[]) => void;
   isBackendRunning: () => boolean;
+  /**
+   * Blob basenames (no `.blob`) the current deployment still references —
+   * see {@link readReferencedModuleBlobNames}. `null` = unknown (skip prune).
+   */
+  readReferencedBlobNames: () => ReadonlySet<string> | null;
 }
 
 export interface MaintenanceResult {
@@ -91,13 +96,32 @@ export function summarizeModuleBlobs(
   return { count: entries.length, totalBytes };
 }
 
-/** Pick the blob paths to delete, keeping the `keepCount` newest by mtime. Pure. */
+/**
+ * Pick the blob paths to delete. Pure.
+ *
+ * A blob referenced by the CURRENT deployment must never be pruned — deleting
+ * it breaks every function of the component it belongs to (components are
+ * re-pushed rarely, so their blobs are often the OLDEST files in the dir; an
+ * mtime-only prune deletes exactly the code the backend still loads, which is
+ * how a July 2026 incident took out chat/crons/streaming on a dev machine).
+ * `referenced` is the deployment's live blob-name set (basenames without
+ * `.blob`):
+ *  - `null` means the reference set could not be read — fail safe, prune
+ *    nothing;
+ *  - otherwise keep every referenced blob, and keep the `keepCount` newest
+ *    (by mtime) of the unreferenced remainder.
+ */
 export function selectModuleBlobsToPrune(
   entries: readonly ModuleBlobEntry[],
   keepCount: number,
+  referenced: ReadonlySet<string> | null,
 ): string[] {
-  if (entries.length <= keepCount) return [];
-  const sorted = [...entries].sort((a, b) => b.mtimeMs - a.mtimeMs);
+  if (referenced === null) return [];
+  const blobName = (path: string): string =>
+    (path.split('/').pop() ?? path).replace(/\.blob$/, '');
+  const prunable = entries.filter((e) => !referenced.has(blobName(e.path)));
+  if (prunable.length <= keepCount) return [];
+  const sorted = [...prunable].sort((a, b) => b.mtimeMs - a.mtimeMs);
   return sorted.slice(keepCount).map((entry) => entry.path);
 }
 
@@ -296,16 +320,31 @@ export function applyConvexLocalMaintenance(
 
   let removedModuleBlobs = 0;
   let freedBytes = 0;
+  let pruneSkippedWarning: string | null = null;
   const pathsToRemove = [...snapshotArtifactPaths];
 
   if (plan.kind === 'prune-modules') {
-    const entries = deps.listModuleBlobs();
-    const toRemove = selectModuleBlobsToPrune(entries, plan.keepCount);
-    for (const entry of entries) {
-      if (toRemove.includes(entry.path)) freedBytes += entry.sizeBytes;
+    const referenced = deps.readReferencedBlobNames();
+    if (referenced === null) {
+      // Can't tell which blobs the deployment still loads — deleting on mtime
+      // alone would risk removing live component code. Skip, keep the data.
+      pruneSkippedWarning =
+        'Skipped Convex module prune — could not read the deployment’s ' +
+        'module references from the local database, and pruning without them ' +
+        'can delete live component code.';
+    } else {
+      const entries = deps.listModuleBlobs();
+      const toRemove = selectModuleBlobsToPrune(
+        entries,
+        plan.keepCount,
+        referenced,
+      );
+      for (const entry of entries) {
+        if (toRemove.includes(entry.path)) freedBytes += entry.sizeBytes;
+      }
+      pathsToRemove.push(...toRemove);
+      removedModuleBlobs = toRemove.length;
     }
-    pathsToRemove.push(...toRemove);
-    removedModuleBlobs = toRemove.length;
   }
 
   deps.removePaths(pathsToRemove);
@@ -323,13 +362,20 @@ export function applyConvexLocalMaintenance(
     );
   }
 
+  const warning =
+    pruneSkippedWarning !== null
+      ? plan.warning
+        ? `${plan.warning} ${pruneSkippedWarning}`
+        : pruneSkippedWarning
+      : plan.warning;
+
   return {
     action: removedModuleBlobs > 0 ? 'prune-modules' : 'none',
     removedModuleBlobs,
     removedSnapshotArtifacts,
     freedBytes,
     message: messages.length > 0 ? messages.join(' ') : null,
-    warning: plan.warning,
+    warning,
   };
 }
 
@@ -349,7 +395,112 @@ export function convexLocalPaths(platformRoot: string) {
     defaultDir,
     configPath: join(defaultDir, 'config.json'),
     modulesDir: join(defaultDir, 'convex_local_storage', 'modules'),
+    sqlitePath: join(defaultDir, 'convex_local_backend.sqlite3'),
   };
+}
+
+/**
+ * Blob basenames the current deployment still references, read from the local
+ * backend's SQLite (read-only; callers only prune while the backend is down).
+ *
+ * The join mirrors how the backend loads code: the latest live revision of
+ * every `_modules` row names its `sourcePackageId`; the latest live revision
+ * of each of those source packages carries the `storageKey` whose blob file
+ * must exist on disk. Everything else in `modules/` is history from
+ * superseded pushes and safe to prune.
+ *
+ * Returns `null` when the references can't be established (unreadable DB,
+ * missing driver, unexpected shape) — callers must then skip pruning. A
+ * missing DB file returns an empty set: no deployment, no live references.
+ * Revision timestamps exceed `Number.MAX_SAFE_INTEGER` (nanoseconds), so the
+ * reduce compares BigInts via `safeIntegers`.
+ */
+export function readReferencedModuleBlobNames(
+  sqlitePath: string,
+  exists: (path: string) => boolean = existsSync,
+): ReadonlySet<string> | null {
+  if (!exists(sqlitePath)) return new Set();
+  try {
+    // Lazy so the pure planning half of this module stays importable outside
+    // the Bun runtime (vitest runs on node).
+    // oxlint-disable-next-line typescript/no-require-imports -- bun builtin
+    const { Database } = require('bun:sqlite') as {
+      Database: new (
+        path: string,
+        opts: { readonly: boolean; safeIntegers: boolean },
+      ) => {
+        query: (sql: string) => {
+          all: () => {
+            id: unknown;
+            ts: bigint;
+            deleted: unknown;
+            v: string;
+          }[];
+        };
+        close: () => void;
+      };
+    };
+    const db = new Database(sqlitePath, {
+      readonly: true,
+      safeIntegers: true,
+    });
+    try {
+      const latestLive = (
+        like: string,
+      ): Map<string, Record<string, unknown>> => {
+        const rows = db
+          .query(
+            `SELECT id, ts, deleted, json_value v FROM documents WHERE ${like}`,
+          )
+          .all();
+        const latest = new Map<
+          string,
+          { ts: bigint; deleted: unknown; v: string }
+        >();
+        for (const row of rows) {
+          const key = String(row.id);
+          const prev = latest.get(key);
+          if (!prev || row.ts > prev.ts) latest.set(key, row);
+        }
+        const live = new Map<string, Record<string, unknown>>();
+        for (const [key, row] of latest) {
+          if (row.deleted) continue;
+          live.set(key, JSON.parse(row.v) as Record<string, unknown>);
+        }
+        return live;
+      };
+
+      const currentPackageIds = new Set<string>();
+      for (const doc of latestLive(
+        "json_value LIKE '%sourcePackageId%' AND json_value LIKE '%analyzeResult%'",
+      ).values()) {
+        if (typeof doc.sourcePackageId === 'string') {
+          currentPackageIds.add(doc.sourcePackageId);
+        }
+      }
+
+      const referenced = new Set<string>();
+      for (const doc of latestLive(
+        "json_value LIKE '%storageKey%' AND json_value LIKE '%packageSize%'",
+      ).values()) {
+        if (typeof doc._id !== 'string' || !currentPackageIds.has(doc._id)) {
+          continue;
+        }
+        if (typeof doc.storageKey !== 'string') continue;
+        const name = doc.storageKey.split('/').pop() ?? doc.storageKey;
+        referenced.add(name.replace(/\.blob$/, ''));
+      }
+      return referenced;
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    console.warn(
+      '[convex-maintenance] failed to read module references:',
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 function isConvexBackendRunning(): boolean {
@@ -407,6 +558,8 @@ export function runConvexLocalMaintenance(
         }
       },
       isBackendRunning: isConvexBackendRunning,
+      readReferencedBlobNames: () =>
+        readReferencedModuleBlobNames(paths.sqlitePath),
     },
     snapshotArtifactPaths,
   );

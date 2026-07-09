@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyConvexLocalMaintenance,
   formatBytes,
   MODULE_BLOB_KEEP_COUNT,
   MODULE_BLOB_PRUNE_BYTES_THRESHOLD,
   MODULE_BLOB_PRUNE_COUNT_THRESHOLD,
   planConvexLocalMaintenance,
+  readReferencedModuleBlobNames,
   resolveLatestCachedBackendVersion,
   selectModuleBlobsToPrune,
   summarizeModuleBlobs,
+  type MaintenanceDeps,
   type ModuleBlobEntry,
 } from './convex-local-maintenance';
 
@@ -36,7 +39,89 @@ describe('selectModuleBlobsToPrune', () => {
       blob('/b.blob', 300, 10),
       blob('/c.blob', 200, 10),
     ];
-    expect(selectModuleBlobsToPrune(entries, 2)).toEqual(['/a.blob']);
+    expect(selectModuleBlobsToPrune(entries, 2, new Set())).toEqual([
+      '/a.blob',
+    ]);
+  });
+
+  // Regression for the July 2026 dev incident: components are re-pushed
+  // rarely, so their blobs are the OLDEST files — an mtime-only prune deletes
+  // exactly the code the deployment still loads.
+  it('never selects a blob the deployment still references, even past keepCount', () => {
+    const entries = [
+      blob('/modules/live-old.blob', 100, 10),
+      blob('/modules/stale-1.blob', 200, 10),
+      blob('/modules/stale-2.blob', 300, 10),
+      blob('/modules/newest.blob', 400, 10),
+    ];
+    expect(selectModuleBlobsToPrune(entries, 1, new Set(['live-old']))).toEqual(
+      ['/modules/stale-2.blob', '/modules/stale-1.blob'],
+    );
+  });
+
+  it('prunes nothing when the reference set is unknown', () => {
+    const entries = [blob('/a.blob', 100, 10), blob('/b.blob', 200, 10)];
+    expect(selectModuleBlobsToPrune(entries, 0, null)).toEqual([]);
+  });
+});
+
+describe('applyConvexLocalMaintenance', () => {
+  const pruneAll = {
+    kind: 'prune-modules',
+    reason: 'test',
+    keepCount: 0,
+    clearSnapshotArtifacts: false,
+    warning: null,
+  } as const;
+
+  function deps(overrides: Partial<MaintenanceDeps>): MaintenanceDeps {
+    return {
+      listModuleBlobs: () => [blob('/modules/a.blob', 100, 10)],
+      removePaths: () => {},
+      isBackendRunning: () => false,
+      readReferencedBlobNames: () => new Set(),
+      ...overrides,
+    };
+  }
+
+  it('skips the prune (and says why) when references cannot be read', () => {
+    const removed: string[][] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        readReferencedBlobNames: () => null,
+        removePaths: (paths) => removed.push(paths),
+      }),
+    );
+    expect(result.removedModuleBlobs).toBe(0);
+    expect(result.warning).toContain('Skipped Convex module prune');
+    expect(removed).toEqual([[]]);
+  });
+
+  it('prunes only unreferenced blobs when references are known', () => {
+    const removed: string[] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        listModuleBlobs: () => [
+          blob('/modules/live.blob', 100, 10),
+          blob('/modules/stale.blob', 200, 10),
+        ],
+        readReferencedBlobNames: () => new Set(['live']),
+        removePaths: (paths) => removed.push(...paths),
+      }),
+    );
+    expect(removed).toEqual(['/modules/stale.blob']);
+    expect(result.removedModuleBlobs).toBe(1);
+    expect(result.warning).toBeNull();
+  });
+});
+
+describe('readReferencedModuleBlobNames', () => {
+  it('treats a missing database as an empty reference set', () => {
+    expect(readReferencedModuleBlobNames('/nope.sqlite3', () => false)).toEqual(
+      new Set(),
+    );
   });
 });
 
