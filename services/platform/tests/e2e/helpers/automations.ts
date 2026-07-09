@@ -69,7 +69,38 @@ export function installWizardDialog(page: Page, name: string): Locator {
  * install itself runs on the Install step's Next, and setup continues from
  * the automation page's readiness checklist.
  */
-export async function walkInstallWizard(wizard: Locator): Promise<void> {
+/**
+ * On the project-scoped install wizard's Project step, pick `projectName` in
+ * the SearchableSelect. The trigger shows the placeholder until a value is
+ * chosen; the listbox is labelled with `install.projectLabel`.
+ */
+export async function selectInstallWizardProject(
+  wizard: Locator,
+  projectName: string,
+): Promise<void> {
+  const trigger = wizard.getByRole('button').filter({
+    hasText: new RegExp(
+      `${t('automations.install.projectPlaceholder')}|${projectName}`,
+    ),
+  });
+  await expect(trigger.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // Already selected — nothing to do.
+  if (await trigger.filter({ hasText: projectName }).count()) return;
+  await trigger.first().click();
+  const listbox = wizard.page().getByRole('listbox', {
+    name: t('automations.install.projectLabel'),
+  });
+  await expect(listbox).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await listbox.getByRole('option', { name: projectName, exact: true }).click();
+  await expect(
+    wizard.getByRole('button').filter({ hasText: projectName }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+}
+
+export async function walkInstallWizard(
+  wizard: Locator,
+  options?: { projectName?: string },
+): Promise<void> {
   const finish = wizard.getByRole('button', {
     name: t('automations.installWizard.finish'),
   });
@@ -77,6 +108,11 @@ export async function walkInstallWizard(wizard: Locator): Promise<void> {
     name: t('automations.installWizard.skipForNow'),
   });
   const next = wizard.getByRole('button', { name: t('common.actions.next') });
+
+  if (options?.projectName) {
+    // Project step gates Next until a project is selected.
+    await selectInstallWizardProject(wizard, options.projectName);
+  }
 
   // A wizard has strictly fewer steps than this bound; bail out rather than
   // loop forever if the dialog wedges.
@@ -108,6 +144,14 @@ export async function walkInstallWizard(wizard: Locator): Promise<void> {
     if (await skip.isVisible()) {
       await skip.click();
     } else {
+      // Project step may still be showing with Next disabled until selection.
+      if (
+        options?.projectName &&
+        (await next.isVisible()) &&
+        !(await next.isEnabled())
+      ) {
+        await selectInstallWizardProject(wizard, options.projectName);
+      }
       await next.click();
     }
   }

@@ -1,0 +1,127 @@
+{
+  "name": "Swiss VAT return desk",
+  "description": "Hermetic Phase 0 fixture for project-Files desk isolation. Quarters are top-level project folders; setup lives in `_setup`. The workflow is intentionally thin (status flip only) so the e2e stack can assert entry + isolation without Docker sandbox.",
+  "i18n": {
+    "en": {
+      "name": "Swiss VAT return desk",
+      "description": "Hermetic Phase 0 fixture for project-Files desk isolation."
+    },
+    "de": {
+      "name": "Schweizer MWST-Desk",
+      "description": "Hermetische Phase-0-Fixture für Project-Files-Desk-Isolation."
+    },
+    "fr": {
+      "name": "Bureau TVA suisse",
+      "description": "Fixture hermétique Phase 0 pour l'isolation du desk Project Files."
+    }
+  },
+  "icon": "receipt",
+  "labels": ["VAT", "Swiss", "Finance", "E2E"],
+  "scope": "project",
+  "workflow": {
+    "specification": "# Prepare VAT return (e2e stub)\n\nPhase 0 hermetic stub: acknowledge the task and park it In review. Real transform/sandbox work lives in the configs/vatplus pack, not this fixture.",
+    "version": "1.0.0-e2e",
+    "metadata": {
+      "pack": "vat-return-desk-e2e",
+      "autoInstall": false
+    },
+    "config": {
+      "timeout": 60000,
+      "variables": {
+        "workflowId": "vat_return_prepare_e2e"
+      }
+    },
+    "steps": [
+      {
+        "stepSlug": "start",
+        "name": "start",
+        "stepType": "start",
+        "config": {
+          "inputSchema": {
+            "properties": {
+              "task": {
+                "description": "Task from desk Start. externalId = quarter folderId; externalUrl = _setup setup folderId.",
+                "type": "object"
+              }
+            },
+            "required": ["task"]
+          }
+        },
+        "nextSteps": {
+          "success": "ack"
+        }
+      },
+      {
+        "stepSlug": "ack",
+        "name": "Acknowledge (In progress)",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "update_status",
+            "taskId": "{{input.task._id}}",
+            "status": "in_progress"
+          }
+        },
+        "nextSteps": {
+          "success": "park"
+        }
+      },
+      {
+        "stepSlug": "park",
+        "name": "Park for review",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "update_status",
+            "taskId": "{{input.task._id}}",
+            "status": "in_review"
+          }
+        },
+        "nextSteps": {
+          "success": "done"
+        }
+      },
+      {
+        "stepSlug": "done",
+        "name": "done",
+        "stepType": "output",
+        "config": {}
+      }
+    ]
+  },
+  "capabilities": {
+    "workflows": ["vat-return-desk-e2e"],
+    "functions": [
+      {
+        "path": "projects/queries:listProjectRootFolders",
+        "mode": "query"
+      },
+      {
+        "path": "tasks/queries:listTasksByProjectPaginated",
+        "mode": "query"
+      },
+      {
+        "path": "tasks/queries:getTask",
+        "mode": "query"
+      },
+      {
+        "path": "tasks/queries:listTaskActivity",
+        "mode": "query"
+      },
+      {
+        "path": "tasks/public_actions:createTaskFromExternalIssue",
+        "mode": "action"
+      },
+      {
+        "path": "tasks/public_actions:startTaskWorkflow",
+        "mode": "action"
+      },
+      {
+        "path": "tasks/mutations:updateTaskStatus",
+        "mode": "mutation"
+      }
+    ]
+  }
+}
