@@ -7,8 +7,6 @@ import {
 } from '@/app/components/blocks/hardware-specs';
 import { HardwareTiers } from '@/app/components/blocks/hardware-tiers';
 import { useT } from '@/lib/i18n/client';
-import { localizedPath } from '@/lib/i18n/locales';
-import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 export type HardwareMode = 'node' | 'multinode' | 'rack';
@@ -32,7 +30,6 @@ function parseLeasingTerm(value: unknown): LeasingTerm | undefined {
 
 export function HardwarePricingPage() {
   const { t: tSeo } = useT('seo');
-  const locale = useCurrentLocale();
   const search: Record<string, unknown> = useSearch({ strict: false });
   const navigate = useNavigate();
 
@@ -45,7 +42,7 @@ export function HardwarePricingPage() {
   useDocumentMeta({
     title: tSeo('hardwarePricing.title'),
     description: tSeo('hardwarePricing.description'),
-    canonicalPath: localizedPath(locale, '/hardware-pricing'),
+    path: '/hardware-pricing',
   });
 
   const setMode = (next: HardwareMode) =>

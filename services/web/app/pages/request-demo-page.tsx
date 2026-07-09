@@ -12,8 +12,6 @@ import {
   requestDemoSchema,
 } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedPath } from '@/lib/i18n/locales';
-import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const defaultValues: RequestDemoInput = {
@@ -42,12 +40,11 @@ export function RequestDemoPage() {
   const { t } = useT('requestDemo');
   const { t: tCommon } = useT('forms');
   const { t: tSeo } = useT('seo');
-  const locale = useCurrentLocale();
 
   useDocumentMeta({
     title: tSeo('requestDemo.title'),
     description: tSeo('requestDemo.description'),
-    canonicalPath: localizedPath(locale, '/request-demo'),
+    path: '/request-demo',
   });
 
   const form = useForm<RequestDemoInput>({

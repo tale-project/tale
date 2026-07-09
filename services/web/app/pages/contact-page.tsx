@@ -7,8 +7,6 @@ import { useForm } from 'react-hook-form';
 import { FormCard } from '@/app/components/blocks/form-card';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedPath } from '@/lib/i18n/locales';
-import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const defaultValues: ContactInput = {
@@ -25,12 +23,11 @@ export function ContactPage() {
   const { t } = useT('contact');
   const { t: tCommon } = useT('forms');
   const { t: tSeo } = useT('seo');
-  const locale = useCurrentLocale();
 
   useDocumentMeta({
     title: tSeo('contact.title'),
     description: tSeo('contact.description'),
-    canonicalPath: localizedPath(locale, '/contact'),
+    path: '/contact',
   });
 
   const form = useForm<ContactInput>({

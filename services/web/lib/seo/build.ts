@@ -34,7 +34,21 @@ import {
   LEGAL_CONTENT_ROOT,
   type LegalRoute,
 } from '../../scripts/legal-routes';
+import { localizedPath } from '../i18n/locales';
 import { MARKETING_ROUTES } from './marketing-routes';
+
+/** URL-bearing marketing locales — must mirror scripts/prerender.ts. */
+const MARKETING_LOCALES = ['en', 'de', 'fr'] as const;
+
+/** Full hreflang cluster (en/de/fr + x-default) for one marketing route. */
+function marketingAlternates(url: string): Record<string, string> {
+  const alternates: Record<string, string> = {};
+  for (const locale of MARKETING_LOCALES) {
+    alternates[locale] = `${TALE_SITE_URL}${localizedPath(locale, url)}`;
+  }
+  alternates['x-default'] = alternates.en;
+  return alternates;
+}
 
 export const WEB_SITE_TITLE = 'Tale';
 export const WEB_SITE_DESCRIPTION =
@@ -71,7 +85,22 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
     url: r.url,
     title: r.title,
     description: r.description,
+    alternates: marketingAlternates(r.url),
   }));
+
+  // The prerendered /de and /fr variants belong in the sitemap (each with
+  // the same alternates cluster) while llms.txt stays an English index —
+  // the same pattern the legal pages use.
+  const localizedMarketingRoutes: ArtifactRoute[] = MARKETING_LOCALES.filter(
+    (locale) => locale !== 'en',
+  ).flatMap((locale) =>
+    MARKETING_ROUTES.map((r) => ({
+      url: localizedPath(locale, r.url),
+      title: r.title,
+      description: r.description,
+      alternates: marketingAlternates(r.url),
+    })),
+  );
 
   const enLegal: ArtifactRoute[] = legal
     .filter((r) => r.locale === 'en')
@@ -91,12 +120,20 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
       alternates: alternatesBySlug.get(r.slug),
     }));
 
+  // Legal pages are noindex — a sitemap lists only indexable URLs, so they
+  // are excluded there while staying in llms.txt and the per-page .md set.
   return [
     { heading: 'Pages', routes: marketingRoutes },
-    { heading: 'Legal', routes: enLegal },
+    {
+      heading: 'Pages (localised variants)',
+      hideFromIndex: true,
+      routes: localizedMarketingRoutes,
+    },
+    { heading: 'Legal', excludeFromSitemap: true, routes: enLegal },
     {
       heading: 'Legal (localised variants)',
       hideFromIndex: true,
+      excludeFromSitemap: true,
       routes: otherLegal,
     },
   ];
