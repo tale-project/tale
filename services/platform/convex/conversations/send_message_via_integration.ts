@@ -110,11 +110,16 @@ export async function sendMessageViaIntegration(
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
+    // Top-level field (not just metadata) so the sent-folder sync cursor
+    // (queryLatestMessageByDeliveryState, filtered by integrationName via index)
+    // advances past native sends and doesn't re-fetch their appended Sent copy.
+    integrationName: args.integrationName,
     channel: 'email',
     direction: 'outbound',
     deliveryState: 'queued',
     content: args.content,
     sentAt: now,
+    deliveredAt: now,
     metadata: messageMetadata,
   });
 

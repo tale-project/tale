@@ -1,6 +1,7 @@
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { emailDomain } from '../../../../conversations/reply_from';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { addMessageToConversation } from './add_message_to_conversation';
 import { buildConversationMetadata } from './build_conversation_metadata';
@@ -54,12 +55,24 @@ function identifyCustomerAndAgent(
       customerEmail = email.to?.[0]?.address?.toLowerCase();
     } else if (listIncludes(email.to, accountEmailLower)) {
       customerEmail = email.from?.[0]?.address?.toLowerCase();
-    }
+    } else {
+      const agentDomain = emailDomain(accountEmailLower);
+      const fromAddr = email.from?.[0]?.address?.toLowerCase();
+      const toAddrs =
+        email.to
+          ?.map((entry) => entry.address?.toLowerCase())
+          .filter((addr): addr is string => !!addr) ?? [];
 
-    if (!customerEmail) {
-      customerEmail = Array.from(allAddresses).find(
-        (addr) => addr !== accountEmailLower,
-      );
+      // Sent-folder outbound with reply-as From (billing@) while account is hello@.
+      if (fromAddr && agentDomain && emailDomain(fromAddr) === agentDomain) {
+        customerEmail =
+          toAddrs.find((addr) => emailDomain(addr) !== agentDomain) ??
+          toAddrs[0];
+      } else {
+        customerEmail = Array.from(allAddresses).find(
+          (addr) => addr !== accountEmailLower,
+        );
+      }
     }
   } else if (email.to?.length === 1) {
     customerEmail = email.to[0].address?.toLowerCase();

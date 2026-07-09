@@ -31,6 +31,8 @@ import {
 } from './helpers/email_sync_cursor';
 import { queryConversationMessages } from './helpers/query_conversation_messages';
 import { queryLatestMessageByDeliveryState } from './helpers/query_latest_message_by_delivery_state';
+import { queryLatestOutboundMessageForEmailSync } from './helpers/query_latest_outbound_message_for_sync';
+import { resolveIntegrationAccountEmail } from './helpers/resolve_integration_account_email';
 import { updateConversations } from './helpers/update_conversations';
 
 // Common field validators
@@ -95,6 +97,11 @@ type ConversationActionParams =
       channel: string;
       direction: 'inbound' | 'outbound';
       deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
+      integrationName?: string;
+    }
+  | {
+      operation: 'query_latest_outbound_message_for_sync';
+      channel: string;
       integrationName?: string;
     }
   | {
@@ -178,6 +185,11 @@ Then create an approval with resourceType: 'conversations' to trigger sending wh
       channel: v.string(),
       direction: directionValidator,
       deliveryState: deliveryStateValidator,
+      integrationName: v.optional(v.string()),
+    }),
+    v.object({
+      operation: v.literal('query_latest_outbound_message_for_sync'),
+      channel: v.string(),
       integrationName: v.optional(v.string()),
     }),
     // update: Update a conversation by ID
@@ -273,6 +285,14 @@ Then create an approval with resourceType: 'conversations' to trigger sending wh
         });
       }
 
+      case 'query_latest_outbound_message_for_sync': {
+        return await queryLatestOutboundMessageForEmailSync(ctx, {
+          organizationId,
+          channel: params.channel,
+          integrationName: params.integrationName,
+        });
+      }
+
       case 'update': {
         return await updateConversations(ctx, {
           organizationId, // For organization ownership validation
@@ -295,7 +315,13 @@ Then create an approval with resourceType: 'conversations' to trigger sending wh
       }
 
       case 'create_from_sent_email': {
-        const accountEmail = params.accountEmail?.trim() || undefined;
+        let accountEmail = params.accountEmail?.trim() || undefined;
+        if (!accountEmail && params.integrationName) {
+          accountEmail = await resolveIntegrationAccountEmail(ctx, {
+            organizationId,
+            integrationName: params.integrationName,
+          });
+        }
         return await createConversationFromSentEmail(ctx, {
           organizationId,
           emails: params.emails,

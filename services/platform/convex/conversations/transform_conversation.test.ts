@@ -57,6 +57,102 @@ function makeCustomerDoc(
   } as unknown as Doc<'customers'>;
 }
 
+function makeMessageDoc(
+  overrides: Partial<Omit<Doc<'conversationMessages'>, '_id'>> & {
+    _id?: string;
+  } = {},
+): Doc<'conversationMessages'> {
+  return {
+    _id: 'msg_1',
+    _creationTime: 1_700_000_000_000,
+    organizationId: 'org_1',
+    conversationId: 'conv_1',
+    channel: 'email',
+    direction: 'inbound',
+    deliveryState: 'delivered',
+    content: 'Hello',
+    sentAt: 1_700_000_000_000,
+    deliveredAt: 1_700_000_000_000,
+    metadata: {},
+    ...overrides,
+  } as unknown as Doc<'conversationMessages'>;
+}
+
+function createMockCtxWithMessages(messages: Doc<'conversationMessages'>[]) {
+  const builder = {
+    withIndex: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    first: vi.fn().mockResolvedValue(null),
+    [Symbol.asyncIterator]: async function* () {
+      for (const message of messages) {
+        yield message;
+      }
+    },
+  };
+
+  const ctx = {
+    db: {
+      query: vi.fn().mockReturnValue(builder),
+      get: vi.fn().mockResolvedValue(null),
+    },
+  };
+
+  return ctx as unknown as QueryCtx;
+}
+
+describe('transformConversation message ordering', () => {
+  it('sorts messages by sentAt even when deliveredAt is missing on outbound mail', async () => {
+    const messages = [
+      makeMessageDoc({
+        _id: 'inbound_latest',
+        direction: 'inbound',
+        sentAt: 1_752_406_542_000,
+        deliveredAt: 1_752_406_542_000,
+        _creationTime: 1_752_406_800_000,
+      }),
+      makeMessageDoc({
+        _id: 'outbound_mid',
+        direction: 'outbound',
+        deliveryState: 'sent',
+        sentAt: 1_752_405_895_085,
+        deliveredAt: undefined,
+        _creationTime: 1_752_405_895_085,
+      }),
+      makeMessageDoc({
+        _id: 'outbound_early',
+        direction: 'outbound',
+        deliveryState: 'sent',
+        sentAt: 1_752_405_527_413,
+        deliveredAt: undefined,
+        _creationTime: 1_752_405_527_413,
+      }),
+      makeMessageDoc({
+        _id: 'inbound_yesterday',
+        direction: 'inbound',
+        sentAt: 1_752_315_109_000,
+        deliveredAt: 1_752_315_109_000,
+        _creationTime: 1_752_315_600_000,
+      }),
+    ];
+
+    const ctx = createMockCtxWithMessages(messages);
+    const conversation = makeConversation();
+    const customer = makeCustomerDoc();
+
+    const result = await transformConversation(ctx, conversation, {
+      customer,
+      includeAllMessages: true,
+    });
+
+    expect(result.messages.map((message) => message.id)).toEqual([
+      'inbound_yesterday',
+      'outbound_early',
+      'outbound_mid',
+      'inbound_latest',
+    ]);
+  });
+});
+
 describe('transformConversation customer name fallback', () => {
   it('leaves name undefined for a found customer that has no name', async () => {
     const ctx = createMockCtx();
@@ -126,7 +222,7 @@ describe('transformConversation flat list-row fields', () => {
     return ctx as unknown as QueryCtx;
   }
 
-  function makeMessageDoc(content: string): Record<string, unknown> {
+  function makeMessageDocWithContent(content: string): Record<string, unknown> {
     return {
       _id: 'msg_1',
       _creationTime: 1_700_000_100_000,
@@ -175,7 +271,7 @@ describe('transformConversation flat list-row fields', () => {
 
   it('carries the latest message content RAW (HTML intact) on lastMessagePreview', async () => {
     const raw = '<p>Hello <b>there</b></p>';
-    const ctx = createMockCtxWithMessage(makeMessageDoc(raw));
+    const ctx = createMockCtxWithMessage(makeMessageDocWithContent(raw));
     const conversation = makeConversation();
     const customer = makeCustomerDoc();
 
@@ -187,7 +283,7 @@ describe('transformConversation flat list-row fields', () => {
 
   it('caps lastMessagePreview at 200 characters', async () => {
     const long = 'x'.repeat(500);
-    const ctx = createMockCtxWithMessage(makeMessageDoc(long));
+    const ctx = createMockCtxWithMessage(makeMessageDocWithContent(long));
     const conversation = makeConversation();
     const customer = makeCustomerDoc();
 
