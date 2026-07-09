@@ -66,7 +66,7 @@ export function SegmentedRadio<T extends string | number>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="bg-bg-muted flex w-fit items-center gap-1 rounded-md p-0.5"
+      className="bg-surface-site-inset flex w-fit items-center gap-1 rounded-md p-0.5"
     >
       {options.map((option, index) => {
         const isActive = value === option;

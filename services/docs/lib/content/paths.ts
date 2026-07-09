@@ -1,3 +1,5 @@
+import { absoluteSitePath } from '@tale/ui/seo/urls';
+
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { DEFAULT_DOCS_SITE_URL } from '@/lib/site-url';
 
@@ -26,7 +28,7 @@ export function docPath(locale: SupportedLocale, slug: string): string {
 }
 
 export function docUrl(locale: SupportedLocale, slug: string): string {
-  return `${SITE_URL}${docPath(locale, slug)}`;
+  return absoluteSitePath(SITE_URL, docPath(locale, slug));
 }
 
 function docMarkdownPath(locale: SupportedLocale, slug: string): string {
@@ -35,7 +37,7 @@ function docMarkdownPath(locale: SupportedLocale, slug: string): string {
 }
 
 export function docMarkdownUrl(locale: SupportedLocale, slug: string): string {
-  return `${SITE_URL}${docMarkdownPath(locale, slug)}`;
+  return absoluteSitePath(SITE_URL, docMarkdownPath(locale, slug));
 }
 
 export { SITE_URL };

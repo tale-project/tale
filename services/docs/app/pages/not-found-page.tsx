@@ -6,6 +6,7 @@ import { flattenNav } from '@/lib/content/nav';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 interface NotFoundPageProps {
   locale: SupportedLocale;
@@ -59,8 +60,8 @@ function pickSuggestions(query: string, max = 4): string[] {
 }
 
 /** Human-friendly label from a slug, e.g. `platform/chat/basics` -> `Platform / Chat / Basics`. */
-function slugLabel(slug: string): string {
-  if (slug === 'index') return 'Home';
+function slugLabel(slug: string, homeLabel: string): string {
+  if (slug === 'index') return homeLabel;
   return slug
     .replace(/\/index$/, '')
     .split('/')
@@ -81,6 +82,14 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
     () => pickSuggestions(requestedSlug),
     [requestedSlug],
   );
+
+  useDocumentMeta({
+    title: t('notFoundTitle'),
+    description: t('notFoundBody'),
+    canonicalPath: '/404',
+    locale,
+    noindex: true,
+  });
 
   return (
     <div className="flex flex-col items-start gap-6 py-16">
@@ -107,7 +116,7 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
                   to={docPath(locale, slug) as any}
                   className="text-fg-link hover:text-fg-link-hover text-sm underline-offset-4 hover:underline"
                 >
-                  {slugLabel(slug)}
+                  {slugLabel(slug, t('home'))}
                 </Link>
               </li>
             ))}

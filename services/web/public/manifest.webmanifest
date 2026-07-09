@@ -4,8 +4,8 @@
   "description": "Tale — The Orchestrator for AI Agents. Self-hosted AI platform.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#fcfcfc",
+  "background_color": "#f4f4f4",
+  "theme_color": "#f4f4f4",
   "orientation": "portrait-primary",
   "icons": [
     {

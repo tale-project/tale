@@ -54,6 +54,10 @@ const SKIP_EXTENSIONS: readonly string[] = [
   '.pdf',
   '.zip',
   '.wasm',
+  // Web App Manifest — browsers fetch the absolute `/manifest.webmanifest`
+  // with the page's Accept-Language; without this skip, negotiation 302s to
+  // `/de/manifest.webmanifest` (or `/fr/…`) which does not exist on disk.
+  '.webmanifest',
 ];
 
 /** True for paths web/docs serve outside the locale-prefixed tree. */

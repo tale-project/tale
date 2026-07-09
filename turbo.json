@@ -84,6 +84,10 @@
       "cache": false,
       "outputs": []
     },
+    "test:prerender": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
     "test:coverage": {
       "dependsOn": ["setup"],
       "outputs": ["coverage/**"]

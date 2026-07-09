@@ -4,6 +4,7 @@ import {
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
   buildFaqPageJsonLd,
+  buildItemListJsonLd,
   buildOrganizationJsonLd,
   buildSoftwareApplicationJsonLd,
   buildWebSiteJsonLd,
@@ -218,5 +219,39 @@ describe('buildBreadcrumbListJsonLd', () => {
     expect(parsed.itemListElement).toHaveLength(2);
     expect(parsed.itemListElement[0].position).toBe(1);
     expect(parsed.itemListElement[1].position).toBe(2);
+  });
+});
+
+describe('buildItemListJsonLd', () => {
+  it('emits a numbered ItemList with optional dates', () => {
+    const parsed = parse(
+      buildItemListJsonLd(
+        [
+          {
+            name: 'v1.0.0',
+            url: 'https://github.com/tale-project/tale/releases/tag/v1.0.0',
+            datePublished: '2026-01-02',
+          },
+          {
+            name: 'v0.9.0',
+            url: 'https://github.com/tale-project/tale/releases/tag/v0.9.0',
+          },
+        ],
+        { name: "What's new in Tale?" },
+      ),
+    );
+    expect(parsed['@type']).toBe('ItemList');
+    expect(parsed.name).toBe("What's new in Tale?");
+    expect(parsed.numberOfItems).toBe(2);
+    if (!isJsonObjectArray(parsed.itemListElement)) {
+      throw new Error('Expected itemListElement to be an array of objects');
+    }
+    expect(parsed.itemListElement[0]).toMatchObject({
+      '@type': 'ListItem',
+      position: 1,
+      name: 'v1.0.0',
+      datePublished: '2026-01-02',
+    });
+    expect(parsed.itemListElement[1].datePublished).toBeUndefined();
   });
 });

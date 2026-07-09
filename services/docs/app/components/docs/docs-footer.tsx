@@ -1,6 +1,7 @@
+import { GithubIcon } from '@tale/ui/icons/github';
+import { TALE_GITHUB_URL } from '@tale/ui/seo/globals';
 import { SiteFooter } from '@tale/ui/site-footer';
 
-import { GithubIcon } from '@/app/components/icons/github-icon';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -26,7 +27,7 @@ export function DocsFooter() {
       llmsFullTxtLabel={t('llmsFullTxtLabel')}
       bottomTrailing={
         <a
-          href="https://github.com/tale-project/tale"
+          href={TALE_GITHUB_URL}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('githubAriaLabel')}

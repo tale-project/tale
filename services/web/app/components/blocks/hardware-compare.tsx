@@ -1,4 +1,3 @@
-import { Button } from '@tale/ui/button';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -17,7 +16,8 @@ import {
   type SpecLines,
 } from '@/app/components/blocks/hardware-specs';
 import { MarketingSection } from '@/app/components/blocks/marketing-section';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { MarketingButton, MarketingLink } from '@/app/components/marketing';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
@@ -109,23 +109,26 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
   const tiers: CompareTier<TierKey>[] = activeTierKeys.map((key) => ({
     key,
     name: t(`tierNames.${mode}.${key}`),
+    // Frost the non-recommended columns so the popular hybrid/rack
+    // header stays crisp — matches TierCard surface inversion.
+    emphasized: key !== 'hybrid' && key !== 'rack',
     cta: (
-      <Button
+      <MarketingButton
         asChild
-        variant={key === 'hybrid' || key === 'rack' ? 'primary' : 'secondary'}
+        tone={key === 'hybrid' || key === 'rack' ? 'primary' : 'secondary'}
         fullWidth
         className="hidden lg:inline-flex"
       >
-        <LocalizedLink to="/request-demo">
+        <MarketingLink to={REQUEST_DEMO_PATH} tone="plain">
           {t(`tiers.${key}.cta`)}
-        </LocalizedLink>
-      </Button>
+        </MarketingLink>
+      </MarketingButton>
     ),
   }));
 
   const checkIcon = (
     <Check
-      className="mx-auto h-5 w-5 text-emerald-600"
+      className="text-success mx-auto h-5 w-5"
       strokeWidth={2}
       role="img"
       aria-label={t('compare.cellLabels.yes')}
@@ -273,12 +276,9 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     content: (
       <>
         {t('extras.software.prefix')}{' '}
-        <LocalizedLink
-          to="/pricing"
-          className="text-fg-base font-medium underline underline-offset-4"
-        >
+        <MarketingLink to="/pricing" tone="inline" className="font-medium">
           {t('extras.software.linkLabel')}
-        </LocalizedLink>
+        </MarketingLink>
         {t('extras.software.suffix')}
       </>
     ),

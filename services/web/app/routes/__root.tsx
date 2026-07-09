@@ -1,4 +1,5 @@
 import { LocaleSync } from '@tale/ui/i18n/sync';
+import { SkipLink } from '@tale/ui/skip-link';
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
 import { SiteFooter } from '@/app/components/layout/site-footer';
@@ -23,16 +24,18 @@ function RootComponent() {
   const locale = useCurrentLocale();
 
   return (
-    <div className="bg-surface-site flex min-h-screen flex-col text-[color:var(--color-fg-base)]">
+    <div className="bg-surface-site text-fg-base relative flex min-h-screen flex-col">
+      {/* Top wash lives on the shell so the sticky transparent header always
+          composites over the same paper — per-page pulls under the nav were
+          easy to miss and read as a hairline seam. */}
+      <div
+        aria-hidden
+        className="bg-gradient-site-hero pointer-events-none absolute inset-x-0 top-0 h-[min(72vh,40rem)]"
+      />
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-[color:var(--color-accent-base)] focus:px-4 focus:py-2 focus:text-[color:var(--color-accent-fg)] focus:ring-2 focus:ring-[color:var(--color-accent-base)]/40 focus:outline-none"
-      >
-        {t('skipToMain')}
-      </a>
+      <SkipLink>{t('skipToMain')}</SkipLink>
       <SiteHeader />
-      <main id="main" className="flex-1">
+      <main id="main" className="relative flex-1">
         <Outlet />
       </main>
       <SiteFooter />

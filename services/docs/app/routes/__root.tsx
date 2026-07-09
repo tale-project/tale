@@ -121,7 +121,7 @@ function RootLayout() {
     <div className="bg-bg-base text-fg-base flex min-h-screen flex-col">
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
       <ThemeAssetSync resolvedTheme={resolvedTheme} />
-      <SkipLink>Skip to main content</SkipLink>
+      <SkipLink>{tNav('skipToMain')}</SkipLink>
       <DocsHeader
         locale={locale}
         activeSlug={activeSlug}

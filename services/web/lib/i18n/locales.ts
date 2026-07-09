@@ -15,5 +15,6 @@ export {
   isUrlPrefixedLocale,
   localizedPath,
   resolveRegionalLocale,
+  SUPPORTED_LOCALES,
 } from '@tale/ui/i18n/detect-locale';
 export type { SupportedLocale } from '@tale/ui/i18n/detect-locale';

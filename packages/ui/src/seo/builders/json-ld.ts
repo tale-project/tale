@@ -307,3 +307,37 @@ export function buildBreadcrumbListJsonLd(
     })),
   });
 }
+
+// ---------------------------------------------------------------------------
+// ItemList
+// ---------------------------------------------------------------------------
+
+export interface ItemListEntry {
+  name: string;
+  url: string;
+  /** ISO 8601 date when the listed item was published, if known. */
+  datePublished?: string;
+}
+
+/**
+ * `ItemList` block for visible ordered collections (changelog releases,
+ * compare hubs, etc.). Emit only for items rendered on the page.
+ */
+export function buildItemListJsonLd(
+  items: readonly ItemListEntry[],
+  opts?: { name?: string },
+): string {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    ...(opts?.name ? { name: opts.name } : {}),
+    numberOfItems: items.length,
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      url: item.url,
+      ...(item.datePublished ? { datePublished: item.datePublished } : {}),
+    })),
+  });
+}

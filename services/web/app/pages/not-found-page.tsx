@@ -1,7 +1,10 @@
-import { Button } from '@tale/ui/button';
-
-import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
+import {
+  MarketingButton,
+  MarketingLink,
+  MarketingStack,
+  SectionHeading,
+} from '@/app/components/marketing';
 import { useT } from '@/lib/i18n/client';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -13,6 +16,7 @@ import { useDocumentMeta } from '@/lib/seo/use-document-meta';
  */
 export function NotFoundPage() {
   const { t } = useT('notFound');
+  const { t: tFooter } = useT('footer');
 
   useDocumentMeta({
     title: t('title'),
@@ -22,21 +26,42 @@ export function NotFoundPage() {
 
   return (
     <SiteContainer>
-      <div className="mx-auto flex max-w-135 flex-col items-center gap-6 py-24 text-center md:py-36">
+      <MarketingStack
+        max="sm"
+        gap="md"
+        align="center"
+        className="py-24 md:py-36"
+      >
         <p className="text-fg-subtle text-sm font-medium tracking-wide uppercase">
           404
         </p>
-        <h1
-          className="text-fg-base text-4xl font-medium md:text-[52px]"
-          style={{ letterSpacing: '-2.14px', lineHeight: 1.077 }}
-        >
-          {t('title')}
-        </h1>
-        <p className="text-fg-muted text-base md:text-lg">{t('body')}</p>
-        <Button asChild>
-          <LocalizedLink to="/">{t('backHome')}</LocalizedLink>
-        </Button>
-      </div>
+        <SectionHeading
+          bare
+          as="h1"
+          size="section"
+          title={t('title')}
+          description={t('body')}
+        />
+        <MarketingButton asChild>
+          <MarketingLink to="/" tone="plain">
+            {t('backHome')}
+          </MarketingLink>
+        </MarketingButton>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-2">
+          <MarketingLink to="/platform" tone="subtle">
+            {tFooter('platform')}
+          </MarketingLink>
+          <MarketingLink to="/pricing" tone="subtle">
+            {tFooter('pricing')}
+          </MarketingLink>
+          <MarketingLink to="/changelog" tone="subtle">
+            {tFooter('changelog')}
+          </MarketingLink>
+          <MarketingLink to="/contact" tone="subtle">
+            {tFooter('contact')}
+          </MarketingLink>
+        </div>
+      </MarketingStack>
     </SiteContainer>
   );
 }

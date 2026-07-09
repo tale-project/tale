@@ -115,11 +115,11 @@ export function UserCountControl({
   const minTooltip = t('users.minTooltip');
 
   return (
-    <div className="mx-auto mt-6 flex w-full max-w-120 flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <label
           htmlFor="pricing-users-input"
-          className="text-fg-base text-sm font-medium"
+          className="text-fg-base text-sm font-medium tracking-tight"
         >
           {label}
         </label>

@@ -1,38 +1,348 @@
 @import '@tale/ui/globals.css';
 
-/* Marketing surface tokens. The web's dark panels sit deliberately above the
-   canonical `--color-bg-base` dark (#0a0a0a) for a slightly warmer marketing
-   feel. These definitions are the only place the values may appear — blocks
-   use the generated `bg-surface-*` utilities, never a raw hex. */
+/* Navigating between long and short pages must not shift the layout when
+   the scrollbar appears or disappears — reserve the gutter permanently. */
+html {
+  scrollbar-gutter: stable;
+  background-color: var(--color-surface-site);
+  /* Marquee tracks are wider than the viewport; clip so they never widen
+     the document scrollport (mobile horizontal scroll). */
+  overflow-x: clip;
+}
+
+body {
+  background-color: var(--color-surface-site);
+  overflow-x: clip;
+}
+
+/* Marketing colour system — cool stone paper (light) / soft charcoal (dark).
+   Surfaces, ink, borders, and atmosphere live here. Brand blue stays for
+   product-life accents inside demos only — never page fills. */
 @theme {
-  /* No pure white: the light surfaces sit a notch warm of #fff so large
-     areas stay easy on the eye. */
-  --color-surface-site: #fafaf8;
-  --color-surface-site-raised: #fefefd;
-  --color-surface-site-inset: #f2f2ef;
-  --color-surface-site-deep: #fefefd;
-  --color-surface-site-active: #fefefd;
-  --color-surface-promo: #9bc4ff;
-  --color-fg-promo: #021a3f;
-  /* Brand accent (design/branding.md: #056CFF) — buttons, links, live
-     states. `wash` is the tinted stage marketing sections sit product
-     windows on. */
+  /* —— Surfaces (light → dark step: site → raised → deep → inset → wash) —— */
+  --color-surface-site: #f4f4f4;
+  --color-surface-site-raised: #ffffff;
+  --color-surface-site-inset: #e8e8e8;
+  --color-surface-site-deep: #ededed;
+  --color-surface-site-active: #ffffff;
+  --color-surface-wash: #dddddd;
+  /* Promo chip — muted gray, not sand/amber. */
+  --color-surface-promo: #c4c4c4;
+  --color-fg-promo: #2a2a2a;
+  /* Brand accent (design/branding.md: #056CFF) — product life only. */
   --color-brand-base: #056cff;
   --color-brand-strong: #0356d6;
   --color-brand-fg: #ffffff;
-  --color-surface-wash: #eef3fb;
+  /* Atmosphere blooms — cool gray, never brand blue. */
+  --color-atmosphere-warm: #a0a0a0;
+  --color-atmosphere-deep: #636363;
+  /* Ink / borders — near-neutral on this surface. */
+  --color-fg-base: #141414;
+  --color-fg-muted: #555555;
+  --color-fg-subtle: #6a6a6a;
+  --color-fg-inverse: #ffffff;
+  --color-border-base: #d0d0d0;
+  --color-border-strong: #b8b8b8;
+  --color-accent-base: #141414;
+  --color-accent-fg: #ffffff;
+  /* Ink terminal — always dark; never flips with theme. */
+  --color-ink-terminal: #141414;
+  --color-ink-terminal-fg: #ffffff;
+  /* Browser chrome traffic lights — depiction only, not product UI. */
+  --color-demo-traffic-close: #ff5f57;
+  --color-demo-traffic-min: #febc2e;
+  --color-demo-traffic-max: #28c840;
+  /* Demo window elevation — soft, layered, never a hard drop. */
+  --shadow-demo:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 6%, transparent),
+    0 1px 2px color-mix(in oklab, var(--color-fg-base) 4%, transparent),
+    0 10px 28px
+      color-mix(in oklab, var(--color-atmosphere-deep) 10%, transparent),
+    0 32px 72px color-mix(in oklab, var(--color-fg-base) 8%, transparent);
+  --shadow-demo-hero:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 7%, transparent),
+    0 2px 6px color-mix(in oklab, var(--color-fg-base) 5%, transparent),
+    0 18px 44px
+      color-mix(in oklab, var(--color-atmosphere-deep) 12%, transparent),
+    0 52px 100px color-mix(in oklab, var(--color-fg-base) 10%, transparent);
+  /* Card / tile elevation — quieter than demo windows. */
+  --shadow-site-card:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 5%, transparent),
+    0 1px 2px color-mix(in oklab, var(--color-fg-base) 3%, transparent),
+    0 8px 20px color-mix(in oklab, var(--color-atmosphere-deep) 7%, transparent);
+  --shadow-site-card-hover:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 7%, transparent),
+    0 2px 4px color-mix(in oklab, var(--color-fg-base) 4%, transparent),
+    0 14px 32px
+      color-mix(in oklab, var(--color-atmosphere-deep) 10%, transparent);
+  /* Soft inset for icon wells / recessed panels. */
+  --shadow-site-inset:
+    inset 0 1px 2px color-mix(in oklab, var(--color-fg-base) 6%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, var(--color-fg-base) 3%, transparent);
 }
 
 .dark {
-  --color-surface-site: #0f0f0f;
-  --color-surface-site-raised: #141416;
-  --color-surface-site-inset: #151515;
-  --color-surface-site-deep: #0a0a0b;
-  --color-surface-site-active: #404045;
+  /* Soft charcoal ladder — near-neutral, softer than app true-black. */
+  --color-surface-site: #101010;
+  --color-surface-site-raised: #181818;
+  --color-surface-site-inset: #242424;
+  --color-surface-site-deep: #0a0a0a;
+  --color-surface-site-active: #2e2e2e;
+  --color-surface-wash: #141414;
+  --color-surface-promo: #a0a0a0;
+  --color-fg-promo: #141414;
   --color-brand-base: #3b82f6;
   --color-brand-strong: #2f6fe0;
   --color-brand-fg: #ffffff;
-  --color-surface-wash: #10151d;
+  --color-atmosphere-warm: #8a8a8a;
+  --color-atmosphere-deep: #525252;
+  --color-fg-base: #f4f4f4;
+  --color-fg-muted: #bdbdbd;
+  --color-fg-subtle: #949494;
+  --color-fg-inverse: #101010;
+  --color-border-base: #383838;
+  --color-border-strong: #4c4c4c;
+  --color-accent-base: #f4f4f4;
+  --color-accent-fg: #101010;
+  --shadow-demo:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 8%, transparent),
+    0 1px 2px color-mix(in oklab, #000 32%, transparent),
+    0 14px 36px color-mix(in oklab, #000 40%, transparent),
+    0 44px 88px color-mix(in oklab, #000 34%, transparent);
+  --shadow-demo-hero:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 10%, transparent),
+    0 2px 8px color-mix(in oklab, #000 34%, transparent),
+    0 26px 60px color-mix(in oklab, #000 42%, transparent),
+    0 68px 128px color-mix(in oklab, #000 38%, transparent);
+  --shadow-site-card:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 7%, transparent),
+    0 1px 2px color-mix(in oklab, #000 38%, transparent),
+    0 10px 24px color-mix(in oklab, #000 44%, transparent);
+  --shadow-site-card-hover:
+    0 0 0 1px color-mix(in oklab, var(--color-fg-base) 11%, transparent),
+    0 2px 4px color-mix(in oklab, #000 42%, transparent),
+    0 16px 36px color-mix(in oklab, #000 52%, transparent);
+  --shadow-site-inset:
+    inset 0 1px 2px color-mix(in oklab, #000 58%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, var(--color-fg-base) 4%, transparent);
+}
+
+/* —— Atmosphere gradients (cool stone paper; brand blue stays off-page) —— */
+
+/* Soft top wash behind hero copy — paper with quiet stone blooms. */
+.bg-gradient-site-hero {
+  background:
+    radial-gradient(
+      ellipse 78% 58% at 12% -5%,
+      color-mix(in oklab, var(--color-atmosphere-warm) 10%, transparent),
+      transparent 64%
+    ),
+    radial-gradient(
+      ellipse 55% 45% at 92% 12%,
+      color-mix(in oklab, var(--color-atmosphere-deep) 5%, transparent),
+      transparent 68%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(
+          in oklab,
+          var(--color-surface-wash) 45%,
+          var(--color-surface-site)
+        )
+        0%,
+      var(--color-surface-site) 70%
+    );
+}
+
+.dark .bg-gradient-site-hero {
+  background:
+    radial-gradient(
+      ellipse 72% 52% at 14% -5%,
+      color-mix(in oklab, var(--color-atmosphere-warm) 6%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 90% 10%,
+      color-mix(in oklab, var(--color-atmosphere-deep) 4%, transparent),
+      transparent 65%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(
+          in oklab,
+          var(--color-surface-wash) 65%,
+          var(--color-surface-site)
+        )
+        0%,
+      var(--color-surface-site) 75%
+    );
+}
+
+/* Paper → wash band for section rhythm (PageSection surface="soft"). */
+.bg-gradient-site-band {
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-site) 0%,
+    color-mix(
+        in oklab,
+        var(--color-surface-wash) 70%,
+        var(--color-surface-site)
+      )
+      42%,
+    var(--color-surface-wash) 100%
+  );
+}
+
+.dark .bg-gradient-site-band {
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-site) 0%,
+    color-mix(
+        in oklab,
+        var(--color-surface-wash) 80%,
+        var(--color-surface-site)
+      )
+      45%,
+    var(--color-surface-wash) 100%
+  );
+}
+
+/* Quiet frosted popular tint — translucent inset over the page wash.
+   Prefer composing `bg-surface-site-inset/40 backdrop-blur-md` on
+   TierCard; this class remains for any leftover references. */
+.bg-gradient-tier-popular {
+  background-color: color-mix(
+    in oklab,
+    var(--color-surface-site-inset) 40%,
+    transparent
+  );
+  backdrop-filter: blur(12px);
+}
+
+/* Quiet radial bloom for closing CTAs — centered stone, low chroma. */
+.bg-gradient-site-cta {
+  background:
+    radial-gradient(
+      ellipse 72% 58% at 50% 32%,
+      color-mix(in oklab, var(--color-atmosphere-warm) 8%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 70% at 50% 100%,
+      color-mix(in oklab, var(--color-surface-wash) 85%, transparent),
+      transparent 72%
+    ),
+    var(--color-surface-site);
+}
+
+.dark .bg-gradient-site-cta {
+  background:
+    radial-gradient(
+      ellipse 68% 52% at 50% 28%,
+      color-mix(in oklab, var(--color-atmosphere-warm) 10%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse 85% 65% at 50% 100%,
+      color-mix(in oklab, var(--color-surface-wash) 90%, transparent),
+      transparent 70%
+    ),
+    var(--color-surface-site);
+}
+
+/* —— DemoStage atmosphere layers (tokenized; no inline gradients in JSX) —— */
+
+.bg-demo-stage-bloom-hero {
+  background: radial-gradient(
+    ellipse 90% 64% at 50% 28%,
+    color-mix(in oklab, var(--color-atmosphere-warm) 12%, transparent),
+    transparent 74%
+  );
+}
+
+.bg-demo-stage-bloom-section {
+  background: radial-gradient(
+    ellipse 74% 54% at 50% 32%,
+    color-mix(in oklab, var(--color-atmosphere-warm) 8%, transparent),
+    transparent 72%
+  );
+}
+
+.dark .bg-demo-stage-bloom-hero {
+  background: radial-gradient(
+    ellipse 90% 64% at 50% 28%,
+    color-mix(in oklab, var(--color-atmosphere-warm) 7%, transparent),
+    transparent 74%
+  );
+}
+
+.dark .bg-demo-stage-bloom-section {
+  background: radial-gradient(
+    ellipse 74% 54% at 50% 32%,
+    color-mix(in oklab, var(--color-atmosphere-warm) 5%, transparent),
+    transparent 72%
+  );
+}
+
+.bg-demo-stage-warm-hero {
+  background: radial-gradient(
+    ellipse 54% 44% at 78% 78%,
+    color-mix(in oklab, var(--color-atmosphere-deep) 7%, transparent),
+    transparent 74%
+  );
+}
+
+.bg-demo-stage-warm-section {
+  background: radial-gradient(
+    ellipse 44% 34% at 78% 78%,
+    color-mix(in oklab, var(--color-atmosphere-deep) 5%, transparent),
+    transparent 72%
+  );
+}
+
+.bg-demo-stage-vignette {
+  background: radial-gradient(
+    ellipse 85% 65% at 50% 42%,
+    transparent 28%,
+    color-mix(in oklab, var(--color-surface-wash) 70%, var(--color-fg-base))
+      100%
+  );
+  opacity: 0.48;
+}
+
+.dark .bg-demo-stage-vignette {
+  opacity: 0.72;
+}
+
+.bg-demo-stage-grid {
+  opacity: 0.4;
+  background-image:
+    linear-gradient(
+      color-mix(in oklab, var(--color-fg-base) 9%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--color-fg-base) 9%, transparent) 1px,
+      transparent 1px
+    );
+  mask-image: radial-gradient(
+    ellipse 68% 58% at 50% 42%,
+    black 12%,
+    transparent 74%
+  );
+}
+
+.dark .bg-demo-stage-grid {
+  opacity: 0.24;
+}
+
+.bg-demo-stage-grid-hero {
+  background-size: 48px 48px;
+}
+
+.bg-demo-stage-grid-section {
+  background-size: 40px 40px;
 }
 
 /* Marquee track. The track contains the logos rendered twice; translating
@@ -46,8 +356,35 @@
   }
 }
 
+/* Soft float on the hero product window was removed — infinite
+   translateY fought compositor scroll and jittered the homepage. */
+
 @media (prefers-reduced-motion: reduce) {
   .marquee-track {
     animation: none !important;
   }
+}
+
+.shadow-demo {
+  box-shadow: var(--shadow-demo);
+}
+
+.shadow-demo-hero {
+  box-shadow: var(--shadow-demo-hero);
+}
+
+.shadow-site-card {
+  box-shadow: var(--shadow-site-card);
+}
+
+.shadow-site-card-hover {
+  box-shadow: var(--shadow-site-card-hover);
+}
+
+.hover\:shadow-site-card-hover:hover {
+  box-shadow: var(--shadow-site-card-hover);
+}
+
+.shadow-site-inset {
+  box-shadow: var(--shadow-site-inset);
 }

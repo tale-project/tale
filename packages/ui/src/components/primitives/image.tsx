@@ -20,6 +20,27 @@ interface ImageProps extends Omit<ComponentPropsWithoutRef<'img'>, 'onError'> {
    * Use for above-the-fold images.
    */
   priority?: boolean;
+  /**
+   * Responsive `srcset` string. Passed through to the underlying `<img>`.
+   */
+  srcSet?: string;
+  /**
+   * Sizes hint paired with `srcSet`.
+   */
+  sizes?: string;
+  /**
+   * Intrinsic width — reserves layout space (CLS 0) when height is also set.
+   */
+  width?: number;
+  /**
+   * Intrinsic height — reserves layout space (CLS 0) when width is also set.
+   */
+  height?: number;
+  /**
+   * Tiny base64 (or data-URL) blur preview shown as a CSS background until
+   * the full image loads. Additive — existing callers are unchanged.
+   */
+  blurDataURL?: string;
 }
 
 /**
@@ -28,7 +49,7 @@ interface ImageProps extends Omit<ComponentPropsWithoutRef<'img'>, 'onError'> {
  * Features:
  * - Automatic fallback on error
  * - Lazy loading by default (disable with `priority`)
- * - Full control over styling
+ * - Optional srcset / sizes / dimensions / blur placeholder
  */
 export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
   {
@@ -38,30 +59,54 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
     fallbackSrc = DEFAULT_PLACEHOLDER,
     priority = false,
     loading,
+    srcSet,
+    sizes,
+    width,
+    height,
+    blurDataURL,
+    style,
     ...props
   },
   ref,
 ) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const currentSrc = failedSrc === src ? fallbackSrc : src || fallbackSrc;
 
   useEffect(() => {
     setFailedSrc(null);
+    setLoaded(false);
   }, [src]);
 
   const handleError = () => {
     setFailedSrc(src ?? null);
   };
 
+  const blurStyle =
+    blurDataURL && !loaded
+      ? {
+          ...style,
+          backgroundImage: `url(${blurDataURL})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }
+      : style;
+
   return (
     <img
       key={src}
       ref={ref}
       src={currentSrc}
+      srcSet={srcSet}
+      sizes={sizes}
+      width={width}
+      height={height}
       alt={alt}
       className={cn(className)}
+      style={blurStyle}
       loading={loading ?? (priority ? 'eager' : 'lazy')}
       onError={handleError}
+      onLoad={() => setLoaded(true)}
       {...props}
     />
   );

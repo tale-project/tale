@@ -1,14 +1,17 @@
+import { cn } from '@tale/ui/cn';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 
+import {
+  MARKETING_EASE,
+  MARKETING_VIEWPORT,
+} from '@/app/components/marketing/reveal';
 import { useSkipEntrance } from '@/lib/motion/entrance';
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
 
 interface TierCardProps {
   /** Tier display name (e.g. "Community", "Pro", "Quality"). */
   name: ReactNode;
-  /** Highlight this tier as the recommended one (popular badge + tinted bg). */
+  /** Highlight this tier as the recommended one (popular badge). */
   popular?: boolean;
   /** Localized "Popular" label. Only rendered when `popular` is true. */
   popularLabel?: ReactNode;
@@ -36,7 +39,7 @@ interface TierCardProps {
   tagline?: ReactNode;
   /**
    * Body content (feature list, metrics, CTA, etc.) flowed below the
-   * tagline. The wrapping article uses `flex flex-col gap-6` so each
+   * tagline. The wrapping article uses `flex flex-col gap-5` so each
    * child sits with consistent spacing — the consumer is expected to
    * mark the last child with `mt-auto` to push the CTA to the bottom.
    */
@@ -58,14 +61,10 @@ interface TierCardProps {
 }
 
 /**
- * Pricing/hardware tier card. Renders the article wrapper with border
- * + animation, the header (name + optional Popular badge), the price
- * block, the tagline, and the body slot.
- *
- * Designed to be one of three cards in an `lg:grid-cols-3` row — the
- * card applies `first:border-l-0` / `lg:first:border-t-0` so it slots
- * into a parent box (`<div className="border ... overflow-hidden">`)
- * cleanly without callers having to manage border edges per index.
+ * Pricing/hardware tier card — flat raised surface, hairline only.
+ * The non-recommended tier gets a quiet frosted wash (`backdrop-blur` +
+ * translucent inset); the recommended tier stays crisp raised white so
+ * Free / Community reads soft and Enterprise / popular reads clear.
  */
 export function TierCard({
   name,
@@ -81,48 +80,45 @@ export function TierCard({
   disabledLabel,
 }: TierCardProps) {
   const skipEntrance = useSkipEntrance();
-  const fadeInitial = skipEntrance ? false : { opacity: 0, y: 24 };
+  // Opacity-only — y-shifts on tier cards fight scroll on pricing pages.
+  const fadeInitial = skipEntrance ? false : { opacity: 0 };
 
   return (
     <motion.article
       aria-disabled={disabled || undefined}
       initial={fadeInitial}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-10%' }}
+      whileInView={{ opacity: 1 }}
+      viewport={MARKETING_VIEWPORT}
       transition={
         skipEntrance
           ? { duration: 0 }
-          : { duration: 0.5, delay: animationDelay, ease: easeOut }
+          : { duration: 0.5, delay: animationDelay, ease: MARKETING_EASE }
       }
-      className={`border-border-base bg-bg-base relative flex flex-col gap-6 border-t p-8 first:border-t-0 sm:p-10 lg:border-t-0 lg:border-l lg:first:border-l-0 ${
+      className={cn(
+        'relative flex h-full flex-col gap-5 rounded-2xl border p-6 sm:p-8',
         popular
-          ? 'bg-[linear-gradient(180deg,rgba(155,196,255,0.16),transparent_40%)] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.25),transparent_40%)]'
-          : ''
-      } ${disabled ? 'opacity-55' : ''}`}
+          ? 'border-border-base/40 bg-surface-site-raised'
+          : 'border-border-base/50 bg-surface-site-inset/40 backdrop-blur-md',
+        disabled && 'opacity-55',
+      )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2
-          className="text-fg-muted text-lg font-medium"
-          style={{ letterSpacing: '-0.18px' }}
-        >
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-fg-base text-xl font-medium tracking-tight">
           {name}
         </h2>
         {popular && popularLabel ? (
-          <span className="bg-surface-promo text-fg-promo rounded-md px-1.5 py-px text-[10px] font-medium">
+          <span className="bg-surface-site-raised/70 text-fg-muted shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-tight backdrop-blur-sm">
             {popularLabel}
           </span>
         ) : disabled && disabledLabel ? (
-          <span className="border-border-base text-fg-muted rounded-md border px-1.5 py-px text-[10px] font-medium">
+          <span className="text-fg-muted shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium tracking-tight">
             {disabledLabel}
           </span>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <span
-          className="text-fg-base text-4xl font-medium md:text-[48px]"
-          style={{ letterSpacing: '-2px', lineHeight: 1.05 }}
-        >
+        <span className="text-fg-base text-4xl font-medium tracking-[-0.04em] md:text-[48px] md:leading-[1.05]">
           {price}
         </span>
         <span className="text-fg-muted min-h-[1.25rem] text-sm">
@@ -136,10 +132,7 @@ export function TierCard({
       </div>
 
       {tagline !== undefined && tagline !== null ? (
-        <p
-          className="text-fg-muted min-h-[4.5em] text-base"
-          style={{ letterSpacing: '-0.24px', lineHeight: 1.5 }}
-        >
+        <p className="text-fg-muted min-h-[3em] text-base leading-normal tracking-tight">
           {tagline}
         </p>
       ) : null}

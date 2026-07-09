@@ -1,13 +1,14 @@
 import { buildSoftwareApplicationJsonLd } from '@tale/ui/seo/builders/json-ld';
 import { TALE_GITHUB_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 
+import { SUPPORTED_LOCALES } from '@/lib/i18n/locales';
 import { PER_USER_MONTHLY } from '@/lib/pricing/tiers';
 
 /**
  * The one SoftwareApplication node (`@id: …/#software`) describing Tale,
- * re-declared identically on `/` and `/pricing`. Offers source their
- * prices from `lib/pricing/tiers.ts` — the same constants the pricing UI
- * renders — so declared and displayed prices cannot drift.
+ * re-declared identically on `/` and `/pricing`. Offers
+ * source their prices from `lib/pricing/tiers.ts` — the same constants the
+ * pricing UI renders — so declared and displayed prices cannot drift.
  */
 export function buildTaleSoftwareApplicationJsonLd(
   description: string,
@@ -20,7 +21,7 @@ export function buildTaleSoftwareApplicationJsonLd(
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Linux (Docker, self-hosted)',
     licenseUrl: `${TALE_GITHUB_URL}/blob/main/LICENSE`,
-    inLanguage: ['en', 'de', 'fr'],
+    inLanguage: [...SUPPORTED_LOCALES],
     sameAs: [TALE_GITHUB_URL],
     offers: [
       { name: 'Community', price: '0', priceCurrency: 'CHF' },

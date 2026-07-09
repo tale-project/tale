@@ -2,10 +2,10 @@ import { motion } from 'framer-motion';
 import { Scale, Server, ShieldCheck, type LucideIcon } from 'lucide-react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
+import { MARKETING_EASE } from '@/app/components/marketing/reveal';
+import { SectionHeading } from '@/app/components/marketing/section-heading';
 import { useT } from '@/lib/i18n/client';
 import { useSkipEntrance } from '@/lib/motion/entrance';
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const PILLARS = [
   { key: 'selfHosted', Icon: Server },
@@ -18,33 +18,18 @@ export function Tagline() {
   const skipEntrance = useSkipEntrance();
 
   return (
-    <section className="border-border-base bg-surface-site border-b pt-20 pb-20">
+    <section className="border-border-base bg-surface-site border-b py-24 md:py-32">
       <SiteContainer>
-        <motion.div
-          initial={skipEntrance ? false : { opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-15%' }}
-          transition={
-            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
-          }
-          className="mx-auto flex max-w-180 flex-col items-center gap-3 text-center"
-        >
-          <h2
-            className="text-fg-base text-4xl font-medium md:text-[52px]"
-            style={{ letterSpacing: '-2.14px', lineHeight: 1.077 }}
-          >
-            {t('tagline.title')}
-          </h2>
-          <p
-            className="text-fg-muted max-w-132 text-base md:text-lg"
-            style={{ letterSpacing: '-0.108px', lineHeight: 1.556 }}
-          >
-            {t('tagline.subtitle')}
-          </p>
-        </motion.div>
+        <SectionHeading
+          align="start"
+          className="max-w-180"
+          title={t('tagline.title')}
+          description={t('tagline.subtitle')}
+        />
       </SiteContainer>
 
       <div className="mx-auto mt-12 w-full max-w-7xl md:px-20">
+        {/* Stagger stays opacity-only so pillar cards don't shift layout. */}
         <motion.div
           initial={skipEntrance ? false : 'hidden'}
           whileInView={skipEntrance ? undefined : 'visible'}
@@ -80,11 +65,10 @@ interface PillarCardProps {
 }
 
 const pillarVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: easeOut },
+    transition: { duration: 0.5, ease: MARKETING_EASE },
   },
 };
 
@@ -106,27 +90,16 @@ function PillarCard({
     >
       <div
         aria-hidden
-        className="bg-surface-wash relative flex h-44 items-center justify-center overflow-hidden md:h-52"
+        className="bg-surface-wash shadow-site-inset relative flex h-40 items-center justify-center overflow-hidden md:h-48"
       >
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              'radial-gradient(color-mix(in oklab, var(--color-border-strong) 45%, transparent) 1px, transparent 1px)',
-            backgroundSize: '16px 16px',
-          }}
-        />
-        <span className="border-border-base bg-surface-site-raised/70 absolute size-16 -translate-x-5 translate-y-3 -rotate-6 rounded-2xl border" />
-        <span className="border-border-base bg-surface-site-raised/70 absolute size-16 translate-x-6 -translate-y-3 rotate-6 rounded-2xl border" />
-        <span className="border-border-base bg-surface-site-raised relative flex size-16 items-center justify-center rounded-2xl border shadow-sm">
-          <Icon className="text-brand-base size-7" strokeWidth={1.5} />
+        <span className="border-border-base bg-surface-site-raised/80 shadow-site-card absolute size-14 -translate-x-5 translate-y-3 -rotate-6 rounded-xl border" />
+        <span className="border-border-base bg-surface-site-raised/80 shadow-site-card absolute size-14 translate-x-6 -translate-y-3 rotate-6 rounded-xl border" />
+        <span className="border-border-base bg-surface-site-raised shadow-site-card relative flex size-14 items-center justify-center rounded-xl border">
+          <Icon className="text-fg-base size-6" strokeWidth={1.5} />
         </span>
       </div>
       <div className="flex flex-col gap-3 px-6 py-8 md:px-10">
-        <h3
-          className="text-fg-base text-xl font-medium"
-          style={{ letterSpacing: '-1px' }}
-        >
+        <h3 className="text-fg-base text-xl font-normal tracking-[-0.02em]">
           {t(`tagline.pillars.${pillarKey}.title`)}
         </h3>
         <p className="text-fg-muted text-base" style={{ lineHeight: 1.55 }}>

@@ -346,6 +346,7 @@ export function DocsNavList({
 }
 
 export function DocsSidebar({ locale, activeSlug }: DocsSidebarProps) {
+  const { t } = useT('nav');
   const activeRef = useRef<HTMLAnchorElement | null>(null);
 
   // Scroll the active item into view on mount so deep pages aren't hidden
@@ -374,7 +375,7 @@ export function DocsSidebar({ locale, activeSlug }: DocsSidebarProps) {
 
   return (
     <nav
-      aria-label="Documentation"
+      aria-label={t('sidebarAriaLabel')}
       className="border-border-base sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 overflow-y-auto border-r pr-4 pl-2 lg:block lg:w-64"
     >
       {tree}

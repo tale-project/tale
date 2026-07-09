@@ -4,13 +4,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@tale/ui/tooltip';
-import { motion } from 'framer-motion';
 import { HelpCircle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
-import { useSkipEntrance } from '@/lib/motion/entrance';
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
+import { Reveal } from '@/app/components/marketing/reveal';
 
 export function LabelWithInfo({
   label,
@@ -44,10 +41,16 @@ export function LabelWithInfo({
 
 export interface CompareTier<TK extends string> {
   key: TK;
-  /** Tier name shown in the sticky column header. */
+  /** Tier name shown in the column header. */
   name: ReactNode;
   /** Pre-styled CTA element rendered below the tier name. */
   cta: ReactNode;
+  /**
+   * Soft frosted column header (translucent inset + blur). On software
+   * pricing this marks Community; the recommended Enterprise column
+   * stays crisp raised white.
+   */
+  emphasized?: boolean;
 }
 
 export interface CompareDataRow<TK extends string> {
@@ -83,7 +86,7 @@ export type CompareRow<TK extends string> =
 interface CompareTableProps<TK extends string> {
   /** Screen-reader-only caption for the leading column. */
   caption: string;
-  /** Tier definitions, rendered as sticky column headers (left → right). */
+  /** Tier definitions, rendered as column headers (left → right). */
   tiers: CompareTier<TK>[];
   /** Section / span / data rows. */
   rows: CompareRow<TK>[];
@@ -97,11 +100,8 @@ export function CompareTable<TK extends string>({
   tiers,
   rows,
 }: CompareTableProps<TK>) {
-  const skipEntrance = useSkipEntrance();
   const colCount = tiers.length + 1;
-  const [isStuck, setIsStuck] = useState(false);
   const [hoveredGroup, setHoveredGroup] = useState<number | null>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Map every row index to a hover group: rows linked by a `cellSpans` value
   // greater than 1 share a group, so hovering either highlights both.
@@ -126,159 +126,134 @@ export function CompareTable<TK extends string>({
     return groups;
   }, [rows]);
 
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return undefined;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsStuck(!entry.isIntersecting);
-      },
-      { rootMargin: '-64px 0px 0px 0px', threshold: 0 },
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <motion.div
-      initial={skipEntrance ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-10%' }}
-      transition={
-        skipEntrance
-          ? { duration: 0 }
-          : { delay: 0.08, duration: 0.6, ease: easeOut }
-      }
-      className="mx-auto mt-12 max-w-[1120px]"
-    >
-      <div ref={sentinelRef} aria-hidden className="h-0" />
-      <table className="w-full table-fixed border-collapse">
-        <caption className="sr-only">{caption}</caption>
-        <colgroup>
-          <col
-            className={tiers.length === 1 ? 'w-1/2' : 'w-[34%] sm:w-[28%]'}
-          />
-          {tiers.map((tier) => (
+    <Reveal delay={0.08} className="mx-auto mt-12 max-w-[1120px]">
+      <div className="border-border-base/40 bg-surface-site-raised overflow-hidden rounded-2xl border">
+        <table className="w-full table-fixed border-collapse">
+          <caption className="sr-only">{caption}</caption>
+          <colgroup>
             <col
-              key={tier.key}
-              className={tiers.length === 1 ? 'w-1/2' : 'w-[22%] sm:w-[24%]'}
-            />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            <th
-              scope="col"
-              className="text-fg-muted px-3 py-4 text-left text-xs font-medium tracking-wider uppercase sm:px-6"
+              className={tiers.length === 1 ? 'w-1/2' : 'w-[34%] sm:w-[28%]'}
             />
             {tiers.map((tier) => (
-              <th
+              <col
                 key={tier.key}
-                scope="col"
-                className="text-fg-base sticky top-16 p-0 text-center align-top"
-              >
-                <div className="relative px-2 py-4 sm:px-6 sm:py-6">
-                  <div
-                    aria-hidden
-                    className={`from-bg-elevated via-bg-elevated/80 to-bg-base/0 pointer-events-none absolute inset-0 bg-linear-to-b transition-opacity duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0 ${
-                      isStuck ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  />
-                  <div className="relative flex flex-col items-stretch gap-4">
-                    <span
-                      className="text-fg-muted text-base font-medium sm:text-lg"
-                      style={{ letterSpacing: '-0.18px' }}
-                    >
-                      {tier.name}
-                    </span>
-                    {tier.cta}
-                  </div>
-                </div>
-              </th>
+                className={tiers.length === 1 ? 'w-1/2' : 'w-[22%] sm:w-[24%]'}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            if (row.kind === 'section') {
-              return (
-                <tr key={`section-${row.label}-${idx}`}>
-                  <th
-                    colSpan={colCount}
-                    scope="colgroup"
-                    className="text-fg-muted px-3 pt-8 pb-4 text-left text-base font-medium sm:px-6"
+          </colgroup>
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                className="border-border-base/40 border-b p-0 text-left align-bottom"
+              >
+                <div className="px-3 py-4 sm:px-6 sm:py-5" />
+              </th>
+              {tiers.map((tier, tierIndex) => (
+                <th
+                  key={tier.key}
+                  scope="col"
+                  className="text-fg-base border-border-base/40 border-b p-0 text-center align-top"
+                >
+                  <div
+                    className={`relative px-2 py-4 sm:px-5 sm:py-5 ${
+                      tier.emphasized
+                        ? 'bg-surface-site-inset/30 backdrop-blur-sm'
+                        : ''
+                    } ${tierIndex > 0 ? 'border-border-base/40 border-l' : ''}`}
                   >
-                    {row.label}
-                  </th>
-                </tr>
-              );
-            }
+                    <div className="relative flex flex-col items-stretch gap-3">
+                      <span className="text-fg-base text-lg font-medium tracking-tight sm:text-xl">
+                        {tier.name}
+                      </span>
+                      {tier.cta}
+                    </div>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              if (row.kind === 'section') {
+                return (
+                  <tr key={`section-${row.label}-${idx}`}>
+                    <th
+                      colSpan={colCount}
+                      scope="colgroup"
+                      className="text-fg-muted bg-surface-site-inset/40 px-3 pt-5 pb-2 text-left text-sm font-medium sm:px-6"
+                    >
+                      {row.label}
+                    </th>
+                  </tr>
+                );
+              }
 
-            if (row.kind === 'span') {
+              if (row.kind === 'span') {
+                const group = rowGroupByIndex[idx];
+                const isHovered = hoveredGroup === group;
+                return (
+                  <tr
+                    key={`span-${row.label}-${idx}`}
+                    onMouseEnter={() => setHoveredGroup(group)}
+                    onMouseLeave={() => setHoveredGroup(null)}
+                    className={`transition-colors motion-reduce:transition-none ${
+                      isHovered ? 'bg-surface-site-inset/70' : ''
+                    }`}
+                  >
+                    <th
+                      scope="row"
+                      className="text-fg-base border-border-base/40 border-t px-3 py-3 text-left align-middle text-sm font-medium sm:px-6"
+                    >
+                      {row.label}
+                    </th>
+                    <td
+                      colSpan={colCount - 1}
+                      className="text-fg-muted border-border-base/40 border-t px-3 py-3 text-center align-middle text-sm sm:px-6"
+                    >
+                      {row.content}
+                    </td>
+                  </tr>
+                );
+              }
+
               const group = rowGroupByIndex[idx];
               const isHovered = hoveredGroup === group;
               return (
                 <tr
-                  key={`span-${row.label}-${idx}`}
+                  key={`data-${row.rowKey ?? idx}`}
                   onMouseEnter={() => setHoveredGroup(group)}
                   onMouseLeave={() => setHoveredGroup(null)}
                   className={`transition-colors motion-reduce:transition-none ${
-                    isHovered ? 'bg-bg-elevated/60' : ''
+                    isHovered ? 'bg-surface-site-inset/70' : ''
                   }`}
                 >
                   <th
                     scope="row"
-                    className="text-fg-base border-border-base border px-3 py-4 text-left align-middle text-sm font-medium sm:px-6"
+                    className="text-fg-base border-border-base/40 border-t px-3 py-3 text-left align-middle text-sm font-medium sm:px-6"
                   >
                     {row.label}
                   </th>
-                  <td
-                    colSpan={colCount - 1}
-                    className="text-fg-muted border-border-base border px-3 py-4 text-center align-middle text-sm sm:px-6"
-                  >
-                    {row.content}
-                  </td>
+                  {tiers.map((tier) => {
+                    if (!(tier.key in row.cells)) return null;
+                    const span = row.cellSpans?.[tier.key];
+                    return (
+                      <td
+                        key={tier.key}
+                        rowSpan={span}
+                        className="text-fg-muted border-border-base/40 border-t px-2 py-3 text-center align-middle text-sm whitespace-pre-line sm:px-6"
+                      >
+                        {row.cells[tier.key]}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
-            }
-
-            const group = rowGroupByIndex[idx];
-            const isHovered = hoveredGroup === group;
-            return (
-              <tr
-                key={`data-${row.rowKey ?? idx}`}
-                onMouseEnter={() => setHoveredGroup(group)}
-                onMouseLeave={() => setHoveredGroup(null)}
-                className={`transition-colors motion-reduce:transition-none ${
-                  isHovered ? 'bg-bg-elevated/60' : ''
-                }`}
-              >
-                <th
-                  scope="row"
-                  className="text-fg-base border-border-base border px-3 py-4 text-left align-middle text-sm font-medium sm:px-6"
-                >
-                  {row.label}
-                </th>
-                {tiers.map((tier) => {
-                  if (!(tier.key in row.cells)) return null;
-                  const span = row.cellSpans?.[tier.key];
-                  return (
-                    <td
-                      key={tier.key}
-                      rowSpan={span}
-                      className="text-fg-muted border-border-base border px-2 py-4 text-center align-middle text-sm whitespace-pre-line sm:px-6"
-                    >
-                      {row.cells[tier.key]}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </motion.div>
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Reveal>
   );
 }

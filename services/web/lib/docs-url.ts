@@ -5,6 +5,9 @@ const DEFAULT_DOCS_URL = 'https://tale.dev/docs';
 
 export const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? DEFAULT_DOCS_URL;
 
-// Deep-link to the getting-started page. The hero's "Get started" CTA points
-// here so a reader lands on the three-command quickstart, not the docs index.
-export const GET_STARTED_URL = `${DOCS_URL}/self-hosted/install/quickstart`;
+// Deep-link to the Start-tab quickstart (everyone's first 15 minutes), not the
+// self-hosted install walk — that lives under /self-hosted/install/quickstart.
+export const GET_STARTED_URL = `${DOCS_URL}/get-started/quickstart`;
+
+/** Self-hosted install walk — the four-command sequence on the homepage CTA. */
+export const SELF_HOSTED_QUICKSTART_URL = `${DOCS_URL}/self-hosted/install/quickstart`;

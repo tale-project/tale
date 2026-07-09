@@ -49,4 +49,15 @@ describe('ExternalLink', () => {
       'brand-link',
     );
   });
+
+  it('keeps the icon on the same line even when the caller passes inline-block', () => {
+    render(
+      <ExternalLink href="https://example.com" className="inline-block text-sm">
+        Arena Mode
+      </ExternalLink>,
+    );
+    const link = screen.getByRole('link', { name: /Arena Mode/ });
+    expect(link.className).toMatch(/\binline-flex\b/);
+    expect(link.className).not.toMatch(/\binline-block\b/);
+  });
 });

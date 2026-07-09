@@ -1,182 +1,110 @@
 import { cn } from '@tale/ui/cn';
-import { TaleLogo } from '@tale/ui/logo';
-import {
-  motion,
-  useInView,
-  useReducedMotion,
-  type Variants,
-} from 'framer-motion';
-import { Check } from 'lucide-react';
-import type { ComponentType, SVGProps } from 'react';
+import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { Bot } from 'lucide-react';
 import { useRef } from 'react';
 
-import { GithubIcon } from '@/app/components/icons/github-icon';
+import { DemoToolbar } from '@/app/components/blocks/demos/demo-chrome';
 import {
-  ClaudeIcon,
-  GmailIcon,
-  OpenAIIcon,
-  SlackIcon,
-} from '@/app/components/icons/integration-icons';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+  type AgentsScenario,
+  useAgentsScenario,
+} from '@/app/components/blocks/demos/demo-scenarios';
+import { DemoShell } from '@/app/components/blocks/demos/demo-shell';
+import { useDemoTimeline } from '@/app/components/blocks/demos/use-demo-timeline';
 import { useT } from '@/lib/i18n/client';
-
-import { DemoShell } from './demo-shell';
-import { useDemoTimeline } from './use-demo-timeline';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-const BEATS = [0, 300, 1600, 2800, 4000] as const;
-const BEAT = { frame: 0, tiles: 1, wires: 2, docked: 3, done: 4 } as const;
+const BEATS = [0, 250, 700, 1150, 1600, 2050, 2500] as const;
+const BEAT = {
+  frame: 0,
+  row1: 1,
+  done: 6,
+} as const;
 
-type BrandIcon = ComponentType<
-  SVGProps<SVGSVGElement> & { className?: string }
->;
-
-// Brand names are product identifiers, not translatable copy — same
-// convention as integrations-bar.tsx.
-const LEFT: readonly { Icon: BrandIcon; name: string }[] = [
-  { Icon: ClaudeIcon, name: 'Claude Code' },
-  { Icon: OpenAIIcon, name: 'Codex' },
-  { Icon: GithubIcon, name: 'GitHub' },
-];
-const RIGHT: readonly { Icon: BrandIcon; name: string }[] = [
-  { Icon: SlackIcon, name: 'Slack' },
-  { Icon: GmailIcon, name: 'Gmail' },
-  { Icon: MicrosoftIcon, name: 'Microsoft 365' },
-];
+const COLS = '1.4fr 1fr 0.8fr';
 
 /**
- * D2 — the agents and tools a team already uses dock into one Tale hub:
- * tiles stagger in, the wires fill toward the centre, every connection
- * gets its tick.
+ * D2 — Agents list. Toolbar + table chrome from demo-chrome.
  */
-export function ConnectAgents() {
+export function ConnectAgents({
+  scenario,
+}: {
+  /** Story override — defaults to the homepage agents roster. */
+  scenario?: AgentsScenario;
+}) {
   const { t } = useT('home');
+  const homeScenario = useAgentsScenario();
+  const scene = scenario ?? homeScenario;
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-15%' });
   const beat = useDemoTimeline({ beats: BEATS, start: inView });
   const reduceMotion = useReducedMotion();
 
-  const tileVariants = {
-    hidden: reduceMotion ? {} : { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: easeOut } },
-  };
-
   return (
     <div ref={ref}>
       <DemoShell
-        label={t('demos.connect.label')}
+        label={scene.label}
         title={t('demos.connect.windowTitle')}
         activeNav="agents"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/10]"
       >
-        <div className="flex h-full items-center justify-center p-4 md:p-6">
-          <motion.div
-            initial={reduceMotion ? false : 'hidden'}
-            animate={beat >= BEAT.tiles ? 'visible' : 'hidden'}
-            variants={{
-              hidden: {},
-              visible: { transition: { staggerChildren: 0.12 } },
-            }}
-            className="grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-center gap-x-2 md:gap-x-0"
-          >
-            <div className="flex flex-col gap-2.5 md:gap-3">
-              {LEFT.map((entry) => (
-                <BrandTile
-                  key={entry.name}
-                  entry={entry}
-                  docked={beat >= BEAT.docked}
-                  variants={tileVariants}
-                />
-              ))}
-            </div>
+        <div className="flex h-full flex-col gap-3 p-3 md:gap-4 md:p-4">
+          <DemoToolbar
+            searchPlaceholder={t('demos.connect.searchPlaceholder')}
+            addLabel={t('demos.connect.addLabel')}
+          />
 
-            <div className="flex items-center">
-              <Wire filled={beat >= BEAT.wires} />
-              <motion.div
-                animate={
-                  reduceMotion || beat < BEAT.done
-                    ? {}
-                    : { scale: [1, 1.05, 1] }
-                }
-                transition={{
-                  duration: 2.4,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-                className="border-border-base bg-surface-site z-10 flex size-16 items-center justify-center rounded-2xl border-[3px] md:size-20"
-              >
-                <TaleLogo className="h-5 w-auto md:h-6" />
-              </motion.div>
-              <Wire filled={beat >= BEAT.wires} />
+          <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+            <div
+              className="text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase md:px-4"
+              style={{ gridTemplateColumns: COLS }}
+            >
+              <span>{t('demos.connect.colName')}</span>
+              <span>{t('demos.connect.colModel')}</span>
+              <span className="text-right">{t('demos.connect.colStatus')}</span>
             </div>
-
-            <div className="flex flex-col gap-2.5 md:gap-3">
-              {RIGHT.map((entry) => (
-                <BrandTile
-                  key={entry.name}
-                  entry={entry}
-                  docked={beat >= BEAT.docked}
-                  variants={tileVariants}
-                  alignEnd
-                />
-              ))}
+            <div className="flex flex-col">
+              {scene.rows.map((row, index) =>
+                beat >= BEAT.row1 + index ? (
+                  <motion.div
+                    key={row.name}
+                    initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: easeOut }}
+                    className="border-border-base/60 grid items-center gap-2 border-b px-3 py-2.5 last:border-b-0 md:px-4"
+                    style={{ gridTemplateColumns: COLS }}
+                  >
+                    <span className="text-fg-base flex min-w-0 items-center gap-2 text-xs font-medium md:text-[13px]">
+                      <span className="bg-surface-site-inset text-fg-muted flex size-7 shrink-0 items-center justify-center rounded-md">
+                        <Bot className="size-3.5" strokeWidth={1.75} />
+                      </span>
+                      <span className="truncate">{row.name}</span>
+                    </span>
+                    <span className="bg-surface-site-inset text-fg-muted inline-flex max-w-full truncate rounded-md px-1.5 py-0.5 text-[11px]">
+                      {row.model}
+                    </span>
+                    <span className="flex justify-end">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                          beat >= BEAT.done
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-surface-site-inset text-fg-muted',
+                        )}
+                      >
+                        {beat >= BEAT.done ? (
+                          <span className="size-1.5 rounded-full bg-emerald-500" />
+                        ) : null}
+                        {t('demos.connect.statusReady')}
+                      </span>
+                    </span>
+                  </motion.div>
+                ) : null,
+              )}
             </div>
-          </motion.div>
+          </div>
         </div>
       </DemoShell>
     </div>
-  );
-}
-
-function Wire({ filled }: { filled: boolean }) {
-  return (
-    <div
-      aria-hidden
-      className="bg-border-base relative h-px w-4 overflow-hidden md:w-10"
-    >
-      <div
-        className={cn(
-          'bg-brand-base absolute inset-0 origin-left scale-x-0 transition-transform duration-700',
-          filled && 'scale-x-100',
-        )}
-      />
-    </div>
-  );
-}
-
-function BrandTile({
-  entry,
-  docked,
-  variants,
-  alignEnd,
-}: {
-  entry: { Icon: BrandIcon; name: string };
-  docked: boolean;
-  variants: Variants;
-  alignEnd?: boolean;
-}) {
-  return (
-    <motion.div
-      variants={variants}
-      className={cn(
-        'border-border-base bg-surface-site flex items-center gap-2 rounded-xl border px-2.5 py-2 md:px-3',
-        alignEnd && 'flex-row-reverse',
-      )}
-    >
-      <span className="border-border-base bg-surface-site-deep flex size-8 shrink-0 items-center justify-center rounded-lg border md:size-9">
-        <entry.Icon aria-hidden className="size-4.5 md:size-5" />
-      </span>
-      <span className="text-fg-base min-w-0 flex-1 truncate text-xs font-medium md:text-[13px]">
-        {entry.name}
-      </span>
-      {docked ? (
-        <Check
-          aria-hidden
-          className="text-fg-muted size-3.5 shrink-0"
-          strokeWidth={2.5}
-        />
-      ) : null}
-    </motion.div>
   );
 }

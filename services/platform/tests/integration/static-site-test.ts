@@ -26,6 +26,17 @@ import {
 import { projectRoot } from './lib/exec';
 import { CYAN, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
 
+interface StaticSiteProbe {
+  /** Path relative to the site origin, e.g. `/pricing`. */
+  path: string;
+  /** Expected HTTP status. */
+  status: number;
+  /** Optional substring that must appear in Content-Type. */
+  contentTypeIncludes?: string;
+  /** When true, require a Cache-Control header to be present. */
+  expectCacheControl?: boolean;
+}
+
 interface StaticSiteTestOptions {
   /** Logical service name, e.g. "web" or "docs". */
   name: string;
@@ -33,6 +44,8 @@ interface StaticSiteTestOptions {
   port: number;
   /** Size budget in MB. */
   sizeBudgetMb: number;
+  /** Extra HTTP probes beyond `/api/health`. */
+  probes?: readonly StaticSiteProbe[];
 }
 
 export async function runStaticSiteTest(
@@ -179,6 +192,34 @@ export async function runStaticSiteTest(
       r.pass(`${svc}: /api/health HTTP 200`);
     } else {
       r.fail(`${svc}: /api/health expected 200, got ${code}`);
+    }
+
+    for (const probe of opts.probes ?? []) {
+      const url = `http://localhost:${hostPort}${probe.path}`;
+      const res = await fetch(url, { redirect: 'manual' }).catch(() => null);
+      const status = res?.status ?? 0;
+      if (status === probe.status) {
+        r.pass(`${svc}: ${probe.path} HTTP ${probe.status}`);
+      } else {
+        r.fail(`${svc}: ${probe.path} expected ${probe.status}, got ${status}`);
+      }
+      if (res && probe.contentTypeIncludes) {
+        const ct = res.headers.get('content-type') ?? '';
+        if (ct.includes(probe.contentTypeIncludes)) {
+          r.pass(
+            `${svc}: ${probe.path} content-type has ${probe.contentTypeIncludes}`,
+          );
+        } else {
+          r.fail(
+            `${svc}: ${probe.path} content-type missing ${probe.contentTypeIncludes} (got ${ct})`,
+          );
+        }
+      }
+      if (res && probe.expectCacheControl) {
+        const cc = res.headers.get('cache-control');
+        if (cc) r.pass(`${svc}: ${probe.path} has Cache-Control`);
+        else r.fail(`${svc}: ${probe.path} missing Cache-Control`);
+      }
     }
 
     // Summary — printed before teardown, matching the bash trap ordering.

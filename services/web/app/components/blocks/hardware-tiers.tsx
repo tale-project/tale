@@ -1,4 +1,3 @@
-import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 
 import {
@@ -16,8 +15,9 @@ import {
 import { MarketingSection } from '@/app/components/blocks/marketing-section';
 import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
 import { TierCard } from '@/app/components/blocks/tier-card';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { MarketingButton, MarketingLink } from '@/app/components/marketing';
 import { ProgressBar } from '@/app/components/progress-bar';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import type {
   HardwareBilling,
   HardwareMode,
@@ -115,7 +115,6 @@ export function HardwareTiers({
     <MarketingSection
       title={t('title')}
       description={t('description')}
-      descriptionMaxWidth={640}
       controls={
         <div className="flex w-full flex-col items-center gap-3 md:gap-4">
           <SegmentedRadio
@@ -153,7 +152,7 @@ export function HardwareTiers({
       footer={t('deploymentNote')}
     >
       <div
-        className={`border-border-base mx-auto mt-12 grid grid-cols-1 overflow-hidden border ${
+        className={`mx-auto mt-10 grid grid-cols-1 items-stretch gap-4 lg:gap-5 ${
           isRack ? 'max-w-sm' : 'max-w-[1120px] lg:grid-cols-3'
         }`}
       >
@@ -183,12 +182,13 @@ export function HardwareTiers({
               key={tier.key}
               name={t(`tierNames.${mode}.${tier.key}`)}
               popular={tier.popular}
+              popularLabel={tier.popular ? t('popular') : undefined}
               price={price}
               priceSuffix={priceSuffix}
               tagline={tagline}
               animationDelay={idx * 0.06}
             >
-              <dl className="border-border-base flex flex-col gap-4 border-t pt-6">
+              <dl className="border-border-base/40 flex flex-col gap-4 border-t pt-5">
                 {METRIC_AXES.map((axis) => {
                   const value = tier.metrics[axis];
                   const label = t(`metrics.${axis}`);
@@ -207,15 +207,15 @@ export function HardwareTiers({
               </dl>
 
               <div className="mt-auto pt-2">
-                <Button
+                <MarketingButton
                   asChild
-                  variant={tier.popular ? 'primary' : 'secondary'}
+                  tone={tier.popular ? 'primary' : 'secondary'}
                   fullWidth
                 >
-                  <LocalizedLink to="/request-demo">
+                  <MarketingLink to={REQUEST_DEMO_PATH} tone="plain">
                     {t(`tiers.${tier.key}.cta`)}
-                  </LocalizedLink>
-                </Button>
+                  </MarketingLink>
+                </MarketingButton>
               </div>
             </TierCard>
           );

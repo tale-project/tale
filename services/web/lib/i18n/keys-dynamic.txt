@@ -13,15 +13,22 @@
 # is the single source of truth for the rendered labels.
 languageSwitcher
 
-# Footer/nav/contact/demo eyebrows — remove if no longer used in design.
-footer.countrySwitzerland
 # Header nav labels are looked up via `t(item.key)` over a `NAV_ITEMS` table,
 # so the scanner cannot statically tie each key back to a call site.
 nav.platform
 nav.pricing
-nav.hardware
+nav.resources
+nav.contactUs
+nav.requestDemo
+nav.getStarted
+nav.product
+nav.resource
 contact.eyebrow
 requestDemo.eyebrow
+
+# Integration marquee tooltips — `tCompanies(entry.companyKey)` over
+# `INTEGRATION_LOGOS` in content/integrations.ts.
+companies
 
 # Hardware-pricing planIncludes header — kept symmetric with pricing tiers
 # even though the hardware page does not currently print it.
@@ -47,3 +54,26 @@ pricing.compare.values.yes
 # Pricing extras training CTA — extras.training only renders title +
 # description in the comparison table.
 pricing.extras.training.cta
+
+# Footer columns driven from platform-pages tables.
+footer.platform
+footer.company
+footer.changelog
+footer.features
+
+# Feature namespaces — loaded via useT(namespace) with returnObjects /
+# dotted paths the static scanner cannot resolve.
+featureShared
+platformHub
+platformAgents
+platformChat
+platformAutomations
+platformKnowledge
+platformGovernance
+platformConversations
+pricingPage
+changelogPage
+
+# Demo copy under home.demos.* — looked up via useT('home') + dotted keys /
+# indexed templates the static scanner cannot fully resolve.
+home.demos

@@ -40,6 +40,7 @@ authoring conventions).
 | [search.md](search.md)               | search dialog, shortcuts, results, recents, per-locale index         |
 | [locale.md](locale.md)               | `/de` + `/fr` trees, language switcher, translated chrome            |
 | [content.md](content.md)             | code blocks + copy buttons, heading deep links, images, page actions |
+| [seo.md](seo.md)                     | prerendered head, sitemap, robots, llms, legal noindex, OG           |
 | [accessibility.md](accessibility.md) | cross-cutting WCAG 2.1 AA sweep (incl. theme switching)              |
 
 ## Coverage matrix
@@ -55,4 +56,5 @@ behaves.
 | search        | 🔶 partial     | `smoke.spec.ts` (palette opens) + `app/features/search/dialog.test.tsx`; ranking/recents/locale index manual          |
 | locale        | 🔶 partial     | vitest `locale-tree.test.ts` + `locale-outline.test.ts` + `docs.test.ts` (mirrors exist, outlines match, voice rules) |
 | content       | 🔶 partial     | vitest `links.test.ts`, `images.test.ts`, `structure-*.test.ts`, `frontmatter.test.ts` (source-level only)            |
+| seo           | 🔶 partial     | `tests/prerender/seo.test.ts` + `lib/seo/{build,dev-server,deploy-sim}.test.ts`                                       |
 | accessibility | ⛔ manual-only | — (no axe layer in this service's e2e; shared `@tale/ui` components carry `vitest-axe`)                               |

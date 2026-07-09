@@ -127,6 +127,18 @@ function inlineText(node: Node): string {
 // ---------------------------------------------------------------------------
 
 function blocksFromElement(el: Element): string[] {
+  // Demo shells (and similar) mark the visual tree aria-hidden but keep a
+  // meaningful aria-label on role="img". Emit that label so per-page .md /
+  // llms-full.txt retain the product narrative crawlers would otherwise lose.
+  const role = el.getAttribute('role');
+  const ariaLabel = el.getAttribute('aria-label')?.trim();
+  if (role) {
+    const tokens = role.trim().split(/\s+/);
+    if (tokens.includes('img') && ariaLabel) {
+      return [`> ${ariaLabel}`];
+    }
+  }
+
   if (isSkippedElement(el)) return [];
   const tag = el.tagName.toLowerCase();
 

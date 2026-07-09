@@ -37,23 +37,39 @@ Everything else (`Button`, `Card`, `Heading`, `Text`, `Badge`, `Accordion`, mark
 
 Semantic utilities only, **never a raw hex in a class**. On top of the canonical `@tale/ui` tokens,
 the web defines a marketing-surface family in
-[`services/web/app/globals.css`](../services/web/app/globals.css) — its dark values sit deliberately
-above the app's `bg-base` for a warmer feel:
+[`services/web/app/globals.css`](../services/web/app/globals.css) — cool stone paper in light,
+soft charcoal (not espresso brown) in dark. Ink, borders, and accent are overridden here so chrome
+matches the paper, not the app's true-neutral black:
 
-| Utility                                                     | Use                                           |
-| ----------------------------------------------------------- | --------------------------------------------- |
-| `bg-surface-site`                                           | section backgrounds                           |
-| `bg-surface-site-raised`                                    | cards and demo window frames on a section     |
-| `bg-surface-site-inset`                                     | image/illustration wells, inner panels        |
-| `bg-surface-site-deep`                                      | small logo/icon tiles                         |
-| `bg-surface-site-active`                                    | active segmented-control state                |
-| `bg-surface-promo` / `text-fg-promo`                        | the pricing promo chip                        |
-| `bg-surface-wash`                                           | the tinted stage product windows sit on       |
-| `bg-brand-base` / `hover:bg-brand-strong` / `text-brand-fg` | primary CTAs and live accents (brand #056CFF) |
+| Utility                                                     | Use                                              |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| `bg-surface-site`                                           | section backgrounds                              |
+| `bg-surface-site-raised`                                    | cards and demo window frames on a section        |
+| `bg-surface-site-inset`                                     | image/illustration wells, inner panels           |
+| `bg-surface-site-deep`                                      | small logo/icon tiles                            |
+| `bg-surface-site-active`                                    | active segmented-control state                   |
+| `bg-surface-promo` / `text-fg-promo`                        | the pricing promo chip (muted stone)             |
+| `bg-surface-wash`                                           | the quiet stage product windows sit on           |
+| `--color-atmosphere-warm` / `--color-atmosphere-deep`       | desaturated stone blooms (hero / stage / CTA)    |
+| `bg-gradient-site-hero`                                     | soft top wash behind hero copy                   |
+| `bg-gradient-site-band`                                     | paper→wash section rhythm (`PageSection` `soft`) |
+| `bg-gradient-site-cta`                                      | quiet radial bloom on closing CTAs               |
+| `bg-brand-base` / `hover:bg-brand-strong` / `text-brand-fg` | product life accents (brand #056CFF)             |
+| `bg-accent-base` / `text-accent-fg`                         | primary marketing CTAs (ink)                     |
+| `bg-ink-terminal` / `text-ink-terminal-fg`                  | always-dark ink terminal (quickstart chrome)     |
+| `shadow-demo` / `shadow-demo-hero`                          | layered elevation on `DemoShell`                 |
+| `shadow-site-card` / `shadow-site-card-hover`               | quiet elevation on cards and logo tiles          |
+| `shadow-site-inset`                                         | recessed icon wells / pillar panels              |
+| `bg-demo-traffic-*`                                         | browser chrome traffic lights (demo only)        |
+| `bg-demo-stage-*`                                           | `DemoStage` bloom / vignette / grid layers       |
 
 New marketing surface values go into that `@theme` block (plus its `.dark` overrides), never inline.
-The brand accent is for _action and life_ — primary buttons, step markers, connector fills, active
-rings, send buttons — never for body text or large fills.
+Light marketing surfaces are cool stone paper (`#f4f4f4`), with raised cards at `#ffffff` and a quiet
+wash (`#dddddd`) under product windows. Atmosphere blooms use cool gray
+(`--color-atmosphere-warm` / `--color-atmosphere-deep`), never brand blue and never amber/umber.
+Promo chips are muted stone, not sand. Primary marketing CTAs use the ink `accent-*` tokens
+(pill shape, weight 400); brand blue is for _product life_ inside demos — connectors, step markers,
+live rings, send buttons — never for body text or large fills.
 
 ## Animated product demos — the doctrine
 
@@ -72,46 +88,127 @@ and follow one contract:
   pauses while the tab is hidden. Play once — no restarts; only subtle idle loops (a soft pulse) may
   repeat.
 - **Framed by `DemoShell` — a 1:1 depiction of the app.** The frame reproduces the product's real
-  anatomy (icon nav rail in sidebar order, top bar with Share/actions — reference the captures in
-  `services/docs/public/images/platform/`), is a labelled `role="img"` window (localized
-  one-sentence `aria-label`, everything inside `aria-hidden`), and has a **fixed aspect ratio** so
-  the box is reserved before mount (CLS 0). Demos sit on a `bg-surface-wash` stage. Give mobile a
-  taller ratio than desktop and size fixed wells against the **German** strings — de is the layout
-  stress test.
+  anatomy: browser chrome (marketing-only), icon nav rail matching
+  `use-navigation-items.ts` (MessageCircle → Folder → BrainIcon → Bot → Workflow → Settings;
+  Bell + avatar at bottom; `bg-muted` / `surface-site-inset` active, no left bar), and the
+  **correct page header for the active nav** — chat demos use `chat-header.tsx`
+  (`MessagesSquare`, `Search`, Share **with label**, `Ellipsis`, no thread title); list demos
+  (Agents / Knowledge / Automations / Projects / Settings) use `AdaptiveHeaderTitle` (page title
+  only). Pass `title` for list pages. Reference captures in
+  `services/docs/public/images/platform/`. The frame is a labelled `role="img"` window (localized
+  one-sentence `aria-label`, everything inside `aria-hidden`) with a **fixed aspect ratio**
+  (CLS 0). Elevation uses `shadow-demo` / `shadow-demo-hero`. Demos sit on `DemoStage`
+  (atmospheric wash — never a photo). Demo _content_ must match product idioms (chat bubbles,
+  RoutingStepRow, SourceCards, composer toolbar, Agents/Documents tables, workflow-step cards,
+  Executions table, in-chat approval cards) — not fictional hub diagrams. Give mobile a taller
+  ratio than desktop; size wells against **German**.
 - **Text primitives, not the markdown engine.** `demo-typing-text` / `demo-stream-text` reuse the
   globals.css `.stream-reveal`/`.animate-cursor-blink` primitives. Never pull `IncrementalMarkdown`
   (remark/rehype/katex/shiki) into the marketing bundle.
-- **Localized like any copy.** Every visible demo string is a `home.demos.*` key shipped in all
-  locales; brand names stay unlocalized constants.
+- **One window, many stories — the scenario split.** Every demo separates **chrome** (product
+  vocabulary that never varies: column headers, status words, placeholders, step-kind labels —
+  always `home.demos.*` keys read inside the component) from **scenario** (the story in the window:
+  prompts, replies, rows, workflow labels, approval text). Each demo takes an optional typed
+  `scenario` prop and defaults to the homepage story; pages build scenarios with the
+  `use<Demo>Scenario(namespace)` hooks in `demo-scenarios.ts`, which read the same `demos.<demo>.*`
+  key shape from the owning page namespace (e.g. `platformAutomations.demos.automation.*`). Row
+  counts are **fixed per demo** — scenarios vary the story, never the layout (the frames have fixed
+  aspect ratios). A platform page must not replay the homepage story in its own module's window.
+- **Localized like any copy.** Every visible demo string — chrome and scenario — is a message key
+  shipped in all locales; brand names stay unlocalized constants; demo file names and domains
+  localize with the story (`help.nordwind.eu` → `hilfe.nordwind.eu`).
 - **Budgets.** No images inside demos; keep each demo a few KB of JSX. framer-motion is the only
   animation dependency (plus the shared CSS keyframes).
-- **Storybook + e2e.** Each demo gets a story and a reduced-motion e2e assertion of its end state
+- **Storybook + e2e.** Each demo gets a story (scenario variants in `tour-demos.stories.tsx`) and a
+  reduced-motion e2e assertion of its end state — homepage demos and each platform page's scenario
   (`tests/e2e/specs/home-demos.spec.ts` — deterministic, no timing waits).
 
-Motion conventions for ordinary blocks stay the house pattern: `useReducedMotion` +
-`whileInView` + ease `[0.22, 1, 0.36, 1]` + `viewport={{ once: true, margin: '-15%' }}`.
+### Shared marketing primitives
+
+Build new marketing pages from
+[`services/web/app/components/marketing/`](../services/web/app/components/marketing/)
+instead of hand-rolling motion, CTAs, links, or section chrome. Variants use
+`class-variance-authority` (`cva`) — never ad-hoc `TONE[tone]` maps.
+
+| Primitive               | Use                                                                                                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Reveal`                | Entrance wrapper. Scroll reveals are **opacity-only** (no `y`) so they never fight scroll.                                                                                                                            |
+| `SectionHeading`        | Title + optional eyebrow/description at `display` / `section` / `subsection` type scale. Outline: `display`→h1, else h2 (pass `as` to nest).                                                                          |
+| `MarketingButton`       | Ink primary / inset secondary pills (`tone` + `size` via cva).                                                                                                                                                        |
+| `MarketingLink`         | Locale-aware link tones: `nav` / `navMobile` / `footer` / `inline` / `subtle` / `plain`.                                                                                                                              |
+| `MarketingExternalLink` | Outbound link with the same tone scale.                                                                                                                                                                               |
+| `CtaGroup` / `CtaPair`  | Horizontal CTA row; two-action pair (`to` or `href` per side).                                                                                                                                                        |
+| `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent`) / `pad` (`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-24 md:py-32`); `xl` for heroes/CTAs (`py-28 md:py-40`). |
+| `MarketingStack`        | Vertical content column (`gap` / `align` / `max`).                                                                                                                                                                    |
+| `MarketingCard`         | Related-module / hub tile (optional `to`, optional `icon`). Default surface is `plain` (panel cell); use `raised` only for standalone tiles.                                                                          |
+| `MarketingPanel`        | Framed surface for divider grids (`gap-px` hairlines). Matches ComplianceTrust's single-panel language.                                                                                                               |
+
+Also reuse:
+
+- `MarketingSection` — pricing/hardware lead + subsection shell (already on `Reveal`).
+- Feature blocks under `components/blocks/feature/` — hero, capabilities, steps, FAQ, related, docs, CTA.
+- `DemoStage` / `DemoShell` — product windows on atmospheric wash (no continuous float).
+- `useSkipEntrance` — SSR, reduced-motion, and SPA revisits skip entrances.
+- `app/content/platform-pages.ts` — nav dropdown, footer Platform column, related pages.
+- `app/content/nav-menus.ts` — Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
+- `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
+- Header menus: click + Esc + fine-pointer hover intent; mobile drawer is a flat list (no nested disclosures).
+
+Motion rules:
+
+- Scroll reveals: opacity-only via `Reveal` (ease `[0.22, 1, 0.36, 1]`,
+  `viewport={{ once: true, margin: '-12%' }}`).
+- Hero mount only may use a small `y` with `Reveal onMount` — never `whileInView` + `y` on
+  long pages (that was the homepage scroll jitter).
+- No infinite `translateY` / float on product windows.
+- Demo chat threads grow **down** (`justify-start`) inside a fixed `aspect-*` shell — never
+  `justify-end` (that pushed prior bubbles up and registered as CLS).
+- Sticky `SiteHeader` is transparent with a light bottom border at the top of the page;
+  scrolled adds the tinted blur surface + full border. The marketing root shell paints
+  `bg-gradient-site-hero` behind the header so the wash is continuous — never leave the
+  transparent nav over flat `surface-site` (that seam reads as a hairline). Lead sections
+  stay transparent; re-painting `bg-gradient-site-hero` (or opaque `bg-surface-site`) under
+  the nav restarts the wash and recreates the seam.
+
+## Page templates
+
+| Template        | When                                                         | Section order                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Homepage        | `/`                                                          | Hero + demo → orchestration tour → tagline → integrations → compliance → FAQ → CTA                                                                                     |
+| Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ demo) → product tour (copy + DemoShell rows, same as homepage) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
+| Platform hub    | `/platform`                                                  | Hero (+ demo) → product tour (6 DemoShell rows) → module grid → CTA                                                                                                    |
+| Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
+| Changelog       | `/changelog`                                                 | Release list from GitHub manifest                                                                                                                                      |
+
+New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts` (bijection test), plus paired `app/routes/` + `app/routes/$lang/` files and en/de/fr messages in the same change.
 
 ## SEO is a design constraint
 
 Every marketing page declares its head once via
-[`services/web/lib/seo/use-document-meta.ts`](../services/web/lib/seo/use-document-meta.ts) with the
-**unlocalized `path`** — canonical, the hreflang cluster, `og:locale`, and the brand OG card
-(`public/og.png`, 1200×630) all derive from it. On top of that:
+[`services/web/lib/seo/use-document-meta.ts`](../services/web/lib/seo/use-document-meta.ts)
+(adapter over shared [`@tale/ui/seo/tale-document-meta`](../packages/ui/src/seo/tale-document-meta.ts);
+URL join + hreflang maps from [`@tale/ui/seo/urls`](../packages/ui/src/seo/urls.ts) /
+[`@tale/ui/seo/alternates`](../packages/ui/src/seo/alternates.ts))
+with the **unlocalized `path`** — canonical, the hreflang cluster, `og:locale`, and the brand OG
+card (`public/og.png`, 1200×630) all derive from it. On top of that:
 
-- One `h1` per page; question-shaped `h2`s where natural, with a standalone answer as the first
-  sentence beneath them.
+- One `h1` per page; question-shaped titles (visible H1 and matching `seo.*.title`) where natural,
+  with a standalone answer as the first sentence beneath them.
 - JSON-LD only for **visible** content — the homepage FAQ schema is built from the same `FAQ_KEYS`
   the accordion renders; prices in `SoftwareApplication` come from `lib/pricing/tiers.ts`. Never
   aggregateRating/reviews, never schema for content the page doesn't show.
 - Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **ISO 27001** ·
   **SOC 2 Type II** · agents named exactly (Claude Code, Codex, Cursor).
-- New routes register in `lib/seo/marketing-routes.ts` (prerender + sitemap + llms.txt) and
-  `app/components/layout/localized-link.tsx` — a page is not done until both know it.
+- New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts`
+  (prerender + sitemap + llms.txt; bijection test) — a page is not done until both know it.
 
 ## Theme & rendering
 
 - **Theme follows the system** (light + dark), via the same `@tale/ui` `ThemeProvider` + `.dark`
   class. No light-lock here (that's docs). Verify every change in both themes.
+- **Page language** — editorial-technical: weight-400 display with tight tracking, product-first
+  hero (demo on a full-bleed wash stage, no photo backdrop), ink pill CTAs, hairline borders,
+  minimal chrome on cool stone paper. Brand blue stays inside product demos.
 - The site is **server-rendered + prerendered** (`vite build` + `--ssr` + `scripts/prerender.ts`)
   for SEO and first-paint. Keep pages static-friendly: the prerendered HTML must carry the real
   content (the demo end states included) — the client mounts with `createRoot` and replays

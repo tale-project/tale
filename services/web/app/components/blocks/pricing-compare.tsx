@@ -1,4 +1,3 @@
-import { Button } from '@tale/ui/button';
 import { Check, Minus } from 'lucide-react';
 import { type ReactNode } from 'react';
 
@@ -9,7 +8,8 @@ import {
   type CompareTier,
 } from '@/app/components/blocks/compare-table';
 import { MarketingSection } from '@/app/components/blocks/marketing-section';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { MarketingButton, MarketingLink } from '@/app/components/marketing';
+import { CONTACT_PATH } from '@/app/content/site-ctas';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import type { Region } from '@/lib/pricing/region';
@@ -46,7 +46,7 @@ function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   if (cell.kind === 'check') {
     return (
       <Check
-        className="mx-auto h-5 w-5 text-emerald-600"
+        className="text-success mx-auto h-5 w-5"
         strokeWidth={2}
         role="img"
         aria-label={yesLabel}
@@ -222,12 +222,13 @@ export function PricingCompare({ region }: PricingCompareProps) {
       content: (
         <>
           {t('extras.hardware.prefix')}{' '}
-          <LocalizedLink
+          <MarketingLink
             to="/hardware-pricing"
-            className="text-fg-base font-medium underline underline-offset-4"
+            tone="inline"
+            className="font-medium"
           >
             {t('extras.hardware.linkLabel')}
-          </LocalizedLink>
+          </MarketingLink>
           {t('extras.hardware.suffix')}
         </>
       ),
@@ -260,15 +261,18 @@ export function PricingCompare({ region }: PricingCompareProps) {
   const tiers: CompareTier<TierKey>[] = TIER_KEYS.map((key) => ({
     key,
     name: t(`tierNames.${key}`),
+    emphasized: key === 'community',
     cta: (
-      <Button
-        variant={key === 'enterprise' ? 'primary' : 'secondary'}
+      <MarketingButton
+        tone={key === 'enterprise' ? 'primary' : 'secondary'}
         asChild
         fullWidth
         className="hidden sm:inline-flex"
       >
-        <LocalizedLink to="/contact">{t(`${key}.cta`)}</LocalizedLink>
-      </Button>
+        <MarketingLink to={CONTACT_PATH} tone="plain">
+          {t(`${key}.cta`)}
+        </MarketingLink>
+      </MarketingButton>
     ),
   }));
 

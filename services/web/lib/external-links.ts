@@ -11,4 +11,5 @@ export const EXTERNAL_LINKS = {
     'https://app1.edoobox.com/en/Alltron/Network%20and%20server/K%C3%BCnstliche%20Intelligenz',
   vatCheck: 'https://www.uid.admin.ch/Detail.aspx?uid_id=CHE186532610',
   github: 'https://github.com/tale-project/tale',
+  githubReleases: 'https://github.com/tale-project/tale/releases',
 } as const;

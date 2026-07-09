@@ -17,6 +17,7 @@
  */
 
 import { createOnDemandServer, type ArtifactsServer } from '@tale/ui/seo';
+import { TALE_SITE_URL } from '@tale/ui/seo/globals';
 
 import {
   buildDocsSeo,
@@ -81,6 +82,10 @@ export function createDocsArtifactsServer(
       const { bodiesByUrl } = await getBuilt();
       return bodiesByUrl.get(url) ?? null;
     },
-    robots: { disallow },
+    robots: {
+      disallow,
+      // Symmetric with marketing robots — each surface advertises the other.
+      extraSitemaps: [`${TALE_SITE_URL}/sitemap.xml`],
+    },
   });
 }

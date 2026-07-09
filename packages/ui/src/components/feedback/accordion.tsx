@@ -61,7 +61,14 @@ export function Accordion({
   );
   return (
     <AccordionContext.Provider value={value}>
-      <div className={cn('flex flex-col', className)}>{children}</div>
+      <div
+        className={cn(
+          'border-border-base/80 bg-bg-elevated divide-border-base/70 flex flex-col divide-y overflow-hidden rounded-2xl border shadow-[var(--shadow-card)]',
+          className,
+        )}
+      >
+        {children}
+      </div>
     </AccordionContext.Provider>
   );
 }
@@ -108,7 +115,13 @@ export function AccordionItem({
   const hideClosed = !isOpen && mounted;
 
   return (
-    <div className={cn('border-border-base border-b px-5 py-5', className)}>
+    <div
+      className={cn(
+        'px-5 py-1 transition-colors',
+        isOpen && 'bg-muted/50',
+        className,
+      )}
+    >
       {createElement(
         `h${headingLevel}`,
         { className: 'm-0' },
@@ -118,20 +131,27 @@ export function AccordionItem({
           aria-expanded={isOpen}
           aria-controls={`${itemId}-content`}
           className={cn(
-            'flex w-full cursor-pointer items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
+            'text-fg-base hover:text-fg-base focus-visible:ring-fg-base/25 flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg py-4 text-left text-lg font-normal tracking-tight transition-colors focus-visible:ring-2 focus-visible:outline-none md:text-xl',
             triggerClassName,
           )}
-          style={{ lineHeight: 1.4 }}
+          style={{ lineHeight: 1.35 }}
         >
-          <span>{question}</span>
-          <ChevronDown
+          <span className="min-w-0 flex-1">{question}</span>
+          <span
             aria-hidden
-            strokeWidth={2}
             className={cn(
-              'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
-              isOpen ? 'rotate-180' : '',
+              'border-border-base/80 bg-muted text-fg-muted flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors',
+              isOpen && 'bg-bg-elevated text-fg-base',
             )}
-          />
+          >
+            <ChevronDown
+              strokeWidth={2}
+              className={cn(
+                'size-4 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
+                isOpen ? 'rotate-180' : '',
+              )}
+            />
+          </span>
         </button>,
       )}
       <div
@@ -139,17 +159,17 @@ export function AccordionItem({
         aria-hidden={hideClosed || undefined}
         inert={hideClosed || undefined}
         className={cn(
-          'grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]',
+          'grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]',
           isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
       >
         <div className="min-h-0 overflow-hidden">
           <div
             className={cn(
-              'text-fg-muted max-w-xl pt-3 text-base',
+              'text-fg-muted max-w-2xl pb-5 text-base',
               contentClassName,
             )}
-            style={{ letterSpacing: '-0.0072em', lineHeight: 1.5 }}
+            style={{ letterSpacing: '-0.0072em', lineHeight: 1.55 }}
           >
             {children}
           </div>

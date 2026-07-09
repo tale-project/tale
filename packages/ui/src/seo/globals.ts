@@ -43,3 +43,26 @@ export const TALE_SITE_LLMS_TXT = `${TALE_SITE_URL}/llms.txt`;
 export const TALE_SITE_LLMS_FULL_TXT = `${TALE_SITE_URL}/llms-full.txt`;
 export const TALE_DOCS_LLMS_TXT = `${TALE_DOCS_URL}/llms.txt`;
 export const TALE_DOCS_LLMS_FULL_TXT = `${TALE_DOCS_URL}/llms-full.txt`;
+
+// --- Shared Open Graph defaults (marketing + docs wrappers) ----------------
+
+/**
+ * OpenGraph territory tags per URL locale. German marketing/docs copy is
+ * Swiss-spelled, so `de` maps to `de_CH`.
+ */
+export const TALE_OG_LOCALES: Readonly<Record<string, string>> = {
+  en: 'en_US',
+  de: 'de_CH',
+  fr: 'fr_CH',
+};
+
+/**
+ * Brand card served from the marketing origin (`public/og.png`). Docs
+ * reuses the same absolute URL so social previews stay on-brand.
+ */
+export const TALE_OG_IMAGE = {
+  path: '/og.png',
+  width: 1200,
+  height: 630,
+  type: 'image/png',
+} as const;

@@ -22,12 +22,12 @@ Bring the site up per [SETUP.md](SETUP.md) — either mode. The sidebar tree is
 build-time static; `navigation.test.ts` already guarantees every entry
 resolves to a page, so this guide focuses on **behaviour**, not link rot.
 
-> **Agent note**: the sidebar is the `<nav aria-label="Documentation">`
-> landmark; the active link carries `aria-current="page"`. Group toggles are
-> buttons with `aria-expanded`. The TOC is the `<aside>` labelled **On this
-> page** (`docs.onThisPage`) and only renders at the `xl` breakpoint —
-> use a ≥ 1280 px viewport for F5/F6. Scroll-spy marks the active TOC item
-> with `aria-current="true"`.
+> **Agent note**: the sidebar is a `<nav>` whose `aria-label` comes from
+> `nav.sidebarAriaLabel` (EN **Documentation**); the active link carries
+> `aria-current="page"`. Group toggles are buttons with `aria-expanded`. The
+> TOC is the `<aside>` labelled **On this page** (`docs.onThisPage`) and only
+> renders at the `xl` breakpoint — use a ≥ 1280 px viewport for F5/F6.
+> Scroll-spy marks the active TOC item with `aria-current="true"`.
 
 ## Automated coverage
 
@@ -61,11 +61,11 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check           | Expected                                                                                                                                                          |
-| --- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | Landmarks       | One `<main>`; the sidebar is `<nav aria-label="Documentation">`; breadcrumbs `<nav aria-label>` = **Breadcrumbs**; the TOC an `<aside>` labelled **On this page** |
-| A2  | Keyboard        | The whole sidebar (group toggles + links) and the TOC operate by keyboard; Enter/Space toggles groups; focus visible throughout                                   |
-| A3  | Current markers | Active sidebar link `aria-current="page"`; active TOC item `aria-current="true"`; breadcrumb leaf `aria-current="page"`                                           |
+| ID  | Check           | Expected                                                                                                                                                                                          |
+| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Landmarks       | One `<main>`; the sidebar is `<nav aria-label>` = `nav.sidebarAriaLabel` (EN **Documentation**); breadcrumbs `<nav aria-label>` = **Breadcrumbs**; the TOC an `<aside>` labelled **On this page** |
+| A2  | Keyboard        | The whole sidebar (group toggles + links) and the TOC operate by keyboard; Enter/Space toggles groups; focus visible throughout                                                                   |
+| A3  | Current markers | Active sidebar link `aria-current="page"`; active TOC item `aria-current="true"`; breadcrumb leaf `aria-current="page"`                                                                           |
 
 ## Performance
 

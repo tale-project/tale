@@ -1,14 +1,18 @@
-import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 import { Check } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { MarketingSection } from '@/app/components/blocks/marketing-section';
 import type { Billing } from '@/app/components/blocks/pricing-section';
 import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
 import { TierCard } from '@/app/components/blocks/tier-card';
 import { UserCountControl } from '@/app/components/blocks/user-count-control';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
-import { DOCS_URL } from '@/lib/docs-url';
+import {
+  MarketingButton,
+  MarketingExternalLink,
+  MarketingLink,
+} from '@/app/components/marketing';
+import { GET_STARTED_HREF, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import { useT } from '@/lib/i18n/client';
 import {
   REGION_CURRENCY,
@@ -68,12 +72,46 @@ interface TierNameProps {
 
 function TierName({ name, deploymentLabel }: TierNameProps) {
   return (
-    <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-      <span>{name}</span>
-      <span className="text-fg-muted text-sm font-normal">
-        ({deploymentLabel})
+    <span className="flex flex-col gap-1">
+      <span className="text-fg-base">{name}</span>
+      <span className="text-fg-muted text-sm font-normal tracking-tight">
+        {deploymentLabel}
       </span>
     </span>
+  );
+}
+
+function TierFeatureList({
+  heading,
+  features,
+  footer,
+}: {
+  heading: string;
+  features: readonly string[];
+  footer?: ReactNode;
+}) {
+  return (
+    <div className="border-border-base/40 flex flex-col gap-3 border-t pt-5">
+      <p className="text-fg-muted text-xs leading-normal font-medium tracking-wider uppercase">
+        {heading}
+      </p>
+      <ul role="list" className="flex flex-col gap-2.5">
+        {features.map((feature) => (
+          <li
+            key={feature}
+            className="text-fg-base flex items-start gap-2.5 text-sm leading-normal tracking-tight"
+          >
+            <Check
+              className="text-success mt-0.5 h-4 w-4 shrink-0"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
+      {footer}
+    </div>
   );
 }
 
@@ -102,7 +140,6 @@ export function PricingTiers({
     <MarketingSection
       title={t('title')}
       description={t('description')}
-      descriptionMaxWidth={600}
       controls={
         <>
           <SegmentedRadio
@@ -123,13 +160,15 @@ export function PricingTiers({
       }
       footer={t('note')}
     >
-      <UserCountControl
-        value={users}
-        onChange={onUsersChange}
-        region={region}
-      />
+      <div className="border-border-base/40 bg-surface-site-raised mx-auto mt-10 w-full max-w-120 rounded-2xl border p-5 sm:p-6">
+        <UserCountControl
+          value={users}
+          onChange={onUsersChange}
+          region={region}
+        />
+      </div>
 
-      <div className="border-border-base mx-auto mt-12 grid max-w-[800px] grid-cols-1 items-stretch overflow-hidden border lg:grid-cols-2">
+      <div className="mx-auto mt-10 grid max-w-[840px] grid-cols-1 items-stretch gap-4 lg:grid-cols-2 lg:gap-5">
         <TierCard
           name={
             <TierName
@@ -143,42 +182,27 @@ export function PricingTiers({
           tagline={t('community.tagline')}
           animationDelay={0}
         >
-          <div className="border-border-base flex flex-col gap-3 border-t pt-6">
-            <p
-              className="text-fg-base text-sm font-medium"
-              style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-            >
-              {t('planIncludes')}
-            </p>
-            <ul role="list" className="flex flex-col gap-3">
-              {COMMUNITY_FEATURE_KEYS.map((featureKey) => (
-                <li
-                  key={featureKey}
-                  className="text-fg-base flex items-start gap-2 text-sm"
-                  style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-                >
-                  <Check
-                    className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                    strokeWidth={2}
-                    aria-hidden
-                  />
-                  <span>{t(featureKey)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <TierFeatureList
+            heading={t('planIncludes')}
+            features={COMMUNITY_FEATURE_KEYS.map((key) => t(key))}
+          />
 
           <div className="mt-auto pt-2">
-            <Button asChild variant="secondary" fullWidth>
-              <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+            <MarketingButton asChild tone="secondary" fullWidth>
+              <MarketingExternalLink
+                href={GET_STARTED_HREF}
+                tone="plain"
+                showIcon={false}
+              >
                 {t('community.cta')}
-              </a>
-            </Button>
+              </MarketingExternalLink>
+            </MarketingButton>
           </div>
         </TierCard>
 
         <TierCard
           popular
+          popularLabel={t('popular')}
           name={
             <TierName
               name={t('tierNames.enterprise')}
@@ -191,52 +215,30 @@ export function PricingTiers({
           tagline={t('enterprise.tagline')}
           animationDelay={0.06}
         >
-          <div className="border-border-base flex flex-col gap-3 border-t pt-6">
-            <p
-              className="text-fg-base text-sm font-medium"
-              style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-            >
-              {t('planIncludes')}
-            </p>
-            <ul role="list" className="flex flex-col gap-3">
-              {ENTERPRISE_FEATURE_KEYS.map((featureKey) => (
-                <li
-                  key={featureKey}
-                  className="text-fg-base flex items-start gap-2 text-sm"
-                  style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-                >
-                  <Check
-                    className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                    strokeWidth={2}
-                    aria-hidden
-                  />
-                  <span>{t(featureKey)}</span>
-                </li>
-              ))}
-            </ul>
-            <p
-              className="text-fg-muted mt-1 text-xs"
-              style={{ letterSpacing: '-0.18px', lineHeight: 1.5 }}
-            >
-              {t('enterprise.userBreakdown', {
-                count: formatUserCount(users, region),
-                perUser: perUserPrice,
-              })}
-            </p>
-            <p
-              className="text-fg-muted text-xs"
-              style={{ letterSpacing: '-0.18px', lineHeight: 1.5 }}
-            >
-              {t('enterprise.storageAddOn', { price: storagePrice })}
-            </p>
-          </div>
+          <TierFeatureList
+            heading={t('planIncludes')}
+            features={ENTERPRISE_FEATURE_KEYS.map((key) => t(key))}
+            footer={
+              <>
+                <p className="text-fg-muted mt-1 text-xs leading-normal tracking-tight">
+                  {t('enterprise.userBreakdown', {
+                    count: formatUserCount(users, region),
+                    perUser: perUserPrice,
+                  })}
+                </p>
+                <p className="text-fg-muted text-xs leading-normal tracking-tight">
+                  {t('enterprise.storageAddOn', { price: storagePrice })}
+                </p>
+              </>
+            }
+          />
 
           <div className="mt-auto pt-2">
-            <Button asChild fullWidth>
-              <LocalizedLink to="/request-demo">
+            <MarketingButton asChild tone="primary" fullWidth>
+              <MarketingLink to={REQUEST_DEMO_PATH} tone="plain">
                 {t('enterprise.cta')}
-              </LocalizedLink>
-            </Button>
+              </MarketingLink>
+            </MarketingButton>
           </div>
         </TierCard>
       </div>

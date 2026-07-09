@@ -1,11 +1,10 @@
 import {
   buildFaqPageJsonLd,
-  buildOrganizationJsonLd,
   buildWebSiteJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
-import { TALE_GITHUB_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 import { useMemo } from 'react';
 
+import { AgentsBar } from '@/app/components/blocks/agents-bar';
 import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FAQ_KEYS, FaqAccordion } from '@/app/components/blocks/faq-accordion';
@@ -14,6 +13,9 @@ import { IntegrationsBar } from '@/app/components/blocks/integrations-bar';
 import { OrchestrationTour } from '@/app/components/blocks/orchestration-tour';
 import { Tagline } from '@/app/components/blocks/tagline';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
+import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
+import { buildTaleOrganizationJsonLd } from '@/lib/seo/organization';
 import { buildTaleSoftwareApplicationJsonLd } from '@/lib/seo/software-application';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -21,30 +23,21 @@ export function HomePage() {
   const { t: tFooter } = useT('footer');
   const { t: tSeo } = useT('seo');
   const { t: tHome } = useT('home');
+  const locale = useCurrentLocale();
 
   // The homepage's structured-data payload: who makes Tale (Organization),
   // the site (WebSite — no SearchAction, there is no site search), the
   // product with its real prices (SoftwareApplication), and the FAQ exactly
   // as rendered (FAQ_KEYS is shared with the accordion, so schema and
-  // visible content cannot diverge).
+  // visible content cannot diverge). Organization stays on the English
+  // entity `@id`; WebSite.url matches this locale's canonical.
   const jsonLd = useMemo(
     () => [
-      buildOrganizationJsonLd({
-        id: `${TALE_SITE_URL}/#org`,
+      buildTaleOrganizationJsonLd(),
+      buildWebSiteJsonLd({
         name: 'Tale',
-        url: TALE_SITE_URL,
-        legalName: 'Ruler GmbH',
-        vatID: 'CHE-186.532.610',
-        address: {
-          streetAddress: 'Seestrasse 4',
-          postalCode: '3700',
-          addressLocality: 'Spiez',
-          addressCountry: 'CH',
-        },
-        logoUrl: `${TALE_SITE_URL}/favicon-light.png`,
-        sameAs: [TALE_GITHUB_URL],
+        url: absoluteLocalizedUrl(locale, '/'),
       }),
-      buildWebSiteJsonLd({ name: 'Tale', url: TALE_SITE_URL }),
       buildTaleSoftwareApplicationJsonLd(tSeo('home.description')),
       buildFaqPageJsonLd(
         FAQ_KEYS.map((key) => ({
@@ -53,7 +46,7 @@ export function HomePage() {
         })),
       ),
     ],
-    [tHome, tSeo],
+    [locale, tHome, tSeo],
   );
 
   useDocumentMeta({
@@ -72,6 +65,7 @@ export function HomePage() {
       </section>
 
       <Tagline />
+      <AgentsBar />
       <IntegrationsBar />
       <ComplianceTrust />
       <FaqAccordion />
