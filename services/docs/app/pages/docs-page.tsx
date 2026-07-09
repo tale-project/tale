@@ -11,6 +11,7 @@ import { useDocumentMeta } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
+import { DocsImage } from '@/app/components/docs/docs-image';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
 import { DocsToc } from '@/app/components/docs/docs-toc';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
@@ -25,6 +26,14 @@ interface DocsPageProps {
   locale: SupportedLocale;
   slug: string;
 }
+
+// The shared registry plus an `img` override that rebases root-absolute
+// screenshot srcs onto the deploy base (see DocsImage) — the router only
+// rebases links, not image srcs.
+const docsMarkdownComponents = {
+  ...markdownComponents,
+  img: DocsImage,
+};
 
 function humaniseSegment(part: string): string {
   return part.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -207,7 +216,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
         </header>
         <RoutedMarkdown
           // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
-          components={markdownComponents as any}
+          components={docsMarkdownComponents as any}
           className="mt-6"
         >
           {doc.body}

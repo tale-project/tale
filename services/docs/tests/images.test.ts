@@ -18,8 +18,11 @@ import { walkDocs } from './lib/walk';
  *
  * Screenshots live under `services/docs/public/images/<section>/` and are
  * embedded as `![sentence-case alt](/images/<section>/<file>.webp)`. The docs
- * site serves `public/` at the site root, so `/images/...` in a page resolves
- * to `services/docs/public/images/...`. This test enforces the three things a
+ * app serves `public/` at its deploy base and the renderer rebases the
+ * root-absolute src onto that base (`app/components/docs/docs-image.tsx`), so
+ * `/images/...` in a page resolves to `services/docs/public/images/...`
+ * whether the app is mounted at `/` or a sub-path like tale.dev's `/docs`.
+ * This test enforces the three things a
  * stale or sloppy reference gets wrong:
  *
  *   1. The referenced file exists under `public/`. A typo'd path renders a
