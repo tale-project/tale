@@ -18,6 +18,10 @@ describe('isLocaleNeutralPath', () => {
     expect(isLocaleNeutralPath('/api/forms/submit')).toBe(true);
   });
 
+  it('skips the web app manifest by extension', () => {
+    expect(isLocaleNeutralPath('/manifest.webmanifest')).toBe(true);
+  });
+
   it('does not skip locale-prefixed or normal pages', () => {
     expect(isLocaleNeutralPath('/')).toBe(false);
     expect(isLocaleNeutralPath('/de/pricing')).toBe(false);

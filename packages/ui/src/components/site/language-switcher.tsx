@@ -173,7 +173,9 @@ export function LanguageSwitcher({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        aria-label={t('ariaLabel')}
+        // Include the visible locale name so the accessible name matches
+        // the button text (label-content-name-mismatch).
+        aria-label={`${t('ariaLabel')}: ${t(`locales.${currentLocale}`)}`}
         onClick={() => setOpen((v) => !v)}
         className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >

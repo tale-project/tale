@@ -123,6 +123,20 @@ describe('htmlToMarkdown', () => {
     expect(out).toContain('Kept.');
   });
 
+  it('emits aria-label from role="img" before skipping aria-hidden demos', async () => {
+    const out = await htmlToMarkdown(
+      [
+        '<figure role="img" aria-label="Hero: agents hand off a task">',
+        '<div aria-hidden="true"><p>pixel chrome</p></div>',
+        '</figure>',
+        '<p>After demo.</p>',
+      ].join(''),
+    );
+    expect(out).toContain('> Hero: agents hand off a task');
+    expect(out).not.toContain('pixel chrome');
+    expect(out).toContain('After demo.');
+  });
+
   it('escapes pipes inside table cells', async () => {
     const out = await htmlToMarkdown(
       '<table><tr><th>A</th></tr><tr><td>a|b</td></tr></table>',

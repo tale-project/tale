@@ -148,8 +148,24 @@ async function main() {
 
   await writeRedirectStubs(seen);
 
+  // Prerendered 404 artifact (English shell; the client re-localizes after
+  // mount). Outside the content walk so it never enters the sitemap. The
+  // shared React server serves `dist/404/index.html` with a real 404 status.
+  process.stdout.write('prerender /404 ... ');
+  {
+    const { html, head } = await mod.render(`${BASE_PATH}/404`);
+    const final = setHtmlLang(
+      injectBody(injectHead(template, head), html),
+      'en',
+    );
+    const outPath = resolve(DIST, '404', 'index.html');
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(outPath, final, 'utf-8');
+  }
+  process.stdout.write('done\n');
+
   process.stdout.write(
-    `prerendered ${seen.size} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
+    `prerendered ${seen.size + 1} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
   );
 }
 

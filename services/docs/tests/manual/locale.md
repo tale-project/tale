@@ -23,10 +23,9 @@ Bring the site up per [SETUP.md](SETUP.md) — either mode.
 > **Agent note**: the switcher trigger is the footer button aria-labelled
 > **Switch language** (`languageSwitcher.ariaLabel`) showing the current
 > locale name; items are `menuitem`s **English** / **Deutsch** / **Français**.
-> Several docs-shell controls are hard-coded English (the skip link, the code
-> **Copy code** button, the page-actions menu, heading **Copy link to this
-> section**) — on `/de` they will read English; log them once as a
-> localization finding, not per page.
+> Remaining hard-coded English chrome (shared `@tale/ui`): the code **Copy
+> code** button and heading **Copy link to this section**. Skip link, sidebar
+> landmark, and page actions are i18n-wired — on `/de` they should read German.
 
 ## Automated coverage
 
@@ -70,9 +69,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Issues Found
 
-| #   | Test ID | Route / URL                                               | Severity (crit/high/med/low) | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Screenshot |
-| --- | ------- | --------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 1   | F2      | `https://tale.dev/docs/de/self-hosted/install/quickstart` | med                          | Hard-coded English chrome on localized pages (2026-07-06 live pass): the skip link **Skip to main content** (`app/routes/__root.tsx`), the sidebar landmark `aria-label="Documentation"` (`docs-sidebar.tsx`), the code **Copy code**/**Copied** button (`@tale/ui` `highlighted-code.tsx`), the page actions **Copy page**/**Open in …** (`page-actions.tsx`), and the heading **Copy link to this section** (`@tale/ui` `anchored-heading.tsx`). Breadcrumbs/TOC are correctly German (**Brotkrumennavigation**, **Auf dieser Seite**) | —          |
+| #   | Test ID | Route / URL                                               | Severity (crit/high/med/low) | Description                                                                                                                                                                                                                                                                                                                                                                 | Screenshot |
+| --- | ------- | --------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | F2      | `https://tale.dev/docs/de/self-hosted/install/quickstart` | med                          | Remaining hard-coded English chrome on localized pages: the code **Copy code**/**Copied** button (`@tale/ui` `highlighted-code.tsx`) and the heading **Copy link to this section** (`@tale/ui` `anchored-heading.tsx`). Skip link, sidebar landmark, and page actions are i18n-wired. Breadcrumbs/TOC are correctly German (**Brotkrumennavigation**, **Auf dieser Seite**) | —          |
 
 ## Test summary
 

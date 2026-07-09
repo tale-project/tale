@@ -130,6 +130,9 @@
     "./theme-switcher": "./src/components/site/theme-switcher.tsx",
     "./seo": "./src/seo/index.ts",
     "./seo/document-meta": "./src/seo/document-meta.ts",
+    "./seo/tale-document-meta": "./src/seo/tale-document-meta.ts",
+    "./seo/urls": "./src/seo/urls.ts",
+    "./seo/alternates": "./src/seo/alternates.ts",
     "./seo/globals": "./src/seo/globals.ts",
     "./seo/builders/llms-txt": "./src/seo/builders/llms-txt.ts",
     "./seo/builders/llms-full-txt": "./src/seo/builders/llms-full-txt.ts",
@@ -171,6 +174,7 @@
     "./use-debounce": "./src/hooks/use-debounce.ts",
     "./use-dropdown-placement": "./src/hooks/use-dropdown-placement.ts",
     "./icons/flags": "./src/icons/flags.tsx",
+    "./icons/github": "./src/icons/github-icon.tsx",
     "./parse-frontmatter": "./src/utils/parse-frontmatter.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind-preset": "./tailwind-preset.ts"

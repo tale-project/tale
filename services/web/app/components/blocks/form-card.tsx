@@ -2,23 +2,24 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
 import { Field } from '@tale/ui/field';
-import { Section } from '@tale/ui/section';
-import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   type FieldValues,
   FormProvider,
   type UseFormReturn,
 } from 'react-hook-form';
 
-import { SiteContainer } from '@/app/components/layout/site-container';
+import {
+  MarketingStack,
+  PageSection,
+  Reveal,
+  SectionHeading,
+} from '@/app/components/marketing';
 import { MIN_SUBMIT_DELAY_MS, type SubmitRequest } from '@/lib/forms/schemas';
 import { submitForm } from '@/lib/forms/submit-client';
 import { formSubmitErrorMessage } from '@/lib/forms/submit-errors';
 import { useT } from '@/lib/i18n/client';
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
 
 interface BasePayload extends FieldValues {
   privacy: boolean;
@@ -52,9 +53,15 @@ export function FormCard<T extends BasePayload>({
   defaultValues,
 }: FormCardProps<T>) {
   const { t } = useT('forms');
-  const reduceMotion = useReducedMotion();
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  // On success the form (incl. the submit button) unmounts and is replaced by
+  // the status block — move focus to its heading so keyboard/AT users aren't
+  // stranded on a detached element.
+  const successRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (submitted) successRef.current?.focus();
+  }, [submitted]);
 
   // Internal type narrowing: T extends BasePayload, so every BasePayload
   // field is present on T at runtime. React-hook-form's `Path<T>` is
@@ -87,140 +94,125 @@ export function FormCard<T extends BasePayload>({
   });
 
   return (
-    <Section spacing="md">
-      <SiteContainer>
-        <div className="grid gap-10 md:grid-cols-2 md:gap-20">
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
-            }
-            className="flex flex-col gap-6"
-          >
-            {eyebrow ? (
-              <p className="text-xs font-semibold tracking-wider text-[color:var(--color-fg-muted)] uppercase">
-                {eyebrow}
-              </p>
-            ) : null}
-            <h1 className="text-accent-base text-[2rem] font-medium tracking-tight md:text-5xl md:tracking-[-0.02em]">
-              {title}
-            </h1>
+    <PageSection pad="xl" border="b" className="relative overflow-hidden">
+      <div className="grid gap-10 md:grid-cols-2 md:gap-20">
+        <Reveal onMount>
+          <MarketingStack max="full" gap="sm" align="start">
+            <SectionHeading
+              bare
+              size="display"
+              eyebrow={eyebrow}
+              title={title}
+              align="start"
+              className="items-start text-left"
+            />
             {description ? (
-              <div className="text-fg-muted text-base leading-[1.55] md:text-lg md:tracking-[-0.015em]">
+              <div className="text-fg-muted max-w-md text-base leading-[1.55] md:text-lg md:tracking-[-0.015em]">
                 {description}
               </div>
             ) : null}
-          </motion.div>
+          </MarketingStack>
+        </Reveal>
 
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : { duration: 0.5, delay: 0.05, ease: easeOut }
-            }
-            className="flex flex-col"
-          >
-            {submitted ? (
-              <div
-                role="status"
-                className="flex flex-col items-center gap-3 py-8 text-center"
+        <Reveal onMount delay={0.05} className="flex flex-col">
+          {submitted ? (
+            <div
+              role="status"
+              className="flex flex-col items-center gap-3 py-8 text-center"
+            >
+              <CheckCircle2 className="text-success h-10 w-10" aria-hidden />
+              <h2
+                ref={successRef}
+                tabIndex={-1}
+                className="text-fg-base text-lg font-semibold outline-none"
               >
-                <CheckCircle2
-                  className="h-10 w-10 text-[color:var(--color-success)]"
-                  aria-hidden
-                />
-                <h2 className="text-lg font-semibold text-[color:var(--color-fg-base)]">
-                  {t('success.title')}
-                </h2>
-                <p className="text-sm text-[color:var(--color-fg-muted)]">
-                  {t('success.description')}
-                </p>
+                {t('success.title')}
+              </h2>
+              <p className="text-fg-muted text-sm">
+                {t('success.description')}
+              </p>
+              <Button
+                variant="ghost"
+                onClick={() => setSubmitted(false)}
+                className="mt-2"
+              >
+                {t('success.sendAnother')}
+              </Button>
+            </div>
+          ) : (
+            <FormProvider {...form}>
+              <form
+                onSubmit={onSubmit}
+                className="border-border-base bg-surface-site-raised flex flex-col gap-8 rounded-2xl border p-6 md:p-8"
+                noValidate
+              >
+                {/* Honeypot field — hidden from real users. */}
+                <div aria-hidden className="hidden" tabIndex={-1}>
+                  <label>
+                    {t('honeypotLabel')}
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      tabIndex={-1}
+                      {...form.register('website')}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-col gap-6">{children}</div>
+
+                <Field
+                  error={
+                    form.formState.errors.privacy
+                      ? t('privacyRequired')
+                      : undefined
+                  }
+                >
+                  <label className="text-fg-muted flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={Boolean(form.watch('privacy'))}
+                      onCheckedChange={(checked) =>
+                        form.setValue('privacy', checked === true, {
+                          shouldValidate: true,
+                        })
+                      }
+                      aria-invalid={Boolean(form.formState.errors.privacy)}
+                    />
+                    <span>
+                      {t('privacyPrefix')}{' '}
+                      <a
+                        href="/legal/privacy-policy"
+                        className="text-fg-base font-medium underline underline-offset-4"
+                      >
+                        {t('privacyLink')}
+                      </a>
+                    </span>
+                  </label>
+                </Field>
+
+                {serverError ? (
+                  <p
+                    role="alert"
+                    className={cn(
+                      'border-danger/30 bg-danger-bg text-danger rounded-md border px-3 py-2 text-sm',
+                    )}
+                  >
+                    {serverError}
+                  </p>
+                ) : null}
+
                 <Button
-                  variant="ghost"
-                  onClick={() => setSubmitted(false)}
-                  className="mt-2"
+                  type="submit"
+                  isLoading={form.formState.isSubmitting}
+                  fullWidth
                 >
-                  {t('success.sendAnother')}
+                  {submitLabel}
                 </Button>
-              </div>
-            ) : (
-              <FormProvider {...form}>
-                <form
-                  onSubmit={onSubmit}
-                  className="flex flex-col gap-8"
-                  noValidate
-                >
-                  {/* Honeypot field — hidden from real users. */}
-                  <div aria-hidden className="hidden" tabIndex={-1}>
-                    <label>
-                      {t('honeypotLabel')}
-                      <input
-                        type="text"
-                        autoComplete="off"
-                        tabIndex={-1}
-                        {...form.register('website')}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex flex-col gap-6">{children}</div>
-
-                  <Field
-                    error={
-                      form.formState.errors.privacy
-                        ? t('privacyRequired')
-                        : undefined
-                    }
-                  >
-                    <label className="text-fg-muted flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={Boolean(form.watch('privacy'))}
-                        onCheckedChange={(checked) =>
-                          form.setValue('privacy', checked === true, {
-                            shouldValidate: true,
-                          })
-                        }
-                        aria-invalid={Boolean(form.formState.errors.privacy)}
-                      />
-                      <span>
-                        {t('privacyPrefix')}{' '}
-                        <a
-                          href="/legal/privacy-policy"
-                          className="text-fg-muted font-semibold underline underline-offset-4"
-                        >
-                          {t('privacyLink')}
-                        </a>
-                      </span>
-                    </label>
-                  </Field>
-
-                  {serverError ? (
-                    <p
-                      role="alert"
-                      className={cn(
-                        'rounded-md border border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger-bg)] px-3 py-2 text-sm text-[color:var(--color-danger)]',
-                      )}
-                    >
-                      {serverError}
-                    </p>
-                  ) : null}
-
-                  <Button
-                    type="submit"
-                    isLoading={form.formState.isSubmitting}
-                    fullWidth
-                  >
-                    {submitLabel}
-                  </Button>
-                </form>
-              </FormProvider>
-            )}
-          </motion.div>
-        </div>
-      </SiteContainer>
-    </Section>
+              </form>
+            </FormProvider>
+          )}
+        </Reveal>
+      </div>
+    </PageSection>
   );
 }

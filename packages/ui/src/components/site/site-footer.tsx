@@ -14,20 +14,27 @@ export interface FooterColumn {
    * routing assumptions.
    */
   links: ReactNode[];
+  /**
+   * Optional free-form body under the links (e.g. a company address).
+   * Use when the column is not only a link list.
+   */
+  body?: ReactNode;
+  /** Optional class on the column `<nav>` (e.g. grid placement). */
+  className?: string;
 }
 
 interface SiteFooterProps {
-  /** Logo + home link slot. Required in the columned (marketing) layout,
-   *  optional in the compact bottom-bar variant. */
+  /** Logo + home link slot. Shown above the link grid when columns exist. */
   logo?: ReactNode;
-  /** Optional `<address>` or any structured contact info. Only shown
-   *  when there are columns — the compact variant omits it. */
+  /**
+   * Optional `<address>` or structured contact info. Rendered in the
+   * bottom bar beneath the link columns when not placed in a column
+   * via `FooterColumn.body`.
+   */
   address?: ReactNode;
-  /** Optional slot rendered in the brand column beneath the address.
-   *  Marketing uses it for the GitHub icon link; docs leaves it empty. */
+  /** Optional slot beside the logo (e.g. GitHub). */
   brandTrailing?: ReactNode;
-  /** Up to three columns of links shown to the right of the logo. When
-   *  empty, the footer collapses to a single bottom bar. */
+  /** Link columns. When empty, the footer collapses to a single bottom bar. */
   columns?: FooterColumn[];
   /** Lines rendered in the bottom-bar copyright slot. */
   copyrightLines: string[];
@@ -68,10 +75,9 @@ interface SiteFooterProps {
 
 /**
  * Marketing/docs footer shell shared between `services/web` and
- * `services/docs`. Owns the visual structure (logo column + link
- * columns + bottom bar) and ships the language and theme switchers in
- * the bottom bar; callers supply link components for each column so the
- * footer stays routing-agnostic.
+ * `services/docs`. Owns the visual structure (logo row + link columns +
+ * bottom bar with address) and ships the language and theme switchers;
+ * callers supply link components so the footer stays routing-agnostic.
  */
 export function SiteFooter({
   logo,
@@ -90,12 +96,6 @@ export function SiteFooter({
 }: SiteFooterProps) {
   const columnCount = columns.length;
   const compact = columnCount === 0;
-  const gridCols =
-    columnCount === 1
-      ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)]'
-      : columnCount === 2
-        ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_repeat(2,minmax(0,1fr))] lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
-        : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(0,1fr))] lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
 
   const llmLinkClass =
     'text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';
@@ -117,14 +117,20 @@ export function SiteFooter({
     </div>
   );
 
+  // 2-up on mobile keeps the footer short; expand toward the column count
+  // on larger screens (cap at 4 so Legal doesn't squeeze).
+  const linkGridClass =
+    columnCount <= 2
+      ? 'grid-cols-2'
+      : columnCount === 3
+        ? 'grid-cols-2 sm:grid-cols-3'
+        : 'grid-cols-2 sm:grid-cols-4';
+
   return (
     <footer className="border-border-base bg-bg-base dark:bg-bg-elevated border-t print:hidden">
       {compact ? (
         <SiteContainer className={containerClassName}>
-          {/* Bottom-bar-only variant. Renders just the copyright + the
-              language/theme/llms switchers on a single line so the docs
-              chrome stays minimal beneath every page. */}
-          <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:py-6">
             <div
               className="text-fg-muted text-sm"
               style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
@@ -140,51 +146,66 @@ export function SiteFooter({
       ) : (
         <>
           <SiteContainer className={containerClassName}>
-            <div
-              className={cn('grid gap-8 py-10 md:gap-12 md:py-16', gridCols)}
-            >
-              <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 md:col-span-1">
-                {logo}
-                {address}
-                {brandTrailing}
-              </div>
+            <div className="flex flex-col gap-6 py-6 sm:gap-8 sm:py-8">
+              {(logo || brandTrailing) && (
+                <div className="flex items-center justify-between gap-3">
+                  {logo}
+                  {brandTrailing}
+                </div>
+              )}
 
-              {columns.map((col) => (
-                <nav
-                  key={col.heading}
-                  aria-label={col.heading}
-                  className="flex flex-col gap-4"
-                >
-                  <h3
-                    className="text-fg-base text-base font-medium"
-                    style={{ letterSpacing: '-0.16px' }}
+              <div
+                className={cn('grid gap-x-5 gap-y-6 sm:gap-y-8', linkGridClass)}
+              >
+                {columns.map((col) => (
+                  <nav
+                    key={col.heading}
+                    aria-label={col.heading}
+                    className={cn('flex flex-col gap-2.5', col.className)}
                   >
-                    {col.heading}
-                  </h3>
-                  <ul role="list" className="flex flex-col gap-[14px]">
-                    {col.links.map((link, i) => (
-                      // oxlint-disable-next-line react/no-array-index-key -- link order is stable
-                      <li key={i}>{link}</li>
-                    ))}
-                  </ul>
-                </nav>
-              ))}
+                    <h3
+                      className="text-fg-base text-sm font-medium"
+                      style={{ letterSpacing: '-0.14px' }}
+                    >
+                      {col.heading}
+                    </h3>
+                    {col.links.length > 0 ? (
+                      <ul role="list" className="flex flex-col gap-1.5">
+                        {col.links.map((link, i) => (
+                          // oxlint-disable-next-line react/no-array-index-key -- link order is stable
+                          <li key={i}>{link}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {col.body ? (
+                      <div className="text-fg-muted text-sm">{col.body}</div>
+                    ) : null}
+                  </nav>
+                ))}
+              </div>
             </div>
           </SiteContainer>
 
           <div className="border-border-base border-t">
             <SiteContainer className={containerClassName}>
-              <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
-                <div
-                  className="text-fg-muted text-sm"
-                  style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
-                >
-                  {copyrightLines.map((line, i) => (
-                    // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
-                    <p key={i}>{line}</p>
-                  ))}
+              <div className="flex flex-col gap-3 py-4 sm:gap-4 sm:py-5">
+                {address ? (
+                  <div className="text-fg-muted text-xs sm:text-sm">
+                    {address}
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div
+                    className="text-fg-muted text-xs sm:text-sm"
+                    style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
+                  >
+                    {copyrightLines.map((line, i) => (
+                      // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                  {switcherRow}
                 </div>
-                {switcherRow}
               </div>
             </SiteContainer>
           </div>

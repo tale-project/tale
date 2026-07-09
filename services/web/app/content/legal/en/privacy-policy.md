@@ -40,13 +40,13 @@ When you submit our contact form or request a demo, we collect the following per
 
 ### 3.2 Automatically Collected Data
 
-Our website is hosted on Framer, which uses a privacy-friendly analytics system. This system does not use cookies and does not collect personal data. IP addresses are hashed with a daily rotating secret and cannot be traced back to individual visitors. No persistent identifiers are generated.
+Our website does not use any analytics system, tracking pixels, advertising scripts, or third-party cookies, and we do not build visitor profiles.
 
-We do not use any additional analytics tools, tracking pixels, advertising scripts, or third-party cookies on our website.
+To deliver the website we temporarily process minimal technical data (see Server Logs below), and the site stores one functional language cookie plus a theme preference in your browser (see Cookies below).
 
 ### 3.3 Server Logs
 
-When you visit our website, our hosting provider (Framer) may temporarily process technical data such as your IP address, browser type, and access timestamps for the purpose of delivering the website and maintaining security. This data is processed as part of standard web hosting operations and is not used by us for any other purpose.
+When you visit our website, our self-operated web server and hosting infrastructure ([hosting provider — to be confirmed before publication]) may temporarily process technical data such as your IP address, browser type, and access timestamps for the purpose of delivering the website and maintaining security (for example, rate limiting). This data is processed as part of standard web-server operations, retained only briefly, and is not used by us for any other purpose.
 
 ## 4. Purpose and Legal Basis for Processing
 
@@ -67,16 +67,16 @@ We do not sell, rent, or share your personal data with third parties for marketi
 
 Your personal data may be accessible to the following categories of service providers who process data on our behalf and under our instructions:
 
-- **Hosting provider:** Framer B.V. (Amsterdam, Netherlands) — provides website hosting and delivery via a global content delivery network powered by Amazon Web Services (AWS). Framer is GDPR-compliant, SOC 2 Type II attested, and ISO 27001:2022 certified.
+- **Hosting infrastructure:** The website is operated by Ruler GmbH on self-hosted infrastructure provided by [hosting provider — to be confirmed before publication], located in [data center location — to be confirmed before publication].
 - **CRM provider:** We store contact form submissions in a customer relationship management system hosted in Switzerland.
 
 These providers act as data processors and are bound by data processing agreements in accordance with Art. 9 FADP and Art. 28 GDPR.
 
 ## 6. International Data Transfers
 
-Your personal data is primarily stored and processed in Switzerland. However, as our website is hosted by Framer B.V. in the Netherlands, some data (such as server requests) is processed within the European Union and through a globally distributed content delivery network.
+Your personal data is primarily stored and processed in Switzerland. [To be confirmed before publication: state where the website's servers are located — Switzerland or the EU/EEA — and adjust this section accordingly.]
 
-The Netherlands and all EU/EEA member states are recognized by the Swiss Federal Council as providing an adequate level of data protection under Art. 16 FADP. The European Commission has likewise recognized Switzerland as providing adequate protection under the GDPR.
+All EU/EEA member states are recognized by the Swiss Federal Council as providing an adequate level of data protection under Art. 16 FADP. The European Commission has likewise recognized Switzerland as providing adequate protection under the GDPR.
 
 No personal data is transferred to countries without an adequate level of data protection.
 
@@ -87,7 +87,7 @@ We retain your personal data only for as long as necessary to fulfill the purpos
 - **Contact form submissions:** If no business relationship is established, your data will be deleted within 12 months after your last interaction with us.
 - **Demo request submissions:** If no business relationship is established, your data will be deleted within 12 months after your last interaction with us.
 - **Ongoing business relationships:** If a business relationship is established, your data will be retained for the duration of the relationship and for the period required by applicable statutory retention obligations (typically 10 years under Swiss commercial law).
-- **Server logs:** Technical data processed by our hosting provider is handled according to Framer's data retention practices and is not stored by us.
+- **Server logs:** Technical data is processed on our own infrastructure for short-term operational and security purposes only and is deleted automatically thereafter.
 
 ## 8. Your Rights
 
@@ -106,13 +106,13 @@ If you believe that your data protection rights have been violated, you have the
 
 ## 9. Cookies
 
-Our website does not use cookies for analytics or tracking purposes. Framer's built-in analytics system is entirely cookie-free and does not generate persistent identifiers.
+Our website does not use cookies for analytics or tracking purposes. It stores exactly one functional cookie: `tale_locale`, which remembers your language choice for one year so pages load in your language on your next visit. It contains no personal data and no identifier. Your light/dark theme preference is kept in your browser's local storage and never leaves your device.
 
 If we introduce any cookies or third-party services in the future that require consent, we will update this Privacy Policy and implement an appropriate consent mechanism.
 
 ## 10. Data Security
 
-We take appropriate technical and organizational measures to protect your personal data against unauthorized access, loss, misuse, or destruction. These measures include encryption of data in transit (TLS/SSL), access controls, and the use of certified hosting infrastructure (SOC 2 Type II, ISO 27001:2022).
+We take appropriate technical and organizational measures to protect your personal data against unauthorized access, loss, misuse, or destruction. These measures include encryption of data in transit (TLS/SSL), access controls, and hardened, self-operated hosting infrastructure. Ruler GmbH is ISO 27001 and SOC 2 certified.
 
 ## 11. Children's Privacy
 

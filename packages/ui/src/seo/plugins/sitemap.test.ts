@@ -73,4 +73,37 @@ describe('sitemapPlugin', () => {
     expect(result?.body).toContain('hreflang="de"');
     expect(result?.body).toContain('hreflang="x-default"');
   });
+
+  it('drops excludeFromSitemap sections and their routes', async () => {
+    const ctx = makeCtx({
+      sections: [
+        {
+          heading: 'Pages',
+          routes: [{ url: '/', title: 'Home' }],
+        },
+        {
+          heading: 'Legal',
+          excludeFromSitemap: true,
+          routes: [{ url: '/legal/privacy', title: 'Privacy' }],
+        },
+      ],
+    });
+    const result = await sitemapPlugin.build(SITEMAP_PATH, ctx);
+    expect(result?.body).toContain('<loc>https://tale.dev/</loc>');
+    expect(result?.body).not.toContain('legal/privacy');
+  });
+
+  it('returns null and enumerates nothing when all sections are excluded', async () => {
+    const ctx = makeCtx({
+      sections: [
+        {
+          heading: 'Legal',
+          excludeFromSitemap: true,
+          routes: [{ url: '/legal/privacy', title: 'Privacy' }],
+        },
+      ],
+    });
+    expect(await sitemapPlugin.build(SITEMAP_PATH, ctx)).toBeNull();
+    expect(await sitemapPlugin.enumerate(ctx)).toEqual([]);
+  });
 });

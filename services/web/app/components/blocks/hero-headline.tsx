@@ -1,99 +1,65 @@
-import { Button } from '@tale/ui/button';
-import { Image } from '@tale/ui/image';
-import { motion, useReducedMotion } from 'framer-motion';
-
-import { ExternalLink } from '@/app/components/layout/external-link';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { HomeHeroDemo } from '@/app/components/blocks/demos/content';
+import { DemoStage } from '@/app/components/blocks/demos/demo-stage';
+import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import { SiteContainer } from '@/app/components/layout/site-container';
-import { GET_STARTED_URL } from '@/lib/docs-url';
+import {
+  CtaPair,
+  MarketingStack,
+  Reveal,
+  SectionHeading,
+} from '@/app/components/marketing';
+import { CONTACT_PATH, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import { useT } from '@/lib/i18n/client';
 
-const easeOut = [0.22, 1, 0.36, 1] as const;
-
+/**
+ * Homepage hero — Cursor-style left-aligned composition: brand-scale
+ * headline, dual CTAs, trust line, then a full-bleed product stage.
+ */
 export function HeroHeadline() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
-  const fadeUpInitial = reduceMotion ? false : { opacity: 0, y: 20 };
 
   return (
-    <section className="border-border-base relative overflow-hidden border-b pt-[60px]">
-      <SiteContainer>
-        <div className="mx-auto flex max-w-[700px] flex-col items-center gap-7 text-center md:gap-9">
-          <motion.div
-            initial={fadeUpInitial}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
-            }
-            className="flex flex-col items-center gap-3"
-          >
-            <h1
-              className="text-fg-base text-[36px] font-medium md:text-[68px]"
-              style={{ letterSpacing: '-2.94px', lineHeight: 1.1176 }}
-            >
-              {t('hero.title')}
-            </h1>
-            <p
-              className="text-fg-muted max-w-180 text-base text-balance md:text-xl"
-              style={{ letterSpacing: '-0.3px', lineHeight: 1.6 }}
-            >
-              {t('hero.subtitle')}
-            </p>
-          </motion.div>
-          <motion.div
-            initial={fadeUpInitial}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : { delay: 0.15, duration: 0.6, ease: easeOut }
-            }
-            className="flex flex-wrap items-center justify-center gap-3"
-          >
-            <Button asChild className="rounded-[10px] text-base">
-              <LocalizedLink to="/request-demo">
-                {t('hero.ctaPrimary')}
-              </LocalizedLink>
-            </Button>
-            <Button
-              asChild
-              variant="secondary"
-              className="rounded-[10px] text-base"
-            >
-              <ExternalLink href={GET_STARTED_URL} showIcon={false}>
-                {t('hero.ctaSecondary')}
-              </ExternalLink>
-            </Button>
-          </motion.div>
-        </div>
+    <section className="relative overflow-hidden pt-14 md:pt-24">
+      <SiteContainer className="relative">
+        <MarketingStack max="xl" gap="md" align="start" className="max-w-3xl">
+          <Reveal onMount y={16} duration={0.65}>
+            <SectionHeading
+              bare
+              size="display"
+              align="start"
+              title={t('hero.title')}
+              description={t('hero.subtitle')}
+            />
+          </Reveal>
+          <Reveal onMount y={16} delay={0.1} duration={0.6}>
+            <CtaPair
+              align="start"
+              primary={{
+                label: t('hero.ctaPrimary'),
+                to: REQUEST_DEMO_PATH,
+              }}
+              secondary={{
+                label: t('hero.ctaSecondary'),
+                to: CONTACT_PATH,
+              }}
+            />
+          </Reveal>
+          <Reveal onMount y={12} delay={0.18} duration={0.6}>
+            <TrustCertifications variant="line" />
+          </Reveal>
+        </MarketingStack>
       </SiteContainer>
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 32 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={
-          reduceMotion
-            ? { duration: 0 }
-            : { delay: 0.35, duration: 0.8, ease: easeOut }
-        }
-        className="mt-10 w-full md:mt-24.75"
+      <Reveal
+        onMount
+        y={28}
+        delay={0.22}
+        duration={0.85}
+        className="relative mt-16 w-full md:mt-24"
       >
-        <Image
-          src="/marketing/hero-light.png"
-          alt=""
-          aria-hidden
-          className="mx-auto block max-h-125 w-full object-cover object-top select-none dark:hidden"
-          loading="eager"
-          draggable={false}
-        />
-        <Image
-          src="/marketing/hero-dark.png"
-          alt=""
-          aria-hidden
-          className="mx-auto hidden max-h-125 w-full object-cover object-top select-none dark:block"
-          loading="eager"
-          draggable={false}
-        />
-      </motion.div>
+        <DemoStage variant="hero">
+          <HomeHeroDemo />
+        </DemoStage>
+      </Reveal>
     </section>
   );
 }

@@ -2,7 +2,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Checkbox } from '@tale/ui/checkbox';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
+import { buildBreadcrumbListJsonLd } from '@tale/ui/seo/builders/json-ld';
 import { Textarea } from '@tale/ui/textarea';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { FormCard } from '@/app/components/blocks/form-card';
@@ -12,8 +14,8 @@ import {
   requestDemoSchema,
 } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
+import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const defaultValues: RequestDemoInput = {
@@ -44,10 +46,24 @@ export function RequestDemoPage() {
   const { t: tSeo } = useT('seo');
   const locale = useCurrentLocale();
 
+  const jsonLd = useMemo(
+    () => [
+      buildBreadcrumbListJsonLd([
+        { name: 'Tale', url: absoluteLocalizedUrl(locale, '/') },
+        {
+          name: tSeo('requestDemo.title'),
+          url: absoluteLocalizedUrl(locale, '/request-demo'),
+        },
+      ]),
+    ],
+    [locale, tSeo],
+  );
+
   useDocumentMeta({
     title: tSeo('requestDemo.title'),
     description: tSeo('requestDemo.description'),
-    canonicalPath: localizedPath(locale, '/request-demo'),
+    path: '/request-demo',
+    jsonLd,
   });
 
   const form = useForm<RequestDemoInput>({
@@ -67,6 +83,7 @@ export function RequestDemoPage() {
 
   return (
     <FormCard
+      eyebrow={t('eyebrow')}
       title={t('title')}
       description={
         <>
@@ -139,14 +156,16 @@ export function RequestDemoPage() {
         />
       </Field>
 
-      <Field
-        label={t('fieldInterests')}
-        error={errors.interests?.message as string | undefined}
-      >
-        <ul role="list" className="flex flex-col gap-4">
+      {/* Real grouped control: <fieldset>/<legend> gives the checkbox set an
+          accessible group name (Field can only label a single child). */}
+      <fieldset className="m-0 min-w-0 border-0 p-0">
+        <legend className="text-fg-base text-sm font-medium">
+          {t('fieldInterests')}
+        </legend>
+        <ul role="list" className="mt-2 flex flex-col gap-3">
           {REQUEST_DEMO_INTERESTS.map((key) => (
             <li key={key}>
-              <label className="flex items-center gap-2 text-sm text-[color:var(--color-fg-base)]">
+              <label className="text-fg-base flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={interests.includes(key)}
                   onCheckedChange={() => toggleInterest(key)}
@@ -156,7 +175,12 @@ export function RequestDemoPage() {
             </li>
           ))}
         </ul>
-      </Field>
+        {errors.interests ? (
+          <p role="alert" className="text-danger mt-2 text-xs">
+            {errors.interests.message as string}
+          </p>
+        ) : null}
+      </fieldset>
 
       <Field
         label={t('fieldMessage')}

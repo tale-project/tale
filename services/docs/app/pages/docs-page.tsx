@@ -5,9 +5,9 @@ import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
 import {
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
+  buildWebSiteJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
 import { pageAsMarkdown } from '@tale/ui/seo/builders/page-as-markdown';
-import { useDocumentMeta } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
@@ -21,6 +21,7 @@ import { flattenNav } from '@/lib/content/nav';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import { BASE_LOCALES, type SupportedLocale } from '@/lib/i18n/locales';
+import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 interface DocsPageProps {
   locale: SupportedLocale;
@@ -137,7 +138,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
 
   const jsonLd = useMemo(() => {
     if (!doc) return [];
-    return [
+    const nodes = [
       buildArticleJsonLd({
         headline: doc.frontmatter.title,
         description: doc.frontmatter.description,
@@ -153,27 +154,29 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
         })),
       ]),
     ];
-  }, [doc, url, breadcrumbs, locale]);
+    if (slug === 'index') {
+      nodes.push(
+        buildWebSiteJsonLd({
+          name: doc.frontmatter.title,
+          url,
+        }),
+      );
+    }
+    return nodes;
+  }, [doc, url, breadcrumbs, locale, slug]);
 
   useDocumentMeta({
     title: doc?.frontmatter.title ?? 'Tale documentation',
     description: doc?.frontmatter.description ?? '',
     canonicalPath: path,
-    siteUrl: SITE_URL,
+    locale,
+    alternates,
     noindex: doc?.frontmatter.noindex,
-    hreflang: { locale, alternates },
     jsonLd,
   });
 
   if (!doc) {
-    return (
-      <div className="py-16">
-        <h1 className="text-fg-base text-2xl font-semibold">Page not found</h1>
-        <p className="text-fg-muted mt-3">
-          We couldn't find the page you were looking for.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   const contentPath = `${doc.locale}/${doc.slug}.mdx`;
@@ -190,6 +193,15 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
             markdownUrl={markdownUrl}
             markdown={rawMarkdown}
             className="ml-auto shrink-0"
+            labels={{
+              copyPage: t('pageActions.copyPage'),
+              copied: t('pageActions.copied'),
+              viewMarkdown: t('pageActions.viewMarkdown'),
+              openIn: t('pageActions.openIn'),
+              openChatGpt: t('pageActions.openChatGpt'),
+              openClaude: t('pageActions.openClaude'),
+              openCursor: t('pageActions.openCursor'),
+            }}
           />
         </div>
         <header className="min-w-0">

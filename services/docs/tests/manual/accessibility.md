@@ -19,10 +19,10 @@ keyboard only; a screen reader helps the announce checks. There is **no axe
 layer in this service's e2e suite** — full-page audits are manual/assisted
 here; shared `@tale/ui` components carry `vitest-axe` coverage.
 
-> **Agent note**: assert structure via DOM scans. Known hard-coded English
-> strings in the shell (skip link **Skip to main content**, code-copy, page
-> actions) — verify they exist and work here; their missing localization is
-> logged once via [locale.md](locale.md).
+> **Agent note**: assert structure via DOM scans. Skip link and page actions
+> are i18n-wired (`nav.skipToMain`, `docs.pageActions.*`). Remaining hard-coded
+> English in shared `@tale/ui` (code-copy, heading link) is logged once via
+> [locale.md](locale.md).
 
 ## Automated coverage
 
@@ -38,8 +38,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only.
 
 | ID  | Test              | Steps (route + control)                                                                                  | Expected (verifiable)                                                                                                                                                                                                                                                                        |
 | --- | ----------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | Skip link         | On each surface, Tab once from page top                                                                  | First focusable is the **Skip to main content** link; it becomes visible on focus; Enter moves focus into the main content                                                                                                                                                                   |
-| A2  | Landmarks         | Query `main, header, footer, nav, aside`                                                                 | Exactly one `<main>`; sidebar `<nav aria-label="Documentation">`; breadcrumbs `<nav>` labelled **Breadcrumbs**; TOC `<aside>` labelled **On this page**; one `<header>`, one `<footer>`                                                                                                      |
+| A1  | Skip link         | On each surface, Tab once from page top                                                                  | First focusable is the skip link (`nav.skipToMain`; EN **Skip to main content**); it becomes visible on focus; Enter moves focus into the main content                                                                                                                                       |
+| A2  | Landmarks         | Query `main, header, footer, nav, aside`                                                                 | Exactly one `<main>`; sidebar `<nav aria-label>` = `nav.sidebarAriaLabel` (EN **Documentation**); breadcrumbs `<nav>` labelled **Breadcrumbs**; TOC `<aside>` labelled **On this page**; one `<header>`, one `<footer>`                                                                      |
 | A3  | Rendered headings | Walk headings top→bottom on landing + content page                                                       | Exactly one `<h1>` (the page title); rendered levels never skip                                                                                                                                                                                                                              |
 | A4  | Keyboard reach    | Tab through: header (logo, search, menu), sidebar, body links, page actions, prev/next, footer switchers | Everything is focusable and operable by keyboard in a sensible order; no keyboard trap; hover-revealed copy buttons appear on focus                                                                                                                                                          |
 | A5  | Visible focus     | Repeat A4 watching the focus indicator — in **both** themes                                              | A visible focus ring on every stop (`focus-visible:ring` styles); never invisible against its background                                                                                                                                                                                     |

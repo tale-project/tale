@@ -62,7 +62,7 @@ export default defineConfig({
     ],
   },
   plugins: [
-    tanstackRouter(),
+    tanstackRouter({ autoCodeSplitting: true }),
     viteReact(),
     {
       // Binds the dev SSR loader the first time the artifacts plugin

@@ -45,6 +45,13 @@ export interface ArtifactSection {
    * the sitemap, but the `llms.txt` index stays English-only.
    */
   hideFromIndex?: boolean;
+  /**
+   * When true, the section's routes are left out of `sitemap.xml` while
+   * still feeding `llms.txt`/`llms-full.txt` and per-page `.md`. Used for
+   * noindex pages (legal): a sitemap must list only indexable URLs, but
+   * the content remains useful to LLM readers.
+   */
+  excludeFromSitemap?: boolean;
 }
 
 export interface OptionalPage {

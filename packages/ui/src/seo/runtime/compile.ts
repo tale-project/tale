@@ -96,6 +96,9 @@ export function compileArtifacts(
   const files = new Map<string, string>();
 
   const allRoutes = sections.flatMap((s) => s.routes);
+  const sitemapRoutes = sections
+    .filter((s) => !s.excludeFromSitemap)
+    .flatMap((s) => s.routes);
   const routesWithBody = allRoutes.filter(
     (r): r is ArtifactRoute & { body: string } => typeof r.body === 'string',
   );
@@ -133,11 +136,11 @@ export function compileArtifacts(
     );
   }
 
-  if (allRoutes.length > 0) {
+  if (sitemapRoutes.length > 0) {
     files.set(
       'sitemap.xml',
       buildSitemap(
-        allRoutes.map((r) => ({
+        sitemapRoutes.map((r) => ({
           url: `${siteUrl}${r.url}`,
           lastModified: r.lastModified,
           alternates: r.alternates,
@@ -147,7 +150,7 @@ export function compileArtifacts(
   }
 
   const sitemapUrls =
-    allRoutes.length > 0
+    sitemapRoutes.length > 0
       ? [`${siteUrl}/sitemap.xml`, ...(robots?.extraSitemaps ?? [])]
       : (robots?.extraSitemaps ?? []);
   files.set(

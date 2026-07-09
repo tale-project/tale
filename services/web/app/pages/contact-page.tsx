@@ -1,14 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
+import { buildBreadcrumbListJsonLd } from '@tale/ui/seo/builders/json-ld';
 import { Textarea } from '@tale/ui/textarea';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { FormCard } from '@/app/components/blocks/form-card';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
+import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const defaultValues: ContactInput = {
@@ -27,10 +29,24 @@ export function ContactPage() {
   const { t: tSeo } = useT('seo');
   const locale = useCurrentLocale();
 
+  const jsonLd = useMemo(
+    () => [
+      buildBreadcrumbListJsonLd([
+        { name: 'Tale', url: absoluteLocalizedUrl(locale, '/') },
+        {
+          name: tSeo('contact.title'),
+          url: absoluteLocalizedUrl(locale, '/contact'),
+        },
+      ]),
+    ],
+    [locale, tSeo],
+  );
+
   useDocumentMeta({
     title: tSeo('contact.title'),
     description: tSeo('contact.description'),
-    canonicalPath: localizedPath(locale, '/contact'),
+    path: '/contact',
+    jsonLd,
   });
 
   const form = useForm<ContactInput>({
@@ -42,6 +58,7 @@ export function ContactPage() {
 
   return (
     <FormCard
+      eyebrow={t('eyebrow')}
       title={t('title')}
       description={<p>{t('description')}</p>}
       form={form}

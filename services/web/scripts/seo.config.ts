@@ -20,6 +20,7 @@ import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 
 import {
   buildWebSections,
+  legalDisallowPaths,
   makeWebLoadBody,
   WEB_SITE_DESCRIPTION,
   WEB_SITE_TITLE,
@@ -51,14 +52,16 @@ export default async function webSeoConfig(): Promise<
   Omit<CompileToDiskParams, 'outDir'>
 > {
   const ssr = await loadSsrRenderer();
+  const legal = await enumerateLegalRoutes();
   return {
     siteUrl: TALE_SITE_URL,
     siteTitle: WEB_SITE_TITLE,
     siteDescription: WEB_SITE_DESCRIPTION,
-    sections: buildWebSections(await enumerateLegalRoutes()),
+    sections: buildWebSections(legal),
     optionalPages: webOptionalPages(),
     loadBody: makeWebLoadBody(ssr),
     robots: {
+      disallow: legalDisallowPaths(legal),
       extraSitemaps: [`${TALE_DOCS_URL}/sitemap.xml`],
     },
   };

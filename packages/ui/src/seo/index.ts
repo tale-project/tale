@@ -40,8 +40,17 @@ export {
   buildWebSiteJsonLd,
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
+  buildFaqPageJsonLd,
+  buildItemListJsonLd,
+  buildSoftwareApplicationJsonLd,
 } from './builders/json-ld';
-export type { BreadcrumbItem } from './builders/json-ld';
+export type {
+  BreadcrumbItem,
+  FaqEntry,
+  ItemListEntry,
+  OrganizationAddress,
+  SoftwareOffer,
+} from './builders/json-ld';
 
 export { pageAsMarkdown } from './builders/page-as-markdown';
 
@@ -117,3 +126,11 @@ export { etagOf } from './runtime/etag';
 // dependency, so this barrel deliberately doesn't pull it in.
 
 export * from './globals';
+// Pure URL / hreflang helpers — safe for Node artifact builds. React
+// document-meta hooks stay on `@tale/ui/seo/tale-document-meta`.
+export { absoluteSitePath } from './urls';
+export {
+  buildLocaleAlternateUrls,
+  resolveHreflangFromAlternates,
+  withXDefault,
+} from './alternates';

@@ -13,6 +13,7 @@ import { StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
 
 import { i18n } from '@/lib/i18n/i18n';
+import { detectInitialLocale, resolveRegionalLocale } from '@/lib/i18n/locales';
 
 import { routeTree } from './routeTree.gen';
 
@@ -26,6 +27,16 @@ const basepath =
   (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
 
 export async function render(url: string): Promise<RenderResult> {
+  // Align i18n with the request URL before render so OG alt + chrome strings
+  // match the page locale (same contract as the marketing SSR entry).
+  const pathname = new URL(url, 'http://placeholder.invalid').pathname;
+  const pathForLocale = basepath
+    ? pathname.replace(new RegExp(`^${basepath}`), '') || '/'
+    : pathname;
+  await i18n.changeLanguage(
+    resolveRegionalLocale(detectInitialLocale(pathForLocale)),
+  );
+
   const router = createRouter({
     routeTree,
     defaultPreload: 'intent',

@@ -13,14 +13,30 @@ import { Route as RequestDemoRouteImport } from './routes/request-demo';
 import { Route as PricingRouteImport } from './routes/pricing';
 import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
 import { Route as ContactRouteImport } from './routes/contact';
+import { Route as ChangelogRouteImport } from './routes/changelog';
 import { Route as LangRouteImport } from './routes/$lang';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as PlatformIndexRouteImport } from './routes/platform/index';
 import { Route as LangIndexRouteImport } from './routes/$lang/index';
+import { Route as PlatformKnowledgeRouteImport } from './routes/platform/knowledge';
+import { Route as PlatformGovernanceRouteImport } from './routes/platform/governance';
+import { Route as PlatformConversationsRouteImport } from './routes/platform/conversations';
+import { Route as PlatformChatRouteImport } from './routes/platform/chat';
+import { Route as PlatformAutomationsRouteImport } from './routes/platform/automations';
+import { Route as PlatformAgentsRouteImport } from './routes/platform/agents';
 import { Route as LegalSlugRouteImport } from './routes/legal/$slug';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
 import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
 import { Route as LangContactRouteImport } from './routes/$lang/contact';
+import { Route as LangChangelogRouteImport } from './routes/$lang/changelog';
+import { Route as LangPlatformIndexRouteImport } from './routes/$lang/platform/index';
+import { Route as LangPlatformKnowledgeRouteImport } from './routes/$lang/platform/knowledge';
+import { Route as LangPlatformGovernanceRouteImport } from './routes/$lang/platform/governance';
+import { Route as LangPlatformConversationsRouteImport } from './routes/$lang/platform/conversations';
+import { Route as LangPlatformChatRouteImport } from './routes/$lang/platform/chat';
+import { Route as LangPlatformAutomationsRouteImport } from './routes/$lang/platform/automations';
+import { Route as LangPlatformAgentsRouteImport } from './routes/$lang/platform/agents';
 import { Route as LangLegalSlugRouteImport } from './routes/$lang/legal/$slug';
 
 const RequestDemoRoute = RequestDemoRouteImport.update({
@@ -43,6 +59,11 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LangRoute = LangRouteImport.update({
   id: '/$lang',
   path: '/$lang',
@@ -53,10 +74,45 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any);
+const PlatformIndexRoute = PlatformIndexRouteImport.update({
+  id: '/platform/',
+  path: '/platform/',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LangIndexRoute = LangIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => LangRoute,
+} as any);
+const PlatformKnowledgeRoute = PlatformKnowledgeRouteImport.update({
+  id: '/platform/knowledge',
+  path: '/platform/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformGovernanceRoute = PlatformGovernanceRouteImport.update({
+  id: '/platform/governance',
+  path: '/platform/governance',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformConversationsRoute = PlatformConversationsRouteImport.update({
+  id: '/platform/conversations',
+  path: '/platform/conversations',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformChatRoute = PlatformChatRouteImport.update({
+  id: '/platform/chat',
+  path: '/platform/chat',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformAutomationsRoute = PlatformAutomationsRouteImport.update({
+  id: '/platform/automations',
+  path: '/platform/automations',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformAgentsRoute = PlatformAgentsRouteImport.update({
+  id: '/platform/agents',
+  path: '/platform/agents',
+  getParentRoute: () => rootRouteImport,
 } as any);
 const LegalSlugRoute = LegalSlugRouteImport.update({
   id: '/legal/$slug',
@@ -83,6 +139,47 @@ const LangContactRoute = LangContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => LangRoute,
 } as any);
+const LangChangelogRoute = LangChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformIndexRoute = LangPlatformIndexRouteImport.update({
+  id: '/platform/',
+  path: '/platform/',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformKnowledgeRoute = LangPlatformKnowledgeRouteImport.update({
+  id: '/platform/knowledge',
+  path: '/platform/knowledge',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformGovernanceRoute = LangPlatformGovernanceRouteImport.update({
+  id: '/platform/governance',
+  path: '/platform/governance',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformConversationsRoute =
+  LangPlatformConversationsRouteImport.update({
+    id: '/platform/conversations',
+    path: '/platform/conversations',
+    getParentRoute: () => LangRoute,
+  } as any);
+const LangPlatformChatRoute = LangPlatformChatRouteImport.update({
+  id: '/platform/chat',
+  path: '/platform/chat',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformAutomationsRoute = LangPlatformAutomationsRouteImport.update({
+  id: '/platform/automations',
+  path: '/platform/automations',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPlatformAgentsRoute = LangPlatformAgentsRouteImport.update({
+  id: '/platform/agents',
+  path: '/platform/agents',
+  getParentRoute: () => LangRoute,
+} as any);
 const LangLegalSlugRoute = LangLegalSlugRouteImport.update({
   id: '/legal/$slug',
   path: '/legal/$slug',
@@ -92,103 +189,207 @@ const LangLegalSlugRoute = LangLegalSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/$lang': typeof LangRouteWithChildren;
+  '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/legal/$slug': typeof LegalSlugRoute;
+  '/platform/agents': typeof PlatformAgentsRoute;
+  '/platform/automations': typeof PlatformAutomationsRoute;
+  '/platform/chat': typeof PlatformChatRoute;
+  '/platform/conversations': typeof PlatformConversationsRoute;
+  '/platform/governance': typeof PlatformGovernanceRoute;
+  '/platform/knowledge': typeof PlatformKnowledgeRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/platform/': typeof PlatformIndexRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
+  '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
+  '/$lang/platform/automations': typeof LangPlatformAutomationsRoute;
+  '/$lang/platform/chat': typeof LangPlatformChatRoute;
+  '/$lang/platform/conversations': typeof LangPlatformConversationsRoute;
+  '/$lang/platform/governance': typeof LangPlatformGovernanceRoute;
+  '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
+  '/$lang/platform/': typeof LangPlatformIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/legal/$slug': typeof LegalSlugRoute;
+  '/platform/agents': typeof PlatformAgentsRoute;
+  '/platform/automations': typeof PlatformAutomationsRoute;
+  '/platform/chat': typeof PlatformChatRoute;
+  '/platform/conversations': typeof PlatformConversationsRoute;
+  '/platform/governance': typeof PlatformGovernanceRoute;
+  '/platform/knowledge': typeof PlatformKnowledgeRoute;
   '/$lang': typeof LangIndexRoute;
+  '/platform': typeof PlatformIndexRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
+  '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
+  '/$lang/platform/automations': typeof LangPlatformAutomationsRoute;
+  '/$lang/platform/chat': typeof LangPlatformChatRoute;
+  '/$lang/platform/conversations': typeof LangPlatformConversationsRoute;
+  '/$lang/platform/governance': typeof LangPlatformGovernanceRoute;
+  '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
+  '/$lang/platform': typeof LangPlatformIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
   '/$lang': typeof LangRouteWithChildren;
+  '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/legal/$slug': typeof LegalSlugRoute;
+  '/platform/agents': typeof PlatformAgentsRoute;
+  '/platform/automations': typeof PlatformAutomationsRoute;
+  '/platform/chat': typeof PlatformChatRoute;
+  '/platform/conversations': typeof PlatformConversationsRoute;
+  '/platform/governance': typeof PlatformGovernanceRoute;
+  '/platform/knowledge': typeof PlatformKnowledgeRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/platform/': typeof PlatformIndexRoute;
   '/$lang/legal/$slug': typeof LangLegalSlugRoute;
+  '/$lang/platform/agents': typeof LangPlatformAgentsRoute;
+  '/$lang/platform/automations': typeof LangPlatformAutomationsRoute;
+  '/$lang/platform/chat': typeof LangPlatformChatRoute;
+  '/$lang/platform/conversations': typeof LangPlatformConversationsRoute;
+  '/$lang/platform/governance': typeof LangPlatformGovernanceRoute;
+  '/$lang/platform/knowledge': typeof LangPlatformKnowledgeRoute;
+  '/$lang/platform/': typeof LangPlatformIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
     | '/$lang'
+    | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/legal/$slug'
+    | '/platform/agents'
+    | '/platform/automations'
+    | '/platform/chat'
+    | '/platform/conversations'
+    | '/platform/governance'
+    | '/platform/knowledge'
     | '/$lang/'
-    | '/$lang/legal/$slug';
+    | '/platform/'
+    | '/$lang/legal/$slug'
+    | '/$lang/platform/agents'
+    | '/$lang/platform/automations'
+    | '/$lang/platform/chat'
+    | '/$lang/platform/conversations'
+    | '/$lang/platform/governance'
+    | '/$lang/platform/knowledge'
+    | '/$lang/platform/';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
+    | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/legal/$slug'
+    | '/platform/agents'
+    | '/platform/automations'
+    | '/platform/chat'
+    | '/platform/conversations'
+    | '/platform/governance'
+    | '/platform/knowledge'
     | '/$lang'
-    | '/$lang/legal/$slug';
+    | '/platform'
+    | '/$lang/legal/$slug'
+    | '/$lang/platform/agents'
+    | '/$lang/platform/automations'
+    | '/$lang/platform/chat'
+    | '/$lang/platform/conversations'
+    | '/$lang/platform/governance'
+    | '/$lang/platform/knowledge'
+    | '/$lang/platform';
   id:
     | '__root__'
     | '/'
     | '/$lang'
+    | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/legal/$slug'
+    | '/platform/agents'
+    | '/platform/automations'
+    | '/platform/chat'
+    | '/platform/conversations'
+    | '/platform/governance'
+    | '/platform/knowledge'
     | '/$lang/'
-    | '/$lang/legal/$slug';
+    | '/platform/'
+    | '/$lang/legal/$slug'
+    | '/$lang/platform/agents'
+    | '/$lang/platform/automations'
+    | '/$lang/platform/chat'
+    | '/$lang/platform/conversations'
+    | '/$lang/platform/governance'
+    | '/$lang/platform/knowledge'
+    | '/$lang/platform/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   LangRoute: typeof LangRouteWithChildren;
+  ChangelogRoute: typeof ChangelogRoute;
   ContactRoute: typeof ContactRoute;
   HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
   LegalSlugRoute: typeof LegalSlugRoute;
+  PlatformAgentsRoute: typeof PlatformAgentsRoute;
+  PlatformAutomationsRoute: typeof PlatformAutomationsRoute;
+  PlatformChatRoute: typeof PlatformChatRoute;
+  PlatformConversationsRoute: typeof PlatformConversationsRoute;
+  PlatformGovernanceRoute: typeof PlatformGovernanceRoute;
+  PlatformKnowledgeRoute: typeof PlatformKnowledgeRoute;
+  PlatformIndexRoute: typeof PlatformIndexRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -221,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/changelog': {
+      id: '/changelog';
+      path: '/changelog';
+      fullPath: '/changelog';
+      preLoaderRoute: typeof ChangelogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/$lang': {
       id: '/$lang';
       path: '/$lang';
@@ -235,12 +443,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/platform/': {
+      id: '/platform/';
+      path: '/platform';
+      fullPath: '/platform/';
+      preLoaderRoute: typeof PlatformIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/$lang/': {
       id: '/$lang/';
       path: '/';
       fullPath: '/$lang/';
       preLoaderRoute: typeof LangIndexRouteImport;
       parentRoute: typeof LangRoute;
+    };
+    '/platform/knowledge': {
+      id: '/platform/knowledge';
+      path: '/platform/knowledge';
+      fullPath: '/platform/knowledge';
+      preLoaderRoute: typeof PlatformKnowledgeRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform/governance': {
+      id: '/platform/governance';
+      path: '/platform/governance';
+      fullPath: '/platform/governance';
+      preLoaderRoute: typeof PlatformGovernanceRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform/conversations': {
+      id: '/platform/conversations';
+      path: '/platform/conversations';
+      fullPath: '/platform/conversations';
+      preLoaderRoute: typeof PlatformConversationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform/chat': {
+      id: '/platform/chat';
+      path: '/platform/chat';
+      fullPath: '/platform/chat';
+      preLoaderRoute: typeof PlatformChatRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform/automations': {
+      id: '/platform/automations';
+      path: '/platform/automations';
+      fullPath: '/platform/automations';
+      preLoaderRoute: typeof PlatformAutomationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform/agents': {
+      id: '/platform/agents';
+      path: '/platform/agents';
+      fullPath: '/platform/agents';
+      preLoaderRoute: typeof PlatformAgentsRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     '/legal/$slug': {
       id: '/legal/$slug';
@@ -277,6 +534,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangContactRouteImport;
       parentRoute: typeof LangRoute;
     };
+    '/$lang/changelog': {
+      id: '/$lang/changelog';
+      path: '/changelog';
+      fullPath: '/$lang/changelog';
+      preLoaderRoute: typeof LangChangelogRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/': {
+      id: '/$lang/platform/';
+      path: '/platform';
+      fullPath: '/$lang/platform/';
+      preLoaderRoute: typeof LangPlatformIndexRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/knowledge': {
+      id: '/$lang/platform/knowledge';
+      path: '/platform/knowledge';
+      fullPath: '/$lang/platform/knowledge';
+      preLoaderRoute: typeof LangPlatformKnowledgeRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/governance': {
+      id: '/$lang/platform/governance';
+      path: '/platform/governance';
+      fullPath: '/$lang/platform/governance';
+      preLoaderRoute: typeof LangPlatformGovernanceRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/conversations': {
+      id: '/$lang/platform/conversations';
+      path: '/platform/conversations';
+      fullPath: '/$lang/platform/conversations';
+      preLoaderRoute: typeof LangPlatformConversationsRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/chat': {
+      id: '/$lang/platform/chat';
+      path: '/platform/chat';
+      fullPath: '/$lang/platform/chat';
+      preLoaderRoute: typeof LangPlatformChatRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/automations': {
+      id: '/$lang/platform/automations';
+      path: '/platform/automations';
+      fullPath: '/$lang/platform/automations';
+      preLoaderRoute: typeof LangPlatformAutomationsRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/platform/agents': {
+      id: '/$lang/platform/agents';
+      path: '/platform/agents';
+      fullPath: '/$lang/platform/agents';
+      preLoaderRoute: typeof LangPlatformAgentsRouteImport;
+      parentRoute: typeof LangRoute;
+    };
     '/$lang/legal/$slug': {
       id: '/$lang/legal/$slug';
       path: '/legal/$slug';
@@ -288,21 +601,37 @@ declare module '@tanstack/react-router' {
 }
 
 interface LangRouteChildren {
+  LangChangelogRoute: typeof LangChangelogRoute;
   LangContactRoute: typeof LangContactRoute;
   LangHardwarePricingRoute: typeof LangHardwarePricingRoute;
   LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
   LangIndexRoute: typeof LangIndexRoute;
   LangLegalSlugRoute: typeof LangLegalSlugRoute;
+  LangPlatformAgentsRoute: typeof LangPlatformAgentsRoute;
+  LangPlatformAutomationsRoute: typeof LangPlatformAutomationsRoute;
+  LangPlatformChatRoute: typeof LangPlatformChatRoute;
+  LangPlatformConversationsRoute: typeof LangPlatformConversationsRoute;
+  LangPlatformGovernanceRoute: typeof LangPlatformGovernanceRoute;
+  LangPlatformKnowledgeRoute: typeof LangPlatformKnowledgeRoute;
+  LangPlatformIndexRoute: typeof LangPlatformIndexRoute;
 }
 
 const LangRouteChildren: LangRouteChildren = {
+  LangChangelogRoute: LangChangelogRoute,
   LangContactRoute: LangContactRoute,
   LangHardwarePricingRoute: LangHardwarePricingRoute,
   LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
   LangIndexRoute: LangIndexRoute,
   LangLegalSlugRoute: LangLegalSlugRoute,
+  LangPlatformAgentsRoute: LangPlatformAgentsRoute,
+  LangPlatformAutomationsRoute: LangPlatformAutomationsRoute,
+  LangPlatformChatRoute: LangPlatformChatRoute,
+  LangPlatformConversationsRoute: LangPlatformConversationsRoute,
+  LangPlatformGovernanceRoute: LangPlatformGovernanceRoute,
+  LangPlatformKnowledgeRoute: LangPlatformKnowledgeRoute,
+  LangPlatformIndexRoute: LangPlatformIndexRoute,
 };
 
 const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren);
@@ -310,11 +639,19 @@ const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren);
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LangRoute: LangRouteWithChildren,
+  ChangelogRoute: ChangelogRoute,
   ContactRoute: ContactRoute,
   HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
   LegalSlugRoute: LegalSlugRoute,
+  PlatformAgentsRoute: PlatformAgentsRoute,
+  PlatformAutomationsRoute: PlatformAutomationsRoute,
+  PlatformChatRoute: PlatformChatRoute,
+  PlatformConversationsRoute: PlatformConversationsRoute,
+  PlatformGovernanceRoute: PlatformGovernanceRoute,
+  PlatformKnowledgeRoute: PlatformKnowledgeRoute,
+  PlatformIndexRoute: PlatformIndexRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

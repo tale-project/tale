@@ -254,6 +254,10 @@ jobs:
       - name: Run E2E suite
         run: bun run --filter @tale/${{ matrix.service }} test:e2e
 
+      - name: Prerender SEO suite (web)
+        if: matrix.service == 'web'
+        run: bunx turbo run test:prerender --filter=@tale/web
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -15,7 +15,9 @@ export const sitemapPlugin: ArtifactPlugin = {
   cacheKey: () => 'static',
   async build(_pathname, ctx) {
     const { sections } = await ctx.routes();
-    const routes = sections.flatMap((s) => s.routes);
+    const routes = sections
+      .filter((s) => !s.excludeFromSitemap)
+      .flatMap((s) => s.routes);
     if (routes.length === 0) return null;
     const trimmedSiteUrl = ctx.siteUrl.replace(/\/+$/, '');
 
@@ -33,6 +35,8 @@ export const sitemapPlugin: ArtifactPlugin = {
   },
   async enumerate(ctx) {
     const { sections } = await ctx.routes();
-    return sections.some((s) => s.routes.length > 0) ? [SITEMAP_PATH] : [];
+    return sections.some((s) => !s.excludeFromSitemap && s.routes.length > 0)
+      ? [SITEMAP_PATH]
+      : [];
   },
 };

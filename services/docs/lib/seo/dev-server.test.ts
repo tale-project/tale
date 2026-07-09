@@ -37,5 +37,18 @@ describe('docs dev artifact server', () => {
     expect(text).toContain('Disallow: /legal/privacy');
     expect(text).toContain('Disallow: /de/legal/privacy');
     expect(text).toContain('Disallow: /fr/legal/subprocessors');
+    // Symmetric discovery with the marketing surface.
+    expect(text).toContain('Sitemap: https://tale.dev/sitemap.xml');
+  });
+
+  it('keeps noindex legal URLs out of sitemap.xml', async () => {
+    const server = createDocsArtifactsServer({ cache: false });
+    const response = await server.handle(
+      new Request('https://tale.dev/sitemap.xml'),
+    );
+    expect(response).not.toBeNull();
+    const text = (await response?.text()) ?? '';
+    expect(text).not.toContain('/legal/privacy');
+    expect(text).toContain('/platform/');
   });
 });

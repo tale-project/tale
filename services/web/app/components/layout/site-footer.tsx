@@ -6,18 +6,19 @@ import {
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
-import { GithubIcon } from '@/app/components/icons/github-icon';
-import { ExternalLink } from '@/app/components/layout/external-link';
+import { GithubLink } from '@/app/components/layout/github-link';
+import type { LocalizedRoutePath } from '@/app/components/layout/localized-link';
 import {
-  LocalizedLink,
-  type LocalizedRoutePath,
-} from '@/app/components/layout/localized-link';
+  MarketingExternalLink,
+  MarketingLink,
+} from '@/app/components/marketing';
+import { FOOTER_PLATFORM_PAGES } from '@/app/content/platform-pages';
+import { FOOTER_COMPANY_CTAS } from '@/app/content/site-ctas';
+import { DOCS_URL } from '@/lib/docs-url';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import type { LegalSlug } from '@/lib/legal/slugs';
-
-const linkClass = 'text-fg-muted hover:text-fg-base text-sm transition-colors';
 
 function RouteLink({
   to,
@@ -27,25 +28,9 @@ function RouteLink({
   children: ReactNode;
 }) {
   return (
-    <LocalizedLink to={to} className={linkClass}>
+    <MarketingLink to={to} tone="footer">
       {children}
-    </LocalizedLink>
-  );
-}
-
-function HashLink({
-  to,
-  hash,
-  children,
-}: {
-  to: LocalizedRoutePath;
-  hash: string;
-  children: ReactNode;
-}) {
-  return (
-    <LocalizedLink to={to} hash={hash} className={linkClass}>
-      {children}
-    </LocalizedLink>
+    </MarketingLink>
   );
 }
 
@@ -61,64 +46,79 @@ function LegalLink({
     <Link
       to={locale === 'en' ? '/legal/$slug' : '/$lang/legal/$slug'}
       params={locale === 'en' ? { slug } : { lang: locale, slug }}
-      className={linkClass}
+      className="text-fg-muted hover:text-fg-base text-sm transition-colors"
     >
       {children}
     </Link>
   );
 }
 
+/**
+ * Marketing footer — Platform · Resources · Company · Legal, with the
+ * company address as a fifth column that wraps under Platform. GitHub
+ * sits in the bottom bar after the theme picker.
+ */
 export function SiteFooter() {
   const { t } = useT('footer');
+  const { t: tNav } = useT('nav');
   const { t: tAddress } = useT('address');
 
   const columns: FooterColumn[] = [
     {
-      heading: t('product'),
+      heading: t('platform'),
       links: [
-        <HashLink key="features" to="/" hash="features">
-          {t('features')}
-        </HashLink>,
-        <RouteLink key="pricing" to="/pricing">
-          {t('pricing')}
+        <RouteLink key="hub" to="/platform">
+          {tNav('product.hub.label')}
         </RouteLink>,
-        <RouteLink key="hardwarePricing" to="/hardware-pricing">
-          {t('hardwarePricing')}
-        </RouteLink>,
-        <RouteLink key="contact" to="/contact">
-          {t('contact')}
-        </RouteLink>,
+        ...FOOTER_PLATFORM_PAGES.filter((p) => p.id !== 'hub').map((page) => (
+          <RouteLink key={page.id} to={page.path}>
+            {tNav(`product.${page.navKey}.label`)}
+          </RouteLink>
+        )),
       ],
     },
     {
       heading: t('resources'),
       links: [
-        <ExternalLink
-          key="aiTraining"
-          href={EXTERNAL_LINKS.aiTraining}
-          className={linkClass}
-        >
-          {t('aiTraining')}
-        </ExternalLink>,
+        <MarketingExternalLink key="docs" href={DOCS_URL} tone="footer">
+          {tNav('resource.docs.label')}
+        </MarketingExternalLink>,
+        <RouteLink key="changelog" to="/changelog">
+          {t('changelog')}
+        </RouteLink>,
+        <RouteLink key="hardware" to="/hardware-pricing">
+          {t('hardwarePricing')}
+        </RouteLink>,
+        <RouteLink key="pricing" to="/pricing">
+          {t('pricing')}
+        </RouteLink>,
       ],
+    },
+    {
+      heading: t('company'),
+      links: FOOTER_COMPANY_CTAS.map((cta) => (
+        <RouteLink key={cta.id} to={cta.path}>
+          {tNav(cta.labelKey)}
+        </RouteLink>
+      )),
     },
     {
       heading: t('legal'),
       links: [
-        <ExternalLink
+        <MarketingExternalLink
           key="serviceAgreement"
           href={EXTERNAL_LINKS.softwareTerms}
-          className={linkClass}
+          tone="footer"
         >
           {t('serviceAgreement')}
-        </ExternalLink>,
-        <ExternalLink
+        </MarketingExternalLink>,
+        <MarketingExternalLink
           key="hardwareAgreement"
           href={EXTERNAL_LINKS.hardwareTerms}
-          className={linkClass}
+          tone="footer"
         >
           {t('hardwareAgreement')}
-        </ExternalLink>,
+        </MarketingExternalLink>,
         <LegalLink key="privacyPolicy" slug="privacy-policy">
           {t('privacyPolicy')}
         </LegalLink>,
@@ -136,53 +136,51 @@ export function SiteFooter() {
         </LegalLink>,
       ],
     },
+    // Fifth column wraps under Platform (col 1) on both 2-up and 4-up grids.
+    {
+      heading: tAddress('company'),
+      links: [],
+      className: 'col-start-1',
+      body: (
+        <address
+          className="not-italic"
+          style={{ lineHeight: 1.5, letterSpacing: '-0.14px' }}
+        >
+          <span className="text-fg-muted">
+            {tAddress('street')}
+            {' · '}
+            {tAddress('city')}
+            {' · '}
+            {tAddress('country')}
+            {' · '}
+          </span>
+          <MarketingExternalLink
+            href={EXTERNAL_LINKS.vatCheck}
+            tone="subtle"
+            className="underline"
+          >
+            {tAddress('vatId')}
+          </MarketingExternalLink>
+        </address>
+      ),
+    },
   ];
 
   return (
     <SiteFooterShell
       logo={
-        <LocalizedLink
+        <MarketingLink
           to="/"
+          tone="plain"
           aria-label={t('homeAriaLabel')}
           className="text-fg-base"
         >
           <TaleLogo />
-        </LocalizedLink>
-      }
-      address={
-        <address
-          className="not-italic"
-          style={{ lineHeight: 1.4286, letterSpacing: '-0.14px' }}
-        >
-          {tAddress('company')}
-          <br />
-          {tAddress('street')}
-          <br />
-          {tAddress('city')}
-          <br />
-          {tAddress('country')}
-          <br />
-          <ExternalLink
-            href={EXTERNAL_LINKS.vatCheck}
-            className="hover:text-fg-base underline transition-colors"
-          >
-            {tAddress('vatId')}
-          </ExternalLink>
-        </address>
-      }
-      brandTrailing={
-        <a
-          href={EXTERNAL_LINKS.github}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={t('githubAriaLabel')}
-          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
-          <GithubIcon className="h-6 w-6" />
-        </a>
+        </MarketingLink>
       }
       columns={columns}
       copyrightLines={[t('copyright', { year: new Date().getFullYear() })]}
+      bottomTrailing={<GithubLink label={t('githubAriaLabel')} />}
       llmsTxtUrl="/llms.txt"
       llmsTxtLabel={t('llmsTxtLabel')}
       llmsFullTxtUrl="/llms-full.txt"

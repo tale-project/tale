@@ -2,26 +2,9 @@ import { Link } from '@tanstack/react-router';
 import type { ComponentProps } from 'react';
 
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
+import { ROUTE_PATHS, type LocalizedRoutePath } from '@/lib/seo/route-paths';
 
-/**
- * Maps each canonical (English-default) marketing path to the TanStack
- * Router file-route IDs that render it under the unprefixed and `$lang/...`
- * trees. Keeping the table here — rather than spread across the route tree
- * — gives `<LocalizedLink>` one source of truth for which route to navigate
- * to under each locale. Add a new entry whenever a new marketing page lands.
- */
-const ROUTE_PATHS = {
-  '/': { en: '/', prefixed: '/$lang' },
-  '/pricing': { en: '/pricing', prefixed: '/$lang/pricing' },
-  '/contact': { en: '/contact', prefixed: '/$lang/contact' },
-  '/hardware-pricing': {
-    en: '/hardware-pricing',
-    prefixed: '/$lang/hardware-pricing',
-  },
-  '/request-demo': { en: '/request-demo', prefixed: '/$lang/request-demo' },
-} as const;
-
-export type LocalizedRoutePath = keyof typeof ROUTE_PATHS;
+export type { LocalizedRoutePath };
 
 type BaseLinkProps = ComponentProps<typeof Link>;
 type ForwardedLinkProps = Omit<BaseLinkProps, 'to' | 'params'>;

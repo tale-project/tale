@@ -20,18 +20,25 @@ export function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'group inline-flex items-baseline gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg-base/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base',
+        'group rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg-base/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base',
         className,
+        // After `className` so caller `inline-block` / `block` cannot drop the
+        // icon onto its own line (tailwind-merge keeps the last display utility).
+        showIcon && 'inline-flex items-center gap-1 whitespace-nowrap',
       )}
       {...rest}
     >
-      <span>{children}</span>
       {showIcon ? (
-        <ExternalLinkIcon
-          aria-hidden
-          className="size-3 shrink-0 self-center opacity-50 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-        />
-      ) : null}
+        <>
+          {children}
+          <ExternalLinkIcon
+            aria-hidden
+            className="size-3 shrink-0 opacity-50 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+          />
+        </>
+      ) : (
+        children
+      )}
     </a>
   );
 }
