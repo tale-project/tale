@@ -1,0 +1,128 @@
+{
+  "id": "desk",
+  "title": "Swiss VAT return desk",
+  "description": "One project per client. Quarters are top-level project folders; setup lives in `_setup`.",
+  "tabs": [
+    {
+      "id": "quarters",
+      "label": "Quarters",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "Text",
+            "props": {
+              "text": "Every top-level project folder except `_setup` is one quarter. Click Start on that quarter row — there is no toolbar Start without a row.",
+              "variant": "muted"
+            }
+          },
+          {
+            "type": "Alert",
+            "props": {
+              "variant": "warning",
+              "title": "Setup folder required",
+              "description": "Start needs the `_setup` folder. Without it, Start is hidden until setupFolderId is set."
+            }
+          },
+          {
+            "type": "Collection",
+            "props": {
+              "id": "quarters",
+              "title": "Quarter folders",
+              "query": {
+                "path": "projects/queries:listProjectRootFolders",
+                "args": {
+                  "organizationId": "$orgId",
+                  "projectId": "$projectId",
+                  "setupFolderName": "_setup"
+                }
+              },
+              "columns": [{ "field": "name", "labelKey": "Quarter folder" }],
+              "actions": [
+                {
+                  "labelKey": "list.start",
+                  "doneLabelKey": "list.created",
+                  "variant": "primary",
+                  "path": "tasks/public_actions:createTaskFromExternalIssue",
+                  "mode": "action",
+                  "when": "setupFolderId",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "projectId": "$projectId",
+                    "externalSystem": "vatplus",
+                    "externalId": "$selected._id",
+                    "externalUrl": "$selected.setupFolderId",
+                    "title": "$tpl:VAT return — {name}",
+                    "description": "E2E stub prepare for this quarter folder.",
+                    "runWorkflowSlug": "vat-return-desk-e2e"
+                  },
+                  "onSuccess": {
+                    "kind": "toast",
+                    "titleKey": "list.created"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "returns",
+      "label": "Returns",
+      "data": {
+        "root": { "props": {} },
+        "zones": {},
+        "content": [
+          {
+            "type": "Collection",
+            "props": {
+              "id": "returns",
+              "title": "VAT returns",
+              "query": {
+                "path": "tasks/queries:listTasksByProjectPaginated",
+                "args": {
+                  "projectId": "$projectId",
+                  "organizationId": "$orgId",
+                  "externalSystem": "vatplus"
+                }
+              },
+              "perPage": 50,
+              "columns": [
+                { "field": "title", "labelKey": "Return" },
+                {
+                  "field": "status",
+                  "kind": "badge",
+                  "labelKey": "Status",
+                  "valueLabels": {
+                    "backlog": "Backlog",
+                    "todo": "To do",
+                    "in_progress": "In progress",
+                    "in_review": "In review",
+                    "done": "Done",
+                    "cancelled": "Cancelled"
+                  }
+                }
+              ],
+              "subjectType": "task",
+              "actions": [
+                {
+                  "labelKey": "list.start",
+                  "path": "tasks/public_actions:startTaskWorkflow",
+                  "mode": "action",
+                  "when": "status == backlog || status == todo || status == cancelled",
+                  "args": {
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id",
+                    "workflowSlug": "vat-return-desk-e2e"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
