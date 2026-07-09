@@ -92,6 +92,27 @@ describe('resolveEffect', () => {
       kind: 'navigate',
       to: '/dashboard/runs',
       params: { executionId: 'ex1' },
+      search: undefined,
+    });
+  });
+
+  it('resolves a navigate effect search bag (e.g. folderId deep link)', () => {
+    const effect: ActionEffect = {
+      kind: 'navigate',
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: '$orgId', projectId: '$result.projectId' },
+      search: { folderId: '$result.folderId' },
+    };
+    expect(
+      resolveEffect(effect, {
+        ...baseCtx,
+        result: { projectId: 'proj_1', folderId: 'folder_9' },
+      }),
+    ).toEqual({
+      kind: 'navigate',
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: 'org_1', projectId: 'proj_1' },
+      search: { folderId: 'folder_9' },
     });
   });
 

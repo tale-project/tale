@@ -14,6 +14,9 @@ import { pickField } from './pick-field';
  *   4. the manifest's top-level literal (authored in English)
  * The retired per-bundle `messages/` label catalog is not consulted — the
  * manifest is the single source of its own copy.
+ *
+ * The same cascade powers pack-authored view/block `i18n` maps via
+ * {@link resolveLocalizedProp}.
  */
 
 interface LocalizableAutomation {
@@ -23,10 +26,10 @@ interface LocalizableAutomation {
 }
 
 /** The three i18n layers for `locale`, most specific first. */
-function localeLayers(
-  i18n: AutomationManifestI18n | undefined,
+function localeLayers<T>(
+  i18n: Record<string, T> | undefined,
   locale: string,
-): (AutomationManifestI18n[string] | undefined)[] {
+): (T | undefined)[] {
   const base = narrowBcp47(locale);
   return [
     i18n?.[locale],
@@ -35,6 +38,22 @@ function localeLayers(
       ? i18n?.[appDefaultLocale]
       : undefined,
   ];
+}
+
+/**
+ * Resolve one presentational string from a pack-authored `i18n` map.
+ * Cascade: `i18n[locale][prop]` → `i18n[base][prop]` → `i18n.en[prop]` →
+ * the English `base` literal. Empty-string overrides are skipped
+ * (`pickField`).
+ */
+export function resolveLocalizedProp(
+  base: string | undefined,
+  i18n: Record<string, Record<string, string>> | undefined,
+  prop: string,
+  locale: string,
+): string | undefined {
+  const layers = localeLayers(i18n, locale);
+  return pickField([...layers.map((l) => l?.[prop]), base]);
 }
 
 /** An automation's localized `name`/`description` (hub card, page headers…). */
@@ -70,25 +89,40 @@ export function humanizeFieldKey(key: string): string {
 }
 
 /**
- * One config field's localized display strings: i18n override
- * (`i18n.<locale>.config.<key>`) → the field's literal `label`/`placeholder`/
- * `help` → the humanized field `key` (label only; placeholder/help stay
- * absent rather than echoing noise).
+ * One config field's localized display strings. Precedence per prop:
+ *   1. the field's own `i18n.<locale>` (view-authored Form fields)
+ *   2. the manifest's `i18n.<locale>.config.<key>` (install/config wizard)
+ *   3. the field's literal `label`/`placeholder`/`help`
+ *   4. the humanized field `key` (label only; placeholder/help stay absent)
  */
 export function resolveConfigFieldLocale(
-  field: Pick<AutomationConfigField, 'key' | 'label' | 'placeholder' | 'help'>,
+  field: Pick<
+    AutomationConfigField,
+    'key' | 'label' | 'placeholder' | 'help' | 'i18n'
+  >,
   i18n: AutomationManifestI18n | undefined,
   locale: string,
 ): { label: string; placeholder?: string; help?: string } {
-  const layers = localeLayers(i18n, locale).map((l) => l?.config?.[field.key]);
+  const fieldLayers = localeLayers(field.i18n, locale);
+  const manifestLayers = localeLayers(i18n, locale).map(
+    (l) => l?.config?.[field.key],
+  );
   return {
     label:
-      pickField([...layers.map((l) => l?.label), field.label]) ??
-      humanizeFieldKey(field.key),
+      pickField([
+        ...fieldLayers.map((l) => l?.label),
+        ...manifestLayers.map((l) => l?.label),
+        field.label,
+      ]) ?? humanizeFieldKey(field.key),
     placeholder: pickField([
-      ...layers.map((l) => l?.placeholder),
+      ...fieldLayers.map((l) => l?.placeholder),
+      ...manifestLayers.map((l) => l?.placeholder),
       field.placeholder,
     ]),
-    help: pickField([...layers.map((l) => l?.help), field.help]),
+    help: pickField([
+      ...fieldLayers.map((l) => l?.help),
+      ...manifestLayers.map((l) => l?.help),
+      field.help,
+    ]),
   };
 }

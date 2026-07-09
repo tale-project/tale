@@ -74,6 +74,12 @@
         "description": "This cancels the workflow immediately. Steps in progress are abandoned and the run is marked failed. This can't be undone.",
         "confirm": "Stop run"
       }
+    },
+    "stage": {
+      "work": "Work",
+      "deliver": "Deliver",
+      "review": "Review",
+      "repair": "Repair"
     }
   },
   "accessDenied": {
@@ -621,7 +627,7 @@
       "setup": "Finish setup",
       "uninstall": "Uninstall",
       "notInstalledDescription": "Install this automation to add its agents and workflows to your organization.",
-      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live.",
+      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live. For a client-facing desk, name the project after the client company.",
       "projectLabel": "Project",
       "projectPlaceholder": "Select a project",
       "projectSearchPlaceholder": "Search projects…",
@@ -695,7 +701,7 @@
       "doneTitle": "{name} is ready",
       "doneNeedsSetupTitle": "Finish setting up {name}",
       "doneNeedsSetup": "A required integration isn't connected yet — connect it from the automation's Integrations tab before it can run.",
-      "doneAllConnected": "Everything it needs is connected.",
+      "doneAllConnected": "Everything it needs is connected. Finish opens the automation's desk.",
       "doneSomeSkipped": "You skipped some steps — finish them anytime from the automation's setup checklist.",
       "finish": "Finish",
       "skipForNow": "I'll do this later",
@@ -724,6 +730,7 @@
       "run": "Workflow run",
       "discuss": "Discussion",
       "openLink": "Open link",
+      "externalRef": "External reference",
       "chatPlaceholder": "Ask about this item…"
     },
     "review": {
@@ -742,6 +749,7 @@
       "start": "Start",
       "markDone": "Mark done",
       "merge": "Merge pull request",
+      "cancel": "Cancel",
       "all": "All"
     },
     "agents": {
@@ -4916,11 +4924,11 @@
     "create": {
       "title": "Create project",
       "nameLabel": "Project name",
-      "namePlaceholder": "e.g. Q2 Sales Hiring",
+      "namePlaceholder": "e.g. Acme AG",
       "keyLabel": "Project key",
       "keyDescription": "Prefix for task IDs (e.g. TAL-1). Fixed — it can't be changed after the project is created.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optional — what's this project for?",
+      "descriptionPlaceholder": "Optional — for a client desk, use the company name as the project name.",
       "teamLabel": "Owning team",
       "teamPlaceholder": "Select a team (optional, defaults to org-wide)",
       "iconLabel": "Icon",

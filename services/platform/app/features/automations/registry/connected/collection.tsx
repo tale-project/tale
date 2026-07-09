@@ -51,7 +51,7 @@ import {
   type ActionEffect,
 } from '../../runtime/action-effects';
 import { BindingStates, BlockFrame } from '../block-frame';
-import { type BoundActionSpec } from './bound-button';
+import { type BoundActionSpec, type RowActionSpec } from './bound-button';
 import {
   buildBoundColumns,
   useBoundRowIds,
@@ -94,7 +94,7 @@ export interface CollectionProps {
   /** Columns to show — column specs; if omitted, inferred from the first row
    *  (minus id-like keys). */
   columns?: BoundColumn[];
-  actions?: BoundActionSpec[];
+  actions?: RowActionSpec[];
   /** When set, rows expand to show their workflow run inline (the execution
    *  "about" this subject). Generic — any domain list opts in. */
   subjectType?: string;

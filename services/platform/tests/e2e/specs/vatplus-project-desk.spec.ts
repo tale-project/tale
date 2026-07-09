@@ -368,6 +368,35 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
     page.getByText(`VAT return — ${betaQuarter}`, { exact: true }),
   ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 
+  // Returns Mark done (ESTV confirm) — stub parks at in_review.
+  const betaReturnRow = page
+    .getByRole('row')
+    .filter({ hasText: `VAT return — ${betaQuarter}` });
+  await betaReturnRow
+    .getByRole('button', { name: t('automations.list.markDone') })
+    .click();
+  const confirmDialog = page.getByRole('dialog');
+  await expect(confirmDialog.getByText(/ESTV/i)).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+  await confirmDialog
+    .getByRole('button', { name: t('common.actions.confirm') })
+    .click();
+  await expect(betaReturnRow.getByText('Done', { exact: true })).toBeVisible({
+    timeout: TIMEOUT.PERSIST,
+  });
+
+  // Quarters → Open files deep-links into Project Files with folderId.
+  await page.getByRole('tab', { name: 'Quarters', exact: true }).click();
+  const betaQuarterRow = page.getByRole('row').filter({ hasText: betaQuarter });
+  await betaQuarterRow.getByRole('button', { name: 'Open files' }).click();
+  await page.waitForURL(
+    new RegExp(
+      `/dashboard/${organizationId}/projects/${betaId}/files\\?folderId=`,
+    ),
+    { timeout: TIMEOUT.NAV },
+  );
+
   // Acme desk must not list Beta's return task.
   await page.goto(
     `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,

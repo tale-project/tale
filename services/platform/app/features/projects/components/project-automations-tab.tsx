@@ -10,6 +10,8 @@ import { ChevronRight, Workflow } from 'lucide-react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { firstViewIdFromViews } from '@/app/features/automations/components/install-wizard/first-view-id';
+import { useAutomations } from '@/app/features/automations/hooks/use-automations';
 import { useProjectAutomations } from '@/app/features/automations/hooks/use-install-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -29,6 +31,12 @@ export function ProjectAutomationsTab({
 }: ProjectAutomationsTabProps) {
   const { t } = useT('projects');
   const { automations, isLoading } = useProjectAutomations(projectId);
+  // Bindings carry no views; join installed summaries so links can open the
+  // first view tab (`?tab=<id>`) the same way Finish does after install.
+  const { automations: installed } = useAutomations(organizationId);
+  const firstViewBySlug = new Map(
+    installed.map((a) => [a.slug, firstViewIdFromViews(a.views)]),
+  );
 
   return (
     <ContentArea variant="narrow" gap={6}>
@@ -43,47 +51,55 @@ export function ProjectAutomationsTab({
             className="divide-y rounded-lg border"
             aria-label={t('automations.title')}
           >
-            {automations.map((automation) => (
-              <li key={automation.automationSlug}>
-                <Link
-                  to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
-                  params={{
-                    id: organizationId,
-                    projectId: String(projectId),
-                    automationSlug: automation.automationSlug,
-                  }}
-                  className="hover:bg-muted/50 flex items-center gap-3 px-4 py-3 transition-colors"
-                >
-                  <Workflow
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <HStack
-                    gap={2}
-                    align="center"
-                    className="min-w-0 flex-1"
-                    justify="between"
+            {automations.map((automation) => {
+              const firstViewId = firstViewBySlug.get(
+                automation.automationSlug,
+              );
+              return (
+                <li key={automation.automationSlug}>
+                  <Link
+                    to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
+                    params={{
+                      id: organizationId,
+                      projectId: String(projectId),
+                      automationSlug: automation.automationSlug,
+                    }}
+                    {...(firstViewId !== undefined
+                      ? { search: { tab: firstViewId } }
+                      : {})}
+                    className="hover:bg-muted/50 flex items-center gap-3 px-4 py-3 transition-colors"
                   >
-                    <Text as="span" className="truncate text-sm font-medium">
-                      {automation.automationName}
-                    </Text>
-                    {automation.status === 'broken' ? (
-                      <Text
-                        as="span"
-                        variant="caption"
-                        className="text-destructive shrink-0"
-                      >
-                        {t('automations.statusBroken')}
+                    <Workflow
+                      className="text-muted-foreground size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <HStack
+                      gap={2}
+                      align="center"
+                      className="min-w-0 flex-1"
+                      justify="between"
+                    >
+                      <Text as="span" className="truncate text-sm font-medium">
+                        {automation.automationName}
                       </Text>
-                    ) : null}
-                  </HStack>
-                  <ChevronRight
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            ))}
+                      {automation.status === 'broken' ? (
+                        <Text
+                          as="span"
+                          variant="caption"
+                          className="text-destructive shrink-0"
+                        >
+                          {t('automations.statusBroken')}
+                        </Text>
+                      ) : null}
+                    </HStack>
+                    <ChevronRight
+                      className="text-muted-foreground size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : !isLoading ? (
           <EmptyPlaceholder icon={Workflow}>

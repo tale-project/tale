@@ -481,7 +481,8 @@ describe('AutomationPage tab strip (views + Configuration)', () => {
  * The 1:1 automation↔workflow tabs (N3): Editor/Executions/Triggers are
  * gated on developer access AND the automation having a workflow
  * (`manifest.workflows[0]`); Configuration always shows. A developer with a
- * workflow lands on Editor by default.
+ * workflow and no views lands on Editor by default; with views, the first
+ * view is the default (Editor stays on the strip).
  */
 describe('AutomationPage developer tabs (Editor/Executions/Triggers/Configuration)', () => {
   const workflowAutomation = () =>
@@ -550,7 +551,7 @@ describe('AutomationPage developer tabs (Editor/Executions/Triggers/Configuratio
     ]);
   });
 
-  it('defaults to the Editor tab for a developer with a workflow', () => {
+  it('defaults to the Editor tab for a developer with a workflow and no views', () => {
     abilityMock.can.mockReturnValue(true);
     installSampleAutomation(workflowAutomation());
 
@@ -600,10 +601,15 @@ describe('AutomationPage developer tabs (Editor/Executions/Triggers/Configuratio
       'Desk',
       'Configuration',
     ]);
-    // A developer with a workflow defaults to Editor.
-    expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
+    // Developers with bundled views land on the first view (not Editor) so
+    // operators and e2e don't need ?tab=desk; Editor stays one click away.
+    expect(screen.getByRole('tab', { name: 'Desk' })).toHaveAttribute(
       'aria-selected',
       'true',
+    );
+    expect(screen.getByRole('tab', { name: 'Desk' })).toHaveAttribute(
+      'href',
+      '/dashboard/org_1/automations/sample-automation',
     );
   });
 });

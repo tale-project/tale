@@ -64,6 +64,7 @@ import {
 } from './bundle-review-overrides-step';
 import { ConnectIntegrationStep } from './connect-integration-step';
 import { ConnectProviderStep } from './connect-provider-step';
+import { firstViewIdFromPreviewEntries } from './first-view-id';
 
 export interface BundleInstallWizardProps {
   open: boolean;
@@ -466,10 +467,13 @@ function BundleInstallWizardBody({
     // on the first member's detail. Prefer the project-nested URL when a
     // project was selected (or pre-bound); otherwise the org-level page the
     // catalog opens. Project-nested detail routes bare-outlet under
-    // Automations chrome (no project-shell padding).
+    // Automations chrome (no project-shell padding). Open the first member's
+    // first view tab when it ships views.
     const first = preview[0];
     if (first) {
       const finishProjectId = projectId ?? selectedProjectId;
+      const firstViewId = firstViewIdFromPreviewEntries(first.entries);
+      const search = firstViewId !== undefined ? { tab: firstViewId } : {};
       if (finishProjectId) {
         void navigate({
           to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
@@ -478,6 +482,7 @@ function BundleInstallWizardBody({
             projectId: finishProjectId,
             automationSlug: first.automationSlug,
           },
+          search,
         });
       } else {
         void navigate({
@@ -486,6 +491,7 @@ function BundleInstallWizardBody({
             id: organizationId,
             automationSlug: first.automationSlug,
           },
+          search,
         });
       }
     }

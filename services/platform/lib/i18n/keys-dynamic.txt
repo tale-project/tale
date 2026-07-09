@@ -289,6 +289,12 @@ automations.list.created
 automations.list.start
 automations.list.markDone
 automations.list.merge
+automations.list.cancel
+
+# Operator stage badges: `t(\`stage.${stage}\`)` in stage-timeline.tsx — stage
+# names come from the workflow projection at runtime.
+operator.stage
+automations.list.cancel
 
 # Builtin workflow step labels: `ui.labelKey` / `ui.params.verdictLabels`
 # values are authored in a bundle's workflow JSON (e.g.

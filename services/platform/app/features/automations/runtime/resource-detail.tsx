@@ -176,7 +176,9 @@ function TaskDetailSections({ target }: { target: ResourceDetailTarget }) {
             kind: 'badge',
           },
           {
-            labelKey: t('detail.openLink'),
+            // Neutral label: externalUrl may be an https link or a folder id
+            // (e.g. setup folder) — "Open link" misleads for the latter.
+            labelKey: t('detail.externalRef'),
             field: 'task.externalUrl',
             kind: 'link',
           },

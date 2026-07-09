@@ -2,10 +2,15 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { lazyComponent } from '@/lib/utils/lazy-component';
+
+const searchSchema = z.object({
+  folderId: z.string().optional(),
+});
 
 // Skeletonized layout frame shown while the tab's JS chunk loads — the real
 // tab (with its own data-loading mask) takes over once the chunk resolves.
@@ -36,6 +41,7 @@ const ProjectFilesTab = lazyComponent(
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/files',
 )({
+  validateSearch: searchSchema,
   // Warm the tab chunk during the loader so it's cached by render time —
   // removes the Suspense fallback flash on first nav (tab links preload on
   // render, so this typically fires before the click). Fire-and-forget.
@@ -47,10 +53,12 @@ export const Route = createFileRoute(
 
 function ProjectFilesPage() {
   const { id: organizationId, projectId } = Route.useParams();
+  const { folderId } = Route.useSearch();
   return (
     <ProjectFilesTab
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
+      initialFolderId={folderId}
     />
   );
 }

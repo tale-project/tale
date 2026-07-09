@@ -13,11 +13,22 @@ type AutomationFixture = {
 
 let automationsFixture: AutomationFixture[] = [];
 let isLoadingFixture = false;
+let installedViewsFixture: Array<{
+  slug: string;
+  views: Array<{ id: string }>;
+}> = [];
 
 vi.mock('@/app/features/automations/hooks/use-install-state', () => ({
   useProjectAutomations: () => ({
     automations: automationsFixture,
     isLoading: isLoadingFixture,
+  }),
+}));
+
+vi.mock('@/app/features/automations/hooks/use-automations', () => ({
+  useAutomations: () => ({
+    automations: installedViewsFixture,
+    isLoading: false,
   }),
 }));
 
@@ -62,6 +73,7 @@ describe('ProjectAutomationsTab', () => {
   beforeEach(() => {
     automationsFixture = [];
     isLoadingFixture = false;
+    installedViewsFixture = [];
   });
 
   it('shows the empty state with a hub CTA when nothing is bound', () => {
@@ -92,6 +104,12 @@ describe('ProjectAutomationsTab', () => {
         status: 'broken',
       },
     ];
+    installedViewsFixture = [
+      {
+        slug: 'resolve-github-issues',
+        views: [{ id: 'desk' }],
+      },
+    ];
 
     render(<ProjectAutomationsTab organizationId={ORG} projectId={PROJECT} />);
 
@@ -100,7 +118,7 @@ describe('ProjectAutomationsTab', () => {
     });
     expect(resolve).toHaveAttribute(
       'href',
-      `/dashboard/${ORG}/projects/${PROJECT}/automations/resolve-github-issues`,
+      `/dashboard/${ORG}/projects/${PROJECT}/automations/resolve-github-issues?tab=desk`,
     );
 
     expect(screen.getByText('Needs repair')).toBeInTheDocument();

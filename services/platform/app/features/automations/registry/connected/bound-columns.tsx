@@ -25,7 +25,13 @@ import {
 } from '@/app/components/ui/data-table/cell-kinds';
 import type { columnSpecSchema } from '@/lib/shared/schemas/automation_views';
 
-import { BoundButton, type BoundActionSpec } from './bound-button';
+import {
+  BoundButton,
+  EffectButton,
+  isEffectAction,
+  type BoundActionSpec,
+  type RowActionSpec,
+} from './bound-button';
 
 /** One declared column — `z.infer` of the view schema (no runtime twin). */
 export type ColumnSpec = z.infer<typeof columnSpecSchema>;
@@ -80,8 +86,8 @@ export function useBoundRowIds(): (row: BoundRow) => string {
 export interface BoundColumnsContext {
   /** Loaded rows — used only to infer columns when none are declared. */
   rows: BoundRow[];
-  /** View-config per-row actions, rendered as a `BoundButton` cluster. */
-  actions?: BoundActionSpec[];
+  /** View-config per-row actions, rendered as a BoundButton / EffectButton cluster. */
+  actions?: RowActionSpec[];
   /** Injected per-row action (e.g. subject re-run) merged into the actions
    *  cell; its presence alone makes the actions column appear. */
   rowActions?: {
@@ -228,9 +234,13 @@ export function buildBoundColumns(
             wrap
             onClick={(e) => e.stopPropagation()}
           >
-            {actions.map((a, ai) => (
-              <BoundButton key={ai} action={a} item={item} />
-            ))}
+            {actions.map((a, ai) =>
+              isEffectAction(a) ? (
+                <EffectButton key={ai} action={a} item={item} />
+              ) : (
+                <BoundButton key={ai} action={a} item={item} />
+              ),
+            )}
             {ctx.rowActions &&
               rowActionId !== undefined &&
               ctx.rowActions.render(rowActionId)}

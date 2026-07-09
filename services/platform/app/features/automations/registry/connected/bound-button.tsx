@@ -106,12 +106,34 @@ export function BoundButton({
     );
   }
 
+  const confirmSpec = action.confirm;
+  const confirmTitle =
+    typeof confirmSpec === 'object' && confirmSpec.title
+      ? t(confirmSpec.title, { defaultValue: confirmSpec.title })
+      : t('confirm', { defaultValue: 'Are you sure?' });
+  const confirmDescription =
+    typeof confirmSpec === 'object' && confirmSpec.description
+      ? t(confirmSpec.description, { defaultValue: confirmSpec.description })
+      : label;
+
   const run = async () => {
     try {
       const result = await dispatch(action.args, item);
-      applyEffect(action.onSuccess, result, item);
+      // Idempotent creates may return `created: false` — prefer onAlreadyExists
+      // when declared so a re-click doesn't re-open the same detail.
+      const alreadyExists =
+        result !== null &&
+        typeof result === 'object' &&
+        'created' in result &&
+        (result as { created?: unknown }).created === false;
+      const effect =
+        alreadyExists && action.onAlreadyExists
+          ? action.onAlreadyExists
+          : action.onSuccess;
+      applyEffect(effect, result, item);
       // Only consume-once actions (those declaring a done label) latch to done.
-      if (latchesOnRun) setJustRan(true);
+      // Idempotent re-clicks (`created: false`) must not latch "Created".
+      if (latchesOnRun && !alreadyExists) setJustRan(true);
     } catch (err) {
       // The mutation/action layer (useConvexMutation) already toasts + logs the
       // failure; surface it here too rather than swallowing the rejection.
@@ -139,8 +161,8 @@ export function BoundButton({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title={t('confirm', { defaultValue: 'Are you sure?' })}
-          description={label}
+          title={confirmTitle}
+          description={confirmDescription}
           variant={action.variant === 'destructive' ? 'destructive' : 'default'}
           onConfirm={() => {
             setConfirmOpen(false);

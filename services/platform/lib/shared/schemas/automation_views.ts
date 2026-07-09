@@ -49,10 +49,26 @@ export const functionPathSchema = z
 /** How a bound function is invoked (`capabilities.functions` mode). */
 export const functionModeSchema = z.enum(FUNCTION_MODES);
 
-/** A display string — a LITERAL, rendered verbatim. UI translations are
- *  platform-owned; the retired per-bundle label catalog (`$label:` refs) is no
- *  longer resolved. */
+/** A display string — a LITERAL, rendered verbatim. Pack-authored views
+ *  localize via an optional sibling `i18n` map (see
+ *  {@link localizedStringProps} / {@link resolveLocalizedProp}); the retired
+ *  per-bundle label catalog (`$label:` refs) is no longer resolved. */
 export const labelStringSchema = z.string();
+
+/**
+ * Optional per-locale overrides for presentational string props. Keys are
+ * BCP-47 tags (`de`, `de-CH`, `fr`, …); values are a partial map of the
+ * prop names they override (`text`, `title`, `description`, `label`,
+ * `help`, …). Resolved at render via
+ * `lib/shared/utils/resolve-automation-locale.ts#resolveLocalizedProp`
+ * (locale → base language → `en` → the English literal). Presentational
+ * block prop schemas are `.passthrough()`, so `i18n.de.text` etc. are
+ * already accepted without an explicit field — this helper is for sites
+ * that want a typed `i18n` (view/tab/formField).
+ */
+export const localizedStringProps = z
+  .record(z.string(), z.record(z.string(), z.string()))
+  .optional();
 
 /** A reactive read binding — the `query` prop of a data block. */
 export const queryBindingSchema = z
@@ -83,12 +99,13 @@ const openDetailEffectSchema = z
   })
   .passthrough();
 
-/** Effect: navigate to a route (templated `to`/`params`). */
+/** Effect: navigate to a route (templated `to`/`params`/`search`). */
 const navigateEffectSchema = z
   .object({
     kind: z.literal('navigate'),
     to: z.string(),
     params: z.record(z.string(), z.unknown()).optional(),
+    search: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
 
@@ -122,6 +139,20 @@ export const actionEffectSchema = z.discriminatedUnion('kind', [
 ]);
 
 /**
+ * Confirm dialog for a bound action. `true` keeps the platform default
+ * ("Are you sure?" + action label). An object supplies pack-authored copy.
+ */
+export const actionConfirmSchema = z.union([
+  z.boolean(),
+  z
+    .object({
+      title: labelStringSchema.optional(),
+      description: labelStringSchema.optional(),
+    })
+    .passthrough(),
+]);
+
+/**
  * One bound action — the full `BoundActionSpec` surface of
  * `registry/connected/bound-button.tsx` (which re-exports its type from here).
  * A button bound to ONE allowlisted Convex function: availability is data
@@ -139,13 +170,18 @@ export const boundActionSchema = z
     path: functionPathSchema,
     mode: functionModeSchema,
     args: z.unknown().optional(),
-    confirm: z.boolean().optional(),
+    confirm: actionConfirmSchema.optional(),
     /** Availability predicate over the bound item (when_predicate grammar). */
     when: z.string().optional(),
     variant: z
       .enum(['primary', 'secondary', 'destructive', 'ghost'])
       .optional(),
     onSuccess: actionEffectSchema.optional(),
+    /**
+     * Effect when an idempotent create returns `created: false` (e.g. quarter
+     * Start re-click). Falls back to `onSuccess` when omitted.
+     */
+    onAlreadyExists: actionEffectSchema.optional(),
     /** Predicate over the bound item: true → disabled "done" affordance. */
     doneWhen: z.string().optional(),
     /** Label for the done state; its presence marks the action consume-once. */
@@ -153,6 +189,25 @@ export const boundActionSchema = z
     doneLabel: z.string().optional(),
   })
   .passthrough();
+
+/**
+ * Effect-only row action — no Convex call; click applies `effect` against the
+ * row (e.g. navigate to Project Files with `$selected._id` as folderId).
+ */
+export const effectActionSchema = z
+  .object({
+    label: z.string().optional(),
+    labelKey: z.string().optional(),
+    when: z.string().optional(),
+    variant: z
+      .enum(['primary', 'secondary', 'destructive', 'ghost'])
+      .optional(),
+    effect: actionEffectSchema,
+  })
+  .passthrough();
+
+/** Collection / board row action: bound function call OR effect-only. */
+export const rowActionSchema = z.union([boundActionSchema, effectActionSchema]);
 
 /**
  * One table column: a spec the DataTable mapper (`bound-columns`) turns into a
@@ -189,8 +244,10 @@ const columnsSchema = z.array(columnSpecSchema);
  * Display strings are LITERALS (`label`/`placeholder`/`help`, authored in
  * English). A manifest translates its config fields via its inline
  * `i18n.<locale>.config.<key>` block
- * (`automations.ts#automationManifestI18nSchema`), resolved through
- * `lib/shared/utils/resolve-automation-locale.ts`.
+ * (`automations.ts#automationManifestI18nSchema`). A view-authored Form
+ * field may also carry its own `i18n` map. Both resolve through
+ * `lib/shared/utils/resolve-automation-locale.ts` (field `i18n` wins over
+ * the manifest config map).
  */
 export const formFieldSchema = z.object({
   key: z.string(),
@@ -202,6 +259,24 @@ export const formFieldSchema = z.object({
   placeholder: z.string().optional(),
   /** Literal help text rendered under the control. */
   help: z.string().optional(),
+  /**
+   * Per-locale overrides for this field's display strings
+   * (`i18n.de.label` / `help` / `placeholder`). View-authored Form fields
+   * use this; manifest `requires.config` fields prefer the manifest's
+   * `i18n.<locale>.config.<key>` map instead.
+   */
+  i18n: z
+    .record(
+      z.string(),
+      z
+        .object({
+          label: z.string().optional(),
+          help: z.string().optional(),
+          placeholder: z.string().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
   /** Render a multi-line textarea instead of a single-line input — for
    *  free-text fields. `type` stays `'string'`; purely a presentation hint. */
   multiline: z.boolean().optional(),
@@ -252,6 +327,12 @@ const listFilterSchema = z
 // Block prop schemas — v1 (every block registered in `registry/tale-config.tsx`)
 // ---------------------------------------------------------------------------
 
+/**
+ * Presentational block props are `.passthrough()` so an optional pack-authored
+ * `i18n` map (`i18n.de.text`, `i18n.fr.title`, …) survives parse and is
+ * resolved at render via {@link resolveLocalizedProp}. No explicit `i18n`
+ * field is required on these schemas — the map is additive authoring.
+ */
 const headingPropsSchema = z
   .object({
     text: labelStringSchema,
@@ -318,7 +399,7 @@ const collectionPropsSchema = z
     title: labelStringSchema.optional(),
     query: queryBindingSchema,
     columns: columnsSchema.optional(),
-    actions: z.array(boundActionSchema).optional(),
+    actions: z.array(rowActionSchema).optional(),
     /** When set, rows expand to show their workflow run inline. */
     subjectType: z.string().optional(),
     /** Row field holding the subject id (default `_id`). */
@@ -488,12 +569,25 @@ const detailPanelPropsSchema = z
 const formPropsSchema = z
   .object({
     title: labelStringSchema.optional(),
+    /**
+     * Per-locale overrides for the block title (`i18n.de.title`). Field
+     * `label`/`help`/`placeholder` live on each {@link formFieldSchema}
+     * entry's own `i18n` map. Passthrough also admits additive locale keys.
+     */
+    i18n: localizedStringProps,
     fields: z.array(formFieldSchema).min(1),
     /** Initial values per field key (sentinel-capable). */
     initial: z.record(z.string(), z.unknown()).optional(),
     /** The submit action — its args read the entered values via `$input.*`. */
     submit: boundActionSchema,
     onSuccess: actionEffectSchema.optional(),
+    /**
+     * Hide the form when this predicate is false. Evaluated against the
+     * `whenQuery` record (or `{}` when that query returns null).
+     */
+    when: z.string().optional(),
+    /** Optional query whose result is the `when` item (null → empty record). */
+    whenQuery: queryBindingSchema.optional(),
   })
   .passthrough();
 
@@ -742,8 +836,15 @@ export const puckDataSchema = z
 export const automationTabSchema = z
   .object({
     id: z.string(),
-    /** Literal tab label. */
+    /** Literal tab label (English). */
     label: labelStringSchema,
+    /** Per-locale overrides for `label` (`i18n.de.label`, …). */
+    i18n: z
+      .record(
+        z.string(),
+        z.object({ label: z.string().optional() }).passthrough(),
+      )
+      .optional(),
     data: puckDataSchema.optional(),
     columns: z.array(puckDataSchema).optional(),
     layout: z.enum(['columns', 'split']).optional(),
@@ -760,9 +861,21 @@ export const automationViewSchema = z
   .object({
     id: z.string().optional(),
     version: z.string().optional(),
-    /** Literal display strings. */
+    /** Literal display strings (English). */
     title: labelStringSchema.optional(),
     description: labelStringSchema.optional(),
+    /** Per-locale overrides for `title`/`description` (`i18n.de.title`, …). */
+    i18n: z
+      .record(
+        z.string(),
+        z
+          .object({
+            title: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
     data: puckDataSchema.optional(),
     tabs: z.array(automationTabSchema).optional(),
   })

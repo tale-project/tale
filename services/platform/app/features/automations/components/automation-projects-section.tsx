@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 export function AutomationProjectsSection({
   organizationId,
   automationSlug,
+  firstViewId,
   options,
   selection,
   onSelectionChange,
@@ -28,6 +29,8 @@ export function AutomationProjectsSection({
 }: {
   organizationId: string;
   automationSlug: string;
+  /** Opens the project-nested page on this view tab when set. */
+  firstViewId?: string;
   options: Array<{ value: string; label: string }>;
   selection: string[];
   onSelectionChange: (next: string[]) => void;
@@ -76,6 +79,9 @@ export function AutomationProjectsSection({
                       projectId,
                       automationSlug,
                     }}
+                    {...(firstViewId !== undefined
+                      ? { search: { tab: firstViewId } }
+                      : {})}
                     className="text-primary text-sm hover:underline"
                   >
                     {t('membership.openBoundProject', { name: label })}
