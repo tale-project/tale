@@ -1,9 +1,9 @@
 ---
 title: Démarrage rapide
-description: De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur Cloud, quinze sur ta propre machine.
+description: De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur une instance prête, quinze si tu en montes une sur ta propre machine.
 ---
 
-C’est le chemin le plus court vers un chat qui répond : obtenir une instance, se connecter, envoyer un message, regarder la réponse arriver en streaming. Compte environ cinq minutes sur Cloud et quinze sur ta propre machine ; à la fin tu vois l’écran ci-dessous — une vraie réponse d’un agent sur ton espace de travail.
+C’est le chemin le plus court vers un chat qui répond : obtenir une instance, se connecter, envoyer un message, regarder la réponse arriver en streaming. Compte environ cinq minutes sur une instance prête et quinze sur ta propre machine ; à la fin tu vois l’écran ci-dessous — une vraie réponse d’un agent sur ton espace de travail.
 
 <Frame caption="Là où ce démarrage rapide se termine : une réponse d’agent en streaming dans l’onglet Chat.">
 
@@ -19,7 +19,7 @@ Les deux éditions font tourner le même produit — choisis selon qui doit expl
 
 <Tab title="Cloud">
 
-Va sur [tale.dev](https://tale.dev) et clique sur **Démarrer**. Le formulaire d’inscription demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail, nomme ton organisation et tu atterris dans le dashboard. L’assistant de configuration propose de connecter un fournisseur d’IA tout de suite — colle une clé [OpenRouter](https://openrouter.ai) à cet endroit et le chat fonctionne immédiatement. Le [parcours admin](/fr/get-started/admins) déroule le même assistant, captures d’écran à l’appui, quand tu veux plus que le chemin le plus direct.
+Les instances Cloud sont montées pour toi : remplis le [formulaire de demande de démo](https://tale.dev/fr/request-demo) et l’équipe Tale provisionne ta propre instance. Une fois qu’elle est prête, ouvre-la et inscris-toi — le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail, nomme ton organisation et tu atterris dans le dashboard. L’assistant de configuration propose de connecter un fournisseur d’IA tout de suite — colle une clé [OpenRouter](https://openrouter.ai) à cet endroit et le chat fonctionne immédiatement. Le [parcours admin](/fr/get-started/admins) déroule le même assistant, captures d’écran à l’appui, quand tu veux plus que le chemin le plus direct.
 
 </Tab>
 

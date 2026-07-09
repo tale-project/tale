@@ -14,7 +14,7 @@ This section covers the concerns specific to running on Cloud — onboarding, re
 
 <Card title="Onboarding" icon="rocket" href="/cloud/onboarding">
 
-Sign up, verify the org, configure the first model provider, publish your first agent. About an hour for an Editor.
+Request your instance, create the org, configure the first model provider, publish your first agent. About an hour for an Editor.
 
 </Card>
 

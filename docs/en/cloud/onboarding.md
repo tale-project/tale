@@ -1,11 +1,21 @@
 ---
 title: Cloud onboarding
-description: Sign-up to a production-ready organization in under an hour — create the org, invite the first admin, add a model provider, publish an agent, open chat.
+description: From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, publish an agent, open chat.
 ---
 
-This journey walks from sign-up to a production-ready Cloud org with one working agent in under an hour. The result is an org where your team can sign in, pick a working agent, and ask it something useful — nothing fancy yet, just the foundation everything else builds on.
+<!--
+  Internal, for agents editing this page: Tale Cloud has no self-serve sign-up — tale.dev
+  ships no sign-up route. A Cloud customer fills in the demo request form
+  (https://tale.dev/request-demo — /de/ and /fr/ localized), and the Tale team sets up a
+  dedicated demo instance for them. The journey below only starts once that instance exists;
+  from there it deliberately mirrors normal first-run onboarding (sign-up on the customer's
+  own instance, org wizard, providers). Keep "Request your instance" as the first step and
+  do not change the entry point back to a tale.dev sign-up.
+-->
 
-You need a working email address and the ability to verify it. The walk assumes no prior Tale knowledge; if anything below references a concept you have not met, the linked page introduces it. About half the time is in the provider step — the rest is mostly clicks.
+This journey walks from demo request to a production-ready Cloud org with one working agent. The result is an org where your team can sign in, pick a working agent, and ask it something useful — nothing fancy yet, just the foundation everything else builds on.
+
+You need a working email address and the ability to verify it. The walk assumes no prior Tale knowledge; if anything below references a concept you have not met, the linked page introduces it. Once your instance is ready, the hands-on part takes under an hour — about half of it in the provider step, the rest mostly clicks.
 
 ## Before you begin
 
@@ -13,15 +23,21 @@ Pin down three things:
 
 - An email address for the first Owner of the org. This account will hold the highest role; pick someone who will not leave the team next week.
 - API credentials for at least one model provider (OpenAI, Anthropic, Azure, or a compatible local). The provider's portal shows where these live.
-- The region you want your data pinned to. Cloud offers Switzerland and the EU; pick once, switching later is a real migration.
+- The region you want your data pinned to. Cloud offers Switzerland and the EU; the choice is part of the instance setup, and switching later is a real migration.
 
-## From sign-up to a working agent
+## From demo request to a working agent
 
 <Steps>
 
+<Step title="Request your instance">
+
+Tale Cloud is not self-serve — every Cloud org runs on its own instance, set up for you by the Tale team. Fill in the demo request form at [tale.dev/request-demo](https://tale.dev/request-demo); name and email are enough, though your company and a line on what your agents should do help the team tailor the setup. The team then sets up your own demo instance — a dedicated environment, not a shared trial — and gets back to you when it is ready.
+
+</Step>
+
 <Step title="Create your organization">
 
-Visit `tale.dev` and click **Get started**. The sign-up form asks for your name, email, and a password; verify the email link when it arrives. The next screen asks for the **Organization name** — the display name your team will see in the corner of every page. Pick something that survives a rebrand.
+Open your instance and sign up. The form asks for your name, email, and a password; verify the email link when it arrives. The next screen asks for the **Organization name** — the display name your team will see in the corner of every page. Pick something that survives a rebrand.
 
 <Frame caption="The workspace step — the name your team sees everywhere.">
 

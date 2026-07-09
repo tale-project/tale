@@ -1,9 +1,9 @@
 ---
 title: Quickstart
-description: From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on Cloud, fifteen on your own machine.
+description: From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on a ready instance, fifteen if you stand one up on your own machine.
 ---
 
-This is the shortest path to a working chat with an agent: get an instance, sign in, send a message, watch the reply stream. It takes about five minutes on Cloud and fifteen on your own machine, and it ends with the screen below — a real answer from an agent over your workspace.
+This is the shortest path to a working chat with an agent: get an instance, sign in, send a message, watch the reply stream. It takes about five minutes on a ready instance and fifteen if you stand one up on your own machine, and it ends with the screen below — a real answer from an agent over your workspace.
 
 <Frame caption="Where this quickstart ends: a streamed agent reply in the Chat tab.">
 
@@ -19,7 +19,7 @@ The two editions run the same product — pick by who should operate the stack.
 
 <Tab title="Cloud">
 
-Visit [tale.dev](https://tale.dev) and click **Get started**. The sign-up form asks for your name, email, and a password; verify the email link when it arrives, name your organization, and you land in the dashboard. The setup wizard offers to connect an AI provider right away — paste an [OpenRouter](https://openrouter.ai) key there and chat works immediately. The [admin journey](/get-started/admins) walks the same wizard with screenshots when you want more than the happy path.
+Cloud instances are set up for you: fill in the [demo request form](https://tale.dev/request-demo) and the Tale team provisions your own instance. Once it is ready, open it and sign up — the form asks for your name, email, and a password; verify the email link when it arrives, name your organization, and you land in the dashboard. The setup wizard offers to connect an AI provider right away — paste an [OpenRouter](https://openrouter.ai) key there and chat works immediately. The [admin journey](/get-started/admins) walks the same wizard with screenshots when you want more than the happy path.
 
 </Tab>
 

@@ -1,11 +1,21 @@
 ---
 title: Onboarding Cloud
-description: De l’inscription à une organisation prête pour la production en moins d’une heure — créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat.
+description: De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat.
 ---
 
-Ce parcours va de l’inscription à une organisation Cloud prête pour la production avec un agent qui fonctionne, en moins d’une heure. Le résultat est une organisation où ton équipe peut se connecter, choisir un agent qui marche et lui demander quelque chose d’utile — rien d’extraordinaire encore, juste le socle sur lequel tout le reste se construit.
+<!--
+  Internal, for agents editing this page: Tale Cloud has no self-serve sign-up — tale.dev
+  ships no sign-up route. A Cloud customer fills in the demo request form
+  (https://tale.dev/request-demo — /de/ and /fr/ localized), and the Tale team sets up a
+  dedicated demo instance for them. The journey below only starts once that instance exists;
+  from there it deliberately mirrors normal first-run onboarding (sign-up on the customer's
+  own instance, org wizard, providers). Keep the request-your-instance step first and do not
+  change the entry point back to a tale.dev sign-up.
+-->
 
-Il te faut une adresse e-mail qui fonctionne et la possibilité de la vérifier. Le parcours ne suppose aucune connaissance préalable de Tale ; si quelque chose ci-dessous mentionne un concept que tu n’as pas rencontré, la page liée l’introduit. Environ la moitié du temps part dans l’étape du fournisseur — le reste est surtout des clics.
+Ce parcours va de la demande de démo à une organisation Cloud prête pour la production avec un agent qui fonctionne. Le résultat est une organisation où ton équipe peut se connecter, choisir un agent qui marche et lui demander quelque chose d’utile — rien d’extraordinaire encore, juste le socle sur lequel tout le reste se construit.
+
+Il te faut une adresse e-mail qui fonctionne et la possibilité de la vérifier. Le parcours ne suppose aucune connaissance préalable de Tale ; si quelque chose ci-dessous mentionne un concept que tu n’as pas rencontré, la page liée l’introduit. Une fois ton instance prête, la partie pratique prend moins d’une heure — environ la moitié part dans l’étape du fournisseur, le reste est surtout des clics.
 
 ## Avant de commencer
 
@@ -13,15 +23,21 @@ Cale trois choses :
 
 - Une adresse e-mail pour le premier compte **Propriétaire** de l’organisation. Ce compte portera le rôle le plus élevé ; choisis quelqu’un qui ne quittera pas l’équipe la semaine prochaine.
 - Des identifiants API pour au moins un fournisseur de modèles (OpenAI, Anthropic, Azure ou un compatible local). Le portail du fournisseur montre où ils vivent.
-- La région où ancrer tes données. Cloud propose la Suisse et l’UE ; choisis une fois — changer plus tard est une vraie migration.
+- La région où ancrer tes données. Cloud propose la Suisse et l’UE ; le choix fait partie de la mise en place de l’instance — changer plus tard est une vraie migration.
 
-## De l’inscription à un agent qui fonctionne
+## De la demande de démo à un agent qui fonctionne
 
 <Steps>
 
+<Step title="Demande ton instance">
+
+Tale Cloud ne s’active pas en libre-service — chaque organisation Cloud tourne sur sa propre instance, montée pour toi par l’équipe Tale. Remplis le formulaire de demande de démo sur [tale.dev/fr/request-demo](https://tale.dev/fr/request-demo) ; le nom et l’e-mail suffisent, la société et une ligne sur ce que tes agents doivent faire aident l’équipe à ajuster la mise en place. L’équipe monte ensuite ta propre instance de démo — un environnement dédié, pas un essai partagé — et revient vers toi dès qu’elle est prête.
+
+</Step>
+
 <Step title="Crée ton organisation">
 
-Va sur **Sign up** et clique sur **Sign up**. Le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail. L’écran suivant demande le **Nom de l'organisation** — le nom affiché que ton équipe verra dans le coin de chaque page. Choisis-en un qui survit à un rebranding.
+Ouvre ton instance et inscris-toi. Le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail. L’écran suivant demande le **Nom de l'organisation** — le nom affiché que ton équipe verra dans le coin de chaque page. Choisis-en un qui survit à un rebranding.
 
 <Frame caption="L’étape espace de travail — le nom que ton équipe voit partout.">
 
@@ -89,7 +105,7 @@ Trois suites qui valent la peine maintenant, pendant que tout est frais :
 
 ## Dépannage
 
-- **L’e-mail d’invitation n’arrive jamais.** Vérifie le dossier spam de l’invité. Tale envoie depuis **L’e-mail d’invitation n’arrive jamais.** ; certains filtres d’entreprise le mettent en quarantaine.
+- **L’e-mail d’invitation n’arrive jamais.** Vérifie le dossier spam de l’invité. Tale envoie depuis `noreply@tale.dev` ; certains filtres d’entreprise le mettent en quarantaine.
 - **La validation du fournisseur échoue avec « invalid key ».** Recopie la clé depuis le portail du fournisseur — la copie embarque souvent un espace en tête ou en queue.
 - **L’agent n’apparaît pas dans le sélecteur du chat.** Confirme que **Visible dans le chat** est activé pour l’agent.
 

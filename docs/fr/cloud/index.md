@@ -14,7 +14,7 @@ Cette section couvre ce qui est spécifique à Cloud — l’onboarding, les ré
 
 <Card title="Onboarding" icon="rocket" href="/fr/cloud/onboarding">
 
-Inscription, vérification de l’organisation, configuration du premier fournisseur de modèle, publication du premier agent. Environ une heure pour un Éditeur.
+Demande d’instance, création de l’organisation, configuration du premier fournisseur de modèle, publication du premier agent. Environ une heure pour un Éditeur.
 
 </Card>
 

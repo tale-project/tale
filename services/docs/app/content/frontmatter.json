@@ -744,7 +744,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Cloud-Onboarding",
-      "description": "Von der Registrierung zu einer produktionsreifen Organisation in unter einer Stunde — Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen."
+      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen."
     }
   },
   "de:cloud/migrate-to-self-hosted": {
@@ -1132,7 +1132,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Quickstart",
-      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf Cloud, fünfzehn auf deiner eigenen Maschine."
+      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf einer bereiten Instanz, fünfzehn, wenn du selbst eine aufstellst."
     }
   },
   "de:get-started/developers": {
@@ -1904,7 +1904,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Onboarding Cloud",
-      "description": "De l’inscription à une organisation prête pour la production en moins d’une heure — créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
+      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
     }
   },
   "fr:cloud/migrate-to-self-hosted": {
@@ -2292,7 +2292,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrage rapide",
-      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur Cloud, quinze sur ta propre machine."
+      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur une instance prête, quinze si tu en montes une sur ta propre machine."
     }
   },
   "fr:get-started/developers": {
@@ -3064,7 +3064,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Cloud onboarding",
-      "description": "Sign-up to a production-ready organization in under an hour — create the org, invite the first admin, add a model provider, publish an agent, open chat."
+      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, publish an agent, open chat."
     }
   },
   "en:cloud/migrate-to-self-hosted": {
@@ -3452,7 +3452,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Quickstart",
-      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on Cloud, fifteen on your own machine."
+      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on a ready instance, fifteen if you stand one up on your own machine."
     }
   },
   "en:get-started/developers": {

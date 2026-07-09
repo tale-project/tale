@@ -1,9 +1,9 @@
 ---
 title: Quickstart
-description: Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf Cloud, fünfzehn auf deiner eigenen Maschine.
+description: Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf einer bereiten Instanz, fünfzehn, wenn du selbst eine aufstellst.
 ---
 
-Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instanz besorgen, anmelden, Nachricht senden, der Antwort beim Streamen zusehen. Auf Cloud dauert das rund fünf Minuten, auf deiner eigenen Maschine fünfzehn — und es endet mit dem Bildschirm unten, einer echten Antwort eines Agents über deinen Arbeitsbereich.
+Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instanz besorgen, anmelden, Nachricht senden, der Antwort beim Streamen zusehen. Auf einer bereiten Instanz dauert das rund fünf Minuten, auf deiner eigenen Maschine fünfzehn — und es endet mit dem Bildschirm unten, einer echten Antwort eines Agents über deinen Arbeitsbereich.
 
 <Frame caption="Wo dieser Quickstart endet: eine gestreamte Agent-Antwort im Chat.">
 
@@ -19,7 +19,7 @@ Beide Editionen sind dasselbe Produkt — entscheide danach, wer den Stack betre
 
 <Tab title="Cloud">
 
-Besuche [tale.dev](https://tale.dev) und klicke auf **Loslegen**. Das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt, benenne deine Organisation, und du landest im Dashboard. Der Setup-Assistent bietet direkt an, einen KI-Anbieter zu verbinden — füge dort einen [OpenRouter](https://openrouter.ai)-Schlüssel ein, und der Chat funktioniert sofort. Der [Einstieg für Admins](/de/get-started/admins) geht denselben Assistenten mit Screenshots durch, wenn du mehr willst als den Happy Path.
+Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://tale.dev/de/request-demo) aus, und das Tale-Team stellt deine eigene Instanz bereit. Sobald sie steht, öffne sie und registriere dich — das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt, benenne deine Organisation, und du landest im Dashboard. Der Setup-Assistent bietet direkt an, einen KI-Anbieter zu verbinden — füge dort einen [OpenRouter](https://openrouter.ai)-Schlüssel ein, und der Chat funktioniert sofort. Der [Einstieg für Admins](/de/get-started/admins) geht denselben Assistenten mit Screenshots durch, wenn du mehr willst als den Happy Path.
 
 </Tab>
 

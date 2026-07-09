@@ -1,11 +1,21 @@
 ---
 title: Cloud-Onboarding
-description: Von der Registrierung zu einer produktionsreifen Organisation in unter einer Stunde — Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen.
+description: Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen.
 ---
 
-Diese Strecke führt von der Registrierung zu einer produktionsreifen Cloud-Org mit einem funktionierenden Agent in unter einer Stunde. Das Ergebnis ist eine Org, in der sich dein Team anmelden, einen funktionierenden Agent wählen und ihn etwas Nützliches fragen kann — noch nichts Aufregendes, nur das Fundament, auf dem alles Weitere aufbaut.
+<!--
+  Internal, for agents editing this page: Tale Cloud has no self-serve sign-up — tale.dev
+  ships no sign-up route. A Cloud customer fills in the demo request form
+  (https://tale.dev/request-demo — /de/ and /fr/ localized), and the Tale team sets up a
+  dedicated demo instance for them. The journey below only starts once that instance exists;
+  from there it deliberately mirrors normal first-run onboarding (sign-up on the customer's
+  own instance, org wizard, providers). Keep the request-your-instance step first and do not
+  change the entry point back to a tale.dev sign-up.
+-->
 
-Du brauchst eine funktionierende E-Mail-Adresse und die Möglichkeit, sie zu verifizieren. Die Strecke setzt kein Tale-Vorwissen voraus; referenziert unten etwas ein Konzept, das du noch nicht kennst, führt die verlinkte Seite es ein. Rund die Hälfte der Zeit steckt im Anbieter-Schritt — der Rest ist überwiegend Klicken.
+Diese Strecke führt von der Demo-Anfrage zu einer produktionsreifen Cloud-Org mit einem funktionierenden Agent. Das Ergebnis ist eine Org, in der sich dein Team anmelden, einen funktionierenden Agent wählen und ihn etwas Nützliches fragen kann — noch nichts Aufregendes, nur das Fundament, auf dem alles Weitere aufbaut.
+
+Du brauchst eine funktionierende E-Mail-Adresse und die Möglichkeit, sie zu verifizieren. Die Strecke setzt kein Tale-Vorwissen voraus; referenziert unten etwas ein Konzept, das du noch nicht kennst, führt die verlinkte Seite es ein. Sobald deine Instanz bereitsteht, dauert der praktische Teil unter einer Stunde — rund die Hälfte davon steckt im Anbieter-Schritt, der Rest ist überwiegend Klicken.
 
 ## Bevor du beginnst
 
@@ -13,15 +23,21 @@ Klär drei Dinge:
 
 - Eine E-Mail-Adresse für den ersten Inhaber der Org. Dieses Konto trägt die höchste Rolle; wähl jemanden, der nicht nächste Woche das Team verlässt.
 - API-Zugangsdaten für mindestens einen Modellanbieter (OpenAI, Anthropic, Azure oder ein kompatibler lokaler). Das Portal des Anbieters zeigt, wo sie liegen.
-- Die Region, in der deine Daten liegen sollen. Cloud bietet die Schweiz und die EU; einmal wählen — ein späterer Wechsel ist eine echte Migration.
+- Die Region, in der deine Daten liegen sollen. Cloud bietet die Schweiz und die EU; die Wahl gehört zum Instanz-Setup — ein späterer Wechsel ist eine echte Migration.
 
-## Von der Registrierung zum funktionierenden Agent
+## Von der Demo-Anfrage zum funktionierenden Agent
 
 <Steps>
 
+<Step title="Fordere deine Instanz an">
+
+Tale Cloud ist kein Self-Service — jede Cloud-Org läuft auf einer eigenen Instanz, die das Tale-Team für dich aufsetzt. Füll das Demo-Formular unter [tale.dev/de/request-demo](https://tale.dev/de/request-demo) aus; Name und E-Mail genügen, Firma und ein Satz dazu, was deine Agenten tun sollen, helfen dem Team, das Setup zuzuschneiden. Das Team setzt dann deine eigene Demo-Instanz auf — eine dedizierte Umgebung, keine geteilte Testumgebung — und meldet sich, sobald sie bereitsteht.
+
+</Step>
+
 <Step title="Erstelle deine Organisation">
 
-Besuche `tale.dev` und klicke auf **Loslegen**. Das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt. Der nächste Bildschirm fragt eine Sache ab: **Organisationsname** — der Anzeigename, den dein Team in der Ecke jeder Seite sieht. Wähl einen, der ein Rebranding überlebt.
+Öffne deine Instanz und registriere dich. Das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt. Der nächste Bildschirm fragt eine Sache ab: **Organisationsname** — der Anzeigename, den dein Team in der Ecke jeder Seite sieht. Wähl einen, der ein Rebranding überlebt.
 
 <Frame caption="Der Arbeitsbereichs-Schritt — der Name, den dein Team überall sieht.">
 

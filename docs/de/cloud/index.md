@@ -14,7 +14,7 @@ Dieser Abschnitt behandelt die Themen, die spezifisch für Cloud sind — Onboar
 
 <Card title="Onboarding" icon="rocket" href="/de/cloud/onboarding">
 
-Registrieren, Organisation verifizieren, ersten Modell-Anbieter konfigurieren, ersten Agent veröffentlichen. Etwa eine Stunde für einen Redakteur.
+Instanz anfordern, Org erstellen, ersten Modell-Anbieter konfigurieren, ersten Agent veröffentlichen. Etwa eine Stunde für einen Redakteur.
 
 </Card>
 
