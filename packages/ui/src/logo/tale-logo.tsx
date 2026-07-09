@@ -8,7 +8,7 @@ export interface TaleLogoProps extends SVGProps<SVGSVGElement> {
 }
 
 /**
- * Tale brand logo, traced from designs/web/frontpages.pen → Components/Logo (TVwjg).
+ * Tale brand logo (wordmark + mark). See design/branding.md and designs/shared/.
  * Total bbox is 73.65 × 20 design units; each glyph is rendered at its design coordinates.
  * `currentColor` controls the foreground; pass a `className` to retint via Tailwind tokens.
  */

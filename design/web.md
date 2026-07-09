@@ -7,13 +7,16 @@ design source. Never port an app (chat/dashboard/settings) pattern into the web,
 
 ## Design source
 
-- [`designs/web/frontpages.pen`](../designs/web/) — the marketing page designs (encrypted; open via
-  Pencil, `get_editor_state` first).
-- [`designs/web/`](../designs/web/) also holds the exported hero images, the light/dark animated
-  illustrations (`tale-01-self-hosted` / `tale-02-security` / `tale-03-open-source`), and frame PNGs —
-  use these as the visual reference when Pencil isn't connected.
-- There is **no** `design-system.md` for web; the `.pen` + these assets + the `Site*` component source
-  are the reference. When in doubt, read the component.
+There is **no** Pencil `.pen` tree and **no** `design-system.md` for web. The living reference is:
+
+- This doc — the surface rules and what not to import.
+- The `Site*` component source under
+  [`packages/ui/src/components/site/`](../packages/ui/src/components/site/).
+- The shipped pages and assets in [`services/web`](../services/web/) — especially
+  [`services/web/public/marketing/`](../services/web/public/marketing/) (hero + feature imagery,
+  light and dark) and the home/pricing route composition.
+
+When in doubt, read the component and the page that uses it.
 
 ## Build with the `Site*` family
 
@@ -36,6 +39,8 @@ use in the app — same tokens, same `h-9`, same Inter/Lucide. The _composition_
   No light-lock here (that's docs).
 - The site is **server-rendered + prerendered** (`vite build` + `--ssr` + a prerender step) for SEO and
   first-paint — use `@tale/ui/seo` builders for metadata; keep pages static-friendly.
+- Themed imagery swaps with the theme (e.g. `/marketing/hero-light.png` ↔ `/marketing/hero-dark.png`,
+  and the feature SVGs under `/marketing/feature-*.svg`).
 
 ## What the web must NOT pull in
 
@@ -49,5 +54,4 @@ use in the app — same tokens, same `h-9`, same Inter/Lucide. The _composition_
 
 Same WCAG 2.1 AA bar. Marketing pages live or die on it: real landmarks (`header`/`main`/`footer` via
 `Site*`), the `SkipLink` wired up, headings in order (one `h1` per page), AA contrast on hero text over
-imagery, visible focus on every CTA, and `prefers-reduced-motion` respected for the animated
-illustrations.
+imagery, visible focus on every CTA, and `prefers-reduced-motion` respected for animated illustrations.

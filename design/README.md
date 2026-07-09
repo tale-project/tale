@@ -26,7 +26,7 @@ pattern. Never port one surface's layout into another.
 | Surface             | Lives in            | Design source                                 | Build with                                 | Theme            |
 | ------------------- | ------------------- | --------------------------------------------- | ------------------------------------------ | ---------------- |
 | **App** (product)   | `services/platform` | `designs/platform/*.pen` + `design-system.md` | `@tale/ui` product components              | light + dark     |
-| **Web** (marketing) | `services/web`      | `designs/web/frontpages.pen` + assets         | `@tale/ui` `Site*` + marketing composition | light + dark     |
+| **Web** (marketing) | `services/web`      | `design/web.md` + `Site*` + shipped assets    | `@tale/ui` `Site*` + marketing composition | light + dark     |
 | **Docs**            | `services/docs`     | follows the **app** language                  | `@tale/ui`, app patterns                   | **light-locked** |
 | **Shared** (brand)  | `designs/shared/`   | `branding.pen` / `logofolio.pen`              | `TaleLogo`, accent `#056CFF`, Inter        | —                |
 
