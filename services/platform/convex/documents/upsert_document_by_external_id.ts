@@ -83,6 +83,15 @@ export async function upsertDocumentByExternalId(
     ? await buildFolderPath(ctx, args.folderId)
     : undefined;
 
+  // A document inside a project folder must carry that folder's projectId —
+  // the project Files tree lists by it (listProjectDocuments), and
+  // createDocument enforces the same scope rule for non-sync writers. Derive
+  // it from the target folder instead of trusting callers to thread it
+  // through (the workflow document path never did, leaving filed outputs
+  // invisible in Project Files).
+  const targetFolder = args.folderId ? await ctx.db.get(args.folderId) : null;
+  const targetProjectId = targetFolder?.projectId;
+
   // Prefix-containment guard. A target folder outside the sync subtree would
   // make the row unfindable on the next sync (prefix mismatch) and produce a
   // duplicate. Refuse the write rather than silently desync.
@@ -99,16 +108,48 @@ export async function upsertDocumentByExternalId(
   }
 
   if (existing) {
-    const contentChanged =
+    let contentChanged =
       args.contentHash !== undefined &&
       existing.contentHash !== args.contentHash;
+    // A hash-less caller (the workflow document `create` path) hands over a
+    // freshly stored blob and no provider hash. "No hash" must not read as
+    // "unchanged" — compare the blobs' own storage sha256 instead, else the
+    // new content is silently dropped and the row keeps serving the old file.
+    if (
+      args.contentHash === undefined &&
+      args.fileId !== undefined &&
+      args.fileId !== existing.fileId
+    ) {
+      if (existing.fileId === undefined) {
+        contentChanged = true;
+      } else {
+        const [oldBlob, newBlob] = await Promise.all([
+          ctx.db.system.get(existing.fileId),
+          ctx.db.system.get(args.fileId),
+        ]);
+        contentChanged =
+          oldBlob === null ||
+          newBlob === null ||
+          oldBlob.sha256 !== newBlob.sha256;
+      }
+    }
     const folderChanged =
       args.folderId !== undefined && existing.folderId !== args.folderId;
+    // Project scope follows the folder — a mismatch (including a row healed
+    // from the pre-projectId era) is a location change even when the folder
+    // id itself is unchanged.
+    const projectChanged =
+      args.folderId !== undefined && existing.projectId !== targetProjectId;
     // Any metadata arg counts as a change. A deep compare is not worth the
     // cost — the patch below is cheap and idempotent.
     const metadataChanged = args.metadata !== undefined;
 
-    if (!contentChanged && !folderChanged && !metadataChanged) {
+    if (
+      !contentChanged &&
+      !folderChanged &&
+      !projectChanged &&
+      !metadataChanged
+    ) {
       return {
         documentId: existing._id,
         action: 'skipped',
@@ -148,6 +189,12 @@ export async function upsertDocumentByExternalId(
     const cleaned = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined),
     );
+    // After the undefined-strip: an explicit undefined must survive here so a
+    // move into a hub folder CLEARS the stale project scope (Convex patch
+    // unsets a field set to undefined).
+    if (projectChanged) {
+      cleaned.projectId = targetProjectId;
+    }
     if (Object.keys(cleaned).length > 0) {
       await ctx.db.patch(existing._id, cleaned);
     }
@@ -208,6 +255,7 @@ export async function upsertDocumentByExternalId(
     createdBy: args.createdBy,
     folderId: args.folderId,
     folderPath: newFolderPath,
+    projectId: targetProjectId,
   });
 
   return { documentId, action: 'created', contentChanged: true };

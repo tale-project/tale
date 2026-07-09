@@ -12,6 +12,7 @@ interface MockDoc {
   contentHash?: string;
   title?: string;
   fileId?: string;
+  projectId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -20,6 +21,7 @@ interface MockFolder {
   name: string;
   parentId?: string;
   organizationId: string;
+  projectId?: string;
 }
 
 function createMockCtx(
@@ -28,6 +30,9 @@ function createMockCtx(
   // Maps an existing blob storageId → its canonical RAG status row. Drives the
   // reindex gate (`fileMetadata by_storageId .first()`); empty → gate inert.
   fmByStorageId: Record<string, { ragStatus?: string }> = {},
+  // Maps storageId → `_storage` sha256. Drives the hash-less content
+  // comparison (`db.system.get`); a missing id resolves to null.
+  storageSha256: Record<string, string> = {},
 ) {
   const docs = new Map<string, MockDoc>();
   for (const doc of initial) docs.set(doc._id, doc);
@@ -95,6 +100,7 @@ function createMockCtx(
           contentHash: doc.contentHash as string | undefined,
           title: doc.title as string | undefined,
           fileId: doc.fileId as string | undefined,
+          projectId: doc.projectId as string | undefined,
           metadata: doc.metadata as Record<string, unknown> | undefined,
         };
         docs.set(id, stored);
@@ -111,6 +117,12 @@ function createMockCtx(
       },
       get: (id: string) =>
         Promise.resolve(folders.get(id) ?? docs.get(id) ?? null),
+      system: {
+        get: (id: string) =>
+          Promise.resolve(
+            id in storageSha256 ? { sha256: storageSha256[id] } : null,
+          ),
+      },
     },
     scheduler: {
       runAfter: (
@@ -218,6 +230,218 @@ describe('upsertDocumentByExternalId', () => {
     // H2 fix: previous storage handle must land in historyFiles so the
     // blob is reachable for cleanup and version history.
     expect(patches[0].patch.historyFiles).toEqual(['storage_old']);
+  });
+
+  describe('project scope follows the target folder', () => {
+    // The workflow document path never threaded projectId through, so filed
+    // outputs (return.xml etc.) landed in project folders WITHOUT projectId —
+    // invisible to the project Files tree (listProjectDocuments filters on it).
+    const projFolder: MockFolder = {
+      _id: 'folder_q4',
+      name: '2025Q4',
+      organizationId: ORG,
+      projectId: 'proj1',
+    };
+
+    it('stamps the folder projectId on insert', async () => {
+      const { ctx, inserts } = createMockCtx([], [projFolder]);
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:task1:return.xml',
+          title: 'return.xml',
+          fileId: 'storage_1' as unknown as never,
+          folderId: 'folder_q4' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('created');
+      expect(inserts[0].projectId).toBe('proj1');
+    });
+
+    it('heals a scope-less row on re-run even when nothing else changed', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'vatplus:task1:return.xml',
+            folderId: 'folder_q4',
+            folderPath: '2025Q4',
+            fileId: 'storage_same',
+          },
+        ],
+        [projFolder],
+        {},
+        { storage_same: 'sha-1' },
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:task1:return.xml',
+          title: 'return.xml',
+          fileId: 'storage_same' as unknown as never,
+          folderId: 'folder_q4' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('updated');
+      expect(result.contentChanged).toBe(false);
+      expect(patches).toHaveLength(1);
+      expect(patches[0].patch.projectId).toBe('proj1');
+      // Content untouched — no fileId churn on a scope-only heal.
+      expect(patches[0].patch.fileId).toBeUndefined();
+    });
+
+    it('clears the project scope when the doc moves to a hub folder', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'gd-1',
+            folderId: 'folder_q4',
+            folderPath: '2025Q4',
+            projectId: 'proj1',
+            contentHash: 'h1',
+          },
+        ],
+        [projFolder, { _id: 'folder_hub', name: 'Hub', organizationId: ORG }],
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'gd-1',
+          title: 'file.txt',
+          contentHash: 'h1',
+          folderId: 'folder_hub' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('updated');
+      expect(patches).toHaveLength(1);
+      expect('projectId' in patches[0].patch).toBe(true);
+      expect(patches[0].patch.projectId).toBeUndefined();
+    });
+  });
+
+  describe('hash-less callers (workflow document `create`) — sha256 fallback', () => {
+    // The vat-return-desk freeze bug: the workflow document action stores a
+    // fresh blob and passes NO contentHash. Treating "no hash" as "unchanged"
+    // skipped the write, so the row kept serving the old file and the repair
+    // loop never converged.
+    it('swaps to the new blob when the storage sha256 differs', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'vatplus:proj1:transform.py',
+            fileId: 'storage_old',
+          },
+        ],
+        [],
+        {},
+        { storage_old: 'sha-old', storage_new: 'sha-new' },
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:proj1:transform.py',
+          title: 'transform.py',
+          fileId: 'storage_new' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('updated');
+      expect(result.contentChanged).toBe(true);
+      expect(patches).toHaveLength(1);
+      expect(patches[0].patch.fileId).toBe('storage_new');
+      expect(patches[0].patch.historyFiles).toEqual(['storage_old']);
+    });
+
+    it('still skips when the new blob has the same sha256 (true dedup)', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'vatplus:proj1:transform.py',
+            fileId: 'storage_old',
+          },
+        ],
+        [],
+        {},
+        { storage_old: 'sha-same', storage_new: 'sha-same' },
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:proj1:transform.py',
+          title: 'transform.py',
+          fileId: 'storage_new' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('skipped');
+      expect(result.contentChanged).toBe(false);
+      expect(patches).toHaveLength(0);
+    });
+
+    it('treats a first blob on a fileless row as a content change', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'vatplus:proj1:transform.py',
+          },
+        ],
+        [],
+        {},
+        { storage_new: 'sha-new' },
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:proj1:transform.py',
+          title: 'transform.py',
+          fileId: 'storage_new' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('updated');
+      expect(result.contentChanged).toBe(true);
+      expect(patches[0].patch.fileId).toBe('storage_new');
+    });
+
+    it('re-linking the exact same storageId without a hash stays skipped', async () => {
+      const { ctx, patches } = createMockCtx(
+        [
+          {
+            _id: 'd1',
+            organizationId: ORG,
+            externalItemId: 'vatplus:proj1:transform.py',
+            fileId: 'storage_same',
+          },
+        ],
+        [],
+        {},
+        { storage_same: 'sha-1' },
+      );
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'vatplus:proj1:transform.py',
+          title: 'transform.py',
+          fileId: 'storage_same' as unknown as never,
+        },
+      );
+      expect(result.action).toBe('skipped');
+      expect(result.contentChanged).toBe(false);
+      expect(patches).toHaveLength(0);
+    });
   });
 
   it('patches folder only on same-md5 cross-subfolder move (no contentHash bump, no fileId bump)', async () => {
