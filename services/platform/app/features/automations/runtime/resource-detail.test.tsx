@@ -27,6 +27,8 @@ vi.mock('@/app/hooks/use-format-date', () => ({
 }));
 
 // The dialog's Radix portal/animation stack is irrelevant here — flat divs.
+// Pass className through so the layout contract (pinned height + body scroll)
+// stays assertable.
 vi.mock('@tale/ui/responsive-dialog', () => ({
   ResponsiveDialog: ({
     open,
@@ -35,12 +37,24 @@ vi.mock('@tale/ui/responsive-dialog', () => ({
     open: boolean;
     children?: ReactNode;
   }) => (open ? <div data-testid="dialog">{children}</div> : null),
-  ResponsiveDialogContent: ({ children }: { children?: ReactNode }) => (
-    <div>{children}</div>
+  ResponsiveDialogContent: ({
+    children,
+    className,
+  }: {
+    children?: ReactNode;
+    className?: string;
+  }) => (
+    <div data-testid="dialog-content" className={className}>
+      {children}
+    </div>
   ),
-  ResponsiveDialogTitle: ({ children }: { children?: ReactNode }) => (
-    <h2>{children}</h2>
-  ),
+  ResponsiveDialogTitle: ({
+    children,
+    className,
+  }: {
+    children?: ReactNode;
+    className?: string;
+  }) => <h2 className={className}>{children}</h2>,
 }));
 
 // Composed sections → capture the exact props the overlay hands them.
@@ -239,5 +253,26 @@ describe('ResourceDetail — non-task subjects keep the run-only body', () => {
     expect(
       screen.getByRole('heading', { name: 'automations.detail.title' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('ResourceDetail — dialog scroll shell', () => {
+  it('pins desktop height and scrolls the body so the last card is not clipped', () => {
+    activityReturn = bound({ data: [] });
+
+    openDetail({ subjectType: 'task', id: 'task123' });
+
+    // Overflow on the dialog itself clips BlockFrame border/shadow at the
+    // bottom; the body scrollport must own overflow instead (task-modal).
+    const content = screen.getByTestId('dialog-content');
+    expect(content.className).toMatch(/md:overflow-hidden/);
+    expect(content.className).toMatch(/md:h-\[85dvh\]/);
+    expect(content.className).toMatch(/md:flex-col/);
+
+    const body = content.querySelector('.mt-4');
+    expect(body).not.toBeNull();
+    expect(body?.className).toMatch(/md:overflow-y-auto/);
+    expect(body?.className).toMatch(/md:min-h-0/);
+    expect(body?.className).toMatch(/md:flex-1/);
   });
 });
