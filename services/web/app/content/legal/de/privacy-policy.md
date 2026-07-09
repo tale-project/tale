@@ -40,13 +40,13 @@ Wenn du unser Kontaktformular oder unser Demo-Anfrageformular abschickst, erhebe
 
 ### 3.2 Automatisch erhobene Daten
 
-Unsere Website wird bei Framer gehostet, das ein datenschutzfreundliches Analytics-System nutzt. Dieses System verwendet keine Cookies und erhebt keine personenbezogenen Daten. IP-Adressen werden mit einem täglich rotierenden Geheimnis gehasht und können nicht auf einzelne Besucher zurückgeführt werden. Es werden keine persistenten Identifikatoren erzeugt.
+Unsere Website nutzt kein Analytics-System, keine Tracking-Pixel, keine Werbe-Skripte und keine Drittanbieter-Cookies — und wir erstellen keine Besucherprofile.
 
-Wir nutzen keine weiteren Analytics-Tools, Tracking-Pixel, Werbe-Skripte oder Drittanbieter-Cookies auf unserer Website.
+Zur Auslieferung der Website verarbeiten wir vorübergehend minimale technische Daten (siehe Server-Logs unten); zudem speichert die Website ein funktionales Sprach-Cookie sowie eine Theme-Einstellung in deinem Browser (siehe Cookies unten).
 
 ### 3.3 Server-Logs
 
-Wenn du unsere Website besuchst, verarbeitet unser Hosting-Anbieter (Framer) möglicherweise vorübergehend technische Daten wie deine IP-Adresse, deinen Browser-Typ und Zugriffs-Zeitstempel zur Auslieferung der Website und zur Wahrung der Sicherheit. Diese Verarbeitung ist Teil des üblichen Web-Hosting-Betriebs und wird von uns zu keinem anderen Zweck genutzt.
+Wenn du unsere Website besuchst, verarbeitet unser selbst betriebener Webserver bzw. unsere Hosting-Infrastruktur ([Hosting-Anbieter — vor Veröffentlichung zu bestätigen]) möglicherweise vorübergehend technische Daten wie deine IP-Adresse, deinen Browser-Typ und Zugriffs-Zeitstempel zur Auslieferung der Website und zur Wahrung der Sicherheit (z. B. Rate-Limiting). Diese Daten werden nur kurzzeitig im Rahmen des üblichen Webserver-Betriebs verarbeitet und von uns zu keinem anderen Zweck genutzt.
 
 ## 4. Zweck und Rechtsgrundlage der Verarbeitung
 
@@ -67,16 +67,16 @@ Wir verkaufen, vermieten oder teilen deine personenbezogenen Daten nicht mit Dri
 
 Folgende Kategorien von Dienstleistern können in unserem Auftrag und nach unseren Weisungen Zugriff auf deine personenbezogenen Daten haben:
 
-- **Hosting-Anbieter:** Framer B.V. (Amsterdam, Niederlande) — stellt Website-Hosting und Auslieferung über ein globales, von Amazon Web Services (AWS) betriebenes Content Delivery Network bereit. Framer ist DSGVO-konform, SOC 2 Type II attestiert und ISO 27001:2022 zertifiziert.
+- **Hosting-Infrastruktur:** Die Website wird von Ruler GmbH auf selbst gehosteter Infrastruktur betrieben, bereitgestellt von [Hosting-Anbieter — vor Veröffentlichung zu bestätigen], Standort [Rechenzentrums-Standort — vor Veröffentlichung zu bestätigen].
 - **CRM-Anbieter:** Einsendungen aus dem Kontaktformular speichern wir in einem in der Schweiz gehosteten CRM-System.
 
 Diese Anbieter handeln als Auftragsverarbeiter und sind durch Auftragsverarbeitungsverträge gemäß Art. 9 FADP und Art. 28 DSGVO gebunden.
 
 ## 6. Internationale Datenübermittlung
 
-Deine personenbezogenen Daten werden primär in der Schweiz gespeichert und verarbeitet. Weil unsere Website jedoch von Framer B.V. in den Niederlanden gehostet wird, werden einige Daten (z. B. Server-Anfragen) innerhalb der EU und über ein global verteiltes Content Delivery Network verarbeitet.
+Deine personenbezogenen Daten werden primär in der Schweiz gespeichert und verarbeitet. [Vor Veröffentlichung zu bestätigen: Standort der Webserver angeben — Schweiz oder EU/EWR — und diesen Abschnitt entsprechend anpassen.]
 
-Die Niederlande und alle EU/EWR-Mitgliedstaaten werden vom Schweizer Bundesrat nach Art. 16 FADP als Staaten mit angemessenem Datenschutzniveau anerkannt. Die Europäische Kommission hat die Schweiz ebenfalls als Land mit angemessenem Schutzniveau nach der DSGVO anerkannt.
+Alle EU/EWR-Mitgliedstaaten werden vom Schweizer Bundesrat nach Art. 16 FADP als Staaten mit angemessenem Datenschutzniveau anerkannt. Die Europäische Kommission hat die Schweiz ebenfalls als Land mit angemessenem Schutzniveau nach der DSGVO anerkannt.
 
 Es werden keine personenbezogenen Daten in Länder ohne angemessenes Datenschutzniveau übermittelt.
 
@@ -87,7 +87,7 @@ Wir speichern deine personenbezogenen Daten nur so lange, wie es für den Zweck 
 - **Einsendungen aus dem Kontaktformular:** Kommt keine Geschäftsbeziehung zustande, werden deine Daten innerhalb von 12 Monaten nach deinem letzten Kontakt gelöscht.
 - **Einsendungen aus dem Demo-Anfrageformular:** Kommt keine Geschäftsbeziehung zustande, werden deine Daten innerhalb von 12 Monaten nach deinem letzten Kontakt gelöscht.
 - **Laufende Geschäftsbeziehungen:** Kommt eine Geschäftsbeziehung zustande, werden deine Daten für die Dauer der Beziehung und für den gesetzlich vorgeschriebenen Zeitraum aufbewahrt (typischerweise 10 Jahre nach schweizerischem Handelsrecht).
-- **Server-Logs:** Die vom Hosting-Anbieter verarbeiteten technischen Daten werden gemäß den Framer-Aufbewahrungspraktiken behandelt und nicht von uns gespeichert.
+- **Server-Logs:** Technische Daten werden ausschließlich kurzzeitig zu Betriebs- und Sicherheitszwecken auf unserer eigenen Infrastruktur verarbeitet und danach automatisch gelöscht.
 
 ## 8. Deine Rechte
 
@@ -106,13 +106,13 @@ Wenn du der Meinung bist, dass deine Datenschutzrechte verletzt wurden, hast du 
 
 ## 9. Cookies
 
-Unsere Website nutzt keine Cookies für Analytics oder Tracking. Das eingebaute Analytics-System von Framer ist vollständig Cookie-frei und erzeugt keine persistenten Identifikatoren.
+Unsere Website nutzt keine Cookies für Analytics oder Tracking. Sie speichert genau ein funktionales Cookie: `tale_locale`, das deine Sprachwahl für ein Jahr speichert, damit Seiten beim nächsten Besuch in deiner Sprache laden. Es enthält keine personenbezogenen Daten und keinen Identifikator. Deine Hell-/Dunkel-Einstellung liegt im Local Storage deines Browsers und verlässt dein Gerät nie.
 
 Sollten wir künftig Cookies oder Drittanbieter-Dienste einführen, die eine Einwilligung erfordern, aktualisieren wir diese Datenschutzerklärung und implementieren einen passenden Einwilligungs-Mechanismus.
 
 ## 10. Datensicherheit
 
-Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und der Einsatz zertifizierter Hosting-Infrastruktur (SOC 2 Type II, ISO 27001:2022).
+Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und eine gehärtete, selbst betriebene Hosting-Infrastruktur. Ruler GmbH ist ISO-27001- und SOC-2-zertifiziert.
 
 ## 11. Datenschutz für Kinder
 

@@ -40,13 +40,13 @@ Quand tu soumets notre formulaire de contact ou demandes une démo, nous collect
 
 ### 3.2 Données collectées automatiquement
 
-Notre site est hébergé chez Framer, qui utilise un système d’analytics respectueux de la vie privée. Ce système n’utilise pas de cookies et ne collecte pas de données personnelles. Les adresses IP sont hashées avec un secret quotidiennement rotatif et ne peuvent pas être remontées à des visiteurs individuels. Aucun identifiant persistant n’est généré.
+Notre site n’utilise aucun système d’analytics, pixel de tracking, script publicitaire ou cookie tiers — et nous ne constituons aucun profil de visiteur.
 
-Nous n’utilisons aucun autre outil d’analytics, pixel de tracking, script publicitaire ou cookie tiers.
+Pour livrer le site, nous traitons temporairement des données techniques minimales (voir Journaux serveur ci-dessous) ; le site stocke par ailleurs un cookie fonctionnel de langue et une préférence de thème dans ton navigateur (voir Cookies ci-dessous).
 
 ### 3.3 Journaux serveur
 
-Quand tu visites notre site, notre hébergeur (Framer) peut traiter temporairement des données techniques comme ton adresse IP, type de navigateur et timestamps d’accès afin de livrer le site et maintenir la sécurité. Ces données font partie des opérations d’hébergement standard et ne sont pas utilisées par nous à d’autres fins.
+Quand tu visites notre site, notre serveur web auto-opéré et notre infrastructure d’hébergement ([hébergeur — à confirmer avant publication]) peuvent traiter temporairement des données techniques comme ton adresse IP, type de navigateur et timestamps d’accès afin de livrer le site et maintenir la sécurité (par exemple le rate limiting). Ces données relèvent des opérations standard d’un serveur web, ne sont conservées que brièvement et ne sont pas utilisées par nous à d’autres fins.
 
 ## 4. Finalité et base légale du traitement
 
@@ -67,16 +67,16 @@ Nous ne vendons, ne louons ni ne partageons tes données personnelles avec des t
 
 Tes données peuvent être accessibles aux catégories suivantes de prestataires qui les traitent en notre nom et selon nos instructions :
 
-- **Hébergeur :** Framer B.V. (Amsterdam, Pays-Bas) — fournit l’hébergement et la livraison via un CDN mondial propulsé par Amazon Web Services (AWS). Framer est conforme RGPD, attesté SOC 2 Type II et certifié ISO 27001:2022.
+- **Infrastructure d’hébergement :** le site est opéré par Ruler GmbH sur une infrastructure auto-hébergée fournie par [hébergeur — à confirmer avant publication], située à [emplacement du data center — à confirmer avant publication].
 - **Fournisseur CRM :** nous stockons les soumissions du formulaire de contact dans un CRM hébergé en Suisse.
 
 Ces prestataires agissent comme sous-traitants et sont liés par des accords de traitement selon l’art. 9 LPD et l’art. 28 RGPD.
 
 ## 6. Transferts internationaux
 
-Tes données personnelles sont principalement stockées et traitées en Suisse. Comme notre site est hébergé par Framer B.V. aux Pays-Bas, certaines données (comme les requêtes serveur) sont traitées au sein de l’UE et via un CDN distribué mondialement.
+Tes données personnelles sont principalement stockées et traitées en Suisse. [À confirmer avant publication : indiquer où se trouvent les serveurs du site — Suisse ou UE/EEE — et ajuster cette section en conséquence.]
 
-Les Pays-Bas et tous les États membres de l’UE/EEE sont reconnus par le Conseil fédéral suisse comme assurant un niveau adéquat de protection selon l’art. 16 LPD. La Commission européenne reconnaît également la Suisse comme offrant une protection adéquate selon le RGPD.
+Tous les États membres de l’UE/EEE sont reconnus par le Conseil fédéral suisse comme assurant un niveau adéquat de protection selon l’art. 16 LPD. La Commission européenne reconnaît également la Suisse comme offrant une protection adéquate selon le RGPD.
 
 Aucune donnée personnelle n’est transférée dans des pays sans niveau adéquat de protection.
 
@@ -87,7 +87,7 @@ Nous ne conservons tes données personnelles que le temps nécessaire aux finali
 - **Soumissions du formulaire de contact :** sans relation d’affaires établie, tes données sont supprimées dans les 12 mois suivant ta dernière interaction.
 - **Demandes de démo :** sans relation d’affaires établie, tes données sont supprimées dans les 12 mois suivant ta dernière interaction.
 - **Relations d’affaires en cours :** si une relation est établie, les données sont conservées pour la durée de la relation et pour la période requise par les obligations légales de conservation applicables (typiquement 10 ans selon le droit commercial suisse).
-- **Journaux serveur :** les données techniques traitées par notre hébergeur sont gérées selon les pratiques de Framer et ne sont pas stockées par nous.
+- **Journaux serveur :** les données techniques sont traitées sur notre propre infrastructure, uniquement à des fins opérationnelles et de sécurité de courte durée, puis supprimées automatiquement.
 
 ## 8. Tes droits
 
@@ -106,13 +106,13 @@ Si tu estimes que tes droits sont violés, tu peux déposer une plainte auprès 
 
 ## 9. Cookies
 
-Notre site n’utilise pas de cookies à des fins d’analytics ou de tracking. Le système d’analytics intégré de Framer est totalement sans cookies et ne génère pas d’identifiants persistants.
+Notre site n’utilise pas de cookies à des fins d’analytics ou de tracking. Il stocke exactement un cookie fonctionnel : `tale_locale`, qui retient ton choix de langue pendant un an pour que les pages se chargent dans ta langue à ta prochaine visite. Il ne contient ni donnée personnelle ni identifiant. Ta préférence de thème clair/sombre reste dans le stockage local de ton navigateur et ne quitte jamais ton appareil.
 
 Si nous introduisons à l’avenir des cookies ou services tiers nécessitant un consentement, nous mettrons à jour cette politique et implémenterons un mécanisme de consentement approprié.
 
 ## 10. Sécurité des données
 
-Nous prenons des mesures techniques et organisationnelles appropriées pour protéger tes données personnelles contre l’accès non autorisé, la perte, l’usage abusif ou la destruction. Ces mesures incluent le chiffrement en transit (TLS/SSL), des contrôles d’accès et l’usage d’infrastructures d’hébergement certifiées (SOC 2 Type II, ISO 27001:2022).
+Nous prenons des mesures techniques et organisationnelles appropriées pour protéger tes données personnelles contre l’accès non autorisé, la perte, l’usage abusif ou la destruction. Ces mesures incluent le chiffrement en transit (TLS/SSL), des contrôles d’accès et une infrastructure d’hébergement durcie et auto-opérée. Ruler GmbH est certifiée ISO 27001 et SOC 2.
 
 ## 11. Vie privée des enfants
 
