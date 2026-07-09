@@ -1,8 +1,9 @@
 import { Image } from '@tale/ui/image';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -26,17 +27,17 @@ const PILLARS = [
 
 export function Tagline() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   return (
     <section className="border-border-base bg-surface-site border-b pt-20 pb-20">
       <SiteContainer>
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+          initial={skipEntrance ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-15%' }}
           transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
           className="mx-auto flex max-w-180 flex-col items-center gap-3 text-center"
         >
@@ -57,8 +58,8 @@ export function Tagline() {
 
       <div className="mx-auto mt-12 w-full max-w-7xl md:px-20">
         <motion.div
-          initial={reduceMotion ? false : 'hidden'}
-          whileInView={reduceMotion ? undefined : 'visible'}
+          initial={skipEntrance ? false : 'hidden'}
+          whileInView={skipEntrance ? undefined : 'visible'}
           viewport={{ once: true, margin: '-10%' }}
           variants={{
             hidden: {},
@@ -75,7 +76,7 @@ export function Tagline() {
               light={pillar.light}
               dark={pillar.dark}
               showLeftBorder={index > 0}
-              reduceMotion={reduceMotion ?? false}
+              skipEntrance={skipEntrance}
             />
           ))}
         </motion.div>
@@ -89,7 +90,7 @@ interface PillarCardProps {
   light: string;
   dark: string;
   showLeftBorder: boolean;
-  reduceMotion: boolean;
+  skipEntrance: boolean;
 }
 
 const pillarVariants = {
@@ -106,12 +107,12 @@ function PillarCard({
   light,
   dark,
   showLeftBorder,
-  reduceMotion,
+  skipEntrance,
 }: PillarCardProps) {
   const { t } = useT('home');
   return (
     <motion.div
-      variants={reduceMotion ? undefined : pillarVariants}
+      variants={skipEntrance ? undefined : pillarVariants}
       className={`flex flex-col ${
         showLeftBorder
           ? 'border-border-base border-t md:border-t-0 md:border-l'

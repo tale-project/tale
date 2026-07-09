@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
+
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -78,8 +80,8 @@ export function TierCard({
   disabled = false,
   disabledLabel,
 }: TierCardProps) {
-  const reduceMotion = useReducedMotion();
-  const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
+  const skipEntrance = useSkipEntrance();
+  const fadeInitial = skipEntrance ? false : { opacity: 0, y: 24 };
 
   return (
     <motion.article
@@ -88,7 +90,7 @@ export function TierCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-10%' }}
       transition={
-        reduceMotion
+        skipEntrance
           ? { duration: 0 }
           : { duration: 0.5, delay: animationDelay, ease: easeOut }
       }

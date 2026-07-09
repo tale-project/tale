@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@tale/ui/tooltip';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { ComponentType, SVGProps } from 'react';
 
 import { AtlassianIcon } from '@/app/components/icons/atlassian-icon';
@@ -22,6 +22,7 @@ import {
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -58,7 +59,7 @@ const LOGOS: LogoEntry[] = [
 export function IntegrationsBar() {
   const { t } = useT('home');
   const { t: tCompanies } = useT('companies');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   const tooltipFor = (entry: LogoEntry) =>
     entry.companyKey ? tCompanies(entry.companyKey) : entry.name;
@@ -67,11 +68,11 @@ export function IntegrationsBar() {
     <section className="border-border-base bg-surface-site border-t py-16 md:py-20">
       <SiteContainer>
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+          initial={skipEntrance ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-15%' }}
           transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
           className="mx-auto flex max-w-280 flex-col items-center gap-16"
         >

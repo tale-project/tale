@@ -1,7 +1,8 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { ElementType, ReactNode } from 'react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -35,11 +36,11 @@ export function MarketingSection({
   descriptionMaxWidth,
   children,
 }: MarketingSectionProps) {
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
   const isLead = variant === 'lead';
   const HeadingTag: ElementType = isLead ? 'h1' : 'h2';
   const fadeY = isLead ? 24 : 20;
-  const fadeInitial = reduceMotion ? false : { opacity: 0, y: fadeY };
+  const fadeInitial = skipEntrance ? false : { opacity: 0, y: fadeY };
   const headerMaxWidth = isLead ? 'max-w-[720px]' : 'max-w-[1120px]';
   const headingSize = isLead ? 'md:text-[52px]' : 'md:text-[48px]';
   const headingLineHeight = isLead ? 1.077 : 1.083;
@@ -58,7 +59,7 @@ export function MarketingSection({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-15%' }}
           transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
           className={`mx-auto flex ${headerMaxWidth} flex-col items-center gap-3 text-center`}
         >

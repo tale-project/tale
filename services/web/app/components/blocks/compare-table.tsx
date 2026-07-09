@@ -4,9 +4,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@tale/ui/tooltip';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { HelpCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -95,7 +97,7 @@ export function CompareTable<TK extends string>({
   tiers,
   rows,
 }: CompareTableProps<TK>) {
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
   const colCount = tiers.length + 1;
   const [isStuck, setIsStuck] = useState(false);
   const [hoveredGroup, setHoveredGroup] = useState<number | null>(null);
@@ -141,11 +143,11 @@ export function CompareTable<TK extends string>({
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+      initial={skipEntrance ? false : { opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-10%' }}
       transition={
-        reduceMotion
+        skipEntrance
           ? { duration: 0 }
           : { delay: 0.08, duration: 0.6, ease: easeOut }
       }

@@ -1,11 +1,12 @@
 import { cn } from '@tale/ui/cn';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Layers, ShieldCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -18,17 +19,17 @@ const dividerRightClass =
 export function ComplianceTrust() {
   const { t } = useT('home');
   const { t: tCert } = useT('complianceTrust');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   return (
     <section className="bg-surface-site py-12 md:py-16">
       <SiteContainer>
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+          initial={skipEntrance ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-15%' }}
           transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
           className="border-border-base bg-surface-site-raised mx-auto grid max-w-[1120px] grid-cols-1 overflow-hidden rounded-2xl border lg:grid-cols-[380px_1fr_1fr]"
         >

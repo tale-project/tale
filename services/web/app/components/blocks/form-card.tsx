@@ -3,7 +3,7 @@ import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
 import { Field } from '@tale/ui/field';
 import { Section } from '@tale/ui/section';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import {
@@ -17,6 +17,7 @@ import { MIN_SUBMIT_DELAY_MS, type SubmitRequest } from '@/lib/forms/schemas';
 import { submitForm } from '@/lib/forms/submit-client';
 import { formSubmitErrorMessage } from '@/lib/forms/submit-errors';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -52,7 +53,7 @@ export function FormCard<T extends BasePayload>({
   defaultValues,
 }: FormCardProps<T>) {
   const { t } = useT('forms');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -91,10 +92,10 @@ export function FormCard<T extends BasePayload>({
       <SiteContainer>
         <div className="grid gap-10 md:grid-cols-2 md:gap-20">
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            initial={skipEntrance ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
+              skipEntrance ? { duration: 0 } : { duration: 0.5, ease: easeOut }
             }
             className="flex flex-col gap-6"
           >
@@ -114,10 +115,10 @@ export function FormCard<T extends BasePayload>({
           </motion.div>
 
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+            initial={skipEntrance ? false : { opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={
-              reduceMotion
+              skipEntrance
                 ? { duration: 0 }
                 : { duration: 0.5, delay: 0.05, ease: easeOut }
             }

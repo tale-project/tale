@@ -1,10 +1,11 @@
 import { Accordion, AccordionItem } from '@tale/ui/accordion';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -27,18 +28,18 @@ export const FAQ_KEYS = [
 
 export function FaqAccordion() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   return (
     <section className="border-border-base bg-surface-site border-b py-12 lg:py-20">
       <SiteContainer>
         <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-10">
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            initial={skipEntrance ? false : { opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-15%' }}
             transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
+              skipEntrance ? { duration: 0 } : { duration: 0.5, ease: easeOut }
             }
           >
             <h2
@@ -50,11 +51,11 @@ export function FaqAccordion() {
           </motion.div>
 
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+            initial={skipEntrance ? false : { opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-10%' }}
             transition={
-              reduceMotion
+              skipEntrance
                 ? { duration: 0 }
                 : { delay: 0.08, duration: 0.6, ease: easeOut }
             }

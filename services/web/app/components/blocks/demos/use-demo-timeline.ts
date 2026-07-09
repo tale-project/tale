@@ -1,6 +1,8 @@
 import { useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 
+import { withinEntranceWindow } from '@/lib/motion/entrance';
+
 export interface UseDemoTimelineOptions {
   /**
    * Millisecond offsets, ascending from 0, at which each beat begins.
@@ -28,13 +30,18 @@ export function useDemoTimeline({
 }: UseDemoTimelineOptions): number {
   const finalBeat = beats.length - 1;
   const reduceMotion = useReducedMotion();
-  const [beat, setBeat] = useState(() =>
-    typeof window === 'undefined' ? finalBeat : 0,
+  // Demos play during the initial page load (or when first scrolled into
+  // view on that visit). A mount outside the entrance window is an SPA
+  // navigation revisit — pin the informative end state instead of
+  // replaying the whole timeline on every route change.
+  const pinnedRef = useRef(
+    typeof window === 'undefined' || !withinEntranceWindow(),
   );
+  const [beat, setBeat] = useState(() => (pinnedRef.current ? finalBeat : 0));
   const elapsedRef = useRef(0);
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || pinnedRef.current) {
       setBeat(finalBeat);
       return undefined;
     }

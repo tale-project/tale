@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { ComponentType } from 'react';
 
 import { AutomationRun } from '@/app/components/blocks/demos/automation-run';
@@ -7,6 +7,7 @@ import { GovernGate } from '@/app/components/blocks/demos/govern-gate';
 import { KnowledgePool } from '@/app/components/blocks/demos/knowledge-pool';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut: readonly [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -23,18 +24,18 @@ const STAGES: readonly { key: StageKey; Demo: ComponentType }[] = [
 
 export function OrchestrationTour() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   return (
     <section className="bg-surface-site scroll-mt-16">
       <SiteContainer>
         <div className="mx-auto max-w-280">
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+            initial={skipEntrance ? false : { opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-15%' }}
             transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+              skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
             }
             className="mx-auto flex max-w-180 flex-col items-center gap-3 pt-14 text-center md:pt-20"
           >
@@ -79,18 +80,18 @@ function TourRow({
   isLast: boolean;
 }) {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
   const stepLabel = `${String(index + 1).padStart(2, '0')} ${t(
     `tour.${stageKey}.eyebrow`,
   )}`;
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+      initial={skipEntrance ? false : { opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-15%' }}
       transition={
-        reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+        skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
       }
       className={`flex flex-col gap-10 py-10 md:gap-14 md:py-16 ${
         isLast ? '' : 'border-border-base border-b'

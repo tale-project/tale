@@ -1,11 +1,12 @@
 import { Button } from '@tale/ui/button';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 import { ExternalLink } from '@/app/components/layout/external-link';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -19,7 +20,7 @@ const QUICKSTART_COMMANDS = [
 
 export function CtaDeploy() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
+  const skipEntrance = useSkipEntrance();
 
   return (
     <section className="bg-surface-site relative overflow-hidden py-20 md:py-24">
@@ -33,11 +34,11 @@ export function CtaDeploy() {
       />
       <SiteContainer className="relative">
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+          initial={skipEntrance ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-15%' }}
           transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+            skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
           className="mx-auto flex max-w-125 flex-col items-center gap-8 text-center md:gap-10"
         >

@@ -1,5 +1,5 @@
 import { Button } from '@tale/ui/button';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 import { HeroOrchestration } from '@/app/components/blocks/demos/hero-orchestration';
 import { ExternalLink } from '@/app/components/layout/external-link';
@@ -7,13 +7,14 @@ import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { GET_STARTED_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
 export function HeroHeadline() {
   const { t } = useT('home');
-  const reduceMotion = useReducedMotion();
-  const fadeUpInitial = reduceMotion ? false : { opacity: 0, y: 20 };
+  const skipEntrance = useSkipEntrance();
+  const fadeUpInitial = skipEntrance ? false : { opacity: 0, y: 20 };
 
   return (
     <section className="border-border-base relative overflow-hidden border-b pt-[60px]">
@@ -23,7 +24,7 @@ export function HeroHeadline() {
             initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
             transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
+              skipEntrance ? { duration: 0 } : { duration: 0.6, ease: easeOut }
             }
             className="flex flex-col items-center gap-3"
           >
@@ -44,7 +45,7 @@ export function HeroHeadline() {
             initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
             transition={
-              reduceMotion
+              skipEntrance
                 ? { duration: 0 }
                 : { delay: 0.15, duration: 0.6, ease: easeOut }
             }
@@ -68,10 +69,10 @@ export function HeroHeadline() {
         </div>
       </SiteContainer>
       <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 32 }}
+        initial={skipEntrance ? false : { opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0 }}
         transition={
-          reduceMotion
+          skipEntrance
             ? { duration: 0 }
             : { delay: 0.35, duration: 0.8, ease: easeOut }
         }
