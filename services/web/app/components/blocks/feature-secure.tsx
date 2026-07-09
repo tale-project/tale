@@ -41,7 +41,7 @@ const FEATURES: readonly FeatureConfig[] = [
 
 export function FeatureSecure() {
   return (
-    <section className="bg-bg-base scroll-mt-16 dark:bg-[#0f0f0f]">
+    <section className="bg-surface-site scroll-mt-16">
       <SiteContainer>
         <div className="mx-auto max-w-280">
           {FEATURES.map((feature, index) => (

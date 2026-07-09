@@ -1,5 +1,27 @@
 @import '@tale/ui/globals.css';
 
+/* Marketing surface tokens. The web's dark panels sit deliberately above the
+   canonical `--color-bg-base` dark (#0a0a0a) for a slightly warmer marketing
+   feel. These definitions are the only place the values may appear — blocks
+   use the generated `bg-surface-*` utilities, never a raw hex. */
+@theme {
+  --color-surface-site: #ffffff;
+  --color-surface-site-raised: #fcfcfd;
+  --color-surface-site-inset: #fafafa;
+  --color-surface-site-deep: #ffffff;
+  --color-surface-site-active: #ffffff;
+  --color-surface-promo: #9bc4ff;
+  --color-fg-promo: #021a3f;
+}
+
+.dark {
+  --color-surface-site: #0f0f0f;
+  --color-surface-site-raised: #141416;
+  --color-surface-site-inset: #151515;
+  --color-surface-site-deep: #0a0a0b;
+  --color-surface-site-active: #404045;
+}
+
 /* Marquee track. The track contains the logos rendered twice; translating
    -50% wraps the second set into the first's slot for a seamless loop. */
 @keyframes marquee {

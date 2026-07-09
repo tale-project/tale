@@ -29,7 +29,7 @@ export function Tagline() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="border-border-base border-b bg-white pt-20 pb-20 dark:bg-[#0f0f0f]">
+    <section className="border-border-base bg-surface-site border-b pt-20 pb-20">
       <SiteContainer>
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
@@ -118,7 +118,7 @@ function PillarCard({
           : ''
       }`}
     >
-      <div className="flex h-75 items-center justify-center overflow-hidden bg-[#fafafa] dark:bg-[#151515]">
+      <div className="bg-surface-site-inset flex h-75 items-center justify-center overflow-hidden">
         <Image
           src={light}
           alt=""

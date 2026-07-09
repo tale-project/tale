@@ -64,7 +64,7 @@ export function IntegrationsBar() {
     entry.companyKey ? tCompanies(entry.companyKey) : entry.name;
 
   return (
-    <section className="border-border-base border-t bg-white py-16 md:py-20 dark:bg-[#0f0f0f]">
+    <section className="border-border-base bg-surface-site border-t py-16 md:py-20">
       <SiteContainer>
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
@@ -148,7 +148,7 @@ function LogoTile({
             aria-hidden={ariaHidden}
             aria-label={ariaHidden ? undefined : tooltip}
             tabIndex={ariaHidden ? -1 : 0}
-            className="border-border-base text-fg-base focus-visible:ring-accent-base/30 flex size-18 shrink-0 cursor-default items-center justify-center rounded-2xl border-[3px] bg-white focus-visible:ring-2 focus-visible:outline-none dark:bg-[#0a0a0b]"
+            className="border-border-base text-fg-base focus-visible:ring-accent-base/30 bg-surface-site-deep flex size-18 shrink-0 cursor-default items-center justify-center rounded-2xl border-[3px] focus-visible:ring-2 focus-visible:outline-none"
           >
             <Icon className="size-11" aria-hidden />
             <span className="sr-only">{name}</span>

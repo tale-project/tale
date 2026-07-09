@@ -84,7 +84,7 @@ export function SegmentedRadio<T extends string | number>({
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={`focus-visible:ring-fg-base focus-visible:ring-offset-bg-elevated rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
               isActive
-                ? 'bg-bg-base text-fg-base shadow-sm dark:bg-[#404045]'
+                ? 'bg-surface-site-active text-fg-base shadow-sm'
                 : 'text-fg-muted hover:text-fg-base cursor-pointer'
             }`}
           >

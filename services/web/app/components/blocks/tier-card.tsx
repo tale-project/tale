@@ -106,7 +106,7 @@ export function TierCard({
           {name}
         </h2>
         {popular && popularLabel ? (
-          <span className="rounded-md bg-[#9bc4ff] px-1.5 py-px text-[10px] font-medium text-[#021a3f]">
+          <span className="bg-surface-promo text-fg-promo rounded-md px-1.5 py-px text-[10px] font-medium">
             {popularLabel}
           </span>
         ) : disabled && disabledLabel ? (
