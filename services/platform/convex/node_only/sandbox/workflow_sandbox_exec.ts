@@ -49,6 +49,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
+import { inferContentType } from '../../agent_tools/files/_shared';
 import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
 import { resolveAutomationAssetPathChecked } from '../../automations/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
@@ -319,12 +320,18 @@ async function loadAgentTokenBindings(
  * minimal summary if the agent omitted the file, so "mandatory" never discards
  * an otherwise-good run on a technicality. Best-effort; a harvest failure leaves
  * the outputs empty rather than throwing.
+ *
+ * Each stored blob ALSO gets a `fileMetadata` row — same contract as
+ * `session_exec`'s harvest. Without it, a later `document.create` that
+ * resolves the storage id fails with "File metadata not found". Metadata
+ * write is best-effort so a metadata failure cannot fail the whole harvest.
  */
-async function harvestSandboxOutput(
+export async function harvestSandboxOutput(
   ctx: ActionCtx,
   sessionId: string,
   collectDir: string,
   fallbackFinalText: string | undefined,
+  organizationId: string,
 ): Promise<{
   outputFileIds: string[];
   outputFiles: { name: string; storageId: string }[];
@@ -341,16 +348,37 @@ async function harvestSandboxOutput(
     const entries = await sessionListFiles(sessionId, collectDir);
     for (const entry of entries ?? []) {
       if (entry.type !== 'file') continue;
-      const file = await sessionReadFile(
-        sessionId,
-        `${collectDir}/${entry.name}`,
-      );
+      const filePath = `${collectDir}/${entry.name}`;
+      const file = await sessionReadFile(sessionId, filePath);
       if (!file) continue;
+      // Spawner often returns generic octet-stream; fall back to extension so
+      // the Blob has a non-empty type (self-hosted storage rejects type-less
+      // uploads) and fileMetadata gets a usable contentType.
+      const contentType =
+        file.contentType && file.contentType !== 'application/octet-stream'
+          ? file.contentType
+          : inferContentType(filePath);
       const storageId = await ctx.storage.store(
-        new Blob([file.bytes], { type: file.contentType }),
+        new Blob([file.bytes], { type: contentType }),
       );
       outputFileIds.push(storageId);
       outputFiles.push({ name: entry.name, storageId });
+      try {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
+            storageId: storageId as Id<'_storage'>,
+            fileName: entry.name,
+            contentType,
+            size: file.bytes.byteLength,
+            source: 'agent',
+          },
+        );
+      } catch (metaErr) {
+        console.warn('[runSandboxAgent] saveFileMetadata failed:', metaErr);
+      }
       if (entry.name === 'summary.md') {
         summary = new TextDecoder().decode(file.bytes);
       }
@@ -1072,6 +1100,7 @@ export const runSandboxAgent = internalAction({
         sessionId,
         collectDir,
         undefined,
+        args.organizationId,
       );
       if (preserveSessionAfterStep) {
         try {
@@ -1982,6 +2011,7 @@ export const runSandboxAgent = internalAction({
           sessionId,
           collectDir,
           result.finalText,
+          args.organizationId,
         );
 
       // FORCE THE HANDOFF: a run that finished clean but skipped summary.md gets
@@ -2039,6 +2069,7 @@ export const runSandboxAgent = internalAction({
               sessionId,
               collectDir,
               result.finalText,
+              args.organizationId,
             ));
         } catch (reentryErr) {
           console.warn(
