@@ -17,20 +17,25 @@
  *   `TALE_DOCS_URL`    — docs site origin      (default `${TALE_SITE_URL}/docs`)
  *   `TALE_GITHUB_URL`  — source repo URL       (default `https://github.com/tale-project/tale`)
  *
- * These are **build-time** variables consumed by Node/Bun scripts; they
- * are not exposed to the browser bundle.
+ * These are **build-time** variables consumed by Node/Bun scripts. The
+ * module is also importable from browser bundles (marketing pages build
+ * canonical/JSON-LD URLs from it); there `process` is absent, so the
+ * canonical production defaults apply.
  */
 
+const env =
+  (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env ?? {};
+
 /** Marketing site origin. */
-export const TALE_SITE_URL = process.env.TALE_SITE_URL ?? 'https://tale.dev';
+export const TALE_SITE_URL = env.TALE_SITE_URL ?? 'https://tale.dev';
 
 /** Documentation site origin. */
-export const TALE_DOCS_URL =
-  process.env.TALE_DOCS_URL ?? `${TALE_SITE_URL}/docs`;
+export const TALE_DOCS_URL = env.TALE_DOCS_URL ?? `${TALE_SITE_URL}/docs`;
 
 /** Public source repository. */
 export const TALE_GITHUB_URL =
-  process.env.TALE_GITHUB_URL ?? 'https://github.com/tale-project/tale';
+  env.TALE_GITHUB_URL ?? 'https://github.com/tale-project/tale';
 
 // --- Derived `llms.txt` / `llms-full.txt` URLs for cross-linking -----------
 
