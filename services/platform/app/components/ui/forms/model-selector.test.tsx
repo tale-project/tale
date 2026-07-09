@@ -146,6 +146,26 @@ describe('ModelSelector', () => {
     });
   });
 
+  describe('catalog warnings', () => {
+    it('shows a warning under a model when getModelWarning returns text', () => {
+      renderModelSelector({
+        getModelWarning: (id) =>
+          id === 'openai/gpt-4o' ? 'Not in the openrouter catalog' : undefined,
+      });
+      expect(
+        screen.getByTestId('model-warning-openai/gpt-4o'),
+      ).toHaveTextContent('Not in the openrouter catalog');
+      expect(
+        screen.queryByTestId('model-warning-anthropic/claude-sonnet-4'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows no warning when getModelWarning is omitted', () => {
+      renderModelSelector();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = renderModelSelector();
