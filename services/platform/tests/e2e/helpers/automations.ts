@@ -60,21 +60,11 @@ export function installWizardDialog(page: Page, name: string): Locator {
 }
 
 /**
- * Walk the install wizard to completion: **Next** through required steps (the
- * Install step's Next performs the install), **I'll do this later** through
- * optional connect steps, then **Finish**. Step count varies with org state
- * (already-connected integrations drop their step), so this advances by
- * whichever footer action the current step offers instead of scripting a
- * fixed sequence. An early dialog close is treated as completion — the
- * install itself runs on the Install step's Next, and setup continues from
- * the automation page's readiness checklist.
- */
-/**
  * On the project-scoped install wizard's Project step, pick `projectName` in
  * the SearchableSelect. The trigger shows the placeholder until a value is
  * chosen; the listbox is labelled with `install.projectLabel`.
  */
-export async function selectInstallWizardProject(
+async function selectInstallWizardProject(
   wizard: Locator,
   projectName: string,
 ): Promise<void> {
@@ -97,6 +87,16 @@ export async function selectInstallWizardProject(
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 }
 
+/**
+ * Walk the install wizard to completion: **Next** through required steps (the
+ * Install step's Next performs the install), **I'll do this later** through
+ * optional connect steps, then **Finish**. Step count varies with org state
+ * (already-connected integrations drop their step), so this advances by
+ * whichever footer action the current step offers instead of scripting a
+ * fixed sequence. An early dialog close is treated as completion — the
+ * install itself runs on the Install step's Next, and setup continues from
+ * the automation page's readiness checklist.
+ */
 export async function walkInstallWizard(
   wizard: Locator,
   options?: { projectName?: string },
