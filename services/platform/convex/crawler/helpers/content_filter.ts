@@ -33,8 +33,9 @@
  * behaviourally-equivalent rather than bit-identical to crawl4ai.
  */
 
-import { JSDOM } from 'jsdom';
 import TurndownService from 'turndown';
+
+import { parseHtml } from './parse_html';
 
 const THRESHOLD = 0.4;
 
@@ -154,7 +155,7 @@ export function scoreNode(node: DomNode): number {
  * parent doesn't strand already-evaluated children).
  */
 export function pruneHtml(html: string): string {
-  const dom = new JSDOM(html);
+  const dom = parseHtml(html);
   const { document } = dom.window;
 
   // 1. Pre-remove structural / non-content tags.

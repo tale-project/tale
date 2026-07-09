@@ -1,14 +1,25 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyConvexLocalMaintenance,
+  findMissingReferencedModuleBlobs,
   formatBytes,
+  formatModuleIntegrityError,
   MODULE_BLOB_KEEP_COUNT,
   MODULE_BLOB_PRUNE_BYTES_THRESHOLD,
   MODULE_BLOB_PRUNE_COUNT_THRESHOLD,
   planConvexLocalMaintenance,
+  readReferencedModuleBlobNames,
   resolveLatestCachedBackendVersion,
   selectModuleBlobsToPrune,
+  shouldSkipPruneForEmptyReferences,
   summarizeModuleBlobs,
+  type MaintenanceDeps,
   type ModuleBlobEntry,
 } from './convex-local-maintenance';
 
@@ -36,7 +47,305 @@ describe('selectModuleBlobsToPrune', () => {
       blob('/b.blob', 300, 10),
       blob('/c.blob', 200, 10),
     ];
-    expect(selectModuleBlobsToPrune(entries, 2)).toEqual(['/a.blob']);
+    expect(selectModuleBlobsToPrune(entries, 2, new Set())).toEqual([
+      '/a.blob',
+    ]);
+  });
+
+  // Regression for the July 2026 dev incident: components are re-pushed
+  // rarely, so their blobs are the OLDEST files — an mtime-only prune deletes
+  // exactly the code the deployment still loads.
+  it('never selects a blob the deployment still references, even past keepCount', () => {
+    const entries = [
+      blob('/modules/live-old.blob', 100, 10),
+      blob('/modules/stale-1.blob', 200, 10),
+      blob('/modules/stale-2.blob', 300, 10),
+      blob('/modules/newest.blob', 400, 10),
+    ];
+    expect(selectModuleBlobsToPrune(entries, 1, new Set(['live-old']))).toEqual(
+      ['/modules/stale-2.blob', '/modules/stale-1.blob'],
+    );
+  });
+
+  it('prunes nothing when the reference set is unknown', () => {
+    const entries = [blob('/a.blob', 100, 10), blob('/b.blob', 200, 10)];
+    expect(selectModuleBlobsToPrune(entries, 0, null)).toEqual([]);
+  });
+});
+
+describe('shouldSkipPruneForEmptyReferences', () => {
+  it('skips when the DB yielded no live packages but blobs remain on disk', () => {
+    expect(shouldSkipPruneForEmptyReferences(new Set(), 50)).toBe(true);
+  });
+
+  it('does not skip when there are live references', () => {
+    expect(shouldSkipPruneForEmptyReferences(new Set(['a']), 50)).toBe(false);
+  });
+
+  it('does not skip when the modules dir is empty (fresh / torn-down)', () => {
+    expect(shouldSkipPruneForEmptyReferences(new Set(), 0)).toBe(false);
+  });
+});
+
+describe('findMissingReferencedModuleBlobs', () => {
+  it('lists referenced names with no matching on-disk blob', () => {
+    expect(
+      findMissingReferencedModuleBlobs(new Set(['live', 'gone']), [
+        blob('/modules/live.blob', 1, 1),
+      ]),
+    ).toEqual(['gone']);
+  });
+});
+
+describe('applyConvexLocalMaintenance', () => {
+  const pruneAll = {
+    kind: 'prune-modules',
+    reason: 'test',
+    keepCount: 0,
+    clearSnapshotArtifacts: false,
+    warning: null,
+  } as const;
+
+  function deps(overrides: Partial<MaintenanceDeps>): MaintenanceDeps {
+    return {
+      listModuleBlobs: () => [blob('/modules/a.blob', 100, 10)],
+      removePaths: () => {},
+      isBackendRunning: () => false,
+      readReferencedBlobNames: () => new Set(),
+      ...overrides,
+    };
+  }
+
+  it('skips the prune (and says why) when references cannot be read', () => {
+    const removed: string[][] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        readReferencedBlobNames: () => null,
+        removePaths: (paths) => removed.push(paths),
+      }),
+    );
+    expect(result.removedModuleBlobs).toBe(0);
+    expect(result.integrityError).toBeNull();
+    expect(result.warning).toContain('Skipped Convex module prune');
+    expect(removed).toEqual([[]]);
+  });
+
+  it('skips the prune when references are empty but blobs remain on disk', () => {
+    const removed: string[] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        listModuleBlobs: () => [
+          blob('/modules/a.blob', 100, 10),
+          blob('/modules/b.blob', 200, 10),
+        ],
+        readReferencedBlobNames: () => new Set(),
+        removePaths: (paths) => removed.push(...paths),
+      }),
+    );
+    expect(result.removedModuleBlobs).toBe(0);
+    expect(result.integrityError).toBeNull();
+    expect(result.warning).toContain('no live package references');
+    expect(removed).toEqual([]);
+  });
+
+  it('prunes only unreferenced blobs when references are known', () => {
+    const removed: string[] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        listModuleBlobs: () => [
+          blob('/modules/live.blob', 100, 10),
+          blob('/modules/stale.blob', 200, 10),
+        ],
+        readReferencedBlobNames: () => new Set(['live']),
+        removePaths: (paths) => removed.push(...paths),
+      }),
+    );
+    expect(removed).toEqual(['/modules/stale.blob']);
+    expect(result.removedModuleBlobs).toBe(1);
+    expect(result.warning).toBeNull();
+    expect(result.integrityError).toBeNull();
+  });
+
+  it('sets integrityError and skips prune when a live blob is already missing', () => {
+    const removed: string[] = [];
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        listModuleBlobs: () => [blob('/modules/stale.blob', 200, 10)],
+        readReferencedBlobNames: () => new Set(['live']),
+        removePaths: (paths) => removed.push(...paths),
+      }),
+    );
+    expect(removed).toEqual([]);
+    expect(result.removedModuleBlobs).toBe(0);
+    expect(result.integrityError).toContain('module storage is incomplete');
+    expect(result.integrityError).toContain('live');
+    expect(formatModuleIntegrityError(['live'])).toContain('setup:clean');
+  });
+
+  it('sets integrityError after prune if a live blob disappeared', () => {
+    let listed = 0;
+    const result = applyConvexLocalMaintenance(
+      pruneAll,
+      deps({
+        listModuleBlobs: () => {
+          listed += 1;
+          // First call (pre-check): live present. Second call (post-prune): gone.
+          if (listed === 1) {
+            return [
+              blob('/modules/live.blob', 100, 10),
+              blob('/modules/stale.blob', 200, 10),
+            ];
+          }
+          return [];
+        },
+        readReferencedBlobNames: () => new Set(['live']),
+        removePaths: () => {},
+      }),
+    );
+    expect(result.integrityError).toContain('module storage is incomplete');
+  });
+
+  it('checks integrity even when the plan is a no-op', () => {
+    const result = applyConvexLocalMaintenance(
+      { kind: 'none', clearSnapshotArtifacts: false, warning: null },
+      deps({
+        listModuleBlobs: () => [],
+        readReferencedBlobNames: () => new Set(['live']),
+      }),
+    );
+    expect(result.integrityError).toContain('module storage is incomplete');
+  });
+});
+
+describe('readReferencedModuleBlobNames', () => {
+  it('treats a missing database as an empty reference set', () => {
+    expect(readReferencedModuleBlobNames('/nope.sqlite3', () => false)).toEqual(
+      new Set(),
+    );
+  });
+
+  // bun:sqlite is unavailable under vitest's Node pool — build the fixture and
+  // assert the join via a short Bun subprocess (same driver production uses).
+  it('reads live package storageKeys from a Convex-shaped documents table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'convex-maint-'));
+    const sqlitePath = join(dir, 'convex_local_backend.sqlite3');
+    const scriptPath = join(dir, 'assert-refs.ts');
+    try {
+      writeFileSync(
+        scriptPath,
+        `
+import { Database } from "bun:sqlite";
+import { readReferencedModuleBlobNames } from ${JSON.stringify(join(import.meta.dirname, 'convex-local-maintenance.ts'))};
+
+const sqlitePath = ${JSON.stringify(sqlitePath)};
+const db = new Database(sqlitePath, { safeIntegers: true });
+db.exec(\`
+  CREATE TABLE documents (
+    id BLOB NOT NULL,
+    ts INTEGER NOT NULL,
+    table_id BLOB NOT NULL,
+    json_value TEXT NULL,
+    deleted INTEGER NOT NULL,
+    prev_ts INTEGER,
+    PRIMARY KEY (ts, table_id, id)
+  );
+\`);
+const tableId = new Uint8Array(16).fill(1);
+const insert = db.query(
+  "INSERT INTO documents (id, ts, table_id, json_value, deleted) VALUES (?, ?, ?, ?, ?)",
+);
+const livePackageId = "k42livepackage000000000000000001";
+insert.run(
+  new Uint8Array(16).fill(2),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "h42livemodule",
+    sourcePackageId: livePackageId,
+    analyzeResult: null,
+    path: "crons.js",
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(3),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: livePackageId,
+    storageKey: "modules/live-component.blob",
+    packageSize: 42,
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(3),
+  5n,
+  tableId,
+  JSON.stringify({
+    _id: livePackageId,
+    storageKey: "modules/old-revision.blob",
+    packageSize: 41,
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(4),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "k42orphanpackage000000000000001",
+    storageKey: "modules/orphan.blob",
+    packageSize: 1,
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(5),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "h42deletedmodule",
+    sourcePackageId: "k42deletedpkg00000000000000001",
+    analyzeResult: null,
+    path: "gone.js",
+  }),
+  1n,
+);
+insert.run(
+  new Uint8Array(16).fill(6),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "k42deletedpkg00000000000000001",
+    storageKey: "modules/deleted-pkg.blob",
+    packageSize: 9,
+  }),
+  0n,
+);
+db.close();
+
+const refs = readReferencedModuleBlobNames(sqlitePath);
+const got = [...refs].sort().join(",");
+if (got !== "live-component") {
+  console.error("unexpected refs:", got);
+  process.exit(1);
+}
+console.log("ok");
+`,
+      );
+      const result = spawnSync('bun', [scriptPath], {
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('ok');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

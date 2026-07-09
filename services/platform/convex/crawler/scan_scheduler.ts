@@ -49,6 +49,18 @@ const MAX_SCAN_CONTINUATIONS = envInt('CRAWLER_MAX_SCAN_CONTINUATIONS', 100);
 // A URL that fails this many fetches is dropped from both the crawl list and the
 // remaining-work count, so a permanently-broken page can't wedge the loop.
 const MAX_FETCH_FAIL_COUNT = 10;
+// Duty-cycle pacing. Crawl actions run INSIDE the shared Convex backend
+// process (see helpers/parse_html.ts) — an unpaced chain runs flat-out for
+// SCAN_ACTION_BUDGET_MS × MAX_SCAN_CONTINUATIONS and starves interactive
+// traffic (observed: backend-wide "Try again later" mutation failures and a
+// WebSocket 1011 disconnect loop while one site scanned). A pause between
+// fetch batches and between chain continuations keeps the backend
+// responsive; both are operator-tunable like the other CRAWLER_* knobs.
+const FETCH_BATCH_PACING_MS = envInt('CRAWLER_FETCH_BATCH_PACING_MS', 2_000);
+const CONTINUATION_PACING_MS = envInt('CRAWLER_CONTINUATION_PACING_MS', 5_000);
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Scan ONE website incrementally. On the first action of a chain
@@ -170,6 +182,9 @@ export const scanWebsite = internalAction({
         stagnantBatches =
           nowUncrawled < prevUncrawled ? 0 : stagnantBatches + 1;
         prevUncrawled = nowUncrawled;
+        // Yield between batches so interactive traffic gets the backend (a
+        // trailing pause on the final batch is a harmless 2s).
+        await sleep(FETCH_BATCH_PACING_MS);
       }
 
       // 3. More to crawl? Continue in a fresh action (resets the budget) until
@@ -183,7 +198,7 @@ export const scanWebsite = internalAction({
         continuation < MAX_SCAN_CONTINUATIONS
       ) {
         await ctx.scheduler.runAfter(
-          0,
+          CONTINUATION_PACING_MS,
           internal.crawler.scan_scheduler.scanWebsite,
           { domain, orgSlug, continuation: continuation + 1 },
         );
@@ -216,10 +231,13 @@ export const scanDueWebsites = internalAction({
   handler: async (ctx): Promise<null> => {
     if (isE2ECronSuppressed()) return null;
     const due = await getDueWebsites();
-    for (const w of due) {
+    for (const [i, w] of due.entries()) {
       await updateScanStatus(w.domain, 'scanning');
+      // Stagger the per-site chains instead of launching every due site at
+      // once — N concurrent chains multiply the in-process load the pacing
+      // above meters out.
       await ctx.scheduler.runAfter(
-        0,
+        i * CONTINUATION_PACING_MS,
         internal.crawler.scan_scheduler.scanWebsite,
         { domain: w.domain, orgSlug: w.owner_org_slug },
       );

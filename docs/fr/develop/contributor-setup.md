@@ -70,10 +70,11 @@ Chaque push `convex dev` stocke un nouveau bundle de fonctions sous `services/pl
 
 `bun run dev` lance la maintenance automatiquement avant de spawner Convex :
 
-- **Prune** quand le stockage modules dépasse 1 500 blobs ou 2 Go — garde les 1 000 bundles de fonctions les plus récents sous `convex_local_storage/modules/`. La base SQLite, les fichiers uploadés et la config org restent intacts.
+- **Prune** quand le stockage modules dépasse 1 500 blobs ou 2 Go — ne supprime que les blobs historiques non référencés sous `convex_local_storage/modules/`, en gardant chaque blob que le déploiement actuel charge encore (plus jusqu'à 1 000 restes non référencés les plus récents). La base SQLite, les fichiers uploadés et la config org restent intacts. Si les références live ne peuvent pas être lues, ou semblent vides alors que des blobs restent sur disque, le prune est ignoré plutôt que de deviner.
+- **Contrôle d'intégrité** — si un blob de module live manque déjà sur disque, `bun run dev` s'arrête avec une erreur claire qui pointe vers `setup:clean`. Continuer démarrerait un backend à moitié mort (chat et crons échouent avec des erreurs serveur opaques).
 - **Supprime les artefacts d'export snapshot** quand la version binaire Convex en cache ne correspond plus à celle enregistrée dans le déploiement local — retire `export.zip` et les restes d'import/export qui peuvent déclencher un ré-import raté au cold start, sans effacer les données de dev.
 
-Règle `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` pour désactiver. `bun run setup:check` avertit (sans bloquer) quand le stockage modules dépasse déjà le seuil de prune.
+Règle `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` pour désactiver le prune/nettoyage snapshot (le contrôle d'intégrité tourne quand même). `bun run setup:check` avertit (sans bloquer) quand le stockage modules dépasse déjà le seuil de prune.
 
 ## Réinitialiser les données Convex de dev locales
 
