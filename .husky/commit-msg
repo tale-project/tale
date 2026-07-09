@@ -1,1 +1,17 @@
-bunx commitlint --edit $1
+#!/usr/bin/env bash
+# Strip AI attribution trailers — AGENTS.md / .claude/CLAUDE.md ban them.
+# Cursor and Claude Code inject these even when local attribution toggles are off.
+MSG_FILE=$1
+# macOS/BSD sed needs the empty backup-ext arg; GNU sed accepts it too with this form.
+sed -i.bak -E \
+  -e '/^[[:space:]]*[Cc][Oo]-[Aa][Uu][Tt][Hh][Oo][Rr][Ee][Dd]-[Bb][Yy]:/d' \
+  -e '/cursoragent@cursor\.com/d' \
+  -e '/[Gg]enerated with (Claude Code|Cursor)/d' \
+  -e '/^[[:space:]]*[Mm]ade-[Ww]ith:[[:space:]]*[Cc]ursor/d' \
+  -e '/^[[:space:]]*[Mm]ade with [Cc]ursor/d' \
+  "$MSG_FILE"
+rm -f "${MSG_FILE}.bak"
+# Collapse trailing blank lines left by deletions
+perl -i -0pe 's/\n+\z/\n/' "$MSG_FILE"
+
+bunx commitlint --edit "$MSG_FILE"
