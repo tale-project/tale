@@ -1,34 +1,34 @@
 {
-  "name": "Swiss VAT return desk",
-  "description": "Hermetic Phase 0 fixture for project-Files desk isolation. Quarters are top-level project folders; setup lives in `_setup`. The workflow is intentionally thin (status flip only) so the e2e stack can assert entry + isolation without Docker sandbox.",
+  "name": "Project files desk",
+  "description": "Hermetic fixture for project-scoped automation desk isolation. Period folders are top-level project folders; setup lives in `_setup`. Thin status-flip workflow — no sandbox.",
   "i18n": {
     "en": {
-      "name": "Swiss VAT return desk",
-      "description": "Hermetic Phase 0 fixture for project-Files desk isolation."
+      "name": "Project files desk",
+      "description": "Hermetic fixture for project-scoped automation desk isolation."
     },
     "de": {
-      "name": "Schweizer MWST-Desk",
-      "description": "Hermetische Phase-0-Fixture für Project-Files-Desk-Isolation."
+      "name": "Projektdateien-Desk",
+      "description": "Hermetische Fixture für projektbezogene Automation-Desk-Isolation."
     },
     "fr": {
-      "name": "Bureau TVA suisse",
-      "description": "Fixture hermétique Phase 0 pour l'isolation du desk Project Files."
+      "name": "Bureau fichiers projet",
+      "description": "Fixture hermétique pour l'isolation du desk d'automatisation projet."
     }
   },
-  "icon": "receipt",
-  "labels": ["VAT", "Swiss", "Finance", "E2E"],
+  "icon": "folder",
+  "labels": ["E2E", "Files"],
   "scope": "project",
   "workflow": {
-    "specification": "# Prepare VAT return (e2e stub)\n\nPhase 0 hermetic stub: acknowledge the task and park it In review. Real transform/sandbox work lives in the configs/vatplus pack, not this fixture.",
+    "specification": "# Prepare period job (e2e stub)\n\nHermetic stub: acknowledge the task and park it In review. Real pack work is out of scope for this fixture.",
     "version": "1.0.0-e2e",
     "metadata": {
-      "pack": "vat-return-desk-e2e",
+      "pack": "project-files-desk-e2e",
       "autoInstall": false
     },
     "config": {
       "timeout": 60000,
       "variables": {
-        "workflowId": "vat_return_prepare_e2e"
+        "workflowId": "project_files_desk_e2e"
       }
     },
     "steps": [
@@ -40,7 +40,7 @@
           "inputSchema": {
             "properties": {
               "task": {
-                "description": "Task from desk Start. externalId = quarter folderId; externalUrl = _setup setup folderId.",
+                "description": "Task from desk Start. externalId = period folderId; externalUrl = _setup folderId.",
                 "type": "object"
               }
             },
@@ -92,7 +92,7 @@
     ]
   },
   "capabilities": {
-    "workflows": ["vat-return-desk-e2e"],
+    "workflows": ["project-files-desk-e2e"],
     "functions": [
       {
         "path": "projects/queries:listProjectRootFolders",

@@ -14,21 +14,21 @@ import { expect, test } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Phase 0 VATplus desk — project Files isolation + Project→Desk entry.
+ * Project-scoped automation desk — Files isolation + Project→Desk entry.
  *
- * Fixture: `vat-return-desk-e2e` (thin status-flip workflow, no sandbox). On the
- * hermetic stack it is already in the pinned builtin catalog; against a live
- * `bun run dev` the spec uploads the zip when the catalog does not list it.
+ * Fixture: `project-files-desk-e2e` (thin status-flip workflow, no sandbox). On
+ * the hermetic stack it is already in the pinned builtin catalog; against a
+ * live `bun run dev` the spec uploads the zip when the catalog does not list it.
  *
  * Proves:
  *  1. Install Finish lands on the project automation URL.
  *  2. Project nav exposes a tab into the desk.
- *  3. Quarters list is project-scoped (Acme never sees Beta's folders).
- *  4. `_setup` is excluded from Quarters; Start stays hidden until it exists.
- *  5. Start creates a return task visible on that project's Returns tab only.
+ *  3. Periods list is project-scoped (Acme never sees Beta's folders).
+ *  4. `_setup` is excluded from Periods; Start stays hidden until it exists.
+ *  5. Start creates a job visible on that project's Jobs tab only.
  */
 
-const SLUG = 'vat-return-desk-e2e';
+const SLUG = 'project-files-desk-e2e';
 const DESK_NAME = () => automationName(SLUG);
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +36,7 @@ const FIXTURE_ZIP = path.join(
   dirname,
   '..',
   'fixtures',
-  'vat-return-desk-e2e.zip',
+  'project-files-desk-e2e.zip',
 );
 
 async function createProject(
@@ -190,7 +190,7 @@ async function installIntoProject(
   await page.goto(
     `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}?tab=desk`,
   );
-  await expect(page.getByText('Quarter folders', { exact: true })).toBeVisible({
+  await expect(page.getByText('Period folders', { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
 }
@@ -234,12 +234,12 @@ async function bindAdditionalProject(
   await page.goto(
     `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}?tab=desk`,
   );
-  await expect(page.getByText('Quarter folders', { exact: true })).toBeVisible({
+  await expect(page.getByText('Period folders', { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
 }
 
-test('two projects isolate quarter folders and Project nav reaches the desk', async ({
+test('two projects isolate period folders and Project nav reaches the desk', async ({
   page,
   org,
 }) => {
@@ -257,36 +257,36 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
   const suffix = Date.now().toString(36);
   const acmeName = `E2E Acme ${suffix}`;
   const betaName = `E2E Beta ${suffix}`;
-  const acmeQuarter = `2025Q4-acme-${suffix}`;
-  const betaQuarter = `2025Q4-beta-${suffix}`;
+  const acmePeriod = `2025Q4-acme-${suffix}`;
+  const betaPeriod = `2025Q4-beta-${suffix}`;
 
   await ensureDeskInCatalog(page, organizationId);
 
   const acmeId = await createProject(page, organizationId, acmeName);
   const betaId = await createProject(page, organizationId, betaName);
 
-  // Acme: quarter only first — Start must stay hidden without `_setup`.
-  await createRootFolder(page, organizationId, acmeId, acmeQuarter);
+  // Acme: period only first — Start must stay hidden without `_setup`.
+  await createRootFolder(page, organizationId, acmeId, acmePeriod);
 
   await installIntoProject(page, organizationId, acmeName, acmeId);
 
-  // Surface the Collection error-boundary cause if Quarters fails to load.
-  const quarterVisible = page.getByText(acmeQuarter, { exact: true });
+  // Surface the Collection error-boundary cause if Periods fails to load.
+  const periodVisible = page.getByText(acmePeriod, { exact: true });
   try {
-    await expect(quarterVisible).toBeVisible({
+    await expect(periodVisible).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
   } catch (err) {
     throw new Error(
-      `Quarters did not list ${acmeQuarter}. console/page errors:\n${consoleErrors.join('\n') || '(none)'}`,
+      `Periods did not list ${acmePeriod}. console/page errors:\n${consoleErrors.join('\n') || '(none)'}`,
       { cause: err },
     );
   }
   await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
-  const acmeQuarterRow = page.getByRole('row').filter({ hasText: acmeQuarter });
-  await expect(acmeQuarterRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  const acmePeriodRow = page.getByRole('row').filter({ hasText: acmePeriod });
+  await expect(acmePeriodRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
-    acmeQuarterRow.getByRole('button', { name: t('automations.list.start') }),
+    acmePeriodRow.getByRole('button', { name: t('automations.list.start') }),
   ).toHaveCount(0);
 
   // Add setup folder → Start appears.
@@ -294,12 +294,12 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
   await page.goto(
     `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
   );
-  await expect(page.getByText(acmeQuarter, { exact: true })).toBeVisible({
+  await expect(page.getByText(acmePeriod, { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
   const acmeRowWithSetup = page
     .getByRole('row')
-    .filter({ hasText: acmeQuarter });
+    .filter({ hasText: acmePeriod });
   await expect(
     acmeRowWithSetup.getByRole('button', {
       name: t('automations.list.start'),
@@ -337,23 +337,23 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
   await page.goto(
     `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
   );
-  await expect(page.getByText(acmeQuarter, { exact: true })).toBeVisible({
+  await expect(page.getByText(acmePeriod, { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
 
   // Bind Beta + seed its Files.
-  await createRootFolder(page, organizationId, betaId, betaQuarter);
+  await createRootFolder(page, organizationId, betaId, betaPeriod);
   await createRootFolder(page, organizationId, betaId, '_setup');
   await bindAdditionalProject(page, organizationId, betaName, betaId);
 
-  await expect(page.getByText(betaQuarter, { exact: true })).toBeVisible({
+  await expect(page.getByText(betaPeriod, { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
-  await expect(page.getByText(acmeQuarter, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(acmePeriod, { exact: true })).toHaveCount(0);
   await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
 
-  // Start on Beta → Returns shows Beta's task only.
-  const betaRow = page.getByRole('row').filter({ hasText: betaQuarter });
+  // Start on Beta → Jobs shows Beta's task only.
+  const betaRow = page.getByRole('row').filter({ hasText: betaPeriod });
   await betaRow
     .getByRole('button', { name: t('automations.list.start') })
     .click();
@@ -363,33 +363,33 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
   ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
 
   // Desk view tabs are role=tab (not the automation section links).
-  await page.getByRole('tab', { name: 'Returns', exact: true }).click();
+  await page.getByRole('tab', { name: 'Jobs', exact: true }).click();
   await expect(
-    page.getByText(`VAT return — ${betaQuarter}`, { exact: true }),
+    page.getByText(`Period job — ${betaPeriod}`, { exact: true }),
   ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 
-  // Returns Mark done (ESTV confirm) — stub parks at in_review.
-  const betaReturnRow = page
+  // Jobs Mark done (review confirm) — stub parks at in_review.
+  const betaJobRow = page
     .getByRole('row')
-    .filter({ hasText: `VAT return — ${betaQuarter}` });
-  await betaReturnRow
+    .filter({ hasText: `Period job — ${betaPeriod}` });
+  await betaJobRow
     .getByRole('button', { name: t('automations.list.markDone') })
     .click();
   const confirmDialog = page.getByRole('dialog');
-  await expect(confirmDialog.getByText(/ESTV/i)).toBeVisible({
+  await expect(confirmDialog.getByText(/Mark done after review/i)).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
   await confirmDialog
     .getByRole('button', { name: t('common.actions.confirm') })
     .click();
-  await expect(betaReturnRow.getByText('Done', { exact: true })).toBeVisible({
+  await expect(betaJobRow.getByText('Done', { exact: true })).toBeVisible({
     timeout: TIMEOUT.PERSIST,
   });
 
-  // Quarters → Open files deep-links into Project Files with folderId.
-  await page.getByRole('tab', { name: 'Quarters', exact: true }).click();
-  const betaQuarterRow = page.getByRole('row').filter({ hasText: betaQuarter });
-  await betaQuarterRow.getByRole('button', { name: 'Open files' }).click();
+  // Periods → Open files deep-links into Project Files with folderId.
+  await page.getByRole('tab', { name: 'Periods', exact: true }).click();
+  const betaPeriodRow = page.getByRole('row').filter({ hasText: betaPeriod });
+  await betaPeriodRow.getByRole('button', { name: 'Open files' }).click();
   await page.waitForURL(
     new RegExp(
       `/dashboard/${organizationId}/projects/${betaId}/files\\?folderId=`,
@@ -397,12 +397,12 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
     { timeout: TIMEOUT.NAV },
   );
 
-  // Acme desk must not list Beta's return task.
+  // Acme desk must not list Beta's job.
   await page.goto(
     `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
   );
-  await page.getByRole('tab', { name: 'Returns', exact: true }).click();
+  await page.getByRole('tab', { name: 'Jobs', exact: true }).click();
   await expect(
-    page.getByText(`VAT return — ${betaQuarter}`, { exact: true }),
+    page.getByText(`Period job — ${betaPeriod}`, { exact: true }),
   ).toHaveCount(0);
 });

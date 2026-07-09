@@ -234,7 +234,7 @@ describe('upsertDocumentByExternalId', () => {
 
   describe('project scope follows the target folder', () => {
     // The workflow document path never threaded projectId through, so filed
-    // outputs (return.xml etc.) landed in project folders WITHOUT projectId —
+    // outputs (artifact.xml etc.) landed in project folders WITHOUT projectId —
     // invisible to the project Files tree (listProjectDocuments filters on it).
     const projFolder: MockFolder = {
       _id: 'folder_q4',
@@ -249,8 +249,8 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:task1:return.xml',
-          title: 'return.xml',
+          externalItemId: 'desk-e2e:task1:artifact.xml',
+          title: 'artifact.xml',
           fileId: 'storage_1' as unknown as never,
           folderId: 'folder_q4' as unknown as never,
         },
@@ -265,7 +265,7 @@ describe('upsertDocumentByExternalId', () => {
           {
             _id: 'd1',
             organizationId: ORG,
-            externalItemId: 'vatplus:task1:return.xml',
+            externalItemId: 'desk-e2e:task1:artifact.xml',
             folderId: 'folder_q4',
             folderPath: '2025Q4',
             fileId: 'storage_same',
@@ -279,8 +279,8 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:task1:return.xml',
-          title: 'return.xml',
+          externalItemId: 'desk-e2e:task1:artifact.xml',
+          title: 'artifact.xml',
           fileId: 'storage_same' as unknown as never,
           folderId: 'folder_q4' as unknown as never,
         },
@@ -326,7 +326,7 @@ describe('upsertDocumentByExternalId', () => {
   });
 
   describe('hash-less callers (workflow document `create`) — sha256 fallback', () => {
-    // The vat-return-desk freeze bug: the workflow document action stores a
+    // Hash-less create freeze: the workflow document action stores a
     // fresh blob and passes NO contentHash. Treating "no hash" as "unchanged"
     // skipped the write, so the row kept serving the old file and the repair
     // loop never converged.
@@ -336,7 +336,7 @@ describe('upsertDocumentByExternalId', () => {
           {
             _id: 'd1',
             organizationId: ORG,
-            externalItemId: 'vatplus:proj1:transform.py',
+            externalItemId: 'desk-e2e:proj1:transform.py',
             fileId: 'storage_old',
           },
         ],
@@ -348,7 +348,7 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:proj1:transform.py',
+          externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
           fileId: 'storage_new' as unknown as never,
         },
@@ -366,7 +366,7 @@ describe('upsertDocumentByExternalId', () => {
           {
             _id: 'd1',
             organizationId: ORG,
-            externalItemId: 'vatplus:proj1:transform.py',
+            externalItemId: 'desk-e2e:proj1:transform.py',
             fileId: 'storage_old',
           },
         ],
@@ -378,7 +378,7 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:proj1:transform.py',
+          externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
           fileId: 'storage_new' as unknown as never,
         },
@@ -394,7 +394,7 @@ describe('upsertDocumentByExternalId', () => {
           {
             _id: 'd1',
             organizationId: ORG,
-            externalItemId: 'vatplus:proj1:transform.py',
+            externalItemId: 'desk-e2e:proj1:transform.py',
           },
         ],
         [],
@@ -405,7 +405,7 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:proj1:transform.py',
+          externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
           fileId: 'storage_new' as unknown as never,
         },
@@ -421,7 +421,7 @@ describe('upsertDocumentByExternalId', () => {
           {
             _id: 'd1',
             organizationId: ORG,
-            externalItemId: 'vatplus:proj1:transform.py',
+            externalItemId: 'desk-e2e:proj1:transform.py',
             fileId: 'storage_same',
           },
         ],
@@ -433,7 +433,7 @@ describe('upsertDocumentByExternalId', () => {
         ctx as unknown as MutationCtx,
         {
           organizationId: ORG,
-          externalItemId: 'vatplus:proj1:transform.py',
+          externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
           fileId: 'storage_same' as unknown as never,
         },

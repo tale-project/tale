@@ -1,11 +1,11 @@
 {
   "id": "desk",
-  "title": "Swiss VAT return desk",
-  "description": "One project per client. Quarters are top-level project folders; setup lives in `_setup`.",
+  "title": "Project files desk",
+  "description": "One project per client. Period folders are top-level project folders; setup lives in `_setup`.",
   "tabs": [
     {
       "id": "quarters",
-      "label": "Quarters",
+      "label": "Periods",
       "data": {
         "root": { "props": {} },
         "zones": {},
@@ -13,7 +13,7 @@
           {
             "type": "Text",
             "props": {
-              "text": "1. Ensure `_setup` exists (create it in Project Files if missing).\n2. Create a quarter folder and drop source files.\n3. Click Start on the quarter row.\n4. Track retries on Returns — Quarters Start does not re-run an existing return.",
+              "text": "1. Ensure `_setup` exists (create it in Project Files if missing).\n2. Create a period folder and drop source files.\n3. Click Start on the period row.\n4. Track retries on Jobs — Periods Start does not re-run an existing job.",
               "variant": "muted"
             }
           },
@@ -22,14 +22,14 @@
             "props": {
               "variant": "info",
               "title": "Getting started",
-              "description": "Start stays hidden until `_setup` exists. After success, review artifacts in the quarter folder; Mark done only after ESTV filing."
+              "description": "Start stays hidden until `_setup` exists. After success, review artifacts in the period folder; Mark done when the human review is finished."
             }
           },
           {
             "type": "Collection",
             "props": {
               "id": "quarters",
-              "title": "Quarter folders",
+              "title": "Period folders",
               "query": {
                 "path": "projects/queries:listProjectRootFolders",
                 "args": {
@@ -38,7 +38,7 @@
                   "setupFolderName": "_setup"
                 }
               },
-              "columns": [{ "field": "name", "labelKey": "Quarter folder" }],
+              "columns": [{ "field": "name", "labelKey": "Period folder" }],
               "actions": [
                 {
                   "labelKey": "list.start",
@@ -50,12 +50,12 @@
                   "args": {
                     "organizationId": "$orgId",
                     "projectId": "$projectId",
-                    "externalSystem": "vatplus",
+                    "externalSystem": "desk-e2e",
                     "externalId": "$selected._id",
                     "externalUrl": "$selected.setupFolderId",
-                    "title": "$tpl:VAT return — {name}",
-                    "description": "E2E stub prepare for this quarter folder.",
-                    "runWorkflowSlug": "vat-return-desk-e2e"
+                    "title": "$tpl:Period job — {name}",
+                    "description": "E2E stub prepare for this period folder.",
+                    "runWorkflowSlug": "project-files-desk-e2e"
                   },
                   "onSuccess": {
                     "kind": "toast",
@@ -63,7 +63,7 @@
                   },
                   "onAlreadyExists": {
                     "kind": "toast",
-                    "titleKey": "This quarter already has a return — open Returns and click Start to retry."
+                    "titleKey": "This period already has a job — open Jobs and click Start to retry."
                   }
                 },
                 {
@@ -85,7 +85,7 @@
     },
     {
       "id": "returns",
-      "label": "Returns",
+      "label": "Jobs",
       "data": {
         "root": { "props": {} },
         "zones": {},
@@ -93,7 +93,7 @@
           {
             "type": "Text",
             "props": {
-              "text": "Start re-runs from backlog, todo, or cancelled. Cancel stops a stuck in-progress return. Mark done only after ESTV filing.",
+              "text": "Start re-runs from backlog, todo, or cancelled. Cancel stops a stuck in-progress job. Mark done when human review is finished.",
               "variant": "muted"
             }
           },
@@ -101,18 +101,18 @@
             "type": "Collection",
             "props": {
               "id": "returns",
-              "title": "VAT returns",
+              "title": "Period jobs",
               "query": {
                 "path": "tasks/queries:listTasksByProjectPaginated",
                 "args": {
                   "projectId": "$projectId",
                   "organizationId": "$orgId",
-                  "externalSystem": "vatplus"
+                  "externalSystem": "desk-e2e"
                 }
               },
               "perPage": 50,
               "columns": [
-                { "field": "title", "labelKey": "Return" },
+                { "field": "title", "labelKey": "Job" },
                 {
                   "field": "status",
                   "kind": "badge",
@@ -142,7 +142,7 @@
                   "args": {
                     "organizationId": "$orgId",
                     "taskId": "$selected._id",
-                    "workflowSlug": "vat-return-desk-e2e"
+                    "workflowSlug": "project-files-desk-e2e"
                   }
                 },
                 {
@@ -152,8 +152,8 @@
                   "mode": "mutation",
                   "variant": "destructive",
                   "confirm": {
-                    "title": "Cancel this return?",
-                    "description": "Marks the return cancelled so you can Start again."
+                    "title": "Cancel this job?",
+                    "description": "Marks the job cancelled so you can Start again."
                   },
                   "when": "status == in_progress",
                   "args": {
@@ -167,8 +167,8 @@
                   "mode": "mutation",
                   "variant": "primary",
                   "confirm": {
-                    "title": "Mark done after ESTV?",
-                    "description": "Confirm only after ESTV filing."
+                    "title": "Mark done after review?",
+                    "description": "Confirm only after the human review is finished."
                   },
                   "when": "status == in_review",
                   "args": {
