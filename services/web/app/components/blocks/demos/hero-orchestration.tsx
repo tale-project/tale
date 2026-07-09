@@ -6,10 +6,15 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   FileText,
+  GitFork,
   Mic,
+  MoreHorizontal,
   Plus,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
 } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -64,7 +69,7 @@ export function HeroOrchestration() {
       label={t('demos.hero.label')}
       title={t('demos.hero.windowTitle')}
       activeNav="chat"
-      className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+      className="mx-auto aspect-[2/3] max-w-4xl sm:aspect-[16/9]"
     >
       <div className="flex h-full flex-col gap-4 p-4 text-left md:gap-5 md:p-6">
         <div className="flex justify-end">
@@ -120,13 +125,20 @@ export function HeroOrchestration() {
           </div>
 
           {beat >= BEAT.status ? (
-            <motion.p
-              {...pop(0.1)}
-              className="text-fg-subtle mt-3 inline-flex items-center gap-1.5 text-xs"
-            >
-              <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
-              {t('demos.hero.status')}
-            </motion.p>
+            <motion.div {...pop(0.1)}>
+              <p className="text-fg-subtle mt-3 flex items-center gap-1.5 text-xs">
+                <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
+                {t('demos.hero.status')}
+              </p>
+              {/* Reply action row — the real chat's copy/rate/fork icons. */}
+              <span className="text-fg-subtle mt-3 flex items-center gap-3">
+                <Copy className="size-3.5" strokeWidth={1.75} />
+                <ThumbsUp className="size-3.5" strokeWidth={1.75} />
+                <ThumbsDown className="size-3.5" strokeWidth={1.75} />
+                <GitFork className="size-3.5" strokeWidth={1.75} />
+                <MoreHorizontal className="size-3.5" strokeWidth={1.75} />
+              </span>
+            </motion.div>
           ) : null}
         </div>
 

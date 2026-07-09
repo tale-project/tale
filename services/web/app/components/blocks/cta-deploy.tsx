@@ -26,10 +26,10 @@ export function CtaDeploy() {
     <section className="bg-surface-site relative overflow-hidden py-20 md:py-24">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-20 dark:opacity-[0.08]"
+        className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage:
-            'repeating-linear-gradient(45deg, var(--color-border-strong) 0, var(--color-border-strong) 2px, transparent 2px, transparent 7px)',
+          background:
+            'radial-gradient(640px 320px at 50% 0%, color-mix(in oklab, var(--color-brand-base) 12%, transparent), transparent 70%)',
         }}
       />
       <SiteContainer className="relative">

@@ -75,6 +75,7 @@
   },
   "home": {
     "hero": {
+      "badge": "Open source · MIT licensed",
       "title": "The Orchestrator for AI Agents",
       "subtitle": "Connect Claude Code, Codex, Cursor, and every agent your team uses. Pool their knowledge, delegate real work — on your own infrastructure.",
       "ctaPrimary": "Request demo",

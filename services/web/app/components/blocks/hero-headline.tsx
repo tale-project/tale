@@ -13,6 +13,7 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 
 export function HeroHeadline() {
   const { t } = useT('home');
+  const { t: tCert } = useT('complianceTrust');
   const skipEntrance = useSkipEntrance();
   const fadeUpInitial = skipEntrance ? false : { opacity: 0, y: 20 };
 
@@ -28,6 +29,13 @@ export function HeroHeadline() {
             }
             className="flex flex-col items-center gap-3"
           >
+            <span className="border-border-base bg-surface-site-raised text-fg-muted inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium">
+              <span
+                aria-hidden
+                className="bg-brand-base size-1.5 rounded-full"
+              />
+              {t('hero.badge')}
+            </span>
             <h1
               className="text-fg-base text-[36px] font-medium md:text-[68px]"
               style={{ letterSpacing: '-2.94px', lineHeight: 1.1176 }}
@@ -71,6 +79,19 @@ export function HeroHeadline() {
               </LocalizedLink>
             </Button>
           </motion.div>
+          <motion.p
+            initial={fadeUpInitial}
+            animate={{ opacity: 1, y: 0 }}
+            transition={
+              skipEntrance
+                ? { duration: 0 }
+                : { delay: 0.25, duration: 0.6, ease: easeOut }
+            }
+            className="text-fg-subtle text-xs"
+          >
+            {tCert('certifications.iso27001')} · {tCert('certifications.soc2')}{' '}
+            · {tCert('certifications.gdpr')}
+          </motion.p>
         </div>
       </SiteContainer>
       <motion.div

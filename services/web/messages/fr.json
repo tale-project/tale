@@ -75,6 +75,7 @@
   },
   "home": {
     "hero": {
+      "badge": "Open source · licence MIT",
       "title": "L'orchestrateur pour agents IA",
       "subtitle": "Connecte Claude Code, Codex, Cursor et tous les agents de ton équipe. Mets leur savoir en commun, délègue du vrai travail — sur ta propre infrastructure.",
       "ctaPrimary": "Demander une démo",

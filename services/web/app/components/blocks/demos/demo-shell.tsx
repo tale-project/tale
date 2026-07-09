@@ -6,6 +6,7 @@ import {
   Brain,
   CircleUser,
   Folder,
+  Lock,
   MessageCircle,
   MoreHorizontal,
   Search,
@@ -15,6 +16,12 @@ import {
   Workflow,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+/**
+ * The address every demo window shows — a placeholder domain that quietly
+ * makes the self-hosted point: this is YOUR deployment, not our cloud.
+ */
+const DEMO_ORIGIN = 'tale.yourcompany.com';
 
 /**
  * The app's primary navigation, in sidebar order — mirrors
@@ -75,11 +82,27 @@ export function DemoShell({
       role="img"
       aria-label={label}
       className={cn(
-        'border-border-base bg-surface-site-raised m-0 flex w-full overflow-hidden rounded-2xl border shadow-sm',
+        'border-border-base bg-surface-site-raised ring-border-base/60 m-0 flex w-full flex-col overflow-hidden rounded-xl border shadow-2xl ring-1',
         className,
       )}
     >
-      <div aria-hidden className="flex min-w-0 flex-1">
+      {/* Browser chrome — Tale is a web app on YOUR domain. */}
+      <div
+        aria-hidden
+        className="border-border-base bg-surface-site relative flex shrink-0 items-center border-b px-3 py-2"
+      >
+        <span className="flex items-center gap-1.5">
+          <span className="bg-border-strong/70 size-2.5 rounded-full" />
+          <span className="bg-border-strong/50 size-2.5 rounded-full" />
+          <span className="bg-border-strong/30 size-2.5 rounded-full" />
+        </span>
+        <span className="border-border-base bg-surface-site-inset text-fg-subtle absolute left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px]">
+          <Lock className="size-3" strokeWidth={1.75} />
+          {DEMO_ORIGIN}
+        </span>
+      </div>
+
+      <div aria-hidden className="flex min-h-0 min-w-0 flex-1">
         {/* Icon nav rail — the app's left edge. */}
         <div className="border-border-base bg-surface-site flex w-10 shrink-0 flex-col items-center gap-1 border-r py-3 md:w-13">
           <TaleLogo

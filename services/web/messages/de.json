@@ -75,6 +75,7 @@
   },
   "home": {
     "hero": {
+      "badge": "Open Source · MIT-lizenziert",
       "title": "Der Orchestrator für KI-Agents",
       "subtitle": "Verbinde Claude Code, Codex, Cursor und alle Agents deines Teams. Bündle ihr Wissen, delegiere echte Arbeit — auf deiner eigenen Infrastruktur.",
       "ctaPrimary": "Demo anfragen",
