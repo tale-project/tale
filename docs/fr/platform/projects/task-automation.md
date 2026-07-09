@@ -30,6 +30,18 @@ Chaque exécution d'agent — affectation, mention, révision, escalade, externe
 
 Les plafonds de l'organisation (simultanéité des exécutions, exécutions par tâche et par heure) sont des valeurs fixes de la plateforme ; le budget et le parallélisme par agent vivent dans sa configuration.
 
+## Choisir l'assigné
+
+Toutes les tâches ne vont pas à un agent de code. Règle simple :
+
+| Forme de tâche                                                                         | Assigner                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Recherche, rédaction, synthèses, livrables personnels                                  | Une **personne** — désactive le triage non assigné sur les projets personnels pour que les agents ne les prennent pas automatiquement                                                                                                                                          |
+| Automatisation générale avec outils plateforme (commentaires, workflows, intégrations) | Un **Agent** (boucle d'outils plateforme)                                                                                                                                                                                                                                      |
+| Travail sur dépôt — bugs, fonctionnalités, refactors, PR                               | Un **Agent de code** avec le bon dispatch : tale-daemon (`runtime`) pour les workspaces git, bac à sable durable si configuré, ou accepte que les agents de code bac-à-sable seul passent encore par la boucle plateforme sur le board tant que ces champs ne sont pas définis |
+
+Le sélecteur d'assigné sépare **Agents** et **Agents de code** et affiche une ligne d'indication de dispatch pour chaque agent de code. Les agents image n'apparaissent pas dans la liste d'assignation.
+
 ## L'arrêt d'urgence
 
 La politique de gouvernance `task_automation` porte l'interrupteur principal : mettre `enabled: false` dans le fichier de configuration `governance/task-automation.json` de l'organisation arrête le chemin d'exécution — ce qui tourne se termine, rien de nouveau ne démarre. Réservé aux admins, audité.

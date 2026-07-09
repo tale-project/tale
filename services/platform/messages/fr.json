@@ -998,9 +998,12 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Rechercher des agents",
       "noResults": "Aucun agent trouvé",
-      "lockedExternal": "Ce chat s'exécute dans une sandbox et garde son agent — démarre un nouveau chat pour en utiliser un autre.",
+      "lockedExternal": "Ce chat s'exécute dans un bac à sable et garde son agent de code — démarre un nouveau chat pour en utiliser un autre.",
       "lockedExternalLabel": "Agent : {{agent}} (fixé pour ce chat sandbox)",
-      "browseAutomations": "Parcourir les automatisations"
+      "browseAutomations": "Parcourir les automatisations",
+      "sectionAgents": "Agents",
+      "sectionCodingAgents": "Agents de code",
+      "sectionImageAgents": "Image"
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
@@ -5140,6 +5143,7 @@
       "searchAgent": "Rechercher des agents",
       "columns": {
         "displayName": "Nom",
+        "category": "Type",
         "model": "Modèle par défaut",
         "tools": "Outils"
       },
@@ -5315,23 +5319,21 @@
         },
         "agentType": {
           "sectionTitle": "Type d'agent",
-          "sectionDescription": "Comment cet agent s'exécute. Les agents internes utilisent la boucle d'outils de la plateforme ; les agents externes exécutent un agent de code dans un bac à sable.",
-          "internalLabel": "Agent interne",
-          "internalDescription": "S'exécute sur la plateforme avec les outils de chat, les connaissances et les workflows.",
-          "externalLabel": "Agent externe",
-          "externalDescription": "Exécute Claude Code ou Cursor dans un bac à sable isolé, en utilisant les intégrations liées.",
+          "sectionDescription": "Comment cet agent s'exécute dans le chat. Les agents de code lancent une CLI dans un bac à sable isolé ; les agents utilisent la boucle d'outils de la plateforme avec connaissances et workflows.",
+          "internalLabel": "Agent",
+          "externalLabel": "Agent de code",
           "imageLabel": "Génération d'images",
-          "imageDescription": "Achemine le message directement vers un modèle d'image.",
           "switchTitle": "Changer le type d'agent ?",
-          "switchToExternalDescription": "L'agent s'exécutera désormais dans un bac à sable et ses outils de plateforme et workflows seront effacés. Les intégrations liées sont conservées.",
-          "switchToChatDescription": "L'agent utilisera désormais la boucle d'outils de la plateforme et ses paramètres d'exécution externe et d'identifiants seront effacés.",
-          "switchToImageDescription": "L'agent passera à la génération d'images et ses outils, workflows, intégrations et paramètres d'exécution externe seront effacés.",
+          "switchToExternalDescription": "L'agent devient un agent de code dans un bac à sable ; ses outils de plateforme et workflows seront effacés. Les intégrations liées sont conservées.",
+          "switchToChatDescription": "L'agent utilisera la boucle d'outils de la plateforme ; ses paramètres de CLI bac à sable et d'identifiants seront effacés.",
+          "switchToImageDescription": "L'agent passera à la génération d'images ; ses outils, workflows, intégrations et paramètres de CLI bac à sable seront effacés.",
+          "switchTaskDispatchNote": "Les paramètres de dispatch des tâches dans le JSON de l'agent restent inchangés.",
           "noModelWarning": "Cet agent n'a aucun modèle — ajoutes-en un dans l'onglet Instructions avant d'enregistrer, sinon l'enregistrement échouera.",
           "switchConfirm": "Changer le type"
         },
         "agentKind": {
-          "label": "Exécution externe",
-          "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
+          "label": "CLI bac à sable",
+          "description": "Quelle CLI de code exécute les tours de chat de cet agent dans le bac à sable.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
           "opencode": "OpenCode",
@@ -5340,6 +5342,18 @@
           "codex": "Codex",
           "pi": "Pi",
           "openclaw": "OpenClaw"
+        },
+        "taskBoard": {
+          "title": "Sur le board de tâches",
+          "agentPlatform": "Utilise les outils de la plateforme et publie le résultat en commentaire de tâche.",
+          "codingDaemon": "Les tâches s'exécutent sur ta machine (tale-daemon) dans un workspace git.",
+          "codingDurable": "Les tâches s'exécutent dans un conteneur bac à sable ; le résultat est un fichier de synthèse.",
+          "codingSandboxOnly": "Le chat utilise un bac à sable ; les tâches du board utilisent la boucle plateforme tant qu'aucun daemon n'est lié ou que les tâches durables ne sont pas activées dans le JSON de l'agent."
+        },
+        "displayCategory": {
+          "agent": "Agent",
+          "codingAgent": "Agent de code",
+          "imageAgent": "Image"
         },
         "webTools": {
           "sectionTitle": "Outils web",
@@ -6910,8 +6924,20 @@
     "board": {
       "noTasks": "Aucune tâche"
     },
-    "filters": {
-      "waitingOnMe": "En attente de moi"
+    "list": {
+      "showArchived": "Afficher les archivées"
+    },
+    "archived": {
+      "badge": "Archivée"
+    },
+    "archive": {
+      "confirmTitle": "Archiver la tâche ?",
+      "confirmDescription": "La tâche disparaît du board et de la liste. Active « Afficher les archivées » pour la restaurer plus tard.",
+      "restoreDescription": "La tâche réapparaît dans le board et la liste.",
+      "success": "Tâche archivée",
+      "error": "Impossible d'archiver la tâche",
+      "restoreSuccess": "Tâche restaurée",
+      "restoreError": "Impossible de restaurer la tâche"
     },
     "detail": {
       "overview": "Aperçu",
@@ -6942,9 +6968,18 @@
       "unassigned": "Non assigné",
       "assignToMe": "M’assigner",
       "agents": "Agents",
+      "codingAgents": "Agents de code",
+      "codingAgentsInfo": "Le dispatch sur le board dépend de chaque agent — tale-daemon sur ta machine, bac à sable durable, ou boucle plateforme quand seul le chat utilise un bac à sable.",
       "unassign": "Désassigner",
       "you": "Vous",
-      "search": "Rechercher des personnes…"
+      "search": "Rechercher des personnes…",
+      "dispatchHints": {
+        "agentPlatform": "Utilise les outils de la plateforme et publie un commentaire de tâche.",
+        "codingDaemon": "S'exécute sur ta machine dans un workspace git.",
+        "codingDurable": "S'exécute dans un bac à sable ; écrit un fichier de synthèse.",
+        "codingSandboxOnly": "Le chat utilise un bac à sable ; les tâches du board utilisent la boucle plateforme."
+      },
+      "nonCodeWarning": "Cet agent de code est optimisé pour le travail sur dépôt. Pour la recherche, la rédaction ou des livrables personnels, assigne une personne ou un Agent."
     },
     "activity": {
       "created": "Créé",
@@ -6971,7 +7006,6 @@
       "changesRequestedToast": "Modifications demandées — l'agent s'en occupe"
     },
     "agentRuns": {
-      "title": "Activité de l'agent",
       "working": "L'agent travaille…",
       "totalCost": "{amount} au total",
       "status": {
@@ -6990,6 +7024,13 @@
         "manual": "manuel"
       }
     },
+    "timeline": {
+      "runLabel": "Exécution d'agent",
+      "systemActor": "Système",
+      "unresolvedWorkflow": "Workflow",
+      "viewAgent": "Voir l'agent",
+      "viewWorkflow": "Voir le workflow"
+    },
     "dueDate": {
       "label": "Échéance",
       "overdue": "En retard",
@@ -7000,7 +7041,8 @@
       "willQueue": "{slug} va répondre (en file — limite de simultanéité atteinte)",
       "packDisabled": "{slug} ne répondra pas — l'automatisation des tâches est désactivée",
       "breakerPaused": "{slug} ne répondra pas — les exécutions d'agents sont en pause sur cette tâche",
-      "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé"
+      "budgetPaused": "{slug} ne répondra pas — budget mensuel épuisé",
+      "agentNotLive": "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
     },
     "mentionPicker": {
       "title": "Mentionner un membre ou un agent",
@@ -7644,7 +7686,10 @@
       "saveSuccess": "Enregistré",
       "saveError": "Impossible d'enregistrer les paramètres",
       "lockoutWarning": "Certains membres pourraient ne plus avoir aucun agent/modèle utilisable après ces restrictions. Ils verront un composer vide.",
-      "recommendedBadge": "Recommandé"
+      "recommendedBadge": "Recommandé",
+      "sectionAgents": "Agents",
+      "sectionCodingAgents": "Agents de code",
+      "sectionImageAgents": "Image"
     },
     "settings": {
       "identity": "Identité",
@@ -7656,6 +7701,7 @@
       "owningTeamHelp": "Les membres de cette équipe ont un accès complet. Les administrateurs de l'organisation ont toujours accès.",
       "alsoSharedWith": "Également partagé avec",
       "alsoSharedWithHelp": "Choisis d'autres équipes qui devraient voir ce projet.",
+      "noAdditionalTeams": "Aucune équipe supplémentaire",
       "visibility": "Visibilité",
       "visibilityTeam": "Équipe uniquement",
       "visibilityShared": "Équipes spécifiques",
@@ -7892,6 +7938,39 @@
     }
   },
   "agentCatalog": {
+    "folders": {
+      "workforce": "Effectif",
+      "chat": "Chat",
+      "github": "GitHub",
+      "general": "Général"
+    },
+    "loadError": {
+      "title": "Impossible de charger le catalogue",
+      "description": "Le catalogue d'agents n'a pas pu être chargé. Vérifie ta connexion et réessaie.",
+      "retry": "Réessayer"
+    },
+    "noResults": {
+      "title": "Aucun agent correspondant",
+      "description": "Aucun agent ne correspond à ta recherche. Essaie un autre terme."
+    },
+    "title": "Catalogue d'agents",
+    "searchPlaceholder": "Rechercher des agents…",
+    "categoryFilter": {
+      "title": "Catégorie",
+      "all": "Tous",
+      "agent": "Agents",
+      "codingAgent": "Agents de code",
+      "imageAgent": "Image"
+    },
+    "categoryBadge": {
+      "agent": "Agent",
+      "codingAgent": "Agent de code",
+      "imageAgent": "Image"
+    },
+    "install": "Installer",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "uninstall": "Désinstaller",
     "installed": "Agent installé",
     "enabled": "Agent activé",
     "disabled": "Agent désactivé",

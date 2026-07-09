@@ -30,6 +30,18 @@ Jeder Agenten-Lauf — Zuweisung, Mention, Revision, Eskalation, extern — pass
 
 Org-weite Limits (Lauf-Parallelität, Läufe pro Aufgabe und Stunde) sind feste Plattform-Standards; Budget und Parallelität pro Agent liegen in dessen Konfiguration.
 
+## Assignee wählen
+
+Nicht jede Aufgabe gehört an einen Coding-Agenten. Faustregel:
+
+| Aufgabenart                                                                           | Zuweisen                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, Texte, Zusammenfassungen, persönliche Deliverables                         | Eine **Person** — deaktiviere unassigned Triage in persönlichen Projekten, damit Agenten sie nicht automatisch übernehmen                                                                                                                                     |
+| Allgemeine Automatisierung mit Plattform-Tools (Kommentare, Workflows, Integrationen) | Einen **Agent** (Plattform-Tool-Schleife)                                                                                                                                                                                                                     |
+| Repo-Arbeit — Bugs, Features, Refactors, PRs                                          | Einen **Coding-Agent** mit passendem Dispatch: tale-daemon (`runtime`) für Git-Workspaces, durable Sandbox wenn konfiguriert, oder akzeptiere, dass Sandbox-only-Coding-Agenten auf dem Board weiter die Plattform-Schleife nutzen, bis du diese Felder setzt |
+
+Der Assignee-Picker trennt **Agenten** und **Coding-Agenten** und zeigt pro Coding-Agent eine Zeile Dispatch-Hinweis. Image-Agenten erscheinen nicht in der Assignee-Liste.
+
 ## Der Kill-Switch
 
 Die Governance-Richtlinie `task_automation` trägt den Hauptschalter: `enabled: false` in der Konfigurationsdatei `governance/task-automation.json` der Organisation stoppt den Ausführungspfad — Laufendes endet, Neues startet nicht. Nur für Admins, auditiert.

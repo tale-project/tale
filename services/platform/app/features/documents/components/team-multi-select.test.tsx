@@ -25,6 +25,20 @@ describe('TeamMultiSelect', () => {
     expect(screen.getByText('Organization-wide')).toBeInTheDocument();
   });
 
+  it('renders muted placeholder when emptyPlaceholderStyle is muted', () => {
+    render(
+      <TeamMultiSelect
+        {...defaultProps}
+        orgWideLabel="No additional teams"
+        emptyPlaceholderStyle="muted"
+      />,
+    );
+
+    const placeholder = screen.getByText('No additional teams');
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder).toHaveClass('text-muted-foreground');
+  });
+
   it('shows selected teams as chips', () => {
     render(
       <TeamMultiSelect
