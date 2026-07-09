@@ -1,9 +1,10 @@
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import {
   type ReactNode,
   createContext,
+  createElement,
   useContext,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -69,6 +70,11 @@ export interface AccordionItemProps {
   id?: string;
   question: ReactNode;
   children: ReactNode;
+  /**
+   * Heading level wrapping the trigger button (WAI-ARIA accordion pattern).
+   * Pick the level that continues the page's heading outline.
+   */
+  headingLevel?: 2 | 3 | 4;
   /** Wrapper class applied to the outer item container. */
   className?: string;
   /** Class applied to the trigger button — overrides the default typography. */
@@ -81,6 +87,7 @@ export function AccordionItem({
   id,
   question,
   children,
+  headingLevel = 3,
   className,
   triggerClassName,
   contentClassName,
@@ -90,64 +97,64 @@ export function AccordionItem({
   const generatedId = useId();
   const itemId = id ?? generatedId;
   const isOpen = ctx.isOpen(itemId);
-  const reduceMotion = useReducedMotion();
+
+  // The panel stays mounted so its text ships in prerendered HTML — crawlers,
+  // llms-full.txt, and the per-page `.md` all read the closed answers. That
+  // only works if the server markup carries no `aria-hidden` (the markdown
+  // transform drops such subtrees), so the collapsed a11y state is applied
+  // after mount — effects never run during renderToString.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const hideClosed = !isOpen && mounted;
 
   return (
     <div className={cn('border-border-base border-b px-5 py-5', className)}>
-      <button
-        type="button"
-        onClick={() => ctx.toggle(itemId)}
-        aria-expanded={isOpen}
-        aria-controls={`${itemId}-content`}
-        className={cn(
-          'flex w-full cursor-pointer items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
-          triggerClassName,
-        )}
-        style={{ lineHeight: 1.4 }}
-      >
-        <span>{question}</span>
-        <ChevronDown
-          aria-hidden
-          strokeWidth={2}
+      {createElement(
+        `h${headingLevel}`,
+        { className: 'm-0' },
+        <button
+          type="button"
+          onClick={() => ctx.toggle(itemId)}
+          aria-expanded={isOpen}
+          aria-controls={`${itemId}-content`}
           className={cn(
-            'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
-            isOpen ? 'rotate-180' : '',
+            'flex w-full cursor-pointer items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
+            triggerClassName,
           )}
-        />
-      </button>
-      <AnimatePresence initial={false}>
-        {isOpen ? (
-          <motion.div
-            id={`${itemId}-content`}
-            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={
-              reduceMotion
-                ? { height: 'auto', opacity: 1 }
-                : { height: 0, opacity: 0 }
-            }
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : {
-                    height: { duration: 0.4, ease: [0.32, 0.72, 0, 1] },
-                    opacity: { duration: 0.25, ease: 'easeOut' },
-                  }
-            }
-            className="overflow-hidden"
+          style={{ lineHeight: 1.4 }}
+        >
+          <span>{question}</span>
+          <ChevronDown
+            aria-hidden
+            strokeWidth={2}
+            className={cn(
+              'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
+              isOpen ? 'rotate-180' : '',
+            )}
+          />
+        </button>,
+      )}
+      <div
+        id={`${itemId}-content`}
+        aria-hidden={hideClosed || undefined}
+        inert={hideClosed || undefined}
+        className={cn(
+          'grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={cn(
+              'text-fg-muted max-w-xl pt-3 text-base',
+              contentClassName,
+            )}
+            style={{ letterSpacing: '-0.0072em', lineHeight: 1.5 }}
           >
-            <div
-              className={cn(
-                'text-fg-muted max-w-xl pt-3 text-base',
-                contentClassName,
-              )}
-              style={{ letterSpacing: '-0.0072em', lineHeight: 1.5 }}
-            >
-              {children}
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            {children}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
