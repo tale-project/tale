@@ -67,8 +67,10 @@ async function createProject(
     { timeout: TIMEOUT.NAV },
   );
   const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
-  expect(projectId, 'a project id should appear in the URL').toBeTruthy();
-  return projectId!;
+  if (!projectId) {
+    throw new Error('expected a project id in the URL after create');
+  }
+  return projectId;
 }
 
 async function createRootFolder(

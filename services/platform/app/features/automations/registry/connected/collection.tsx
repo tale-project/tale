@@ -443,7 +443,11 @@ function CollectionSingle(props: InnerCollectionProps) {
   // ErrorBoundary shows it (and logs `[automation-registry] block "Collection"
   // crashed`) instead of an empty table that looks like "no quarters".
   if (error) {
-    throw error instanceof Error ? error : new Error(String(error));
+    throw error instanceof Error
+      ? error
+      : new Error(
+          typeof error === 'string' ? error : 'Collection query failed',
+        );
   }
   return (
     <CollectionBody
