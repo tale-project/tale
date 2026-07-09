@@ -11,9 +11,11 @@
  *   2. records the provision so the org is never re-provisioned behind its
  *      back (a later uninstall/disable sticks).
  *
- * Invoked from the org-creation hook (after the scaffold copies the catalog)
- * and from the all-orgs deploy runner. Self-retries when the agents dir does
- * not exist yet (scaffold still running). Mirrors
+ * Invoked from the org-creation hook (after the scaffold copies the catalog),
+ * from the all-orgs deploy runner, and from the explicit "Update built-in
+ * agents" catalog sync (`organizations/builtin_sync.ts`, which passes
+ * `reinstallMissing` — see that arg's doc). Self-retries when the agents dir
+ * does not exist yet (scaffold still running). Mirrors
  * `workflows/provision_defaults.ts`.
  */
 
@@ -87,6 +89,14 @@ export const syncDefaultAgentInstallations = internalAction({
     organizationId: v.string(),
     orgSlug: v.string(),
     attempt: v.optional(v.number()),
+    /**
+     * Restore an autoInstall agent whose `agentInstallations` row was DELETED,
+     * even though its provision row says it was provisioned before. Set only
+     * by the explicit "Update built-in agents" catalog sync — an operator
+     * action is consent, unlike this sweep's background invocations. A row
+     * that exists but is disabled stays untouched (disable is deliberate).
+     */
+    reinstallMissing: v.optional(v.boolean()),
   },
   returns: v.object({
     provisioned: v.number(),
@@ -134,8 +144,21 @@ export const syncDefaultAgentInstallations = internalAction({
           { organizationId: args.organizationId, agentSlug },
         );
         if (existing) {
-          skipped += 1;
-          continue;
+          // Provisioned before — normally final (a later uninstall sticks).
+          // On an explicit sync (`reinstallMissing`) a MISSING install row is
+          // healed; an existing (even disabled) row is still respected.
+          if (args.reinstallMissing !== true) {
+            skipped += 1;
+            continue;
+          }
+          const installed = await ctx.runQuery(
+            internal.agents.installations.getInstallationInternal,
+            { organizationId: args.organizationId, agentSlug },
+          );
+          if (installed !== null) {
+            skipped += 1;
+            continue;
+          }
         }
 
         await ctx.runMutation(
