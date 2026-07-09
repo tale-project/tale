@@ -1,9 +1,9 @@
 import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FaqAccordion } from '@/app/components/blocks/faq-accordion';
-import { FeatureSecure } from '@/app/components/blocks/feature-secure';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
 import { IntegrationsBar } from '@/app/components/blocks/integrations-bar';
+import { OrchestrationTour } from '@/app/components/blocks/orchestration-tour';
 import { Tagline } from '@/app/components/blocks/tagline';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
@@ -24,12 +24,12 @@ export function HomePage() {
   return (
     <>
       <HeroHeadline />
-      <Tagline />
 
       <section id="features" aria-label={tFooter('features')}>
-        <FeatureSecure />
+        <OrchestrationTour />
       </section>
 
+      <Tagline />
       <IntegrationsBar />
       <ComplianceTrust />
       <FaqAccordion />

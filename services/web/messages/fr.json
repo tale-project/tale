@@ -89,6 +89,79 @@
         "citation2": "Connaissances · Politique d'escalade",
         "status": "Fondé sur 2 sources",
         "inputPlaceholder": "Pose ta question…"
+      },
+      "connect": {
+        "label": "Démo animée : les agents et outils que ton équipe utilise déjà — Claude Code, Codex, GitHub, Slack, Gmail, Microsoft 365 — s'arriment à un hub Tale et se déclarent connectés.",
+        "windowTitle": "Tale — Intégrations"
+      },
+      "knowledge": {
+        "label": "Démo animée : un PDF, un site crawlé et des données produits rejoignent la base de connaissances, le compteur grimpe, et une réponse cite la nouvelle source.",
+        "windowTitle": "Tale — Connaissances",
+        "source1": "escalades-q3.pdf",
+        "source2": "aide.acme.fr — 214 pages",
+        "source3": "Catalogue produits · 1 284 entrées",
+        "kbTitle": "Connaissances de l'entreprise",
+        "entriesLabel": "entrées indexées",
+        "answer1": "Les délais de retour varient selon la région :",
+        "answer2": "le catalogue UE autorise 30 jours, la Suisse 14 — extensibles sur les offres Enterprise.",
+        "citation": "Catalogue produits · Retours"
+      },
+      "automation": {
+        "label": "Démo animée : le workflow d'une automatisation s'exécute — un nouvel email déclenche la classification LLM, la condition remboursement choisit sa branche, une réponse est rédigée, et le journal d'exécution enregistre le run.",
+        "windowTitle": "Tale — Automatisations",
+        "kindTrigger": "Déclencheur",
+        "kindLlm": "LLM",
+        "kindCondition": "Condition",
+        "kindAction": "Action",
+        "trigger": "Nouvel email",
+        "llm": "Classifier l'intention",
+        "condition": "Remboursement ?",
+        "branchYes": "Oui",
+        "action": "Rédiger la réponse",
+        "actionAlt": "Router vers les ventes",
+        "logTitle": "Journal d'exécution",
+        "log1": "Run #482 · terminé en 3,2 s",
+        "log2": "Run #483 · en attente d'approbation"
+      },
+      "govern": {
+        "label": "Démo animée : une automatisation demande l'approbation d'envoyer 42 emails de remboursement, un humain approuve, le journal d'audit l'enregistre, et la barre de budget mensuel reste à 41 %.",
+        "windowTitle": "Tale — Gouvernance",
+        "approvalTitle": "Envoyer 42 emails de remboursement aux clients concernés ?",
+        "requester": "Automatisation d'inbox · demandé à l'instant",
+        "approve": "Approuver",
+        "reject": "Rejeter",
+        "approved": "Approuvé",
+        "auditTitle": "Journal d'audit",
+        "audit1": "refund-batch approuvé par anna@acme.com",
+        "audit2": "42 emails envoyés via l'intégration Gmail",
+        "audit3": "run archivé · conservation 10 ans",
+        "budgetLabel": "Dépenses ce mois-ci",
+        "budgetValue": "CHF 412 / 1 000",
+        "runsLabel": "128 runs aujourd'hui · tous conformes"
+      }
+    },
+    "tour": {
+      "title": "Comment Tale orchestre-t-il tes agents IA ?",
+      "subtitle": "Quatre gestes : connecte ce que tu utilises, mets ton savoir en commun, délègue le travail, gouverne le résultat.",
+      "connect": {
+        "eyebrow": "Agents & intégrations",
+        "title": "Amène les agents\nque tu utilises déjà",
+        "description": "Claude Code, Codex, Cursor, Gemini — plus Slack, GitHub, Outlook et le reste de ta stack. Rien n'est remplacé ; tout est coordonné."
+      },
+      "pool": {
+        "eyebrow": "Connaissances",
+        "title": "Une base de connaissances,\nchaque réponse fondée",
+        "description": "Documents, sites web, données produits et clients convergent vers une base de connaissances partagée. Les agents répondent avec ce que ton entreprise sait vraiment — sources vérifiables à l'appui."
+      },
+      "delegate": {
+        "eyebrow": "Automatisations",
+        "title": "Délègue le travail,\npas le contrôle",
+        "description": "Les automatisations enchaînent étapes LLM, conditions et actions en workflows déclenchés — triage d'inbox, escalades, rapports hebdo. Chaque exécution laisse un journal."
+      },
+      "govern": {
+        "eyebrow": "Approbations & audit",
+        "title": "Approuver avant l'envoi.\nAuditer après.",
+        "description": "Les approbations human-in-the-loop verrouillent les actions qui comptent. Journaux d'audit, budgets, garde-fous et SSO gardent l'essaim dans tes règles."
       }
     },
     "tagline": {
@@ -107,28 +180,6 @@
           "title": "Entièrement open source",
           "description": "Inspecte tout le code. Personnalise tout. Pas de boîte noire, pas de coûts cachés, aucune permission requise."
         }
-      }
-    },
-    "featureSecure": {
-      "chat": {
-        "eyebrow": "Chat",
-        "title": "Demande tout\nà tes données",
-        "description": "Charge des documents, crawle des sites web et connecte tes données produits et clients pour bâtir une base de connaissances. Puis demande, simplement.\n\nChoisis un spécialiste, joins des fichiers et obtiens des réponses fondées sur ce que ton entreprise sait vraiment — pas sur des données internet génériques."
-      },
-      "conversations": {
-        "eyebrow": "Conversations",
-        "title": "Chaque conversation,\nau même endroit",
-        "description": "Email, chat et chaque canal client convergent vers une seule boîte de réception. L'IA rédige les réponses à partir de ta base de connaissances, de l'historique client et des données produit.\n\nLes conversations sont acheminées automatiquement à la bonne personne. L'IA propose le premier brouillon ; ton équipe a le dernier mot."
-      },
-      "agents": {
-        "eyebrow": "Agents",
-        "title": "Des spécialistes IA\npour chaque équipe",
-        "description": "Donne un rôle à un agent, connecte-le à tes données et choisis son modèle IA — il est prêt en quelques minutes. Sans coder.\n\nDu support client aux revues de conformité, crée des spécialistes qui exploitent ta base de connaissances et s'améliorent à chaque conversation."
-      },
-      "workflows": {
-        "eyebrow": "Automatisations",
-        "title": "Des automatisations\nsans l'ingénierie",
-        "description": "Installe des automatisations dont les workflows se déclenchent sur des événements, prennent des décisions avec l'IA et bouclent jusqu'à ce que le travail soit fait. Les changements sont en ligne dès que tu sauvegardes.\n\nDe l'onboarding client aux chaînes d'escalade, automatise le travail répétitif qui ralentit ton équipe."
       }
     },
     "integrations": {

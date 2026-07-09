@@ -89,6 +89,79 @@
         "citation2": "Wissen · Eskalations-Richtlinie",
         "status": "Belegt mit 2 Quellen",
         "inputPlaceholder": "Frag einfach…"
+      },
+      "connect": {
+        "label": "Animierte Demo: Die Agents und Tools, die dein Team bereits nutzt — Claude Code, Codex, GitHub, Slack, Gmail, Microsoft 365 — docken an einem Tale-Hub an und melden sich verbunden.",
+        "windowTitle": "Tale — Integrationen"
+      },
+      "knowledge": {
+        "label": "Animierte Demo: Ein PDF, eine gecrawlte Website und Produktdaten landen in der Wissensbasis, der Zähler tickt hoch, und eine Antwort zitiert die neue Quelle.",
+        "windowTitle": "Tale — Wissen",
+        "source1": "q3-eskalationen.pdf",
+        "source2": "hilfe.acme.ch — 214 Seiten",
+        "source3": "Produktkatalog · 1'284 Einträge",
+        "kbTitle": "Unternehmenswissen",
+        "entriesLabel": "Einträge indexiert",
+        "answer1": "Rückgabefristen unterscheiden sich je Region:",
+        "answer2": "der EU-Katalog erlaubt 30 Tage, die Schweiz 14 — beides bei Enterprise-Plänen verlängerbar.",
+        "citation": "Produktkatalog · Rückgaben"
+      },
+      "automation": {
+        "label": "Animierte Demo: Der Workflow einer Automatisierung läuft — eine neue Email triggert die LLM-Klassifizierung, die Rückerstattungs-Bedingung wählt ihren Zweig, eine Antwort wird entworfen, und das Ausführungslog hält den Lauf fest.",
+        "windowTitle": "Tale — Automatisierungen",
+        "kindTrigger": "Trigger",
+        "kindLlm": "LLM",
+        "kindCondition": "Bedingung",
+        "kindAction": "Aktion",
+        "trigger": "Neue Email",
+        "llm": "Intent klassifizieren",
+        "condition": "Rückerstattung?",
+        "branchYes": "Ja",
+        "action": "Antwort entwerfen",
+        "actionAlt": "An Sales weiterleiten",
+        "logTitle": "Ausführungslog",
+        "log1": "Lauf #482 · abgeschlossen in 3,2s",
+        "log2": "Lauf #483 · wartet auf Freigabe"
+      },
+      "govern": {
+        "label": "Animierte Demo: Eine Automatisierung bittet um Freigabe für 42 Rückerstattungs-Emails, ein Mensch gibt frei, Audit-Log-Einträge halten es fest, und der Monats-Budgetbalken bleibt bei 41%.",
+        "windowTitle": "Tale — Governance",
+        "approvalTitle": "42 Rückerstattungs-Emails an betroffene Kunden senden?",
+        "requester": "Inbox-Automatisierung · gerade angefragt",
+        "approve": "Freigeben",
+        "reject": "Ablehnen",
+        "approved": "Freigegeben",
+        "auditTitle": "Audit-Log",
+        "audit1": "refund-batch freigegeben von anna@acme.com",
+        "audit2": "42 Emails über die Gmail-Integration gesendet",
+        "audit3": "Lauf archiviert · Aufbewahrung 10 J.",
+        "budgetLabel": "Ausgaben diesen Monat",
+        "budgetValue": "CHF 412 / 1'000",
+        "runsLabel": "128 Läufe heute · alle innerhalb der Richtlinien"
+      }
+    },
+    "tour": {
+      "title": "Wie orchestriert Tale deine KI-Agents?",
+      "subtitle": "Vier Schritte: verbinde, was du nutzt. Bündle dein Wissen. Delegiere die Arbeit. Kontrolliere das Ergebnis.",
+      "connect": {
+        "eyebrow": "Agents & Integrationen",
+        "title": "Bring die Agents mit,\ndenen du schon vertraust",
+        "description": "Claude Code, Codex, Cursor, Gemini — plus Slack, GitHub, Outlook und der Rest deines Stacks. Nichts wird ersetzt; alles wird koordiniert."
+      },
+      "pool": {
+        "eyebrow": "Wissen",
+        "title": "Eine Wissensbasis,\njede Antwort belegt",
+        "description": "Dokumente, Websites, Produkt- und Kundendaten landen in einer gemeinsamen Wissensbasis. Agents antworten mit dem Wissen deines Unternehmens — belegt mit prüfbaren Quellen."
+      },
+      "delegate": {
+        "eyebrow": "Automatisierungen",
+        "title": "Delegiere die Arbeit,\nnicht die Kontrolle",
+        "description": "Automatisierungen verketten LLM-Schritte, Bedingungen und Aktionen zu Workflows, die auf Trigger laufen — Inbox-Triage, Eskalationen, Wochenberichte. Jeder Lauf hinterlässt ein Log."
+      },
+      "govern": {
+        "eyebrow": "Freigaben & Audit",
+        "title": "Erst freigeben.\nDann auditieren.",
+        "description": "Human-in-the-Loop-Freigaben sichern die Aktionen, auf die es ankommt. Audit-Logs, Budgets, Guardrails und SSO halten den Schwarm in deinen Regeln."
       }
     },
     "tagline": {
@@ -107,28 +180,6 @@
           "title": "Vollständig Open Source",
           "description": "Prüfe den gesamten Quellcode. Passe alles an. Keine Black Boxes, keine versteckten Kosten, keine Genehmigungen nötig."
         }
-      }
-    },
-    "featureSecure": {
-      "chat": {
-        "eyebrow": "Chat",
-        "title": "Frag deine Daten\nalles",
-        "description": "Lade Dokumente hoch, crawle Websites und verbinde Produkt- und Kundendaten zu einer Wissensbasis. Dann frag einfach.\n\nWähle einen Spezialisten, häng Dateien an und erhalte Antworten, die auf dem basieren, was dein Unternehmen wirklich weiß — nicht auf generischen Internet-Daten."
-      },
-      "conversations": {
-        "eyebrow": "Konversationen",
-        "title": "Alle Konversationen\nan einem Ort",
-        "description": "Email, Chat und jeder Kundenkanal fließen in einen Posteingang. KI verfasst Antworten anhand deiner Wissensbasis, Kundenhistorie und Produktdaten.\n\nKonversationen werden automatisch an die richtige Person weitergeleitet. KI übernimmt den ersten Entwurf; dein Team hat das letzte Wort."
-      },
-      "agents": {
-        "eyebrow": "Agenten",
-        "title": "KI-Spezialisten\nfür jedes Team",
-        "description": "Gib einem Agenten eine Rolle, verbinde ihn mit deinen Daten und wähle sein KI-Modell — in Minuten einsatzbereit. Kein Coding nötig.\n\nVom Kundensupport bis zur Compliance-Prüfung: Erstelle Spezialisten, die deine Wissensbasis nutzen und mit jeder Konversation besser werden."
-      },
-      "workflows": {
-        "eyebrow": "Automatisierungen",
-        "title": "Automatisierungen ohne\nEngineering",
-        "description": "Installiere Automatisierungen, deren Workflows auf Events reagieren, mit KI Entscheidungen treffen und Schleifen ausführen, bis die Aufgabe erledigt ist. Änderungen sind live, sobald du speicherst.\n\nVom Kunden-Onboarding bis zur Eskalationskette: Automatisiere die wiederholende Arbeit, die dein Team ausbremst."
       }
     },
     "integrations": {

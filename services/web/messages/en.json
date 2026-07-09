@@ -89,6 +89,79 @@
         "citation2": "Knowledge · Escalation policy",
         "status": "Grounded in 2 sources",
         "inputPlaceholder": "Ask anything…"
+      },
+      "connect": {
+        "label": "Animated demo: the agents and tools a team already uses — Claude Code, Codex, GitHub, Slack, Gmail, Microsoft 365 — dock into one Tale hub and report connected.",
+        "windowTitle": "Tale — Integrations"
+      },
+      "knowledge": {
+        "label": "Animated demo: a PDF, a crawled website, and product data pool into the knowledge base, the entry counter ticks up, and an answer cites the new source.",
+        "windowTitle": "Tale — Knowledge",
+        "source1": "q3-escalations.pdf",
+        "source2": "help.acme.com — 214 pages",
+        "source3": "Product catalog · 1,284 items",
+        "kbTitle": "Company knowledge",
+        "entriesLabel": "entries indexed",
+        "answer1": "Return windows differ by region:",
+        "answer2": "the EU catalog allows 30 days, Switzerland 14 — both extendable on enterprise plans.",
+        "citation": "Product catalog · Returns"
+      },
+      "automation": {
+        "label": "Animated demo: an automation's workflow runs — a new email triggers an LLM classification, the refund condition picks its branch, a reply is drafted, and the execution log records the run.",
+        "windowTitle": "Tale — Automations",
+        "kindTrigger": "Trigger",
+        "kindLlm": "LLM",
+        "kindCondition": "Condition",
+        "kindAction": "Action",
+        "trigger": "New email",
+        "llm": "Classify intent",
+        "condition": "Refund request?",
+        "branchYes": "Yes",
+        "action": "Draft reply",
+        "actionAlt": "Route to sales",
+        "logTitle": "Execution log",
+        "log1": "Run #482 · completed in 3.2s",
+        "log2": "Run #483 · waiting for approval"
+      },
+      "govern": {
+        "label": "Animated demo: an automation requests approval to send 42 refund emails, a human approves, audit-log entries record it, and the monthly budget bar stays at 41%.",
+        "windowTitle": "Tale — Governance",
+        "approvalTitle": "Send 42 refund emails to affected customers?",
+        "requester": "Inbox automation · requested just now",
+        "approve": "Approve",
+        "reject": "Reject",
+        "approved": "Approved",
+        "auditTitle": "Audit log",
+        "audit1": "refund-batch approved by anna@acme.com",
+        "audit2": "42 emails sent via the Gmail integration",
+        "audit3": "run archived · retention 10y",
+        "budgetLabel": "Spend this month",
+        "budgetValue": "CHF 412 / 1'000",
+        "runsLabel": "128 runs today · all within policy"
+      }
+    },
+    "tour": {
+      "title": "How does Tale orchestrate your AI agents?",
+      "subtitle": "Four moves: connect what you use, pool what you know, delegate the work, govern the result.",
+      "connect": {
+        "eyebrow": "Agents & integrations",
+        "title": "Bring the agents\nyou already trust",
+        "description": "Claude Code, Codex, Cursor, Gemini — plus Slack, GitHub, Outlook, and the rest of your stack. Nothing gets replaced; everything gets coordinated."
+      },
+      "pool": {
+        "eyebrow": "Knowledge",
+        "title": "One knowledge base,\nevery answer grounded",
+        "description": "Documents, websites, product and customer data flow into a shared knowledge base. Agents answer from what your company actually knows — with citations you can check."
+      },
+      "delegate": {
+        "eyebrow": "Automations",
+        "title": "Delegate the work,\nnot the control",
+        "description": "Automations chain LLM steps, conditions, and actions into workflows that run on triggers — inbox triage, escalations, weekly reports. Every run leaves a log."
+      },
+      "govern": {
+        "eyebrow": "Approvals & audit",
+        "title": "Approve before it ships.\nAudit after.",
+        "description": "Human-in-the-loop approvals gate the actions that matter. Audit logs, budgets, guardrails, and SSO keep the swarm inside your rules."
       }
     },
     "tagline": {
@@ -107,28 +180,6 @@
           "title": "Fully open source",
           "description": "Review the entire codebase. Customize anything. No black boxes, no hidden costs, no permission needed."
         }
-      }
-    },
-    "featureSecure": {
-      "chat": {
-        "eyebrow": "Chat",
-        "title": "Ask your data\nanything",
-        "description": "Upload documents, crawl websites, and connect your product and customer data to build a knowledge base. Then just ask.\n\nPick a specialist, attach files, and get answers grounded in what your company actually knows — not generic internet data."
-      },
-      "conversations": {
-        "eyebrow": "Conversations",
-        "title": "Every conversation,\none place",
-        "description": "Email, chat, and every customer channel flow into one inbox. AI drafts replies using your knowledge base, customer history, and product data.\n\nConversations route to the right person automatically. AI handles the first draft; your team has the final word."
-      },
-      "agents": {
-        "eyebrow": "Agents",
-        "title": "AI specialists\nfor every team",
-        "description": "Give an agent a role, connect it to your data, and choose its AI model — it's ready in minutes. No coding required.\n\nFrom customer support to compliance reviews, create specialists that use your knowledge base and improve with every conversation."
-      },
-      "workflows": {
-        "eyebrow": "Automations",
-        "title": "Automations without the\nengineering",
-        "description": "Install automations whose workflows trigger on events, make decisions with AI, and loop until the job is done. Changes go live the moment you save.\n\nFrom customer onboarding to escalation chains, automate the repetitive work that slows your team down."
       }
     },
     "integrations": {
