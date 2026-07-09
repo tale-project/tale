@@ -8,21 +8,37 @@
 // Organization
 // ---------------------------------------------------------------------------
 
+export interface OrganizationAddress {
+  streetAddress: string;
+  postalCode: string;
+  addressLocality: string;
+  /** ISO 3166-1 alpha-2 country code, e.g. `CH`. */
+  addressCountry: string;
+}
+
 interface OrganizationParams {
   name: string;
   url: string;
+  /** Stable node id (`@id`) so other blocks can reference this entity. */
+  id?: string;
+  /** Registered company name when it differs from the brand, e.g. `Ruler GmbH`. */
+  legalName?: string;
+  /** VAT registration, e.g. `CHE-186.532.610`. */
+  vatID?: string;
+  address?: OrganizationAddress;
   logoUrl?: string;
   sameAs?: readonly string[];
 }
 
 /**
  * `Organization` block — used on the homepage so Google can surface a
- * richer knowledge-panel result (logo, social profiles).
+ * richer knowledge-panel result (logo, social profiles, legal entity).
  *
  * @example
  *   buildOrganizationJsonLd({
  *     name: 'Tale',
  *     url: 'https://tale.dev',
+ *     legalName: 'Ruler GmbH',
  *     logoUrl: 'https://tale.dev/logo.png',
  *     sameAs: ['https://x.com/taledev', 'https://github.com/tale'],
  *   });
@@ -31,8 +47,22 @@ export function buildOrganizationJsonLd(params: OrganizationParams): string {
   return JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    ...(params.id ? { '@id': params.id } : {}),
     name: params.name,
     url: params.url,
+    ...(params.legalName ? { legalName: params.legalName } : {}),
+    ...(params.vatID ? { vatID: params.vatID } : {}),
+    ...(params.address
+      ? {
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress: params.address.streetAddress,
+            postalCode: params.address.postalCode,
+            addressLocality: params.address.addressLocality,
+            addressCountry: params.address.addressCountry,
+          },
+        }
+      : {}),
     ...(params.logoUrl ? { logo: params.logoUrl } : {}),
     ...(params.sameAs && params.sameAs.length > 0
       ? { sameAs: [...params.sameAs] }
@@ -138,6 +168,119 @@ export function buildArticleJsonLd(params: ArticleParams): string {
     ...publisher,
     ...(params.imageUrl ? { image: params.imageUrl } : {}),
     ...(params.inLanguage ? { inLanguage: params.inLanguage } : {}),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// FAQPage
+// ---------------------------------------------------------------------------
+
+export interface FaqEntry {
+  question: string;
+  answer: string;
+}
+
+/**
+ * `FAQPage` block. Emit only for questions whose answers are visibly
+ * rendered on the page — schema for invisible content invites a manual
+ * action. Answers are plain text (`acceptedAnswer.text`).
+ *
+ * @example
+ *   buildFaqPageJsonLd([
+ *     { question: 'Is Tale open source?', answer: 'Yes — MIT licensed.' },
+ *   ]);
+ */
+export function buildFaqPageJsonLd(entries: readonly FaqEntry[]): string {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: entries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: { '@type': 'Answer', text: entry.answer },
+    })),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SoftwareApplication
+// ---------------------------------------------------------------------------
+
+export interface SoftwareOffer {
+  /** Display name of the edition/plan, e.g. `Community`, `Enterprise`. */
+  name: string;
+  /** Numeric price as a string, e.g. `'0'`, `'12'`. */
+  price: string;
+  /** ISO 4217 currency, e.g. `CHF`. */
+  priceCurrency: string;
+  /**
+   * Billing unit for recurring per-seat pricing, e.g. `per user per month`.
+   * When set, the offer carries a `UnitPriceSpecification`.
+   */
+  unitText?: string;
+}
+
+interface SoftwareApplicationParams {
+  name: string;
+  url: string;
+  description: string;
+  /** Stable node id (`@id`) so the same entity can be re-declared per page. */
+  id?: string;
+  /** schema.org category, e.g. `BusinessApplication`. */
+  applicationCategory: string;
+  /** Free-form OS/runtime line, e.g. `Linux (Docker, self-hosted)`. */
+  operatingSystem: string;
+  /** URL of the license text, e.g. the repository's MIT LICENSE. */
+  licenseUrl?: string;
+  inLanguage?: readonly string[];
+  sameAs?: readonly string[];
+  offers?: readonly SoftwareOffer[];
+}
+
+/**
+ * `SoftwareApplication` block describing the product itself. Offers must
+ * mirror the prices rendered on the page — source them from the same
+ * constants the pricing UI uses so the two can't drift.
+ */
+export function buildSoftwareApplicationJsonLd(
+  params: SoftwareApplicationParams,
+): string {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    ...(params.id ? { '@id': params.id } : {}),
+    name: params.name,
+    url: params.url,
+    description: params.description,
+    applicationCategory: params.applicationCategory,
+    operatingSystem: params.operatingSystem,
+    ...(params.licenseUrl ? { license: params.licenseUrl } : {}),
+    ...(params.inLanguage && params.inLanguage.length > 0
+      ? { inLanguage: [...params.inLanguage] }
+      : {}),
+    ...(params.sameAs && params.sameAs.length > 0
+      ? { sameAs: [...params.sameAs] }
+      : {}),
+    ...(params.offers && params.offers.length > 0
+      ? {
+          offers: params.offers.map((offer) => ({
+            '@type': 'Offer',
+            name: offer.name,
+            price: offer.price,
+            priceCurrency: offer.priceCurrency,
+            ...(offer.unitText
+              ? {
+                  priceSpecification: {
+                    '@type': 'UnitPriceSpecification',
+                    price: offer.price,
+                    priceCurrency: offer.priceCurrency,
+                    unitText: offer.unitText,
+                  },
+                }
+              : {}),
+          })),
+        }
+      : {}),
   });
 }
 

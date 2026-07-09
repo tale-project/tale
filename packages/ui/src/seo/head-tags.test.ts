@@ -150,6 +150,69 @@ describe('resolveDocumentHead', () => {
       content: 'https://tale.dev/og.png',
     });
   });
+
+  it('emits og:image detail and og:locale tags when provided', () => {
+    const tags = resolveDocumentHead({
+      ...base,
+      defaultOgImage: 'https://tale.dev/og.png',
+      ogImageAlt: 'Tale — the orchestrator for AI agents',
+      ogImageWidth: 1200,
+      ogImageHeight: 630,
+      ogImageType: 'image/png',
+      ogLocale: 'en_US',
+      ogLocaleAlternates: ['de_CH', 'fr_CH'],
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'property',
+      key: 'og:image:alt',
+      content: 'Tale — the orchestrator for AI agents',
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'property',
+      key: 'og:image:width',
+      content: '1200',
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'property',
+      key: 'og:image:height',
+      content: '630',
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'property',
+      key: 'og:image:type',
+      content: 'image/png',
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'name',
+      key: 'twitter:image:alt',
+      content: 'Tale — the orchestrator for AI agents',
+    });
+    expect(tags).toContainEqual({
+      tag: 'meta',
+      attr: 'property',
+      key: 'og:locale',
+      content: 'en_US',
+    });
+    const localeAlternates = tags.filter(
+      (t) => t.tag === 'meta' && t.key === 'og:locale:alternate',
+    );
+    expect(localeAlternates).toHaveLength(2);
+  });
+
+  it('omits image detail and locale tags when their inputs are unset', () => {
+    const tags = resolveDocumentHead({
+      ...base,
+      defaultOgImage: 'https://tale.dev/og.png',
+    });
+    const keys = tags.filter((t) => t.tag === 'meta').map((t) => t.key);
+    expect(keys).not.toContain('og:image:alt');
+    expect(keys).not.toContain('og:locale');
+  });
 });
 
 describe('renderHeadToHtml', () => {

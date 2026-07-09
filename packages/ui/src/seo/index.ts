@@ -40,8 +40,15 @@ export {
   buildWebSiteJsonLd,
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
+  buildFaqPageJsonLd,
+  buildSoftwareApplicationJsonLd,
 } from './builders/json-ld';
-export type { BreadcrumbItem } from './builders/json-ld';
+export type {
+  BreadcrumbItem,
+  FaqEntry,
+  OrganizationAddress,
+  SoftwareOffer,
+} from './builders/json-ld';
 
 export { pageAsMarkdown } from './builders/page-as-markdown';
 

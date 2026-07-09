@@ -29,6 +29,18 @@ export interface DocumentHeadInput {
   ogImage?: string;
   /** Fallback OpenGraph image used when `ogImage` is unset. */
   defaultOgImage?: string;
+  /** Accessible description of the OG image (`og:image:alt`, `twitter:image:alt`). */
+  ogImageAlt?: string;
+  /** Intrinsic pixel width of the OG image (`og:image:width`). */
+  ogImageWidth?: number;
+  /** Intrinsic pixel height of the OG image (`og:image:height`). */
+  ogImageHeight?: number;
+  /** MIME type of the OG image (`og:image:type`), e.g. `image/png`. */
+  ogImageType?: string;
+  /** Page locale in OG territory format, e.g. `en_US`, `de_CH`. */
+  ogLocale?: string;
+  /** Other locales the page exists in (`og:locale:alternate`, one tag each). */
+  ogLocaleAlternates?: readonly string[];
   /** Set `noindex,nofollow` for legal-style pages. */
   noindex?: boolean;
   /** When provided, emit hreflang alternates per locale. */
@@ -59,6 +71,12 @@ export function resolveDocumentHead(meta: DocumentHeadInput): HeadTag[] {
     siteUrl,
     ogImage,
     defaultOgImage,
+    ogImageAlt,
+    ogImageWidth,
+    ogImageHeight,
+    ogImageType,
+    ogLocale,
+    ogLocaleAlternates,
     noindex,
     hreflang,
     jsonLd,
@@ -86,7 +104,18 @@ export function resolveDocumentHead(meta: DocumentHeadInput): HeadTag[] {
   m('name', 'twitter:description', description);
   if (resolvedOgImage) {
     m('property', 'og:image', resolvedOgImage);
+    if (ogImageAlt) m('property', 'og:image:alt', ogImageAlt);
+    if (ogImageWidth) m('property', 'og:image:width', String(ogImageWidth));
+    if (ogImageHeight) m('property', 'og:image:height', String(ogImageHeight));
+    if (ogImageType) m('property', 'og:image:type', ogImageType);
     m('name', 'twitter:image', resolvedOgImage);
+    if (ogImageAlt) m('name', 'twitter:image:alt', ogImageAlt);
+  }
+  if (ogLocale) {
+    m('property', 'og:locale', ogLocale);
+    for (const alternate of ogLocaleAlternates ?? []) {
+      m('property', 'og:locale:alternate', alternate);
+    }
   }
   m('name', 'robots', noindex ? 'noindex,nofollow' : 'index,follow');
 
@@ -244,6 +273,11 @@ export function applyHeadToDocument(tags: readonly HeadTag[]): void {
       `script[type="application/ld+json"][${JSON_LD_DATA_ATTR}]`,
     )
     .forEach((el) => el.remove());
+  // Variable-count like hreflang/JSON-LD: clear then re-add, since upsert
+  // by key would collapse multiple alternates into one.
+  document.head
+    .querySelectorAll('meta[property="og:locale:alternate"]')
+    .forEach((el) => el.remove());
 
   let hasCanonical = false;
   let hasOgUrl = false;
@@ -254,8 +288,15 @@ export function applyHeadToDocument(tags: readonly HeadTag[]): void {
         document.title = t.text;
         break;
       case 'meta':
-        upsertMeta(t.attr, t.key, t.content);
-        if (t.key === 'og:url') hasOgUrl = true;
+        if (t.key === 'og:locale:alternate') {
+          const el = document.createElement('meta');
+          el.setAttribute(t.attr, t.key);
+          el.setAttribute('content', t.content);
+          document.head.appendChild(el);
+        } else {
+          upsertMeta(t.attr, t.key, t.content);
+          if (t.key === 'og:url') hasOgUrl = true;
+        }
         break;
       case 'link':
         if (t.rel === 'alternate') {

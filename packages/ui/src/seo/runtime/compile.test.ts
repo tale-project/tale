@@ -115,6 +115,49 @@ describe('compileArtifacts', () => {
     expect(files.has('de.md')).toBe(true);
   });
 
+  it('keeps routes out of sitemap.xml when `excludeFromSitemap` is set', () => {
+    const params = baseParams();
+    const { files } = compileArtifacts({
+      ...params,
+      sections: [
+        ...params.sections,
+        {
+          heading: 'Legal',
+          excludeFromSitemap: true,
+          routes: [
+            {
+              url: '/legal/privacy-policy',
+              title: 'Privacy Policy',
+              body: '# Privacy Policy\n',
+            },
+          ],
+        },
+      ],
+    });
+    // A sitemap lists only indexable URLs — noindex pages stay out…
+    expect(files.get('sitemap.xml') ?? '').not.toContain(
+      'legal/privacy-policy',
+    );
+    // …while the LLM-facing artifacts keep the content.
+    expect(files.get('llms.txt') ?? '').toContain('Privacy Policy');
+    expect(files.has('legal/privacy-policy.md')).toBe(true);
+  });
+
+  it('omits sitemap.xml entirely when every section is excluded', () => {
+    const { files } = compileArtifacts({
+      ...baseParams(),
+      sections: [
+        {
+          heading: 'Legal',
+          excludeFromSitemap: true,
+          routes: [{ url: '/legal/privacy-policy', title: 'Privacy Policy' }],
+        },
+      ],
+    });
+    expect(files.has('sitemap.xml')).toBe(false);
+    expect(files.get('robots.txt') ?? '').not.toContain('Sitemap:');
+  });
+
   it('includes the main sitemap URL in robots.txt by default', () => {
     const { files } = compileArtifacts(baseParams());
     expect(files.get('robots.txt') ?? '').toContain(
