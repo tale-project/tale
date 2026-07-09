@@ -1,7 +1,7 @@
 import { Button } from '@tale/ui/button';
-import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 
+import { HeroOrchestration } from '@/app/components/blocks/demos/hero-orchestration';
 import { ExternalLink } from '@/app/components/layout/external-link';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
@@ -75,24 +75,9 @@ export function HeroHeadline() {
             ? { duration: 0 }
             : { delay: 0.35, duration: 0.8, ease: easeOut }
         }
-        className="mt-10 w-full md:mt-24.75"
+        className="mt-10 w-full px-4 pb-14 md:mt-16 md:px-6 md:pb-20"
       >
-        <Image
-          src="/marketing/hero-light.png"
-          alt=""
-          aria-hidden
-          className="mx-auto block max-h-125 w-full object-cover object-top select-none dark:hidden"
-          loading="eager"
-          draggable={false}
-        />
-        <Image
-          src="/marketing/hero-dark.png"
-          alt=""
-          aria-hidden
-          className="mx-auto hidden max-h-125 w-full object-cover object-top select-none dark:block"
-          loading="eager"
-          draggable={false}
-        />
+        <HeroOrchestration />
       </motion.div>
     </section>
   );

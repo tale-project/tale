@@ -74,6 +74,23 @@
       "ctaPrimary": "Demo anfragen",
       "ctaSecondary": "Loslegen"
     },
+    "demos": {
+      "hero": {
+        "label": "Animierte Produktdemo: Eine Aufgabe wird in Tale eingetippt, die Auto-Modellwahl leitet sie an den Support-Agent mit Claude Sonnet weiter, und die Antwort streamt herein — belegt mit zwei zitierten Quellen.",
+        "windowTitle": "Tale — Chat",
+        "prompt": "Fasse die gestrigen Support-Eskalationen zusammen und entwirf ein Status-Update.",
+        "chipAuto": "Auto",
+        "chipAgent": "Support-Agent · Claude Sonnet",
+        "reply1": "Gestern gab es 7 Eskalationen — 5 gelöst, 2 noch offen.",
+        "reply2": "Beide offenen Fälle betreffen verzögerte Hardware-Lieferungen in der EU.",
+        "reply3": "Ops bestätigt, dass die Ersatzgeräte diese Woche rausgehen —",
+        "reply4": "beiden Kunden kann also eine Lösung bis Freitag zugesagt werden.",
+        "citation1": "eskalations-log.pdf",
+        "citation2": "Wissen · Eskalations-Richtlinie",
+        "status": "Belegt mit 2 Quellen",
+        "inputPlaceholder": "Frag einfach…"
+      }
+    },
     "tagline": {
       "title": "Deine Infrastruktur. Deine Daten. Deine Regeln.",
       "subtitle": "Betreibe KI mit voller Kontrolle — vom Hosting bis zur Datenverwaltung.",

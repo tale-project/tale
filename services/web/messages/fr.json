@@ -74,6 +74,23 @@
       "ctaPrimary": "Demander une démo",
       "ctaSecondary": "Démarrer"
     },
+    "demos": {
+      "hero": {
+        "label": "Démo produit animée : une tâche est saisie dans Tale, le sélecteur de modèle Auto la confie à l'agent Support avec Claude Sonnet, et la réponse arrive en streaming — fondée sur deux sources citées.",
+        "windowTitle": "Tale — Chat",
+        "prompt": "Résume les escalades support d'hier et rédige un point de situation.",
+        "chipAuto": "Auto",
+        "chipAgent": "Agent Support · Claude Sonnet",
+        "reply1": "Hier, 7 escalades ont été enregistrées — 5 résolues, 2 encore ouvertes.",
+        "reply2": "Les deux cas ouverts concernent des livraisons de matériel retardées dans l'UE.",
+        "reply3": "Les opérations confirment que les unités de remplacement partent cette semaine —",
+        "reply4": "les deux clients peuvent donc compter sur une résolution d'ici vendredi.",
+        "citation1": "journal-escalades.pdf",
+        "citation2": "Connaissances · Politique d'escalade",
+        "status": "Fondé sur 2 sources",
+        "inputPlaceholder": "Pose ta question…"
+      }
+    },
     "tagline": {
       "title": "Ton infrastructure. Tes données. Tes règles.",
       "subtitle": "Fais tourner l'IA avec un contrôle total — de l'hébergement à la gouvernance des données.",

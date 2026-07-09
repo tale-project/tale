@@ -74,6 +74,23 @@
       "ctaPrimary": "Request demo",
       "ctaSecondary": "Get started"
     },
+    "demos": {
+      "hero": {
+        "label": "Animated product demo: a task is typed into Tale, the Auto model picker routes it to the Support Agent running Claude Sonnet, and a reply streams in grounded in two cited sources.",
+        "windowTitle": "Tale — Chat",
+        "prompt": "Summarize yesterday's support escalations and draft a status update.",
+        "chipAuto": "Auto",
+        "chipAgent": "Support Agent · Claude Sonnet",
+        "reply1": "Yesterday logged 7 escalations — 5 resolved, 2 still open.",
+        "reply2": "Both open cases concern delayed hardware deliveries in the EU region.",
+        "reply3": "Ops has confirmed replacement units ship this week,",
+        "reply4": "so both customers can be promised a resolution by Friday.",
+        "citation1": "escalations-log.pdf",
+        "citation2": "Knowledge · Escalation policy",
+        "status": "Grounded in 2 sources",
+        "inputPlaceholder": "Ask anything…"
+      }
+    },
     "tagline": {
       "title": "Your Infrastructure. Your Data. Your Rules.",
       "subtitle": "Run AI with complete control — from where it's hosted to how your data is governed.",
