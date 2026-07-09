@@ -499,3 +499,30 @@ describe('DataTable non-sticky wheel scroll', () => {
     expect(scrollParent.scrollTop).toBe(48);
   });
 });
+
+describe('DataTable row expansion panel', () => {
+  it('contains wide expanded content instead of letting the card clip it', async () => {
+    const { user } = render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        enableExpanding
+        renderExpandedRow={() => <div data-testid="run-panel">panel body</div>}
+      />,
+    );
+
+    await user.click(screen.getByText('Alice'));
+    const panel = screen.getByTestId('run-panel');
+
+    // jsdom does no layout, so pin the containment contract on the wrapper:
+    // min-w-0 defeats the grid item's min-width:auto — without it, unbreakable
+    // content (mono transcript lines, long ids) inflated the panel past the
+    // cell and the card's overflow-hidden cut off the right edge (Stop/Re-run
+    // buttons, status badges). overflow-x-auto scrolls genuinely rigid content
+    // locally. Layout behavior verified in a real browser.
+    const wrapper = panel.parentElement;
+    expect(wrapper).toHaveClass('min-w-0');
+    expect(wrapper).toHaveClass('overflow-x-auto');
+  });
+});

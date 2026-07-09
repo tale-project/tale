@@ -1058,7 +1058,12 @@ export function DataTable<TData, TValue = unknown>({
                     <TableRow className="border-0" data-no-hover>
                       <TableCell colSpan={columns.length + 1} className="p-0">
                         <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
-                          <div className="bg-muted/20 px-4 pb-2">
+                          {/* min-w-0: a grid item's min-width:auto would let
+                              unbreakable content (mono transcripts, long ids)
+                              inflate the panel past the cell, where the card's
+                              overflow-hidden clips it. Constrain and scroll
+                              locally instead. */}
+                          <div className="bg-muted/20 min-w-0 overflow-x-auto px-4 pb-2">
                             {renderExpandedRow(row)}
                           </div>
                         </div>
