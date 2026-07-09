@@ -46,7 +46,10 @@ export const supportCaseRowValidator = v.object({
   assigneeType: v.optional(supportCaseActorTypeValidator),
   assigneeId: v.optional(v.string()),
   contactId: v.optional(v.id('contacts')),
-  customerId: v.optional(v.id('customers')),
+  // Deprecated pre-#2618 link (expand-contract): getCase/listCases return the
+  // raw doc, which still carries customerId until the contract-phase clear, so
+  // the row validator must tolerate it or the query throws ReturnsValidationError.
+  customerId: v.optional(v.string()),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
   slaDueAt: v.optional(v.number()),
@@ -101,7 +104,7 @@ export const listCases = query({
     organizationId: v.string(),
     status: v.optional(supportCaseStatusValidator),
     assigneeId: v.optional(v.string()),
-    customerId: v.optional(v.id('customers')),
+    contactId: v.optional(v.id('contacts')),
     escalatedOnly: v.optional(v.boolean()),
     includeArchived: v.optional(v.boolean()),
   },
@@ -132,8 +135,8 @@ export const listCases = query({
       if (args.status && supportCase.status !== args.status) continue;
       if (args.assigneeId && supportCase.assigneeId !== args.assigneeId)
         continue;
-      if (args.customerId && supportCase.customerId !== args.customerId)
-        continue;
+      // issue #2618: contactId is the sole link to a contact.
+      if (args.contactId && supportCase.contactId !== args.contactId) continue;
       if (args.escalatedOnly && !(supportCase.escalationLevel ?? 0)) continue;
       rows.push(supportCase);
       if (rows.length >= SUPPORT_CASE_BOARD_CAP) {

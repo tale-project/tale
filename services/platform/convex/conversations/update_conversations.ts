@@ -105,7 +105,7 @@ export async function updateConversations(
     const patch: Record<string, unknown> = {};
 
     // Copy direct field updates from args.updates (now properly typed)
-    if (updates.customerId !== undefined) patch.customerId = updates.customerId;
+    if (updates.contactId !== undefined) patch.contactId = updates.contactId;
     if (updates.subject !== undefined) patch.subject = updates.subject;
     if (updates.status !== undefined) patch.status = updates.status;
     if (updates.priority !== undefined) patch.priority = updates.priority;

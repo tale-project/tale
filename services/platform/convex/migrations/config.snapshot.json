@@ -41798,10 +41798,10 @@
           "minimum": 0,
           "type": "integer"
         },
-        "customersEnabled": {
+        "contactsEnabled": {
           "type": "boolean"
         },
-        "customersRetentionDays": {
+        "contactsRetentionDays": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
@@ -41887,14 +41887,6 @@
           "type": "boolean"
         },
         "userTempRetentionHours": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "vendorsEnabled": {
-          "type": "boolean"
-        },
-        "vendorsRetentionDays": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
@@ -42196,6 +42188,15 @@
           },
           "required": ["label"],
           "type": "object"
+        },
+        "labels": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
         },
         "metadata": {
           "additionalProperties": {},
@@ -43366,7 +43367,7 @@
           "required": ["min", "max", "default", "unit"],
           "type": "object"
         },
-        "customers": {
+        "contacts": {
           "additionalProperties": false,
           "properties": {
             "max": {
@@ -43577,27 +43578,6 @@
           "type": "object"
         },
         "userTempHours": {
-          "additionalProperties": false,
-          "properties": {
-            "max": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "min": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "unit": {
-              "enum": ["days", "hours"],
-              "type": "string"
-            }
-          },
-          "required": ["min", "max", "default", "unit"],
-          "type": "object"
-        },
-        "vendors": {
           "additionalProperties": false,
           "properties": {
             "max": {

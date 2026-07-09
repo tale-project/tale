@@ -6,7 +6,7 @@
  * - channel: by_organizationId_and_channel
  * - status: by_organizationId_and_status
  * - priority: by_organizationId_and_priority
- * - customerId: by_organizationId_and_customerId
+ * - contactId: by_organizationId_and_contactId
  * - default: by_organizationId
  */
 
@@ -37,6 +37,17 @@ function buildOrderedQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
       .order('desc');
   }
 
+  // Contact filter (issue #2618) is index-backed when it's the primary facet.
+  if (args.contactId !== undefined) {
+    const contactId = args.contactId;
+    return ctx.db
+      .query('conversations')
+      .withIndex('by_organizationId_and_contactId', (q) =>
+        q.eq('organizationId', organizationId).eq('contactId', contactId),
+      )
+      .order('desc');
+  }
+
   return ctx.db
     .query('conversations')
     .withIndex('by_org_lastMessageAt', (q) =>
@@ -54,12 +65,12 @@ export async function queryConversations(
   const needsDirectionFilter = args.direction !== undefined;
   const needsChannelFilter = args.channel !== undefined;
   const needsPriorityFilter = args.priority !== undefined;
-  const needsCustomerIdFilter = args.customerId !== undefined;
+  const needsContactIdFilter = args.contactId !== undefined;
   const needsFilter =
     needsDirectionFilter ||
     needsChannelFilter ||
     needsPriorityFilter ||
-    needsCustomerIdFilter;
+    needsContactIdFilter;
 
   const filter = needsFilter
     ? (conversation: Doc<'conversations'>): boolean => {
@@ -69,10 +80,7 @@ export async function queryConversations(
           return false;
         if (needsPriorityFilter && conversation.priority !== args.priority)
           return false;
-        if (
-          needsCustomerIdFilter &&
-          conversation.customerId !== args.customerId
-        )
+        if (needsContactIdFilter && conversation.contactId !== args.contactId)
           return false;
         return true;
       }

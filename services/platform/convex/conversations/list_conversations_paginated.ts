@@ -10,7 +10,7 @@ import type { PaginationOptions } from 'convex/server';
 
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { getCustomersByIds } from './get_customers_by_ids';
+import { getContactsByIds } from './get_contacts_by_ids';
 import { transformConversation } from './transform_conversation';
 import type { ConversationItem, ConversationStatus } from './types';
 
@@ -104,18 +104,19 @@ export async function listConversationsPaginated(
 
   const result = await query.paginate(args.paginationOpts);
 
-  // Batch-fetch (and dedupe) the page's customers once, then hand each
-  // pre-resolved customer to transformConversation so it skips the per-row
-  // ctx.db.get — collapsing the N+1 customer fan-out for the page.
-  const customerIds = result.page
-    .map((c) => c.customerId)
-    .filter((id): id is Id<'customers'> => id !== undefined);
-  const customers = await getCustomersByIds(ctx, customerIds);
+  // Batch-fetch (and dedupe) the page's contacts once, then hand each
+  // pre-resolved contact to transformConversation so it skips the per-row
+  // ctx.db.get — collapsing the N+1 contact fan-out for the page. Rows with no
+  // contactId get `null` here (no linked contact).
+  const contactIds = result.page
+    .map((c) => c.contactId)
+    .filter((id): id is Id<'contacts'> => id !== undefined);
+  const contacts = await getContactsByIds(ctx, contactIds);
 
   const page = await Promise.all(
     result.page.map((c) =>
       transformConversation(ctx, c, {
-        customer: c.customerId ? (customers.get(c.customerId) ?? null) : null,
+        contact: c.contactId ? (contacts.get(c.contactId) ?? null) : null,
       }),
     ),
   );

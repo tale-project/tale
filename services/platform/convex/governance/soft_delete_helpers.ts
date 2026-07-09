@@ -93,21 +93,14 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditResourceType: 'message_feedback',
     authorField: 'userId',
   },
-  customer: {
-    tableName: 'customers',
+  contact: {
+    tableName: 'contacts',
     statusField: 'lifecycleStatus',
-    auditPrefix: 'customer',
-    auditResourceType: 'customer',
+    auditPrefix: 'contact',
+    auditResourceType: 'contact',
     displayNameField: 'name',
     // No author field — CRM rows aren't user-attributed; only org-wide
     // holds gate restore for these.
-  },
-  vendor: {
-    tableName: 'vendors',
-    statusField: 'lifecycleStatus',
-    auditPrefix: 'vendor',
-    auditResourceType: 'vendor',
-    displayNameField: 'name',
   },
   externalConversation: {
     tableName: 'conversations',

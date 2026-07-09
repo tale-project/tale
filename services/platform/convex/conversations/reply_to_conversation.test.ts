@@ -57,9 +57,9 @@ async function seedMember(
   });
 }
 
-async function seedCustomer(t: T, email: string): Promise<Id<'customers'>> {
+async function seedContact(t: T, email: string): Promise<Id<'contacts'>> {
   return t.run((ctx) =>
-    ctx.db.insert('customers', {
+    ctx.db.insert('contacts', {
       organizationId: ORG,
       name: 'Jane Doe',
       email,
@@ -139,9 +139,9 @@ describe('replyToConversation', () => {
   it('derives recipient, Re: subject, html/text split and integration from the conversation and delegates to the send path', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
-      customerId,
+      contactId,
       integrationName: 'outlook',
       subject: 'Need help',
       externalMessageId: '<root@acme.test>',
@@ -195,9 +195,9 @@ describe('replyToConversation', () => {
   it('does not double-prefix a subject that already starts with Re:', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
-      customerId,
+      contactId,
       integrationName: 'outlook',
       subject: 'Re: Need help',
     });
@@ -217,9 +217,9 @@ describe('replyToConversation', () => {
   it('throws when the conversation has no integrationName — no silent provider fallback', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
-      customerId,
+      contactId,
       subject: 'Need help',
     });
 
@@ -260,9 +260,9 @@ describe('replyToConversation', () => {
   it('denies a member of another organization (RLS)', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, OUTSIDER, OTHER_ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
-      customerId,
+      contactId,
       integrationName: 'outlook',
       subject: 'Need help',
     });
@@ -291,14 +291,14 @@ describe('bulkReplyToConversations', () => {
   it('replies to every deliverable conversation and reports per-row failures (partial-failure bulk contract)', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const deliverable = await seedConversation(t, {
-      customerId,
+      contactId,
       integrationName: 'outlook',
       subject: 'Need help',
     });
     const missingIntegration = await seedConversation(t, {
-      customerId,
+      contactId,
       subject: 'Other topic',
     });
 
@@ -321,9 +321,9 @@ describe('bulkReplyToConversations', () => {
   it('enforces the bulk cap before any reply goes out', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
-    const customerId = await seedCustomer(t, 'jane@acme.test');
+    const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
-      customerId,
+      contactId,
       integrationName: 'outlook',
       subject: 'Need help',
     });

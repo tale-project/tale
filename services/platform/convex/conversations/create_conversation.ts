@@ -14,7 +14,7 @@ export async function createConversation(
 ) {
   const conversationId = await ctx.db.insert('conversations', {
     organizationId: args.organizationId,
-    customerId: args.customerId,
+    contactId: args.contactId,
     externalMessageId: args.externalMessageId,
     subject: args.subject,
     status: args.status,

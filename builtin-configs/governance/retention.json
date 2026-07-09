@@ -38,12 +38,9 @@
       "MEMORY_AUDIT_MIN": "memoryAudit.min",
       "MEMORY_AUDIT_MAX": "memoryAudit.max",
       "MEMORY_AUDIT_DEFAULT": "memoryAudit.default",
-      "CUSTOMERS_MIN": "customers.min",
-      "CUSTOMERS_MAX": "customers.max",
-      "CUSTOMERS_DEFAULT": "customers.default",
-      "VENDORS_MIN": "vendors.min",
-      "VENDORS_MAX": "vendors.max",
-      "VENDORS_DEFAULT": "vendors.default",
+      "CONTACTS_MIN": "contacts.min",
+      "CONTACTS_MAX": "contacts.max",
+      "CONTACTS_DEFAULT": "contacts.default",
       "INBOX_MIN": "externalConversations.min",
       "INBOX_MAX": "externalConversations.max",
       "INBOX_DEFAULT": "externalConversations.default",
@@ -130,13 +127,7 @@
     "default": 365,
     "unit": "days"
   },
-  "customers": {
-    "min": 30,
-    "max": 3650,
-    "default": 730,
-    "unit": "days"
-  },
-  "vendors": {
+  "contacts": {
     "min": 30,
     "max": 3650,
     "default": 730,

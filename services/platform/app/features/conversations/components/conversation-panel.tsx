@@ -106,8 +106,23 @@ export function ConversationPanel({
     data: conversation,
     isLoading: isQueryLoading,
     isError,
+    error: loadError,
     refetch,
   } = useConversationWithMessages(selectedConversationId);
+
+  // Surface the underlying load failure — the UI only renders a generic
+  // "something went wrong", so without this the real error (e.g. a Convex
+  // document that fails schema validation) is invisible in the console. Never
+  // swallow it (repo rule: log or re-throw).
+  useEffect(() => {
+    if (isError) {
+      console.error(
+        'Failed to load conversation',
+        selectedConversationId,
+        loadError,
+      );
+    }
+  }, [isError, loadError, selectedConversationId]);
 
   // Loading when the query is in flight OR the parent forces it (list still
   // loading its first page). Drives the single-tree masked render below.
@@ -248,11 +263,11 @@ export function ConversationPanel({
       }
     }
 
-    const customerEmail = conversation.customer.email;
+    const contactEmail = conversation.contact.email;
 
-    if (!customerEmail || customerEmail === 'unknown@example.com') {
-      console.error('No customer email found in conversation');
-      throw new Error(tConversations('panel.customerEmailNotFound'));
+    if (!contactEmail || contactEmail === 'unknown@example.com') {
+      console.error('No contact email found in conversation');
+      throw new Error(tConversations('panel.contactEmailNotFound'));
     }
 
     const subject =
@@ -267,7 +282,7 @@ export function ConversationPanel({
       organizationId: conversation.organizationId,
       integrationName: conversation.integrationName ?? 'outlook',
       content: message,
-      to: [customerEmail],
+      to: [contactEmail],
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),

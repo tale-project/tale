@@ -18,7 +18,6 @@ This is useful for:
 ```typescript
 conversations: defineTable({
   organizationId: v.string(), // Better Auth organization ID
-  customerId: v.optional(v.id('customers')),
   externalMessageId: v.optional(v.string()), // Root message ID that created this conversation
   subject: v.optional(v.string()),
   // ...other fields
@@ -62,7 +61,6 @@ const result = await ctx.runMutation(
   internal.conversations.createConversation,
   {
     organizationId: orgId,
-    customerId: customerId,
     externalMessageId: emailMessageId, // Store the root email's Message-ID
     subject: emailSubject,
     status: 'open',

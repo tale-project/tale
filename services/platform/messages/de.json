@@ -933,7 +933,7 @@
       }
     },
     "tools": {
-      "customerRead": "Kundendaten",
+      "contactRead": "Kontaktdaten",
       "productRead": "Produktkatalog",
       "ragSearch": "Wissensdatenbank",
       "knowledgeWrite": "Wissenseintrag",
@@ -947,12 +947,10 @@
       "saveWorkflowDefinition": "Workflow speichern",
       "validateWorkflowDefinition": "Workflow validieren",
       "excel": "Excel-Datei",
-      "customerWrite": "Kunde bearbeiten",
+      "contactWrite": "Kontakt bearbeiten",
       "productWrite": "Produkt bearbeiten",
       "websiteRead": "Website lesen",
       "websiteWrite": "Website bearbeiten",
-      "vendorRead": "Lieferant lesen",
-      "vendorWrite": "Lieferant bearbeiten",
       "conversationRead": "Konversation lesen",
       "conversationWrite": "Konversation beantworten",
       "discussionRead": "Diskussion lesen",
@@ -1730,9 +1728,6 @@
       "statusSkipped": "Übersprungen"
     },
     "labels": {
-      "name": "Name",
-      "email": "E-Mail",
-      "status": "Status",
       "phone": "Telefon",
       "source": "Quelle",
       "locale": "Sprache",
@@ -1932,7 +1927,7 @@
   },
   "conversations": {
     "title": "Inbox",
-    "unknownCustomer": "Unbekannter Kunde",
+    "unknownContact": "Unbekannter Kontakt",
     "messagePlaceholder": "Nachricht eingeben",
     "searchPlaceholder": "Konversationen durchsuchen",
     "suggestEditsPlaceholder": "Änderungen am Text vorschlagen (optional)",
@@ -1989,7 +1984,7 @@
     },
     "header": {
       "moreActions": "Weitere Aktionen",
-      "customerInfo": "Kundeninfo",
+      "contactInfo": "Kontaktinfo",
       "closeConversation": "Konversation schließen",
       "closing": "Wird geschlossen...",
       "reopenConversation": "Konversation erneut öffnen",
@@ -2031,7 +2026,7 @@
       "noMessages": "Noch keine Nachrichten",
       "invalidFileAttachment": "Ungültiger Dateianhang",
       "defaultSubject": "Re: Konversation",
-      "customerEmailNotFound": "E-Mail kann nicht gesendet werden: Kunden-E-Mail nicht gefunden",
+      "contactEmailNotFound": "E-Mail kann nicht gesendet werden: Kontakt-E-Mail nicht gefunden",
       "replySubjectPrefix": "Re: {subject}",
       "loadFailed": "Konversation konnte nicht geladen werden",
       "loadFailedDescription": "Beim Laden dieser Konversation ist ein Fehler aufgetreten.",
@@ -2077,64 +2072,58 @@
       "medium": "Mittel"
     }
   },
-  "customers": {
-    "title": "Kunden",
-    "searchPlaceholder": "Kunden suchen",
+  "contacts": {
+    "title": "Kontakte",
+    "searchPlaceholder": "Kontakte suchen",
     "filter": {
       "source": {
         "manual": "Manuell",
         "upload": "Upload"
-      },
-      "status": {
-        "active": "Aktiv",
-        "potential": "Potenziell",
-        "churned": "Abgewandert"
       }
     },
     "importForm": {
       "manualEntry": "Manuelle Eingabe",
       "upload": "Upload",
-      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
+      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kontakt pro Zeile.",
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
-      "statusNote": "Importierte Kunden werden als (Aktiv) markiert",
       "expectedColumns": "Erwartete Spalten: email, name, locale"
     },
-    "editCustomer": "Kunde bearbeiten",
-    "deleteCustomer": "Kunde löschen",
+    "editContact": "Kontakt bearbeiten",
+    "deleteContact": "Kontakt löschen",
     "importMenu": {
-      "importCustomers": "Kunden importieren",
+      "importContacts": "Kontakte importieren",
       "fromDevice": "Von deinem Gerät",
       "manualEntry": "Manuelle Eingabe"
     },
-    "thisCustomer": "diesen Kunden",
-    "updateSuccess": "Kunde aktualisiert",
-    "updateError": "Kunde konnte nicht aktualisiert werden",
+    "thisContact": "diesen Kontakt",
+    "updateSuccess": "Kontakt aktualisiert",
+    "updateError": "Kontakt konnte nicht aktualisiert werden",
     "name": "Name",
-    "namePlaceholder": "Kundenname eingeben",
+    "namePlaceholder": "Kontaktname eingeben",
     "email": "E-Mail",
     "emailPlaceholder": "E-Mail-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
-    "status": "Status",
+    "phone": "Telefon",
     "import": {
       "selectDataSource": "Bitte wähle eine Datenquelle",
       "provideData": "Bitte gib Daten ein",
-      "noValidData": "Keine gültigen Kundendaten gefunden",
+      "noValidData": "Keine gültigen Kontaktdaten gefunden",
       "success": "Import",
-      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "noneImported": "Es wurden keine Kunden importiert",
+      "successDescription": "{success} Kontakte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "noneImported": "Es wurden keine Kontakte importiert",
       "error": "Importfehler",
-      "addCustomers": "Kunden hinzufügen",
-      "uploadCustomers": "Kunden hochladen",
+      "addContacts": "Kontakte hinzufügen",
+      "uploadContacts": "Kontakte hochladen",
       "import": "Importieren",
       "errorCodes": {
-        "duplicate_email": "Ein Kunde mit dieser E-Mail existiert bereits",
-        "duplicate_external_id": "Ein Kunde mit dieser externen ID existiert bereits",
+        "duplicate_email": "Ein Kontakt mit dieser E-Mail existiert bereits",
+        "duplicate_external_id": "Ein Kontakt mit dieser externen ID existiert bereits",
         "unknown": "Ein unerwarteter Fehler ist aufgetreten"
       }
     },
     "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
-    "deleteError": "Kunde konnte nicht gelöscht werden",
+    "deleteError": "Kontakt konnte nicht gelöscht werden",
     "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "dataNotice": {
@@ -2163,11 +2152,8 @@
     "thisMember": "dieses Mitglied",
     "confirmRemoveMember": "Bist du sicher, dass du {name} aus dem Team entfernen möchtest? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.",
     "toSend": "zum Senden",
-    "vendorInfo": {
-      "title": "Lieferanteninformationen"
-    },
-    "customerInfo": {
-      "title": "Kundendetails"
+    "contactInfo": {
+      "title": "Kontaktdetails"
     }
   },
   "documentWriteApproval": {
@@ -2521,17 +2507,13 @@
       "title": "Keine Anbieter konfiguriert",
       "description": "Füge einen LLM-Anbieter hinzu, um KI-Funktionen zu nutzen"
     },
-    "customers": {
-      "title": "Noch keine Kunden",
-      "description": "Lade deinen ersten Kunden hoch, um loszulegen"
+    "contacts": {
+      "title": "Noch keine Kontakte",
+      "description": "Lade deinen ersten Kontakt hoch, um loszulegen"
     },
     "products": {
       "title": "Noch keine Produkte",
       "description": "Importiere deine Produkte, damit deine KI den Kontext versteht"
-    },
-    "vendors": {
-      "title": "Noch keine Lieferanten",
-      "description": "Lade deinen ersten Lieferanten hoch, um loszulegen"
     },
     "websites": {
       "title": "Noch keine Websites",
@@ -2772,13 +2754,9 @@
         "title": "Memory-Audit-Log",
         "description": "Änderungsprotokoll von Personalisierungs-Memories (vorgeschlagen, genehmigt, bearbeitet, verworfen, gelöscht)."
       },
-      "customers": {
-        "title": "Kunden",
+      "contacts": {
+        "title": "Kontakte",
         "description": "Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten."
-      },
-      "vendors": {
-        "title": "Lieferanten",
-        "description": "Pro-Org Lieferantendatensätze: Name, E-Mail, Telefon, Adresse, Freitext-Notizen."
       },
       "externalConversations": {
         "title": "Externe Konversationen",
@@ -3328,6 +3306,7 @@
         "promptTemplate": "Prompt-Vorlagen",
         "messageFeedback": "Nachrichten-Feedback",
         "customer": "Kunden",
+        "contact": "Kontakte",
         "vendor": "Lieferanten",
         "externalConversation": "Externe Konversationen",
         "messageMetadata": "Nachrichten-Metadaten",
@@ -3880,8 +3859,7 @@
     "knowledgeEntries": "Wissenseinträge",
     "websites": "Websites",
     "products": "Produkte",
-    "customers": "Kunden",
-    "vendors": "Lieferanten"
+    "contacts": "Kontakte"
   },
   "knowledgeEntries": {
     "title": "Wissenseinträge",
@@ -4072,13 +4050,9 @@
       "title": "Produkte",
       "description": "deinen Produktkatalog verwalten."
     },
-    "customers": {
-      "title": "Kunden",
-      "description": "deine Kundendatenbank verwalten."
-    },
-    "vendors": {
-      "title": "Lieferanten",
-      "description": "deine Lieferantenbeziehungen verwalten."
+    "contacts": {
+      "title": "Kontakte",
+      "description": "deine Kontaktdatenbank verwalten."
     },
     "projects": {
       "title": "Projekte",
@@ -5414,9 +5388,8 @@
         "enabledCount": "{enabled}/{total}",
         "enabledCountLabel": "{enabled} von {total} Tools aktiviert",
         "categories": {
-          "customers": "Kunden",
+          "contacts": "Kontakte",
           "products": "Produkte",
-          "vendors": "Lieferanten",
           "websites": "Websites",
           "conversations": "Konversationen",
           "discussions": "Diskussionen",
@@ -5437,7 +5410,7 @@
           "file_list": "Dateien im Arbeitsbereich durchsehen",
           "file_delete": "Dateien aus dem Arbeitsbereich entfernen",
           "run_code": "Code in einer Sandbox ausführen, für Berechnungen und Datenarbeit",
-          "customer_read": "Kundendatensätze nachschlagen und auflisten",
+          "contact_read": "Kontaktdatensätze nachschlagen und auflisten",
           "product_read": "Den Produktkatalog durchsuchen",
           "rag_search": "Die Wissensdatenbank der Organisation durchsuchen",
           "knowledge_write": "Neue Einträge in der Wissensdatenbank anlegen",
@@ -5461,12 +5434,10 @@
           "request_user_location": "Den aktuellen Standort im Chat anfragen",
           "conversation_read": "Kundenkonversationen lesen",
           "conversation_write": "Antworten in Konversationen entwerfen und senden",
-          "customer_write": "Kundendatensätze anlegen und aktualisieren",
+          "contact_write": "Kontaktdatensätze anlegen und aktualisieren",
           "product_write": "Produkte anlegen und aktualisieren",
           "website_read": "Websites der Organisation lesen",
           "website_write": "Websites hinzufügen und aktualisieren",
-          "vendor_read": "Lieferantendatensätze nachschlagen",
-          "vendor_write": "Lieferantendatensätze anlegen und aktualisieren",
           "discussion_read": "Interne Diskussionen lesen",
           "discussion_write": "In internen Diskussionen schreiben",
           "agent_read": "Konfigurationen anderer Agenten einsehen",
@@ -6513,6 +6484,7 @@
           "chat_history.retention_expired": "Chatverlauf-Aufbewahrung abgelaufen",
           "document.retention_deleted": "Dokument per Aufbewahrung gelöscht",
           "customer.retention_deleted": "Kunde per Aufbewahrung gelöscht",
+          "contact.retention_deleted": "Kontakt per Aufbewahrung gelöscht",
           "vendor.retention_deleted": "Lieferant per Aufbewahrung gelöscht",
           "prompt_template.retention_deleted": "Prompt-Vorlage per Aufbewahrung gelöscht",
           "usage_ledger.retention_deleted": "Nutzungsledger per Aufbewahrung gelöscht",
@@ -6604,6 +6576,9 @@
           "customer.retention_expired": "Kunde per Aufbewahrung abgelaufen",
           "customer.retention_override_restore": "Kunde wiederhergestellt (Aufbewahrungs-Override)",
           "customer.restored_by_admin": "Kunde vom Admin wiederhergestellt",
+          "contact.retention_expired": "Kontakt per Aufbewahrung abgelaufen",
+          "contact.retention_override_restore": "Kontakt wiederhergestellt (Aufbewahrungs-Override)",
+          "contact.restored_by_admin": "Kontakt vom Admin wiederhergestellt",
           "vendor.retention_expired": "Lieferant per Aufbewahrung abgelaufen",
           "vendor.retention_override_restore": "Lieferant wiederhergestellt (Aufbewahrungs-Override)",
           "vendor.restored_by_admin": "Lieferant vom Admin wiederhergestellt",
@@ -6636,6 +6611,7 @@
           "workflow_creation": "Workflow-Erstellung",
           "workflow_update": "Workflow-Update",
           "customer": "Kunde",
+          "contact": "Kontakt",
           "vendor": "Lieferant",
           "product": "Produkt",
           "organization": "Organisation",
@@ -7336,57 +7312,6 @@
       "regenerateFailed": "Neue Backup-Codes konnten nicht erzeugt werden.",
       "invalidCode": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen."
     }
-  },
-  "vendors": {
-    "title": "Lieferanten",
-    "searchPlaceholder": "Lieferanten suchen",
-    "addVendors": "Lieferanten hinzufügen",
-    "uploadVendors": "Lieferanten hochladen",
-    "importForm": {
-      "manualEntry": "Manuelle Eingabe",
-      "upload": "Upload",
-      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Lieferant pro Zeile.",
-      "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
-      "expectedColumns": "Erwartete Spalten: email, name, locale"
-    },
-    "editVendor": "Lieferant bearbeiten",
-    "deleteVendor": "Lieferant löschen",
-    "importMenu": {
-      "importVendors": "Lieferanten importieren",
-      "fromDevice": "Von deinem Gerät",
-      "manualEntry": "Manuelle Eingabe"
-    },
-    "noValidData": "Keine gültigen Lieferantendaten gefunden",
-    "noneImported": "Es wurden keine Lieferanten importiert",
-    "name": "Name",
-    "thisVendor": "diesen Lieferanten",
-    "updateSuccess": "Lieferant aktualisiert",
-    "updateError": "Lieferant konnte nicht aktualisiert werden",
-    "namePlaceholder": "Lieferantenname eingeben",
-    "email": "E-Mail",
-    "emailPlaceholder": "E-Mail-Adresse eingeben",
-    "locale": "Sprache",
-    "localePlaceholder": "z. B. en-US",
-    "filter": {
-      "source": {
-        "manual": "Manueller Import",
-        "upload": "Datei-Upload"
-      }
-    },
-    "import": {
-      "selectDataSource": "Bitte wähle eine Datenquelle",
-      "provideData": "Bitte gib Lieferantendaten ein",
-      "success": "Import",
-      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "error": "Lieferanten konnten nicht importiert werden",
-      "errorCodes": {
-        "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
-        "duplicate_external_id": "Ein Lieferant mit dieser externen ID existiert bereits",
-        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
-      }
-    },
-    "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
-    "deleteError": "Lieferant konnte nicht gelöscht werden"
   },
   "websites": {
     "title": "Websites",

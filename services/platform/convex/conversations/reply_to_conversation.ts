@@ -17,8 +17,8 @@ import type { MutationCtx } from '../_generated/server';
 import { sendMessageViaIntegration } from './send_message_via_integration';
 import type { BulkOperationResult } from './types';
 
-/** Placeholder email used when a customer record carries no real address. */
-const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
+/** Placeholder email used when a contact record carries no real address. */
+const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 /** Subject used when the conversation itself has none. */
 const FALLBACK_REPLY_SUBJECT = 'Re: Conversation';
@@ -82,14 +82,15 @@ export async function replyToConversation(
     });
   }
 
-  const customer = conversation.customerId
-    ? await ctx.db.get(conversation.customerId)
+  // Resolve the reply-to address from the conversation's contact (issue #2618).
+  const contact = conversation.contactId
+    ? await ctx.db.get(conversation.contactId)
     : null;
-  const customerEmail = customer?.email;
-  if (!customerEmail || customerEmail === UNKNOWN_CUSTOMER_EMAIL) {
+  const recipientEmail = contact?.email;
+  if (!recipientEmail || recipientEmail === UNKNOWN_CONTACT_EMAIL) {
     throw new ConvexError({
       code: 'customer_email_not_found',
-      message: 'Conversation has no customer email to reply to',
+      message: 'Conversation has no contact email to reply to',
     });
   }
 
@@ -101,7 +102,7 @@ export async function replyToConversation(
     organizationId: args.organizationId,
     integrationName,
     content: args.content,
-    to: [customerEmail],
+    to: [recipientEmail],
     subject,
     html,
     text,

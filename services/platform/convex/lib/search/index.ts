@@ -9,5 +9,5 @@ export { runEntitySearch } from './run_entity_search';
 export { isActiveRow, rowMatches, scoreAndSort } from './relevance';
 
 // Per-entity strategies.
-export { customersSearchStrategy } from './strategies/customers';
+export { contactsSearchStrategy } from './strategies/contacts';
 export { documentsSearchStrategy } from './strategies/documents';

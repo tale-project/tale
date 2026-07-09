@@ -269,9 +269,7 @@ describe('validateLlmStep', () => {
 
   describe('tools validation', () => {
     it('fails when tools is not an array', () => {
-      const result = validateLlmStep(
-        validLlmConfig({ tools: 'customer_read' }),
-      );
+      const result = validateLlmStep(validLlmConfig({ tools: 'contact_read' }));
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('must be an array'))).toBe(
         true,
@@ -286,7 +284,7 @@ describe('validateLlmStep', () => {
             type: 'object',
             properties: { name: { type: 'string' } },
           },
-          tools: ['customer_read'],
+          tools: ['contact_read'],
         }),
       );
       expect(result.valid).toBe(false);

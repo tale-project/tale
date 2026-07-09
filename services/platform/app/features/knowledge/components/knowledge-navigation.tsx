@@ -15,8 +15,7 @@ type KnowledgeLabelKey =
   | 'knowledgeEntries'
   | 'websites'
   | 'products'
-  | 'customers'
-  | 'vendors';
+  | 'contacts';
 
 export function KnowledgeNavigation({
   organizationId,
@@ -48,14 +47,9 @@ export function KnowledgeNavigation({
       href: `/dashboard/${organizationId}/products`,
     },
     {
-      labelKey: 'customers',
-      label: t('customers'),
-      href: `/dashboard/${organizationId}/customers`,
-    },
-    {
-      labelKey: 'vendors',
-      label: t('vendors'),
-      href: `/dashboard/${organizationId}/vendors`,
+      labelKey: 'contacts',
+      label: t('contacts'),
+      href: `/dashboard/${organizationId}/contacts`,
     },
   ];
 

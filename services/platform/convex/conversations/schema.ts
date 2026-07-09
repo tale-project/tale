@@ -6,8 +6,13 @@ import { jsonRecordValidator } from '../lib/validators/json';
 
 export const conversationsTable = defineTable({
   organizationId: v.string(),
-  customerId: v.optional(v.id('customers')),
+  // The contact this conversation is with (issue #2618) — the sole link to the
+  // person on the conversation.
   contactId: v.optional(v.id('contacts')),
+  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
+  // the teardown migration unsets it (expand-contract; the `customers` table is
+  // gone so this is a bare string, not v.id). Drop in the contract phase.
+  customerId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(
@@ -35,7 +40,6 @@ export const conversationsTable = defineTable({
   ])
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_priority', ['organizationId', 'priority'])
-  .index('by_organizationId_and_customerId', ['organizationId', 'customerId'])
   .index('by_organizationId_and_contactId', ['organizationId', 'contactId'])
   .index('by_organizationId_and_direction', ['organizationId', 'direction'])
   .index('by_organizationId_and_channel', ['organizationId', 'channel'])

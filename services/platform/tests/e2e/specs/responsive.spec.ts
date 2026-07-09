@@ -153,22 +153,22 @@ test.describe('responsive / mobile layout', () => {
     await expect(composer).toBeEnabled();
   });
 
-  test('list page: customers renders usably at mobile width', async ({
+  test('list page: contacts renders usably at mobile width', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/customers`);
+    await page.goto(`/dashboard/${organizationId}/contacts`);
 
-    // The seeded org ships no customers, so the list settles into either its
+    // The seeded org ships no contacts, so the list settles into either its
     // always-present writer import menu OR its empty-state. Accepting either
     // (rather than racing one specific element) means we never assert
     // mid-skeleton; both prove the table chrome rendered and is reachable at
     // phone width. Read-only — no rows are created.
     const importMenu = page.getByRole('button', {
-      name: t('customers.importMenu.importCustomers'),
+      name: t('contacts.importMenu.importContacts'),
     });
-    const emptyState = page.getByText(t('emptyStates.customers.title'));
+    const emptyState = page.getByText(t('emptyStates.contacts.title'));
     await expect(importMenu.or(emptyState).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });

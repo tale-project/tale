@@ -144,12 +144,12 @@ describe('createCase / listCases / getCase', () => {
     ).rejects.toThrow();
   });
 
-  it('rejects a customerId that belongs to another organization', async () => {
+  it('rejects a contactId that belongs to another organization', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t);
-    // A customer in a DIFFERENT org must not be linkable from ORG's case.
-    const foreignCustomerId = await t.run(async (ctx) =>
-      ctx.db.insert('customers', {
+    // A contact in a DIFFERENT org must not be linkable from ORG's case.
+    const foreignContactId = await t.run(async (ctx) =>
+      ctx.db.insert('contacts', {
         organizationId: 'org_other',
         name: 'Foreign Co',
         source: 'manual_import',
@@ -160,7 +160,7 @@ describe('createCase / listCases / getCase', () => {
       asUser.mutation(api.support_cases.mutations.createCase, {
         organizationId: ORG,
         subject: 'Cross-org link attempt',
-        customerId: foreignCustomerId,
+        contactId: foreignContactId,
       }),
     ).rejects.toThrow();
   });
@@ -596,14 +596,14 @@ describe('comments', () => {
 });
 
 describe('listCases filters', () => {
-  it('filters by status, assignee, and customer', async () => {
+  it('filters by status, assignee, and contact', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t);
     const asUser = t.withIdentity({ subject: USER });
 
-    // A customer in ORG that one case is linked to.
-    const customerId = await t.run(async (ctx) =>
-      ctx.db.insert('customers', {
+    // A contact in ORG that one case is linked to.
+    const contactId = await t.run(async (ctx) =>
+      ctx.db.insert('contacts', {
         organizationId: ORG,
         name: 'Acme Co',
         source: 'manual_import',
@@ -615,10 +615,10 @@ describe('listCases filters', () => {
       api.support_cases.mutations.createCase,
       {
         organizationId: ORG,
-        subject: 'Assigned + customer',
+        subject: 'Assigned + contact',
         assigneeType: 'user',
         assigneeId: USER,
-        customerId,
+        contactId,
       },
     );
     // Move the second case to `pending` so the status filter can separate them.
@@ -646,11 +646,11 @@ describe('listCases filters', () => {
     });
     expect(byAssignee.cases.map((c) => c._id)).toEqual([assignedId]);
 
-    const byCustomer = await asUser.query(api.support_cases.queries.listCases, {
+    const byContact = await asUser.query(api.support_cases.queries.listCases, {
       organizationId: ORG,
-      customerId,
+      contactId,
     });
-    expect(byCustomer.cases.map((c) => c._id)).toEqual([assignedId]);
+    expect(byContact.cases.map((c) => c._id)).toEqual([assignedId]);
   });
 
   it('orders by updatedAt desc and keeps the newest when the cap is exceeded', async () => {

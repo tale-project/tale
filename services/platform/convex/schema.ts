@@ -41,7 +41,6 @@ import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
-import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
 import {
   ssoConnectionsTable,
@@ -152,7 +151,6 @@ import {
   userNotificationStateTable,
   userPasswordMetadataTable,
 } from './users/schema';
-import { vendorsTable } from './vendors/schema';
 import { videoLinkJobsTable } from './video_links/schema';
 import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
@@ -234,7 +232,6 @@ export default defineSchema({
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
   contacts: contactsTable,
-  customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
@@ -298,7 +295,6 @@ export default defineSchema({
   supportCases: supportCasesTable,
   supportCaseComments: supportCaseCommentsTable,
   supportCaseActivity: supportCaseActivityTable,
-  vendors: vendorsTable,
   sandboxSessions: sandboxSessionsTable,
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,

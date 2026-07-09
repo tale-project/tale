@@ -34,7 +34,7 @@ vi.mock('./mutations', () => ({
 
 import { getSelectedConversationIds, useBulkActions } from './use-bulk-actions';
 
-const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
+const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 // `getSelectedConversationIds` reads only `id` / `_id` from each row, and the
 // selection `Set` stores `id` while bulk mutations operate on `_id`. Use a stub
@@ -64,17 +64,15 @@ function makeConversation(
     id,
     title: 'title',
     description: 'description',
-    customer_id: 'cust-1',
+    contact_id: 'cont-1',
     business_id: 'biz-1',
     message_count: 1,
     unread_count: 0,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
-    customer: {
-      id: 'cust-1',
+    contact: {
+      id: 'cont-1',
       email,
-      status: 'active',
-      created_at: '2024-01-01T00:00:00Z',
     },
     messages: [],
     ...overrides,
@@ -225,7 +223,7 @@ describe('useBulkActions handleSendMessages', () => {
   it('counts conversations with missing or unknown email as failures and does not dispatch them', async () => {
     const conversations = [
       makeConversation('conv-1', 'alice@example.com'),
-      makeConversation('conv-2', UNKNOWN_CUSTOMER_EMAIL),
+      makeConversation('conv-2', UNKNOWN_CONTACT_EMAIL),
       makeConversation('conv-3', ''),
     ];
     const { result, onComplete } = setup(
@@ -256,7 +254,7 @@ describe('useBulkActions handleSendMessages', () => {
 
   it('uses the destructive toast variant when every send fails', async () => {
     const conversations = [
-      makeConversation('conv-1', UNKNOWN_CUSTOMER_EMAIL),
+      makeConversation('conv-1', UNKNOWN_CONTACT_EMAIL),
       makeConversation('conv-2', ''),
     ];
     const { result, onComplete } = setup(

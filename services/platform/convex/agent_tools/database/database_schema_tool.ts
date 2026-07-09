@@ -31,7 +31,7 @@ const databaseSchemaArgs = z.discriminatedUnion('operation', [
     operation: z.literal('get_table_schema'),
     tableName: z
       .string()
-      .describe("Table name (e.g., 'conversations', 'customers', 'approvals')"),
+      .describe("Table name (e.g., 'conversations', 'contacts', 'approvals')"),
   }),
 ]);
 

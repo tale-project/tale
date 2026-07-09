@@ -8,7 +8,7 @@ import { render, screen } from '@/tests/utils/render';
 import type { Conversation } from '../types';
 import { ConversationsList } from './conversations-list';
 
-// Builds a conversation fixture. Fields that the list reads (title, customer,
+// Builds a conversation fixture. Fields that the list reads (title, contact,
 // unread_count, etc.) can be overridden per test; the rest are filler.
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
@@ -21,8 +21,8 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     description: 'A conversation about a refund',
     channel: 'Email',
     type: 'General',
-    customer_id: 'cust-1',
-    customerId: 'cust-1',
+    contact_id: 'contact-1',
+    contactId: 'contact-1',
     business_id: 'biz-1',
     message_count: 1,
     unread_count: 0,
@@ -30,11 +30,10 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     status: 'open',
-    customer: {
-      id: 'cust-1',
+    contact: {
+      id: 'contact-1',
       name: 'Sarah Johnson',
       email: 'sarah@company.com',
-      status: 'active',
       source: 'api',
       locale: 'en',
       created_at: new Date().toISOString(),
@@ -70,12 +69,12 @@ describe('ConversationsList accessibility', () => {
           makeConversation({
             id: 'c1',
             title: 'Where is my package?',
-            customer: undefined,
+            contact: undefined,
           }),
           makeConversation({
             id: 'c2',
             title: 'Cancel my subscription',
-            customer: undefined,
+            contact: undefined,
           }),
         ]}
       />,
@@ -91,7 +90,7 @@ describe('ConversationsList accessibility', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the localized unknownCustomer fallback when neither name nor subject exist', () => {
+  it('renders the localized unknownContact fallback when neither name nor subject exist', () => {
     render(
       <ConversationsList
         conversations={[
@@ -99,17 +98,17 @@ describe('ConversationsList accessibility', () => {
             id: 'c1',
             title: '',
             subject: '',
-            customer: undefined,
+            contact: undefined,
           }),
         ]}
       />,
     );
 
-    // From conversations.unknownCustomer in en.json. The heading and the select
+    // From conversations.unknownContact in en.json. The heading and the select
     // button both fall back to the localized label.
-    expect(screen.getAllByText('Unknown customer').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Unknown contact').length).toBeGreaterThan(0);
     expect(
-      screen.getByRole('button', { name: 'Unknown customer' }),
+      screen.getByRole('button', { name: 'Unknown contact' }),
     ).toBeInTheDocument();
   });
 

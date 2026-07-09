@@ -38,7 +38,7 @@ describe('tool → file type mapping', () => {
     });
 
     it('ignores non-document tool names', () => {
-      const result = getAcceptForTools(['web', 'pdf', 'customer_read']);
+      const result = getAcceptForTools(['web', 'pdf', 'contact_read']);
       expect(result).toContain('.pdf');
       expect(result).not.toContain('web');
     });
@@ -104,7 +104,7 @@ describe('tool → file type mapping', () => {
     it('returns false when no document tools are present', () => {
       expect(hasFileTools(['web', 'rag_search'])).toBe(false);
       expect(hasFileTools([])).toBe(false);
-      expect(hasFileTools(['customer_read', 'product_read'])).toBe(false);
+      expect(hasFileTools(['contact_read', 'product_read'])).toBe(false);
     });
   });
 });

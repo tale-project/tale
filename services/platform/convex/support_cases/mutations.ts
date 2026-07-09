@@ -35,7 +35,7 @@ export const createCase = mutation({
     subject: v.string(),
     description: v.optional(v.string()),
     priority: v.optional(supportCasePriorityValidator),
-    customerId: v.optional(v.id('customers')),
+    contactId: v.optional(v.id('contacts')),
     requesterEmail: v.optional(v.string()),
     requesterName: v.optional(v.string()),
     slaDueAt: v.optional(v.number()),
@@ -70,13 +70,14 @@ export const createCase = mutation({
       });
     }
 
-    // Validate the linked customer is in the same org (no cross-org linkage).
-    if (args.customerId) {
-      const customer = await ctx.db.get(args.customerId);
-      if (!customer || customer.organizationId !== args.organizationId) {
+    // Validate the linked contact is in the same org (no cross-org linkage).
+    // issue #2618: contactId is the sole link to a contact.
+    if (args.contactId) {
+      const contact = await ctx.db.get(args.contactId);
+      if (!contact || contact.organizationId !== args.organizationId) {
         throw new ConvexError({
-          code: 'invalid_customer',
-          message: 'Customer not found in this organization.',
+          code: 'invalid_contact',
+          message: 'Contact not found in this organization.',
         });
       }
     }
@@ -91,7 +92,7 @@ export const createCase = mutation({
       escalationLevel: 0,
       assigneeType: args.assigneeType,
       assigneeId: args.assigneeId,
-      customerId: args.customerId,
+      contactId: args.contactId,
       requesterEmail,
       requesterName,
       slaDueAt: args.slaDueAt,

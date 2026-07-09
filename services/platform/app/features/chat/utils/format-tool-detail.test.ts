@@ -15,7 +15,7 @@ const t = ((key: string, params?: Record<string, string | number>) => {
     'thinking.reading': `Reading ${p('hostname')}`,
     'thinking.searchingKnowledgeBase': `Searching knowledge base for "${p('query')}"`,
     'thinking.delegating': `Asking ${p('agent')}`,
-    'tools.customerRead': 'Customer Read',
+    'tools.contactRead': 'Contact Read',
     'tools.ragSearch': 'Knowledge Base Search',
     'tools.web': 'Web',
     'tools.excel': 'Excel',
@@ -70,8 +70,8 @@ describe('formatToolDetail', () => {
   });
 
   it('uses the explicit tool display-name map', () => {
-    expect(formatToolDetail(t, 'customer_read').displayText).toBe(
-      'Customer Read',
+    expect(formatToolDetail(t, 'contact_read').displayText).toBe(
+      'Contact Read',
     );
     expect(formatToolDetail(t, 'excel').displayText).toBe('Excel');
   });

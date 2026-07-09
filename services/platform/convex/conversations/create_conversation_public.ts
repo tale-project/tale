@@ -11,7 +11,7 @@ export async function createConversationPublic(
   ctx: MutationCtx,
   args: {
     organizationId: string;
-    customerId?: Id<'customers'>;
+    contactId?: Id<'contacts'>;
     externalMessageId?: string;
     subject?: string;
     status?: ConversationStatus;
@@ -23,7 +23,7 @@ export async function createConversationPublic(
 ): Promise<Id<'conversations'>> {
   const conversationId = await ctx.db.insert('conversations', {
     organizationId: args.organizationId,
-    customerId: args.customerId,
+    contactId: args.contactId,
     externalMessageId: args.externalMessageId,
     subject: args.subject,
     status: args.status ?? 'open',

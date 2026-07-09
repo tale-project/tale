@@ -1,9 +1,9 @@
 import type { ActionCtx } from '../../_generated/server';
 import { agentAction } from './agent/agent_action';
 import { approvalAction } from './approval/approval_action';
+import { contactAction } from './contact/contact_action';
 import { conversationAction } from './conversation/conversation_action';
 import { crawlerAction } from './crawler/crawler_action';
-import { customerAction } from './customer/customer_action';
 import { discussionAction } from './discussion/discussion_action';
 import { documentAction } from './document/document_action';
 import { integrationAction } from './integration/integration_action';
@@ -16,7 +16,6 @@ import { projectAction } from './project/project_action';
 import { ragAction } from './rag/rag_action';
 import { setVariablesAction } from './set_variables_action';
 import { taskAction } from './task/task_action';
-import { vendorAction } from './vendor/vendor_action';
 import { websiteAction } from './website/website_action';
 import { workflowProcessingRecordsAction } from './workflow_processing_records/workflow_processing_records_action';
 
@@ -41,11 +40,10 @@ interface AnyActionDefinition {
 
 // Array-based registry for iteration (e.g., listing all actions)
 export const ACTIONS: AnyActionDefinition[] = [
-  customerAction,
+  contactAction,
   conversationAction,
   productAction,
   projectAction,
-  vendorAction,
   discussionAction,
   documentAction,
   integrationAction, // Unified integration action (credentials + plugin execution)

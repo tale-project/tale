@@ -1033,24 +1033,24 @@ async function cleanupMemoryAudit(
   return processed;
 }
 
-// Phase 10 — PII tables. customers / vendors / external conversations /
+// Phase 10 — PII tables. contacts / external conversations /
 // messageMetadata. Each follows the same simple retention shape: list
 // expired rows by `_creationTime < cutoff`, delete them. No cascade
 // (these tables don't own descendants except `conversations` which
 // cascades to `conversationMessages` via the dedicated mutation).
 
-async function cleanupCustomers(
+async function cleanupContacts(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (!org.config.customersEnabled) return 0;
-  const days = org.config.customersRetentionDays;
+  if (!org.config.contactsEnabled) return 0;
+  const days = org.config.contactsRetentionDays;
   if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping customers cleanup`,
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping contacts cleanup`,
     );
     return 0;
   }
@@ -1060,14 +1060,14 @@ async function cleanupCustomers(
 
   if (graceDays > 0) {
     const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredCustomers,
+      internal.governance.internal_queries.listExpiredContacts,
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const row of passA) {
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
-          resourceType: 'customer',
+          resourceType: 'contact',
           rowId: String(row._id),
           organizationId: org.organizationId,
           cutoffMs,
@@ -1081,7 +1081,7 @@ async function cleanupCustomers(
   const expired =
     graceDays > 0
       ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredCustomers,
+          internal.governance.internal_queries.listGraceExpiredContacts,
           {
             organizationId: org.organizationId,
             graceCutoffMs: Date.now() - graceDays * DAY_MS,
@@ -1089,79 +1089,12 @@ async function cleanupCustomers(
           },
         )
       : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredCustomers,
+          internal.governance.internal_queries.listExpiredContacts,
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
   for (const row of expired) {
     await ctx.runMutation(
-      internal.governance.internal_mutations_retention.deleteExpiredCustomer,
-      {
-        rowId: row._id,
-        organizationId: org.organizationId,
-        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
-async function cleanupVendors(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.vendorsEnabled) return 0;
-  const days = org.config.vendorsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping vendors cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
-
-  if (graceDays > 0) {
-    const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredVendors,
-      { organizationId: org.organizationId, cutoffMs, batchSize },
-    );
-    for (const row of passA) {
-      await ctx.runMutation(
-        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
-        {
-          resourceType: 'vendor',
-          rowId: String(row._id),
-          organizationId: org.organizationId,
-          cutoffMs,
-          timestampField: '_creationTime',
-        },
-      );
-      processed += 1;
-    }
-  }
-
-  const expired =
-    graceDays > 0
-      ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredVendors,
-          {
-            organizationId: org.organizationId,
-            graceCutoffMs: Date.now() - graceDays * DAY_MS,
-            batchSize,
-          },
-        )
-      : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredVendors,
-          { organizationId: org.organizationId, cutoffMs, batchSize },
-        );
-  for (const row of expired) {
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention.deleteExpiredVendor,
+      internal.governance.internal_mutations_retention.deleteExpiredContact,
       {
         rowId: row._id,
         organizationId: org.organizationId,
@@ -1680,12 +1613,8 @@ export const runOrgRetentionCleanup = internalAction({
           run: () => cleanupMemoryAudit(ctx, org, batchSize, holds),
         },
         {
-          name: 'customers',
-          run: () => cleanupCustomers(ctx, org, batchSize, holds),
-        },
-        {
-          name: 'vendors',
-          run: () => cleanupVendors(ctx, org, batchSize, holds),
+          name: 'contacts',
+          run: () => cleanupContacts(ctx, org, batchSize, holds),
         },
         {
           name: 'externalConversations',

@@ -67,7 +67,7 @@ describe('readConversationById', () => {
       status: 'open',
       priority: 'high',
       channel: 'email',
-      customerId: 'cust1',
+      contactId: 'cont1',
       lastMessageAt: 1700000000000,
     });
 
@@ -154,7 +154,7 @@ describe('readConversationList', () => {
     );
   });
 
-  it('passes customerId filter to query', async () => {
+  it('passes contactId filter to query', async () => {
     const ctx = createMockCtx();
     ctx.runQuery.mockResolvedValue({
       page: [],
@@ -162,11 +162,11 @@ describe('readConversationList', () => {
       continueCursor: '',
     });
 
-    await readConversationList(ctx as never, { customerId: 'cust1' });
+    await readConversationList(ctx as never, { contactId: 'cont1' });
 
     expect(ctx.runQuery).toHaveBeenCalledWith(
       'mock-query-conversations',
-      expect.objectContaining({ customerId: 'cust1' }),
+      expect.objectContaining({ contactId: 'cont1' }),
     );
   });
 
