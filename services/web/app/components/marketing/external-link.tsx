@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from 'react';
 
 import { ExternalLink } from '@/app/components/layout/external-link';
 
-export const marketingExternalLinkVariants = cva('', {
+const marketingExternalLinkVariants = cva('', {
   variants: {
     tone: {
       nav: 'text-fg-muted hover:text-fg-base text-[13px] font-normal tracking-tight transition-colors',
@@ -25,7 +25,7 @@ export const marketingExternalLinkVariants = cva('', {
 
 type ExternalLinkProps = ComponentProps<typeof ExternalLink>;
 
-export interface MarketingExternalLinkProps
+interface MarketingExternalLinkProps
   extends
     Omit<ExternalLinkProps, 'className' | 'children'>,
     VariantProps<typeof marketingExternalLinkVariants> {

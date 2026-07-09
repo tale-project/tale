@@ -6,7 +6,7 @@ import {
   SectionHeading,
 } from '@/app/components/marketing';
 
-export interface FeatureStep {
+interface FeatureStep {
   title: string;
   body: string;
 }

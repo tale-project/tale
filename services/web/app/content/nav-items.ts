@@ -15,14 +15,14 @@ import {
 import { DOCS_URL } from '@/lib/docs-url';
 import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
-export interface PlatformNavItem {
+interface PlatformNavItem {
   id: PlatformPageId;
   path: PlatformPageDef['path'];
   navKey: PlatformPageDef['navKey'];
   icon: LucideIcon;
 }
 
-export interface ResourcesNavItem {
+interface ResourcesNavItem {
   id: string;
   labelKey: string;
   descriptionKey: string;

@@ -20,7 +20,7 @@ export interface DemoTourStage {
   demo: ReactNode;
 }
 
-export interface DemoTourSectionProps {
+interface DemoTourSectionProps {
   /** Optional section heading above the first row. */
   heading?: string;
   description?: string;

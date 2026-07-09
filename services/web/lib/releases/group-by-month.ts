@@ -1,6 +1,6 @@
 import type { Release } from '@/lib/releases/types';
 
-export interface ReleaseMonthGroup {
+interface ReleaseMonthGroup {
   /** Sort key `YYYY-MM`. */
   key: string;
   /** Localized month label supplied by the caller. */

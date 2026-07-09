@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
 
-export const pageSectionVariants = cva('', {
+const pageSectionVariants = cva('', {
   variants: {
     surface: {
       site: 'bg-surface-site',

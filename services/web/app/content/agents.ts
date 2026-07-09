@@ -18,7 +18,7 @@ import {
 } from '@/app/components/icons/integration-icons';
 import type { BrandIcon } from '@/app/components/icons/types';
 
-export interface AgentEntry {
+interface AgentEntry {
   id: string;
   /** Unlocalized product mark — matches the shipped agent name. */
   name: string;

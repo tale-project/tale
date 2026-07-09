@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from 'react';
 
 type ButtonProps = ComponentProps<typeof Button>;
 
-export const marketingButtonVariants = cva(
+const marketingButtonVariants = cva(
   'rounded-full border-transparent font-normal shadow-none',
   {
     variants: {
@@ -26,7 +26,7 @@ export const marketingButtonVariants = cva(
   },
 );
 
-export interface MarketingButtonProps extends VariantProps<
+interface MarketingButtonProps extends VariantProps<
   typeof marketingButtonVariants
 > {
   children: ReactNode;

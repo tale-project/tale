@@ -12,7 +12,7 @@ export interface DemoTourRowLink {
   to: LocalizedRoutePath;
 }
 
-export interface DemoTourRowProps {
+interface DemoTourRowProps {
   /** Numbered eyebrow, e.g. "01 Agents & integrations". */
   eyebrow: string;
   /** Large stage title — may include `\n` for line breaks. */

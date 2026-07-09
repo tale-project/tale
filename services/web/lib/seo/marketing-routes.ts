@@ -38,8 +38,6 @@ const ROUTE_SEO_KEYS = [
   { url: '/changelog', key: 'changelog' },
 ] as const;
 
-export type MarketingSeoKey = (typeof ROUTE_SEO_KEYS)[number]['key'];
-
 const seo = enMessages.seo;
 
 export const MARKETING_ROUTES: readonly MarketingRoute[] = ROUTE_SEO_KEYS.map(

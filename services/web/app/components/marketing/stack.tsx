@@ -2,7 +2,7 @@ import { cn } from '@tale/ui/cn';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 
-export const marketingStackVariants = cva('mx-auto flex w-full flex-col', {
+const marketingStackVariants = cva('mx-auto flex w-full flex-col', {
   variants: {
     gap: {
       sm: 'gap-4 md:gap-5',
@@ -30,7 +30,7 @@ export const marketingStackVariants = cva('mx-auto flex w-full flex-col', {
   },
 });
 
-export interface MarketingStackProps extends VariantProps<
+interface MarketingStackProps extends VariantProps<
   typeof marketingStackVariants
 > {
   children: ReactNode;

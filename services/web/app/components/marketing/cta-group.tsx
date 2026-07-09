@@ -7,7 +7,7 @@ import { MarketingButton } from '@/app/components/marketing/button';
 import { MarketingExternalLink } from '@/app/components/marketing/external-link';
 import { MarketingLink } from '@/app/components/marketing/link';
 
-export const ctaGroupVariants = cva('flex flex-wrap items-center gap-3', {
+const ctaGroupVariants = cva('flex flex-wrap items-center gap-3', {
   variants: {
     align: {
       center: 'justify-center',
@@ -19,23 +19,19 @@ export const ctaGroupVariants = cva('flex flex-wrap items-center gap-3', {
   },
 });
 
-export interface CtaGroupProps extends VariantProps<typeof ctaGroupVariants> {
+interface CtaGroupProps extends VariantProps<typeof ctaGroupVariants> {
   children?: ReactNode;
   className?: string;
 }
 
 /** Horizontal CTA row used under heroes and closing bands. */
-export function CtaGroup({
-  children,
-  className,
-  align = 'center',
-}: CtaGroupProps) {
+function CtaGroup({ children, className, align = 'center' }: CtaGroupProps) {
   return (
     <div className={cn(ctaGroupVariants({ align }), className)}>{children}</div>
   );
 }
 
-export interface CtaAction {
+interface CtaAction {
   label: ReactNode;
   /** Internal marketing path. */
   to?: LocalizedRoutePath;
@@ -43,7 +39,7 @@ export interface CtaAction {
   href?: string;
 }
 
-export interface CtaPairProps {
+interface CtaPairProps {
   primary: CtaAction;
   secondary: CtaAction;
   size?: 'default' | 'lg';

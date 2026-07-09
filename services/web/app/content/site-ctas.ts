@@ -13,23 +13,23 @@ export const REQUEST_DEMO_PATH = '/request-demo' satisfies LocalizedRoutePath;
 export const GET_STARTED_HREF = GET_STARTED_URL;
 
 /** i18n keys under `nav.*` for chrome CTAs. */
-export type NavCtaLabelKey = 'getStarted' | 'requestDemo' | 'contactUs';
+type NavCtaLabelKey = 'getStarted' | 'requestDemo' | 'contactUs';
 
-export interface SiteCtaInternal {
+interface SiteCtaInternal {
   kind: 'internal';
   id: string;
   path: LocalizedRoutePath;
   labelKey: NavCtaLabelKey;
 }
 
-export interface SiteCtaExternal {
+interface SiteCtaExternal {
   kind: 'external';
   id: string;
   href: string;
   labelKey: NavCtaLabelKey;
 }
 
-export type SiteCta = SiteCtaInternal | SiteCtaExternal;
+type SiteCta = SiteCtaInternal | SiteCtaExternal;
 
 /** Header primary button (Get started → docs). */
 export const HEADER_PRIMARY_CTA = {

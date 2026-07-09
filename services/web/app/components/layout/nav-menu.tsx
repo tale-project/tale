@@ -27,7 +27,7 @@ export interface NavMenuItemView {
   icon: LucideIcon;
 }
 
-export interface NavMenuProps {
+interface NavMenuProps {
   /** Visible trigger label. */
   label: string;
   /** Whether this menu's panel is open. */

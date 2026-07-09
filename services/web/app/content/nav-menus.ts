@@ -13,7 +13,7 @@ import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
 export type NavMenuId = 'platform' | 'resources';
 
-export interface NavMenuItem {
+interface NavMenuItem {
   /** Stable id for React keys. */
   id: string;
   path: LocalizedRoutePath;
@@ -24,7 +24,7 @@ export interface NavMenuItem {
   icon: LucideIcon;
 }
 
-export interface NavMenuDef {
+interface NavMenuDef {
   id: NavMenuId;
   /** i18n key under `nav.*` for the trigger label. */
   triggerKey: NavMenuId;
@@ -32,7 +32,7 @@ export interface NavMenuDef {
 }
 
 /** Resources — docs (external), changelog, hardware. */
-export const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
+const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
   {
     id: 'changelog',
     path: '/changelog',

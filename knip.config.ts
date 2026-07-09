@@ -26,6 +26,9 @@ export default {
     // both from the dead-export sweep so the mirror stays complete.
     'services/sandbox/src/session/runnerd-protocol.ts',
     'services/sandbox-runtime/daemon/src/protocol.ts',
+    // Written by `optimize-images` for future responsive marketing assets;
+    // empty until sources land, but the generator always emits the file.
+    'services/web/app/generated/image-manifest.ts',
   ],
   workspaces: {
     'services/platform': {
@@ -83,6 +86,13 @@ export default {
     },
     'services/web': {
       vite: { config: ['vite.config.ts'] },
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
       entry: [
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',

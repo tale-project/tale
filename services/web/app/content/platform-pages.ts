@@ -167,7 +167,7 @@ export function getPlatformPage(id: PlatformPageId): PlatformPageDef {
 }
 
 /** Lucide icons shared by header Product menu, hub grid, and related modules. */
-export const PLATFORM_ICONS: Record<PlatformPageId, LucideIcon> = {
+const PLATFORM_ICONS: Record<PlatformPageId, LucideIcon> = {
   hub: LayoutGrid,
   agents: Bot,
   chat: MessagesSquare,

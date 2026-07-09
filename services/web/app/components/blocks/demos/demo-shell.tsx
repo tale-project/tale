@@ -39,7 +39,7 @@ const NAV_ICONS = [
   Settings,
 ] as const;
 
-export type DemoNav =
+type DemoNav =
   | 'chat'
   | 'projects'
   | 'knowledge'
@@ -65,7 +65,7 @@ const PAGE_HEADER_NAVS = new Set<DemoNav>([
   'settings',
 ]);
 
-export interface DemoShellProps {
+interface DemoShellProps {
   /** Localized one-sentence description of what the demo shows. */
   label: string;
   /**

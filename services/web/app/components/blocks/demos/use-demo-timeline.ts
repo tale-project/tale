@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { withinEntranceWindow } from '@/lib/motion/entrance';
 
-export interface UseDemoTimelineOptions {
+interface UseDemoTimelineOptions {
   /**
    * Millisecond offsets, ascending from 0, at which each beat begins.
    * Pass a module-level constant — the array identity is an effect dep.

@@ -3,7 +3,6 @@ export {
   detectInitialLocale,
   isUrlPrefixedLocale,
   resolveRegionalLocale,
-  SUPPORTED_LOCALES,
 } from '@tale/ui/i18n/detect-locale';
 export type { Locale, SupportedLocale } from '@tale/ui/i18n/detect-locale';
 

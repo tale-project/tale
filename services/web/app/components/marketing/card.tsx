@@ -9,7 +9,7 @@ import {
 } from '@/app/components/layout/localized-link';
 import { Reveal } from '@/app/components/marketing/reveal';
 
-export const marketingCardVariants = cva(
+const marketingCardVariants = cva(
   'group block transition-colors duration-200',
   {
     variants: {
@@ -30,7 +30,7 @@ export const marketingCardVariants = cva(
   },
 );
 
-export interface MarketingCardProps extends VariantProps<
+interface MarketingCardProps extends VariantProps<
   typeof marketingCardVariants
 > {
   /** When set, the card is a locale-aware link. */

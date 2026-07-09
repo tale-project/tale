@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export interface DemoTypingTextProps {
+interface DemoTypingTextProps {
   text: string;
   /** Type characters out while true. */
   play: boolean;

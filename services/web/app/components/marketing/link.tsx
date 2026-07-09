@@ -7,7 +7,7 @@ import {
   type LocalizedRoutePath,
 } from '@/app/components/layout/localized-link';
 
-export const marketingLinkVariants = cva('', {
+const marketingLinkVariants = cva('', {
   variants: {
     tone: {
       nav: 'text-fg-muted hover:text-fg-base text-[13px] font-normal tracking-tight transition-colors',
@@ -28,7 +28,7 @@ export const marketingLinkVariants = cva('', {
 
 type LocalizedLinkProps = ComponentProps<typeof LocalizedLink>;
 
-export interface MarketingLinkProps
+interface MarketingLinkProps
   extends
     Omit<LocalizedLinkProps, 'to' | 'className' | 'children'>,
     VariantProps<typeof marketingLinkVariants> {

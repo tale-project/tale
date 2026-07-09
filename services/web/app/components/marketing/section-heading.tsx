@@ -4,7 +4,7 @@ import type { CSSProperties, ElementType, ReactNode } from 'react';
 
 import { Reveal } from '@/app/components/marketing/reveal';
 
-export const sectionHeadingTitleVariants = cva('text-fg-base font-normal', {
+const sectionHeadingTitleVariants = cva('text-fg-base font-normal', {
   variants: {
     size: {
       display:
@@ -20,7 +20,7 @@ export const sectionHeadingTitleVariants = cva('text-fg-base font-normal', {
   },
 });
 
-export const sectionHeadingDescriptionVariants = cva('text-fg-muted', {
+const sectionHeadingDescriptionVariants = cva('text-fg-muted', {
   variants: {
     size: {
       display: 'max-w-155 text-[17px] text-balance md:text-xl',
@@ -33,7 +33,7 @@ export const sectionHeadingDescriptionVariants = cva('text-fg-muted', {
   },
 });
 
-export const sectionHeadingAlignVariants = cva('flex flex-col gap-4 md:gap-5', {
+const sectionHeadingAlignVariants = cva('flex flex-col gap-4 md:gap-5', {
   variants: {
     align: {
       center: 'items-center text-center',
@@ -54,7 +54,7 @@ const TITLE_LH: Record<
   subsection: 1.05,
 };
 
-export interface SectionHeadingProps extends VariantProps<
+interface SectionHeadingProps extends VariantProps<
   typeof sectionHeadingTitleVariants
 > {
   title: ReactNode;

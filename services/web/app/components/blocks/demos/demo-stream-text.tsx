@@ -1,6 +1,6 @@
 import { cn } from '@tale/ui/cn';
 
-export interface DemoStreamTextProps {
+interface DemoStreamTextProps {
   /** Pre-split localized clauses, revealed one per beat. */
   segments: readonly string[];
   /** Number of segments currently revealed. */

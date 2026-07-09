@@ -5,7 +5,6 @@ import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { ROUTE_PATHS, type LocalizedRoutePath } from '@/lib/seo/route-paths';
 
 export type { LocalizedRoutePath };
-export { LOCALIZED_ROUTE_PATHS } from '@/lib/seo/route-paths';
 
 type BaseLinkProps = ComponentProps<typeof Link>;
 type ForwardedLinkProps = Omit<BaseLinkProps, 'to' | 'params'>;
