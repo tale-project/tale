@@ -9,6 +9,14 @@ import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
+// The real self-hosted quickstart, verbatim — source of truth:
+// docs/en/self-hosted/install/quickstart.md. Update both together.
+const QUICKSTART_COMMANDS = [
+  'curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash',
+  'tale init my-project',
+  'tale dev',
+] as const;
+
 export function CtaDeploy() {
   const { t } = useT('home');
   const reduceMotion = useReducedMotion();
@@ -58,6 +66,25 @@ export function CtaDeploy() {
                 {t('cta.secondary')}
               </ExternalLink>
             </Button>
+          </div>
+
+          <div className="bg-accent-base w-full max-w-160 rounded-2xl px-5 py-4 text-left shadow-sm md:px-6 md:py-5">
+            <p className="text-accent-fg/60 mb-3 text-xs font-medium tracking-wide uppercase">
+              {t('cta.terminalTitle')}
+            </p>
+            <div className="flex flex-col gap-2 font-mono text-xs md:text-[13px]">
+              {QUICKSTART_COMMANDS.map((command) => (
+                <p
+                  key={command}
+                  className="text-accent-fg break-all md:break-normal"
+                >
+                  <span aria-hidden className="text-accent-fg/50 select-none">
+                    ${' '}
+                  </span>
+                  {command}
+                </p>
+              ))}
+            </div>
           </div>
         </motion.div>
       </SiteContainer>

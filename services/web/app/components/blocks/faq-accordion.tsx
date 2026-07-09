@@ -8,7 +8,14 @@ import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-const FAQ_KEYS = [
+/**
+ * Question order on the page — also the source for the homepage's FAQPage
+ * JSON-LD, so schema and visible content cannot diverge.
+ */
+export const FAQ_KEYS = [
+  'whatIsTale',
+  'openSource',
+  'onPrem',
   'enterprisePricing',
   'enterpriseFeatures',
   'byoModels',

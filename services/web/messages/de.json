@@ -1,5 +1,6 @@
 {
   "seo": {
+    "ogImageAlt": "Tale — Der Orchestrator für KI-Agents",
     "home": {
       "title": "Tale: Der Orchestrator für KI-Agents",
       "description": "Tale verbindet die KI-Agents und CLIs, die dein Team bereits nutzt, bündelt ihr Wissen und delegiert Arbeit — selbst gehostet, ISO-27001- und SOC-2-zertifiziert."
@@ -203,6 +204,18 @@
       "title": "Häufig gestellte Fragen",
       "stillQuestions": "Noch Fragen?",
       "contactTeam": "Kontaktiere unser Team",
+      "whatIsTale": {
+        "q": "Was ist Tale?",
+        "a": "Tale ist eine selbst gehostete Open-Source-Plattform zum Orchestrieren von KI-Agents: Sie verbindet die Agents und CLIs, die dein Team bereits nutzt, bündelt ihr Wissen in einer kontrollierten Wissensbasis und führt Automatisierungen mit menschlicher Freigabe aus — auf deiner eigenen Infrastruktur oder in einer verwalteten Cloud in der Schweiz/EU."
+      },
+      "openSource": {
+        "q": "Ist Tale Open Source?",
+        "a": "Ja. Tale ist MIT-lizenziert, und der volle Funktionsumfang steckt in der kostenlosen Community-Edition — Enterprise ergänzt Support und Services, keine Funktionen."
+      },
+      "onPrem": {
+        "q": "Läuft Tale komplett on-premises oder air-gapped?",
+        "a": "Ja. Tale läuft selbst gehostet in deiner VPC, auf eigener Hardware oder vollständig air-gapped; mit lokalen Modellen verlassen deine Daten dein Netzwerk nie."
+      },
       "enterprisePricing": {
         "q": "Wie funktioniert die Enterprise-Preisgestaltung?",
         "a": "Enterprise wird pro Nutzer und Monat abgerechnet, mit zwei Monaten gratis bei jährlicher Zahlung. Speicher über das enthaltene Kontingent hinaus wird pro TB/Monat berechnet. Die Community-Edition bleibt für den selbst gehosteten Einsatz kostenlos."
@@ -236,7 +249,8 @@
       "title": "Mit Tale loslegen",
       "description": "Orchestriere deine KI-Agents auf einem souveränen Stack, den du selbst betreibst — nimm Kontakt auf oder leg in drei Befehlen los.",
       "primary": "Demo anfragen",
-      "secondary": "So funktioniert's"
+      "secondary": "So funktioniert's",
+      "terminalTitle": "Selbst hosten in drei Befehlen"
     }
   },
   "complianceTrust": {
