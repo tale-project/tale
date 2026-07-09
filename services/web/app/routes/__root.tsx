@@ -3,12 +3,14 @@ import { Outlet, createRootRoute } from '@tanstack/react-router';
 
 import { SiteFooter } from '@/app/components/layout/site-footer';
 import { SiteHeader } from '@/app/components/layout/site-header';
+import { NotFoundPage } from '@/app/pages/not-found-page';
 import { useT } from '@/lib/i18n/client';
 import { resolveRegionalLocale } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 export const Route = createRootRoute({
   component: RootComponent,
+  notFoundComponent: NotFoundPage,
 });
 
 /**

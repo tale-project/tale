@@ -22,6 +22,11 @@
       "description": "Matériel IA silencieux pour l'inférence auto-hébergée — du nœud unique au rack serveur, en location, leasing ou achat. Chez toi ou dans des data centers sécurisés."
     }
   },
+  "notFound": {
+    "title": "Cette page n'existe pas",
+    "body": "L'adresse est peut-être mal saisie, ou la page a déménagé. Le mieux est de repartir de l'accueil.",
+    "backHome": "Retour à l'accueil"
+  },
   "nav": {
     "platform": "Plateforme",
     "pricing": "Tarifs",

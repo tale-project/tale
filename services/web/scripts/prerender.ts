@@ -58,7 +58,12 @@ function collectRoutes(legalUrls: PrerenderRoute[]): PrerenderRoute[] {
       marketing.push({ url: localizedPath(locale, route.url), locale });
     }
   }
-  return [...marketing, ...legalUrls];
+  // The 404 artifact (English; the client re-localizes after mount). The
+  // static server returns it with a real 404 status for unknown paths —
+  // deliberately outside MARKETING_ROUTES so it never enters the sitemap
+  // or llms.txt.
+  const notFound: PrerenderRoute = { url: '/404', locale: 'en' };
+  return [...marketing, notFound, ...legalUrls];
 }
 
 async function main(): Promise<void> {

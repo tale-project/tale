@@ -146,6 +146,18 @@ function contentTypeFor(path: string): string | null {
   return null;
 }
 
+/**
+ * Cache policy for static files. Vite content-hashes everything under
+ * `assets/`, so those are immutable; HTML must always revalidate; other
+ * static files (favicons, og card, manifest, images) change rarely but are
+ * not hashed, so they get a short TTL with stale-while-revalidate.
+ */
+export function staticCacheControlFor(rel: string): string {
+  if (rel.startsWith('assets/')) return 'public, max-age=31536000, immutable';
+  if (rel === '' || rel.endsWith('.html')) return 'no-cache';
+  return 'public, max-age=3600, stale-while-revalidate=86400';
+}
+
 function isSecureRequest(request: Request): boolean {
   if (request.url.startsWith('https://')) return true;
   return request.headers.get('x-forwarded-proto') === 'https';
@@ -250,9 +262,26 @@ export function startReactServer(opts: ReactServerOptions): void {
     return response;
   }
 
+  // Prerendered 404 page — opt-in by artifact. A service that emits
+  // `dist/404/index.html` (web/docs prerender) gets a real 404 status for
+  // unknown paths; without the artifact the legacy SPA-shell fallback (200)
+  // stays, so consumers migrate independently.
+  async function notFoundOrShell(): Promise<Response> {
+    const notFound = file(join(distDir, '404', 'index.html'));
+    if (await notFound.exists()) {
+      return new Response(notFound, {
+        status: 404,
+        headers: { 'cache-control': 'no-cache' },
+      });
+    }
+    return new Response(file(join(distDir, 'index.html')), {
+      headers: { 'cache-control': 'no-cache' },
+    });
+  }
+
   async function serveStatic(pathname: string): Promise<Response> {
     // Malformed percent-encodings (e.g. `/%E0%A4%A`) make decodeURIComponent
-    // throw — fall back to the SPA shell instead of crashing the request.
+    // throw — treat them as not-found instead of crashing the request.
     let rel: string;
     try {
       rel = decodeURIComponent(pathname).replace(/^\/+/, '');
@@ -261,7 +290,7 @@ export function startReactServer(opts: ReactServerOptions): void {
         pathname,
         err,
       });
-      return new Response(file(join(distDir, 'index.html')));
+      return notFoundOrShell();
     }
     const resolved = resolve(distDir, rel);
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
@@ -269,16 +298,21 @@ export function startReactServer(opts: ReactServerOptions): void {
       if (await candidate.exists()) {
         const ct = contentTypeFor(pathname);
         return new Response(candidate, {
-          headers: ct ? { 'content-type': ct } : undefined,
+          headers: {
+            ...(ct ? { 'content-type': ct } : {}),
+            'cache-control': staticCacheControlFor(rel),
+          },
         });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
       const routeHtml = file(join(resolved, 'index.html'));
       if (await routeHtml.exists()) {
-        return new Response(routeHtml);
+        return new Response(routeHtml, {
+          headers: { 'cache-control': 'no-cache' },
+        });
       }
     }
-    return new Response(file(join(distDir, 'index.html')));
+    return notFoundOrShell();
   }
 
   Bun.serve({

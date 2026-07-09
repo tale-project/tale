@@ -22,6 +22,11 @@
       "description": "Leise KI-Hardware für selbst gehostete Inferenz — vom einzelnen Node bis zum Server-Rack, zur Miete, im Leasing oder zum Kauf. Vor Ort bei dir oder in sicheren Rechenzentren."
     }
   },
+  "notFound": {
+    "title": "Diese Seite gibt es nicht",
+    "body": "Die Adresse ist vielleicht vertippt, oder die Seite ist umgezogen. Am besten startest du auf der Startseite neu.",
+    "backHome": "Zur Startseite"
+  },
   "nav": {
     "platform": "Plattform",
     "pricing": "Preise",

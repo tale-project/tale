@@ -22,6 +22,11 @@
       "description": "Silent AI hardware for self-hosted inference — from single nodes to server racks, to rent, lease, or buy. Deployed at your site or hosted in secure data centers."
     }
   },
+  "notFound": {
+    "title": "This page doesn't exist",
+    "body": "The address may be mistyped, or the page has moved. The homepage is the best place to start over.",
+    "backHome": "Back to the homepage"
+  },
   "nav": {
     "platform": "Platform",
     "pricing": "Pricing",
