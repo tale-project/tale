@@ -203,12 +203,13 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
       await readFile(path.join(historyDir, entries[0] ?? ''), 'utf-8'),
     ).toBe('{"slug":"assistant","v":"user-edited"}');
 
-    // Post-sync hooks: cache drop + default-agent provisioner scheduled.
+    // Post-sync hooks: cache drop + default-agent provisioner scheduled with
+    // `reinstallMissing` (the explicit sync is consent to heal deleted rows).
     expect(mockInvalidateAgentListCache).toHaveBeenCalledWith('acme');
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
       'syncDefaultAgentInstallations',
-      { organizationId: 'org1', orgSlug: 'acme' },
+      { organizationId: 'org1', orgSlug: 'acme', reinstallMissing: true },
     );
   });
 
@@ -227,14 +228,22 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
     expect(existsSync(orgDst('agents', 'newcomer.json'))).toBe(true);
     expect(existsSync(orgDst('agents', '.history'))).toBe(false);
 
-    // Second run: already in sync — no writes, no hooks.
+    // Second run: already in sync — no writes, no file hooks. The
+    // provisioner is STILL scheduled (with `reinstallMissing`): the explicit
+    // sync doubles as the recovery path for a deleted install row, which is
+    // invisible to the file comparison.
     const ctx2 = createMockCtx();
     const second = await syncHandler(ctx2 as never, {
       organizationId: 'org1',
       domain: 'agents',
     });
     expect(second).toEqual({ updated: 0, backedUp: 0 });
-    expect(ctx2.scheduler.runAfter).not.toHaveBeenCalled();
+    expect(ctx2.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultAgentInstallations',
+      { organizationId: 'org1', orgSlug: 'acme', reinstallMissing: true },
+    );
+    expect(mockInvalidateAgentListCache).toHaveBeenCalledTimes(1);
   });
 
   it('preserves org-side secrets and existing history trails through an agents sync', async () => {

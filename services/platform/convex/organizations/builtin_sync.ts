@@ -374,6 +374,24 @@ export const syncDomainFromBuiltin = action({
       }
     }
 
+    // Agents: run the autoInstall provisioner even when no FILE changed — the
+    // explicit "Update built-in agents" action doubles as the recovery path
+    // for a deleted install ROW. `reinstallMissing` marks the run as
+    // operator-consented, so an autoInstall agent whose row was removed is
+    // restored (the provisioner's background default never re-provisions
+    // behind the org's back).
+    if (domainName === 'agents') {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agents.provision_defaults.syncDefaultAgentInstallations,
+        {
+          organizationId: args.organizationId,
+          orgSlug,
+          reinstallMissing: true,
+        },
+      );
+    }
+
     if (updated === 0) return { updated, backedUp };
 
     // Post-sync hooks — the same provisioning the org-create flow runs after
@@ -381,11 +399,6 @@ export const syncDomainFromBuiltin = action({
     // become live without a second manual step.
     if (domainName === 'agents') {
       invalidateAgentListCache(orgSlug);
-      await ctx.scheduler.runAfter(
-        0,
-        internal.agents.provision_defaults.syncDefaultAgentInstallations,
-        { organizationId: args.organizationId, orgSlug },
-      );
     } else if (domainName === 'workflows') {
       await ctx.scheduler.runAfter(
         0,
