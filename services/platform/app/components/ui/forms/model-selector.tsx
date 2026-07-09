@@ -29,6 +29,12 @@ export interface ModelSelectorProps {
   getDisplayName: (modelId: string) => string;
   /** Resolve the provider name that will serve this model (optional). */
   getProviderName?: (modelId: string) => string | undefined;
+  /**
+   * Optional per-model warning (e.g. ref missing from the org provider
+   * catalog). When set, shown under the row in destructive text so an orphan
+   * saved ref cannot look like a valid catalog pick.
+   */
+  getModelWarning?: (modelId: string) => string | undefined;
   /** Optional trailing affordance per selected model (e.g. an info popover). */
   renderItemAction?: (modelId: string) => ReactNode;
   /** Minimum number of models required (default 1) */
@@ -45,6 +51,7 @@ function ModelSelectorBase({
   availableOptions,
   getDisplayName,
   getProviderName,
+  getModelWarning,
   renderItemAction,
   minModels = 1,
   readonlyOrder = false,
@@ -116,20 +123,32 @@ function ModelSelectorBase({
         removeLabel={t('agents.form.removeModel')}
         renderItem={({ item }) => {
           const providerName = getProviderName?.(item.modelId);
+          const warning = getModelWarning?.(item.modelId);
           return (
-            <div className="flex min-w-0 flex-1 items-baseline gap-2">
-              <code className="truncate text-sm">
-                {getDisplayName(item.modelId)}
-              </code>
-              {providerName ? (
-                <span className="text-muted-foreground flex-shrink-0 text-xs">
-                  {providerName}
-                </span>
-              ) : null}
-              {renderItemAction ? (
-                <span className="ml-auto shrink-0">
-                  {renderItemAction(item.modelId)}
-                </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <code className="truncate text-sm">
+                  {getDisplayName(item.modelId)}
+                </code>
+                {providerName ? (
+                  <span className="text-muted-foreground flex-shrink-0 text-xs">
+                    {providerName}
+                  </span>
+                ) : null}
+                {renderItemAction ? (
+                  <span className="ml-auto shrink-0">
+                    {renderItemAction(item.modelId)}
+                  </span>
+                ) : null}
+              </div>
+              {warning ? (
+                <p
+                  role="status"
+                  className="text-destructive text-xs"
+                  data-testid={`model-warning-${item.modelId}`}
+                >
+                  {warning}
+                </p>
               ) : null}
             </div>
           );

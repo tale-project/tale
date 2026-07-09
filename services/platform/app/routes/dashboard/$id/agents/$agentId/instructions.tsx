@@ -376,6 +376,27 @@ function InstructionsTab() {
     [modelProvidersMap],
   );
 
+  // Catalog membership for saved refs. Hidden models still count (resolvable
+  // at runtime); only a missing id is a problem. Matches create-dialog's
+  // validRefs check so an orphan pack/UI save cannot look like a catalog pick.
+  const getModelWarning = useCallback(
+    (ref: string): string | undefined => {
+      const { providerName, modelId } = parseModelRef(ref);
+      const inProvider = (name: string): boolean => {
+        const provider = providers.find((p) => p?.name === name);
+        if (!provider || !Array.isArray(provider.models)) return false;
+        return provider.models.some((m) => m.id === modelId);
+      };
+      if (providerName) {
+        if (inProvider(providerName)) return undefined;
+        return t('agents.form.modelNotInCatalog', { provider: providerName });
+      }
+      if (modelProvidersMap.has(modelId)) return undefined;
+      return t('agents.form.modelNotInAnyCatalog');
+    },
+    [providers, modelProvidersMap, t],
+  );
+
   // Vision-model picker options for the managed text-only image polyfill. The
   // first entry ('auto') clears `visionModel` so the runtime falls back to the
   // provider registry's `vision`-tagged default; the rest are every concrete
@@ -640,6 +661,7 @@ function InstructionsTab() {
             availableOptions={availableOptions}
             getDisplayName={getDisplayName}
             getProviderName={getProviderName}
+            getModelWarning={getModelWarning}
             renderItemAction={renderItemAction}
           />
         )}
