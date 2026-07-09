@@ -402,6 +402,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@tale/ui": "workspace:*",
+        "framer-motion": "12.38.0",
         "react-markdown": "10.1.0",
         "remark-gfm": "4.0.1",
       },
