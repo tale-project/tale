@@ -11,7 +11,7 @@
  *   - meta:      description / keywords / author `<meta name="...">` tags
  */
 
-import { JSDOM } from 'jsdom';
+import { parseHtml } from './parse_html';
 
 export interface StructuredData {
   opengraph?: Record<string, string>;
@@ -22,7 +22,7 @@ export interface StructuredData {
 export function extractStructuredDataFromHtml(html: string): StructuredData {
   const structured: StructuredData = {};
   try {
-    const { document } = new JSDOM(html).window;
+    const { document } = parseHtml(html).window;
 
     // OpenGraph.
     const ogData: Record<string, string> = {};
@@ -84,7 +84,7 @@ export function extractStructuredDataFromHtml(html: string): StructuredData {
 /** Extract the document `<title>` from raw HTML. */
 export function extractTitleFromHtml(html: string): string | null {
   try {
-    const { document } = new JSDOM(html).window;
+    const { document } = parseHtml(html).window;
     const title = document.querySelector('title')?.textContent?.trim();
     return title && title.length > 0 ? title : null;
   } catch {

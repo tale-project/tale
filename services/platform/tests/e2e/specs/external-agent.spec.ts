@@ -253,9 +253,9 @@ test.describe('external agent (Cursor)', () => {
     await expect(agentTrigger).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
     await agentTrigger.click();
 
-    // External agents carry a "Sandbox" badge and a "View agent details" link
+    // Coding agents carry a "Coding agent" badge and a "View agent details" link
     // inside the option, so its accessible name is
-    // `"<display name> Sandbox View agent details"` — match by substring on the
+    // `"<display name> Coding agent View agent details"` — match by substring on the
     // (unique) display name rather than an exact name that never matches.
     await page.getByRole('option', { name: AGENT_DISPLAY_NAME }).click();
     await expect(agentTrigger).toContainText(AGENT_DISPLAY_NAME, {

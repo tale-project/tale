@@ -314,6 +314,7 @@ import type * as conversations_update_conversations from "../conversations/updat
 import type * as conversations_validators from "../conversations/validators.js";
 import type * as crawler_helpers_content_filter from "../crawler/helpers/content_filter.js";
 import type * as crawler_helpers_fetch_rendered_html from "../crawler/helpers/fetch_rendered_html.js";
+import type * as crawler_helpers_parse_html from "../crawler/helpers/parse_html.js";
 import type * as crawler_helpers_structured_data from "../crawler/helpers/structured_data.js";
 import type * as crawler_index_pages from "../crawler/index_pages.js";
 import type * as crawler_lib_discovery from "../crawler/lib/discovery.js";
@@ -2064,6 +2065,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/validators": typeof conversations_validators;
   "crawler/helpers/content_filter": typeof crawler_helpers_content_filter;
   "crawler/helpers/fetch_rendered_html": typeof crawler_helpers_fetch_rendered_html;
+  "crawler/helpers/parse_html": typeof crawler_helpers_parse_html;
   "crawler/helpers/structured_data": typeof crawler_helpers_structured_data;
   "crawler/index_pages": typeof crawler_index_pages;
   "crawler/lib/discovery": typeof crawler_lib_discovery;

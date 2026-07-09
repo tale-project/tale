@@ -2,6 +2,8 @@ import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
+import { Info } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -13,6 +15,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import {
   useUpdateAgentBindings,
   useUpdateAgentSharing,
@@ -30,7 +33,12 @@ import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { listProductAgentSlugs } from '@/lib/agent-adapters/registry';
 import { useT } from '@/lib/i18n/client';
+import {
+  getTaskDispatchHintKey,
+  taskDispatchHintI18nSuffix,
+} from '@/lib/shared/agents/display-category';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
+import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/agents/$agentId/')({
@@ -43,8 +51,36 @@ export const Route = createFileRoute('/dashboard/$id/agents/$agentId/')({
 const NO_TEAM_VALUE = '__none__';
 const DEFAULT_TIMEOUT_MINUTES = 7;
 
+function InfoTooltipLabel({
+  label,
+  info,
+  moreInfoLabel,
+  className,
+}: {
+  label: string;
+  info: ReactNode;
+  moreInfoLabel: string;
+  className?: string;
+}) {
+  return (
+    <span className={cn('inline-flex items-center gap-1', className)}>
+      {label}
+      <Tooltip content={info}>
+        <button
+          type="button"
+          aria-label={moreInfoLabel}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+        >
+          <Info className="size-3.5" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    </span>
+  );
+}
+
 function GeneralTab() {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { id: organizationId, agentId: agentSlug } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
   const { teams } = useTeamFilter();
@@ -296,8 +332,8 @@ function GeneralTab() {
     setTimeoutDraft(null);
   }, [timeoutDraft, commitTimeout]);
 
-  // Agent type (primaryBehavior) — Internal (chat, runs the platform tool loop)
-  // vs External agent (Claude Code / Cursor in a sandbox) vs Image generation.
+  // Agent type (primaryBehavior) — Agent (chat, platform tool loop)
+  // vs Coding agent (Claude Code / Cursor in a sandbox) vs Image generation.
   // Switching rewires which config applies, so it goes through a confirm dialog
   // and a Zod-safe field cleanup (see nextConfigForBehavior).
   const primaryBehavior: AgentPrimaryBehavior =
@@ -312,17 +348,14 @@ function GeneralTab() {
       {
         value: 'chat',
         label: t('agents.form.agentType.internalLabel'),
-        description: t('agents.form.agentType.internalDescription'),
       },
       {
         value: 'external-agent',
         label: t('agents.form.agentType.externalLabel'),
-        description: t('agents.form.agentType.externalDescription'),
       },
       {
         value: 'image-generation',
         label: t('agents.form.agentType.imageLabel'),
-        description: t('agents.form.agentType.imageDescription'),
       },
     ],
     [t],
@@ -428,7 +461,31 @@ function GeneralTab() {
           : pendingBehavior === 'chat'
             ? t('agents.form.agentType.switchToChatDescription')
             : t('agents.form.agentType.switchToImageDescription')
-      }${switchLeavesNoModel ? ` ${t('agents.form.agentType.noModelWarning')}` : ''}`;
+      }${switchLeavesNoModel ? ` ${t('agents.form.agentType.noModelWarning')}` : ''}${
+        config.runtime !== undefined ||
+        config.preferDurableStepForTasks === true
+          ? ` ${t('agents.form.agentType.switchTaskDispatchNote')}`
+          : ''
+      }`;
+
+  const taskBoardHintKey = getTaskDispatchHintKey(config);
+  const taskBoardHint = taskBoardHintKey
+    ? t(`agents.form.taskBoard.${taskDispatchHintI18nSuffix(taskBoardHintKey)}`)
+    : null;
+
+  const agentTypeInfo = useMemo(() => {
+    const chatHelp = t('agents.form.agentType.sectionDescription');
+    if (!taskBoardHint) return chatHelp;
+    return (
+      <>
+        {chatHelp}
+        <span className="mt-2 block font-medium">
+          {t('agents.form.taskBoard.title')}
+        </span>
+        {taskBoardHint}
+      </>
+    );
+  }, [t, taskBoardHint]);
 
   return (
     <ContentArea variant="narrow" gap={6}>
@@ -438,8 +495,13 @@ function GeneralTab() {
       />
 
       <PageSection
-        title={t('agents.form.agentType.sectionTitle')}
-        description={t('agents.form.agentType.sectionDescription')}
+        title={
+          <InfoTooltipLabel
+            label={t('agents.form.agentType.sectionTitle')}
+            info={agentTypeInfo}
+            moreInfoLabel={tCommon('aria.moreInfo')}
+          />
+        }
         gap={6}
       >
         <FormSection>

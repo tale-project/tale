@@ -265,6 +265,7 @@ function TaskListRow({
   const blocked = useTaskBoardContext().isBlocked(task._id);
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
+  const editable = canEdit && task.archivedAt == null;
 
   // Subtask rows are not draggable; only top-level rows participate in the DnD
   // sortable context. `useSortable` is still called unconditionally to respect
@@ -275,7 +276,7 @@ function TaskListRow({
   const sortable = useSortable({
     id: task._id,
     data: { status: task.status },
-    disabled: nested || !canEdit,
+    disabled: nested || !editable,
   });
   const style = nested
     ? undefined
@@ -304,7 +305,7 @@ function TaskListRow({
         // Enter always opens the task. Space starts a keyboard drag via
         // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`) for
         // draggable rows; nested and read-only rows have no drag, so Space opens.
-        const draggable = !nested && canEdit;
+        const draggable = !nested && editable;
         if (e.key === 'Enter' || (e.key === ' ' && !draggable)) {
           e.preventDefault();
           onOpen?.(task);
@@ -317,6 +318,7 @@ function TaskListRow({
         // Hairline between rows, like a regular table; the floating drag clone
         // keeps its card chrome instead.
         !dragging && 'border-border/60 border-b',
+        task.archivedAt != null && 'opacity-70',
         // Indent so row content lines up just past the section header's chevron.
         nested ? 'pl-12' : 'pl-9',
         nested
@@ -351,7 +353,7 @@ function TaskListRow({
       <PriorityPicker
         priority={task.priority ?? null}
         align="start"
-        disabled={!canEdit}
+        disabled={!editable}
         onChange={(priority) =>
           updateTask.mutate({ taskId: task._id, priority })
         }
@@ -404,7 +406,7 @@ function TaskListRow({
         assigneeType={task.assigneeType}
         assigneeId={task.assigneeId}
         align="end"
-        disabled={!canEdit}
+        disabled={!editable}
         onAssign={(assigneeType, assigneeId) =>
           assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
         }

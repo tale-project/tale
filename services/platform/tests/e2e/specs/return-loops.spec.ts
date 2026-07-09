@@ -5,12 +5,11 @@ import { t } from '../helpers/i18n';
 
 /**
  * Return-loop surfaces ("what needs me back in Tale?"): the notification bell's
- * expand-to-modal + Recent⇄Priority sort, the personal notification-preferences
- * page (round-trips the `collab.preferences` query/mutation), and the tasks
- * board "Waiting on me" control (wires in the `getMyAttentionSummary` attention
- * query). Backend correctness of the attention query is covered by the unit
- * tests in `convex/collab/attention.test.ts`; this spec proves the user-visible
- * wiring end-to-end in a real browser.
+ * expand-to-modal + Recent⇄Priority sort, and the personal notification-preferences
+ * page (round-trips the `collab.preferences` query/mutation). Backend correctness
+ * of the attention query is covered by the unit tests in
+ * `convex/collab/attention.test.ts`; this spec proves the user-visible wiring
+ * end-to-end in a real browser.
  */
 
 const SORT_LABEL = t('notifications.sortLabel');
@@ -241,72 +240,6 @@ test('return loop: assigning a task notifies and calls back the assignee', async
   const row = page.getByRole('row').filter({ hasText: projectName });
   await expect(row).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await row.getByRole('button', { name: t('common.actions.openMenu') }).click();
-  await page
-    .getByRole('menuitem', { name: t('projects.rowActions.delete') })
-    .click();
-  const deleteDialog = page.getByRole('dialog', {
-    name: t('projects.settings.deleteDialogTitle'),
-  });
-  await expect(deleteDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await deleteDialog
-    .getByRole('button', { name: t('projects.settings.deleteSubmit') })
-    .click();
-  await expect(
-    page.getByRole('row').filter({ hasText: projectName }),
-  ).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
-});
-
-test('tasks board: exposes the "Waiting on me" attention filter', async ({
-  page,
-  org,
-}) => {
-  const { organizationId } = org;
-  const suffix = Date.now().toString(36);
-  const projectName = `E2E Return Loop ${suffix}`;
-
-  await page.goto(`/dashboard/${organizationId}/projects`);
-  const createProject = page
-    .getByRole('button', { name: t('projects.list.createButton') })
-    .first();
-  await expect(createProject).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await createProject.click();
-
-  const createDialog = page.getByRole('dialog', {
-    name: t('projects.create.title'),
-  });
-  await expect(createDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await createDialog
-    .getByRole('textbox', { name: t('projects.create.nameLabel') })
-    .fill(projectName);
-  await createDialog
-    .getByRole('button', { name: t('projects.create.submit') })
-    .click();
-
-  await page.waitForURL(
-    new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
-    { timeout: TIMEOUT.NAV },
-  );
-  const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
-  expect(projectId, 'a project id should appear in the URL').toBeTruthy();
-
-  await page.goto(
-    `/dashboard/${organizationId}/projects/${projectId}/tasks/board`,
-  );
-
-  // The attention-driven filter renders on the board toolbar (disabled until a
-  // task is waiting on you). Its presence proves the board mounts the
-  // `getMyAttentionSummary` hook and resolves the new i18n key without error.
-  await expect(
-    page.getByRole('button', { name: t('tasks.filters.waitingOnMe') }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-  // Clean up the throwaway project (cascade-removes its tasks).
-  await page.goto(`/dashboard/${organizationId}/projects`);
-  const projectRow = page.getByRole('row').filter({ hasText: projectName });
-  await expect(projectRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await projectRow
-    .getByRole('button', { name: t('common.actions.openMenu') })
-    .click();
   await page
     .getByRole('menuitem', { name: t('projects.rowActions.delete') })
     .click();

@@ -65,6 +65,7 @@ import { migration as deleteWorkforceDigestNotifications } from '../versions/v0_
 import { meta as deleteWorkforceDigestNotificationsMeta } from '../versions/v0_2_90/08_delete_workforce_digest_notifications/meta';
 import { migration as appConfigToScheduleVariables } from '../versions/v0_2_91/01_app_config_to_schedule_variables';
 import { meta as appConfigToScheduleVariablesMeta } from '../versions/v0_2_91/01_app_config_to_schedule_variables/meta';
+import { meta as taskActivityContextMeta } from '../versions/v0_2_91/02_task_activity_context/meta';
 // 01 is a `node` retirement migration — meta only (handler in
 // registry.node.ts); 02 is a `db` additive trigger backfill.
 import { meta as retireIssueDeskMeta } from '../versions/v0_2_92/01_retire_issue_desk/meta';
@@ -135,6 +136,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   removeRetiredTaskWorkflowsMeta,
   deleteWorkforceDigestNotificationsMeta,
   appConfigToScheduleVariablesMeta,
+  taskActivityContextMeta,
   retireIssueDeskMeta,
   triageBacklogStartTriggerMeta,
   automationSlugFieldsMeta,

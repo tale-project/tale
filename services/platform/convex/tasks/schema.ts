@@ -257,6 +257,18 @@ export interface CommentEventComment {
   mentions: Array<{ type: 'user' | 'agent'; id: string }>;
 }
 
+/** Optional workflow attribution on a task-activity row (workflow-engine writes). */
+export const taskActivityContextValidator = v.object({
+  workflowSlug: v.optional(v.string()),
+  wfExecutionId: v.optional(v.id('wfExecutions')),
+});
+
+/** Passed into agent internal mutations when the workflow sentinel is the actor. */
+export const taskActivityAttributionValidator = v.object({
+  workflowSlug: v.optional(v.string()),
+  wfExecutionId: v.optional(v.id('wfExecutions')),
+});
+
 /**
  * Append-only per-task activity timeline (status/assignee/etc. changes). This
  * is the product-facing "Activity" tab feed and is intentionally distinct from
@@ -272,6 +284,8 @@ export const taskActivityTable = defineTable({
   action: v.string(),
   fromValue: v.optional(v.string()),
   toValue: v.optional(v.string()),
+  /** Workflow that drove this row when `actorId` is the workflow sentinel. */
+  context: v.optional(taskActivityContextValidator),
   createdAt: v.number(),
 })
   .index('by_task', ['taskId', 'createdAt'])

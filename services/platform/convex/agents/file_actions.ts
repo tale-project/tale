@@ -264,6 +264,8 @@ export const listAgents = action({
       visibleInChat: config.visibleInChat,
       primaryBehavior: config.primaryBehavior,
       agentKind: config.agentKind,
+      hasRuntime: config.runtime !== undefined,
+      preferDurableStepForTasks: config.preferDurableStepForTasks === true,
       authMode: config.authMode,
       supportedModels: config.supportedModels,
       toolNames: config.toolNames,

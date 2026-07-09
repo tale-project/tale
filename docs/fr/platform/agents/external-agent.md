@@ -63,6 +63,19 @@ Les tours d'agents externes peuvent être longs et appeler le modèle de nombreu
 
 Cette comptabilité est une propriété du chemin **géré par la passerelle** — elle couvre donc les tours gérés de Claude Code, OpenCode, Hermes Agent, Gemini CLI, Codex, Pi et OpenClaw. Les agents gérés par l'environnement et BYO s'exécutent sur des identifiants hors passerelle : leurs tours ne sont pas mesurés dans l'Analyse d'utilisation et les plafonds de dépense de l'organisation ne s'appliquent pas ; le coût et les éventuelles limites de débit relèvent de ton compte de fournisseur.
 
+## Agents de code sur le board de tâches
+
+Dans les paramètres, **Agent de code** est le libellé produit pour les agents dont le chat tourne dans une CLI en bac à sable (Claude Code ou Cursor), ou dont le dispatch de tâches est configuré en JSON avec un **`runtime`** (tale-daemon sur ta machine) ou **`preferDurableStepForTasks`** (étape durable en bac à sable). Ce libellé ne change pas à lui seul l'exécution sur le board — le dispatch suit ces champs JSON, pas le bac à sable du chat.
+
+Quand tu assignes un agent de code à une tâche du board, le comportement dépend de la configuration :
+
+- **Agent** (boucle d'outils plateforme, sans CLI bac à sable, sans runtime de tâche) — utilise les outils plateforme et publie les résultats en commentaires de tâche.
+- **Agent de code + `runtime`** — les tâches s'exécutent sur ta machine (tale-daemon) dans un workspace git.
+- **Agent de code + `preferDurableStepForTasks`** — les tâches s'exécutent dans un conteneur bac à sable ; le résultat est un fichier de synthèse.
+- **Agent de code, bac à sable seul** (chat external-agent, sans runtime ni flag durable) — le chat tourne en bac à sable ; **les tâches du board passent par la boucle plateforme** tant que tu n'as pas lié un daemon ou activé les tâches durables dans le JSON de l'agent.
+
+Le sélecteur d'assigné affiche ces indications au choix. Pour la recherche, la rédaction ou des livrables personnels, assigne une personne ou un **Agent** plateforme plutôt qu'un agent de code orienté dépôt.
+
 ## Où cela s'inscrit
 
 Un agent externe transforme un fil de discussion en une session en direct avec un outil de code dans un bac à sable — tu le pilotes en langage clair, il travaille dans un espace de travail isolé, et la session persiste pour les suivis jusqu'à ce que tu fermes le fil. Les identifiants sont l'axe qui décide quelle part de tout cela s'exécute sous le contrôle de l'organisation : un agent géré par la passerelle reste sur la passerelle de la plateforme, sous les plafonds et la mesure de l'organisation, tandis qu'un agent géré par l'environnement ou BYO s'exécute sur les clés que tu conserves sous [Variables d'environnement et secrets](/fr/platform/member/environment) et répond à ton propre compte de fournisseur. Les candidats à la dérive ici sont les noms d'agent et de modèle ; associe cette page à la liste des [Fournisseurs](/fr/platform/admin/providers) en cours plutôt que de mémoriser des chaînes de modèle spécifiques, et à [Intégrations](/fr/platform/integrations/overview) pour les intégrations connectées que l'agent peut atteindre — de GitHub pour un véritable flux de pull request à une intégration de recherche ou de données qui amène des faits externes dans le travail. Pour exécuter Claude Code ou Codex sur du matériel que tu contrôles plutôt que dans le bac à sable géré — pour des tâches de board plutôt que du chat —, voir [tale-daemon](/fr/self-hosted/operate/tale-daemon).

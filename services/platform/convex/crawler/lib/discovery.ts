@@ -29,7 +29,6 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
-import { JSDOM } from 'jsdom';
 
 import { logger } from '../../lib/knowledge/logger';
 import {
@@ -37,6 +36,7 @@ import {
   htmlToRawMarkdown,
 } from '../helpers/content_filter';
 import { fetchRenderedHtml } from '../helpers/fetch_rendered_html';
+import { parseHtml } from '../helpers/parse_html';
 import {
   extractStructuredDataFromHtml,
   extractTitleFromHtml,
@@ -312,7 +312,7 @@ async function discoverUrlsBfs(
       // Extract same-domain links.
       let links: string[] = [];
       try {
-        const { document } = new JSDOM(html).window;
+        const { document } = parseHtml(html).window;
         const anchors = Array.from(document.querySelectorAll('a[href]'));
         for (const a of anchors) {
           const href = a.getAttribute('href');

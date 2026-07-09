@@ -40,6 +40,129 @@ import {
 
 export const TASK_BOARD_CAP = 2000;
 const TASK_ACTIVITY_CAP = 500;
+const WORKFLOW_CONTEXT_WINDOW_MS = 5 * 60 * 1000;
+
+function executionWorkflowSlug(exec: Doc<'wfExecutions'>): string | undefined {
+  return (
+    exec.workflowSlug ??
+    (typeof exec.wfDefinitionId === 'string' ? exec.wfDefinitionId : undefined)
+  );
+}
+
+function nearestByTimestamp<T extends { startedAt: number }>(
+  at: number,
+  items: T[],
+  windowMs: number,
+): T | undefined {
+  let best: T | undefined;
+  let bestDelta = Infinity;
+  for (const item of items) {
+    const delta = Math.abs(item.startedAt - at);
+    if (delta > windowMs || delta >= bestDelta) continue;
+    bestDelta = delta;
+    best = item;
+  }
+  return best;
+}
+
+/** Backfill workflow slug/execution on workflow-sentinel activity rows. */
+async function enrichWorkflowActivityRows(
+  ctx: QueryCtx,
+  organizationId: string,
+  taskId: Id<'tasks'>,
+  rows: Doc<'taskActivity'>[],
+): Promise<Doc<'taskActivity'>[]> {
+  // Only pay for the backfill scans when a workflow row is missing its slug —
+  // go-forward rows store `context.workflowSlug` at write time.
+  if (
+    !rows.some(
+      (row) => row.actorId === 'workflow' && !row.context?.workflowSlug,
+    )
+  ) {
+    return rows;
+  }
+
+  const executionById = new Map<Id<'wfExecutions'>, Doc<'wfExecutions'>>();
+  for (const row of rows) {
+    const executionId = row.context?.wfExecutionId;
+    if (!executionId || executionById.has(executionId)) continue;
+    const exec = await ctx.db.get(executionId);
+    if (exec) executionById.set(executionId, exec);
+  }
+
+  // `.take()` returns a Promise<Doc[]>, not an async iterator — await it
+  // directly (a `for await` over it throws at runtime).
+  const agentRuns: Doc<'taskAgentRuns'>[] = await ctx.db
+    .query('taskAgentRuns')
+    .withIndex('by_task_started', (q) => q.eq('taskId', taskId))
+    .order('desc')
+    .take(20);
+
+  const executions: Doc<'wfExecutions'>[] = [];
+  for await (const exec of ctx.db
+    .query('wfExecutions')
+    .withIndex('by_org_subject', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('subjectType', 'task')
+        .eq('subjectId', String(taskId)),
+    )
+    .order('desc')) {
+    executions.push(exec);
+    if (executions.length >= 30) break;
+  }
+
+  return rows.map((row) => {
+    if (row.actorId !== 'workflow') return row;
+
+    let workflowSlug = row.context?.workflowSlug;
+    let wfExecutionId = row.context?.wfExecutionId;
+
+    if (!workflowSlug && wfExecutionId) {
+      const exec = executionById.get(wfExecutionId);
+      workflowSlug = exec ? executionWorkflowSlug(exec) : workflowSlug;
+    }
+
+    if (!workflowSlug) {
+      const run = nearestByTimestamp(
+        row.createdAt,
+        agentRuns,
+        WORKFLOW_CONTEXT_WINDOW_MS,
+      );
+      if (run?.workflowSlug) {
+        workflowSlug = run.workflowSlug;
+        wfExecutionId = wfExecutionId ?? run.wfExecutionId;
+      }
+    }
+
+    if (!workflowSlug) {
+      const exec = nearestByTimestamp(
+        row.createdAt,
+        executions,
+        WORKFLOW_CONTEXT_WINDOW_MS,
+      );
+      if (exec) {
+        workflowSlug = executionWorkflowSlug(exec);
+        wfExecutionId = wfExecutionId ?? exec._id;
+      }
+    }
+
+    if (
+      workflowSlug === row.context?.workflowSlug &&
+      wfExecutionId === row.context?.wfExecutionId
+    ) {
+      return row;
+    }
+
+    return {
+      ...row,
+      context: {
+        workflowSlug,
+        wfExecutionId,
+      },
+    };
+  });
+}
 
 async function getAuthContext(
   ctx: QueryCtx,
@@ -155,6 +278,12 @@ const activityRowValidator = v.object({
   action: v.string(),
   fromValue: v.optional(v.string()),
   toValue: v.optional(v.string()),
+  context: v.optional(
+    v.object({
+      workflowSlug: v.optional(v.string()),
+      wfExecutionId: v.optional(v.id('wfExecutions')),
+    }),
+  ),
   createdAt: v.number(),
 });
 
@@ -549,11 +678,17 @@ export const listTaskActivity = query({
     const task = await ctx.db.get(args.taskId);
     if (!task) return [];
     await loadAccessibleProject(ctx, task.projectId, args.organizationId);
-    return await ctx.db
+    const rows = await ctx.db
       .query('taskActivity')
       .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
       .order('desc')
       .take(TASK_ACTIVITY_CAP);
+    return await enrichWorkflowActivityRows(
+      ctx,
+      args.organizationId,
+      args.taskId,
+      rows,
+    );
   },
 });
 
@@ -723,6 +858,7 @@ export const mentionTriggerPreview = query({
         v.literal('ok'),
         v.literal('queued_likely'),
         v.literal('not_mentionable'),
+        v.literal('agent_not_live'),
         v.literal('pack_disabled'),
         v.literal('breaker_paused'),
         v.literal('budget_paused'),
@@ -777,6 +913,14 @@ export const mentionTriggerPreview = query({
     const packEnabled = automationRaw?.enabled !== false;
     const breakerPaused = task ? task.agentRunsPausedAt !== undefined : false;
     const monthKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+    const liveSlugs = new Set<string>();
+    for await (const row of ctx.db
+      .query('agentInstallations')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', organizationId),
+      )) {
+      if (row.enabled) liveSlugs.add(row.agentSlug);
+    }
 
     const rows: Array<{
       slug: string;
@@ -785,6 +929,7 @@ export const mentionTriggerPreview = query({
         | 'ok'
         | 'queued_likely'
         | 'not_mentionable'
+        | 'agent_not_live'
         | 'pack_disabled'
         | 'breaker_paused'
         | 'budget_paused';
@@ -792,6 +937,10 @@ export const mentionTriggerPreview = query({
     for (const slug of slugs) {
       if (restricted && !mentionable.has(slug)) {
         rows.push({ slug, willTrigger: false, reason: 'not_mentionable' });
+        continue;
+      }
+      if (!liveSlugs.has(slug)) {
+        rows.push({ slug, willTrigger: false, reason: 'agent_not_live' });
         continue;
       }
       if (!packEnabled) {

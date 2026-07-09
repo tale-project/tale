@@ -38,6 +38,7 @@ import { detectCapabilities } from '@tale/shared/terminal';
 import { configureReporter } from '@tale/shared/tux';
 import kill from 'tree-kill';
 
+import { runConvexLocalMaintenance } from './convex-local-maintenance';
 import {
   onConvexReady,
   onHealthTick,
@@ -1064,6 +1065,29 @@ export async function runDevFleet() {
         warnLine(
           `Failed to link Convex external packages; the push may fail. Underlying: ${err instanceof Error ? err.message : String(err)}`,
         );
+      }
+
+      // Non-essential prune/snapshot cleanup must never block backend bring-up,
+      // but a missing live module blob is fatal — continuing would boot into
+      // the half-dead state (chat/crons InternalServerError + WS drop).
+      // Gate on the typed `integrityError` field (not a message substring) so a
+      // wording change cannot demote the fatal path to a warn.
+      let maintenance: ReturnType<typeof runConvexLocalMaintenance> | null =
+        null;
+      try {
+        maintenance = runConvexLocalMaintenance(platformRoot);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        warnLine(`Convex local maintenance skipped (non-fatal): ${msg}`);
+      }
+      if (maintenance?.integrityError) {
+        throw new Error(maintenance.integrityError);
+      }
+      if (maintenance?.warning) {
+        warnLine(maintenance.warning);
+      }
+      if (maintenance?.message) {
+        infoLine(maintenance.message);
       }
 
       // One live line for the whole backend bring-up: the `npx convex dev

@@ -22,6 +22,27 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 const WORKFLOW_ACTOR_ID = 'workflow';
 
+function workflowAttribution(
+  variables: Record<string, unknown>,
+  extras?: { executionId?: string },
+):
+  | {
+      workflowSlug?: string;
+      wfExecutionId?: ReturnType<typeof toId<'wfExecutions'>>;
+    }
+  | undefined {
+  const workflowSlug =
+    typeof variables.wfDefinitionId === 'string'
+      ? variables.wfDefinitionId
+      : undefined;
+  const wfExecutionId =
+    typeof extras?.executionId === 'string'
+      ? toId<'wfExecutions'>(extras.executionId)
+      : undefined;
+  if (!workflowSlug && !wfExecutionId) return undefined;
+  return { workflowSlug, wfExecutionId };
+}
+
 type TaskActionParams =
   | {
       operation: 'create';
@@ -213,13 +234,14 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       createIfMissing: v.optional(v.boolean()),
     }),
   ),
-  async execute(ctx, params, variables) {
+  async execute(ctx, params, variables, extras) {
     const organizationId = variables.organizationId;
     if (typeof organizationId !== 'string') {
       throw new Error(
         'task action requires a string organizationId in workflow context',
       );
     }
+    const attribution = workflowAttribution(variables, extras);
 
     switch (params.operation) {
       case 'sweep': {
@@ -352,6 +374,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             organizationId,
             actorId: WORKFLOW_ACTOR_ID,
             taskId: toId<'tasks'>(params.taskId),
+            attribution,
           },
         );
         return { operation: 'archive', ...result };
@@ -372,6 +395,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             parentTaskId: params.parentTaskId
               ? toId<'tasks'>(params.parentTaskId)
               : undefined,
+            attribution,
           },
         );
         return await ctx.runQuery(
@@ -399,6 +423,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             actorId: WORKFLOW_ACTOR_ID,
             taskId: toId<'tasks'>(params.taskId),
             status: params.status,
+            attribution,
           },
         );
       }
@@ -412,6 +437,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             taskId: toId<'tasks'>(params.taskId),
             assigneeType: params.assigneeType,
             assigneeId: params.assigneeId,
+            attribution,
           },
         );
       }
@@ -424,6 +450,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             actorId: WORKFLOW_ACTOR_ID,
             taskId: toId<'tasks'>(params.taskId),
             body: params.body,
+            attribution,
           },
         );
       }
@@ -451,6 +478,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             externalState: params.externalState,
             dedupeScope: params.dedupeScope,
             createIfMissing: params.createIfMissing,
+            attribution,
           },
         );
         // An update-only reconcile (createIfMissing:false) no-ops when the issue

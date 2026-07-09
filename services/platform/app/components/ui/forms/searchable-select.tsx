@@ -34,6 +34,8 @@ export interface SearchableSelectOption {
   labelBadge?: ReactNode;
   description?: string;
   disabled?: boolean;
+  /** Non-selectable section header row (skipped by keyboard navigation). */
+  isSectionHeader?: boolean;
 }
 
 export interface SearchableSelectProps {
@@ -93,12 +95,11 @@ export interface SearchableSelectProps {
   /**
    * How an option's `description` is presented.
    *   - `'inline'` (default): rendered as a caption row below the label —
-   *     good when descriptions are short and the list is small.
+   *     preferred for catalog pickers (agents, models, project lists) where
+   *     the description helps users choose without an extra hover step.
    *   - `'tooltip'`: hidden in the row, surfaced in a Radix tooltip when the
-   *     row is hovered or keyboard-highlighted — keeps a long list scannable
-   *     while still letting users get details on demand. Used by the agent
-   *     selector where the agent count + per-agent prose would otherwise
-   *     blow the picker out vertically.
+   *     row is hovered or keyboard-highlighted — reserve for dense toolbars
+   *     where inline prose would blow the list out vertically.
    *
    * @default 'inline'
    */
@@ -148,11 +149,16 @@ function findNextEnabledIndex(
   if (len === 0) return -1;
   let index = (current + direction + len) % len;
   let iterations = 0;
-  while (options[index]?.disabled && iterations < len) {
+  while (
+    (options[index]?.disabled || options[index]?.isSectionHeader) &&
+    iterations < len
+  ) {
     index = (index + direction + len) % len;
     iterations++;
   }
-  return options[index]?.disabled ? -1 : index;
+  return options[index]?.disabled || options[index]?.isSectionHeader
+    ? -1
+    : index;
 }
 
 // Plain control — the real default trigger (or caller-supplied `trigger`) +
@@ -248,17 +254,20 @@ function SearchableSelectBase({
 
   const initializeHighlight = useCallback(() => {
     if (filteredOptions.length === 0) return;
+    // Land on the first *selectable* row — never a section header (index 0 is a
+    // header in sectioned pickers, which breaks aria-activedescendant + Enter).
+    const firstEnabled = findNextEnabledIndex(filteredOptions, -1, 1);
     if (value) {
       const idx = filteredOptions.findIndex((o) => o.value === value);
-      setHighlightedIndex(idx >= 0 ? idx : 0);
+      setHighlightedIndex(idx >= 0 ? idx : firstEnabled);
     } else {
-      setHighlightedIndex(0);
+      setHighlightedIndex(firstEnabled);
     }
   }, [value, filteredOptions]);
 
   useEffect(() => {
-    setHighlightedIndex(0);
-  }, [search]);
+    setHighlightedIndex(findNextEnabledIndex(filteredOptions, -1, 1));
+  }, [filteredOptions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -330,7 +339,7 @@ function SearchableSelectBase({
         case 'Enter': {
           e.preventDefault();
           const option = filteredOptions[highlightedIndex];
-          if (option && !option.disabled) {
+          if (option && !option.disabled && !option.isSectionHeader) {
             handleSelect(option.value);
           }
           break;
@@ -536,6 +545,20 @@ function SearchableSelectOptionItem({
   descriptionMode?: 'inline' | 'tooltip';
   action?: ReactNode;
 }) {
+  if (option.isSectionHeader) {
+    return (
+      <div
+        id={id}
+        data-index={index}
+        role="presentation"
+        className="text-muted-foreground flex items-center gap-1 px-2 pt-2 pb-1 text-xs font-medium tracking-wide uppercase"
+      >
+        {option.label}
+        {option.labelBadge}
+      </div>
+    );
+  }
+
   // Inline mode renders the description directly under the label; tooltip
   // mode hides it from the row and surfaces it on hover/keyboard-highlight.
   // The `items-start` vs `items-center` swap is only relevant for inline —
@@ -599,7 +622,12 @@ function SearchableSelectOptionItem({
           {option.labelBadge}
         </div>
         {showInlineDescription && (
-          <Text as="div" variant="caption">
+          <Text
+            as="div"
+            variant="caption"
+            className="line-clamp-2"
+            title={option.description}
+          >
             {option.description}
           </Text>
         )}
