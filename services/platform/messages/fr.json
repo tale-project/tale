@@ -804,12 +804,14 @@
     },
     "membership": {
       "boundProjectsTitle": "Projets liés",
-      "boundProjectsDescription": "Exécutez cette automatisation dans des projets spécifiques. Ajoutez un projet pour le lier ou retirez-le pour le délier.",
+      "boundProjectsDescription": "Exécute cette automatisation dans des projets spécifiques. Ajoute un projet pour le lier ou retire-le pour le délier.",
       "boundProjectsPlaceholder": "Lier des projets…",
+      "boundProjectLinksLabel": "Ouvrir les projets liés",
+      "openBoundProject": "Ouvrir dans {name}",
       "noProjectsAvailable": "Aucun projet disponible.",
       "saveFailed": "Impossible de mettre à jour les projets de cette automatisation.",
       "notInProjectTitle": "Pas ajoutée à ce projet",
-      "notInProjectDescription": "Ajoutez cette automatisation à ce projet pour l'utiliser ici.",
+      "notInProjectDescription": "Ajoute cette automatisation à ce projet pour l'utiliser ici.",
       "addToThisProject": "Ajouter à ce projet"
     },
     "board": {
@@ -5299,6 +5301,8 @@
         "noModelsFound": "Aucun modèle trouvé",
         "removeModel": "Retirer",
         "embeddingModelWarning": "Modèle d'embedding uniquement — non utilisable pour le chat",
+        "modelNotInCatalog": "Absent du catalogue {provider} — ajoute-le dans Paramètres > Fournisseurs, ou choisis un autre modèle.",
+        "modelNotInAnyCatalog": "Absent de tout catalogue de fournisseur — ajoute-le dans Paramètres > Fournisseurs, ou choisis un autre modèle.",
         "viaProvider": "via {provider}",
         "modelSelector": {
           "moveUp": "Déplacer le modèle vers le haut",
@@ -7490,7 +7494,8 @@
       "instructions": "Instructions",
       "threads": "Chats",
       "agents": "Agents et modèles",
-      "settings": "Paramètres"
+      "settings": "Paramètres",
+      "automations": "Automatisations"
     },
     "list": {
       "title": "Projets",
@@ -7759,6 +7764,14 @@
     "editor": {
       "slugFallback": "indisponible",
       "slugEditorEmptyLockout": "Une liste vide bloque l'accès au projet pour tous les membres. Ajoute au moins un élément ou repasse à « Tous »."
+    },
+    "automations": {
+      "title": "Automatisations",
+      "description": "Automatisations liées à ce projet.",
+      "emptyTitle": "Aucune automatisation sur ce projet",
+      "emptyDescription": "Installe une automatisation projet depuis le hub Automatisations, puis ajoute ce projet.",
+      "emptyCta": "Parcourir les automatisations",
+      "statusBroken": "À réparer"
     }
   },
   "webdav": {

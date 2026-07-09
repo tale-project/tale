@@ -805,6 +805,8 @@
       "boundProjectsTitle": "Gebundene Projekte",
       "boundProjectsDescription": "Führe diese Automatisierung in bestimmten Projekten aus. Füge ein Projekt hinzu, um es zu binden, oder entferne es, um die Bindung zu lösen.",
       "boundProjectsPlaceholder": "Projekte binden…",
+      "boundProjectLinksLabel": "Gebundene Projekte öffnen",
+      "openBoundProject": "In {name} öffnen",
       "noProjectsAvailable": "Keine Projekte verfügbar.",
       "saveFailed": "Die Projekte dieser Automatisierung konnten nicht aktualisiert werden.",
       "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
@@ -5298,6 +5300,8 @@
         "noModelsFound": "Keine Modelle gefunden",
         "removeModel": "Entfernen",
         "embeddingModelWarning": "Nur Embedding-Modell — nicht für Chat nutzbar",
+        "modelNotInCatalog": "Nicht im {provider}-Katalog — füge es unter Einstellungen > Anbieter hinzu, oder wähle ein anderes Modell.",
+        "modelNotInAnyCatalog": "In keinem Anbieter-Katalog — füge es unter Einstellungen > Anbieter hinzu, oder wähle ein anderes Modell.",
         "viaProvider": "über {provider}",
         "modelSelector": {
           "moveUp": "Modell nach oben verschieben",
@@ -7489,7 +7493,8 @@
       "instructions": "Anweisungen",
       "threads": "Chats",
       "agents": "Agenten & Modelle",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "automations": "Automatisierungen"
     },
     "list": {
       "title": "Projekte",
@@ -7758,6 +7763,14 @@
     "editor": {
       "slugFallback": "nicht verfügbar",
       "slugEditorEmptyLockout": "Eine leere Liste sperrt jedes Mitglied aus dem Projekt aus. Füge mindestens einen Eintrag hinzu oder wähle wieder „Alle\"."
+    },
+    "automations": {
+      "title": "Automatisierungen",
+      "description": "Automatisierungen, die an dieses Projekt gebunden sind.",
+      "emptyTitle": "Keine Automatisierungen in diesem Projekt",
+      "emptyDescription": "Installiere eine Projekt-Automatisierung im Automatisierungen-Hub und füge dieses Projekt hinzu.",
+      "emptyCta": "Automatisierungen öffnen",
+      "statusBroken": "Reparatur nötig"
     }
   },
   "webdav": {

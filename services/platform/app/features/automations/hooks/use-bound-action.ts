@@ -42,16 +42,31 @@ export interface BoundAction {
   isPending: boolean;
 }
 
+/**
+ * Placeholder for callers that must invoke this hook unconditionally (e.g.
+ * Collection's optional `addAction`) when no real path is declared. Must be a
+ * syntactically valid reference — `makeFunctionReference('')` yields a value
+ * Convex's `getFunctionName` rejects as "not a functionReference", which
+ * crashes the Collection error boundary on every desk without an addAction.
+ * Dispatch never fires for this path (`allowed` stays false).
+ */
+const NOOP_FUNCTION_PATH = '_noop/_noop:_noop';
+
 export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
   const { organizationId, projectId, automationSlug, allowlist, config } =
     useAutomationRuntime();
   const viewState = useOptionalViewState();
   const state = viewState?.state;
-  const allowed =
-    isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, mode);
+  const pathOk = isValidFunctionPath(path);
+  const allowed = pathOk && isFunctionAllowed(path, allowlist, mode);
+  // Hooks must run with a valid FunctionReference even when the caller passed
+  // '' / an optional binding — otherwise Convex throws during render.
+  const hookPath = pathOk ? path : NOOP_FUNCTION_PATH;
 
-  const mutation = useConvexMutation(makeFunctionReference<'mutation'>(path));
-  const action = useConvexAction(makeFunctionReference<'action'>(path));
+  const mutation = useConvexMutation(
+    makeFunctionReference<'mutation'>(hookPath),
+  );
+  const action = useConvexAction(makeFunctionReference<'action'>(hookPath));
 
   const dispatch = useCallback(
     async (

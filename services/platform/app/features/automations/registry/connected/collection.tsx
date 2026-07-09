@@ -435,10 +435,16 @@ function CollectionBody({
 
 /** Single-shot reactive read — the original Collection behavior. */
 function CollectionSingle(props: InnerCollectionProps) {
-  const { data, isLoading, blocked, needsConfig } = useBoundQuery(
+  const { data, isLoading, error, blocked, needsConfig } = useBoundQuery(
     props.query.path,
     props.query.args,
   );
+  // Surface a Convex/query failure as a render error so the per-block
+  // ErrorBoundary shows it (and logs `[automation-registry] block "Collection"
+  // crashed`) instead of an empty table that looks like "no quarters".
+  if (error) {
+    throw error instanceof Error ? error : new Error(String(error));
+  }
   return (
     <CollectionBody
       {...props}

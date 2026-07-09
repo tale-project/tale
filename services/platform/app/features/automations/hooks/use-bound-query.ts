@@ -20,6 +20,9 @@ import {
 import { useAutomationRuntime } from '../runtime/automation-runtime';
 import { useOptionalViewState } from '../runtime/view-state';
 
+/** See `useBoundAction` — optional bindings pass `''` and must not crash hooks. */
+const NOOP_FUNCTION_PATH = '_noop/_noop:_noop';
+
 export interface BoundQueryResult {
   data: unknown;
   isLoading: boolean;
@@ -36,10 +39,12 @@ export function useBoundQuery(path: string, args: unknown): BoundQueryResult {
   const { organizationId, projectId, allowlist, config } =
     useAutomationRuntime();
   const viewState = useOptionalViewState();
-  const allowed =
-    isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, 'query');
+  const pathOk = isValidFunctionPath(path);
+  const allowed = pathOk && isFunctionAllowed(path, allowlist, 'query');
 
-  const ref = makeFunctionReference<'query'>(path);
+  const ref = makeFunctionReference<'query'>(
+    pathOk ? path : NOOP_FUNCTION_PATH,
+  );
   const resolvedArgs = resolveBindingArgs(args ?? {}, {
     organizationId,
     projectId,

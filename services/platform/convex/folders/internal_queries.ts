@@ -17,3 +17,17 @@ export const findFolderByPath = internalQuery({
     );
   },
 });
+
+/**
+ * Org id for a folder row, or null when missing. Used by workflow actions
+ * that accept a caller-supplied `folderId` and must verify it belongs to
+ * the workflow's organization before writing documents into it.
+ */
+export const getFolderOrganizationId = internalQuery({
+  args: { folderId: v.id('folders') },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const folder = await ctx.db.get(args.folderId);
+    return folder?.organizationId ?? null;
+  },
+});

@@ -53,10 +53,12 @@ function ProjectDetailLayout() {
   const { t: tSecrets } = useT('projectSecrets');
   const { t: tDiscussions } = useT('discussions');
 
-  // A project-scoped automation lives under the AUTOMATIONS chrome
+  // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
   // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
-  // tab strip), never inside the project shell — so those child routes render
+  // tab strip), not inside the project shell — so those child routes render
   // bare, exactly like the agents layout skips its header on detail pages.
+  // The project-nav Automations tab opens the bound-automations list instead;
+  // detail keeps this bare-outlet match so the list stays under project chrome.
   const isAutomationDetail = useMatch({
     from: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
     shouldThrow: false,
@@ -106,6 +108,13 @@ function ProjectDetailLayout() {
         href: `/dashboard/${organizationId}/projects/${projectId}/files`,
         matchMode: 'exact',
       },
+      // One Automations tab → bound-automations list. Detail routes stay under
+      // Automations chrome (bare outlet above), so match the list exactly.
+      {
+        label: t('navigation.automations'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
+        matchMode: 'exact',
+      },
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
@@ -128,8 +137,6 @@ function ProjectDetailLayout() {
       // U8: Settings tab merged into Overview. Identity edit + Sharing live
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
-      // Project-scoped automations do NOT get project tabs — they are opened
-      // from the Automations catalog and live under the Automations breadcrumb.
     ],
     [
       t,

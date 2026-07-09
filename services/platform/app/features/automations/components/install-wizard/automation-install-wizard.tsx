@@ -459,14 +459,27 @@ function AutomationInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // Land on the automation's ORG-level detail page — the same target the
-    // catalog card opens. The project-nested route wraps the detail in the
-    // project layout's own PageLayout + ContentArea, doubling the page padding.
+    // After install, land where the operator was working: the project-nested
+    // automation page when a project was selected (or pre-bound), otherwise
+    // the org-level detail the catalog card opens. Project-nested detail
+    // routes bare-outlet under Automations chrome (no project-shell padding).
     if (mode === 'install') {
-      void navigate({
-        to: '/dashboard/$id/automations/$automationSlug',
-        params: { id: organizationId, automationSlug },
-      });
+      const finishProjectId = projectId ?? selectedProjectId;
+      if (finishProjectId) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            projectId: finishProjectId,
+            automationSlug,
+          },
+        });
+      } else {
+        void navigate({
+          to: '/dashboard/$id/automations/$automationSlug',
+          params: { id: organizationId, automationSlug },
+        });
+      }
     }
   };
 

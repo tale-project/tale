@@ -123,6 +123,12 @@ type DocumentActionParams =
       title?: string;
       folderPath?: string;
       /**
+       * Existing folder id (project-scoped or hub). When set, preferred over
+       * `folderPath` — skips hub-only `getOrCreateFolderPath` so project
+       * folders can receive documents without a Knowledge Hub path.
+       */
+      folderId?: string;
+      /**
        * Optional sync-subtree scope for the cross-folder fallback. When two
        * independent sync configs target the same external item but different
        * Tale folders, scoping the fallback to each sync's root prevents the
@@ -232,6 +238,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       fileId: v.string(),
       title: v.optional(v.string()),
       folderPath: v.optional(v.string()),
+      folderId: v.optional(v.string()),
       folderPathPrefix: v.optional(v.string()),
       sourceProvider: v.optional(v.string()),
       externalItemId: v.optional(v.string()),
@@ -523,7 +530,20 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         }
 
         let folderId: string | null = null;
-        if (params.folderPath) {
+        if (params.folderId) {
+          // Prefer an explicit folder id (project-scoped quarters / setup).
+          // Hub path creation cannot target project folders — skip it.
+          const folderOrgId = await ctx.runQuery(
+            internal.folders.internal_queries.getFolderOrganizationId,
+            { folderId: toId<'folders'>(params.folderId) },
+          );
+          if (!folderOrgId || folderOrgId !== organizationId) {
+            throw new Error(
+              `Folder "${params.folderId}" was not found in organization "${organizationId}".`,
+            );
+          }
+          folderId = params.folderId;
+        } else if (params.folderPath) {
           folderId = await ctx.runMutation(
             internal.folders.internal_mutations.getOrCreateFolderPath,
             {

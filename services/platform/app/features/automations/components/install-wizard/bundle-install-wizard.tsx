@@ -463,18 +463,31 @@ function BundleInstallWizardBody({
   const handleFinish = () => {
     onOpenChange(false);
     // No single "bundle page" exists (each member is its own automation) — land
-    // on the first member's ORG-level detail page. The project-nested route
-    // wraps the detail in the project layout's own PageLayout + ContentArea,
-    // doubling the page padding.
+    // on the first member's detail. Prefer the project-nested URL when a
+    // project was selected (or pre-bound); otherwise the org-level page the
+    // catalog opens. Project-nested detail routes bare-outlet under
+    // Automations chrome (no project-shell padding).
     const first = preview[0];
     if (first) {
-      void navigate({
-        to: '/dashboard/$id/automations/$automationSlug',
-        params: {
-          id: organizationId,
-          automationSlug: first.automationSlug,
-        },
-      });
+      const finishProjectId = projectId ?? selectedProjectId;
+      if (finishProjectId) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            projectId: finishProjectId,
+            automationSlug: first.automationSlug,
+          },
+        });
+      } else {
+        void navigate({
+          to: '/dashboard/$id/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            automationSlug: first.automationSlug,
+          },
+        });
+      }
     }
   };
 

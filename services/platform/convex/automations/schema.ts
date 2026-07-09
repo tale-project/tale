@@ -82,7 +82,7 @@ export const automationProjectBindingsTable = defineTable({
   boundAt: v.number(),
   boundBy: v.string(),
 })
-  // listProjectAutomations (nav strip) + the project-delete guard.
+  // listProjectAutomations (project Automations list) + the project-delete guard.
   .index('by_project', ['projectId'])
   // Prefix-queried for all bindings of (org, automationSlug) — uninstall guard,
   // listAutomationBindings — and for the exact-row idempotent bind / unbind.
