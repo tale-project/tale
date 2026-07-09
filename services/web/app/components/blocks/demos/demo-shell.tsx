@@ -103,31 +103,44 @@ export function DemoShell({
       </div>
 
       <div aria-hidden className="flex min-h-0 min-w-0 flex-1">
-        {/* Icon nav rail — the app's left edge. */}
-        <div className="border-border-base bg-surface-site flex w-10 shrink-0 flex-col items-center gap-1 border-r py-3 md:w-13">
-          <TaleLogo
-            wordmark={false}
-            className="text-fg-base mb-2 size-4 md:size-5"
-          />
-          {NAV_ICONS.map((Icon, index) => (
-            <span
-              key={index}
-              className={cn(
-                'flex size-7 items-center justify-center rounded-lg md:size-8',
-                index === activeIndex
-                  ? 'bg-surface-site-inset text-fg-base'
-                  : 'text-fg-subtle',
-              )}
-            >
-              <Icon className="size-3.5 md:size-4" strokeWidth={1.75} />
-            </span>
-          ))}
-          <span className="text-fg-subtle flex size-7 items-center justify-center md:size-8">
-            <Settings className="size-3.5 md:size-4" strokeWidth={1.75} />
+        {/* Icon nav rail — dimensions mirror the app's rail 1:1
+            (services/platform/app/components/ui/navigation/navigation.tsx:
+            p-2 rounded-lg items, size-5 icons, bg-muted active, py-3 logo /
+            py-4 list rhythm with space-y-2). */}
+        <div className="border-border-base bg-surface-site flex w-9 shrink-0 flex-col items-center border-r md:w-12">
+          <span className="flex shrink-0 items-center justify-center py-3">
+            <TaleLogo
+              wordmark={false}
+              className="text-fg-base size-4 md:size-5"
+            />
           </span>
-          <span className="text-fg-subtle mt-auto flex flex-col items-center gap-2">
-            <Bell className="size-3.5 md:size-4" strokeWidth={1.75} />
-            <CircleUser className="size-4 md:size-4.5" strokeWidth={1.75} />
+          <span className="flex min-h-0 flex-1 flex-col items-center space-y-2 py-2 md:py-4">
+            {NAV_ICONS.map((Icon, index) => (
+              <span
+                key={index}
+                className={cn(
+                  'flex items-center justify-center rounded-lg p-1.5 md:p-2',
+                  index === activeIndex
+                    ? 'bg-surface-site-inset text-fg-base'
+                    : 'text-fg-muted',
+                )}
+              >
+                <Icon
+                  className="size-4 shrink-0 md:size-5"
+                  strokeWidth={1.75}
+                />
+              </span>
+            ))}
+            <span className="text-fg-muted flex items-center justify-center rounded-lg p-1.5 md:p-2">
+              <Settings
+                className="size-4 shrink-0 md:size-5"
+                strokeWidth={1.75}
+              />
+            </span>
+          </span>
+          <span className="text-fg-muted flex shrink-0 flex-col items-center space-y-2 py-3">
+            <Bell className="size-4 md:size-5" strokeWidth={1.75} />
+            <CircleUser className="size-4 md:size-5" strokeWidth={1.75} />
           </span>
         </div>
 

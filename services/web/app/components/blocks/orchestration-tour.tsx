@@ -114,8 +114,19 @@ function TourRow({
           {t(`tour.${stageKey}.description`)}
         </p>
       </div>
-      <div className="bg-surface-wash rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
-        <Demo />
+      <div className="bg-surface-wash relative overflow-hidden rounded-2xl p-2 sm:rounded-3xl sm:p-4 md:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              'radial-gradient(color-mix(in oklab, var(--color-border-strong) 45%, transparent) 1px, transparent 1px)',
+            backgroundSize: '16px 16px',
+          }}
+        />
+        <div className="relative">
+          <Demo />
+        </div>
       </div>
     </motion.div>
   );

@@ -106,9 +106,19 @@ function PillarCard({
     >
       <div
         aria-hidden
-        className="bg-surface-wash flex h-44 items-center justify-center md:h-52"
+        className="bg-surface-wash relative flex h-44 items-center justify-center overflow-hidden md:h-52"
       >
-        <span className="border-border-base bg-surface-site-raised flex size-16 items-center justify-center rounded-2xl border shadow-sm">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              'radial-gradient(color-mix(in oklab, var(--color-border-strong) 45%, transparent) 1px, transparent 1px)',
+            backgroundSize: '16px 16px',
+          }}
+        />
+        <span className="border-border-base bg-surface-site-raised/70 absolute size-16 -translate-x-5 translate-y-3 -rotate-6 rounded-2xl border" />
+        <span className="border-border-base bg-surface-site-raised/70 absolute size-16 translate-x-6 -translate-y-3 rotate-6 rounded-2xl border" />
+        <span className="border-border-base bg-surface-site-raised relative flex size-16 items-center justify-center rounded-2xl border shadow-sm">
           <Icon className="text-brand-base size-7" strokeWidth={1.5} />
         </span>
       </div>
