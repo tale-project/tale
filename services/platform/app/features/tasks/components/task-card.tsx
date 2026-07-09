@@ -50,6 +50,7 @@ export function TaskCard({
   const identifier = formatTaskIdentifier(projectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
+  const editable = canEdit && task.archivedAt == null;
   const { isBlocked, getTask, isAgentWorking, needsReview } =
     useTaskBoardContext();
   const blocked = isBlocked(task._id);
@@ -71,7 +72,7 @@ export function TaskCard({
   const sortable = useSortable({
     id: task._id,
     data: { status: task.status },
-    disabled: !canEdit,
+    disabled: !editable,
   });
   const style = {
     transform: CSS.Translate.toString(sortable.transform),
@@ -86,6 +87,7 @@ export function TaskCard({
       interactive
       className={cn(
         'group cursor-pointer text-left hover:shadow-md',
+        task.archivedAt != null && 'opacity-70',
         // While dragging, the in-place card becomes a faint placeholder marking
         // the slot the floating overlay will land in.
         sortable.isDragging && 'opacity-40',
@@ -105,7 +107,7 @@ export function TaskCard({
           // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`),
           // so we must forward to it rather than shadow it — but only when the
           // card is draggable. For read-only cards Space opens instead.
-          if (e.key === 'Enter' || (e.key === ' ' && !canEdit)) {
+          if (e.key === 'Enter' || (e.key === ' ' && !editable)) {
             e.preventDefault();
             onOpen?.(task);
             return;
@@ -144,7 +146,7 @@ export function TaskCard({
           <div className="flex items-center gap-1.5">
             <PriorityPicker
               priority={task.priority ?? null}
-              disabled={!canEdit}
+              disabled={!editable}
               onChange={(priority) =>
                 updateTask.mutate({ taskId: task._id, priority })
               }
@@ -171,7 +173,7 @@ export function TaskCard({
             projectId={task.projectId}
             assigneeType={task.assigneeType}
             assigneeId={task.assigneeId}
-            disabled={!canEdit}
+            disabled={!editable}
             onAssign={(assigneeType, assigneeId) =>
               assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
             }

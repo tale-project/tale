@@ -5,6 +5,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -19,10 +20,12 @@ import {
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { isPreviewableTaskActor } from '../utils/task-actor-preview';
 import { AssigneeAvatar } from './assignee-avatar';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
+import { TaskActorName } from './task-actor-preview-popover';
 
 /**
  * A task comment in the unified model: a `task_discussion` message joined with
@@ -68,7 +71,10 @@ export function TaskComments({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { comments } = useTaskDiscussion(taskId);
-  const { resolveActor } = useActorDirectory(organizationId, projectId);
+  const { resolveActor, resolveActorPreview } = useActorDirectory(
+    organizationId,
+    projectId,
+  );
   const { formatRelative, formatDate } = useFormatDate();
 
   const addComment = useAddTaskComment();
@@ -78,6 +84,7 @@ export function TaskComments({
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const currentUser = currentUserId
     ? resolveActor('user', currentUserId)
@@ -120,10 +127,11 @@ export function TaskComments({
     }
   };
 
-  const handleDelete = async (messageId: string) => {
-    if (!globalThis.confirm(t('comment.deleteConfirm'))) return;
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await deleteComment.mutateAsync({ messageId });
+      await deleteComment.mutateAsync({ messageId: pendingDeleteId });
+      setPendingDeleteId(null);
     } catch (error) {
       onError(error);
     }
@@ -134,6 +142,9 @@ export function TaskComments({
 
   const renderItem = (c: TaskComment) => {
     const author = resolveActor(c.authorType, c.authorId);
+    const preview = isPreviewableTaskActor(c.authorType, c.authorId)
+      ? resolveActorPreview(c.authorType, c.authorId)
+      : null;
     const isEditing = editingId === c.messageId;
     return (
       <Row gap={2} align="start" className="group/comment">
@@ -144,7 +155,7 @@ export function TaskComments({
         />
         <div className="min-w-0 flex-1">
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
-            <span className="text-foreground font-medium">{author.name}</span>
+            <TaskActorName preview={preview} name={author.name} />
             <span aria-hidden="true">·</span>
             <time
               dateTime={new Date(c.createdAt).toISOString()}
@@ -208,7 +219,7 @@ export function TaskComments({
               {(canManage(c) || isAdmin) && (
                 <CommentAction
                   destructive
-                  onClick={() => void handleDelete(c.messageId)}
+                  onClick={() => setPendingDeleteId(c.messageId)}
                 >
                   {tCommon('actions.delete')}
                 </CommentAction>
@@ -275,6 +286,16 @@ export function TaskComments({
           </Stack>
         </Row>
       )}
+
+      <DeleteDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteId(null);
+        }}
+        title={t('comment.deleteConfirm')}
+        isDeleting={deleteComment.isPending}
+        onDelete={() => void confirmDelete()}
+      />
     </section>
   );
 }

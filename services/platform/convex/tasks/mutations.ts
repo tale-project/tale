@@ -18,6 +18,7 @@ import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { components } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
+import { assertAgentAssigneeLive } from '../agents/installations';
 import { createAuditLog } from '../audit_logs/helpers';
 import {
   autoSubscribe,
@@ -155,6 +156,16 @@ function assertTaskWritable(project: Doc<'projects'>, auth: AuthContext): void {
   if (!access.canEdit) throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
 }
 
+/**
+ * An archived task is read-only: only archive/restore may touch it. Guards the
+ * content-edit mutations so a stale tab (or a bulk op) can't mutate an archived
+ * row server-side, matching the UI's `canMutate = canEdit && !isArchived` gate.
+ */
+function assertTaskNotArchived(task: Doc<'tasks'>): void {
+  if (task.archivedAt !== undefined)
+    throw new ConvexError({ code: 'TASK_ARCHIVED' });
+}
+
 function validateTitle(title: string): string {
   const trimmed = title.trim();
   if (trimmed.length === 0 || trimmed.length > TASK_TITLE_MAX) {
@@ -276,6 +287,7 @@ export const createTask = mutation({
       assigneeType: args.assigneeType,
       assigneeId: args.assigneeId,
     });
+    await assertAgentAssigneeLive(ctx, args.organizationId, assignee);
 
     if (args.parentTaskId) {
       const parent = await loadTaskOrThrow(ctx, args.parentTaskId);
@@ -407,6 +419,7 @@ export const updateTask = mutation({
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskWritable(project, auth);
+    assertTaskNotArchived(task);
 
     const patch: Partial<Doc<'tasks'>> = { updatedAt: Date.now() };
     const changedFields: string[] = [];
@@ -533,6 +546,7 @@ export const updateTaskStatus = mutation({
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskWritable(project, auth);
+    assertTaskNotArchived(task);
 
     if (task.status === args.status) return null;
 
@@ -631,11 +645,13 @@ export const assignTask = mutation({
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskWritable(project, auth);
+    assertTaskNotArchived(task);
 
     const assignee = normalizeAssignee({
       assigneeType: args.assigneeType,
       assigneeId: args.assigneeId,
     });
+    await assertAgentAssigneeLive(ctx, task.organizationId, assignee);
     const previousAssigneeId = task.assigneeId ?? null;
 
     await ctx.db.patch(args.taskId, {
@@ -1475,6 +1491,13 @@ export const bulkUpdateTasks = mutation({
         continue;
       }
 
+      // Archived rows are read-only unless this bulk op is itself an
+      // archive/restore (`args.archived` set) — never mutate their content.
+      if (task.archivedAt !== undefined && args.archived === undefined) {
+        skipped += 1;
+        continue;
+      }
+
       const statusChanged =
         args.status !== undefined && args.status !== task.status;
       const patch: Partial<Doc<'tasks'>> = { updatedAt: now };
@@ -1505,6 +1528,9 @@ export const bulkUpdateTasks = mutation({
         (args.clearAssignee || assignee !== null) &&
         (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
       if (args.clearAssignee || assignee) {
+        if (assignee) {
+          await assertAgentAssigneeLive(ctx, task.organizationId, assignee);
+        }
         patch.assigneeType = assignee?.assigneeType;
         patch.assigneeId = assignee?.assigneeId;
       }

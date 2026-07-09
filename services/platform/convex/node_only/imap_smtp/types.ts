@@ -30,6 +30,8 @@ export interface FetchMessagesParams {
   imap: ImapCredentials;
   /** Mailbox to read. Defaults to 'INBOX'. */
   mailbox?: string;
+  /** When true, resolve the Sent folder via SPECIAL-USE / discovery; skip if missing. */
+  sentFolder?: boolean;
   /** Only fetch messages received on/after this epoch-ms cursor. */
   since?: number;
   /** Cap on messages returned in a single sync. Defaults to 25. */
@@ -42,6 +44,8 @@ export interface FetchMessagesResult {
   success: boolean;
   data?: EmailType[];
   error?: string;
+  /** Non-fatal notice (e.g. Sent folder missing — sync skipped). */
+  warning?: string;
   duration?: number;
 }
 
@@ -70,6 +74,32 @@ export interface SendMessageResult {
   success: boolean;
   /** RFC 2822 Message-ID assigned by the SMTP server / nodemailer. */
   messageId?: string;
+  error?: string;
+}
+
+export interface AppendSentMessageParams {
+  imap: ImapCredentials;
+  from: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  /** Same Message-ID as the SMTP send for dedup when syncing Sent. */
+  messageId?: string;
+  inReplyTo?: string;
+  references?: string[];
+  attachments?: SendAttachment[];
+  /** Preferred Sent folder name from integration connectionConfig.sentMailbox. */
+  sentMailbox?: string;
+  connectTimeoutMs?: number;
+}
+
+export interface AppendSentMessageResult {
+  success: boolean;
+  /** Resolved IMAP path when append succeeded. */
+  mailboxPath?: string;
   error?: string;
 }
 

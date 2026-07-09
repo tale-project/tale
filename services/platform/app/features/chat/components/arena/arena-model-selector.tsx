@@ -219,7 +219,7 @@ export function ArenaModelSelector({
           align="start"
           side="top"
           sideOffset={8}
-          contentClassName="w-[22rem]"
+          contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
           searchPlaceholder={t('modelSelector.searchPlaceholder')}
           emptyText={t('modelSelector.noResults')}
           aria-label={t('arena.modelA')}
@@ -253,7 +253,7 @@ export function ArenaModelSelector({
           align="start"
           side="top"
           sideOffset={8}
-          contentClassName="w-[22rem]"
+          contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
           searchPlaceholder={t('modelSelector.searchPlaceholder')}
           emptyText={t('modelSelector.noResults')}
           aria-label={t('arena.modelB')}

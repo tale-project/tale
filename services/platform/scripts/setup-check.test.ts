@@ -55,7 +55,7 @@ describe('runSetupChecks', () => {
   it('passes every check when all tools are present and ports are free', async () => {
     const results = await runSetupChecks(passingDeps());
 
-    expect(results).toHaveLength(4);
+    expect(results).toHaveLength(5);
     expect(results.every((r) => r.ok)).toBe(true);
     expect(allHardChecksPassed(results)).toBe(true);
     // No remediation is offered when a check passes.
@@ -106,5 +106,22 @@ describe('runSetupChecks', () => {
     expect(bun.ok).toBe(false);
     expect(bun.remediation).toContain('bun upgrade');
     expect(allHardChecksPassed(results)).toBe(false);
+  });
+
+  it('warns when local Convex module storage is bloated', async () => {
+    const results = await runSetupChecks(
+      passingDeps({
+        convexModuleStats: () => ({
+          count: 5_000,
+          totalBytes: 10 * 1024 ** 3,
+        }),
+      }),
+    );
+
+    const modules = find(results, 'Convex module storage');
+    expect(modules.ok).toBe(false);
+    expect(modules.hard).toBe(false);
+    expect(modules.remediation).toContain('contributor-setup');
+    expect(allHardChecksPassed(results)).toBe(true);
   });
 });

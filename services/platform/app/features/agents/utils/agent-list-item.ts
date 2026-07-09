@@ -23,6 +23,8 @@ export interface ConfigurableAgentListItem {
   primaryBehavior?: string;
   agentKind?: string;
   composerMode?: { icon?: string; label?: string };
+  hasRuntime?: boolean;
+  preferDurableStepForTasks?: boolean;
   /** Top-level folder (chat/github) — the catalog's visual section. */
   folder?: string;
   /**
@@ -90,6 +92,8 @@ export function toConfigurableAgent(
     primaryBehavior: asString(raw.primaryBehavior),
     agentKind: asString(raw.agentKind),
     composerMode: asComposerMode(raw.composerMode),
+    hasRuntime: raw.hasRuntime === true,
+    preferDurableStepForTasks: raw.preferDurableStepForTasks === true,
     folder: asString(raw.folder),
     automationSlug: asString(raw.automationSlug),
     // i18n + metadata are free-form trees consumed downstream; pass them as-is

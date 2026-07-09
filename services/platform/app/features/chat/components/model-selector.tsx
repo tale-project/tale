@@ -662,7 +662,9 @@ export const ModelSelector = memo(function ModelSelector({
   const modelOptions = filteredModels
     .map((ref) => {
       const { quantization } = parseModelRef(ref);
-      const isRecommended = recommendedSet.has(stripModelRefQualifier(ref));
+      const bareId = stripModelRefQualifier(ref);
+      const info = modelInfoMap.get(bareId);
+      const isRecommended = recommendedSet.has(bareId);
       const recommendedBadge = isRecommended ? (
         <Badge variant="green" className="text-[10px] font-normal">
           {t('modelSelector.recommended')}
@@ -684,8 +686,7 @@ export const ModelSelector = memo(function ModelSelector({
               {variantBadge}
             </>
           ) : undefined,
-        // Model description lives in the info popover (renderOptionAction), not
-        // under the radio label — keeps each row to a single tidy line.
+        description: info?.description,
       };
     })
     // Project-recommended models float to the top; order is otherwise stable.
@@ -698,10 +699,6 @@ export const ModelSelector = memo(function ModelSelector({
         {
           value: AUTO_MODEL,
           label: t('modelSelector.auto'),
-          // Mirrors the agent selector's Auto: a hover/keyboard tooltip
-          // explaining what "Auto" actually does (server-side routing).
-          // The picker passes this through to SearchableSelect, which
-          // already decides inline vs tooltip rendering per its own mode.
           description: t('modelSelector.autoDescription'),
         },
         ...modelOptions,
@@ -717,8 +714,7 @@ export const ModelSelector = memo(function ModelSelector({
       align="start"
       side="top"
       sideOffset={8}
-      contentClassName="w-[22rem]"
-      descriptionMode="tooltip"
+      contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
       tooltip={t('modelSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}

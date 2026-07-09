@@ -7,8 +7,10 @@ import { internalAction } from '../_generated/server';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
 import { isImapSmtpIntegration } from '../integrations/guards/is_imap_smtp_integration';
 import { resolveImapSmtpConnection } from '../integrations/imap_smtp_config';
+import { shouldSaveSentToImap } from '../integrations/should_save_sent_to_imap';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { normalizeExternalMessageId } from '../workflow_engine/action_defs/conversation/helpers/normalize_external_message_id';
 import { resolveReplyFrom } from './reply_from';
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 const MAX_DELIVERY_CHECK_RETRIES = 5;
@@ -121,13 +123,45 @@ export const sendMessageViaIntegrationAction = internalAction({
           throw new Error(`SMTP send failed: ${sendResult.error}`);
         }
 
+        if (shouldSaveSentToImap(connConfig)) {
+          const appendResult = await ctx.runAction(
+            internal.node_only.imap_smtp.internal_actions.appendSentMessage,
+            {
+              imap: connection.imap,
+              from,
+              to: args.to,
+              cc: args.cc,
+              subject: args.subject,
+              text: isHtml ? undefined : args.body,
+              html: isHtml ? args.body : undefined,
+              messageId: sendResult.messageId,
+              inReplyTo: args.inReplyTo,
+              references: args.references,
+              attachments: smtpAttachments,
+              sentMailbox:
+                typeof connConfig?.sentMailbox === 'string'
+                  ? connConfig.sentMailbox
+                  : undefined,
+            },
+          );
+
+          if (!appendResult.success) {
+            console.warn(
+              `[sendMessageViaIntegration] IMAP Sent append failed (send succeeded): ${appendResult.error ?? 'unknown error'}`,
+            );
+          }
+        }
+
         // SMTP acceptance is the strongest signal available (no mailbox
         // read-back like the Gmail delivery check), so settle at 'sent'.
         await ctx.runMutation(
           internal.conversations.internal_mutations.updateConversationMessage,
           {
             messageId: args.messageId,
-            externalMessageId: sendResult.messageId,
+            // Store the canonical (bracket-stripped) Message-ID so the sent-folder
+            // sync's dedup lookup (which normalizes on read) matches this row and
+            // does not re-insert the Tale-sent copy.
+            externalMessageId: normalizeExternalMessageId(sendResult.messageId),
             deliveryState: 'sent',
             sentAt: Date.now(),
           },
@@ -384,12 +418,17 @@ export const checkMessageDeliveryAction = internalAction({
           : undefined;
 
       if (resultData?.delivered === true) {
+        const message = await ctx.runQuery(
+          internal.conversations.internal_queries.getMessageById,
+          { messageId: args.messageId, organizationId: args.organizationId },
+        );
+
         await ctx.runMutation(
           internal.conversations.internal_mutations.updateConversationMessage,
           {
             messageId: args.messageId,
             deliveryState: 'delivered',
-            deliveredAt: Date.now(),
+            deliveredAt: message?.sentAt ?? Date.now(),
           },
         );
         return null;

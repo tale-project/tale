@@ -14,6 +14,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { pruneEmptyAgentSections } from '@/app/features/agents/utils/agent-picker-options';
 import { useT } from '@/lib/i18n/client';
 
 export interface SlugOption extends SearchableSelectOption {
@@ -98,7 +99,10 @@ export function ProjectSlugListEditor({
   const selectedSet = useMemo(() => new Set(localValue), [localValue]);
 
   const remainingOptions = useMemo(
-    () => options.filter((opt) => !selectedSet.has(opt.value)),
+    () =>
+      pruneEmptyAgentSections(
+        options.filter((opt) => !selectedSet.has(opt.value)),
+      ),
     [options, selectedSet],
   );
 
@@ -250,23 +254,24 @@ export function ProjectSlugListEditor({
       ) : null}
 
       {!disabled && remainingOptions.length > 0 ? (
-        pickerOpen ? (
-          <SearchableSelect
-            value={null}
-            onValueChange={handleAdd}
-            options={remainingOptions}
-            placeholder={addLabel}
-            open
-            onOpenChange={setPickerOpen}
-          />
-        ) : (
-          <div>
-            <Button variant="ghost" onClick={() => setPickerOpen(true)}>
+        <SearchableSelect
+          value={null}
+          onValueChange={handleAdd}
+          options={remainingOptions}
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          align="start"
+          contentClassName="w-[28rem] max-w-[calc(100vw-2rem)]"
+          searchPlaceholder={tCommon('search.placeholder')}
+          emptyText={tCommon('search.noResults')}
+          aria-label={addLabel}
+          trigger={
+            <Button type="button" variant="ghost">
               <Plus className="size-4" aria-hidden="true" />
               {addLabel}
             </Button>
-          </div>
-        )
+          }
+        />
       ) : null}
     </Stack>
   );

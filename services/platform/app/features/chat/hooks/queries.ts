@@ -183,6 +183,10 @@ export interface ChatAgent {
    * usable while a turn runs and messages queue for the running agent.
    */
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
+  /** True when the agent JSON binds a daemon/runtime for task dispatch. */
+  hasRuntime?: boolean;
+  /** True when task work runs in a durable sandbox step. */
+  preferDurableStepForTasks?: boolean;
   /** Which external agent CLI backs an 'external-agent' behavior. Gates
    * CLI-specific UI like the plan/act composer toggle (claude-code only). */
   agentKind?:
@@ -266,6 +270,8 @@ export function useChatAgents(organizationId: string) {
               a.primaryBehavior === 'external-agent')
               ? a.primaryBehavior
               : undefined,
+          hasRuntime: a.hasRuntime === true,
+          preferDurableStepForTasks: a.preferDurableStepForTasks === true,
           agentKind:
             'agentKind' in a &&
             (a.agentKind === 'claude-code' ||
