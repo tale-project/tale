@@ -307,11 +307,17 @@ test('two projects isolate quarter folders and Project nav reaches the desk', as
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   // Project nav: Automations list → desk by name → desk tab.
+  // Scope to the project TabNavigation — the org sidebar also exposes an
+  // Automations rail link with the same accessible name.
   await page.goto(`/dashboard/${organizationId}/projects/${acmeId}`);
-  const automationsTab = page.getByRole('link', {
-    name: t('projects.navigation.automations'),
-    exact: true,
-  });
+  const automationsTab = page
+    .getByRole('navigation', {
+      name: t('common.aria.projectsNavigation'),
+    })
+    .getByRole('link', {
+      name: t('projects.navigation.automations'),
+      exact: true,
+    });
   await expect(automationsTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await automationsTab.click();
   await page.waitForURL(
