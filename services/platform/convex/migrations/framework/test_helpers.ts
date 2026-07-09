@@ -14,12 +14,14 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { contactsTable } from '../../contacts/schema';
 import {
   ssoConnectionsTable,
   ssoProvisioningLinksTable,
 } from '../../enterprise_sso/schema';
 import { dsarPolicyPendingChangesTable } from '../../governance/schema';
 import { configCacheTable } from '../../lib/config_cache/schema';
+import { dataSourceValidator } from '../../lib/validators/common';
 import { jsonRecordValidator } from '../../lib/validators/json';
 import { projectsTable } from '../../projects/schema';
 import { ssoProvidersTable } from '../../sso_providers/schema';
@@ -115,6 +117,62 @@ export const legacyAppProjectBindingsWithConfigTable = defineTable({
   .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId']);
 
 /**
+ * Pre-0.3.4 `customers` + `vendors` tables and the `customerId` link on
+ * `conversations` / `supportCases`, all dropped in the Customers + Vendors →
+ * Contacts merge (issue #2618). Declared here so the 0.3.4 backfill migrations
+ * (02/03 contacts-from-{vendors,customers}; 04/05 conversation/support-case
+ * contactId) can seed the OLD shape and round-trip. Minimal — only the fields
+ * those tests read/write.
+ */
+export const legacyCustomersTable = defineTable({
+  organizationId: v.string(),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  externalId: v.optional(v.union(v.string(), v.number())),
+  status: v.optional(
+    v.union(v.literal('active'), v.literal('churned'), v.literal('potential')),
+  ),
+  source: dataSourceValidator,
+  locale: v.optional(v.string()),
+  metadata: v.optional(jsonRecordValidator),
+}).index('by_organizationId', ['organizationId']);
+
+export const legacyVendorsTable = defineTable({
+  organizationId: v.string(),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  externalId: v.optional(v.union(v.string(), v.number())),
+  source: dataSourceValidator,
+  locale: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
+  metadata: v.optional(jsonRecordValidator),
+  notes: v.optional(v.string()),
+}).index('by_organizationId', ['organizationId']);
+
+export const legacyConversationsWithCustomerId = defineTable({
+  organizationId: v.string(),
+  customerId: v.optional(v.id('customers')),
+  contactId: v.optional(v.id('contacts')),
+  status: v.optional(v.string()),
+}).index('by_organizationId', ['organizationId']);
+
+export const legacySupportCasesWithCustomerId = defineTable({
+  organizationId: v.string(),
+  subject: v.string(),
+  status: v.string(),
+  customerId: v.optional(v.id('customers')),
+  contactId: v.optional(v.id('contacts')),
+  requesterEmail: v.optional(v.string()),
+  createdBy: v.string(),
+  createdByType: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_organization', ['organizationId'])
+  .index('by_customer', ['customerId']);
+
+/**
  * The minimal schema the v0.2.85 governance migrations touch: the framework's
  * own ledger/snapshot tables, the configCache mirror, the new
  * dsarPolicyPendingChanges table, and the legacy governancePolicies table.
@@ -131,6 +189,15 @@ export const historicalSchema = defineSchema({
   migrationSnapshots: migrationSnapshotsTable,
   configCache: configCacheTable,
   dsarPolicyPendingChanges: dsarPolicyPendingChangesTable,
+  // Contacts merge (issue #2618): the source tables + the target `contacts`
+  // table for the 0.3.4 backfill_contacts_from_{vendors,customers} migrations.
+  contacts: contactsTable,
+  customers: legacyCustomersTable,
+  vendors: legacyVendorsTable,
+  // FK holders (with the pre-teardown `customerId`) repointed onto contacts by
+  // the 0.3.4 backfill_conversation / backfill_support_case contactId migrations.
+  conversations: legacyConversationsWithCustomerId,
+  supportCases: legacySupportCasesWithCustomerId,
   governancePolicies: legacyGovernancePoliciesTable,
   // Source + target tables for the 0.2.85 enterprise-SSO unification migration.
   ssoProviders: ssoProvidersTable,
