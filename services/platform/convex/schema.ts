@@ -35,6 +35,7 @@ import {
   taskSubscriptionsTable,
   userNotificationsTable,
 } from './collab/schema';
+import { contactsTable } from './contacts/schema';
 import { backendControlTable } from './control/schema';
 import {
   conversationsTable,
@@ -232,6 +233,7 @@ export default defineSchema({
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,
+  contacts: contactsTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,

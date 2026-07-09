@@ -92,6 +92,14 @@ import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_3_3/01_norma
 // `node` file-rewrite migration — only its meta lives here (handler in
 // registry.node.ts).
 import { meta as brandingSingleAccentColorMeta } from '../versions/v0_3_4/01_branding_single_accent_color/meta';
+import { migration as backfillContactsFromVendors } from '../versions/v0_3_4/02_backfill_contacts_from_vendors';
+import { meta as backfillContactsFromVendorsMeta } from '../versions/v0_3_4/02_backfill_contacts_from_vendors/meta';
+import { migration as backfillContactsFromCustomers } from '../versions/v0_3_4/03_backfill_contacts_from_customers';
+import { meta as backfillContactsFromCustomersMeta } from '../versions/v0_3_4/03_backfill_contacts_from_customers/meta';
+import { migration as backfillConversationContactId } from '../versions/v0_3_4/04_backfill_conversation_contact_id';
+import { meta as backfillConversationContactIdMeta } from '../versions/v0_3_4/04_backfill_conversation_contact_id/meta';
+import { migration as backfillSupportCaseContactId } from '../versions/v0_3_4/05_backfill_support_case_contact_id';
+import { meta as backfillSupportCaseContactIdMeta } from '../versions/v0_3_4/05_backfill_support_case_contact_id/meta';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 
 /**
@@ -127,6 +135,10 @@ export const ALL_META: readonly MigrationMeta[] = [
   agentKindOpencodeMeta,
   normalizeAuthUserEmailsMeta,
   brandingSingleAccentColorMeta,
+  backfillContactsFromVendorsMeta,
+  backfillContactsFromCustomersMeta,
+  backfillConversationContactIdMeta,
+  backfillSupportCaseContactIdMeta,
   threadMetadataAppDiscussionMeta,
   backfillConversationIntegrationNameMeta,
   installEmailAppsMeta,
@@ -174,6 +186,10 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [appUploadIntentsTable.meta.id]: appUploadIntentsTable,
   [threadMetadataAutomationDiscussion.meta.id]:
     threadMetadataAutomationDiscussion,
+  [backfillContactsFromVendors.meta.id]: backfillContactsFromVendors,
+  [backfillContactsFromCustomers.meta.id]: backfillContactsFromCustomers,
+  [backfillConversationContactId.meta.id]: backfillConversationContactId,
+  [backfillSupportCaseContactId.meta.id]: backfillSupportCaseContactId,
 };
 
 /** Runnable `component` migrations, keyed by `meta.id`. */

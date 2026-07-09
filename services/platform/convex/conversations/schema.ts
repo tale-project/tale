@@ -7,6 +7,7 @@ import { jsonRecordValidator } from '../lib/validators/json';
 export const conversationsTable = defineTable({
   organizationId: v.string(),
   customerId: v.optional(v.id('customers')),
+  contactId: v.optional(v.id('contacts')),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(
@@ -35,6 +36,7 @@ export const conversationsTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_priority', ['organizationId', 'priority'])
   .index('by_organizationId_and_customerId', ['organizationId', 'customerId'])
+  .index('by_organizationId_and_contactId', ['organizationId', 'contactId'])
   .index('by_organizationId_and_direction', ['organizationId', 'direction'])
   .index('by_organizationId_and_channel', ['organizationId', 'channel'])
   .index('by_organizationId_and_type', ['organizationId', 'type'])

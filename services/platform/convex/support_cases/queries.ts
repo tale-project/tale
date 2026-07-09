@@ -45,6 +45,7 @@ export const supportCaseRowValidator = v.object({
   escalatedAt: v.optional(v.number()),
   assigneeType: v.optional(supportCaseActorTypeValidator),
   assigneeId: v.optional(v.string()),
+  contactId: v.optional(v.id('contacts')),
   customerId: v.optional(v.id('customers')),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),

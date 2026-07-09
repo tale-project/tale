@@ -80,6 +80,7 @@ export const supportCasesTable = defineTable({
   // `requesterName` capture the reporter when there is no linked `customers`
   // row (e.g. inbound email from an unknown address).
   customerId: v.optional(v.id('customers')),
+  contactId: v.optional(v.id('contacts')),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
 
@@ -114,6 +115,7 @@ export const supportCasesTable = defineTable({
   .index('by_org_escalation', ['organizationId', 'escalationLevel'])
   .index('by_assignee', ['organizationId', 'assigneeType', 'assigneeId'])
   .index('by_customer', ['customerId'])
+  .index('by_contact', ['contactId'])
   // Due-soon / overdue SLA sweeps.
   .index('by_org_sla', ['organizationId', 'slaDueAt']);
 
