@@ -38,7 +38,7 @@ import { MARKETING_ROUTES } from './marketing-routes';
 
 export const WEB_SITE_TITLE = 'Tale';
 export const WEB_SITE_DESCRIPTION =
-  'Tale — the orchestration layer for AI agents, built for data-sensitive organisations. Self-hosted, on your own infrastructure.';
+  'Tale — the orchestrator for AI agents, built for data-sensitive organisations. Self-hosted, on your own infrastructure.';
 
 export interface SsrRenderer {
   render: (url: string) => Promise<{ html: string }>;

@@ -9,13 +9,13 @@ import { useT } from '@/lib/i18n/client';
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const FAQ_KEYS = [
-  'sovereignty',
-  'dataResidency',
-  'deployment',
-  'cloudProviders',
-  'pricing',
-  'integrations',
-  'support',
+  'enterprisePricing',
+  'enterpriseFeatures',
+  'byoModels',
+  'aiProviders',
+  'hardware',
+  'ownHardwareModels',
+  'customTraining',
 ] as const;
 
 export function FaqAccordion() {
@@ -23,7 +23,7 @@ export function FaqAccordion() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="border-border-base bg-bg-base border-b py-12 lg:py-20 dark:bg-[#0f0f0f]">
+    <section className="border-border-base bg-surface-site border-b py-12 lg:py-20">
       <SiteContainer>
         <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-10">
           <motion.div

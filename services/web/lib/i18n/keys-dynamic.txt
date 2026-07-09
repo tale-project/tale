@@ -13,26 +13,6 @@
 # is the single source of truth for the rendered labels.
 languageSwitcher
 
-# --- pending wire-up: namespaces defined but not yet referenced ---
-# Mock-data namespaces created for upcoming product-mockup components in the
-# marketing site. Remove this exemption when the components land.
-productMockChat
-productMockOps
-
-# Compliance-trust certifications — defined but consumed via design assets
-# (logos) rather than t() calls. Remove if/when the strings are surfaced.
-complianceTrust.certifications
-
-# --- legacy / leftover keys flagged for cleanup ---
-# Hero/CTA copy that survived a refactor. Confirm with copy and remove.
-home.hero.ctaSecondary
-home.hero.footNote
-home.hero.integrations
-home.hero.integrationsPrefix
-home.hero.integrationsSuffix
-home.cta.description
-home.cta.secondary
-
 # Footer/nav/contact/demo eyebrows — remove if no longer used in design.
 footer.countrySwitzerland
 # Header nav labels are looked up via `t(item.key)` over a `NAV_ITEMS` table,

@@ -17,10 +17,11 @@ const dividerRightClass =
 
 export function ComplianceTrust() {
   const { t } = useT('home');
+  const { t: tCert } = useT('complianceTrust');
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="bg-white py-12 md:py-16 dark:bg-[#0f0f0f]">
+    <section className="bg-surface-site py-12 md:py-16">
       <SiteContainer>
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
@@ -29,7 +30,7 @@ export function ComplianceTrust() {
           transition={
             reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
-          className="border-border-base mx-auto grid max-w-[1120px] grid-cols-1 overflow-hidden rounded-2xl border bg-[#fcfcfd] lg:grid-cols-[380px_1fr_1fr] dark:bg-[#141416]"
+          className="border-border-base bg-surface-site-raised mx-auto grid max-w-[1120px] grid-cols-1 overflow-hidden rounded-2xl border lg:grid-cols-[380px_1fr_1fr]"
         >
           <div
             className={cn(
@@ -47,9 +48,9 @@ export function ComplianceTrust() {
               {t('compliance.title')}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge>ISO 27001</Badge>
-              <Badge>SOC 2</Badge>
-              <Badge>GDPR</Badge>
+              <Badge>{tCert('certifications.iso27001')}</Badge>
+              <Badge>{tCert('certifications.soc2')}</Badge>
+              <Badge>{tCert('certifications.gdpr')}</Badge>
             </div>
           </div>
 
@@ -91,7 +92,7 @@ function FeatureColumn({
     <div
       className={`flex flex-col items-start gap-4 p-8 lg:p-12 ${className ?? ''}`}
     >
-      <div className="border-border-base bg-bg-base flex size-12 items-center justify-center rounded-xl border-[3px] dark:bg-[#0a0a0b]">
+      <div className="border-border-base bg-surface-site-deep flex size-12 items-center justify-center rounded-xl border-[3px]">
         <Icon aria-hidden className="text-fg-muted size-6" strokeWidth={1.75} />
       </div>
       <h3

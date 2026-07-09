@@ -2,23 +2,23 @@
   "seo": {
     "home": {
       "title": "Tale : l'orchestrateur pour agents IA",
-      "description": "Connecte les agents IA et les CLI que ton équipe utilise déjà, mets en commun leurs connaissances et délègue le travail entre eux — auto-hébergé sur ta propre infrastructure. Certifié ISO 27001 et SOC 2."
+      "description": "Tale connecte les agents IA et les CLI que ton équipe utilise déjà, met en commun leurs connaissances et délègue le travail — auto-hébergé, certifié ISO 27001 et SOC 2."
     },
     "pricing": {
-      "title": "Tarifs — simples et transparents",
-      "description": "Deux façons d'exécuter Tale : Enterprise géré et évolutif, ou l'édition Community open source. Tarif par utilisateur, en CHF ou EUR."
+      "title": "Tarifs — Community & Enterprise",
+      "description": "Tale Enterprise coûte CHF 12 (EUR 14) par utilisateur et par mois, deux mois offerts en paiement annuel. L'édition Community open source est gratuite en auto-hébergement."
     },
     "contact": {
       "title": "Contact",
-      "description": "Contacte l'équipe Tale. Échange avec nos experts pour discuter de tes objectifs et trouver la meilleure solution d'IA pour ton organisation."
+      "description": "Échange avec l'équipe Tale sur l'IA auto-hébergée pour ton organisation — plateforme, tarifs, matériel ou démo guidée. Réponse sous un jour ouvré."
     },
     "requestDemo": {
       "title": "Demander une démo",
-      "description": "Nous aidons les organisations sensibles aux données à automatiser leurs workflows avec une IA souveraine et fiable. Échange avec un expert de notre équipe."
+      "description": "Réserve une démo guidée de Tale : agents IA auto-hébergés, automatisations et gouvernance en action. Pour les organisations sensibles aux données, en Suisse et dans l'UE."
     },
     "hardwarePricing": {
-      "title": "Tarifs matériel",
-      "description": "Matériel d'IA haute performance — au juste prix. Fais tourner les modèles de pointe, partout."
+      "title": "Tarifs du matériel IA",
+      "description": "Matériel IA silencieux pour l'inférence auto-hébergée — du nœud unique au rack serveur, en location, leasing ou achat. Chez toi ou dans des data centers sécurisés."
     }
   },
   "nav": {
@@ -72,11 +72,7 @@
       "title": "L'orchestrateur pour agents IA",
       "subtitle": "Connecte les agents et CLI que ton équipe utilise déjà — Claude Code, Codex, Cursor et plus encore. Mets en commun leurs connaissances, délègue des tâches et fais tourner tout l'essaim sur ta propre infrastructure : tes données, tes règles, conçu en Suisse.",
       "ctaPrimary": "Demander une démo",
-      "ctaSecondary": "Démarrer",
-      "footNote": "Nous nous intégrons avec {logos} et plus encore — notre expertise couvre le reste.",
-      "integrationsPrefix": "Nous nous intégrons avec",
-      "integrationsSuffix": "et plus encore — notre expertise couvre le reste.",
-      "integrations": ["Microsoft", "Google", "Atlassian"]
+      "ctaSecondary": "Démarrer"
     },
     "tagline": {
       "title": "Ton infrastructure. Tes données. Tes règles.",
@@ -113,9 +109,9 @@
         "description": "Donne un rôle à un agent, connecte-le à tes données et choisis son modèle IA — il est prêt en quelques minutes. Sans coder.\n\nDu support client aux revues de conformité, crée des spécialistes qui exploitent ta base de connaissances et s'améliorent à chaque conversation."
       },
       "workflows": {
-        "eyebrow": "Workflows",
-        "title": "Des workflows\nsans l'ingénierie",
-        "description": "Construis des workflows déclenchés par des événements, qui prennent des décisions avec l'IA et bouclent jusqu'à ce que le travail soit fait. Les changements sont en ligne dès que tu sauvegardes.\n\nDe l'onboarding client aux chaînes d'escalade, automatise le travail répétitif qui ralentit ton équipe."
+        "eyebrow": "Automatisations",
+        "title": "Des automatisations\nsans l'ingénierie",
+        "description": "Installe des automatisations dont les workflows se déclenchent sur des événements, prennent des décisions avec l'IA et bouclent jusqu'à ce que le travail soit fait. Les changements sont en ligne dès que tu sauvegardes.\n\nDe l'onboarding client aux chaînes d'escalade, automatise le travail répétitif qui ralentit ton équipe."
       }
     },
     "integrations": {
@@ -139,31 +135,31 @@
       "title": "Questions fréquentes",
       "stillQuestions": "Encore des questions ?",
       "contactTeam": "Contacte notre équipe",
-      "sovereignty": {
+      "enterprisePricing": {
         "q": "Comment fonctionne la tarification Enterprise ?",
         "a": "Enterprise est facturé par utilisateur et par mois, avec deux mois offerts en paiement annuel. Le stockage au-delà du quota inclus est facturé par To/mois. L'édition Community reste gratuite pour un usage auto-hébergé."
       },
-      "dataResidency": {
+      "enterpriseFeatures": {
         "q": "Y a-t-il des fonctionnalités supplémentaires dans le forfait Enterprise ?",
         "a": "Non. Toutes les fonctionnalités du produit sont également disponibles dans la version open source. Enterprise ajoute un support et des services étendus."
       },
-      "deployment": {
+      "byoModels": {
         "q": "Dois-je apporter mes propres modèles d'IA ?",
         "a": "Non. Tu peux apporter tes propres modèles, mais ce n'est pas obligatoire. Nous prenons en charge la plupart des grands fournisseurs d'IA et n'ajoutons aucun frais — l'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur que tu choisis et n'est pas incluse dans les forfaits."
       },
-      "cloudProviders": {
+      "aiProviders": {
         "q": "Puis-je utiliser mon fournisseur d'IA préféré ?",
         "a": "Oui — nous prenons en charge tous les grands fournisseurs d'IA cloud, ce qui te permet d'utiliser ton fournisseur préféré tout en bénéficiant de meilleurs tarifs, d'une plus grande disponibilité et d'une facturation à l'usage."
       },
-      "pricing": {
+      "hardware": {
         "q": "Le matériel est-il aussi proposé ?",
         "a": "Oui — nous fournissons aussi du matériel, en location, en leasing ou à l'achat. Mentionne-le quand tu nous contactes, et on te propose la configuration adaptée."
       },
-      "integrations": {
+      "ownHardwareModels": {
         "q": "Puis-je utiliser mon propre matériel et mes propres modèles d'IA ?",
         "a": "Oui. Nous sommes agnostiques au matériel et aux modèles — tu es libre d'utiliser les tiens."
       },
-      "support": {
+      "customTraining": {
         "q": "L'entraînement de modèles d'IA sur mesure est-il proposé ?",
         "a": "Oui. Nous entraînons et affinons des modèles sur mesure pour nos clients. Si cela t'intéresse, mentionne-le lors de l'appel de démonstration."
       }
@@ -483,29 +479,6 @@
       "title": "Merci — bien reçu",
       "description": "Nous revenons vers toi sous un jour ouvré.",
       "sendAnother": "Envoyer un autre message"
-    }
-  },
-  "productMockChat": {
-    "userMessage": "À quoi ressemble notre politique de retour pour le matériel IA ?",
-    "assistantMessage": "Notre matériel est livré avec une fenêtre de retour de 30 jours et une garantie de 2 ans. Veux-tu que je rédige la réponse par email ?",
-    "attachAriaLabel": "Joindre",
-    "inputPlaceholder": "Pose n'importe quelle question sur tes données…",
-    "sendAriaLabel": "Envoyer"
-  },
-  "productMockOps": {
-    "heading": "Workflows",
-    "today": "Aujourd'hui",
-    "rows": {
-      "inventorySync": "Synchronisation quotidienne des stocks",
-      "customerEscalation": "Triage des escalades clients",
-      "complianceReport": "Rapport de conformité hebdomadaire",
-      "vendorSla": "Vérification des SLA fournisseurs"
-    },
-    "when": {
-      "justNow": "À l'instant",
-      "minutes14": "14 min",
-      "hour1": "1 h",
-      "hours4": "4 h"
     }
   }
 }

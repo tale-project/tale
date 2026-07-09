@@ -14,7 +14,7 @@ export function CtaDeploy() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="bg-bg-base relative overflow-hidden py-20 md:py-24 dark:bg-[#111113]">
+    <section className="bg-surface-site relative overflow-hidden py-20 md:py-24">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-20 dark:opacity-[0.08]"
@@ -33,12 +33,20 @@ export function CtaDeploy() {
           }
           className="mx-auto flex max-w-125 flex-col items-center gap-8 text-center md:gap-10"
         >
-          <h2
-            className="text-fg-base text-[32px] font-medium tracking-[-0.044em] md:text-[56px] md:tracking-[-0.038em] md:whitespace-nowrap"
-            style={{ lineHeight: 1.071 }}
-          >
-            {t('cta.title')}
-          </h2>
+          <div className="flex flex-col items-center gap-4">
+            <h2
+              className="text-fg-base text-[32px] font-medium tracking-[-0.044em] md:text-[56px] md:tracking-[-0.038em] md:whitespace-nowrap"
+              style={{ lineHeight: 1.071 }}
+            >
+              {t('cta.title')}
+            </h2>
+            <p
+              className="text-fg-muted max-w-135 text-base md:text-lg"
+              style={{ lineHeight: 1.55 }}
+            >
+              {t('cta.description')}
+            </p>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button asChild>
               <LocalizedLink to="/request-demo">

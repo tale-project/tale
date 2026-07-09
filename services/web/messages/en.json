@@ -2,23 +2,23 @@
   "seo": {
     "home": {
       "title": "Tale: The Orchestrator for AI Agents",
-      "description": "Connect the AI agents and CLIs your team already uses, pool their knowledge, and delegate work across them — self-hosted on your own infrastructure. ISO 27001 & SOC 2 certified."
+      "description": "Tale connects the AI agents and CLIs your team already uses, pools their knowledge, and delegates work across them — self-hosted, ISO 27001 & SOC 2 certified."
     },
     "pricing": {
-      "title": "Pricing",
-      "description": "Two ways to run Tale: managed Enterprise built to scale, or the open-source Community edition. Per-user pricing, in CHF or EUR."
+      "title": "Pricing — Community & Enterprise",
+      "description": "Tale Enterprise is CHF 12 (EUR 14) per user/month, two months free on yearly billing. The open-source Community edition is free to self-host."
     },
     "contact": {
       "title": "Contact us",
-      "description": "Get in touch with the Tale team. Connect with one of our domain experts to discuss your goals and find the best AI solution for your organization."
+      "description": "Talk to the Tale team about self-hosted AI for your organization — platform, pricing, hardware, or a guided demo. We reply within one business day."
     },
     "requestDemo": {
       "title": "Request a demo",
-      "description": "We help data-sensitive organizations automate workflows with sovereign, reliable AI. Connect with a domain expert to explore solutions for your business."
+      "description": "Book a guided Tale demo: see self-hosted AI agents, automations, and governance in action. Built for data-sensitive organizations in Switzerland and the EU."
     },
     "hardwarePricing": {
-      "title": "Hardware Pricing",
-      "description": "High-performance AI hardware — priced right. Run state-of-the-art models, anywhere."
+      "title": "AI Hardware Pricing",
+      "description": "Silent AI hardware for self-hosted inference — from single nodes to server racks, to rent, lease, or buy. Deployed at your site or hosted in secure data centers."
     }
   },
   "nav": {
@@ -72,11 +72,7 @@
       "title": "The Orchestrator for AI Agents",
       "subtitle": "Connect the agents and CLIs your team already uses — Claude Code, Codex, Cursor, and more. Pool their knowledge, delegate tasks, and run the whole swarm on your own infrastructure: your data, your rules, built in Switzerland.",
       "ctaPrimary": "Request demo",
-      "ctaSecondary": "Get started",
-      "footNote": "We integrate with {logos} and more — our expertise covers the rest.",
-      "integrationsPrefix": "We integrate with",
-      "integrationsSuffix": "and more — our expertise covers the rest.",
-      "integrations": ["Microsoft", "Google", "Atlassian"]
+      "ctaSecondary": "Get started"
     },
     "tagline": {
       "title": "Your Infrastructure. Your Data. Your Rules.",
@@ -113,9 +109,9 @@
         "description": "Give an agent a role, connect it to your data, and choose its AI model — it's ready in minutes. No coding required.\n\nFrom customer support to compliance reviews, create specialists that use your knowledge base and improve with every conversation."
       },
       "workflows": {
-        "eyebrow": "Workflows",
-        "title": "Workflows without the\nengineering",
-        "description": "Build workflows that trigger on events, make decisions with AI, and loop until the job is done. Changes go live the moment you save.\n\nFrom customer onboarding to escalation chains, automate the repetitive work that slows your team down."
+        "eyebrow": "Automations",
+        "title": "Automations without the\nengineering",
+        "description": "Install automations whose workflows trigger on events, make decisions with AI, and loop until the job is done. Changes go live the moment you save.\n\nFrom customer onboarding to escalation chains, automate the repetitive work that slows your team down."
       }
     },
     "integrations": {
@@ -139,31 +135,31 @@
       "title": "Frequently Asked Questions",
       "stillQuestions": "Still have questions?",
       "contactTeam": "Contact our team",
-      "sovereignty": {
+      "enterprisePricing": {
         "q": "How does Enterprise pricing work?",
         "a": "Enterprise is billed per user/month, with two months free when paying yearly. Storage beyond the included quota is billed per TB/month. The Community edition stays free for self-hosted use."
       },
-      "dataResidency": {
+      "enterpriseFeatures": {
         "q": "Are there additional features in the Enterprise plan?",
         "a": "No. All product features are available in the open source version too. Enterprise adds extended support and services."
       },
-      "deployment": {
+      "byoModels": {
         "q": "Do I have to bring my own AI models?",
         "a": "No. You can bring your own models, but it's not required. We support most major AI providers and don't add fees on top — cloud AI model usage is priced at the rates of your chosen provider and is not included in the plans."
       },
-      "cloudProviders": {
+      "aiProviders": {
         "q": "Can I use my preferred AI provider?",
         "a": "Yes — we support all major cloud AI providers, so you can use your preferred provider while benefiting from better pricing, higher uptime, and usage-based billing."
       },
-      "pricing": {
+      "hardware": {
         "q": "Do you also provide hardware?",
         "a": "Yes — we provide hardware on rental, leasing, or purchase terms. Mention it when you contact us and we'll quote the configuration that fits."
       },
-      "integrations": {
+      "ownHardwareModels": {
         "q": "Can I use my own hardware and AI models?",
         "a": "Yes. We're hardware- and model-agnostic, so you're free to use your own."
       },
-      "support": {
+      "customTraining": {
         "q": "Do you offer custom AI model training?",
         "a": "Yes. We train and fine-tune custom models for clients. If you're interested, bring it up in the demo call."
       }
@@ -483,29 +479,6 @@
       "title": "Thanks — we got it",
       "description": "We'll be in touch within one business day.",
       "sendAnother": "Send another"
-    }
-  },
-  "productMockChat": {
-    "userMessage": "What does our return policy look like for AI hardware?",
-    "assistantMessage": "Our hardware comes with a 30-day return window and a 2-year warranty. Want me to draft the email reply?",
-    "attachAriaLabel": "Attach",
-    "inputPlaceholder": "Ask anything about your data…",
-    "sendAriaLabel": "Send"
-  },
-  "productMockOps": {
-    "heading": "Workflows",
-    "today": "Today",
-    "rows": {
-      "inventorySync": "Daily inventory sync",
-      "customerEscalation": "Customer escalation triage",
-      "complianceReport": "Weekly compliance report",
-      "vendorSla": "Vendor SLA check"
-    },
-    "when": {
-      "justNow": "Just now",
-      "minutes14": "14m",
-      "hour1": "1h",
-      "hours4": "4h"
     }
   }
 }

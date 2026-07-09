@@ -2,23 +2,23 @@
   "seo": {
     "home": {
       "title": "Tale: Der Orchestrator für KI-Agents",
-      "description": "Verbinde die KI-Agents und CLIs, die dein Team bereits nutzt, bündle ihr Wissen und delegiere Arbeit über sie hinweg — selbst gehostet auf deiner eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
+      "description": "Tale verbindet die KI-Agents und CLIs, die dein Team bereits nutzt, bündelt ihr Wissen und delegiert Arbeit — selbst gehostet, ISO-27001- und SOC-2-zertifiziert."
     },
     "pricing": {
-      "title": "Preise",
-      "description": "Zwei Arten, Tale zu betreiben: verwaltetes Enterprise mit Skalierbarkeit oder die Open-Source-Community-Edition. Preis pro Nutzer, in CHF oder EUR."
+      "title": "Preise — Community & Enterprise",
+      "description": "Tale Enterprise kostet CHF 12 (EUR 14) pro Nutzer und Monat, zwei Monate gratis bei jährlicher Zahlung. Die Open-Source-Community-Edition ist selbst gehostet kostenlos."
     },
     "contact": {
       "title": "Kontakt",
-      "description": "Nimm Kontakt mit dem Tale-Team auf. Sprich mit unseren Fachexperten über deine Ziele und die beste KI-Lösung für deine Organisation."
+      "description": "Sprich mit dem Tale-Team über selbst gehostete KI für deine Organisation — Plattform, Preise, Hardware oder eine geführte Demo. Antwort innerhalb eines Werktags."
     },
     "requestDemo": {
       "title": "Demo anfragen",
-      "description": "Wir helfen datensensiblen Organisationen, Workflows mit souveräner, zuverlässiger KI zu automatisieren. Sprich mit unseren Fachexperten."
+      "description": "Buch eine geführte Tale-Demo: selbst gehostete KI-Agents, Automatisierungen und Governance in Aktion. Für datensensible Organisationen in der Schweiz und der EU."
     },
     "hardwarePricing": {
-      "title": "Hardware-Preise",
-      "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreib modernste Modelle, überall."
+      "title": "KI-Hardware-Preise",
+      "description": "Leise KI-Hardware für selbst gehostete Inferenz — vom einzelnen Node bis zum Server-Rack, zur Miete, im Leasing oder zum Kauf. Vor Ort bei dir oder in sicheren Rechenzentren."
     }
   },
   "nav": {
@@ -72,11 +72,7 @@
       "title": "Der Orchestrator für KI-Agents",
       "subtitle": "Verbinde die Agents und CLIs, die dein Team bereits nutzt — Claude Code, Codex, Cursor und mehr. Bündle ihr Wissen, delegiere Aufgaben und betreib den ganzen Schwarm auf deiner eigenen Infrastruktur: deine Daten, deine Regeln, entwickelt in der Schweiz.",
       "ctaPrimary": "Demo anfragen",
-      "ctaSecondary": "Loslegen",
-      "footNote": "Wir integrieren mit {logos} und mehr — unsere Expertise deckt den Rest ab.",
-      "integrationsPrefix": "Wir integrieren mit",
-      "integrationsSuffix": "und mehr — unsere Expertise deckt den Rest ab.",
-      "integrations": ["Microsoft", "Google", "Atlassian"]
+      "ctaSecondary": "Loslegen"
     },
     "tagline": {
       "title": "Deine Infrastruktur. Deine Daten. Deine Regeln.",
@@ -113,9 +109,9 @@
         "description": "Gib einem Agenten eine Rolle, verbinde ihn mit deinen Daten und wähle sein KI-Modell — in Minuten einsatzbereit. Kein Coding nötig.\n\nVom Kundensupport bis zur Compliance-Prüfung: Erstelle Spezialisten, die deine Wissensbasis nutzen und mit jeder Konversation besser werden."
       },
       "workflows": {
-        "eyebrow": "Workflows",
-        "title": "Workflows ohne\nEngineering",
-        "description": "Erstelle Workflows, die auf Events reagieren, mit KI Entscheidungen treffen und Schleifen ausführen, bis die Aufgabe erledigt ist. Änderungen sind live, sobald du speicherst.\n\nVom Kunden-Onboarding bis zur Eskalationskette: Automatisiere die wiederholende Arbeit, die dein Team ausbremst."
+        "eyebrow": "Automatisierungen",
+        "title": "Automatisierungen ohne\nEngineering",
+        "description": "Installiere Automatisierungen, deren Workflows auf Events reagieren, mit KI Entscheidungen treffen und Schleifen ausführen, bis die Aufgabe erledigt ist. Änderungen sind live, sobald du speicherst.\n\nVom Kunden-Onboarding bis zur Eskalationskette: Automatisiere die wiederholende Arbeit, die dein Team ausbremst."
       }
     },
     "integrations": {
@@ -139,31 +135,31 @@
       "title": "Häufig gestellte Fragen",
       "stillQuestions": "Noch Fragen?",
       "contactTeam": "Kontaktiere unser Team",
-      "sovereignty": {
+      "enterprisePricing": {
         "q": "Wie funktioniert die Enterprise-Preisgestaltung?",
         "a": "Enterprise wird pro Nutzer und Monat abgerechnet, mit zwei Monaten gratis bei jährlicher Zahlung. Speicher über das enthaltene Kontingent hinaus wird pro TB/Monat berechnet. Die Community-Edition bleibt für den selbst gehosteten Einsatz kostenlos."
       },
-      "dataResidency": {
+      "enterpriseFeatures": {
         "q": "Gibt es zusätzliche Funktionen im Enterprise-Plan?",
         "a": "Nein. Alle Produktfunktionen sind auch in der Open-Source-Version verfügbar. Enterprise bietet erweiterten Support und zusätzliche Services."
       },
-      "deployment": {
+      "byoModels": {
         "q": "Muss ich eigene KI-Modelle mitbringen?",
         "a": "Nein. Du kannst eigene Modelle nutzen, musst es aber nicht. Wir unterstützen die meisten großen KI-Anbieter und erheben keine Aufschläge — die Nutzung von Cloud-KI-Modellen wird zu den Preisen deines gewählten Anbieters abgerechnet und ist nicht in den Plänen enthalten."
       },
-      "cloudProviders": {
+      "aiProviders": {
         "q": "Kann ich meinen bevorzugten KI-Anbieter nutzen?",
         "a": "Ja — wir unterstützen alle großen Cloud-KI-Anbieter, sodass du deinen bevorzugten Anbieter nutzen und gleichzeitig von besseren Preisen, höherer Verfügbarkeit und nutzungsbasierter Abrechnung profitieren kannst."
       },
-      "pricing": {
+      "hardware": {
         "q": "Bietet ihr auch Hardware an?",
         "a": "Ja — wir stellen Hardware bereit, als Miete, Leasing oder Kauf. Sag uns bei deiner Anfrage Bescheid, und wir schlagen die passende Konfiguration vor."
       },
-      "integrations": {
+      "ownHardwareModels": {
         "q": "Kann ich meine eigene Hardware und KI-Modelle nutzen?",
         "a": "Ja. Wir sind hardware- und modellagnostisch — du kannst deine eigenen frei einsetzen."
       },
-      "support": {
+      "customTraining": {
         "q": "Bietet ihr individuelles KI-Modelltraining an?",
         "a": "Ja. Wir trainieren und feinjustieren individuelle Modelle für Kunden. Bei Interesse sprich es im Demo-Gespräch an."
       }
@@ -483,29 +479,6 @@
       "title": "Danke — wir haben es erhalten",
       "description": "Wir melden uns innerhalb eines Werktags.",
       "sendAnother": "Weitere Nachricht senden"
-    }
-  },
-  "productMockChat": {
-    "userMessage": "Wie sieht unsere Rückgaberegelung für KI-Hardware aus?",
-    "assistantMessage": "Unsere Hardware kommt mit einem 30-tägigen Rückgaberecht und einer 2-jährigen Garantie. Soll ich die E-Mail-Antwort entwerfen?",
-    "attachAriaLabel": "Anhängen",
-    "inputPlaceholder": "Stell eine Frage zu deinen Daten…",
-    "sendAriaLabel": "Senden"
-  },
-  "productMockOps": {
-    "heading": "Workflows",
-    "today": "Heute",
-    "rows": {
-      "inventorySync": "Tägliche Inventar-Synchronisierung",
-      "customerEscalation": "Triage von Kundeneskalationen",
-      "complianceReport": "Wöchentlicher Compliance-Report",
-      "vendorSla": "Lieferanten-SLA-Prüfung"
-    },
-    "when": {
-      "justNow": "Gerade eben",
-      "minutes14": "14 Min.",
-      "hour1": "1 Std.",
-      "hours4": "4 Std."
     }
   }
 }
