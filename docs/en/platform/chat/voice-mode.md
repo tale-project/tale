@@ -21,7 +21,9 @@ Each agent can pin a preferred voice in its settings; without a per-agent pick, 
 
 ## Privacy boundary
 
-The audio clip you record leaves your device. It is uploaded to Tale's storage, sent to the speech-to-text provider you configured, and the transcript is kept in the chat history alongside the typed messages. The audio itself is retained per the org's retention policy. Replies go out to the text-to-speech provider as plain text; the audio response is streamed to your device and not stored on disk by default. <Warning>
+The audio clip you record leaves your device. It is uploaded to Tale's storage, sent to the speech-to-text provider you configured, and the transcript is kept in the chat history alongside the typed messages. The audio itself is retained per the org's retention policy. Replies go out to the text-to-speech provider as plain text; the audio response is streamed to your device and not stored on disk by default.
+
+<Warning>
 
 Organisations with strict data-out-of-region rules should pick STT and TTS providers in the same region as the rest of the stack — see [Data residency](/cloud/data-residency).
 

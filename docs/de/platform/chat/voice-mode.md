@@ -21,7 +21,9 @@ Jeder Agent kann in seinen Einstellungen eine bevorzugte Stimme festlegen; ohne 
 
 ## Die Datenschutzgrenze
 
-Der aufgezeichnete Audioclip verlässt dein Gerät. Er wird in Tales Speicher hochgeladen, an den konfigurierten Speech-to-Text-Anbieter gesendet, und das Transkript liegt zusammen mit den getippten Nachrichten im Chatverlauf. Das Audio selbst bleibt gemäß der Aufbewahrungspolicy der Org erhalten. Antworten gehen als Klartext an den Text-to-Speech-Anbieter hinaus; die Audio-Antwort wird auf dein Gerät gestreamt und standardmäßig nicht auf der Festplatte gespeichert. <Warning>
+Der aufgezeichnete Audioclip verlässt dein Gerät. Er wird in Tales Speicher hochgeladen, an den konfigurierten Speech-to-Text-Anbieter gesendet, und das Transkript liegt zusammen mit den getippten Nachrichten im Chatverlauf. Das Audio selbst bleibt gemäß der Aufbewahrungspolicy der Org erhalten. Antworten gehen als Klartext an den Text-to-Speech-Anbieter hinaus; die Audio-Antwort wird auf dein Gerät gestreamt und standardmäßig nicht auf der Festplatte gespeichert.
+
+<Warning>
 
 Orgs mit strengen Regeln für Daten außerhalb der Region sollten STT- und TTS-Anbieter in derselben Region wählen wie den Rest des Stacks — siehe [Daten-Residenz](/de/cloud/data-residency).
 
