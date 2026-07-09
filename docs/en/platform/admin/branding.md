@@ -1,17 +1,23 @@
 ---
 title: Branding
-description: Logo, favicon, and brand colours your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette.
+description: Logo, favicon, and the accent colour your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette.
 ---
 
-Branding is the surface that swaps Tale's default chrome for your organisation's own. The page covers the assets the platform skins — logo, favicon, brand and accent colours — and explains where each one shows up so you can preview before you save. The product name itself follows your organisation's name automatically, so there is no separate field to fill. Admins reach for branding when a self-hosted instance ships to an external audience or when an internal rollout needs to feel native to the company.
+Branding is the surface that swaps Tale's default chrome for your organisation's own. The page covers the assets the platform skins — logo, favicon, and the accent colour the palette derives from — and explains where each one shows up so you can preview before you save. The product name itself follows your organisation's name automatically, so there is no separate field to fill. Admins reach for branding when a self-hosted instance ships to an external audience or when an internal rollout needs to feel native to the company.
 
 Only Admins and Owners can edit branding. Everyone else sees the result; the form itself is hidden from Editors, Developers, and Members.
 
+<Frame caption="Settings > Branding — the logo, favicon, and colour controls beside a live preview of the sidebar.">
+
+![The Branding settings page with logo and favicon uploads, an accent colour field, and a live preview pane on the right.](/images/platform/settings-branding.webp)
+
+</Frame>
+
 ## Where branding lives
 
-Open **Settings > Branding**. The form has three sections (logo upload, favicon upload, colours) and a live preview that mirrors the sidebar with the values you are editing. Save commits the change for every member of _that_ organisation on their next page load — there is no per-user override.
+Open **Settings > Branding**. The form has three sections (logo upload, favicon upload, accent colour) and a live preview that mirrors the sidebar with the values you are editing. Save commits the change for every member of _that_ organisation on their next page load — there is no per-user override.
 
-Branding is scoped to one organisation. Each organisation keeps its own logo, favicon, and colours, so switching organisations swaps the chrome to that organisation's branding rather than carrying the previous one's over. Editing here changes only the organisation you are currently in.
+Branding is scoped to one organisation. Each organisation keeps its own logo, favicon, and accent colour, so switching organisations swaps the chrome to that organisation's branding rather than carrying the previous one's over. Editing here changes only the organisation you are currently in.
 
 ## The product name
 
@@ -19,15 +25,15 @@ There is no "app name" or "text logo" field. The wordmark in the sidebar header 
 
 ## The assets
 
-**Logo** is an image — PNG, SVG, or JPG. The platform renders it at sidebar height; aim for a transparent background and a wordmark that reads at roughly 32 pixels tall. Upload a light variant and the dark variant separately if your wordmark needs to invert on dark theme. With no logo, the chrome falls back to your organisation's name as a text wordmark.
+**Logo** is an image — PNG, SVG, or JPG. The platform renders it at sidebar height; aim for a transparent background and a wordmark that reads at roughly 32 pixels tall. The logo is a single upload used on both themes, so pick a mark that reads on light and dark backgrounds. With no logo, the chrome falls back to your organisation's name as a text wordmark.
 
 **Favicon** is the tab icon. Upload a light and a dark variant so the icon stays legible whichever theme the operating system has chosen — or leave it blank and Tale derives one from your logo the moment you upload it, so a single upload skins both the sidebar and the browser tab. An explicit favicon always wins over the auto-derived one.
 
-**Brand colour** is the primary accent — buttons, focus rings, the sidebar's active row. **Accent colour** is the secondary tone used for selection and active states. Both accept any hex value. A colour is picked once and applied to both light and dark mode; if the colour you chose would be hard to read against one theme's background, Tale nudges it into contrast for that theme only and leaves the other untouched — so the same brand reads cleanly on both. The preview reflects the adjusted colour for the theme you are currently viewing.
+**Accent colour** is the single colour the branded palette derives from — buttons, focus rings, selection states, and the sidebar's active row all take their tone from it. It accepts any hex value, picked once for both light and dark mode; Tale derives a legible palette per theme, so a colour that would be hard to read against one theme's background is nudged into contrast for that theme only while the other stays untouched — the same brand reads cleanly on both. The preview reflects the derived palette for the theme you are currently viewing.
 
 ## A worked rebrand
 
-To rebrand an instance for `Acme Corp`, first set the organisation's name to `Acme Corp` on the **Settings > Organization** page — that name becomes the sidebar wordmark and the browser tab title. Then open **Settings > Branding**, upload the company wordmark as the logo (light and dark variants), and paste the brand hex (`#3B82F6` for the example) into the brand colour field. Leave the favicon blank and Tale generates one from the logo. The preview pane on the right updates as you type. Save commits the change; the sidebar, the browser tab, and the favicon reflect the new branding immediately.
+To rebrand an instance for `Acme Corp`, first set the organisation's name to `Acme Corp` on the **Settings > Organization** page — that name becomes the sidebar wordmark and the browser tab title. Then open **Settings > Branding**, upload the company wordmark as the logo, and paste the brand hex (`#3B82F6` for the example) into the accent colour field. Leave the favicon blank and Tale generates one from the logo. The preview pane on the right updates as you type. Save commits the change; the sidebar, the browser tab, and the favicon reflect the new branding immediately.
 
 ## The custom login screen
 

@@ -9,7 +9,19 @@ Reach for Arena when picking a model has been a debate rather than a decision �
 
 ## How Arena renders
 
-Toggle **Enable Arena Mode** in the composer's model area and the textarea sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, **Choose a verdict** appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
+Open the composer's plus menu and pick **Arena Mode** — the composer sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, a verdict row appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
+
+<Frame caption="The same prompt answered by two models, with the verdict row beneath.">
+
+![Arena Mode with the same prompt streamed into two columns headed by different models, and four verdict buttons underneath.](/images/platform/chat-arena-split.webp)
+
+</Frame>
+
+<Note>
+
+Arena needs a specific agent — pick one instead of **Auto** in the agent picker before enabling it.
+
+</Note>
 
 ## Picking the contenders
 

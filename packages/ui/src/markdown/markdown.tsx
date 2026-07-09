@@ -21,6 +21,7 @@ import { cn } from '../lib/cn';
 import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
 import { Callout } from './components/callout';
+import { ImageZoom } from './components/image-zoom';
 import { Mermaid } from './components/mermaid';
 import { isHttpUrl } from './is-http-url';
 import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
@@ -301,13 +302,7 @@ export const baseComponents: Components = {
     </td>
   ),
   img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
-    <img
-      src={src}
-      alt={alt ?? ''}
-      loading="lazy"
-      decoding="async"
-      className="border-border-base my-6 h-auto max-w-full rounded-lg border"
-    />
+    <ImageZoom src={src} alt={alt} />
   ),
 };
 

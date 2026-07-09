@@ -1,55 +1,49 @@
 ---
 title: MCP-Server
-description: MCP-Server sind externe Prozesse, die Tales Agents Tools über das Model Context Protocol freilegen. Admins registrieren sie unter Einstellungen > MCP-Server; die Per-Tool-Genehmigungs-Regel entscheidet, was jeder Agent aufrufen darf.
+description: Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten.
 ---
 
-Ein MCP-Server ist ein externer Prozess, der Tales Agents Tools über das Model Context Protocol freilegt. Während eine Erstanbieter-Integration ein anbieterspezifischer Konnektor ist, den Tale liefert, ist ein MCP-Server eine generische Brücke, die jeder hosten kann — das Protokoll ist offen, der Vertrag besteht aus Tools und Ressourcen, und die Organisation entscheidet pro Server, was ihre Agents erreichen dürfen. Admins registrieren MCP-Server unter **Einstellungen > MCP-Server**; Entwickler und Redakteure richten Agents darauf aus.
+Ein MCP-Server ist ein externer Prozess, der Tales Agents über das Model Context Protocol Tools bereitstellt. Wo eine [Integration](/de/platform/integrations/overview) ein anbieterspezifischer Konnektor ist, den Tale mitliefert, ist ein MCP-Server eine generische Brücke, die jeder hosten kann — eine interne API, ein Anbieter ohne Konnektor, ein Skript, das etwas berechnet, was Tales eingebaute Tools nicht können. Du hostest den Server; Tale spricht nur mit ihm.
 
-Diese Seite ist die Referenz dafür, was ein MCP-Server in Tale hineinbringt, wie Registrierung funktioniert, wie die Per-Tool-Genehmigungs-Regel formt, was ein Agent aufrufen darf, und wie sich MCP-Server von Erstanbieter-Integrationen unterscheiden. Das Protokoll selbst ist upstream dokumentiert; was folgt, ist die Tale-seitige Oberfläche.
+<Frame caption="Das Formular MCP-Server hinzufügen — eine Verbindung und eine Authentifizierungsmethode sind die ganze Registrierung.">
 
-## Was ein MCP-Server bringt
+![Der Dialog MCP-Server hinzufügen unter Einstellungen API MCP mit Feldern für Name, Anzeigename und Beschreibung, einer Transporttyp-Auswahl auf Streamable HTTP, einem URL-Feld und einer Authentifizierungsmethode auf Keine.](/images/platform/settings-mcp-add-dialog.webp)
 
-Ein MCP-Server spricht das Model Context Protocol über HTTP oder stdio. Nach der Registrierung holt Tale das Tool-Manifest des Servers — eine Liste benannter Tools, ihrer Eingabe-Schemata und was jedes tut — und legt die Tools als Tool-Familie auf jedem Agent frei, an den der Server gebunden ist. Der Agent ruft das Tool genauso auf, wie er jedes andere Tool aufruft; die Anfrage wandert durch Tale zum MCP-Server, die Antwort des Servers wandert zurück, und der Agent nutzt sie in der Antwort.
-
-Der Server kann zusätzlich **Ressourcen** (nur-Lese-Kontext, den der Agent ziehen kann) und **Prompts** (benannte Templates, die der Agent komponieren kann) freilegen. Tools sind die häufigste Oberfläche; Ressourcen und Prompts sind optionale Fähigkeiten, die ein Server implementieren kann oder nicht.
+</Frame>
 
 ## Einen Server registrieren
 
-Öffne **Einstellungen > MCP-Server** und klick auf **Server hinzufügen**. Das Formular fragt nach:
+Öffne **Einstellungen > API > MCP** und klicke auf **MCP-Server hinzufügen**. Das Formular nimmt:
 
-- **Name** — ein menschliches Label, das in der Tool-Liste des Agents und auf jeder Genehmigungs-Karte erscheint.
-- **Transport** — HTTP oder stdio. HTTP-Server tragen eine URL; stdio-Server tragen einen Befehl, den Tale spawnt. Die URL muss eine gültige `http://`- oder `https://`-Adresse sein — das Formular markiert eine fehlerhafte URL inline, bevor du speichern kannst.
-- **Authentifizierung** — keine, Bearer-Token oder OAuth. Tokens gehen in ein Geheimnis-Feld; OAuth geht den Tanz wie eine Erstanbieter-Integration.
+- **Name** und **Anzeigename** — die Kennung und das Label, das Agents und Genehmigungskarten zeigen.
+- **Transporttyp** — **Streamable HTTP**, **SSE** oder **stdio**. Die HTTP-Transporte nehmen eine **URL** — das Formular markiert eine fehlerhafte URL inline, bevor du speichern kannst; stdio nimmt den Befehl, den Tale startet.
+- **Authentifizierung** — **Keine**, **API-Key** oder **OAuth 2.0** (Token-URL, Client-ID und -Geheimnis, Bereiche).
 - **Erlaubte Agents** — welche Agents sich an diesen Server binden dürfen. Standard ist keine Agents; greif zu **Alle Agents** nur, wenn der Server generisch genug ist, dass jeder Agent profitiert.
 
-Das Formular zu speichern, löst einen Handshake aus: Tale verbindet sich mit dem Server, holt das Manifest und legt es ab. Ein Handshake-Fehler zeigt den Upstream-Fehler neben der Zeile.
+**Server speichern**, dann **Verbindung testen** auf der Zeile, um den Handshake zu prüfen — der Status der Zeile zeigt **Verbunden**, **Getrennt** oder **Fehler** mit der Meldung der Gegenseite.
 
-## Die Per-Tool-Genehmigungs-Regel
+## Die erkannten Tools
 
-Beim ersten Mal, wenn ein Agent ein Tool eines MCP-Servers aufruft, zeigt Tale eine Genehmigungs-Karte im MCP-Genehmiger-Pool der Organisation (konfiguriert unter **Einstellungen > Richtlinien > MCP-Genehmigungen**). Der Genehmiger entscheidet, ob das Tool für diesen Agent erlaubt ist. Drei Ausgänge:
+Sobald die Verbindung steht, holt Tale das Manifest des Servers und listet es als **Erkannte Tools** — Name und Beschreibung jedes Tools und ob der Server es mit **Genehmigung erforderlich** markiert. Markierte Tools fragen im Chat bei jedem Aufruf durch einen Agent, mit den exakten Argumenten auf der Karte; unmarkierte laufen wie jedes eingebaute Tool.
 
-- **Einmal genehmigen** — das Tool läuft diesmal, und der nächste Aufruf zeigt die Karte wieder.
-- **Für diesen Agent genehmigen** — das Tool ist für diesen Agent dauerhaft erlaubt; folgende Aufrufe laufen ohne Karte.
-- **Ablehnen** — das Tool ist für diesen Agent blockiert; folgende Aufrufe schlagen mit einem Autorisierungs-Fehler fehl.
+<Warning>
 
-Die Per-Tool-Genehmigung ist pro Agent und pro Tool. Das `read_file`-Tool für den Support-Agent zu genehmigen, genehmigt es nicht für den Vertriebs-Agent und genehmigt nicht das `write_file`-Tool auf demselben Server. Das ist Absicht — jedes Tool auf jedem MCP-Server weitet die Vertrauensgrenze, und die Per-Tool-Entscheidung ist die Art, wie die Organisation die Grenze eng hält.
+Jedes MCP-Tool weitet aus, was deine Agents erreichen können, und die Genehmigungs-Flags stammen vom Autor des Servers — einen Server zu verbinden heißt, seinen Tool-Vertrag anzunehmen. Lies die erkannte Liste, bevor du Agents auf einen Server richtest, den du nicht selbst geschrieben hast.
 
-## Wofür ein MCP-Server gut ist
+</Warning>
 
-Greif zu einem MCP-Server, wenn du willst, dass ein Agent in etwas reicht, das keine Erstanbieter-Integration deckt — eine interne API, ein Anbieter ohne Tale-Konnektor, ein lokales Skript, das eine Berechnung macht, die Tales eingebaute Tools nicht können. Das Deployment liegt bei dir; Tale spricht nur mit dem Server.
+## Aus Agents heraus nutzen
 
-Ein häufiges Muster ist ein MCP-Server pro internen Dienst, den die Agents brauchen. Der Server läuft neben der übrigen Infrastruktur der Organisation, spricht MCP, und das Team, dem der Dienst gehört, besitzt auch den Vertrag.
+Die Tools eines registrierten, aktiven Servers reihen sich in das Tool-Set ein, das Agents aufrufen können; die Anfrage reist durch Tale zu deinem Server, und die Antwort kommt zurück ins Gespräch. Der Server kann auch Ressourcen und Prompts bereitstellen, wo sein Autor sie implementiert — Tools sind die gemeinsame Oberfläche.
 
-## Einen Server deaktivieren und entfernen
+## Deaktivieren und entfernen
 
-Jeder Server hat einen Aktiviert-Schalter in seiner Zeile. Deaktivieren stoppt Tale, ihn aufzurufen; die Tools des Servers erscheinen nicht mehr in Agent-Tool-Listen, und jeder Agent, der von ihnen abhing, zeigt einen Konfigurationsfehler. Den Server zu entfernen, löscht sein Manifest und widerruft jede Per-Tool-Genehmigung, die ihn referenzierte.
+Jede Server-Zeile lässt sich deaktivieren — seine Tools fallen aus den Tool-Sets der Agents heraus, bis du ihn wieder aktivierst; die Registrierung bleibt erhalten. Den Server zu löschen entfernt die Registrierung nach einer Bestätigung vollständig; ihn später erneut hinzuzufügen ist eine frische Registrierung mit einem frischen Manifest-Abruf.
 
-Einen Server mit demselben Namen wieder hinzuzufügen, startet von vorn — das Manifest wird neu geholt, und jede Per-Tool-Genehmigung muss neu entschieden werden. Es gibt keine intransparente Übernahme von Genehmigungen über ein Löschen-und-Wieder-Hinzufügen.
+## MCP-Server oder Integration
 
-## MCP-Server versus Erstanbieter-Integrationen
-
-Beide Oberflächen lassen einen Agent über Tale hinausgreifen; der Unterschied ist, wem der Konnektor gehört. Erstanbieter-Integrationen sind anbieterspezifisch, kommen als Teil von Tale und tragen die Anmeldedaten und die Operationsliste, die das Tale-Team pflegt. MCP-Server sind generisch, von dir gehostet und tragen die Tools, die der Autor des Servers gewählt hat freizulegen. Greif zu einer Integration, wenn eine für das Zielsystem existiert; greif zu einem MCP-Server, wenn du die Brücke selbst hosten musst.
+Beide lassen einen Agent über Tale hinausgreifen; der Unterschied ist, wem der Konnektor gehört. Integrationen sind anbieterspezifisch, mitgeliefert und im Katalog gepflegt; MCP-Server sind generisch, und du betreibst sie selbst. Greif zur Integration, wenn eine für das Zielsystem existiert; greif zu MCP, wenn die Brücke dein eigener Code sein soll.
 
 ## Wo das hingehört
 
-MCP-Server sind die offene Erweiterungs-Oberfläche für den Toolbelt eines Agents — der Hebel, wenn keine Erstanbieter-Integration deckt, was du brauchst. Die natürliche nächste Lektüre ist [Integrations-Übersicht](/de/platform/integrations/overview) für den Erstanbieter-Katalog und [Agent-Tools](/de/platform/agents/tools) dafür, wie die Tools eines MCP-Servers auf den Agent treffen und welche Vertrauensgrenze sie weiten.
+MCP ist die offene Erweiterungsfläche des Agent-Tool-Sets. Die natürlichen nächsten Lektüren sind [Agent-Tools](/de/platform/agents/tools) dafür, wie Tools an einem Agent auftauchen, [Genehmigungen konfigurieren](/de/platform/approvals/configure) für die Flags, die riskante Aufrufe anhalten, und das Tutorial [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) für den Bau von Anfang bis Ende.

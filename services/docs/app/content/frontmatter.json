@@ -85,7 +85,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Geteilte Chats",
-      "description": "Einen Chat per Link mit anderen in deiner Organisation teilen, einen geteilten Chat in einen eigenen forken, und das Lesemodus-Banner, das der Betrachter sieht."
+      "description": "Einen Chat per Link mit anderen in deiner Organisation teilen, einen geteilten Chat in einen eigenen forken, und das Lesemodus-Banner, das Betrachter sehen."
     }
   },
   "de:platform/chat/basics": {
@@ -101,7 +101,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat ist der tägliche Einstiegspunkt — wähl einen Agent, sende eine Nachricht, lies die Antwort. Diese Übersicht zeigt die vier Bereiche des Bildschirms und verweist auf die Seite, die jeden vertieft."
+      "description": "Chat ist der tägliche Einstiegspunkt — wähl einen Agent, sende eine Nachricht, lies die Antwort. Diese Übersicht zeigt die Teile des Bildschirms und verweist auf die Seite, die jeden vertieft."
     }
   },
   "de:platform/chat/attachments": {
@@ -117,7 +117,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agents im Chat",
-      "description": "Wie der Agents-Picker im Chat funktioniert — welche Agents erscheinen, was Visible in chat steuert, einmalige versus klebrige Agents, mitten im Thread wechseln und Sub-Agent-Aufrufe."
+      "description": "Wie der Agent-Picker im Chat funktioniert — welche Agents erscheinen, was „Im Chat sichtbar\" steuert, einmalige versus dauerhafte Agents, Wechsel mitten im Chat und Sub-Agent-Aufrufe."
     }
   },
   "de:platform/chat/canvas-pane": {
@@ -125,7 +125,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Canvas-Bereich",
-      "description": "Wann der Canvas-Bereich öffnet, was einen Canvas statt einer Inline-Darstellung bekommt, und wie der Canvas-Inhalt beim Chat bleibt zwischen den Besuchen."
+      "description": "Wann der Canvas-Bereich öffnet, was einen Canvas statt einer Inline-Darstellung bekommt, und wie der Canvas-Inhalt über Besuche hinweg beim Chat bleibt."
     }
   },
   "de:platform/chat/arena-mode": {
@@ -133,7 +133,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Arena-Modus",
-      "description": "Modell-Vergleich nebeneinander im Chat — wie er rendert, wie du die Kontrahenten wählst, wie Bewertungen in die Feedback-Analyse einfliessen und wann du danach greifst."
+      "description": "Modell-Vergleich nebeneinander im Chat — wie er rendert, wie du die Kontrahenten wählst, wie Bewertungen in die Feedback-Analyse einfließen und wann du danach greifst."
     }
   },
   "de:platform/chat/deep-research": {
@@ -141,7 +141,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tiefenrecherche",
-      "description": "Der Researcher-Agent — offene Webrecherche mit Live-Plan, zitierten Quellen über Tavily und einem sauberen PDF-Bericht am Ende."
+      "description": "Der Rechercheur-Agent — offene Webrecherche mit einem Live-To-do-Plan, zitierten Quellen über Tavily und einem sauberen PDF-Bericht am Ende."
     }
   },
   "de:platform/chat/voice-mode": {
@@ -149,7 +149,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Sprachmodus",
-      "description": "Sprechen statt tippen — wie die Hin-und-zurück-Schleife läuft, welches Modell Speech-to-Text macht, welches Text-to-Speech, und was die Datenschutzgrenze abdeckt."
+      "description": "Sprechen statt Tippen — wie die Schleife läuft, welches Modell Speech-to-Text übernimmt, welches Text-to-Speech, und was die Datenschutzgrenze abdeckt."
     }
   },
   "de:platform/chat/starters-and-prompts": {
@@ -157,7 +157,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einstiege und Prompts",
-      "description": "Woher Gesprächseinstiege auf dem leeren Chat-Bildschirm kommen, und wie die Prompt-Bibliothek dir erlaubt, Prompts über Chats hinweg zu speichern und wiederzuverwenden."
+      "description": "Woher die Gesprächseinstiege auf dem leeren Chat-Bildschirm kommen, und wie die Prompt-Bibliothek Prompts über Chats hinweg speichert und wiederverwendbar macht."
     }
   },
   "de:platform/projects/overview": {
@@ -165,7 +165,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekte",
-      "description": "Ein Projekt ist ein geteilter Workspace, der Dateien, Chats, Agents und Instructions um ein bestimmtes Stück Arbeit bündelt — einen Kunden, einen Launch, eine länger laufende Untersuchung."
+      "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft."
     }
   },
   "de:platform/projects/concepts": {
@@ -173,7 +173,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Konzepte",
-      "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Dateien, Anweisungen, Konversationen und projektgebundene Agents bündelt. Diese Seite erklärt, wann du zu einem Projekt greifst statt zu einer einzelnen Konversation."
+      "description": "Ein Projekt bündelt Chats, Dateien, Anweisungen, Aufgaben und Diskussionen in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt."
     }
   },
   "de:platform/projects/discussions": {
@@ -181,7 +181,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Diskussionen",
-      "description": "Mehrstimmige Diskussionsstränge innerhalb eines Projekts — Fragen klären und Entscheidungen treffen, mit Agenten, die per @Erwähnung dazukommen."
+      "description": "Gespräche in Threads mit mehreren Teilnehmern in einem Projekt — eröffne ein Thema, sprich es mit dem Team durch und hol einen Agenten mit einer @-Erwähnung dazu."
     }
   },
   "de:platform/projects/manage-files": {
@@ -189,15 +189,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Dateien verwalten",
-      "description": "Hochladen, Ersetzen, Löschen und die Pro-Projekt-Grössenlimits — und wie Projekt-Dateien in Chats innerhalb des Projekts auftauchen."
+      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status, Anheften und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
     }
   },
   "de:platform/projects/project-agents": {
     "slug": "platform/projects/project-agents",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekt-Agents",
-      "description": "Projektgebundene Agents gegenüber Org-Agents — wann du nach welchem greifst, wie Projekt-Agents Org-Agents im Picker überschatten, und wie das Veröffentlichen innerhalb eines Projekts funktioniert."
+      "title": "Agenten und Modelle in einem Projekt",
+      "description": "Der Tab Agenten & Modelle kuratiert, welche Agenten und Modelle Mitglieder in einem Projekt sehen — Empfohlen pinnt Favoriten nach oben, Eingeschränkt lässt nichts anderes zu."
     }
   },
   "de:platform/projects/backlog": {
@@ -213,7 +213,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben-Automatisierung",
-      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Guardrails (Budgets, Parallelität, Sicherungen) und der Kill-Switch."
+      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
     }
   },
   "de:platform/workspace/prompt-library": {
@@ -222,14 +222,6 @@
     "frontmatter": {
       "title": "Prompt-Bibliothek",
       "description": "Die Prompt-Bibliothek ist der Ort, an dem du Chat-Prompts zur Wiederverwendung speicherst — persönlich, Team oder organisationsweit. Mitglieder, Redakteure und Entwickler lesen das, wenn sie einen wiederkehrenden Chat-Starter griffbereit halten."
-    }
-  },
-  "de:platform/workspace/document-comparison": {
-    "slug": "platform/workspace/document-comparison",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Dokumentenvergleich",
-      "description": "Der Seite-an-Seite-Diff-Dialog, der zwei Dokumente — hochgeladen oder aus der Bibliothek — nimmt und die Unterschiede absatzweise mit einer RAG-gestützten Zusammenfassung durchläuft."
     }
   },
   "de:platform/member/environment": {
@@ -245,7 +237,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, im Posteingang einer installierten Automatisierung antworten, auf Genehmigungen reagieren. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
+      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten, Genehmigungen entscheiden. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
     }
   },
   "de:platform/member/install-as-app": {
@@ -261,7 +253,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einstellungen",
-      "description": "Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden."
+      "description": "Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, benutzerdefinierte Anweisungen und Erinnerungen unter Personalisierung, und Abmelden."
     }
   },
   "de:platform/admin/members-and-roles": {
@@ -293,7 +285,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "KI-Anbieter",
-      "description": "Einstellungen > Anbieter ist der Ort, an dem Admins OpenAI, Anthropic, Azure OpenAI und ein lokales Ollama anbinden, wählen, welche Modelle jeder davon freigibt, und das Standardmodell der Organisation setzen. Jede Antwort, die Tale streamt, kommt aus einem Modell, das über diese Seite aufgelöst wird."
+      "description": "Einstellungen > KI-Anbieter ist der Ort, an dem Admins die OpenAI-kompatiblen Anbieter hinter jeder Antwort verbinden, wählen, welche Modelle die Organisation nutzen darf, und die Standards setzen. Jede Antwort, die Tale streamt, kommt von einem Modell, das über diese Seite aufgelöst wird."
     }
   },
   "de:platform/admin/enterprise-sso": {
@@ -301,7 +293,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Enterprise-SSO und Bereitstellung",
-      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für Ihre Organisation konfigurieren. Schritt-für-Schritt-Einrichtung für Microsoft Entra ID, Google, generisches OIDC und SAML, plus Rollenzuordnung, Gruppe-zu-Team-Synchronisierung und Deaktivierung. Lesen Sie dies, wenn Sie die Unternehmensidentität für die Organisation einrichten."
+      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren. Schritt-für-Schritt-Einrichtung für Microsoft Entra ID, Google, generisches OIDC und SAML, plus Rollenzuordnung, Gruppe-zu-Team-Synchronisierung und Deaktivierung. Lies dies, wenn du die Unternehmensidentität für die Organisation einrichtest."
     }
   },
   "de:platform/admin/changelog": {
@@ -333,7 +325,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, Favicon und Markenfarben, die deine Organisation ihren Mitgliedern zeigt. Admins lesen das, wenn sie eine selbst gehostete Instanz whitelabeln oder die In-Produkt-Chrome an die Firmenpalette angleichen."
+      "description": "Logo, Favicon und die Akzentfarbe, die deine Organisation ihren Mitgliedern zeigt. Admins lesen das, wenn sie eine selbst gehostete Instanz whitelabeln oder die In-Produkt-Chrome an die Firmenpalette angleichen."
     }
   },
   "de:platform/admin/governance/feedback-analytics": {
@@ -413,7 +405,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht."
+      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — eingegrenzt nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht."
     }
   },
   "de:platform/admin/agents": {
@@ -437,55 +429,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, ist die Skopierungs-Ebene für alles unterhalb der Rollen-Ebene."
-    }
-  },
-  "de:platform/workflows/workflows": {
-    "slug": "platform/workflows/workflows",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workflows verwalten",
-      "description": "Das Betriebshandbuch zu Workflows — wo ein Workflow lebt, wie du ihn startest, wie du ihn pausierst und deaktivierst, wie du editierst und wie die versionierte Historie funktioniert. Lies das, wenn du Workflows täglich betreibst, nicht wenn du das Modell lernst."
-    }
-  },
-  "de:platform/workflows/approvals-in-workflows": {
-    "slug": "platform/workflows/approvals-in-workflows",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Genehmigungen in Workflows",
-      "description": "Ein Workflow-Schritt kann ein Genehmigungs-Gate sein, das den Lauf anhält, bis ein Mensch entscheidet. Diese Seite behandelt die Zustände des Gates, die Routing-Regeln, was der Rest des Workflows sieht und wie das Gate mit organisationsweiten Genehmigungs-Regeln komponiert."
-    }
-  },
-  "de:platform/workflows/concepts": {
-    "slug": "platform/workflows/concepts",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workflow-Konzepte",
-      "description": "Ein Workflow ist eine Schritt-Definition plus ein Trigger plus eine Ausführungshistorie. Diese Seite benennt die vier Stücke und zeigt, wie ein Tagesbericht hindurchfliesst."
-    }
-  },
-  "de:platform/workflows/execution-logs": {
-    "slug": "platform/workflows/execution-logs",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Ausführungs-Logs",
-      "description": "Die Pro-Workflow-Lauf-Historie — jede Ausführung mit Status, Dauer, Trigger-Quelle, Schritt-Ein- und Ausgaben und dem vollen Journal dessen, was jeder Schritt getan hat. Entwickler und Redakteure lesen das, wenn ein Lauf scheiterte oder sich seltsam verhielt."
-    }
-  },
-  "de:platform/workflows/triggers": {
-    "slug": "platform/workflows/triggers",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workflow-Trigger",
-      "description": "Die vier Arten, wie ein Workflow starten kann — manuell, Schedule, Webhook, Event — was jede in den Lauf hineinträgt und wie du zwischen ihnen wechselst, ohne den Workflow neu zu bauen."
-    }
-  },
-  "de:platform/workflows/metrics": {
-    "slug": "platform/workflows/metrics",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Workflow-Metriken",
-      "description": "Das Dashboard, das die Lauf-Historie in Erfolgsrate, durchschnittliche Dauer, Gesamtläufe und gescheiterte Läufe über jeden Workflow der Org rollt — über die letzten 7, 30 oder 90 Tage. Redakteure und Entwickler lesen das, wenn ein Workflow abbaut oder um zu sehen, welche Workflows die Last tragen."
+      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
     }
   },
   "de:platform/agents/conversation-starters": {
@@ -493,7 +437,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Gesprächseinstiege",
-      "description": "Autorenarbeit für Beispielprompts, die ein Agent auf seinem leeren Chat-Bildschirm zeigt — hinzufügen, übersetzen und die Auto-Übersetzungs-Option."
+      "description": "Die vorgeschlagenen Prompts pflegen, die ein Agent auf dem leeren Chat-Bildschirm zeigt — hinzufügen, ordnen, übersetzen und die Aktion Automatisch übersetzen."
     }
   },
   "de:platform/agents/concepts": {
@@ -501,7 +445,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Konzepte",
-      "description": "Ein Agent ist die Vier-Knöpfe-Kombination aus Instructions, Wissen, Tools und einem Modell. Diese Seite vermittelt dir das mentale Modell, das der Rest des Agents-Abschnitts voraussetzt."
+      "description": "Ein Agent ist die Vier-Knöpfe-Kombination aus Anweisungen, Wissen, Tools und einem Modell. Diese Seite vermittelt dir das mentale Modell, das der Rest des Agenten-Abschnitts voraussetzt."
     }
   },
   "de:platform/agents/knowledge": {
@@ -509,7 +453,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Wissen",
-      "description": "Dokumente, Kunden, Produkte, Lieferanten und Websites an einen Agent binden, damit er sie zitieren kann — und der Unterschied zwischen agent-gebundenem Wissen und dem Wissen-Tab."
+      "description": "Der Wissen-Tab des Agents — Abrufmodus, Scopes für Team- und Organisationsdokumente und Uploads nur für den Agent, und wie sie sich von Tools und Anhängen unterscheiden."
     }
   },
   "de:platform/agents/versions": {
@@ -517,15 +461,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Versionen",
-      "description": "Der History-Tab des Agents — jede Änderung als Schnappschuss, mit Vergleich und Wiederherstellung für jede vergangene Version."
+      "description": "Die Verlauf-Ansicht des Agenten-Editors — jeder Speichervorgang als Snapshot, mit Diff gegen die aktuelle Version und Wiederherstellung per Klick."
     }
   },
   "de:platform/agents/webhook-triggers": {
     "slug": "platform/agents/webhook-triggers",
     "locale": "de",
     "frontmatter": {
-      "title": "Agent-Webhook-Trigger",
-      "description": "Der Workers-Tab — ein pro-Agent-HTTP-Endpunkt, an den externe Systeme POSTen, um den Agent ohne den Umweg über den Chat aufzurufen."
+      "title": "Agent-Webhooks",
+      "description": "Der Webhook-Tab des Agents — eindeutige URLs, an die externe Systeme POSTen und so ohne die UI mit dem Agent chatten, mit dem Token in der URL als Zugangsnachweis."
     }
   },
   "de:platform/agents/delegation": {
@@ -549,15 +493,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bildgenerierung",
-      "description": "Bildgenerierung als Agent-Fähigkeit — jeder Assistent kann ein Bild inline erstellen, wenn ein Bildmodell konfiguriert ist, wie generierte Bilder auftauchen und was sie kosten."
+      "description": "Bildgenerierung als Agenten-Fähigkeit — Inline-Bilder in der Antwort jedes Assistenten, das Tool Bild generieren, der dedizierte Bildagenten-Typ und was das kostet."
     }
   },
   "de:platform/agents/skills": {
     "slug": "platform/agents/skills",
     "locale": "de",
     "frontmatter": {
-      "title": "Fähigkeiten",
-      "description": "Eine Fähigkeit ist ein wiederverwendbares Bündel aus Anweisungen und einem optionalen Sandbox-Skript, das du an einen Agent hängen kannst. Diese Seite erklärt, wann du eine Fähigkeit statt Inline-Anweisungen wählst."
+      "title": "Agent-Skills",
+      "description": "Ein Skill ist ein wiederverwendbares Bündel — eine SKILL.md plus optionale Skripte und Referenzen — das Agenten zur Laufzeit lesen. Diese Seite zeigt, wann du dazu greifst statt zu längeren Anweisungen."
     }
   },
   "de:platform/agents/create": {
@@ -565,15 +509,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Agent erstellen",
-      "description": "Vom leeren Create-agent-Dialog zu einem veröffentlichten Agent — Modell wählen, Instructions schreiben, Wissen anbinden, Tools einschalten und im Chat verifizieren."
+      "description": "Vom Dialog Agent erstellen zum veröffentlichten Agent — benenne ihn, schreib Anweisungen, setz den Wissens-Scope, gewähre Tools und prüfe ihn im Chat."
     }
   },
   "de:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "de",
     "frontmatter": {
-      "title": "Agent-Kategorien",
-      "description": "Ein kurzes Tag am Agent, das ihn im Chat-Picker und in der Agent-Liste der Org gruppiert — pro Org definiert, pro Agent optional."
+      "title": "Agenten-Ordner",
+      "description": "Wie Agenten gruppiert werden — Ordner aus der Id des Agents, wie mit einer Automatisierung installierte Agenten sich einsortieren und wo die Berechtigungsgrenze wirklich liegt."
     }
   },
   "de:platform/agents/tools": {
@@ -581,7 +525,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Tools",
-      "description": "Die eingebauten Tool-Familien, die ein Agent jenseits von Textgenerierung nutzen kann, wie der Agent wählt, welche aufzurufen sind, und wie Tool-Aufrufe in der Antwort rendern."
+      "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, die Websuche-Modi und gebundene Integrationen und Workflows."
     }
   },
   "de:platform/integrations/overview": {
@@ -589,7 +533,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Integrationen",
-      "description": "Drittsysteme, aus denen Tale liest und in die es schreibt — Kommunikation, Speicher, Identität, Entwicklung, Wissen — und wie sich die Integrations-Oberfläche von MCP unterscheidet."
+      "description": "Die Drittsysteme, mit denen sich Tale verbindet — der Katalog unter Einstellungen > Integrationen, was jeder Konnektor tut, wie das Verbinden abläuft und wie sich die Oberfläche von MCP unterscheidet."
     }
   },
   "de:platform/integrations/webdav": {
@@ -597,7 +541,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Hänge den Dokumentenspeicher deiner Organisation als Netzlaufwerk im Finder, Datei-Explorer oder einem beliebigen WebDAV-Client ein. Erzeuge ein App-Passwort unter Einstellungen > WebDAV und verbinde dich vom Gerät aus."
+      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät."
     }
   },
   "de:platform/integrations/mcp-servers": {
@@ -605,7 +549,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "MCP-Server",
-      "description": "MCP-Server sind externe Prozesse, die Tales Agents Tools über das Model Context Protocol freilegen. Admins registrieren sie unter Einstellungen > MCP-Server; die Per-Tool-Genehmigungs-Regel entscheidet, was jeder Agent aufrufen darf."
+      "description": "Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten."
     }
   },
   "de:platform/index": {
@@ -613,7 +557,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Plattform",
-      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Workflows, Wissen, Genehmigungen, Verwaltung.",
+      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Wissen, Genehmigungen, Verwaltung.",
       "kind": "index"
     }
   },
@@ -621,8 +565,8 @@
     "slug": "platform/models",
     "locale": "de",
     "frontmatter": {
-      "title": "Modelle out of the box",
-      "description": "Welche Provider und Modelle eine frische Tale-Instanz mitbringt — OpenRouter deckt Chat, Vision, Embeddings, Sprache und Bildgenerierung über einen einzigen Key ab."
+      "title": "Modellkatalog",
+      "description": "Der Modellkatalog hinter jedem Picker in Tale — wo er unter Einstellungen > KI-Anbieter liegt, was die Fähigkeits-Tags bedeuten, welche Standards mitkommen und wie die Liste frisch bleibt."
     }
   },
   "de:platform/knowledge/overview": {
@@ -630,7 +574,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissen",
-      "description": "Wissen ist der Bereich, in dem die Dokumente und strukturierten Daten der Organisation liegen, damit Agents sie zitieren können. Redakteure kuratieren ihn; Agents rufen zur Antwort-Zeit darüber ab. Diese Übersicht nennt die zwei Hälften und verweist auf die Per-Bereich-Seiten."
+      "description": "Wissen ist die geteilte Bibliothek der Organisation — Dokumente, kleine Fakten, gecrawlte Websites und typisierte Datensätze —, in der Agenten ihre Antworten verankern. Diese Übersicht nennt die Tabs und verweist auf die Seiten pro Bereich."
     }
   },
   "de:platform/knowledge/knowledge-entries": {
@@ -638,7 +582,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissenseinträge",
-      "description": "Wissenseinträge sind kleine, themen-basierte Fakten, die Nutzer zur Wissensdatenbank beitragen — mit Genehmigung aus dem Chat erfasst oder manuell hinzugefügt. Diese Seite behandelt, woher Einträge kommen, die Eine-Live-Version-pro-Thema-Regel und wie du sie verwaltest."
+      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — aus dem Chat mit menschlicher Freigabe erfasst oder von Hand hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
     }
   },
   "de:platform/knowledge/structured-data": {
@@ -646,7 +590,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Strukturierte Daten",
-      "description": "Tales Wissensdatenbank kennt vier eingebaute strukturierte Entitäten — Kunden, Produkte, Lieferanten, Websites — neben Dokumenten. Diese Seite erklärt, wann du eine strukturierte Aufzeichnung statt eines Dokuments wählst."
+      "description": "Tales Wissensdatenbank bringt vier eingebaute strukturierte Entitäten mit — Kunden, Produkte, Lieferanten, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
     }
   },
   "de:platform/knowledge/crawling": {
@@ -654,7 +598,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Crawling",
-      "description": "Wie Tale eine Website-Entität in Wissen verwandelt — Domain-Registrierung, sitemap-basierte URL-Erkennung, geplante Re-Scans und die Ansicht indexierter Seiten."
+      "description": "Wie Tale eine Website in Wissen verwandelt — Domain registrieren, URLs über die Sitemap entdecken, geplante Re-Scans und die Ansicht der indexierten Seiten."
     }
   },
   "de:platform/knowledge/documents": {
@@ -662,7 +606,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Dokumente",
-      "description": "Der Dokumente-Bereich ist der Ort, an dem Redakteure Dateien in die Wissensdatenbank hochladen, sie indexieren sehen und an Agents binden. Diese Seite behandelt das Hochladen, die Indexierungs-Pipeline, unterstützte Formate und den Per-Dokument-Lebenszyklus."
+      "description": "Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus — Upload-Quellen, RAG-Status, Team-Bindung, Ordner und Neuindexierung."
+    }
+  },
+  "de:platform/automations/approvals-in-workflows": {
+    "slug": "platform/automations/approvals-in-workflows",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Genehmigungen in Workflows",
+      "description": "Wo Menschen rund um Workflows entscheiden — Änderungen des KI-Editors an einer Definition genehmigen, die Anfrage eines Agents auf einen Workflow-Lauf genehmigen und die Fragen beantworten, die einen Lauf pausieren."
     }
   },
   "de:platform/automations/concepts": {
@@ -670,7 +622,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungskonzepte",
-      "description": "Eine Automatisierung ist das installierbare Bündel aus Integrationen, Agents, Skills, einem Workflow und mitgelieferten Ansichten, das der Katalog in einem Schritt installiert. Diese Seite benennt die Bestandteile und wann du dazu statt zu einem einzelnen Agent oder Workflow greifst."
+      "description": "Eine Automatisierung ist das installierbare Bündel aus Integrationen, Agents, Skills, einem Workflow und mitgelieferten Ansichten — und der Workflow darin ist ihr Antrieb. Diese Seite benennt die Bestandteile, die Laufzeit darum herum und wann du zu einer Automatisierung greifst statt zu einem einzelnen Agent."
+    }
+  },
+  "de:platform/automations/editor": {
+    "slug": "platform/automations/editor",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Der Workflow-Editor",
+      "description": "Das Betriebshandbuch zum Editor-Tab einer Automatisierung — wo ihr Workflow lebt, wie du ihn startest, pausierst und deaktivierst, wie du editierst und wie die versionierte Historie funktioniert. Lies das, wenn du einen Workflow täglich betreibst, nicht wenn du das Modell lernst."
     }
   },
   "de:platform/automations/builtin": {
@@ -679,6 +639,22 @@
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
       "description": "Was jede der drei mitgelieferten E-Mail-Automatisierungen tut, welche Integration sie braucht, und wie das Bundle GitHub-Issues lösen synchronisierte Issues Ende zu Ende in gemergte Pull Requests verwandelt."
+    }
+  },
+  "de:platform/automations/execution-logs": {
+    "slug": "platform/automations/execution-logs",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Ausführungsprotokolle",
+      "description": "Die Laufhistorie pro Workflow — jede Ausführung mit Status, Zeiten und Trigger-Quelle, ausklappbar zum Journal pro Schritt. Lies das, wenn ein Lauf fehlschlug oder sich seltsam verhielt."
+    }
+  },
+  "de:platform/automations/triggers": {
+    "slug": "platform/automations/triggers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Workflow-Trigger",
+      "description": "Die drei Wege, auf denen ein Workflow von selbst startet — Zeitpläne, Webhooks und Ereignisse — was jeder davon in den Lauf trägt und wie du einen pausierst, ohne ihn zu löschen."
     }
   },
   "de:platform/automations/catalog": {
@@ -701,8 +677,8 @@
     "slug": "platform/approvals/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Genehmigungs-Konzepte",
-      "description": "Eine Genehmigung ist eine Karte, die ein Mensch klicken muss, bevor eine automatisierte Aktion fortfährt. Diese Seite benennt die vier Auslöser, das Genehmiger-Routing und was eine Genehmigung im Audit-Log hinterlässt."
+      "title": "Genehmigungskonzepte",
+      "description": "Eine Genehmigung ist eine Karte im Chat, die die Aktion eines Agents anhält, bis du entscheidest. Diese Seite benennt, was eine auslöst, welche Entscheidungen jede Karte bietet und was jede Entscheidung hinterlässt."
     }
   },
   "de:platform/approvals/configure": {
@@ -710,7 +686,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen konfigurieren",
-      "description": "Referenz für die Genehmigungs-Regeln, die ein Admin oder Redakteur an einen Agent, eine Integration oder einen Workflow-Schritt hängen kann — wann eine Genehmigung verlangt wird, wer entscheidet, was bei Timeout passiert."
+      "description": "Wo Genehmigungspflichten deklariert werden — pro Integrations-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
     }
   },
   "de:platform/editor/overview": {
@@ -718,7 +694,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Redakteur",
-      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Workflows und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
+      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
     }
   },
   "de:index": {
@@ -726,7 +702,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale-Dokumentation",
-      "description": "Tale ist der Orchestrator für KI-Agents. Die Dokumentation ist nach Edition (Cloud oder selbst gehostet), nach Produktbereich (Plattform) und nach Aufgabe (Tutorials, Entwicklung) gegliedert. Wähl den Einstieg, der zu dem passt, was du gerade vorhast.",
+      "description": "Tale ist der Orchestrator für KI-Agents. Starte mit dem Quickstart, folge dem Einstieg für deine Rolle oder spring direkt in die Feature-Referenz.",
       "kind": "index"
     }
   },
@@ -768,7 +744,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Cloud-Onboarding",
-      "description": "Von der Anmeldung zu einer produktionsreifen Organisation in weniger als einer Stunde — Org erstellen, ersten Admin einladen, Modell-Provider hinzufügen, Agent veröffentlichen, Chat öffnen."
+      "description": "Von der Registrierung zu einer produktionsreifen Organisation in unter einer Stunde — Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen."
     }
   },
   "de:cloud/migrate-to-self-hosted": {
@@ -816,7 +792,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tutorials",
-      "description": "Rollenbasierte Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun\" zum funktionierenden Ergebnis."
+      "description": "Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun\" zum funktionierenden Ergebnis."
     }
   },
   "de:tutorials/member/use-projects": {
@@ -864,7 +840,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Workflow mit Freigabe bauen",
-      "description": "Verdrahte einen Drei-Schritt-Workflow, bei dem eine menschliche Freigabe zwischen Entwurf und Versand sitzt, lass ihn von Anfang bis Ende laufen und prüf den Audit-Trail."
+      "description": "Lass den KI-Editor einen Drei-Schritt-Workflow bauen, bei dem eine menschliche Entscheidung zwischen Entwurf und Versand sitzt, genehmige seinen Vorschlag und lies danach das Journal des Laufs."
     }
   },
   "de:tutorials/editor/first-agent-end-to-end": {
@@ -968,8 +944,8 @@
     "slug": "self-hosted/install/quickstart",
     "locale": "de",
     "frontmatter": {
-      "title": "Self-hosted Quickstart",
-      "description": "Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Owner."
+      "title": "Selbst gehosteter Quickstart",
+      "description": "Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Inhaber."
     }
   },
   "de:self-hosted/install/first-admin": {
@@ -1040,8 +1016,8 @@
     "slug": "self-hosted/operate/security/audit-log-integrity",
     "locale": "de",
     "frontmatter": {
-      "title": "Audit-log integrity alerts",
-      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
+      "title": "Audit-Log-Integritätswarnungen",
+      "description": "Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst — den Befund lesen, Manipulation von einer harmlosen Konfigurationslücke unterscheiden und Beweise sichern."
     }
   },
   "de:self-hosted/operate/security/advisories": {
@@ -1143,6 +1119,46 @@
       "noindex": true
     }
   },
+  "de:get-started/admins": {
+    "slug": "get-started/admins",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Dein erster Tag als Arbeitsbereichs-Verantwortlicher",
+      "description": "Der Einstieg für Admins — erstelle den Arbeitsbereich, verbinde einen KI-Anbieter, hol das Team an Bord und lerne, wo Governance wohnt."
+    }
+  },
+  "de:get-started/quickstart": {
+    "slug": "get-started/quickstart",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Quickstart",
+      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf Cloud, fünfzehn auf deiner eigenen Maschine."
+    }
+  },
+  "de:get-started/developers": {
+    "slug": "get-started/developers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Dein erster Tag mit der Tale-API",
+      "description": "Der Einstieg für Entwickler — erstelle einen API-Schlüssel, mach deine erste authentifizierte Anfrage und lerne, wo die API-Oberfläche wohnt."
+    }
+  },
+  "de:get-started/editors": {
+    "slug": "get-started/editors",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Dein erster Tag als Agent-Autor",
+      "description": "Der Einstieg für Redakteure — erstelle einen Agent, gib ihm Anweisungen und ein Modell, mach ihn im Chat sichtbar und sieh ihm beim Antworten zu."
+    }
+  },
+  "de:get-started/members": {
+    "slug": "get-started/members",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Dein erster Tag mit Tale",
+      "description": "Der Einstieg für Mitglieder — chatte mit einem Agent, gib dem Arbeitsbereich ein Dokument und finde dich in Projekten und im Chatverlauf zurecht."
+    }
+  },
   "fr:develop/contributor-setup": {
     "slug": "develop/contributor-setup",
     "locale": "fr",
@@ -1164,7 +1180,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement",
-      "description": "Développement couvre la surface côté consommateur d'API — REST API, webhooks, SDK d'intégration, workflow de développement assisté par IA, page de statut, limites de débit."
+      "description": "Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’intégration, workflow de développement assisté par IA, page de statut, limites de débit."
     }
   },
   "fr:develop/ai-assisted-development": {
@@ -1221,7 +1237,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développeur",
-      "description": "Développeur est la surface développeur en-app — clés API, tools personnalisés, webhooks d'agent, serveurs MCP. Les pages ici sont ce qu'une personne de rôle Développeur parcourt quand elle câble Tale à du code externe."
+      "description": "Développeur est la surface développeur en-app — clés API, tools personnalisés, webhooks d’agent, serveurs MCP. Les pages ici sont ce qu’une personne de rôle Développeur parcourt quand elle câble Tale à du code externe."
     }
   },
   "fr:platform/chat/shared-threads": {
@@ -1229,7 +1245,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chats partagés",
-      "description": "Partager un chat avec d'autres membres de l'organisation via un lien, dupliquer un chat partagé en un chat à toi, et la bannière en lecture seule que voit le visiteur."
+      "description": "Partager un chat avec le reste de l’organisation via un lien, dupliquer un chat partagé en un chat à toi, et la bannière en lecture seule que voit le visiteur."
     }
   },
   "fr:platform/chat/basics": {
@@ -1237,7 +1253,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bases du chat",
-      "description": "Ce qui se passe entre la frappe sur Envoyer et l'arrivée de la réponse — composer, choix de l'agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
+      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
     }
   },
   "fr:platform/chat/overview": {
@@ -1245,7 +1261,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chat",
-      "description": "Le chat est le point d'entrée quotidien — choisis un agent, envoie un message, lis la réponse. Cet aperçu cartographie les quatre parties de l'écran et pointe vers la page qui approfondit chacune."
+      "description": "Le chat est le point d’entrée quotidien — choisis un agent, envoie un message, lis la réponse. Cet aperçu cartographie les parties de l’écran et pointe vers la page qui approfondit chacune."
     }
   },
   "fr:platform/chat/attachments": {
@@ -1253,7 +1269,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Pièces jointes",
-      "description": "Types de fichiers pris en charge, où atterrissent les téléversements, quand le contenu est indexé en RAG et quand il est inséré tel quel dans le prompt."
+      "description": "Les types de fichiers pris en charge, où atterrissent les téléversements, quand le contenu est indexé en RAG et quand il est inséré tel quel dans le prompt."
     }
   },
   "fr:platform/chat/agents-in-chat": {
@@ -1261,7 +1277,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents dans le chat",
-      "description": "Comment fonctionne le sélecteur d'agents dans le Chat — quels agents apparaissent, ce que contrôle Visible in chat, agents ponctuels versus persistants, changement en cours de thread, et appels de sous-agents."
+      "description": "Comment fonctionne le sélecteur d’agents dans le Chat — quels agents apparaissent, ce que contrôle Visible dans le chat, ponctuel versus persistant, changement en cours de thread, et appels de sous-agents."
     }
   },
   "fr:platform/chat/canvas-pane": {
@@ -1269,7 +1285,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Volet Canevas",
-      "description": "Quand le volet Canvas s'ouvre, ce qui obtient un Canvas plutôt qu'un rendu en ligne, et comment le contenu du Canvas reste avec le chat entre les visites."
+      "description": "Quand le volet Canevas s’ouvre, ce qui obtient un Canevas plutôt qu’un rendu en ligne, et comment le contenu du Canevas reste avec le chat entre les visites."
     }
   },
   "fr:platform/chat/arena-mode": {
@@ -1277,7 +1293,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Mode Arène",
-      "description": "Comparaison de modèles côte à côte dans le Chat — comment il s'affiche, comment choisir les concurrents, comment les verdicts alimentent l'analyse des retours et quand y recourir."
+      "description": "La comparaison de modèles côte à côte dans le Chat — comment elle s’affiche, comment choisir les concurrents, comment les verdicts alimentent l’analyse des retours et quand y recourir."
     }
   },
   "fr:platform/chat/deep-research": {
@@ -1285,7 +1301,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Recherche approfondie",
-      "description": "L'agent Chercheur — recherche web ouverte avec plan de tâches en direct, sources citées via Tavily, et un rapport PDF propre à la fin."
+      "description": "L’agent Chercheur — recherche web ouverte avec un plan de tâches en direct, des sources citées via Tavily, et un rapport PDF propre à la fin."
     }
   },
   "fr:platform/chat/voice-mode": {
@@ -1293,7 +1309,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Mode vocal",
-      "description": "Parler au lieu de taper — comment fonctionne la boucle aller-retour, quel modèle gère la reconnaissance vocale, lequel gère la synthèse, et ce que couvre la frontière de confidentialité."
+      "description": "Parler au lieu de taper — comment fonctionne l’aller-retour, quel modèle gère la reconnaissance vocale, lequel gère la synthèse, et ce que couvre la frontière de confidentialité."
     }
   },
   "fr:platform/chat/starters-and-prompts": {
@@ -1301,7 +1317,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Amorces et prompts",
-      "description": "D'où viennent les amorces de conversation sur l'écran de chat vide, et comment la bibliothèque de prompts te permet d'enregistrer et de réutiliser des prompts entre chats."
+      "description": "D’où viennent les amorces de conversation sur l’écran de chat vide, et comment la bibliothèque de prompts te laisse enregistrer et réutiliser des prompts d’un chat à l’autre."
     }
   },
   "fr:platform/projects/overview": {
@@ -1309,7 +1325,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Projets",
-      "description": "Un Projet est un espace de travail partagé qui regroupe fichiers, chats, agents et instructions autour d'un morceau de travail précis — un client, un lancement, une enquête au long cours."
+      "description": "Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions, tâches et discussions autour d’un même travail. Cet aperçu cartographie les onglets du projet et pointe vers la page qui approfondit chacun."
     }
   },
   "fr:platform/projects/concepts": {
@@ -1317,7 +1333,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts de projet",
-      "description": "Un projet est un espace partagé qui regroupe fichiers, instructions, conversations et agents liés au projet. Cette page donne le modèle mental pour choisir un projet plutôt qu'une conversation isolée."
+      "description": "Un projet regroupe chats, fichiers, instructions, tâches et discussions dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé."
     }
   },
   "fr:platform/projects/discussions": {
@@ -1325,23 +1341,23 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Discussions",
-      "description": "Des fils de conversation à plusieurs au sein d'un projet — poser des questions et prendre des décisions, les agents s'y joignant dès que tu les @mentionnes."
+      "description": "Des conversations en fils, à plusieurs, au sein d’un projet — ouvre un sujet, débats-en avec l’équipe et fais entrer un agent d’une simple @mention."
     }
   },
   "fr:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "fr",
     "frontmatter": {
-      "title": "Gérer les fichiers d'un Projet",
-      "description": "Téléverser, remplacer, supprimer, et les limites de taille par Projet — et comment les fichiers de Projet apparaissent dans les chats du Projet."
+      "title": "Gérer les fichiers du projet",
+      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, épinglage, et comment les fichiers du projet restent scopés au projet."
     }
   },
   "fr:platform/projects/project-agents": {
     "slug": "platform/projects/project-agents",
     "locale": "fr",
     "frontmatter": {
-      "title": "Agents de projet",
-      "description": "Agents scopés au Projet versus agents d'organisation — quand opter pour chaque, comment les agents de Projet supplantent les agents d'organisation dans le sélecteur, et comment fonctionne la publication dans un Projet."
+      "title": "Agents et modèles dans un projet",
+      "description": "L’onglet Agents et modèles choisit quels agents et modèles les membres voient dans un projet — Recommandés épingle les favoris en haut, Restreints n’autorise rien d’autre."
     }
   },
   "fr:platform/projects/backlog": {
@@ -1357,7 +1373,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisation des tâches",
-      "description": "Le pack task-ops par défaut — comment l'affectation à un agent le met au travail, la revue humaine obligatoire, les garde-fous (budgets, simultanéité, disjoncteurs) et l'arrêt d'urgence."
+      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
     }
   },
   "fr:platform/workspace/prompt-library": {
@@ -1365,23 +1381,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bibliothèque de prompts",
-      "description": "La bibliothèque de prompts est l'endroit où tu enregistres des prompts de chat pour réutilisation — personnel, équipe ou à l'échelle de l'org. Les Membres, Éditeurs et Développeurs lisent ceci quand ils gardent une amorce de chat récurrente sous la main."
-    }
-  },
-  "fr:platform/workspace/document-comparison": {
-    "slug": "platform/workspace/document-comparison",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Comparaison de documents",
-      "description": "La boîte de dialogue diff côte à côte qui prend deux documents — téléversés ou tirés de la bibliothèque — et parcourt les différences paragraphe par paragraphe avec un résumé assisté par RAG."
+      "description": "La bibliothèque de prompts est l’endroit où tu enregistres des prompts de chat pour réutilisation — personnel, équipe ou à l’échelle de l’org. Les Membres, Éditeurs et Développeurs lisent ceci quand ils gardent une amorce de chat récurrente sous la main."
     }
   },
   "fr:platform/member/environment": {
     "slug": "platform/member/environment",
     "locale": "fr",
     "frontmatter": {
-      "title": "Variables d'environnement et secrets",
-      "description": "Tes variables d'environnement et secrets personnels, injectés dans chaque sandbox d'agent que tu lances dans une organisation — le plus souvent l'identifiant fournisseur avec lequel un agent BYO s'authentifie."
+      "title": "Variables d’environnement et secrets",
+      "description": "Tes variables d’environnement et secrets personnels, injectés dans chaque sandbox d’agent que tu lances dans une organisation — le plus souvent l’identifiant fournisseur avec lequel un agent BYO s’authentifie."
     }
   },
   "fr:platform/member/overview": {
@@ -1389,7 +1397,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, lire et répondre au courrier client dans la Boîte de réception, agir sur les approbations assignées. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
+      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée, agir sur les approbations. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
     }
   },
   "fr:platform/member/install-as-app": {
@@ -1421,7 +1429,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Clés API",
-      "description": "Identifiants à l'échelle de l'org qui permettent à du code externe d'appeler l'API REST de Tale au nom de l'organisation. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > Clés API."
+      "description": "Identifiants à l’échelle de l’org qui permettent à du code externe d’appeler l’API REST de Tale au nom de l’organisation. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > Clés API."
     }
   },
   "fr:platform/admin/overview": {
@@ -1429,7 +1437,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, intégrations, branding, gouvernance. Les pages ici sont ce qu'un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner."
+      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, intégrations, branding, gouvernance. Les pages ici sont ce qu’un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner."
     }
   },
   "fr:platform/admin/providers": {
@@ -1437,15 +1445,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Fournisseurs IA",
-      "description": "Paramètres > Fournisseurs est l'endroit où les Administrateurs branchent OpenAI, Anthropic, Azure OpenAI et un Ollama local, choisissent quels modèles chacun expose, et fixent le défaut de l'org. Chaque réponse que Tale stream vient d'un modèle résolu par cette page."
+      "description": "Paramètres > Fournisseurs IA est l’endroit où les Administrateurs connectent les fournisseurs compatibles OpenAI derrière chaque réponse, choisissent quels modèles l’organisation peut appeler, et fixent les défauts. Chaque réponse que Tale diffuse vient d’un modèle résolu via cette page."
     }
   },
   "fr:platform/admin/enterprise-sso": {
     "slug": "platform/admin/enterprise-sso",
     "locale": "fr",
     "frontmatter": {
-      "title": "SSO d'entreprise et provisionnement",
-      "description": "Configurer l'authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour votre organisation. Configuration pas à pas pour Microsoft Entra ID, Google, OIDC générique et SAML, ainsi que le mappage des rôles, la synchronisation groupe-vers-équipe et la désactivation. À lire pour câbler l'identité d'entreprise de l'organisation."
+      "title": "SSO d’entreprise et provisionnement",
+      "description": "Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation. Configuration pas à pas pour Microsoft Entra ID, Google, OIDC générique et SAML, ainsi que le mappage des rôles, la synchronisation groupe-vers-équipe et la désactivation. À lire pour câbler l’identité d’entreprise de l’organisation."
     }
   },
   "fr:platform/admin/changelog": {
@@ -1461,7 +1469,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Authentification à deux facteurs",
-      "description": "Inscription TOTP, passkeys, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte."
+      "description": "Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l’org ou que tu récupères un compte."
     }
   },
   "fr:platform/admin/integrations": {
@@ -1469,7 +1477,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Intégrations (vue Admin)",
-      "description": "Paramètres > Intégrations est l'endroit où les Administrateurs installent, configurent et rotent les identifiants derrière Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily et MCP. Cette page couvre la surface admin, pas la liste des fonctionnalités par intégration."
+      "description": "Paramètres > Intégrations est l’endroit où les Administrateurs installent, configurent et rotent les identifiants derrière Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily et MCP. Cette page couvre la surface admin, pas la liste des fonctionnalités par intégration."
     }
   },
   "fr:platform/admin/branding": {
@@ -1477,7 +1485,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, favicon et couleurs de marque que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l'entreprise."
+      "description": "Logo, favicon et la couleur d’accentuation que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l’entreprise."
     }
   },
   "fr:platform/admin/governance/feedback-analytics": {
@@ -1517,7 +1525,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politique run-code",
-      "description": "La liste d'autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d'une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné."
+      "description": "La liste d’autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d’une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné."
     }
   },
   "fr:platform/admin/governance/legal-hold": {
@@ -1525,7 +1533,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Conservation légale",
-      "description": "Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d'effacement pour un utilisateur, un document, un thread ou l'organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves."
+      "description": "Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur, un document, un thread ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves."
     }
   },
   "fr:platform/admin/governance/usage-analytics": {
@@ -1541,7 +1549,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Demandes des personnes concernées",
-      "description": "Le workflow RGPD article 17 pour effacer les données d'une personne dans les chats, documents, exécutions de workflow et prompts. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche."
+      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, exécutions de workflow et prompts. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche."
     }
   },
   "fr:platform/admin/governance/content-models": {
@@ -1549,7 +1557,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Contenu et modèles",
-      "description": "Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d'utilisateurs atterrit. Les Administrateurs et Propriétaires lisent ceci quand une règle de conformité épingle une charge à un modèle approuvé ou quand une équipe a besoin d'un défaut moins cher."
+      "description": "Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit. Les Administrateurs et Propriétaires lisent ceci quand une règle de conformité épingle une charge à un modèle approuvé ou quand une équipe a besoin d’un défaut moins cher."
     }
   },
   "fr:platform/admin/governance/policies-and-limits": {
@@ -1557,7 +1565,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d'upload, la génération d'images et l'accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d'un rayon plus serré."
+      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d’un rayon plus serré."
     }
   },
   "fr:platform/admin/agents": {
@@ -1565,7 +1573,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents (vue Admin)",
-      "description": "La liste des agents à l'échelle de l'organisation — chaque agent dans l'organisation, qui l'a construit, quel modèle il fait tourner, quelles connaissances il touche. Les Administrateurs et Propriétaires lisent ceci quand ils gouvernent les agents à l'échelle de l'org plutôt que d'en construire un."
+      "description": "La liste des agents à l’échelle de l’organisation — chaque agent dans l’organisation, qui l’a construit, quel modèle il fait tourner, quelles connaissances il touche. Les Administrateurs et Propriétaires lisent ceci quand ils gouvernent les agents à l’échelle de l’org plutôt que d’en construire un."
     }
   },
   "fr:platform/admin/token-sources": {
@@ -1581,55 +1589,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Les équipes sont des groupes nommés de membres qui partagent l'accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu'elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
-    }
-  },
-  "fr:platform/workflows/workflows": {
-    "slug": "platform/workflows/workflows",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Gérer les workflows",
-      "description": "Le manuel d'exploitation des workflows — où vit un workflow, comment le lancer, comment le mettre en pause et le désactiver, comment l'éditer et comment l'historique versionné fonctionne. Lis ceci quand tu fais tourner des workflows au quotidien, pas quand tu apprends le modèle."
-    }
-  },
-  "fr:platform/workflows/approvals-in-workflows": {
-    "slug": "platform/workflows/approvals-in-workflows",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Approbations dans les workflows",
-      "description": "Une étape de workflow peut être un gate d'approbation qui met l'exécution en pause jusqu'à ce qu'un humain décide. Cette page couvre les états du gate, les règles de routage, ce que voit le reste du workflow, et comment le gate compose avec les règles d'approbation à l'échelle de l'org."
-    }
-  },
-  "fr:platform/workflows/concepts": {
-    "slug": "platform/workflows/concepts",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Concepts de workflow",
-      "description": "Un workflow est une définition d'étapes plus un déclencheur plus un historique d'exécutions. Cette page nomme les quatre pièces et montre comment un rapport quotidien y circule."
-    }
-  },
-  "fr:platform/workflows/execution-logs": {
-    "slug": "platform/workflows/execution-logs",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Journaux d'exécution",
-      "description": "L'historique des exécutions par workflow — chaque exécution avec son statut, sa durée, sa source de déclencheur, les entrées et sorties d'étapes et le journal complet de ce que chaque étape a fait. Les Développeurs et Éditeurs lisent ceci quand une exécution a échoué ou s'est comportée bizarrement."
-    }
-  },
-  "fr:platform/workflows/triggers": {
-    "slug": "platform/workflows/triggers",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Déclencheurs de workflow",
-      "description": "Les quatre façons dont un workflow peut démarrer — manuel, planification, webhook, événement — ce que chacun porte dans l'exécution, et comment basculer entre eux sans reconstruire le workflow."
-    }
-  },
-  "fr:platform/workflows/metrics": {
-    "slug": "platform/workflows/metrics",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Métriques de workflow",
-      "description": "Le dashboard qui agrège l'historique des exécutions en taux de succès, durée moyenne, total d'exécutions et exécutions échouées sur chaque workflow de l'org — sur les 7, 30 ou 90 derniers jours. Les Éditeurs et Développeurs lisent ceci quand un workflow se dégrade ou pour repérer quels workflows portent la charge."
+      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
     }
   },
   "fr:platform/agents/conversation-starters": {
@@ -1637,39 +1597,39 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Amorces de conversation",
-      "description": "Rédiger les prompts d'exemple qu'un agent montre sur son écran de chat vide — ajout, traduction, et l'option d'auto-traduction."
+      "description": "Écrire les prompts suggérés qu’un agent affiche sur son écran de chat vide — les ajouter, les ordonner, les traduire, et l’action de traduction automatique."
     }
   },
   "fr:platform/agents/concepts": {
     "slug": "platform/agents/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts d'agent",
-      "description": "Un agent est la combinaison à quatre boutons d'instructions, de connaissances, d'outils et d'un modèle. Cette page te donne le modèle mental que le reste de la section agents présuppose."
+      "title": "Concepts d’agent",
+      "description": "Un agent est la combinaison à quatre boutons — instructions, connaissances, outils et modèle. Cette page te donne le modèle mental que le reste de la section agents présuppose."
     }
   },
   "fr:platform/agents/knowledge": {
     "slug": "platform/agents/knowledge",
     "locale": "fr",
     "frontmatter": {
-      "title": "Connaissances d'agent",
-      "description": "Lier des documents, clients, produits, fournisseurs et sites web à un agent pour qu'il puisse les citer — et la différence entre connaissances liées à l'agent et l'onglet Knowledge."
+      "title": "Connaissances d’agent",
+      "description": "L’onglet Base de connaissances de l’agent — le mode de récupération, les portées des documents d’équipe et d’organisation, les téléversements propres à l’agent, et la frontière avec les outils et les pièces jointes."
     }
   },
   "fr:platform/agents/versions": {
     "slug": "platform/agents/versions",
     "locale": "fr",
     "frontmatter": {
-      "title": "Versions d'agent",
-      "description": "L'onglet History de l'agent — chaque changement instantané, avec comparaison et restauration pour toute version passée."
+      "title": "Versions d’agent",
+      "description": "La vue Historique de l’éditeur d’agent — chaque enregistrement pris en instantané, avec un diff contre la version actuelle et une restauration en un clic."
     }
   },
   "fr:platform/agents/webhook-triggers": {
     "slug": "platform/agents/webhook-triggers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencheurs webhook d'agent",
-      "description": "La surface Workers — un endpoint HTTP par agent vers lequel des systèmes externes POSTent pour invoquer l'agent sans passer par Chat."
+      "title": "Webhooks d’agent",
+      "description": "L’onglet Webhooks de l’agent — des URL uniques que des systèmes externes appellent en POST pour chatter avec l’agent sans passer par l’interface, le token dans l’URL servant d’identifiant."
     }
   },
   "fr:platform/agents/delegation": {
@@ -1692,16 +1652,16 @@
     "slug": "platform/agents/image-generation",
     "locale": "fr",
     "frontmatter": {
-      "title": "Génération d'images",
-      "description": "La génération d'images comme capacité d'agent — n'importe quel assistant peut créer une image en ligne quand un modèle d'image est configuré, comment les images générées apparaissent, et ce qu'elles coûtent."
+      "title": "Génération d’images",
+      "description": "La génération d’images comme capacité d’agent — des images inline dans la réponse de n’importe quel assistant, l’outil Générer une image, le type d’agent dédié à l’image, et leur coût."
     }
   },
   "fr:platform/agents/skills": {
     "slug": "platform/agents/skills",
     "locale": "fr",
     "frontmatter": {
-      "title": "Compétences d'agent",
-      "description": "Une compétence est un bundle réutilisable d'instructions et d'un script sandbox optionnel que tu attaches à un agent. Cette page donne le modèle mental pour choisir une compétence plutôt que de modifier les instructions de l'agent."
+      "title": "Skills d’agent",
+      "description": "Un skill est un bundle réutilisable — un SKILL.md plus des scripts et références optionnels — que les agents lisent à l’exécution. Cette page couvre quand y recourir plutôt qu’allonger les instructions."
     }
   },
   "fr:platform/agents/create": {
@@ -1709,23 +1669,23 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer un agent",
-      "description": "Du dialogue Create-agent vide à un agent publié — choisir le modèle, écrire les instructions, lier des connaissances, activer des outils, et vérifier dans Chat."
+      "description": "Va du dialogue Créer un agent à un agent publié — nomme-le, écris ses instructions, cadre ses connaissances, accorde ses outils et vérifie-le dans le chat."
     }
   },
   "fr:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "fr",
     "frontmatter": {
-      "title": "Catégories d'agent",
-      "description": "Un court tag sur un agent qui le groupe dans le sélecteur du chat et la liste des agents de l'organisation — défini par organisation, optionnel par agent."
+      "title": "Dossiers d’agents",
+      "description": "Comment les agents se regroupent — des dossiers dérivés de l’identifiant de l’agent, comment les agents installés par une automatisation se rangent, et où vit vraiment la frontière de permission."
     }
   },
   "fr:platform/agents/tools": {
     "slug": "platform/agents/tools",
     "locale": "fr",
     "frontmatter": {
-      "title": "Outils d'agent",
-      "description": "Les familles d'outils intégrées qu'un agent peut utiliser au-delà de la génération de texte, comment l'agent choisit lesquels appeler, et comment les appels d'outils s'affichent dans la réponse."
+      "title": "Outils d’agent",
+      "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories d’outils, les modes de recherche web, et les intégrations et workflows liés."
     }
   },
   "fr:platform/integrations/overview": {
@@ -1733,7 +1693,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Intégrations",
-      "description": "Systèmes tiers que Tale lit et écrit — communication, stockage, identité, dev, connaissances — et en quoi la surface des intégrations diffère de MCP."
+      "description": "Les systèmes tiers auxquels Tale se connecte — le catalogue sous Paramètres > Intégrations, ce que fait chaque connecteur, comment la connexion fonctionne et en quoi la surface diffère de MCP."
     }
   },
   "fr:platform/integrations/webdav": {
@@ -1741,7 +1701,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Monte le dépôt de documents de ton organisation comme lecteur réseau dans Finder, Explorateur de fichiers ou n’importe quel client WebDAV. Génère un mot de passe applicatif sous Paramètres > WebDAV, puis connecte-toi depuis ton appareil."
+      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV — génère un mot de passe applicatif sous Paramètres > API > WebDAV et connecte-toi depuis ton appareil."
     }
   },
   "fr:platform/integrations/mcp-servers": {
@@ -1749,7 +1709,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Serveurs MCP",
-      "description": "Les serveurs MCP sont des processus externes qui exposent des tools aux agents de Tale via le Model Context Protocol. Les Administrateurs les enregistrent sous Paramètres > Serveurs MCP ; la règle d'approbation par tool décide ce que chaque agent peut appeler."
+      "description": "Enregistre des serveurs d’outils externes sous Paramètres > API > MCP — le transport, l’authentification, la liste des outils découverts et les drapeaux d’approbation par outil qui gardent la frontière de confiance serrée."
     }
   },
   "fr:platform/index": {
@@ -1757,7 +1717,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Plateforme",
-      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l'utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, workflows, connaissances, approbations, administration.",
+      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, connaissances, approbations, administration.",
       "kind": "index"
     }
   },
@@ -1765,16 +1725,16 @@
     "slug": "platform/models",
     "locale": "fr",
     "frontmatter": {
-      "title": "Modèles livrés en standard",
-      "description": "Quels fournisseurs et modèles une instance Tale toute neuve embarque — OpenRouter couvre le chat, la vision, les embeddings, la voix et la génération d'images via une seule clé."
+      "title": "Catalogue de modèles",
+      "description": "Le catalogue de modèles derrière chaque sélecteur dans Tale — où il vit sous Paramètres > Providers, ce que veulent dire les étiquettes de capacité, quels défauts sont livrés et comment la liste reste à jour."
     }
   },
   "fr:platform/knowledge/overview": {
     "slug": "platform/knowledge/overview",
     "locale": "fr",
     "frontmatter": {
-      "title": "Connaissance",
-      "description": "Connaissance est la zone où vivent les documents et données structurées de l'org pour que les agents puissent les citer. Les Éditeurs la curent ; les agents récupèrent dessus à la réponse. Cette vue d'ensemble nomme les deux moitiés et pointe vers les pages par zone."
+      "title": "Base de connaissances",
+      "description": "La base de connaissances est la bibliothèque partagée de l’organisation — documents, petits faits, sites web explorés et fiches typées — sur laquelle les agents ancrent leurs réponses. Cet aperçu nomme les onglets et pointe vers les pages par domaine."
     }
   },
   "fr:platform/knowledge/knowledge-entries": {
@@ -1782,7 +1742,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Entrées de connaissances",
-      "description": "Les entrées de connaissances sont de petits faits indexés par sujet que les utilisateurs apportent à la base de connaissances — capturés depuis le chat avec approbation ou ajoutés manuellement. Cette page couvre d'où viennent les entrées, la règle d'une version live par sujet, et comment les gérer."
+      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — capturés depuis le chat avec approbation humaine ou ajoutés à la main — avec une seule version active par sujet et un historique complet des versions."
     }
   },
   "fr:platform/knowledge/structured-data": {
@@ -1790,15 +1750,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Données structurées",
-      "description": "La base de connaissances Tale ship quatre entités structurées intégrées — Clients, Produits, Fournisseurs, Sites web — aux côtés des Documents. Cette page donne le modèle mental pour choisir un enregistrement structuré plutôt qu'un document."
+      "description": "La base de connaissances de Tale embarque quatre entités structurées intégrées — Clients, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
     }
   },
   "fr:platform/knowledge/crawling": {
     "slug": "platform/knowledge/crawling",
     "locale": "fr",
     "frontmatter": {
-      "title": "Crawling",
-      "description": "Comment Tale transforme une entité Sites web en connaissances — enregistrement du domaine, découverte d'URL pilotée par sitemap, re-scans planifiés, et la vue des pages indexées."
+      "title": "Exploration de sites web",
+      "description": "Comment Tale transforme un site web en connaissances — enregistrement du domaine, découverte des URL par sitemap, ré-analyses planifiées et vue des pages indexées."
     }
   },
   "fr:platform/knowledge/documents": {
@@ -1806,7 +1766,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documents",
-      "description": "La zone Documents est l'endroit où les Éditeurs téléversent des fichiers dans la base de connaissances, les regardent s'indexer et les lient aux agents. Cette page couvre le téléversement, la pipeline d'indexation, les formats supportés et le cycle de vie par document."
+      "description": "L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie — sources de téléversement, statut RAG, portée par équipe, dossiers et réindexation."
+    }
+  },
+  "fr:platform/automations/approvals-in-workflows": {
+    "slug": "platform/automations/approvals-in-workflows",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Approbations dans les workflows",
+      "description": "Là où les humains décident autour des workflows — approuver les modifications de l’éditeur IA sur une définition, approuver la demande d’un agent d’exécuter un workflow, et répondre aux questions qui mettent une exécution en pause."
     }
   },
   "fr:platform/automations/concepts": {
@@ -1814,7 +1782,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts d’automatisation",
-      "description": "Une automatisation est le bundle installable d’intégrations, d’agents, de compétences, d’un workflow et de vues intégrées que le catalogue des automatisations installe en une seule action. Cette page nomme les pièces et dit quand y recourir plutôt qu’à un agent ou un workflow isolés."
+      "description": "Une automatisation est le bundle installable d’intégrations, d’agents, de compétences, d’un workflow et de vues intégrées — et le workflow à l’intérieur est son moteur. Cette page nomme les pièces, la mécanique d’exécution autour d’elles, et quand recourir à une automatisation plutôt qu’à un agent isolé."
+    }
+  },
+  "fr:platform/automations/editor": {
+    "slug": "platform/automations/editor",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "L’éditeur de workflow",
+      "description": "Le manuel d’exploitation de l’onglet Éditeur d’une automatisation — où vit son workflow, comment le lancer, le mettre en pause et le désactiver, comment l’éditer et comment l’historique versionné fonctionne. Lis ceci quand tu fais tourner un workflow au quotidien, pas quand tu apprends le modèle."
     }
   },
   "fr:platform/automations/builtin": {
@@ -1823,6 +1799,22 @@
     "frontmatter": {
       "title": "Automatisations livrées",
       "description": "Ce que fait chacune des quatre automatisations livrées, l’intégration qu’elle requiert, et comment le bundle Résoudre les issues GitHub transforme des issues synchronisées en pull requests fusionnées."
+    }
+  },
+  "fr:platform/automations/execution-logs": {
+    "slug": "platform/automations/execution-logs",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Journaux d’exécution",
+      "description": "L’historique d’exécution par workflow — chaque exécution avec son statut, sa chronologie et sa source de déclenchement, dépliable en un journal par étape. À lire quand une exécution a échoué ou s’est comportée bizarrement."
+    }
+  },
+  "fr:platform/automations/triggers": {
+    "slug": "platform/automations/triggers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Déclencheurs de workflow",
+      "description": "Les trois façons dont un workflow démarre tout seul — Planifications, Webhooks et Événements — ce que chacune transporte dans l’exécution, et comment en mettre une en pause sans la supprimer."
     }
   },
   "fr:platform/automations/catalog": {
@@ -1845,8 +1837,8 @@
     "slug": "platform/approvals/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts d'approbation",
-      "description": "Une approbation est une carte qu'un humain doit cliquer avant qu'une action automatisée se poursuive. Cette page nomme les quatre sources de déclenchement, le routage et la trace laissée dans le journal d'audit."
+      "title": "Concepts d’approbation",
+      "description": "Une approbation est une carte dans le chat qui retient l’action d’un agent jusqu’à ta décision. Cette page nomme ce qui en déclenche une, les décisions que chaque carte offre et ce que chaque décision laisse derrière elle."
     }
   },
   "fr:platform/approvals/configure": {
@@ -1854,7 +1846,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configurer les approbations",
-      "description": "Référence pour les règles d'approbation qu'un Administrateur ou Éditeur peut attacher à un agent, une intégration ou une étape de workflow — quand une approbation est requise, qui décide, ce qui arrive au timeout."
+      "description": "Là où les exigences d’approbation sont déclarées — par opération d’intégration, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
     }
   },
   "fr:platform/editor/overview": {
@@ -1862,7 +1854,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Éditeur",
-      "description": "Éditeur est la surface de construction — créer agents, projets, workflows et la connaissance dans laquelle ils s'étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
+      "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
     }
   },
   "fr:index": {
@@ -1870,7 +1862,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documentation Tale",
-      "description": "Tale est l'orchestrateur pour agents IA. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.",
+      "description": "Tale est l’orchestrateur pour agents IA. Commence par le démarrage rapide, suis le parcours de démarrage de ton rôle ou plonge dans la référence des fonctionnalités.",
       "kind": "index"
     }
   },
@@ -1903,7 +1895,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Cloud",
-      "description": "Tale Cloud est l'édition gérée. Tale exploite la stack, tes données sont ancrées en Suisse ou dans l'UE, et la seule tâche opérationnelle de ton équipe est d'utiliser le produit.",
+      "description": "Tale Cloud est l’édition gérée. Tale exploite la stack, tes données sont ancrées en Suisse ou dans l’UE, et la seule tâche opérationnelle de ton équipe est d’utiliser le produit.",
       "kind": "index"
     }
   },
@@ -1912,7 +1904,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Onboarding Cloud",
-      "description": "De l'inscription à une organisation prête pour la production en moins d'une heure — créer l'organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
+      "description": "De l’inscription à une organisation prête pour la production en moins d’une heure — créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
     }
   },
   "fr:cloud/migrate-to-self-hosted": {
@@ -1928,7 +1920,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Déclencher un workflow par webhook",
-      "description": "Crée une clé de déclencheur dans un workflow Tale et POSTe sur l'URL de déclencheur depuis un système externe pour démarrer un run avec idempotence."
+      "description": "Ajoute un webhook à un workflow Tale et POSTe sur son URL depuis un système externe pour démarrer une exécution avec idempotence."
     }
   },
   "fr:tutorials/developer/build-a-custom-tool": {
@@ -1960,7 +1952,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Tutoriels",
-      "description": "Parcours indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat fonctionnel."
+      "description": "Des parcours de tâches indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat qui fonctionne."
     }
   },
   "fr:tutorials/member/use-projects": {
@@ -2008,7 +2000,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire un workflow avec approbation",
-      "description": "Câble un workflow à trois étapes où une approbation humaine s'intercale entre le brouillon et l'envoi, puis lance-le de bout en bout et inspecte la piste d'audit."
+      "description": "Laisse l'Éditeur IA construire un workflow à trois étapes où une décision humaine s'intercale entre le brouillon et l'envoi, approuve sa proposition, puis lance le tout et inspecte le journal."
     }
   },
   "fr:tutorials/editor/first-agent-end-to-end": {
@@ -2113,7 +2105,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrage rapide auto-hébergé",
-      "description": "Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l'assistant de configuration fait de toi l'Owner."
+      "description": "Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l’assistant de configuration fait de toi le Propriétaire."
     }
   },
   "fr:self-hosted/install/first-admin": {
@@ -2184,8 +2176,8 @@
     "slug": "self-hosted/operate/security/audit-log-integrity",
     "locale": "fr",
     "frontmatter": {
-      "title": "Audit-log integrity alerts",
-      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
+      "title": "Alertes d’intégrité du journal d’audit",
+      "description": "Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte — lire le constat, distinguer une falsification d’une lacune de configuration bénigne et préserver les preuves."
     }
   },
   "fr:self-hosted/operate/security/advisories": {
@@ -2285,6 +2277,46 @@
       "title": "Sous-traitants ultérieurs",
       "description": "Les sous-traitants tiers que Tale Cloud utilise pour livrer le service, ce que chacun traite et où se déroule le traitement.",
       "noindex": true
+    }
+  },
+  "fr:get-started/admins": {
+    "slug": "get-started/admins",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ton premier jour d’administration",
+      "description": "Le parcours admin — crée l’espace de travail, connecte un fournisseur d’IA, fais entrer l’équipe et sache où vit la gouvernance."
+    }
+  },
+  "fr:get-started/quickstart": {
+    "slug": "get-started/quickstart",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Démarrage rapide",
+      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur Cloud, quinze sur ta propre machine."
+    }
+  },
+  "fr:get-started/developers": {
+    "slug": "get-started/developers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ton premier jour d’intégration avec Tale",
+      "description": "Le parcours développeur — crée une clé API, envoie ta première requête authentifiée et sache où vit la surface d’API."
+    }
+  },
+  "fr:get-started/editors": {
+    "slug": "get-started/editors",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ton premier jour de création d’agents",
+      "description": "Le parcours éditeur — crée un agent, donne-lui des instructions et un modèle, rends-le visible dans le chat et regarde-le répondre."
+    }
+  },
+  "fr:get-started/members": {
+    "slug": "get-started/members",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ton premier jour avec Tale",
+      "description": "Le parcours membre — discute avec un agent, donne un document à l’espace de travail et repère où vivent les projets et l’historique des chats."
     }
   },
   "en:develop/contributor-setup": {
@@ -2389,7 +2421,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat is the everyday entry point — pick an agent, send a message, read the reply. This overview maps the four parts of the screen and points to the page that goes deeper on each."
+      "description": "Chat is the everyday entry point — pick an agent, send a message, read the reply. This overview maps the parts of the screen and points to the page that goes deeper on each."
     }
   },
   "en:platform/chat/attachments": {
@@ -2453,7 +2485,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Projects",
-      "description": "A Project is a shared workspace that bundles files, chats, agents, and instructions around a specific piece of work — a customer, a launch, a long-running investigation."
+      "description": "A project is a shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each."
     }
   },
   "en:platform/projects/concepts": {
@@ -2461,7 +2493,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Project concepts",
-      "description": "A project is a shared workspace that bundles files, instructions, threads, and project-scoped agents. This page hands you the mental model for when to reach for a project over a stand-alone conversation."
+      "description": "A project bundles chats, files, instructions, tasks, and discussions into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat."
     }
   },
   "en:platform/projects/discussions": {
@@ -2469,23 +2501,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Discussions",
-      "description": "Threaded, multi-participant conversations inside a project — ask questions and make decisions, with agents joining when you @mention them."
+      "description": "Threaded, multi-participant conversations inside a project — open a topic, talk it through with the team, and bring an agent in with an @mention."
     }
   },
   "en:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "en",
     "frontmatter": {
-      "title": "Manage Project files",
-      "description": "Uploading, replacing, deleting, and the per-Project size limits — and how Project files surface in chats inside the Project."
+      "title": "Manage project files",
+      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, pinning, and how project files stay scoped to the project."
     }
   },
   "en:platform/projects/project-agents": {
     "slug": "platform/projects/project-agents",
     "locale": "en",
     "frontmatter": {
-      "title": "Project agents",
-      "description": "Project-scoped agents versus org agents — when to reach for each, how Project agents shadow org agents in the picker, and how publishing works inside a Project."
+      "title": "Agents and models in a project",
+      "description": "The Agents & models tab curates which agents and models members see inside a project — Recommended pins favourites to the top, Restricted allows nothing else."
     }
   },
   "en:platform/projects/backlog": {
@@ -2510,14 +2542,6 @@
     "frontmatter": {
       "title": "Prompt library",
       "description": "The Prompt library is where you save chat prompts for reuse — personal, team, or org-wide. Members, Editors, and Developers read this when they keep a recurring chat starter handy."
-    }
-  },
-  "en:platform/workspace/document-comparison": {
-    "slug": "platform/workspace/document-comparison",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Document comparison",
-      "description": "The side-by-side diff dialog that takes two documents — uploaded or pulled from the library — and walks the differences paragraph by paragraph with a RAG-assisted summary."
     }
   },
   "en:platform/member/environment": {
@@ -2581,7 +2605,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "AI providers",
-      "description": "Settings > Providers is where Admins connect OpenAI, Anthropic, Azure OpenAI, and local Ollama, choose which models each one exposes, and pick the org's default. Every reply Tale streams comes from a model resolved through this page."
+      "description": "Settings > AI providers is where Admins connect the OpenAI-compatible providers behind every reply, choose which models the org may call, and set the defaults. Every reply Tale streams comes from a model resolved through this page."
     }
   },
   "en:platform/admin/enterprise-sso": {
@@ -2621,7 +2645,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, favicon, and brand colours your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette."
+      "description": "Logo, favicon, and the accent colour your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette."
     }
   },
   "en:platform/admin/governance/feedback-analytics": {
@@ -2728,60 +2752,12 @@
       "description": "Teams are named groups of members that share access to agents, prompts, projects, and integrations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
     }
   },
-  "en:platform/workflows/workflows": {
-    "slug": "platform/workflows/workflows",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Manage workflows",
-      "description": "The operating manual for workflows — where a workflow lives, how to run one, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running workflows day to day, not when you are learning the model."
-    }
-  },
-  "en:platform/workflows/approvals-in-workflows": {
-    "slug": "platform/workflows/approvals-in-workflows",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Approvals in workflows",
-      "description": "A workflow step can be an approval gate that pauses the run until a human decides. This page covers the gate's states, the routing rules, what the rest of the workflow sees, and how the gate composes with org-wide approval rules."
-    }
-  },
-  "en:platform/workflows/concepts": {
-    "slug": "platform/workflows/concepts",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workflow concepts",
-      "description": "A workflow is a step definition plus a trigger plus a run history. This page names the four pieces and shows how a daily report flows through them."
-    }
-  },
-  "en:platform/workflows/execution-logs": {
-    "slug": "platform/workflows/execution-logs",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Execution logs",
-      "description": "The per-workflow run history — every execution with its status, duration, trigger source, step inputs and outputs, and the full journal of what each step did. Developers and Editors read this when a run failed or behaved oddly."
-    }
-  },
-  "en:platform/workflows/triggers": {
-    "slug": "platform/workflows/triggers",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workflow triggers",
-      "description": "The four ways a workflow can start — manual, schedule, webhook, event — what each one carries into the run, and how to switch between them without rebuilding the workflow."
-    }
-  },
-  "en:platform/workflows/metrics": {
-    "slug": "platform/workflows/metrics",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Workflow metrics",
-      "description": "The dashboard that rolls run history into success rate, average duration, total runs, and failed runs across every workflow in the org — over the last 7, 30, or 90 days. Editors and Developers read this when a workflow is degrading or to spot which workflows carry the load."
-    }
-  },
   "en:platform/agents/conversation-starters": {
     "slug": "platform/agents/conversation-starters",
     "locale": "en",
     "frontmatter": {
       "title": "Conversation starters",
-      "description": "Authoring the example prompts an agent shows on its empty-chat screen — adding, translating, and the auto-translate option."
+      "description": "Authoring the suggested prompts an agent shows on its empty-chat screen — adding, ordering, translating, and the auto-translate action."
     }
   },
   "en:platform/agents/concepts": {
@@ -2797,7 +2773,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent knowledge",
-      "description": "Binding documents, customers, products, vendors, and websites to an agent so it can cite them — and the difference between agent-bound knowledge and the Knowledge tab."
+      "description": "The agent's Knowledge tab — retrieval mode, team and organization document scopes, and agent-only uploads, and how they differ from tools and attachments."
     }
   },
   "en:platform/agents/versions": {
@@ -2805,15 +2781,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent versions",
-      "description": "The agent's History tab — every change snapshotted, with comparison and restore for any past version."
+      "description": "The agent editor's History view — every save snapshotted, with a diff against the current version and one-click restore."
     }
   },
   "en:platform/agents/webhook-triggers": {
     "slug": "platform/agents/webhook-triggers",
     "locale": "en",
     "frontmatter": {
-      "title": "Agent webhook triggers",
-      "description": "The Workers surface — a per-agent HTTP endpoint that external systems POST to so they can invoke the agent without going through Chat."
+      "title": "Agent webhooks",
+      "description": "The agent's Webhooks tab — unique URLs external systems POST to so they can chat with the agent without going through the UI, with the token in the URL as the credential."
     }
   },
   "en:platform/agents/delegation": {
@@ -2837,7 +2813,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Image generation",
-      "description": "Image generation as an agent capability — any assistant can create an image inline when the workspace has an image model, how generated images surface, and what they cost."
+      "description": "Image generation as an agent capability — inline images in any assistant's reply, the Generate image tool, the dedicated image agent type, and what they cost."
     }
   },
   "en:platform/agents/skills": {
@@ -2845,7 +2821,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent skills",
-      "description": "A skill is a reusable bundle of instructions and an optional sandbox script you can attach to an agent. This page hands you the mental model for when to reach for a skill instead of editing the agent's instructions."
+      "description": "A skill is a reusable bundle — a SKILL.md plus optional scripts and references — that agents read at runtime. This page covers when to reach for one instead of longer instructions."
     }
   },
   "en:platform/agents/create": {
@@ -2853,15 +2829,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Create an agent",
-      "description": "Walk from an empty Create-agent dialog to a published agent — pick the model, write instructions, bind knowledge, toggle tools, and verify in Chat."
+      "description": "Walk from the Create agent dialog to a published agent — name it, write instructions, scope its knowledge, grant tools, and verify it in Chat."
     }
   },
   "en:platform/agents/categories": {
     "slug": "platform/agents/categories",
     "locale": "en",
     "frontmatter": {
-      "title": "Agent categories",
-      "description": "A short tag on an agent that groups it in the chat picker and the org's agents list — defined per org, optional per agent."
+      "title": "Agent folders",
+      "description": "How agents are grouped — folders derived from the agent's id, how automation-installed agents file themselves, and where the permission boundary actually lives."
     }
   },
   "en:platform/agents/tools": {
@@ -2869,7 +2845,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent tools",
-      "description": "The built-in tool families an agent can use beyond text generation, how the agent selects which to call, and how tool calls render in the reply."
+      "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, the web search modes, and bound integrations and workflows."
     }
   },
   "en:platform/integrations/overview": {
@@ -2877,7 +2853,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Integrations",
-      "description": "Third-party systems Tale can read from and write to — communication, storage, identity, dev, knowledge — plus how the integration surface differs from MCP."
+      "description": "The third-party systems Tale connects to — the catalog under Settings > Integrations, what each connector does, how connecting works, and how the surface differs from MCP."
     }
   },
   "en:platform/integrations/webdav": {
@@ -2885,7 +2861,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client. Set up an app-password under Settings > WebDAV, then connect from your device."
+      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client — generate an app-password under Settings > API > WebDAV and connect from your device."
     }
   },
   "en:platform/integrations/mcp-servers": {
@@ -2893,7 +2869,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "MCP servers",
-      "description": "MCP servers are external processes that expose tools to Tale's agents over the Model Context Protocol. Admins register them under Settings > MCP servers; the per-tool approval rule decides what each agent may call."
+      "description": "Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight."
     }
   },
   "en:platform/index": {
@@ -2901,7 +2877,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Platform",
-      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, workflows, knowledge, approvals, admin.",
+      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, knowledge, approvals, admin.",
       "kind": "index"
     }
   },
@@ -2909,8 +2885,8 @@
     "slug": "platform/models",
     "locale": "en",
     "frontmatter": {
-      "title": "Models out of the box",
-      "description": "Which providers and models a fresh Tale instance ships with — OpenRouter covers chat, vision, embeddings, voice, and image generation through a single key."
+      "title": "Model catalog",
+      "description": "The model catalog behind every picker in Tale — where it lives under Settings > AI providers, what the capability tags mean, which defaults ship, and how the list stays fresh."
     }
   },
   "en:platform/knowledge/overview": {
@@ -2918,7 +2894,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge",
-      "description": "Knowledge is the area where the org's documents and structured data live so agents can cite them. Editors curate it; agents retrieve over it at reply time. This overview names the two halves and points at the per-area pages."
+      "description": "Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in. This overview names the tabs and points at the per-area pages."
     }
   },
   "en:platform/knowledge/knowledge-entries": {
@@ -2926,7 +2902,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge entries",
-      "description": "Knowledge entries are small, topic-keyed facts that users contribute to the knowledge base — captured from chat with approval or added manually. This page covers where entries come from, the one-live-version-per-topic rule, and how to manage them."
+      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — captured from chat with human approval or added by hand — with one live version per topic and full version history."
     }
   },
   "en:platform/knowledge/structured-data": {
@@ -2934,7 +2910,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Structured data",
-      "description": "Tale's knowledge base ships four built-in structured entities — Customers, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a structured record over a document."
+      "description": "Tale's knowledge base ships four built-in structured entities — Customers, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
     }
   },
   "en:platform/knowledge/crawling": {
@@ -2942,7 +2918,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Crawling",
-      "description": "How Tale turns a Website entity into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view."
+      "description": "How Tale turns a website into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view."
     }
   },
   "en:platform/knowledge/documents": {
@@ -2950,7 +2926,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Documents",
-      "description": "The Documents area is where Editors upload files into the knowledge base, watch them index, and bind them to agents. This page covers uploading, the indexing pipeline, supported formats, and the per-document lifecycle."
+      "description": "The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle — upload sources, RAG status, team scoping, folders, and reindexing."
+    }
+  },
+  "en:platform/automations/approvals-in-workflows": {
+    "slug": "platform/automations/approvals-in-workflows",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Approvals in workflows",
+      "description": "Where humans decide around workflows — approving the AI editor's changes to a definition, approving an agent's request to run a workflow, and answering the questions that pause a run."
     }
   },
   "en:platform/automations/concepts": {
@@ -2958,7 +2942,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Automation concepts",
-      "description": "An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views the Automations catalog installs in one action. This page names the pieces and when to reach for one instead of a lone agent or workflow."
+      "description": "An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views — and the workflow inside it is how it runs. This page names the pieces, the runtime around them, and when to reach for an automation instead of a lone agent."
+    }
+  },
+  "en:platform/automations/editor": {
+    "slug": "platform/automations/editor",
+    "locale": "en",
+    "frontmatter": {
+      "title": "The workflow editor",
+      "description": "The operating manual for an automation's Editor tab — where its workflow lives, how to run it, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running a workflow day to day, not when you are learning the model."
     }
   },
   "en:platform/automations/builtin": {
@@ -2967,6 +2959,22 @@
     "frontmatter": {
       "title": "Built-in automations",
       "description": "What each of the four shipped automations does, the integration it requires, and how the Resolve GitHub issues bundle turns synced issues into merged pull requests."
+    }
+  },
+  "en:platform/automations/execution-logs": {
+    "slug": "platform/automations/execution-logs",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Execution logs",
+      "description": "The per-workflow run history — every execution with its status, timing, and trigger source, expanding into a per-step journal. Read this when a run failed or behaved oddly."
+    }
+  },
+  "en:platform/automations/triggers": {
+    "slug": "platform/automations/triggers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Workflow triggers",
+      "description": "The three ways a workflow starts on its own — Schedules, Webhooks, and Events — what each one carries into the run, and how to pause one without deleting it."
     }
   },
   "en:platform/automations/catalog": {
@@ -2990,7 +2998,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approval concepts",
-      "description": "An approval is a card a human must click before an automated action proceeds. This page names the four trigger sources, the approver routing, and what an approval leaves behind in the audit log."
+      "description": "An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind."
     }
   },
   "en:platform/approvals/configure": {
@@ -2998,7 +3006,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Configure approvals",
-      "description": "Reference for the approval rules an Admin or Editor can attach to an agent, an integration, or a workflow step — when an approval is required, who decides, what happens on timeout."
+      "description": "Where approval requirements are declared — per integration operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs."
     }
   },
   "en:platform/editor/overview": {
@@ -3006,7 +3014,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Editor",
-      "description": "Editor is the build surface — creating agents, projects, workflows, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
+      "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
     }
   },
   "en:index": {
@@ -3014,7 +3022,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tale documentation",
-      "description": "Tale is the orchestrator for AI agents. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.",
+      "description": "Tale is the orchestrator for AI agents. Start with the quickstart, follow the get-started journey for your role, or jump into the feature reference.",
       "kind": "index"
     }
   },
@@ -3072,7 +3080,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Trigger a workflow via webhook",
-      "description": "Mint a trigger key in a Tale workflow and POST to the trigger URL from an external system to start a run with idempotency."
+      "description": "Add a webhook to a Tale workflow and POST to its URL from an external system to start a run with idempotency."
     }
   },
   "en:tutorials/developer/build-a-custom-tool": {
@@ -3152,7 +3160,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build a workflow with an approval",
-      "description": "Wire a three-step workflow where a human approval gate sits between the draft and the send, then run it end to end and inspect the audit trail."
+      "description": "Have the AI editor build a three-step workflow where a human decision sits between the draft and the send, approve its proposal, then run it end to end and inspect the journal."
     }
   },
   "en:tutorials/editor/first-agent-end-to-end": {
@@ -3429,6 +3437,46 @@
       "title": "Subprocessors",
       "description": "The third-party processors Tale Cloud uses to deliver the service, what each one processes, and where the processing happens.",
       "noindex": true
+    }
+  },
+  "en:get-started/admins": {
+    "slug": "get-started/admins",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Your first day running a workspace",
+      "description": "The admin journey — create the workspace, connect an AI provider, bring in the team, and know where governance lives."
+    }
+  },
+  "en:get-started/quickstart": {
+    "slug": "get-started/quickstart",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Quickstart",
+      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on Cloud, fifteen on your own machine."
+    }
+  },
+  "en:get-started/developers": {
+    "slug": "get-started/developers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Your first day integrating with Tale",
+      "description": "The developer journey — mint an API key, make your first authenticated request, and know where the API surface lives."
+    }
+  },
+  "en:get-started/editors": {
+    "slug": "get-started/editors",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Your first day building agents",
+      "description": "The editor journey — create an agent, give it instructions and a model, make it visible in chat, and watch it answer."
+    }
+  },
+  "en:get-started/members": {
+    "slug": "get-started/members",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Your first day using Tale",
+      "description": "The member journey — chat with an agent, give the workspace a document to know, and find your way around projects and chat history."
     }
   }
 }

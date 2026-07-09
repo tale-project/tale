@@ -1,0 +1,604 @@
+{
+  "entries": [
+    {
+      "file": "images/get-started/agent-editor-general.webp",
+      "shot": "agent-editor-general",
+      "route": "/dashboard/:orgId/agents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/get-started/documents-list.webp",
+      "shot": "documents-list",
+      "route": "/dashboard/:orgId/documents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/get-started/org-create-wizard.webp",
+      "shot": "org-create-wizard",
+      "route": "/dashboard/create-organization",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/get-started/settings-api-keys.webp",
+      "shot": "settings-api-keys",
+      "route": "/dashboard/:orgId/settings/api/rest",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/get-started/settings-organization-members.webp",
+      "shot": "settings-organization-members",
+      "route": "/dashboard/:orgId/settings/organization",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/get-started/settings-providers.webp",
+      "shot": "settings-providers",
+      "route": "/dashboard/:orgId/settings/providers",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agent-editor-instructions.webp",
+      "shot": "agent-editor-instructions",
+      "route": "/dashboard/:orgId/agents/assistant/instructions",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agent-editor-knowledge.webp",
+      "shot": "agent-editor-knowledge",
+      "route": "/dashboard/:orgId/agents/assistant/knowledge",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agent-editor-starters.webp",
+      "shot": "agent-editor-starters",
+      "route": "/dashboard/:orgId/agents/assistant/conversation-starters",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agent-editor-tools.webp",
+      "shot": "agent-editor-tools",
+      "route": "/dashboard/:orgId/agents/assistant/tools",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agent-editor-webhooks.webp",
+      "shot": "agent-editor-webhooks",
+      "route": "/dashboard/:orgId/agents/assistant/webhook",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/agents-list-expanded.webp",
+      "shot": "agents-list-expanded",
+      "route": "/dashboard/:orgId/agents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/automation-configuration.webp",
+      "shot": "automation-configuration",
+      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/configuration",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/automation-editor-canvas.webp",
+      "shot": "automation-editor-canvas",
+      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/automation-executions.webp",
+      "shot": "automation-executions",
+      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/executions",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/automation-triggers.webp",
+      "shot": "automation-triggers",
+      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/triggers",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/automations-catalog.webp",
+      "shot": "automations-catalog",
+      "route": "/dashboard/:orgId/automations?tab=all",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-agent-picker.webp",
+      "shot": "chat-agent-picker",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-arena-split.webp",
+      "shot": "chat-arena-split",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-code-reply.webp",
+      "shot": "chat-code-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-composer-menu.webp",
+      "shot": "chat-composer-menu",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-composer.webp",
+      "shot": "chat-composer",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1452,
+      "height": 200
+    },
+    {
+      "file": "images/platform/chat-mention-picker.webp",
+      "shot": "chat-mention-picker",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-share-dialog.webp",
+      "shot": "chat-share-dialog",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-starters-empty.webp",
+      "shot": "chat-starters-empty",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/chat-thread-reply.webp",
+      "shot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-content-models.webp",
+      "shot": "governance-content-models",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-data-subject-requests.webp",
+      "shot": "governance-data-subject-requests",
+      "route": "/dashboard/:orgId/settings/governance/data-subject-requests",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-guardrails.webp",
+      "shot": "governance-guardrails",
+      "route": "/dashboard/:orgId/settings/governance/guardrails",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-legal-hold.webp",
+      "shot": "governance-legal-hold",
+      "route": "/dashboard/:orgId/settings/governance/legal-hold",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-policies-limits.webp",
+      "shot": "governance-policies-limits",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-run-code-policy.webp",
+      "shot": "governance-run-code-policy",
+      "route": "/dashboard/:orgId/settings/governance/run-code-policy",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/governance-security-monitoring.webp",
+      "shot": "governance-security-monitoring",
+      "route": "/dashboard/:orgId/settings/governance/security-monitoring",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/integrations-catalog.webp",
+      "shot": "integrations-catalog",
+      "route": "/dashboard/:orgId/settings/integrations?tab=all",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/knowledge-entries-list.webp",
+      "shot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/project-agents-models.webp",
+      "shot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/project-discussions-list.webp",
+      "shot": "project-discussions-list",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/project-general-tab.webp",
+      "shot": "project-general-tab",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/project-knowledge-files.webp",
+      "shot": "project-knowledge-files",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/projects-task-board.webp",
+      "shot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/prompt-library-dialog.webp",
+      "shot": "prompt-library-dialog",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-branding.webp",
+      "shot": "settings-branding",
+      "route": "/dashboard/:orgId/settings/branding",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-enterprise-sso.webp",
+      "shot": "settings-enterprise-sso",
+      "route": "/dashboard/:orgId/settings/enterprise-sso",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-environment.webp",
+      "shot": "settings-environment",
+      "route": "/dashboard/:orgId/settings/environment",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-mcp-add-dialog.webp",
+      "shot": "settings-mcp-add-dialog",
+      "route": "/dashboard/:orgId/settings/api/mcp",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-preferences.webp",
+      "shot": "settings-preferences",
+      "route": "/dashboard/:orgId/settings/personalization",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-provider-models.webp",
+      "shot": "settings-provider-models",
+      "route": "/dashboard/:orgId/settings/providers",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 832,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-teams.webp",
+      "shot": "settings-teams",
+      "route": "/dashboard/:orgId/settings/teams",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/settings-webdav.webp",
+      "shot": "settings-webdav",
+      "route": "/dashboard/:orgId/settings/api/webdav",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/websites-add-dialog.webp",
+      "shot": "websites-add-dialog",
+      "route": "/dashboard/:orgId/websites",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    }
+  ]
+}

@@ -7,6 +7,12 @@ Settings > Integrations is the credentials surface for every third-party system 
 
 The feature-level story of each integration (what it does, what scopes it asks for, what an agent can call) lives one tab over on the per-integration pages and in the cross-integration concept page. What follows is the operations surface: install, rotate, restrict, revoke.
 
+<Frame caption="The integrations catalogue under Add integration — every connector Tale ships, filterable by category.">
+
+![The integrations catalogue showing a grid of connector cards — Slack, Gmail, Google Drive, GitHub, Tavily, and more — each with a Connect action.](/images/platform/integrations-catalog.webp)
+
+</Frame>
+
 ## What the list shows
 
 Open **Settings > Integrations** to land on the org's installed integrations. Each row names an integration, shows its category (communication, storage, identity, knowledge, source control, commerce, AI), the credential type (OAuth2, API key, app token), and the connection status (connected, pending, error). The list is filterable by category and by status.

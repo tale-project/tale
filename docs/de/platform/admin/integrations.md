@@ -3,9 +3,15 @@ title: Integrationen (Admin-Sicht)
 description: Einstellungen > Integrationen ist der Ort, an dem Admins die Anmeldedaten hinter Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily und MCP installieren, konfigurieren und rotieren. Diese Seite behandelt die Admin-Oberfläche, nicht die Per-Integrations-Funktionsliste.
 ---
 
-Einstellungen > Integrationen ist die Anmeldedaten-Oberfläche für jedes Drittanbieter-System, mit dem Tale im Namen der Organisation spricht. Admins installieren Integrationen einmal; Agents, Workflows und die Dokumenten-Pipeline nutzen sie überall sonst. Diese Seite behandelt die Admin-Seite — was die Liste zeigt, wie Installation und Rotation funktionieren, was ein Admin skopieren kann und wie sich die Oberfläche von MCP-Servern unterscheidet.
+Einstellungen > Integrationen ist die Anmeldedaten-Oberfläche für jedes Drittanbieter-System, mit dem Tale im Namen der Organisation spricht. Admins installieren Integrationen einmal; Agents, Workflows und die Dokumenten-Pipeline nutzen sie überall sonst. Diese Seite behandelt die Admin-Seite — was die Liste zeigt, wie Installation und Rotation funktionieren, was ein Admin eingrenzen kann und wie sich die Oberfläche von MCP-Servern unterscheidet.
 
 Die funktionale Geschichte jeder Integration (was sie tut, welche Scopes sie verlangt, was ein Agent aufrufen kann) liegt einen Tab weiter auf den Per-Integrations-Seiten und in der übergreifenden Konzeptseite. Was folgt, ist die Betriebsoberfläche: installieren, rotieren, einschränken, widerrufen.
+
+<Frame caption="Der Integrations-Katalog unter Integration hinzufügen — jeder Connector, den Tale mitbringt, nach Kategorie filterbar.">
+
+![Der Integrations-Katalog mit einem Raster aus Connector-Karten — Slack, Gmail, Google Drive, GitHub, Tavily und mehr — jede mit einer Verbinden-Aktion.](/images/platform/integrations-catalog.webp)
+
+</Frame>
 
 ## Was die Liste zeigt
 
@@ -29,7 +35,7 @@ Zum Rotieren öffne die Zeile der Integration und klick auf **Anmeldedaten rotie
 
 ## Eine Integration einschränken
 
-Über die Anmeldedaten hinaus trägt eine Integration zwei Skopierungs-Hebel unter ihrer Zeile:
+Über die Anmeldedaten hinaus trägt eine Integration zwei Eingrenzungs-Hebel unter ihrer Zeile:
 
 - **Erlaubte Rollen.** Schränke ein, welche Rollen-Agents und -Workflows die Integration aufrufen dürfen. Standard ist jede schreibende Rolle (Redakteur, Entwickler, Admin, Inhaber); das einzuengen ist die Art, wie du etwa die Twilio-Integration aus Mitglieder-Agents fernhältst.
 - **Erlaubte Teams.** Schränke ein, welche Team-Agents und -Workflows die Integration aufrufen dürfen. Nützlich, wenn die Anmeldung zur Arbeit eines Teams gehört (das Slack des Supports) und du nicht willst, dass es in ein anderes leakt.

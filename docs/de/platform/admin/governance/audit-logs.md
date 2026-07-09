@@ -9,7 +9,7 @@ Diese Seite ist die Referenz für die Spalten, die Filter, die Kategorien und di
 
 ## Ein durchgespielter Filter
 
-Um den Moment zu finden, in dem die Rolle eines Mitglieds geändert wurde, öffne **Einstellungen > Governance > Audit-Logs**, setze den Filter **Kategorie** auf **Mitglied** und suche nach Akteur oder Ziel über den Namen. Jede Zeile öffnet die volle Payload — vorheriger Status, neuer Status, die IP, wenn die Anfrage über das Netz kam, der Akteurstyp (Benutzer, System, API, Workflow). Exportiere die gefilterte Auswahl über die Symbolleiste über der Tabelle als CSV oder JSON.
+Um den Moment zu finden, in dem die Rolle eines Mitglieds geändert wurde, öffne **Einstellungen > Richtlinien > Audit-Logs**, setze den Filter **Kategorie** auf **Mitglied** und suche nach Akteur oder Ziel über den Namen. Jede Zeile öffnet die volle Payload — vorheriger Status, neuer Status, die IP, wenn die Anfrage über das Netz kam, der Akteurstyp (Benutzer, System, API, Workflow). Exportiere die gefilterte Auswahl über die Symbolleiste über der Tabelle als CSV oder JSON.
 
 ## Die Spalten
 

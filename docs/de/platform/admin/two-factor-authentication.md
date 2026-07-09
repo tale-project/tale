@@ -17,7 +17,7 @@ Derselbe Bildschirm trägt **Deaktivieren** und **Backup-Codes neu erzeugen**. D
 
 Backup-Codes sind einmal verwendbare Strings, die die Plattform prägt, wenn 2FA aktiviert oder neu erzeugt wird. Jeder davon ersetzt den Authenticator-Code bei einem einzelnen Sign-in — nützlich, wenn das Telefon verloren ist, der Authenticator deinstalliert wurde oder du irgendwo ohne das Gerät feststeckst. Die Plattform beobachtet die verbleibende Anzahl und zeigt ein Niedrig-Banner, wenn nur noch wenige Codes übrig sind; das Banner verlinkt direkt auf den Neu-Erzeugen-Flow.
 
-Behandle Backup-Codes wie Passwörter. Lege sie in einen Passwort-Manager oder drucke sie und schliesse sie weg. Wer dein Passwort und einen Backup-Code hat, kann sich als du anmelden.
+Behandle Backup-Codes wie Passwörter. Lege sie in einen Passwort-Manager oder drucke sie und schließe sie weg. Wer dein Passwort und einen Backup-Code hat, kann sich als du anmelden.
 
 ## Passkeys
 
@@ -31,13 +31,19 @@ Verliert ein Mitglied ein Gerät mit einem Passkey darauf, widerruft ein Admin d
 
 ## Die Erzwingen-für-Org-Richtlinie
 
-Admins können Zwei-Faktor für jedes passwortauthentifizierte Mitglied der Organisation verpflichtend machen. Öffne **Einstellungen > Governance > Authentifizierung** und schalte **Zwei-Faktor-Authentifizierung verlangen** ein. Die Richtlinie trägt eine Karenzzeit (in Tagen), die jedem Mitglied vom ersten Sign-in unter der Richtlinie an Zeit zur Registrierung gibt; setz sie auf null für sofortige Erzwingung.
+Admins können Zwei-Faktor für jedes passwortauthentifizierte Mitglied der Organisation verpflichtend machen. Öffne **Einstellungen > Richtlinien > Sicherheit & Überwachung** und schalte unter **Zwei-Faktor-Authentifizierung** die Option **Zwei-Faktor-Authentifizierung verlangen** ein. Die Richtlinie trägt eine Karenzzeit (in Tagen), die jedem Mitglied vom ersten Sign-in unter der Richtlinie an Zeit zur Registrierung gibt; setz sie auf null für sofortige Erzwingung.
 
-| Feld                                    | Typ      | Pflicht | Beschreibung                                                                                                                            |
-| --------------------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Zwei-Faktor-Authentifizierung verlangen | Schalter | ja      | Aus hält 2FA für jedes Mitglied optional; ein schaltet die Richtlinie an.                                                               |
-| Karenzzeit (Tage)                       | Ganzzahl | ja      | Tage ab dem ersten angemeldeten Moment eines Mitglieds unter der Richtlinie, bevor die Registrierung verlangt wird. Null heisst sofort. |
-| Nur-SSO-Benutzer ausnehmen              | Schalter | nein    | Wenn an, vertrauen Mitglieder, deren einziger Account eine föderierte Identität ist, dem vorgelagerten IdP für MFA.                     |
+<Frame caption="Governance > Sicherheit & Überwachung — Limits für Anmeldeversuche und Passwort-Richtlinie; die Richtlinie für die Zwei-Faktor-Authentifizierung sitzt weiter unten auf derselben Seite.">
+
+![Die Governance-Seite Sicherheit & Überwachung zeigt die Felder für die Limits der Anmeldeversuche und die Zeichenklassen-Anforderungen der Passwort-Richtlinie; die Zwei-Faktor-Richtlinie steht weiter unten auf derselben Seite.](/images/platform/governance-security-monitoring.webp)
+
+</Frame>
+
+| Feld                                    | Typ      | Pflicht | Beschreibung                                                                                                                           |
+| --------------------------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Zwei-Faktor-Authentifizierung verlangen | Schalter | ja      | Aus hält 2FA für jedes Mitglied optional; ein schaltet die Richtlinie an.                                                              |
+| Karenzzeit (Tage)                       | Ganzzahl | ja      | Tage ab dem ersten angemeldeten Moment eines Mitglieds unter der Richtlinie, bevor die Registrierung verlangt wird. Null heißt sofort. |
+| Nur-SSO-Benutzer ausnehmen              | Schalter | nein    | Wenn an, vertrauen Mitglieder, deren einziger Account eine föderierte Identität ist, dem vorgelagerten IdP für MFA.                    |
 
 Ein Mitglied innerhalb des Karenzfensters sieht ein Countdown-Banner in der App, das auf den Registrierungs-Flow zeigt. Sobald die Karenz abläuft, leitet der nächste Sign-in durch den Registrierungs-Bildschirm, und das Mitglied kann erst weiter, nachdem es registriert ist.
 

@@ -7,6 +7,12 @@ The Prompt library is the saved-prompts surface of Tale. It is where you keep th
 
 This page is the reference for what a prompt is, how the three visibility levels behave, how the version history works, and how prompts get into a chat. The library lives under **Prompts** in the sidebar; the same library surfaces inline in the chat composer.
 
+<Frame caption="The prompt library over the chat composer — provisioned starter prompts with the scope tabs and filters that narrow the list.">
+
+![The prompt library dialog open over the chat composer, listing provisioned starter prompts with scope tabs and a filter row above them.](/images/platform/prompt-library-dialog.webp)
+
+</Frame>
+
 ## What a prompt is
 
 A prompt is a saved chunk of text — usually a question or an instruction you would otherwise type into the composer — with a title and a few metadata fields. When you reach for a saved prompt in chat, Tale pastes its content into the composer; you can edit before sending, the prompt is not a hidden system message.

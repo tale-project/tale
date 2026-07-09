@@ -5,6 +5,12 @@ description: The three filter layers — content safety, PII detection, and a mo
 
 Guardrails is the surface where you configure the three filter layers Tale runs on every chat message in your organisation. Each message passes through content safety (word lists and admin regex), then PII detection (built-in patterns plus custom), then an optional external moderation provider — in that fixed order, on the way in and on the way out. Admins and Owners read this page when a regulator names a content rule, when a leak warrants a tighter policy, or when an agent's replies need to be sanitised before they leave the model.
 
+<Frame caption="Governance > Guardrails — the three filter-layer status cards (content safety, PII detection, moderation provider) above the recent-events log.">
+
+![The Guardrails governance page showing three status cards for content safety, PII detection, and moderation provider — all disabled — above an empty recent-events table.](/images/platform/governance-guardrails.webp)
+
+</Frame>
+
 ## A worked layering
 
 To configure the layers, open **Settings > Governance > Guardrails**. The overview shows three status cards, one per layer — content safety, PII detection, moderation. Each card links to its own configuration page where you pick whether the layer runs on input, on output, or both, and what it does on a match (block the message, mask the match, or flag and pass). The recent-events table at the bottom of the overview shows the last 50 detections, blocks, and provider errors with their layer, direction, and match category.

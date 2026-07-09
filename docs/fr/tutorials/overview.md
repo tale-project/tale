@@ -1,22 +1,42 @@
 ---
 title: Tutoriels
-description: Parcours indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat fonctionnel.
+description: Des parcours de tâches indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat qui fonctionne.
 ---
 
-Tutoriels est la section où tu lis des parcours de bout en bout sur des tâches courantes. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat fonctionnel ; on suppose que tu as le bon rôle et que Cloud ou auto-hébergé est prêt à l'usage.
+Les tutoriels sont des parcours de bout en bout : chacun amène une instance neuve de « je veux faire X » à un résultat qui fonctionne et se vérifie. Ils supposent que tu as le bon rôle et un espace de travail qui tourne ; les pages de concept sous [Plateforme](/fr/platform) expliquent le modèle mental, les tutoriels montrent le mécanisme du début à la fin.
 
-Les onglets ci-dessous sont indexés par rôle : choisis le rôle dans lequel tu opères, puis la tâche. Les pages de concept sous [Plateforme](/fr/platform) expliquent le modèle mental ; les tutoriels ici montrent le mécanisme du début à la fin.
+Si tu n’as pas encore suivi un [parcours de démarrage](/fr/get-started/quickstart), commence là — les tutoriels s’appuient sur les gestes du premier jour que ces pages couvrent.
 
-## Pages de cette section
+## Choisis par rôle
 
-**[Tutoriels Membre](/fr/tutorials/member/chat-effectively)** — chatter efficacement, utiliser les projets, mener des conversations vocales.
+<CardGroup cols="2">
 
-**[Tutoriels Éditeur](/fr/tutorials/editor/first-agent-end-to-end)** — construire un premier agent de bout en bout, lier des connaissances, monter des workflows avec approbations, déléguer entre agents.
+<Card title="Tutoriels membre" icon="message-circle" href="/fr/tutorials/member/chat-effectively">
 
-**[Tutoriels Développeur](/fr/tutorials/developer/call-tale-from-a-script)** — appeler Tale depuis un script, déclencher des workflows par webhook, construire des outils sur mesure, monter un serveur MCP.
+Chatter efficacement, travailler dans les projets, mener des conversations vocales.
 
-**[Tutoriels Administration](/fr/tutorials/admin/office-add-in)** — installer l'add-in Office, câbler la transcription de réunion, connecter un fournisseur local, SSO avec OIDC, restreindre les modèles par équipe.
+</Card>
 
-## Où cela s'inscrit
+<Card title="Tutoriels éditeur" icon="bot" href="/fr/tutorials/editor/first-agent-end-to-end">
 
-Les tutoriels citent les références sous [Plateforme](/fr/platform) pour l'échafaudage conceptuel ; une fois que tu en as parcouru un, la page qui mérite une relecture est la page de concept sous-jacente. Si tu ne sais pas par quel tutoriel commencer, [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) est ce qui ressemble le plus à un « hello world » pour le produit — la plupart des capacités produit que tu finiras par toucher y apparaissent.
+Construire un premier agent de bout en bout, lier des connaissances, déléguer entre agents, livrer des workflows avec approbations.
+
+</Card>
+
+<Card title="Tutoriels développeur" icon="terminal" href="/fr/tutorials/developer/call-tale-from-a-script">
+
+Appeler Tale depuis un script, déclencher des workflows par webhook, construire des outils sur mesure, monter un serveur MCP.
+
+</Card>
+
+<Card title="Tutoriels admin" icon="shield" href="/fr/tutorials/admin/office-add-in">
+
+Installer l’add-in Office, câbler la transcription de réunion, connecter un fournisseur local.
+
+</Card>
+
+</CardGroup>
+
+## Où cela s’inscrit
+
+Les tutoriels citent les références de fonctionnalités sous [Plateforme](/fr/platform) pour l’échafaudage conceptuel ; une fois un tutoriel parcouru, la page qui mérite une relecture est la page de concept sous-jacente. Si tu ne sais pas lequel choisir, [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) est ce qui se rapproche le plus d’un « hello world » pour le produit — la plupart des capacités que tu finiras par toucher y apparaissent.

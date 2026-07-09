@@ -7,7 +7,7 @@ Feedback-Analyse ist das Dashboard, das die Per-Nachricht-Daumen und die Per-Cha
 
 ## Eine durchgespielte Detailansicht
 
-Öffne **Einstellungen > Governance > Feedback** und die Default-Ansicht ist das organisationsweite Verhältnis über die letzten 30 Tage. Wechsle die Aufschlüsselung auf **Nach Agent**, um das Verhältnis pro Agent zu sehen — sortiere nach Feedback-Volumen, um die Agents zu finden, die Mitglieder tatsächlich nutzen, klick dann in einen hinein, um seine Modellhistorie neben demselben Verhältnis über die Zeit zu sehen. Die Ansicht Aufteilung nach Modell sind dieselben Daten, geschnitten auf das Modell, das jede bewertete Antwort erzeugt hat.
+Öffne **Einstellungen > Richtlinien > Feedback** und die Default-Ansicht ist das organisationsweite Verhältnis über die letzten 30 Tage. Wechsle die Aufschlüsselung auf **Nach Agent**, um das Verhältnis pro Agent zu sehen — sortiere nach Feedback-Volumen, um die Agents zu finden, die Mitglieder tatsächlich nutzen, klick dann in einen hinein, um seine Modellhistorie neben demselben Verhältnis über die Zeit zu sehen. Die Ansicht Aufteilung nach Modell sind dieselben Daten, geschnitten auf das Modell, das jede bewertete Antwort erzeugt hat.
 
 ## Die zwei Signale
 

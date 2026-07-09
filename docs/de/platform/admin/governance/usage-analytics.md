@@ -7,12 +7,12 @@ Nutzungs-Analyse ist das Dashboard, das jeden abrechenbaren AI-Aufruf in einer e
 
 ## Eine durchgespielte Detailansicht
 
-Öffne **Einstellungen > Governance > Nutzung**. Die Default-Ansicht sind die letzten 30 Tage, org-weit, mit den drei Kennzahlen-Zählern — Tokens insgesamt, Kosten insgesamt in USD, Anfragen insgesamt. Wechsle die Aufschlüsselung auf **Nach Benutzer**, um die größten Verbraucher zu finden, **Nach Modell**, um ein teures Primärmodell mit einem günstigeren Fallback zu vergleichen, oder **Nach Agent**, um den Agent zu finden, der die Last treibt. Jede Zeile öffnet eine Per-Zeile-Zeitreihe; die Diagrammachse folgt der gewählten Periode.
+Öffne **Einstellungen > Richtlinien > Nutzung**. Die Default-Ansicht sind die letzten 30 Tage, org-weit, mit den drei Kennzahlen-Zählern — Tokens insgesamt, Kosten insgesamt in USD, Anfragen insgesamt. Wechsle die Aufschlüsselung auf **Nach Benutzer**, um die größten Verbraucher zu finden, **Nach Modell**, um ein teures Primärmodell mit einem günstigeren Fallback zu vergleichen, oder **Nach Agent**, um den Agent zu finden, der die Last treibt. Jede Zeile öffnet eine Per-Zeile-Zeitreihe; die Diagrammachse folgt der gewählten Periode.
 
 ## Die Dimensionen
 
 - **Benutzer** — jedes Mitglied, das einen abrechenbaren Aufruf ausgelöst hat. Paare mit dem Team- oder Rollenfilter, um die Ansicht einzugrenzen.
-- **Team** — aggregiert über Team-Mitglieder; nützlich, wenn Budgets team-skopiert sind.
+- **Team** — aggregiert über Team-Mitglieder; nützlich, wenn Budgets team-gebunden sind.
 - **Rolle** — Inhaber, Admin, Entwickler, Redakteur, Mitglied.
 - **Modell** — jedes Modell, das eine Antwort erzeugt hat, gruppiert nach Anbieter.
 - **Agent** — jeder benannte Agent (die Rangliste sortiert nach Token-Volumen, Kosten oder Anfragenzahl).

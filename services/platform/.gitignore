@@ -55,13 +55,17 @@ tests/e2e/.auth/
 playwright-report/
 test-results/
 # The org scaffold creates a sibling config dir per organization an E2E run
-# creates; only the seed template (default/) is source-controlled.
+# creates; only the seed templates (default/, docs-demo/) are source-controlled.
 tests/e2e/fixtures/config/*/
 !tests/e2e/fixtures/config/default/
-# The QA-guides org ships pinned Issue Desk app bundles (a verbatim builtin
-# copy + the slug-renamed private-upload variant); a drift test keeps them in
-# lockstep with builtin-configs/apps/issue-desk.
+# The QA-guides org ships pinned copies of automation bundles (verbatim
+# builtin copies + slug-renamed variants); a drift test keeps them in
+# lockstep with builtin-configs/automations.
 !tests/e2e/fixtures/config/qa-guides-org/
+!tests/e2e/fixtures/config/docs-demo/
+
+# Docs screenshot pipeline: cached auth/org state between capture runs
+tests/docs-screenshots/.state/
 
 # Storybook
 storybook-static/

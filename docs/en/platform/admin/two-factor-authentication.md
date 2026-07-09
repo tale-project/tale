@@ -31,7 +31,13 @@ When a member loses a device with a passkey on it, an Admin revokes the credenti
 
 ## The enforce-for-org policy
 
-Admins can require two-factor for every password-authenticated member of the organisation. Open **Settings > Governance > Authentication** and toggle **Require two-factor authentication**. The policy carries a grace period (in days) that gives each member time to enrol from their first sign-in under the policy; set it to zero for immediate enforcement.
+Admins can require two-factor for every password-authenticated member of the organisation. Open **Settings > Governance > Security & Monitoring** and, under **Two-factor authentication**, toggle **Require two-factor authentication**. The policy carries a grace period (in days) that gives each member time to enrol from their first sign-in under the policy; set it to zero for immediate enforcement.
+
+<Frame caption="Governance > Security & Monitoring — login-attempt limits and password policy; the two-factor authentication policy sits in the same page below these.">
+
+![The Security and Monitoring governance page showing login-attempt limit fields and the password-policy character-class requirements; the two-factor policy is further down the same page.](/images/platform/governance-security-monitoring.webp)
+
+</Frame>
 
 | Field                             | Type    | Required | Description                                                                                                      |
 | --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------- |

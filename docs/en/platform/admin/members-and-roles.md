@@ -7,9 +7,15 @@ Members are the people in your organisation who can sign in to Tale. Roles contr
 
 Six roles cover almost every team Tale ships to. Admins and Owners read this page when they are setting up a team for the first time, when an audit asks who has access to what, or when they need to know whether to give a new hire Editor or Developer.
 
+<Frame caption="The Members section under Settings > Organization — every account and the role that bounds it.">
+
+![The Organization settings page with its Members section listing the workspace owner and an Add member button.](/images/get-started/settings-organization-members.webp)
+
+</Frame>
+
 ## A worked invite
 
-To add a person to your organisation, open **Settings > People** and click **Add member**. The new member receives an email link valid for 24 hours and lands in the default role you pick — change the role on the form before sending if they should not be a Member. The default applies the moment they accept the invite; promoting later is a one-click change in the same People view.
+To add a person to your organisation, open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. The new member receives an email link valid for 24 hours and lands in the default role you pick — change the role on the form before sending if they should not be a Member. The default applies the moment they accept the invite; promoting later is a one-click change in the same Members section.
 
 ## The six roles
 
@@ -53,15 +59,15 @@ R = read, W = write, — = no access. The matrix is the authoritative descriptio
 
 ## The Settings surface and the menu
 
-Members, Editors, and Disabled users do not see Settings — the menu is hidden. Developers see Settings but not the governance sub-tree (except read views). Admins and Owners see the full menu. The three sidebar groups (`You`, `Workspace`, `Governance`) reflect this split: `You` is per-user, `Workspace` is configuration, `Governance` is the audit-and-policy surface that needs Admin access.
+Members, Editors, and Disabled users do not see the configuration surface — only their own personal settings. Developers see the organization settings but not the governance sub-tree (except read views). Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Environment — every role), **Organization** (the Members section, Teams, AI providers, Branding, Governance, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Development** (the API and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
 
 ## Edge cases
 
 **Transferring ownership** requires an existing Owner to nominate a current Admin or Owner; the new Owner role takes effect immediately. The previous Owner becomes Admin unless explicitly downgraded.
 
-**Last Admin warning.** The People view warns when removing or downgrading the last Admin or Owner. The action is allowed — Tale does not lock you out — but you should keep at least two Admin-or-Owner accounts for continuity.
+**Last Admin warning.** The Members section warns when removing or downgrading the last Admin or Owner. The action is allowed — Tale does not lock you out — but you should keep at least two Admin-or-Owner accounts for continuity.
 
-**Resetting 2FA** is on the member's row in People. Resetting clears the second factor; the next sign-in re-enrolls.
+**Resetting 2FA** is on the member's row in the Members section. Resetting clears the second factor; the next sign-in re-enrolls.
 
 ## Where this fits
 

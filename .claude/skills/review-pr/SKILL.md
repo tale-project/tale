@@ -1,6 +1,7 @@
 ---
 name: review-pr
 icon: lucide:git-pull-request-draft
+labels: ['GitHub']
 description: Use this skill whenever you review someone's GitHub pull request end-to-end — understand the intent, read the diff adversarially, run the automated reviewers, and leave actionable, prioritized comments with a clear verdict. Load it whenever asked to review a PR, when a PR-review command runs, and before you approve or request changes on a pull request. Never post a verdict without it. For your own working diff before you open a PR, use review-code instead.
 ---
 

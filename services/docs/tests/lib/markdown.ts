@@ -1,7 +1,8 @@
 /**
  * Markdown parsing helpers. Everything the test suite needs to look at a doc
  * page lives here — frontmatter splitting, fenced-code-block stripping,
- * inline-code masking, URL masking, heading extraction, and the
+ * inline-code masking, URL masking, heading extraction, component-tag
+ * awareness (`COMPONENT_TAGS`), image-reference extraction, and the
  * opening/closing slicers.
  *
  * Design notes:
@@ -22,6 +23,50 @@
 
 const FENCE_OPEN = /^(\s*)(`{3,}|~{3,})\s*(\S+)?/;
 const FENCE_OPEN_OR_CLOSE = /^(\s*)(`{3,}|~{3,})/;
+
+/**
+ * The component vocabulary the docs renderer registers (react-markdown +
+ * rehype-raw). Authors write PascalCase; matching is case-insensitive because
+ * rehype-raw lowercases tag names before they reach the component map. One
+ * exported list so every check — opening-structure, prose masking, locale
+ * component parity — agrees on what counts as a component.
+ */
+const COMPONENT_TAGS = [
+  'Note',
+  'Tip',
+  'Info',
+  'Warning',
+  'Check',
+  'Callout',
+  'Card',
+  'CardGroup',
+  'Steps',
+  'Step',
+  'Tabs',
+  'Tab',
+  'CodeGroup',
+  'Accordion',
+  'AccordionGroup',
+  'Frame',
+] as const;
+
+/** Alternation sorted longest-first so `CardGroup` never half-matches as
+ *  `Card` followed by a failed word boundary. */
+const TAG_ALTERNATION = [...COMPONENT_TAGS]
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+
+const COMPONENT_TAG_LINE = new RegExp(`^\\s*</?(?:${TAG_ALTERNATION})\\b`, 'i');
+
+/**
+ * Does this line open or close a known component tag (`<Frame caption="…">`,
+ * `</Steps>`, `<Card … />`, `<Note>text</Note>`), possibly with attributes?
+ * Tags are written one per line by convention; a wrapped multi-line opening
+ * tag still matches on its first line.
+ */
+function isComponentTagLine(line: string): boolean {
+  return COMPONENT_TAG_LINE.test(line);
+}
 
 interface CodeFence {
   /** Language identifier following the opening fence (`bash`, `typescript`,
@@ -79,7 +124,7 @@ export function hasFrontmatter(content: string): boolean {
  * character as the opener and at least as long. This matters for blocks that
  * embed shorter fences as syntax samples.
  */
-function stripFences(text: string): string {
+export function stripFences(text: string): string {
   const out: string[] = [];
   let openMarker: string | null = null;
   for (const line of text.split('\n')) {
@@ -118,6 +163,23 @@ function stripHtmlComments(text: string): string {
 }
 
 /**
+ * Mask every known component tag — opening, closing, or self-closing — with
+ * spaces, preserving newlines and line lengths. `[^>]*` crosses newlines, so
+ * a wrapped multi-line opening tag is masked whole; an attribute value
+ * containing a literal `>` ends the mask early (don't write those).
+ *
+ * Tradeoff: attribute VALUES (captions, titles) are user-visible prose but
+ * are masked along with the tag syntax — reviewers own caption quality; the
+ * automated prose rules only see text between the tags.
+ */
+function maskComponentTags(text: string): string {
+  return text.replace(
+    new RegExp(`</?(?:${TAG_ALTERNATION})\\b[^>]*>`, 'gi'),
+    (m) => m.replace(/[^\n]/g, ' '),
+  );
+}
+
+/**
  * Mask every inline-code span (` `…` `) in a single line, replacing the entire
  * span (including the backticks) with spaces of equal length. Keeps the line
  * length identical so a regex match's index can still be reported as a column.
@@ -147,15 +209,15 @@ function maskUrls(line: string): string {
 
 /**
  * Yield every prose line of `body` (frontmatter-free) with fences stripped,
- * inline code masked, and URLs masked. 1-based line numbers refer back to
- * the original body, NOT to the frontmatter+body whole, so callers must add
- * the frontmatter line count themselves when reporting findings against the
- * raw page.
+ * component tags masked, inline code masked, and URLs masked. 1-based line
+ * numbers refer back to the original body, NOT to the frontmatter+body whole,
+ * so callers must add the frontmatter line count themselves when reporting
+ * findings against the raw page.
  */
 export function* iterProseLines(
   body: string,
 ): Iterable<{ line: number; text: string }> {
-  const stripped = stripHtmlComments(stripFences(body));
+  const stripped = maskComponentTags(stripHtmlComments(stripFences(body)));
   const lines = stripped.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const masked = maskUrls(maskInlineCode(lines[i]));
@@ -287,8 +349,10 @@ export function extractClosingSection(
 }
 
 /** Internal: a line is "structural" (terminates the opening) when it's a
- *  heading, bullet, numbered item, table row, or fence. Blockquotes count as
- *  prose. */
+ *  heading, bullet, numbered item, table row, fence, or component tag — a
+ *  hero `<Frame>` after two opening sentences ends the opening, and a page
+ *  that opens with a component before two sentences correctly fails.
+ *  Blockquotes count as prose. */
 function isStructuralLine(line: string): boolean {
   const trimmed = line.trim();
   if (trimmed === '') return false;
@@ -297,5 +361,77 @@ function isStructuralLine(line: string): boolean {
   if (/^\d+\.\s+/.test(trimmed)) return true;
   if (trimmed.startsWith('|')) return true;
   if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) return true;
+  if (isComponentTagLine(trimmed)) return true;
   return false;
+}
+
+interface ComponentTag {
+  /** Canonical PascalCase name from `COMPONENT_TAGS` (`<note>` → `Note`). */
+  name: string;
+  /** 1-based line number within `body`. */
+  line: number;
+}
+
+const CANONICAL_TAG = new Map<string, string>(
+  COMPONENT_TAGS.map((t) => [t.toLowerCase(), t]),
+);
+
+/**
+ * Every component OPENING tag in `body` (frontmatter-free), in document
+ * order. Closing tags (`</Note>`) are excluded; a self-closing
+ * `<Card … />` counts as an opening. Fenced code blocks, HTML comments, and
+ * inline code are skipped so a code sample demonstrating `<Note>` doesn't
+ * count. Names are normalised to canonical PascalCase so locale mirrors
+ * compare equal regardless of author casing.
+ */
+export function extractComponentTags(body: string): ComponentTag[] {
+  const stripped = stripHtmlComments(stripFences(body));
+  const pattern = new RegExp(`<(${TAG_ALTERNATION})\\b`, 'gi');
+  const out: ComponentTag[] = [];
+  const lines = stripped.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = maskInlineCode(lines[i]);
+    pattern.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(line)) !== null) {
+      const name = m[1];
+      out.push({
+        name: CANONICAL_TAG.get(name.toLowerCase()) ?? name,
+        line: i + 1,
+      });
+    }
+  }
+  return out;
+}
+
+interface ImageRef {
+  /** 1-based line number within `body`. */
+  line: number;
+  /** Alt text, trimmed (may be empty — the images test checks that). */
+  alt: string;
+  /** Target path as written (`/images/section/shot.webp`). */
+  target: string;
+}
+
+/** `![alt](target)` — the target stops at the first whitespace so an optional
+ *  `"title"` suffix is excluded. */
+const IMAGE_REFERENCE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
+
+/**
+ * Every Markdown image reference in `body` (frontmatter-free), with fenced
+ * code blocks stripped so example references inside code samples don't
+ * count. Shared by the image-reference checks and the image-manifest orphan
+ * sweep so both agree on what "referenced" means.
+ */
+export function extractImageRefs(body: string): ImageRef[] {
+  const lines = stripFences(body).split('\n');
+  const out: ImageRef[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    IMAGE_REFERENCE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = IMAGE_REFERENCE.exec(lines[i])) !== null) {
+      out.push({ line: i + 1, alt: m[1].trim(), target: m[2] });
+    }
+  }
+  return out;
 }

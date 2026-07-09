@@ -1,37 +1,48 @@
 ---
-title: Projekt-Agents
-description: Projektgebundene Agents gegenüber Org-Agents — wann du nach welchem greifst, wie Projekt-Agents Org-Agents im Picker überschatten, und wie das Veröffentlichen innerhalb eines Projekts funktioniert.
+title: Agenten und Modelle in einem Projekt
+description: Der Tab Agenten & Modelle kuratiert, welche Agenten und Modelle Mitglieder in einem Projekt sehen — Empfohlen pinnt Favoriten nach oben, Eingeschränkt lässt nichts anderes zu.
 ---
 
-Ein Projekt-Agent ist ein Agent, der nur innerhalb des Projekts existiert. Er erscheint im Agent-Picker des Chats für Projektmitglieder, sonst nirgends; er erbt automatisch die Files und Instructions des Projekts; das Projekt zu löschen löscht ihn. Greif zu Projekt-Agents, wenn ein Agent projektspezifische Instructions braucht, die ein generischer Org-Agent nicht tragen sollte.
+Der Tab **Agenten & Modelle** eines Projekts entscheidet, welchen Agenten und Modellen Mitglieder begegnen, wenn sie im Projekt chatten. Er erstellt keine neuen Agenten — Agenten entstehen org-weit unter [Agenten](/de/platform/agents/concepts) —, er kuratiert den bestehenden Katalog für den Kontext dieses Projekts, damit ein Mitglied im Picker zuerst die richtigen Werkzeuge für die Arbeit sieht.
 
-Diese Seite deckt den Unterschied zwischen Projekt-Agents und Org-Agents ab, die Schattenregel, die entscheidet, welcher erscheint, wenn beide einen Namen teilen, und wie sich das Veröffentlichen zwischen den beiden Bereichen ändert.
+<Frame caption="Der Tab Agenten & Modelle — je eine Empfohlen/Eingeschränkt-Wahl für Agenten und für Modelle.">
 
-## Projekt-Agents gegenüber Org-Agents
+![Der Tab Agenten & Modelle eines Projekts mit zwei Optionsgruppen, Agenten und Modelle, die jeweils einen Modus Empfohlen und einen Modus Eingeschränkt samt Hinzufügen-Button anbieten.](/images/platform/project-agents-models.webp)
 
-Ein **Org-Agent** lebt in der [Agents](/de/platform/admin/agents)-Liste der Org und taucht in jedem Chat auf, auf den der User Zugriff hat. Ein **Projekt-Agent** lebt nur im Projekt; ausserhalb existiert er nicht. Die Formen sind gleich — dieselben Instructions, Wissen, Tools, Modell — nur die Sichtbarkeit unterscheidet sich.
+</Frame>
 
-## Die Schattenregel
+## Die zwei Modi
 
-Projekt-Agents und Org-Agents können denselben Namen teilen. Wenn sie das tun, **gewinnt der Projekt-Agent im Projekt** — er überschattet den Org-Agent im Picker. Ausserhalb des Projekts erscheint der Org-Agent. Das erlaubt einem Team, einen org-weiten Agent („Sales assistant") zu nehmen und ihn für ein bestimmtes Konto mit zusätzlichen Instructions zu überschreiben, ohne ihn umzubenennen.
+Agenten und Modelle werden getrennt kuratiert, jeweils mit denselben zwei Modi:
 
-## In ein Projekt veröffentlichen
+- **Empfohlen** — die Einträge deiner Liste werden im Picker nach oben gepinnt; alles andere, was das Mitglied sonst nutzen könnte, bleibt darunter verfügbar. Das ist der Standard und der richtige Modus, um zu lenken, ohne zu blockieren.
+- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar. Wer etwas anderes wählt, bekommt eine klare Absage: Der Composer meldet, dass der Agent oder das Modell in diesem Projekt nicht verfügbar ist, und bittet um eine andere Wahl.
 
-Einen Agent aus dem Projekt heraus zu erstellen produziert automatisch einen Projekt-Agent. Einen aus der Org-**Agents**-Liste zu erstellen produziert einen Org-Agent, in den jedes Projekt einbuchen kann. Um einen Org-Agent in ein Projekt zu bringen, dupliziere ihn in den Agents-Tab des Projekts — das Original bleibt org-weit; das Duplikat wird ein Projekt-Agent, den das Team bearbeiten kann, ohne die org-weite Kopie zu beeinflussen.
+Die Reihenfolge der Liste ist die Reihenfolge, die Mitglieder sehen, und der erste Eintrag ist der Standard — zieh zum Umsortieren. **Agent hinzufügen** und **Modell hinzufügen** erweitern die Liste.
 
-## Berechtigungen
+<Warning>
 
-Projekt-Agents folgen der Projektmitgliedschaft. Projektmitglieder können sie ausführen; Projekt-Editors können sie bearbeiten; der Projektbesitzer kann sie löschen. Org-weite Editor- und Entwickler-Rollen haben nicht automatisch Zugriff auf die Agents eines Projekts — Projektmitgliedschaft ist der einzige Weg hinein.
+Im Modus **Eingeschränkt** sperrt eine leere Liste jedes Mitglied vom Chatten im Projekt aus — es bleibt nichts zum Auswählen übrig. Füge vor dem Speichern mindestens einen Eintrag hinzu oder wechsle zurück zu **Empfohlen**.
 
-## Wann du nach welchem greifst
+</Warning>
 
-| Nutz … wenn                                                      | Projekt-Agent | Org-Agent |
-| ---------------------------------------------------------------- | ------------- | --------- |
-| Instructions sind spezifisch für die Daten dieses Projekts       | ✓             |           |
-| Derselbe Prompt wäre für jedes Team nützlich                     |               | ✓         |
-| Du brauchst eine einmalige Variante eines bestehenden Org-Agents | ✓             |           |
-| Du willst einen Agent über viele Projekte teilen                 |               | ✓         |
+## Was Mitglieder erleben
 
-## Wo das hineinpasst
+Im Projekt spiegeln Agenten-Picker und Modell-Picker des Composers die Kuratierung — empfohlene Einträge zuerst, eingeschränkte Einträge ausschließlich. Ein Chat, der mit einem inzwischen unzulässigen Agenten ins Projekt verschoben wird, bricht nicht stumm: Das Senden wird mit dem Hinweis abgewiesen, dass der Agent in diesem Projekt nicht verfügbar ist, und das Mitglied wählt einen erlaubten. Außerhalb des Projekts ändert sich nichts; die Kuratierung gilt nur für Chats, die im Kontext des Projekts laufen.
 
-Projekt-Agents sind die Antwort auf „wir lieben diesen Agent, aber er muss sich für diesen Kunden anders verhalten". Der breitere Abschnitt [Agents](/de/platform/agents/concepts) ist org-weit; greif dorthin, wenn das Publikum alle sind. Die natürliche Anschlusslektüre ist [Projekte nutzen](/de/tutorials/member/use-projects), das ein Projekt zeigt, das mit einem Projekt-Agent endet, der echte Arbeit macht.
+## Wer es ändern darf
+
+Das Bearbeiten des Tabs folgt den Org-Rollen: Zum Speichern braucht es eine Redakteurs- oder Admin-Rolle, und Mitglieder ohne sie sehen das Projekt schreibgeschützt, mit einem Banner, das auf einen Projekt-Redakteur verweist. Änderungen landen über **Speichern** in der Tab-Leiste — derselbe vereinheitlichte Speichern/Verwerfen-Block, den auch die Tabs Allgemein und Anweisungen nutzen.
+
+## Wann du zu welchem Modus greifst
+
+| Nimm … wenn                                                 | Empfohlen | Eingeschränkt |
+| ----------------------------------------------------------- | --------- | ------------- |
+| Der richtige Agent soll die offensichtliche erste Wahl sein | ✓         |               |
+| Mitglieder sollen Zugriff auf den vollen Katalog behalten   | ✓         |               |
+| Compliance oder Kosten verlangen eine feste, kurze Liste    |           | ✓             |
+| Ein teures Modell darf für diese Arbeit nicht laufen        |           | ✓             |
+
+## Wo das hingehört
+
+Dieser Tab ist die Projekt-Seite der Kuratierung eines Org-Katalogs: Agenten zu bauen — samt Anweisungen und Wissen — ist Aufgabe des Bereichs [Agenten](/de/platform/agents/concepts); zu entscheiden, welche davon dieses Projekt zeigt, ist deine. Wie sich der Picker im Chat verhält, steht in [Agenten im Chat](/de/platform/chat/agents-in-chat).

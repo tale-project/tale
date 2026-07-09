@@ -10,7 +10,12 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { startGateway, type GatewayHandle } from '../gateway';
-import { CANNED_ERROR_MESSAGE, CANNED_REPLY } from '../overrides/canned';
+import {
+  CANNED_ERROR_MESSAGE,
+  CANNED_REPLY,
+  MOCK_TRIGGERS,
+} from '../overrides/canned';
+import { DOCS_REPLIES } from '../overrides/docs-replies';
 import { readJson } from './json';
 
 let gw: GatewayHandle;
@@ -105,16 +110,96 @@ describe('chat/completions override', () => {
     expect(text).toContain('request_human_input');
     expect(text).toContain('"finish_reason":"tool_calls"');
   });
+
+  test('docs phrase streams its scripted reply (reasoning first)', async () => {
+    const scripted = DOCS_REPLIES.find((entry) => entry.reasoning);
+    if (!scripted) throw new Error('expected a docs reply with reasoning');
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [
+        { role: 'user', content: `Please ${scripted.match} for the team.` },
+      ],
+    });
+    const text = await res.text();
+    expect(text).toContain('reasoning_content');
+    // First words of the scripted reply arrive as content deltas.
+    const firstWord = scripted.reply.split(/\s+/)[0];
+    expect(text).toContain(firstWord);
+    expect(text).not.toContain(CANNED_REPLY.split(' ')[0]);
+  });
+
+  test('docs phrase carries its scripted reply on the non-stream path', async () => {
+    const scripted = DOCS_REPLIES[0];
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      messages: [{ role: 'user', content: `Please ${scripted.match}.` }],
+    });
+    const body = await readJson(res);
+    expect(body.choices[0].message.content).toBe(scripted.reply);
+  });
+
+  test('docs phrases never shadow the default canned path', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'e2e-chat-model',
+      messages: [{ role: 'user', content: 'hello there' }],
+    });
+    const body = await readJson(res);
+    expect(body.choices[0].message.content).toBe(CANNED_REPLY);
+  });
+
+  test('non-stream call keeps the canned reply when the message carries a streaming-chat trigger', async () => {
+    // Thread-title generation is a non-streamed `generateText` call whose
+    // prompt is the user's first message. When that message triggers a
+    // streaming-chat scenario (e.g. next-steps), the non-stream path must NOT
+    // emit that scenario's content — otherwise the `[[NEXT_STEPS]]` marker
+    // leaks into the generated title. Only the streamed assistant turn renders
+    // the structured block.
+    const res = await post('/v1/chat/completions', {
+      model: 'e2e-chat-model',
+      messages: [
+        { role: 'user', content: `${MOCK_TRIGGERS.nextSteps} draft a plan` },
+      ],
+    });
+    const body = await readJson(res);
+    expect(body.choices[0].message.content).toBe(CANNED_REPLY);
+    expect(body.choices[0].message.content).not.toContain('[[NEXT_STEPS]]');
+  });
 });
 
 describe('Prism-served AI endpoints (deterministic examples)', () => {
-  test('POST /v1/embeddings returns a vector', async () => {
+  test('POST /v1/embeddings returns deterministic 1536-dim vectors', async () => {
     const res = await post('/v1/embeddings', { model: 'x', input: 'hi' });
     expect(res.status).toBe(200);
     const body = await readJson(res);
     expect(body.object).toBe('list');
-    expect(Array.isArray(body.data[0].embedding)).toBe(true);
-    expect(body.data[0].embedding.length).toBeGreaterThan(0);
+    // The knowledge-db stores vector(1536) — anything else fails at insert.
+    expect(body.data[0].embedding).toHaveLength(1536);
+    // Deterministic per input, distinct across inputs.
+    const again = await readJson(
+      await post('/v1/embeddings', { model: 'x', input: 'hi' }),
+    );
+    expect(again.data[0].embedding).toEqual(body.data[0].embedding);
+    const other = await readJson(
+      await post('/v1/embeddings', { model: 'x', input: 'bye' }),
+    );
+    expect(other.data[0].embedding).not.toEqual(body.data[0].embedding);
+  });
+
+  test('POST /v1/embeddings honours encoding_format base64', async () => {
+    // The OpenAI Node SDK requests base64 by default and decodes packed
+    // Float32 bytes — a float-array response quarters the dimensions.
+    const res = await post('/v1/embeddings', {
+      model: 'x',
+      input: 'hi',
+      encoding_format: 'base64',
+    });
+    const body = await readJson(res);
+    expect(typeof body.data[0].embedding).toBe('string');
+    const floats = new Float32Array(
+      Buffer.from(body.data[0].embedding, 'base64').buffer,
+    );
+    expect(floats).toHaveLength(1536);
   });
 
   test('POST /v1/moderations returns a benign OpenAI-shaped verdict', async () => {

@@ -1,24 +1,43 @@
 ---
 title: Agent knowledge
-description: Binding documents, customers, products, vendors, and websites to an agent so it can cite them — and the difference between agent-bound knowledge and the Knowledge tab.
+description: The agent's Knowledge tab — retrieval mode, team and organization document scopes, and agent-only uploads, and how they differ from tools and attachments.
 ---
 
-Knowledge bound to an agent is what the agent can reach for at reply time. Without a binding the agent is generic; with a binding it can answer questions about specific documents, customers, or websites and cite where the answer came from. This page covers the binding mechanic on the agent's **Knowledge** tab.
+Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your documents and cites where the answer came from. The agent's **Knowledge** tab controls two things: _how_ the agent retrieves (the retrieval mode) and _what_ is in scope (which documents).
 
-The knowledge sources themselves live in the [Knowledge](/platform/knowledge/overview) section — Documents, Customers, Products, Vendors, Websites. Binding is the act of giving one agent access to a subset of those sources; without binding, the agent cannot see them.
+<Frame caption="The Knowledge tab — retrieval mode above, the document scopes and agent uploads below.">
 
-## A worked binding
+![The agent editor's Knowledge tab showing the four retrieval modes, the team and organization document toggles, three indexed organization documents, and the agent documents upload area.](/images/platform/agent-editor-knowledge.webp)
 
-Open an agent and click **Knowledge**. Click **Agent knowledge** and pick three documents from the org's library. Save. Open a chat with the agent and ask a question the documents answer. The reply streams in with citations — hovering shows the document title, clicking opens the document. The retrieval ran the RAG tool over the bound documents only; nothing else in the library was reachable.
+</Frame>
 
-## Source types
+## Pick a retrieval mode
 
-Five source types are bindable: **Documents** (PDFs, DOCX, etc. uploaded to the knowledge base), **Customers** (structured customer records), **Products** (structured product records), **Vendors** (structured vendor records), **Websites** (crawled site content). Each binds the same way — pick from a list. The agent's retrieval treats them differently under the hood: documents and websites are chunked and embedded; structured records are queried by field.
+Four modes trade cost against coverage. **Tool** lets the agent search on demand — retrieval runs only when the model decides it needs it. **Context** injects relevant knowledge into every response, whether the model would have asked or not. **Both** combines them, and **Off** disables the knowledge base for this agent entirely. Start with **Tool**; move to **Context** when the agent's whole job is answering from the documents and you want retrieval on every reply.
 
-## Scoping
+## Scope the documents
 
-Knowledge bound to an agent is per-agent, not per-chat. Every chat that uses the agent gets the same bindings. To limit knowledge to a single chat, attach the file inline (see [Attachments](/platform/chat/attachments)). To limit knowledge to a Project, bind it to a [Project agent](/platform/projects/project-agents) instead.
+The knowledge base searches documents uploaded to your organization — the same library you manage under [Documents](/platform/knowledge/documents). Two switches set the scope: **Include team documents** covers the agent's assigned team, and **Include organization documents** covers documents not assigned to any team. The tab lists what each scope currently contains, with the index state per document — only **Indexed** documents are retrievable.
+
+## Give the agent its own documents
+
+**Agent documents** are uploads only this agent can access — click **Upload documents** and the files join this agent's retrieval scope without entering the shared library. Reach for them when the source belongs to the agent's job rather than the org: a triage playbook, a product-specific FAQ.
+
+## How retrieval lands in the reply
+
+When the agent retrieves, citations attach to the sentences they support — hovering shows the source, clicking opens it. Everything retrievable competes for relevance on every question, so keep the scope tight: a broad scope makes retrieval noisier, not smarter.
+
+## When to reach for it
+
+Structured records and live sources are tools, not knowledge — and files for a single conversation are attachments. The boundaries:
+
+| Use…                                                | When the agent needs…                                   |
+| --------------------------------------------------- | ------------------------------------------------------- |
+| Knowledge (this tab)                                | To search and cite uploaded documents on every chat     |
+| [Tools](/platform/agents/tools)                     | Customers, products, vendors, websites, or live systems |
+| [Attachments](/platform/chat/attachments)           | A file that matters for one chat only                   |
+| [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                         |
 
 ## Where this fits
 
-Agent knowledge is the answer to "this agent should know about this specific stuff". The wider Knowledge section is where the sources live; the binding is what wires an agent into a subset of them. The next read is [Knowledge overview](/platform/knowledge/overview) for the source side, or [Agent with knowledge](/tutorials/editor/agent-with-knowledge) for the end-to-end build on a fresh instance.
+Agent knowledge is the answer to "this agent should answer from these documents". The wider [Knowledge](/platform/knowledge/overview) section is where the sources live and get indexed; this tab wires one agent into a scope of them. For the end-to-end build — upload, scope, ask, verify the citations — walk [Agent with knowledge](/tutorials/editor/agent-with-knowledge).

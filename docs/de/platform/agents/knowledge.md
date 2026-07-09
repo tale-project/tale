@@ -1,24 +1,43 @@
 ---
 title: Agent-Wissen
-description: Dokumente, Kunden, Produkte, Lieferanten und Websites an einen Agent binden, damit er sie zitieren kann — und der Unterschied zwischen agent-gebundenem Wissen und dem Wissen-Tab.
+description: Der Wissen-Tab des Agents — Abrufmodus, Scopes für Team- und Organisationsdokumente und Uploads nur für den Agent, und wie sie sich von Tools und Anhängen unterscheiden.
 ---
 
-Wissen, das an einen Agent gebunden ist, ist das, worauf der Agent zur Antwortzeit zugreifen kann. Ohne Bindung ist der Agent generisch; mit Bindung kann er Fragen zu bestimmten Dokumenten, Kunden oder Websites beantworten und zitieren, woher die Antwort kam. Diese Seite deckt den Bindungs-Mechanismus auf dem **Knowledge**-Tab des Agents ab.
+Wissen ist das, was ein Agent zur Antwortzeit abrufen und zitieren kann. Ohne Wissen ist der Agent generisch; mit Wissen antwortet er aus deinen Dokumenten und zitiert, woher die Antwort kam. Der Tab **Wissen** des Agents steuert zwei Dinge: _wie_ der Agent abruft (der Abrufmodus) und _was_ im Scope liegt (welche Dokumente).
 
-Die Wissensquellen selbst leben im Abschnitt [Wissen](/de/platform/knowledge/overview) — Dokumente, Kunden, Produkte, Lieferanten, Websites. Binden ist der Akt, einem Agent Zugriff auf eine Teilmenge dieser Quellen zu geben; ohne Bindung kann er sie nicht sehen.
+<Frame caption="Der Wissen-Tab — oben der Abrufmodus, darunter die Dokument-Scopes und die Agent-Uploads.">
 
-## Eine durchgespielte Bindung
+![Der Wissen-Tab des Agenten-Editors mit den vier Abrufmodi, den Schaltern für Team- und Organisationsdokumente, drei indizierten Organisationsdokumenten und dem Upload-Bereich für Agent-Dokumente.](/images/platform/agent-editor-knowledge.webp)
 
-Öffne einen Agent und klick **Knowledge**. Klick **Agent knowledge** und wähl drei Dokumente aus der Org-Bibliothek. Speichere. Öffne einen Chat mit dem Agent und stell eine Frage, die die Dokumente beantworten. Die Antwort streamt mit Zitaten — beim Hover erscheint der Dokumenttitel, beim Klick öffnet das Dokument. Das Retrieval lief nur über die gebundenen Dokumente; nichts anderes in der Bibliothek war erreichbar.
+</Frame>
 
-## Quellentypen
+## Einen Abrufmodus wählen
 
-Fünf Quellentypen sind bindbar: **Dokumente** (PDFs, DOCX etc., die in die Wissensdatenbank hochgeladen sind), **Kunden** (strukturierte Kunden-Datensätze), **Produkte** (strukturierte Produkt-Datensätze), **Lieferanten** (strukturierte Lieferanten-Datensätze), **Websites** (gecrawlte Site-Inhalte). Jeder bindet sich gleich — aus einer Liste wählen. Das Retrieval des Agents behandelt sie intern unterschiedlich: Dokumente und Websites werden in Chunks geteilt und eingebettet; strukturierte Datensätze werden per Feld abgefragt.
+Vier Modi wägen Kosten gegen Abdeckung ab. **Tool** lässt den Agent bei Bedarf suchen — der Abruf läuft nur, wenn das Modell entscheidet, dass es ihn braucht. **Kontext** injiziert relevantes Wissen in jede Antwort, ob das Modell gefragt hätte oder nicht. **Beides** kombiniert beide, und **Aus** schaltet die Wissensdatenbank für diesen Agent komplett ab. Starte mit **Tool**; wechsle zu **Kontext**, wenn der ganze Job des Agents das Antworten aus den Dokumenten ist und du den Abruf bei jeder Antwort willst.
 
-## Scoping
+## Den Dokument-Scope setzen
 
-An einen Agent gebundenes Wissen ist pro-Agent, nicht pro-Chat. Jeder Chat, der den Agent nutzt, bekommt dieselben Bindungen. Um Wissen auf einen einzelnen Chat zu begrenzen, häng die Datei inline an (siehe [Anhänge](/de/platform/chat/attachments)). Um Wissen auf ein Projekt zu begrenzen, bind es stattdessen an einen [Projekt-Agent](/de/platform/projects/project-agents).
+Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden — dieselbe Bibliothek, die du unter [Dokumente](/de/platform/knowledge/documents) verwaltest. Zwei Schalter setzen den Scope: **Team-Dokumente einbeziehen** deckt das zugewiesene Team des Agents ab, und **Organisationsdokumente einbeziehen** deckt Dokumente ab, die keinem Team zugewiesen sind. Der Tab listet, was jeder Scope gerade enthält, mit dem Indexzustand pro Dokument — nur Dokumente im Zustand **Indiziert** sind abrufbar.
 
-## Wo das hineinpasst
+## Dem Agent eigene Dokumente geben
 
-Agent-Wissen ist die Antwort auf „dieser Agent sollte dieses bestimmte Zeug kennen". Der breitere Wissen-Abschnitt ist, wo die Quellen leben; die Bindung ist, was einen Agent in eine Teilmenge davon einklinkt. Die nächste Lektüre ist [Wissen-Übersicht](/de/platform/knowledge/overview) für die Quellenseite oder [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) für den End-to-End-Bau auf einer frischen Instanz.
+**Agent-Dokumente** sind Uploads, auf die nur dieser Agent zugreifen kann — klicke auf **Dokumente hochladen**, und die Dateien treten in den Abruf-Scope dieses Agents ein, ohne die geteilte Bibliothek zu betreten. Greif dazu, wenn die Quelle zum Job des Agents gehört statt zur Organisation: ein Triage-Playbook, eine produktspezifische FAQ.
+
+## Wie der Abruf in der Antwort landet
+
+Wenn der Agent abruft, hängen sich Zitate an die Sätze, die sie stützen — Hovern zeigt die Quelle, Klicken öffnet sie. Alles Abrufbare konkurriert bei jeder Frage um Relevanz, also halte den Scope eng: ein breiter Scope macht den Abruf lauter, nicht klüger.
+
+## Wann du danach greifst
+
+Strukturierte Datensätze und Live-Quellen sind Tools, kein Wissen — und Dateien für eine einzelne Konversation sind Anhänge. Die Grenzen:
+
+| Nutze…                                                  | Wenn der Agent braucht…                                       |
+| ------------------------------------------------------- | ------------------------------------------------------------- |
+| Wissen (dieser Tab)                                     | Hochgeladene Dokumente in jedem Chat durchsuchen und zitieren |
+| [Tools](/de/platform/agents/tools)                      | Kunden, Produkte, Lieferanten, Websites oder Live-Systeme     |
+| [Anhänge](/de/platform/chat/attachments)                | Eine Datei, die nur für einen Chat zählt                      |
+| [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                      |
+
+## Wo das hingehört
+
+Agent-Wissen ist die Antwort auf „dieser Agent soll aus diesen Dokumenten antworten“. Der breitere Abschnitt [Wissen](/de/platform/knowledge/overview) ist der Ort, an dem die Quellen liegen und indiziert werden; dieser Tab verdrahtet einen Agent mit einem Scope daraus. Für den Bau von Anfang bis Ende — hochladen, Scope setzen, fragen, Zitate prüfen — geh [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) durch.

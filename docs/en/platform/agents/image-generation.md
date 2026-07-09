@@ -1,6 +1,6 @@
 ---
 title: Image generation
-description: Image generation as an agent capability — any assistant can create an image inline when the workspace has an image model, how generated images surface, and what they cost.
+description: Image generation as an agent capability — inline images in any assistant's reply, the Generate image tool, the dedicated image agent type, and what they cost.
 ---
 
 Any assistant in Tale can generate images. Ask it to create, draw, or design something and it produces the image inline, the way an attachment renders in the reply — there's no separate mode to switch into first. This works whenever the workspace has an image-generation model configured; this page covers the wiring.
@@ -13,9 +13,13 @@ Every assistant carries an image tool it reaches for when you ask it to create a
 
 The image comes from the workspace's image-generation model — the one an admin set up under [Providers](/platform/admin/providers) and tagged **Image generation**. There's nothing to configure per agent. When the workspace has no such model, the assistant tells you image generation is unavailable instead of guessing, so an admin knows to add one.
 
+## The dedicated image surfaces
+
+Two heavier shapes exist beyond the inline tool. On the agent editor, the tool itself is **Generate image** under the Tools tab's **Images** category — untick it for an agent that should never produce pictures. And an agent's type (on the **General** tab) can be set to **Image generation**, which routes every message straight to an image model — the shape behind the catalog's **Image Creator** agent, which generates and edits images from text prompts. Reach for the dedicated type when the agent's whole job is imagery; leave the inline tool for everyone else.
+
 ## How it surfaces
 
-When the agent generates an image, the reply renders the image inline next to the agent's text. Hovering shows a small **Image preview** chip; clicking opens the full-size preview with **Previous image** and **Next image** controls if the reply produced more than one. The image is stored in the chat's object store alongside attachments and inherits the chat's retention rules.
+When the agent generates an image, the reply renders it inline next to the agent's text. Hovering shows a small **Image preview** chip; clicking opens the full-size preview with **Previous image** and **Next image** controls if the reply produced more than one. The image is stored in the chat's object store alongside attachments and inherits the chat's retention rules.
 
 ## Cost and budget
 

@@ -1,49 +1,46 @@
 ---
-title: Fähigkeiten
-description: Eine Fähigkeit ist ein wiederverwendbares Bündel aus Anweisungen und einem optionalen Sandbox-Skript, das du an einen Agent hängen kannst. Diese Seite erklärt, wann du eine Fähigkeit statt Inline-Anweisungen wählst.
+title: Agent-Skills
+description: Ein Skill ist ein wiederverwendbares Bündel — eine SKILL.md plus optionale Skripte und Referenzen — das Agenten zur Laufzeit lesen. Diese Seite zeigt, wann du dazu greifst statt zu längeren Anweisungen.
 ---
 
-Eine Fähigkeit ist die Einheit, zu der Tale greift, wenn dasselbe Muster über mehrere Agents auftaucht. Sie ist ein wiederverwendbares Bündel — ein Stück Anweisungen und optional ein Sandbox-Skript, das der Agent aufrufen kann —, das du an einen Agent hängst, wie du ein Tool anhängst. Redakteure und Entwickler veröffentlichen Fähigkeiten auf Organisations-Ebene; Agents wählen aus der Fähigkeiten-Bibliothek der Organisation.
+Ein Skill ist die Einheit, zu der Tale greift, wenn dasselbe Muster über mehrere Agenten auftaucht. Er ist ein wiederverwendbares Bündel — eine `SKILL.md` mit Anweisungen, plus optionale Skripte, Referenzen und Assets — das in der Skill-Bibliothek der Organisation lebt und das Agenten zur Laufzeit lesen. Binde denselben Skill an drei Agenten, und du pflegst das Verhalten an einer Stelle.
 
-Diese Seite vermittelt dir das mentale Modell, wann eine Fähigkeit der richtige Zug ist und wann Inline-Anweisungen es sind. Lies sie, bevor du deine erste Fähigkeit veröffentlichst; komm zurück, wenn die Anweisungen eines Agents länger werden und du dich fragst, ob die Antwort darin liegt, sie in eine Fähigkeit zu trennen.
+Diese Seite vermittelt dir das mentale Modell dafür, wann ein Skill der richtige Zug ist und wann Inline-Anweisungen es sind. Lies sie, bevor du deinen ersten Skill hochlädst; komm zurück, wenn die Anweisungen eines Agents lang werden und du überlegst, ob du sie auslagerst.
 
-## Was eine Fähigkeit bündelt
+## Was ein Skill bündelt
 
-Eine Fähigkeit trägt zwei Dinge:
+Ein Skill wird als Zip mit einer `SKILL.md` an der Wurzel hochgeladen. Das Frontmatter der Datei trägt die Metadaten — Beschreibung, Lizenz, empfohlene Python- oder Node-Versionen — und der Rumpf trägt die Anweisungen. Bündel-Assets liegen unter `scripts/`, `references/` oder `assets/`: Code, den der Agent ausführen kann, wenn er in einer Sandbox arbeitet, und Referenzmaterial, das er bei Bedarf liest.
 
-- **Anweisungen** — Prosa, die ein spezifisches Verhalten rahmt. Die Anweisungen der Fähigkeit hängen sich zur Request-Zeit an die Anweisungen des Agents an; der Agent liest beide als einen langen Prompt.
-- **Ein optionales Skript** — Code, der in der Sandbox läuft, wenn der Agent die Fähigkeit als Tool aufruft. Die Eingaben und Ausgaben des Skripts sind typisiert; der Agent gibt JSON weiter, die Fähigkeit gibt JSON zurück.
+Ein reiner Anweisungs-Skill ist die richtige Form, wenn das Verhalten Stimme oder Einschränkung ist — „zitiere die Quelle immer mit Abschnittsnummer“, „lehne Fragen außerhalb dieses Produkts ab“. Ein Skill mit Skripten ist die richtige Form, wenn das Verhalten eine Berechnung, eine Transformation oder eine mehrstufige Aufgabe ist, die das Modell sonst in Tokens improvisieren müsste.
 
-Eine reine Anweisungs-Fähigkeit ist die richtige Form, wenn das Verhalten Stimme oder Einschränkung ist — „Zitiere immer die Quelle nach Abschnittsnummer", „Verweigere Fragen ausserhalb dieses Produkts". Eine Fähigkeit mit Skript ist die richtige Form, wenn das Verhalten eine Berechnung, eine Transformation oder eine mehrstufige Aufgabe ist, die das Modell sonst in Tokens nachahmen müsste.
+## An einen Agent binden
 
-## An einen Agent hängen
+Ein Skill wird für einen Agent sichtbar, indem du ihn auf dem Tab **Skills** des Agents bindest — **Gebundene Skills** listet die Bibliothek der Organisation mit einer Checkbox pro Skill. Ein Agent kann höchstens zehn Skills binden, und ein Agent ohne Bindungen sieht keinen: es gibt keinen impliziten Rückfall auf organisationsweite Sichtbarkeit. Der Agent liest einen gebundenen Skill zur Laufzeit — die Beschreibung sagt ihm, wann der Skill greift, und dann zieht er Rumpf und Bündeldateien heran.
 
-Eine Fähigkeit wird durch Anhängen für einen Agent sichtbar. Der Editor des Agents listet die verfügbaren Fähigkeiten der Organisation unter dem Tab **Fähigkeiten**; häk die an, die gelten. Angehängte Fähigkeiten injizieren immer ihre Anweisungen; eine Fähigkeit mit Skript erscheint zusätzlich in der Tool-Liste des Agents, die der Agent aufrufen kann.
+Die Bindung gilt pro Agent: zwei Agenten können denselben Skill binden, und das Lösen ist symmetrisch — die nächste Anfrage läuft ohne ihn.
 
-Das Anhängen geschieht pro Agent: zwei Agents können dieselbe Fähigkeit anhängen, und das Verhalten des Agents ist die Vereinigung seiner Anweisungen und der Anweisungen der Fähigkeit. Das Entfernen ist symmetrisch — der nächste Request läuft ohne die Fähigkeit.
+## Die Bibliothek verwalten
 
-## Fähigkeits-Skripte und die Sandbox
+Skills zu verwalten verlangt Admin- oder Entwickler-Berechtigungen. Die Bibliothek liegt in den Skills-Einstellungen der Organisation; jeder Skill zeigt dort seine Übersicht, den Anweisungs-Rumpf, den Bündel-Dateibaum und die Änderungsspur **Letzte Änderungen**. **Skill hochladen** ergänzt ein neues Bündel, **Bundle ersetzen** überschreibt ein bestehendes an Ort und Stelle, und **Duplizieren** forkt es unter einem neuen Slug.
 
-Fähigkeits-Skripte laufen in derselben Sandbox wie das **Code-ausführen**-Tool: Python oder Node, erlaubte Pakete pro Fähigkeit deklariert, Paket-Installationen geregelt durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Organisation. Netzwerk-Egress aus der Sandbox ist standardmäßig offen; selbst gehostete Operatoren können ihn auf Deployment-Ebene einschränken. Der Vertrag des Skripts ist eine typisierte Eingabe und eine typisierte Ausgabe; was dazwischen läuft, ist dir überlassen.
+<Warning>
 
-Die Vertrauensgrenze ist scharf. Ein Fähigkeits-Skript kann von jedem Agent aufgerufen werden, an den es angehängt ist. Behandle das Veröffentlichen einer Fähigkeit so, als würdest du die Vertrauensoberfläche jedes Agents weiten, der sie aufgreift; die [Governance-Richtlinie zu Run-Code](/de/platform/admin/governance/run-code-policy) regelt, welche Pakete das Skript installieren darf.
+Es gibt kein Versions-Pinning: ein ersetztes Bundle ändert ab der nächsten Anfrage, was jeder gebundene Agent liest, und ein gelöschter Skill entfernt das Bündel von der Platte — jeder aktuell gebundene Agent verliert den Zugriff.
 
-## Versionierung
-
-Fähigkeiten sind versioniert. Das Speichern einer Fähigkeit erzeugt eine neue Version; der Agent, der sie anhängt, fixiert auf eine bestimmte Version. Eine Fähigkeit zu aktualisieren propagiert nicht automatisch — Agents nehmen die neue Version beim Speichern auf. Das ist Absicht: eine Fähigkeit ist ein Vertrag, und die Version des Vertrags ist, wie du den Vertrag hältst.
+</Warning>
 
 ## Wann du danach greifst
 
-| Nutz … wenn                                                                  | Fähigkeit | Inline-Anweisungen |
-| ---------------------------------------------------------------------------- | --------- | ------------------ |
-| Das Muster wiederholt sich über mehrere Agents                               | ✓         |                    |
-| Das Verhalten beinhaltet ein Skript, das das Modell sonst nachahmen müsste   | ✓         |                    |
-| Das Verhalten ist die Stimme eines Agents                                    |           | ✓                  |
-| Du willst, dass die Organisation das Verhalten über eine Bearbeitung steuert | ✓         |                    |
-| Die Anweisungen des Agents passen noch auf einen Bildschirm                  |           | ✓                  |
+| Nutze … wenn                                                           | Skill | Inline-Anweisungen |
+| ---------------------------------------------------------------------- | ----- | ------------------ |
+| Das Muster sich über mehrere Agenten wiederholt                        | ✓     |                    |
+| Das Verhalten Skripte umfasst, die das Modell sonst imitieren würde    | ✓     |                    |
+| Das Verhalten die Stimme eines einzelnen Agents ist                    |       | ✓                  |
+| Die Organisation das Verhalten über eine einzige Änderung steuern soll | ✓     |                    |
+| Die Anweisungen des Agents noch auf einen Bildschirm passen            |       | ✓                  |
 
-Inline-Anweisungen sind die richtige Form für einen Agent. Fähigkeiten sind die richtige Form, wenn dasselbe Verhalten in zwei oder drei Agents auftaucht und die Wartungskosten, ihre Inline-Anweisungen synchron zu halten, anfangen zu beissen.
+Inline-Anweisungen sind die richtige Form für einen Agent. Skills sind die richtige Form, wenn dasselbe Verhalten in zwei oder drei Agenten auftaucht und die Wartungskosten, ihre Inline-Anweisungen synchron zu halten, zu beißen beginnen.
 
-## Bau eine
+## Bau einen
 
-Fähigkeiten sind die Abstraktionsebene über den vier Knöpfen — sie lassen dich ein Verhalten einmal ausliefern, sodass jeder Agent, der es braucht, es per Anhängen aufgreift. Der natürliche nächste Walkthrough ist [Ein eigenes Tool bauen](/de/tutorials/developer/build-a-custom-tool) — er führt durch das Veröffentlichen einer Fähigkeit mit Skript von der leeren Seite bis zum Anhängen an einen Agent.
+Skills sind die Abstraktionsebene über den vier Knöpfen — sie lassen dich ein Verhalten einmal ausliefern, und jeder Agent, der es braucht, holt es sich per Bindung. Der natürliche nächste Gang ist [Ein eigenes Tool bauen](/de/tutorials/developer/build-a-custom-tool) — er führt von der leeren Seite zu einem Skill mit Skripten, gebunden an einen Agent.

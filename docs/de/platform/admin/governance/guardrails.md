@@ -5,9 +5,15 @@ description: Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein 
 
 Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, die Tale auf jede Chat-Nachricht in deiner Organisation anwendet. Jede Nachricht durchläuft Inhaltssicherheit (Wortlisten und Admin-Regex), dann PII-Erkennung (eingebaute Muster plus eigene), dann einen optionalen externen Moderationsanbieter — in dieser festen Reihenfolge, auf dem Weg hinein und auf dem Weg hinaus. Admins und Inhaber lesen diese Seite, wenn ein Regulierer eine Inhaltsregel benennt, wenn ein Leck eine strengere Richtlinie rechtfertigt, oder wenn die Antworten eines Agents bereinigt werden müssen, bevor sie das Modell verlassen.
 
+<Frame caption="Governance > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
+
+![Die Governance-Seite Guardrails zeigt drei Status-Karten für Inhaltssicherheit, PII-Erkennung und Moderationsanbieter — alle deaktiviert — über einer leeren Tabelle der letzten Ereignisse.](/images/platform/governance-guardrails.webp)
+
+</Frame>
+
 ## Eine durchgespielte Schichtung
 
-Um die Ebenen zu konfigurieren, öffne **Einstellungen > Governance > Guardrails**. Die Übersicht zeigt drei Status-Karten, eine pro Ebene — Inhaltssicherheit, PII-Erkennung, Moderation. Jede Karte verlinkt auf ihre eigene Konfigurationsseite, auf der du wählst, ob die Ebene auf Eingaben, Ausgaben oder beidem läuft und was sie bei einem Treffer tut (Nachricht blockieren, Treffer maskieren oder markieren und durchlassen). Die Tabelle der letzten Ereignisse unten in der Übersicht zeigt die letzten 50 Erkennungen, Blockaden und Anbieter-Fehler mit ihrer Ebene, ihrer Richtung und ihrer Treffer-Kategorie.
+Um die Ebenen zu konfigurieren, öffne **Einstellungen > Richtlinien > Guardrails**. Die Übersicht zeigt drei Status-Karten, eine pro Ebene — Inhaltssicherheit, PII-Erkennung, Moderation. Jede Karte verlinkt auf ihre eigene Konfigurationsseite, auf der du wählst, ob die Ebene auf Eingaben, Ausgaben oder beidem läuft und was sie bei einem Treffer tut (Nachricht blockieren, Treffer maskieren oder markieren und durchlassen). Die Tabelle der letzten Ereignisse unten in der Übersicht zeigt die letzten 50 Erkennungen, Blockaden und Anbieter-Fehler mit ihrer Ebene, ihrer Richtung und ihrer Treffer-Kategorie.
 
 ## Inhaltssicherheit
 

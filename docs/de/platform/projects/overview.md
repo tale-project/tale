@@ -1,26 +1,62 @@
 ---
 title: Projekte
-description: Ein Projekt ist ein geteilter Workspace, der Dateien, Chats, Agents und Instructions um ein bestimmtes Stück Arbeit bündelt — einen Kunden, einen Launch, eine länger laufende Untersuchung.
+description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft.
 ---
 
-Ein Projekt ist ein geteilter Workspace, der Dateien, Chats, Agents und Instructions um ein bestimmtes Stück Arbeit bündelt. Wo ein einzelner Chat eine einmalige Frage ist, ist ein Projekt der Ort, an dem ein Team alles rund um einen Kunden, einen Launch oder eine länger laufende Untersuchung aufbewahrt — und die Agents, die über diesen Materialien arbeiten.
+Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen, das Aufgaben-Board und die Diskussionen —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kunden, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.
 
-Diese Übersicht benennt die Teile und verweist auf die pro-Teil-Seiten. Die Konzept-Seite vertieft, wann ein Projekt einen Einzel-Chat schlägt und wie sich die Teile zusammenfügen.
+<Frame caption="Das Aufgaben-Board eines Projekts — einer der acht Tabs, die jedes Projekt trägt.">
 
-## Was ein Projekt bündelt
+![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit fünf Aufgabenkarten in der Spalte Backlog.](/images/platform/projects-task-board.webp)
 
-Jedes Projekt trägt fünf Dinge, die aus seiner Sidebar sichtbar sind: **Files**, einmal hochgeladen und über jeden Chat im Projekt wiederverwendet, **Threads** (die darin gestarteten Chats), **Agents**, die auf das Projekt begrenzt sind, **Instructions**, die jedem Agent vorangestellt werden, der im Projekt läuft, und **Settings** für Sharing und Lebenszyklus. Mitglieder eines Projekts sehen dieselbe Ansicht; das Projekt, nicht der User, besitzt die Daten.
+</Frame>
 
-## Seiten in diesem Abschnitt
+## Die Teile eines Projekts
 
-**[Projekt-Konzepte](/de/platform/projects/concepts)** — das mentale Modell: was ein Projekt besitzt, wann du danach greifst, wie Projekt-Agents Org-Agents überschatten.
+Jedes Projekt öffnet auf derselben Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Diskussionen** (Themen-Threads für das ganze Team), **Aufgaben** (das Board, mit der Ansicht **Aufgaben-Metriken**), **Anweisungen** (Kontext, der für jeden Chat im Projekt gilt), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum), **Agenten & Modelle** (welche Agenten und Modelle Mitglieder hier sehen) und **Secrets**. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
 
-**[Dateien verwalten](/de/platform/projects/manage-files)** — Hochladen, Ersetzen, Löschen und die Pro-Projekt-Grössenlimits.
+## Seiten in diesem Bereich
 
-**[Projekt-Agents](/de/platform/projects/project-agents)** — projektgebundene Agents gegenüber Org-Agents; die Schattenregel; Veröffentlichen in ein Projekt.
+<CardGroup cols="2">
 
-**[Backlog](/de/platform/projects/backlog)** — vorgeschlagene Aufgaben, die eine Automatisierung oder ein Teammitglied eingespeist hat; aufs Board starten oder schliessen.
+<Card title="Projekt-Konzepte" icon="compass" href="/de/platform/projects/concepts">
 
-## Wo das hineinpasst
+Das mentale Modell — was ein Projekt besitzt, wann es einen Einzel-Chat schlägt und wie die Freigabe funktioniert.
 
-Projekte sitzen in der Sidebar neben Chat. Der Übergang ist natürlich: Die meisten User starten eine Frage im Chat, merken, dass sie grösser als ein Chat ist, und verschieben sie in ein Projekt. Welche Seite du als Nächstes liest, hängt davon ab, ob du das Projekt baust oder darin arbeitest — [Projekte nutzen](/de/tutorials/member/use-projects) führt durch ein frisches Projekt von Anfang bis Ende; [Projekt-Konzepte](/de/platform/projects/concepts) benennt das Modell.
+</Card>
+
+<Card title="Dateien verwalten" icon="folder-open" href="/de/platform/projects/manage-files">
+
+Der Wissen-Tab — Dateien in Ordner hochladen, der Index-Status und wie Projektdateien auf das Projekt begrenzt bleiben.
+
+</Card>
+
+<Card title="Agenten und Modelle" icon="bot" href="/de/platform/projects/project-agents">
+
+Kuratieren, welche Agenten und Modelle in einem Projekt erscheinen — Empfohlen gegenüber Eingeschränkt.
+
+</Card>
+
+<Card title="Diskussionen" icon="messages-square" href="/de/platform/projects/discussions">
+
+Team-Gespräche in Threads, mit Kategorien, Lebenszyklus und Agenten, die eine @-Erwähnung entfernt sind.
+
+</Card>
+
+<Card title="Aufgaben-Automatisierung" icon="workflow" href="/de/platform/projects/task-automation">
+
+Board-Aufgaben an Agenten übergeben — die Ausführungsschleife, das Review-Gate und die Leitplanken.
+
+</Card>
+
+<Card title="Backlog" icon="gauge" href="/de/platform/projects/backlog">
+
+Vorgeschlagene Aufgaben, die eine Automatisierung oder ein Teammitglied hereinsynchronisiert hat — mit Starten aufs Board holen oder mit Schließen abhaken.
+
+</Card>
+
+</CardGroup>
+
+## Wo das hingehört
+
+Projekte liegen in der Sidebar neben dem Chat, und die Übergabe ist natürlich: Eine Frage beginnt im Chat, erweist sich als größer als ein Chat und zieht in ein Projekt um — die Composer-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat hinüber. Wenn Projekte neu für dich sind, starte mit den [Projekt-Konzepten](/de/platform/projects/concepts) für das Modell und geh dann [Projekte nutzen](/de/tutorials/member/use-projects) an einem frischen Projekt von Anfang bis Ende durch.

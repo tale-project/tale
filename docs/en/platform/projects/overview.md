@@ -1,26 +1,62 @@
 ---
 title: Projects
-description: A Project is a shared workspace that bundles files, chats, agents, and instructions around a specific piece of work — a customer, a launch, a long-running investigation.
+description: A project is a shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each.
 ---
 
-A Project is a shared workspace that bundles files, chats, agents, and instructions around a specific piece of work. Where a single chat is a one-off question, a Project is the place a team keeps everything related to a customer, a launch, a long-running investigation — and the agents that work over those materials.
+A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, the task board, and the discussions — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a customer, a launch, or a long-running investigation moving.
 
-This overview names the pieces and points at the per-piece pages. The concept page goes deeper on when a Project beats a stand-alone chat and how the parts compose.
+<Frame caption="A project's task board — one of the eight tabs every project carries.">
 
-## What a Project bundles
+![A kanban task board inside the Website relaunch project, showing five task cards in the Backlog column.](/images/platform/projects-task-board.webp)
 
-Each Project carries five things visible from its sidebar: **Files** uploaded once and reused across every chat in the Project, **Threads** (the chats started inside it), **Agents** scoped to the Project, **Instructions** that prepend every agent's instructions when it runs inside the Project, and **Settings** for sharing and lifecycle. Members of a Project see the same view; the Project, not the user, owns the data.
+</Frame>
+
+## The parts of a project
+
+Every project opens on the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Discussions** (threaded topics for the whole team), **Tasks** (the board, with a **Metrics** view), **Instructions** (context that applies to every chat in the project), **Knowledge** (the project's files, in a folder tree), **Agents & models** (which agents and models members see here), and **Secrets**. Apps installed into the project add their own tabs after these.
 
 ## Pages in this section
 
-**[Project concepts](/platform/projects/concepts)** — the mental model: what a Project owns, when to reach for one, how Project agents shadow org agents.
+<CardGroup cols="2">
 
-**[Manage files](/platform/projects/manage-files)** — uploading, replacing, deleting, and the per-Project size limits.
+<Card title="Project concepts" icon="compass" href="/platform/projects/concepts">
 
-**[Project agents](/platform/projects/project-agents)** — Project-scoped agents versus org agents; the shadow rule; publishing into a Project.
+The mental model — what a project owns, when it beats a stand-alone chat, and how sharing works.
 
-**[Backlog](/platform/projects/backlog)** — proposed tasks an automation or teammate synced in; Start onto the board or Close them off.
+</Card>
+
+<Card title="Manage files" icon="folder-open" href="/platform/projects/manage-files">
+
+The Knowledge tab — uploading files into folders, index status, and how project files stay scoped to the project.
+
+</Card>
+
+<Card title="Agents and models" icon="bot" href="/platform/projects/project-agents">
+
+Curating which agents and models appear in a project — Recommended versus Restricted.
+
+</Card>
+
+<Card title="Discussions" icon="messages-square" href="/platform/projects/discussions">
+
+Threaded team conversations with categories, lifecycle, and agents one @mention away.
+
+</Card>
+
+<Card title="Task automation" icon="workflow" href="/platform/projects/task-automation">
+
+Assigning board tasks to agents — the execution loop, the review gate, and the guardrails.
+
+</Card>
+
+<Card title="Backlog" icon="gauge" href="/platform/projects/backlog">
+
+Proposed tasks an automation or teammate synced in — Start onto the board or Close them off.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 
-Projects sit beside Chat in the sidebar. The handover is natural: most users start a question in Chat, realise it is bigger than one chat, and move it into a Project. The next read depends on whether you are building the Project or working in one — [Use projects](/tutorials/member/use-projects) walks a fresh Project end to end; [Project concepts](/platform/projects/concepts) names the model.
+Projects sit beside Chat in the sidebar, and the handover is natural: a question starts in Chat, turns out to be bigger than one chat, and moves into a project — the composer's **Move to project…** action carries an existing chat across. If you are new to projects, start with [Project concepts](/platform/projects/concepts) for the model, then walk [Use projects](/tutorials/member/use-projects) end to end on a fresh one.

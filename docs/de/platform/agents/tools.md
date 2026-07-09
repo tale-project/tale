@@ -1,37 +1,47 @@
 ---
 title: Agent-Tools
-description: Die eingebauten Tool-Familien, die ein Agent jenseits von Textgenerierung nutzen kann, wie der Agent wählt, welche aufzurufen sind, und wie Tool-Aufrufe in der Antwort rendern.
+description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, die Websuche-Modi und gebundene Integrationen und Workflows.
 ---
 
-Tools sind das, was ein Agent jenseits von Textproduktion tun kann. Das Modell entscheidet, welches Tool aus einer Liste aufzurufen ist, die der Agent-Autor freigegeben hat; Tale führt das Tool aus, gibt das Ergebnis zurück, und das Modell macht weiter. Diese Seite listet die eingebauten Tool-Familien und die Regeln dazu, wie sie in einer Antwort erscheinen.
+Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das Modell entscheidet, welches Tool es aus der Liste aufruft, die der Autor des Agents gewährt hat; Tale führt das Tool aus, reicht das Ergebnis zurück, und das Modell macht weiter. Der Tab **Tools** des Agents ist diese Liste — ein durchsuchbarer Katalog mit Schaltern pro Tool, gruppiert in Kategorie-Karten.
 
-Der volle Katalog lebt im **Tools**-Tab des Agents — schalt ein Tool ein, und der Agent kann es aufrufen; schalt es aus, und der Agent vergisst, dass es existiert. Der Sinn dieser Seite ist die Form und das Vertrauensmodell, nicht eine erschöpfende Flag-für-Flag-Tour.
+<Frame caption="Der Tools-Tab — oben der Websuche-Modus, dann der durchsuchbare Tool-Katalog, gruppiert nach Kategorie.">
 
-## Ein durchgespielter Tool-Aufruf
+![Der Tools-Tab des Agenten-Editors mit den vier Websuche-Modi und dem Tool-Katalog, gruppiert unter Kategorien wie Kunden, Produkte, Lieferanten und Wissen.](/images/platform/agent-editor-tools.webp)
 
-Der User fragt „wie ist das Wetter in Zürich heute". Der Agent hat das Web-Tool eingeschaltet. Das Modell emittiert einen Tool-Aufruf gegen das Web-Tool mit der Anfrage „Wetter Zürich heute"; Tale holt das Ergebnis und gibt es zurück; das Modell schreibt die Antwort mit dem Ergebnis und zitiert die Quelle. Aus Sicht des Users zeigt der Chat einen eingeklappten „Web-Inhalt abrufen"-Tool-Aufruf zwischen der Nachricht des Users und der Antwort.
+</Frame>
 
-## Eingebaute Tool-Familien
+## Tools einzeln gewähren
 
-- **Web** — holt und liest URLs, die das Modell für nützlich hält.
-- **Dateien** — liest Anhänge und Dateien im aktiven Projekt.
-- **RAG** — sucht in Wissensquellen, die an den Agent gebunden sind, und gibt Chunks mit Zitaten zurück. Nennst du in deiner Anfrage einen Ordner („such nur in Contracts/2024"), beschränkt der Agent die Suche auf diesen Ordner und seine Unterordner.
-- **Run code** — führt Python, Node oder Shell-Skripte in einer Sandbox aus. Gegated durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Org.
-- **Worker** — Chat-Agenten starten für eine Aufgabe einen fokussierten Worker mit einer Teilmenge ihrer eigenen Fähigkeiten. Die Grenzen stehen in [Agent-Worker](/de/platform/agents/delegation).
-- **Workflows** — ruft einen Tale-Workflow als Tool auf. Die Outputs des Workflows kommen als Tool-Ergebnis zurück.
-- **MCP** — ruft Tools auf, die von registrierten [MCP-Servern](/de/platform/integrations/mcp-servers) freigegeben werden.
-- **Integrationen** — ruft eine Drittanbieter-Integration auf, die die Org verbunden hat.
-- **User-Eingabe** — pausiert den Agent und fragt den User (oder einen Approver-Pool) eine Frage; die Antwort wird das Tool-Ergebnis.
-- **Update todos** — pflegt die laufende Todo-Liste des Agents innerhalb eines [Recherche-Plans](/de/platform/agents/concepts).
+Setz den Haken bei einem Tool, und der Agent kann es ab der nächsten Anfrage aufrufen; entfern den Haken, und der Agent vergisst, dass es existiert. **Tools durchsuchen…** filtert den Katalog nach Name oder Kategorie, jede Tool-Zeile trägt eine einzeilige Beschreibung dessen, was sie gewährt, und die Kopf-Checkbox einer Kategorie schaltet die ganze Gruppe auf einmal — der Zähler daneben zeigt, wie viele Tools der Gruppe an sind. Die Kategorien bilden die Oberflächen der Plattform ab: **Kunden**, **Produkte**, **Lieferanten** und **Websites** stellen Lese- und Update-Tools über strukturierte Datensätze bereit; **Konversationen** und **Diskussionen** lassen den Agent lesen und antworten; **Wissen** deckt Dokumentsuche und Schreiben ab; **Aufgaben & Projekte** enthält die eigene To-do-Liste des Agents; **Workflows** lässt ihn Workflows anlegen und ausführen; **Dateien** deckt die Dateioperationen des Agents ab; **System** hält **Code ausführen**, **Mensch fragen** und die übrigen Laufzeit-Tools. Gewähre die kleinste Menge, die den Job erledigt — jedes aktivierte Tool weitet, was der Agent in deinem Namen lesen oder ändern kann.
 
-## Tools an einen Agent anhängen
+**Code ausführen** in der Gruppe **System** ist das weitreichendste dieser Tools: Es führt Python, Node oder bash in der eigenen Sandbox des Chats aus und arbeitet dabei auf den Dateien, die der Chat schon hält, statt in einer leeren Box. Ein Aufruf führt einen Schnipsel direkt aus, führt ein Skript aus, das der Agent unter `/user/code/` abgelegt hat, oder installiert nur Pakete — deklarierte Pakete werden zuerst installiert und bleiben den Rest des Zugs erhalten, und was der Lauf unter `/user/output/` schreibt, erscheint als Datei im Chat. Dateien und Ordner, die du mit `@` anheftest, landen in dieser Sandbox unter `/user/uploads/`, sodass der Code die echten Bytes öffnet statt eines Retrieval-Schnipsels.
 
-Öffne den **Tools**-Tab des Agents. Jede Familie ist ein Schalter; manche zeigen Unterschalter (z.B. welche Integration, welcher MCP-Server). Eine Familie einzuschalten fügt ihre Tools der Tool-Liste des Modells zur Request-Zeit hinzu. Es gibt kein Pro-Tool-Feintuning jenseits des Schalters — Agents sollen auf Familienebene konfiguriert werden.
+<Note>
 
-## Tool-Aufruf-Streaming
+Ein Agent startet für eine Teilaufgabe von sich aus einen fokussierten **Worker** — das ist kein Tool, das du hier umschaltest. [Agent-Worker](/de/platform/agents/delegation) deckt ab, wann das der richtige Zug ist und wie ein Worker eine begrenzte Teilmenge der Fähigkeiten des Agents erbt.
 
-Tool-Aufrufe rendern im Chat als eingeklappte Karten zwischen der Nachricht des Users und der Antwort. Eine Karte aufzuklappen zeigt den Tool-Namen, die Inputs, die das Modell emittiert hat, und das Ergebnis, das Tale zurückgegeben hat. Ein fehlgeschlagener Tool-Aufruf zeigt den Fehler und lässt den User sehen, was der Agent versucht hat; das Modell versucht es normalerweise im nächsten Zug mit einer anderen Form.
+</Note>
 
-## Wo das hineinpasst
+## Websuche konfigurieren
 
-Tools weiten, was ein Agent tun kann; sie weiten auch die Vertrauensgrenze, weil der Agent jetzt Dinge im Auftrag des Users lesen, schreiben oder aufrufen kann. Paar diese Seite mit der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy), wenn der Agent Code ausführt, und mit [MCP-Servern](/de/platform/integrations/mcp-servers), wenn er per MCP nach aussen greift. Die Instructions des Agents bleiben der Ort, an dem die **Policy** lebt; der **Tools**-Tab ist der Ort, an dem die **Oberfläche** lebt.
+**Websuche** ganz oben im Tab ist ein Modus, keine Checkbox: **Aus**, **Tool** (der Agent sucht bei Bedarf), **Kontext** (relevante Web-Ergebnisse werden in jede Antwort injiziert) oder **Beides**. Die Websuche durchsucht nur Inhalte von Websites, die deiner Organisation hinzugefügt wurden — sie ist kein offener Crawl; die Quellen verwaltest du unter [Websites](/de/platform/knowledge/crawling).
+
+## Integrationen und Workflows binden
+
+Unter dem Katalog hängen **Gebundene Integrationen** und **Gebundene Workflows** bestimmte Integrationen oder Workflows als eigene Tools an, sodass der Agent sie aufrufen kann, ohne die Integration oder die Workflow-Id selbst zu benennen. Binde die, von denen der Job des Agents abhängt; verbundene [MCP-Server](/de/platform/integrations/mcp-servers) erreichen den Agent auf demselben Weg, über die Integrationen der Organisation.
+
+## Wie Tool-Aufrufe erscheinen
+
+Tool-Aufrufe erscheinen im Chat als eingeklappte Karten zwischen der Nachricht des Users und der Antwort. Eine aufgeklappte Karte zeigt den Tool-Namen, die Eingaben, die das Modell ausgegeben hat, und das Ergebnis, das Tale zurückgab. Ein fehlgeschlagener Tool-Aufruf zeigt den Fehler; das Modell versucht es beim nächsten Zug meist mit anderer Form erneut.
+
+## Wann du danach greifst
+
+| Nutze Tools, wenn…                                              | Nutze Wissen, wenn…                                |
+| --------------------------------------------------------------- | -------------------------------------------------- |
+| Der Agent handeln muss — abfragen, ändern, ausführen, antworten | Der Agent abgerufene Dokumente zitieren muss       |
+| Die Daten strukturierte Datensätze oder Live-Systeme sind       | Die Daten hochgeladene oder gecrawlte Inhalte sind |
+
+## Wo das hingehört
+
+Tools weiten, was ein Agent tun kann; sie weiten auch die Vertrauensgrenze, denn der Agent kann jetzt in deinem Namen lesen, schreiben oder aufrufen. Lies diese Seite zusammen mit der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy), wenn der Agent Code ausführen soll. Die Anweisungen des Agents bleiben der Ort der **Richtlinie**; der Tab **Tools** ist der Ort der **Oberfläche**.

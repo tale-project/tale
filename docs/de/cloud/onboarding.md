@@ -1,60 +1,98 @@
 ---
 title: Cloud-Onboarding
-description: Von der Anmeldung zu einer produktionsreifen Organisation in weniger als einer Stunde — Org erstellen, ersten Admin einladen, Modell-Provider hinzufügen, Agent veröffentlichen, Chat öffnen.
+description: Von der Registrierung zu einer produktionsreifen Organisation in unter einer Stunde — Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen.
 ---
 
-Dieses Tutorial führt von der Anmeldung zu einer produktionsreifen Cloud-Org mit einem funktionierenden Agent in weniger als einer Stunde. Das Ergebnis ist eine Org, in der dein Team sich anmelden, einen funktionierenden Agent wählen und etwas Nützliches fragen kann — nichts Aufregendes, nur das Fundament, auf dem alles weitere aufbaut.
+Diese Strecke führt von der Registrierung zu einer produktionsreifen Cloud-Org mit einem funktionierenden Agent in unter einer Stunde. Das Ergebnis ist eine Org, in der sich dein Team anmelden, einen funktionierenden Agent wählen und ihn etwas Nützliches fragen kann — noch nichts Aufregendes, nur das Fundament, auf dem alles Weitere aufbaut.
 
-Du brauchst eine funktionierende E-Mail-Adresse und die Fähigkeit, sie zu verifizieren. Das Tutorial setzt kein Vorwissen zu Tale voraus; wenn unten etwas ein Konzept referenziert, das du noch nicht kennst, führt die verlinkte Seite es ein. Etwa die Hälfte der Zeit steckt in Schritt 3 (Modell-Provider hinzufügen) — der Rest ist meistens Klicken.
+Du brauchst eine funktionierende E-Mail-Adresse und die Möglichkeit, sie zu verifizieren. Die Strecke setzt kein Tale-Vorwissen voraus; referenziert unten etwas ein Konzept, das du noch nicht kennst, führt die verlinkte Seite es ein. Rund die Hälfte der Zeit steckt im Anbieter-Schritt — der Rest ist überwiegend Klicken.
 
 ## Bevor du beginnst
 
 Klär drei Dinge:
 
-- Eine E-Mail-Adresse für den ersten Owner der Org. Dieses Konto trägt die höchste Rolle; wähl jemanden, der nicht nächste Woche das Team verlässt.
-- API-Credentials für mindestens einen Modell-Provider (OpenAI, Anthropic, Azure oder ein kompatibler lokaler). Das Portal des Providers zeigt, wo diese liegen.
-- Die Region, in die du deine Daten heften willst. Cloud bietet Schweiz und EU; einmal wählen, später wechseln ist eine echte Migration.
+- Eine E-Mail-Adresse für den ersten Inhaber der Org. Dieses Konto trägt die höchste Rolle; wähl jemanden, der nicht nächste Woche das Team verlässt.
+- API-Zugangsdaten für mindestens einen Modellanbieter (OpenAI, Anthropic, Azure oder ein kompatibler lokaler). Das Portal des Anbieters zeigt, wo sie liegen.
+- Die Region, in der deine Daten liegen sollen. Cloud bietet die Schweiz und die EU; einmal wählen — ein späterer Wechsel ist eine echte Migration.
 
-## Schritt 1 — Deine Organisation erstellen
+## Von der Registrierung zum funktionierenden Agent
 
-Besuch `tale.dev` und klick **Sign up**. Das Formular fragt nach Name, E-Mail und Passwort; verifiziere den E-Mail-Link, wenn er ankommt. Der nächste Bildschirm fragt nach dem **Organization name** — der Anzeigename, den dein Team in jeder Seitenecke sieht. Wähl einen, der ein Rebranding überlebt.
+<Steps>
 
-Der erste User wird automatisch **Owner** der Org. Du siehst deine Rolle später unter **Einstellungen > Personen**, falls du es vergisst.
+<Step title="Erstelle deine Organisation">
 
-## Schritt 2 — Den ersten Admin einladen
+Besuche `tale.dev` und klicke auf **Loslegen**. Das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt. Der nächste Bildschirm fragt eine Sache ab: **Organisationsname** — der Anzeigename, den dein Team in der Ecke jeder Seite sieht. Wähl einen, der ein Rebranding überlebt.
 
-Öffne **Einstellungen > Personen** und klick **Mitglied einladen**. Gib die E-Mail des Admins ein und weise die Rolle **Admin** zu. Der Eingeladene erhält eine E-Mail mit einem Magic-Link; er meldet sich an und landet in der Org mit der zugewiesenen Rolle. Die „mindestens 2 Admins"-Sicherheitsregel sorgt dafür, dass sich eine Org nicht versehentlich aussperrt, indem sie ihren einzigen Admin entfernt — lad einen zweiten Admin ein, bevor du etwas tust, das das voraussetzt.
+<Frame caption="Der Arbeitsbereichs-Schritt — der Name, den dein Team überall sieht.">
 
-Für die Rollen-Matrix (wer was kann), siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+![Der Assistent zum Erstellen einer Organisation mit dem Feld für den Organisationsnamen auf seinem Arbeitsbereichs-Schritt.](/images/get-started/org-create-wizard.webp)
 
-## Schritt 3 — Einen Modell-Provider hinzufügen
+</Frame>
 
-Öffne **Einstellungen > Provider** und klick **Provider hinzufügen**. Wähl den Provider, für den du Credentials hast, und füg den API-Key ein. Speichere. Tale validiert den Key im Hintergrund; ein Häkchen auf der Provider-Zeile bedeutet, dass der Key funktioniert. Schlägt die Validierung fehl, zeigt die Zeile den Fehler wörtlich — die häufigste Ursache ist Whitespace um den Key.
+Der erste Benutzer wird automatisch **Inhaber** der Org. Falls du es vergisst: Deine Rolle siehst du später im Abschnitt **Mitglieder** unter **Einstellungen > Organisation**.
 
-Dieser Schritt ist, wo die meisten Onboarding-Sitzungen stocken. Das Provider-Portal ist meist ein anderes Login, und das Team muss nach dem Key graben. Hängt die Validierung mehr als eine Minute, lade die Seite neu — der Key ist gespeichert, sobald **Save** bestätigt, die Zeile braucht nur manchmal ein Reload zum Aktualisieren.
+</Step>
 
-## Schritt 4 — Deinen ersten Agent veröffentlichen
+<Step title="Lade den ersten Admin ein">
 
-Öffne **Agents** und klick **Create agent**. Wähl das gerade hinzugefügte Modell. Schreib einen Absatz Instructions — die Stimme, in der der Agent antworten soll, die Domäne, die er kennt, die Fälle, die er ablehnt. Speichere. Leg **Visible in chat** an. Der Agent ist nun aus jedem Chat in der Org erreichbar.
+Öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klicke auf **Mitglied hinzufügen**. Gib die E-Mail des Admins ein und weise die Rolle **Admin** zu. Die eingeladene Person erhält eine E-Mail mit einem Magic-Link, registriert sich und landet in der Org mit der zugewiesenen Rolle. Die Sicherheitsregel „mindestens 2 Admins" verhindert, dass sich eine Org versehentlich aussperrt, indem sie ihren einzigen Admin entfernt — lad einen zweiten Admin ein, bevor du etwas tust, das sie voraussetzt.
 
-Für einen tieferen Spaziergang dazu, was einen Agent gut macht, siehe [Einen Agent erstellen](/de/platform/agents/create).
+Die Rollen-Matrix (wer was darf) steht in [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
-## Schritt 5 — Chat öffnen
+</Step>
 
-Klick in der Sidebar auf **Neuer Chat**. Wähl den Agent im Picker, tipp eine Frage, die die Domäne des Agents abdeckt, sende. Die Antwort streamt zurück; landet sie so, wie du die Instructions geschrieben hast, ist die Org mit dem Onboarding fertig.
+<Step title="Verbinde einen Modellanbieter">
 
-Drei Folgeaufgaben, die sich jetzt lohnen, solange alles frisch ist:
+Öffne **Einstellungen > KI-Anbieter** und klicke auf **Anbieter hinzufügen**. Wähl den Anbieter, für den du Zugangsdaten hast, und füg den API-Schlüssel ein. Speichere. Tale validiert den Schlüssel im Hintergrund; eine Bestätigung auf der Anbieterzeile heißt, dass er funktioniert. Schlägt die Validierung fehl, zeigt die Zeile den Fehler wörtlich — die häufigste Ursache ist Whitespace um den Schlüssel.
+
+<Frame caption="Ein validierter Anbieter — von hier kann jeder Agent antworten.">
+
+![Die Einstellungsseite für KI-Anbieter mit dem OpenRouter-Anbietereintrag.](/images/get-started/settings-providers.webp)
+
+</Frame>
+
+<Note>
+
+An diesem Schritt stocken die meisten Onboarding-Sitzungen — das Anbieter-Portal ist meist ein anderes Login, und das Team muss nach dem Schlüssel graben. Hängt die Validierung länger als eine Minute, lade die Seite neu; der Schlüssel ist gespeichert, sobald **Speichern** bestätigt — die Zeile braucht manchmal ein Neuladen, um ihn anzuzeigen.
+
+</Note>
+
+</Step>
+
+<Step title="Veröffentliche deinen ersten Agent">
+
+Öffne **Agenten** und klicke auf **Agent erstellen**. Wähl das gerade verbundene Modell. Schreib einen Absatz Anweisungen — die Stimme, in der der Agent antworten soll, die Domäne, die er kennt, die Fälle, die er ablehnt. Speichere. Schalte **Im Chat sichtbar** ein. Der Agent ist jetzt aus jedem Chat in der Org erreichbar.
+
+Was einen Agent gut macht, vertieft [Einen Agent erstellen](/de/platform/agents/create).
+
+</Step>
+
+<Step title="Öffne den Chat">
+
+Klicke in der Sidebar auf **Neuer Chat**. Wähl den Agent in der Auswahl, tippe eine Frage aus seiner Domäne, sende.
+
+<Check>
+
+Die Antwort streamt zurück — landet sie so, wie du die Anweisungen geschrieben hast, ist die Org mit dem Onboarding fertig.
+
+</Check>
+
+Drei Anschlussaufgaben, die sich jetzt lohnen, solange alles frisch ist:
 
 - Öffne **Einstellungen > Branding** und lade das Org-Logo hoch.
-- Setze die Default-Sprache der Org unter **Einstellungen > Organisation**.
-- Überflieg [Trust und Compliance](/de/cloud/trust-and-compliance), damit du weisst, was du einem Auditor zeigst, bevor einer fragt.
+- Setz die Standardsprache der Org unter **Einstellungen > Organisation**.
+- Überflieg [Trust und Compliance](/de/cloud/trust-and-compliance), damit du weißt, was du einem Auditor zeigst, bevor einer fragt.
+
+</Step>
+
+</Steps>
 
 ## Fehlersuche
 
-- **Einladungs-E-Mail kommt nie an.** Schau im Spam-Ordner des Eingeladenen nach. Tale sendet von `noreply@tale.dev`; manche Unternehmensfilter halten das fest.
-- **Provider-Validierung scheitert mit „invalid key".** Kopier den Key erneut aus dem Provider-Portal — beim Kopieren landet oft ein führender oder folgender Space mit.
-- **Agent erscheint nicht im Chat-Picker.** Bestätige, dass **Visible in chat** für den Agent an ist.
+- **Die Einladungs-E-Mail kommt nie an.** Schau im Spam-Ordner der eingeladenen Person nach. Tale sendet von `noreply@tale.dev`; manche Unternehmensfilter halten das zurück.
+- **Die Anbieter-Validierung scheitert mit „invalid key".** Kopier den Schlüssel erneut aus dem Anbieter-Portal — beim Kopieren landet oft ein führendes oder folgendes Leerzeichen mit.
+- **Der Agent taucht nicht in der Chat-Auswahl auf.** Prüfe, dass **Im Chat sichtbar** für den Agent eingeschaltet ist.
 
 ## Wo das eingesetzt wird
 
-Du hast jetzt eine Org mit einem funktionierenden Agent und einem zweiten Admin neben dir. Der natürliche nächste Spaziergang ist [Ersten Agent von Anfang bis Ende bauen](/de/tutorials/editor/first-agent-end-to-end) — dieselbe Form, aber baut einen Agent, der echte Domänen-Arbeit mit Wissensbindungen macht. Bist du hier, um Cloud gegenüber Self-hosted zu evaluieren, ist [Auf Self-hosted migrieren](/de/cloud/migrate-to-self-hosted) der umgekehrte Spaziergang.
+Du hast jetzt eine Org mit einem funktionierenden Agent und einem Admin neben dir. Die natürliche nächste Strecke ist [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) — dieselbe Form, aber mit einem Agent, der über Wissensanbindungen echte Domänenarbeit leistet. Bist du hier, um Cloud gegen selbst gehostet abzuwägen, ist [Auf Self-hosted migrieren](/de/cloud/migrate-to-self-hosted) die Strecke in die Gegenrichtung.

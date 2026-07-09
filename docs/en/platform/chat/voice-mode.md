@@ -3,7 +3,7 @@ title: Voice mode
 description: Speaking instead of typing — how the round-trip works, which model handles speech-to-text, which handles text-to-speech, and what the privacy boundary covers.
 ---
 
-Voice mode turns the composer into a microphone. You speak, Tale transcribes, the agent replies in text, and the reply is read back out loud. The whole loop is hands-free — useful when you are walking, driving (legally), cooking, or simply tired of typing.
+Voice mode turns the composer into a microphone. You speak, Tale transcribes, the agent replies in text, and the reply is read back out loud. The whole loop is hands-free — useful when you are walking, driving (legally), cooking, or tired of typing.
 
 The composer's speech path crosses two model providers (speech-to-text, then text-to-speech) and one or two agent calls in between. Knowing which provider holds which piece of the audio is the difference between "this is convenient" and "this is reckless" for your organisation's data.
 
@@ -21,7 +21,11 @@ Each agent can pin a preferred voice in its settings; without a per-agent pick, 
 
 ## Privacy boundary
 
-The audio clip you record leaves your device. It is uploaded to Tale's storage, sent to the speech-to-text provider you configured, and the transcript is kept in the chat history alongside the typed messages. The audio itself is retained per the org's retention policy. Replies go out to the text-to-speech provider as plain text; the audio response is streamed to your device and not stored on disk by default. Organisations with strict data-out-of-region rules should pick STT and TTS providers in the same region as the rest of the stack — see [Data residency](/cloud/data-residency).
+The audio clip you record leaves your device. It is uploaded to Tale's storage, sent to the speech-to-text provider you configured, and the transcript is kept in the chat history alongside the typed messages. The audio itself is retained per the org's retention policy. Replies go out to the text-to-speech provider as plain text; the audio response is streamed to your device and not stored on disk by default. <Warning>
+
+Organisations with strict data-out-of-region rules should pick STT and TTS providers in the same region as the rest of the stack — see [Data residency](/cloud/data-residency).
+
+</Warning>
 
 ## When voice beats text
 

@@ -1,34 +1,56 @@
 ---
-title: Connaissance
-description: Connaissance est la zone où vivent les documents et données structurées de l'org pour que les agents puissent les citer. Les Éditeurs la curent ; les agents récupèrent dessus à la réponse. Cette vue d'ensemble nomme les deux moitiés et pointe vers les pages par zone.
+title: Base de connaissances
+description: La base de connaissances est la bibliothèque partagée de l’organisation — documents, petits faits, sites web explorés et fiches typées — sur laquelle les agents ancrent leurs réponses. Cet aperçu nomme les onglets et pointe vers les pages par domaine.
 ---
 
-Connaissance est la zone où vivent les données de l'org pour que les agents puissent les lire. Elle a deux moitiés : **Documents** — fichiers non structurés passés par la pipeline d'indexation pour que les agents puissent récupérer les chunks pertinents à la réponse — et **Données structurées** — tables typées de clients, produits, fournisseurs et sites web que les agents lisent comme enregistrements, pas comme prose. Les Éditeurs curent les deux moitiés ; les agents voient les morceaux auxquels ils sont liés.
+La base de connaissances est l’espace où vivent les données de l’organisation pour que les agents puissent les lire et les citer. Les éditeurs la constituent une fois ; les agents y puisent au moment de répondre — c’est ce qui permet à un agent Tale de répondre avec ta réalité plutôt qu’avec les données d’entraînement du modèle. L’espace s’ouvre sur six onglets : **Documents**, **Entrées de connaissances**, **Sites web**, **Produits**, **Clients** et **Fournisseurs**.
 
-La zone Connaissance est l'endroit où atteint chaque agent qui a besoin d'ancrer ses réponses dans la réalité de l'org. La vue d'ensemble nomme les moitiés et les pages par zone ; le modèle au niveau concept de comment un agent utilise la connaissance à laquelle il est lié vit sous [Connaissance d'agent](/fr/platform/agents/knowledge).
+<Frame caption="L’onglet Documents — le coin le plus utilisé de la base de connaissances.">
 
-## Les deux moitiés
+![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
-**Documents** est la moitié non structurée. Lâche un PDF, un fichier Markdown, une présentation, un tableur, un fichier de code ; la pipeline d'indexation extrait le texte, le découpe, embed les chunks, et les range pour que les tools tagués RAG récupèrent les morceaux pertinents à la réponse. Le contenu n'a pas à coller à un schéma ; la pipeline lit ce que le fichier donne.
+</Frame>
 
-**Données structurées** est la moitié typée. Clients, Produits, Fournisseurs et Sites web sont des tables de premier rang avec champs nommés, validation et relations explicites. Un agent lit un enregistrement structuré comme il lit un objet JSON — champ par champ — et peut citer l'enregistrement directement. Va vers les données structurées quand le contenu a la même forme sur plusieurs lignes (chaque client a un nom, un courriel, un palier) ; va vers les documents quand le contenu est prose sans forme fixe.
+## Les deux formes
 
-Les deux moitiés partagent les mêmes leviers de visibilité et cadrage équipe. Un enregistrement client cadré équipe est invisible aux membres hors de l'équipe au même titre qu'un document cadré équipe.
+Tout ce que contient l’espace prend l’une de deux formes. Le **contenu indexé** — les fichiers de Documents, les faits des Entrées de connaissances, les pages qu’une exploration de site web ramène — passe par le pipeline d’indexation (extraction, découpage, embeddings, stockage) pour que les agents récupèrent les passages pertinents et les citent. Les **fiches typées** — Produits, Clients, Fournisseurs — sont des lignes à champs nommés que les agents lisent comme des données, pas comme de la prose : des valeurs exactes, sans approximation de récupération.
 
-## Comment les agents atteignent
+La forme que tu choisis décide de la façon dont un agent peut exploiter le contenu — c’est pourquoi [Données structurées](/fr/platform/knowledge/structured-data) est une page de décision, pas seulement une référence.
 
-Un agent ne voit pas toute la base de connaissances par défaut. L'onglet **Connaissance** de l'agent est l'endroit où tu lies des documents spécifiques, des listes de clients, des catalogues produits ou des crawls de sites web à l'agent. Les ressources liées sont visibles pendant la récupération ; les non liées ne le sont pas. C'est intentionnel — ça garde la frontière de confiance visible et empêche un agent de tirer quelque chose que l'org n'avait pas l'intention de lui montrer.
+## Comment les agents y puisent
 
-La récupération elle-même arrive à la réponse et est pilotée par la famille de tools taguée RAG sur l'agent. Un document lié est récupéré par la même mécanique peu importe d'où il vient — un téléversement direct, une sync OneDrive, un pull Confluence, un crawl de site web. Le champ source de chaque élément indexé pointe la citation vers l'original.
+Un agent ne voit pas toute la bibliothèque par défaut. L’onglet **Base de connaissances** de l’agent contrôle son périmètre de récupération — les parties de la bibliothèque qu’il interroge au moment de répondre — et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. La récupération passe par les outils RAG de l’agent, et chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Connaissances de l’agent](/fr/platform/agents/knowledge).
 
 ## Pages dans cette section
 
-**[Documents](/fr/platform/knowledge/documents)** — Les Éditeurs lisent ceci quand ils téléversent des fichiers, regardent la pipeline d'indexation, et gèrent le cycle de vie par document.
+<CardGroup cols="2">
 
-**[Entrées de connaissances](/fr/platform/knowledge/knowledge-entries)** — Les Éditeurs lisent ceci quand ils gèrent les petits faits indexés par sujet que les utilisateurs apportent — capturés depuis le chat avec approbation ou ajoutés à la main — et qui passent par la même pipeline d'indexation que les documents.
+<Card title="Documents" icon="file-text" href="/fr/platform/knowledge/documents">
 
-**[Données structurées](/fr/platform/knowledge/structured-data)** — Les Éditeurs lisent ceci quand ils maintiennent des tables typées — clients, produits, fournisseurs, sites web — que les agents lisent comme enregistrements.
+Téléverser des fichiers, le pipeline d’indexation, les formats pris en charge et le cycle de vie de chaque document.
 
-## Où cela s'inscrit
+</Card>
 
-Connaissance est la couche de données dans laquelle les agents ancrent leurs réponses ; sans elle, les agents ne savent que ce que le modèle sait déjà. La lecture suivante naturelle dépend du contenu que tu amènes — pour les fichiers [Documents](/fr/platform/knowledge/documents) ; pour les enregistrements typés [Données structurées](/fr/platform/knowledge/structured-data) ; pour comment un agent se lie et récupère, [Connaissance d'agent](/fr/platform/agents/knowledge).
+<Card title="Entrées de connaissances" icon="book-open" href="/fr/platform/knowledge/knowledge-entries">
+
+De petits faits indexés par sujet — capturés depuis le chat avec approbation ou ajoutés à la main.
+
+</Card>
+
+<Card title="Exploration de sites web" icon="globe" href="/fr/platform/knowledge/crawling">
+
+Transformer un site public en connaissances — domaine, intervalle d’analyse et vue des pages indexées.
+
+</Card>
+
+<Card title="Données structurées" icon="table" href="/fr/platform/knowledge/structured-data">
+
+Clients, Produits, Fournisseurs, Sites web — quand une fiche typée bat un document.
+
+</Card>
+
+</CardGroup>
+
+## Où cela s’inscrit
+
+La base de connaissances est la couche de données sur laquelle repose chaque réponse ancrée ; sans elle, les agents ne savent que ce que le modèle sait déjà. Fais entrer le contenu par l’onglet qui correspond à sa forme, puis branche les agents dessus — la suite naturelle est [Documents](/fr/platform/knowledge/documents) pour les fichiers, [Données structurées](/fr/platform/knowledge/structured-data) pour les fiches et [Connaissances de l’agent](/fr/platform/agents/knowledge) pour le volet récupération.

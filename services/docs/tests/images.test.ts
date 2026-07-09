@@ -4,7 +4,11 @@ import path from 'node:path';
 import { describe, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
-import { parseFrontmatter } from './lib/markdown';
+import {
+  extractImageRefs,
+  iterProseLines,
+  parseFrontmatter,
+} from './lib/markdown';
 import { CONTENT_ROOT, REPO_ROOT } from './lib/paths';
 import { walkDocs } from './lib/walk';
 
@@ -21,84 +25,58 @@ import { walkDocs } from './lib/walk';
  *   1. The referenced file exists under `public/`. A typo'd path renders a
  *      broken image in production.
  *   2. The alt text is non-empty. Screenshots carry information; a blank alt
- *      is an accessibility hole (the conventions in
- *      `.agents/docs/SCREENSHOTS.md` require a full descriptive sentence).
+ *      is an accessibility hole (the conventions in the write-docs skill —
+ *      `builtin-configs/skills/write-docs/SCREENSHOTS.md` — and the repo
+ *      facts in `docs/AGENTS.md` require a full descriptive sentence).
  *   3. The file is under ~200KB. WebP screenshots compress well; a heavier
  *      file is almost always an un-optimised PNG that slipped through.
  *
- * Scope: only image links whose target starts with `/images/` are checked —
- * those are the convention-managed screenshots. Logos, favicons, and other
- * site chrome under `public/` are out of scope. Fenced code blocks are
- * stripped so an example reference inside a code sample does not trip the
- * check.
+ * A second check bans raw `<img>` tags outright: images must use Markdown
+ * `![alt](/images/...)` syntax (inside `<Frame>`) so the alt/size/existence
+ * checks above — and the manifest sweep in `image-manifest.test.ts` — can't
+ * be bypassed by an HTML tag the scanners don't parse.
  *
- * Today no page references `/images/...`, so this test passes vacuously. It is
- * written to be correct the moment the first screenshot reference lands.
+ * Scope: only image links whose target starts with `/images/` are checked
+ * for existence/alt/size — those are the convention-managed screenshots.
+ * Logos, favicons, and other site chrome under `public/` are out of scope.
+ * Fenced code blocks are stripped so an example reference inside a code
+ * sample does not trip either check.
  */
 
 const PUBLIC_ROOT = path.join(REPO_ROOT, 'services', 'docs', 'public');
 const MAX_BYTES = 200 * 1024;
 
-const FENCE_OPEN_OR_CLOSE = /^(\s*)(`{3,}|~{3,})/;
-/** `![alt](target)` — captures the alt text and the target path. The target
- *  stops at the first whitespace so an optional `"title"` is excluded. */
-const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
-
-interface ImageRef {
+interface PageImageRef {
   file: string;
   line: number;
   alt: string;
   target: string;
 }
 
-/** Replace every fenced code block with blank lines so example image
- *  references inside code samples are not scanned. Line numbers stay stable. */
-function stripFences(body: string): string {
-  const out: string[] = [];
-  let open: string | null = null;
-  for (const line of body.split('\n')) {
-    const m = FENCE_OPEN_OR_CLOSE.exec(line);
-    if (m) {
-      const marker = m[2];
-      if (open === null) open = marker;
-      else if (marker[0] === open[0] && marker.length >= open.length)
-        open = null;
-      out.push('');
-      continue;
-    }
-    out.push(open !== null ? '' : line);
-  }
-  return out.join('\n');
+/** Number of raw-file lines the frontmatter block occupies (0 when absent),
+ *  so body-relative line numbers can be reported against the raw page. */
+function frontmatterOffset(raw: string, body: string): number {
+  return raw.length === body.length
+    ? 0
+    : raw.slice(0, raw.length - body.length).split('\n').length - 1;
 }
 
 /** Every `/images/...` image reference in one page, with 1-based line numbers
  *  that account for the frontmatter offset. */
-function extractImageRefs(relFile: string): ImageRef[] {
+function extractPageImageRefs(relFile: string): PageImageRef[] {
   const raw = fs
     .readFileSync(path.join(CONTENT_ROOT, relFile), 'utf8')
     .replaceAll('\r\n', '\n');
   const { body } = parseFrontmatter(raw);
-  const frontmatterLines =
-    raw.length === body.length
-      ? 0
-      : raw.slice(0, raw.length - body.length).split('\n').length - 1;
-  const lines = stripFences(body).split('\n');
-  const out: ImageRef[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    IMAGE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = IMAGE.exec(lines[i])) !== null) {
-      const [, alt, target] = m;
-      if (!target.startsWith('/images/')) continue;
-      out.push({
-        file: relFile,
-        line: frontmatterLines + i + 1,
-        alt: alt.trim(),
-        target,
-      });
-    }
-  }
-  return out;
+  const offset = frontmatterOffset(raw, body);
+  return extractImageRefs(body)
+    .filter((ref) => ref.target.startsWith('/images/'))
+    .map((ref) => ({
+      file: relFile,
+      line: offset + ref.line,
+      alt: ref.alt,
+      target: ref.target,
+    }));
 }
 
 /** Resolve a `/images/...` target to its on-disk path under `public/`. */
@@ -110,7 +88,7 @@ describe('docs image references', () => {
   it('every /images/... reference resolves, has alt text, and is reasonably sized', () => {
     const findings: Finding[] = [];
     for (const rel of walkDocs()) {
-      for (const ref of extractImageRefs(rel)) {
+      for (const ref of extractPageImageRefs(rel)) {
         if (ref.alt.length === 0) {
           findings.push({
             file: ref.file,
@@ -143,5 +121,29 @@ describe('docs image references', () => {
       }
     }
     assertNoFindings(findings, 'Image-reference issues');
+  });
+
+  it('no raw <img> tags — images use markdown syntax inside <Frame>', () => {
+    const findings: Finding[] = [];
+    for (const rel of walkDocs()) {
+      const raw = fs
+        .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
+        .replaceAll('\r\n', '\n');
+      const { body } = parseFrontmatter(raw);
+      const offset = frontmatterOffset(raw, body);
+      // iterProseLines strips fences/comments and masks inline code, so a
+      // code sample or `<img>` mention in backticks doesn't trip the rule.
+      for (const { line, text } of iterProseLines(body)) {
+        if (!/<img\b/i.test(text)) continue;
+        findings.push({
+          file: rel,
+          line: offset + line,
+          rule: 'image-raw-img-tag',
+          detail:
+            'raw <img> tag — use markdown `![alt](/images/...)` inside <Frame> so alt/size/existence checks apply',
+        });
+      }
+    }
+    assertNoFindings(findings, 'Raw <img> tag issues');
   });
 });

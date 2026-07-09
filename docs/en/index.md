@@ -1,29 +1,97 @@
 ---
 title: Tale documentation
-description: Tale is the orchestrator for AI agents. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.
+description: Tale is the orchestrator for AI agents. Start with the quickstart, follow the get-started journey for your role, or jump into the feature reference.
 kind: index
 ---
 
-Tale is the orchestrator for AI agents. You can chat with models over your own documents, build agents that handle a job end to end, run workflows in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
+You chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
 
-The product ships in two editions; every feature, API, and role is identical between them. The only thing that differs is who runs the stack. Pick your edition, then jump to the section indexed by what you do day to day.
+Every feature, API, and role is identical across the two editions; the only difference is who runs the stack. Start with the quickstart, then follow the journey that matches your role.
 
-New here? The fastest path to a running instance is the [self-hosted quickstart](/self-hosted/install/quickstart) — install the CLI, then `tale init` and `tale dev`, and you are signed into your own org in minutes.
+<CardGroup cols="1">
 
-Pick the entry that matches what you are here to do. A **cloud user** who wants Tale to run the stack starts at [Cloud](/cloud). A **self-hoster** standing up an instance on their own infrastructure starts at [Self-hosted](/self-hosted). A **platform builder** — agents, workflows, integrations — lives in [Platform](/platform), the canonical feature reference. An **operator** keeping a self-hosted instance patched and observed goes to [Operate](/self-hosted/operate/container-architecture). A **contributor** changing the source starts with [Contributor setup](/develop/contributor-setup).
+<Card title="Quickstart — your first agent answer in 5 minutes" icon="zap" href="/get-started/quickstart">
 
-## Pages in this section
+From a running instance to a working chat reply, on Cloud or your own machine.
 
-**[Cloud](/cloud)** — Tale operates the stack; pick this when running infrastructure is not where the team should spend its hours.
+</Card>
 
-**[Self-hosted](/self-hosted)** — install Tale on your own VPC, on-premises hardware, or in an air-gapped environment.
+</CardGroup>
 
-**[Platform](/platform)** — the canonical product reference, identical for Cloud and self-hosted. Most day-to-day reading lives here.
+## Pick your journey
 
-**[Tutorials](/tutorials/overview)** — role-indexed walks from "I want to do X" to a working result on a fresh instance.
+Four day-one journeys, one per role. Each takes about 15 minutes and ends with something working.
 
-**[Develop](/develop/overview)** — REST API, webhooks, integration SDK, contributor workflows.
+<CardGroup cols="2">
+
+<Card title="I use Tale" icon="message-circle" href="/get-started/members">
+
+Your first chat, your first document, your first project — the member's first day.
+
+</Card>
+
+<Card title="I build agents" icon="bot" href="/get-started/editors">
+
+Publish a minimal agent and watch it answer in chat — the editor's first day.
+
+</Card>
+
+<Card title="I integrate with Tale" icon="code" href="/get-started/developers">
+
+Mint an API key and make your first authenticated request — the developer's first day.
+
+</Card>
+
+<Card title="I run the workspace" icon="shield" href="/get-started/admins">
+
+Set up the workspace, invite the team, connect a provider — the admin's first day.
+
+</Card>
+
+</CardGroup>
+
+## Pick your edition
+
+<CardGroup cols="2">
+
+<Card title="Cloud" icon="cloud" href="/cloud">
+
+Tale operates the stack — pick this when running infrastructure is not where the team should spend its hours.
+
+</Card>
+
+<Card title="Self-hosted" icon="server" href="/self-hosted">
+
+Install Tale on your own VPC, on-premises hardware, or in an air-gapped environment.
+
+</Card>
+
+</CardGroup>
+
+## Go deeper
+
+<CardGroup cols="3">
+
+<Card title="Platform" icon="layout-dashboard" href="/platform">
+
+The canonical feature reference, identical for Cloud and self-hosted.
+
+</Card>
+
+<Card title="Tutorials" icon="route" href="/tutorials/overview">
+
+Role-indexed walks from "I want to do X" to a working result.
+
+</Card>
+
+<Card title="Develop" icon="terminal" href="/develop/overview">
+
+REST API, webhooks, integration SDK, contributor workflows.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 
-Once you have picked an edition and a role, the rest of the docs sit one click away. If you already know your edition and want the feature reference, go straight to [Platform](/platform) — the canonical documentation for every user-visible feature, identical across both editions. Source, issues, and release announcements live at [GitHub](https://github.com/tale-project/tale).
+Once you have walked a get-started journey, the rest of the docs sit one click away: [Platform](/platform) is the canonical reference for every user-visible feature, and [Tutorials](/tutorials/overview) go deeper on complete tasks. Source, issues, and release announcements live at [GitHub](https://github.com/tale-project/tale).

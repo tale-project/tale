@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
+import { Markdown } from '../markdown';
 import { Frame } from './frame';
+import { ImageZoom } from './image-zoom';
+import { markdownComponents } from './registry';
 
 const meta = {
   title: 'markdown/Frame',
@@ -55,4 +58,32 @@ export const WithImage: Story = {
       />
     ),
   },
+};
+
+// The base markdown img renderer wraps images in a zoom-trigger <button> and
+// adds its own border + margin; inside a Frame those must be neutralized so
+// only the Frame border shows (no double chrome).
+export const WithZoomableImage: Story = {
+  args: {
+    caption: 'Zoomable image — single Frame border, no inner border or margin',
+    children: (
+      <ImageZoom
+        alt="Placeholder landscape"
+        src="https://placehold.co/800x300/png"
+      />
+    ),
+  },
+};
+
+// Full markdown pipeline: `![alt](src)` inside <Frame> arrives as
+// <p><button><img/></button></p>; wrapper margins and the inner border must
+// collapse away.
+export const MarkdownAuthored: Story = {
+  render: () => (
+    <Markdown components={markdownComponents as never}>
+      {
+        '<Frame caption="Authored in markdown">\n\n![Placeholder landscape](https://placehold.co/800x300/png)\n\n</Frame>'
+      }
+    </Markdown>
+  ),
 };

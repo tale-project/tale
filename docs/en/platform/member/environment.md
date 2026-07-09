@@ -7,6 +7,12 @@ Environment variables & secrets is your personal store of variables that Tale in
 
 This page covers the two kinds of entry, how secrets are protected, the rules a name and value have to satisfy, and where the values end up.
 
+<Frame caption="Settings > Environment on a fresh account — the empty store with the Add variable action that opens the inline entry form.">
+
+![The Environment settings page for a new account, showing an empty variable list and an Add variable button above it.](/images/platform/settings-environment.webp)
+
+</Frame>
+
 ## Variables and secrets
 
 Open **Settings > Environment**. **Add variable** opens a dialog for a new entry, with the list of what you have saved below. Each entry is a **Name** and a **Value**, plus a **Secret** switch that decides how the value is stored and shown.

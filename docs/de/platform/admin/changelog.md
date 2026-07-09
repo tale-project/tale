@@ -21,7 +21,7 @@ Jeder Release-Eintrag trägt vier Felder: das Versions-Tag, das Veröffentlichun
 
 Der Changelog ist der Changelog der Plattform — was sich in Tale selbst geändert hat. Er zeigt nicht Änderungen an deinen Agents, deinen Workflows oder deiner Wissensdatenbank; die haben ihre eigene Pro-Ressource-Historie. Wenn du die Versionshistorie eines Agents oder Workflows suchst, öffne die Ressource und wechsle auf den Tab **Historie**.
 
-Der Viewer ist nur-lesend und für jedes angemeldete Mitglied sichtbar. Es gibt kein Admin-only-Flag — jeder mit einem Account kann die Seite öffnen. Die Daten, die der Viewer abruft, sind öffentliche Release-Informationen aus dem Tale-GitHub-Repository, also gibt es nichts Org-skopiertes zu verstecken.
+Der Viewer ist nur-lesend und für jedes angemeldete Mitglied sichtbar. Es gibt kein Admin-only-Flag — jeder mit einem Account kann die Seite öffnen. Die Daten, die der Viewer abruft, sind öffentliche Release-Informationen aus dem Tale-GitHub-Repository, also gibt es nichts Organisationsinternes zu verstecken.
 
 ## Ein durchgespieltes Upgrade
 

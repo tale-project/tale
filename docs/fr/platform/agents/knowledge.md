@@ -1,24 +1,43 @@
 ---
-title: Connaissances d'agent
-description: Lier des documents, clients, produits, fournisseurs et sites web à un agent pour qu'il puisse les citer — et la différence entre connaissances liées à l'agent et l'onglet Knowledge.
+title: Connaissances d’agent
+description: L’onglet Base de connaissances de l’agent — le mode de récupération, les portées des documents d’équipe et d’organisation, les téléversements propres à l’agent, et la frontière avec les outils et les pièces jointes.
 ---
 
-Les connaissances liées à un agent sont ce que l'agent peut atteindre au moment de la réponse. Sans liaison, l'agent est générique ; avec une liaison, il peut répondre à des questions sur des documents, clients ou sites web précis et citer d'où vient la réponse. Cette page couvre le mécanisme de liaison dans l'onglet **Knowledge** de l'agent.
+Les connaissances sont ce qu’un agent peut récupérer et citer au moment de répondre. Sans elles l’agent est générique ; avec elles il répond depuis tes documents et cite d’où vient la réponse. L’onglet **Base de connaissances** de l’agent contrôle deux choses : _comment_ l’agent récupère (le mode de récupération) et _ce qui_ est dans la portée (quels documents).
 
-Les sources de connaissances elles-mêmes vivent dans la section [Knowledge](/fr/platform/knowledge/overview) — Documents, Clients, Produits, Fournisseurs, Sites web. Lier est l'acte de donner à un agent l'accès à un sous-ensemble de ces sources ; sans liaison, il ne peut pas les voir.
+<Frame caption="L’onglet Base de connaissances — le mode de récupération au-dessus, les portées de documents et les téléversements de l’agent en dessous.">
 
-## Une liaison déroulée
+![L’onglet Base de connaissances de l’éditeur d’agent montrant les quatre modes de récupération, les interrupteurs des documents d’équipe et d’organisation, trois documents d’organisation indexés et la zone de téléversement des documents de l’agent.](/images/platform/agent-editor-knowledge.webp)
 
-Ouvre un agent et clique **Knowledge**. Clique **Agent knowledge** et choisis trois documents dans la bibliothèque de l'organisation. Enregistre. Ouvre un chat avec l'agent et pose une question à laquelle les documents répondent. La réponse arrive en streaming avec des citations — survoler affiche le titre du document, cliquer ouvre le document. La récupération a fait tourner l'outil RAG uniquement sur les documents liés ; rien d'autre dans la bibliothèque n'était joignable.
+</Frame>
 
-## Types de sources
+## Choisir un mode de récupération
 
-Cinq types de sources sont liables : **Documents** (PDF, DOCX, etc. téléversés dans la base de connaissances), **Clients** (enregistrements clients structurés), **Produits** (enregistrements produits structurés), **Fournisseurs** (enregistrements fournisseurs structurés), **Sites web** (contenus de sites crawlés). Chacun se lie de la même façon — choisir depuis une liste. La récupération de l'agent les traite différemment sous le capot : documents et sites web sont chunked et embedded ; les enregistrements structurés sont interrogés champ par champ.
+Quatre modes arbitrent entre coût et couverture. **Outil** laisse l’agent chercher à la demande — la récupération ne tourne que quand le modèle décide d’en avoir besoin. **Contexte** injecte les connaissances pertinentes dans chaque réponse, que le modèle l’aurait demandé ou non. **Les deux** les combine, et **Désactivé** coupe entièrement la base de connaissances pour cet agent. Commence avec **Outil** ; passe à **Contexte** quand tout le travail de l’agent est de répondre depuis les documents et que tu veux la récupération à chaque réponse.
 
-## Portée
+## Cadrer les documents
 
-Les connaissances liées à un agent sont par-agent, pas par-chat. Chaque chat qui utilise l'agent a les mêmes liaisons. Pour limiter les connaissances à un seul chat, attache le fichier en ligne (voir [Pièces jointes](/fr/platform/chat/attachments)). Pour limiter les connaissances à un Projet, lie-les à un [agent de Projet](/fr/platform/projects/project-agents) à la place.
+La base de connaissances interroge les documents téléversés dans ton organisation — la même bibliothèque que tu gères sous [Documents](/fr/platform/knowledge/documents). Deux interrupteurs fixent la portée : **Inclure les documents de l'équipe** couvre l’équipe assignée à l’agent, et **Inclure les documents de l'organisation** couvre les documents assignés à aucune équipe. L’onglet liste ce que chaque portée contient à l’instant, avec l’état d’indexation par document — seuls les documents marqués **Indexé** sont récupérables.
 
-## Où ça s'inscrit
+## Donner à l’agent ses propres documents
 
-Les connaissances d'agent sont la réponse à « cet agent devrait savoir ces trucs précis ». La section Knowledge plus large est l'endroit où vivent les sources ; la liaison est ce qui branche un agent dans un sous-ensemble. La lecture suivante est [Aperçu de Knowledge](/fr/platform/knowledge/overview) pour le côté source, ou [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge) pour la construction bout en bout sur une instance neuve.
+Les **Documents de l'agent** sont des téléversements que seul cet agent peut atteindre — clique sur **Téléverser des documents** et les fichiers rejoignent la portée de récupération de cet agent sans entrer dans la bibliothèque partagée. Va vers eux quand la source appartient au travail de l’agent plutôt qu’à l’organisation : un playbook de tri, une FAQ propre à un produit.
+
+## Comment la récupération atterrit dans la réponse
+
+Quand l’agent récupère, les citations s’attachent aux phrases qu’elles soutiennent — survoler montre la source, cliquer l’ouvre. Tout ce qui est récupérable concourt à la pertinence à chaque question, donc garde la portée serrée : une portée large rend la récupération plus bruyante, pas plus intelligente.
+
+## Quand y recourir
+
+Les enregistrements structurés et les sources vivantes sont des outils, pas des connaissances — et les fichiers pour une seule conversation sont des pièces jointes. Les frontières :
+
+| Utilise…                                                 | Quand l’agent a besoin…                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| les connaissances (cet onglet)                           | De chercher et citer des documents téléversés à chaque chat        |
+| [Outils](/fr/platform/agents/tools)                      | Des clients, produits, fournisseurs, sites web ou systèmes vivants |
+| [Pièces jointes](/fr/platform/chat/attachments)          | D’un fichier qui ne compte que pour un seul chat                   |
+| [Agents de projet](/fr/platform/projects/project-agents) | De connaissances cantonnées à un seul Projet                       |
+
+## Où ça se situe
+
+Les connaissances d’agent répondent à « cet agent doit répondre depuis ces documents ». La section [Connaissances](/fr/platform/knowledge/overview) au sens large est l’endroit où les sources vivent et s’indexent ; cet onglet câble un agent sur une portée d’entre elles. Pour la construction de bout en bout — téléverser, cadrer, demander, vérifier les citations — parcours [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge).

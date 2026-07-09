@@ -25,6 +25,12 @@ The Security section holds a single button: **Change password** if you signed up
 
 Open **Settings > Personalization**. The page gates each feature with an on/off toggle that follows the org default until you override it.
 
+<Frame caption="Settings > Personalization — the per-feature toggles above the custom instructions field, the memories list, and the voice-output picker.">
+
+![The Personalization settings page, showing on/off toggles for custom instructions, memories, and voice output, with the custom instructions text field and saved memories list below.](/images/platform/settings-preferences.webp)
+
+</Frame>
+
 **Custom instructions** is a free-form text field — up to 4,000 characters — that every agent receives as additional context for your conversations specifically. Use it for the things you would otherwise say at the top of every chat: your role, your preferred reply style, the projects you are working on, the constraints the agent should respect. The org default decides whether the feature is on for new members; your toggle overrides it for your own account.
 
 **Memories** are short facts the agent saves about you between chats — a topic you asked about, a preference you stated, a context you would not want to repeat. Saved memories appear in a list with a delete button on each row; pending memories surface in their own section with **Approve** and **Dismiss** controls so nothing lands in your record without you seeing it. Toggle the feature off and existing memories stop being used until you turn it back on.

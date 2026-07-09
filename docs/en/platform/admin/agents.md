@@ -7,6 +7,12 @@ The Admin agents view is the org-wide directory of every agent that exists in Ta
 
 This page does not teach you how to build an agent. That is the Editor view under [Agents](/platform/agents/concepts). What follows is the supervisory side: how to find an agent, how to step in when one needs attention, and how the role boundaries hold when you do.
 
+<Frame caption="The org-wide agents list — a folder expanded to its agent rows, each with its model and category. An Admin sees every agent in the org here.">
+
+![The agents list with a folder expanded to show agent rows, each naming an agent alongside its primary model and category.](/images/platform/agents-list-expanded.webp)
+
+</Frame>
+
 ## What the table shows
 
 Open **Settings > Agents** to land on the org-wide list. Each row names an agent and shows its primary model, its category, the team it belongs to (if any), and the date it was last edited. The list is searchable by name and filterable by category, team, and status (active or disabled). The default sort is most-recently-edited first — useful when you want to see what changed since the last time you looked.

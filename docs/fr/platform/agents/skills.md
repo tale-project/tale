@@ -1,49 +1,46 @@
 ---
-title: Compétences d'agent
-description: Une compétence est un bundle réutilisable d'instructions et d'un script sandbox optionnel que tu attaches à un agent. Cette page donne le modèle mental pour choisir une compétence plutôt que de modifier les instructions de l'agent.
+title: Skills d’agent
+description: Un skill est un bundle réutilisable — un SKILL.md plus des scripts et références optionnels — que les agents lisent à l’exécution. Cette page couvre quand y recourir plutôt qu’allonger les instructions.
 ---
 
-Une compétence est l'unité vers laquelle Tale se tourne quand le même motif apparaît sur plusieurs agents. C'est un bundle réutilisable — un morceau d'instructions et, optionnellement, un script sandbox que l'agent peut appeler — que tu attaches à un agent comme tu attaches un outil. Les Éditeurs et les Développeurs publient des compétences au niveau de l'organisation ; les agents choisissent dans la bibliothèque de compétences de l'organisation.
+Un skill est l’unité vers laquelle Tale se tourne quand le même motif apparaît sur plusieurs agents. C’est un bundle réutilisable — un `SKILL.md` avec des instructions, plus des scripts, références et assets optionnels — qui vit dans la bibliothèque de skills de l’organisation et que les agents lisent à l’exécution. Lie le même skill à trois agents et tu maintiens le comportement à un seul endroit.
 
-Cette page te donne le modèle mental pour quand une compétence est le bon coup et quand les instructions inline le sont. Lis-la avant de publier ta première compétence ; reviens-y quand les instructions d'un agent s'allongent et que tu te demandes si la bonne réponse est de les scinder en une compétence.
+Cette page te donne le modèle mental pour savoir quand un skill est le bon geste et quand des instructions inline le sont. Lis-la avant de téléverser ton premier skill ; reviens-y quand les instructions d’un agent s’allongent et que tu te demandes s’il faut les scinder.
 
-## Ce que regroupe une compétence
+## Ce qu’un skill embarque
 
-Une compétence porte deux choses :
+Un skill se téléverse comme un zip avec `SKILL.md` à la racine. Le frontmatter du fichier porte les métadonnées — description, licence, versions Python ou Node recommandées — et le corps porte les instructions. Les assets du bundle vivent sous `scripts/`, `references/` ou `assets/` : du code que l’agent peut exécuter quand il travaille dans une sandbox, et du matériel de référence qu’il lit à la demande.
 
-- **Instructions** — de la prose qui encadre un comportement spécifique. Les instructions de la compétence s'ajoutent à celles de l'agent à la requête ; l'agent lit les deux comme un seul long prompt.
-- **Un script optionnel** — du code qui tourne dans le sandbox quand l'agent appelle la compétence comme outil. Les entrées et sorties du script sont typées ; l'agent passe du JSON, la compétence retourne du JSON.
+Un skill fait d’instructions pures est la bonne forme quand le comportement est une voix ou une contrainte — « cite toujours la source par numéro de section », « refuse les questions hors de ce produit ». Un skill avec scripts est la bonne forme quand le comportement est un calcul, une transformation ou une tâche en plusieurs étapes que le modèle devrait sinon improviser en tokens.
 
-Une compétence d'instructions pures est la bonne forme quand le comportement est voix ou contrainte — « cite toujours la source par numéro de section », « refuse les questions hors de ce produit ». Une compétence avec script est la bonne forme quand le comportement est un calcul, une transformation ou une tâche multi-étapes que le modèle devrait sinon mimer en tokens.
+## Lier un skill à un agent
 
-## Attacher à un agent
+Un skill devient visible pour un agent en le liant sur l’onglet **Skills** de l’agent — **Skills liés** liste la bibliothèque de l’organisation avec une case par skill. Un agent peut lier au plus dix skills, et un agent sans aucun lien n’en voit aucun : il n’y a pas de repli implicite vers une visibilité à l’échelle de l’organisation. L’agent lit un skill lié à l’exécution — la description lui dit quand le skill s’applique, et il tire alors le corps et les fichiers du bundle.
 
-Une compétence devient visible pour un agent par attachement. L'éditeur de l'agent liste les compétences disponibles de l'organisation sous l'onglet **Compétences** ; coche celles qui s'appliquent. Les compétences attachées injectent toujours leurs instructions ; une compétence avec script apparaît aussi dans la liste d'outils de l'agent, qu'il peut choisir d'appeler.
+Le lien est par agent : deux agents peuvent lier le même skill, et délier est symétrique — la requête suivante tourne sans lui.
 
-L'attachement est par agent : deux agents peuvent attacher la même compétence et le comportement de l'agent est l'union de ses instructions et de celles de la compétence. Le détachement est symétrique — la requête suivante tourne sans la compétence.
+## Gérer la bibliothèque
 
-## Scripts de compétence et le sandbox
+Gérer les skills demande les permissions Admin ou Développeur. La bibliothèque vit dans les réglages Skills de l’organisation, où chaque skill montre son aperçu, le corps de ses instructions, l’arborescence de son bundle et une piste d’audit **Modifications récentes**. **Téléverser un skill** ajoute un nouveau bundle, **Remplacer le bundle** écrase l’existant en place, et **Dupliquer** le clone sous un nouveau slug.
 
-Les scripts de compétence tournent dans le même sandbox que l'outil **Exécuter du code** : Python ou Node, paquets autorisés déclarés par compétence, installations de paquets régies par la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l'organisation. La sortie réseau du sandbox est ouverte par défaut ; les opérateurs auto-hébergés peuvent la restreindre au niveau du déploiement. Le contrat du script est une entrée typée et une sortie typée ; ce qui tourne entre les deux est à toi.
+<Warning>
 
-La frontière de confiance est nette. Un script de compétence peut être invoqué par n'importe quel agent auquel il est attaché. Traite la publication d'une compétence comme l'élargissement de la surface de confiance de chaque agent qui la prend ; la [politique de gouvernance sur run-code](/fr/platform/admin/governance/run-code-policy) régit quels paquets le script peut installer.
+Il n’y a pas d’épinglage de version : remplacer un bundle change ce que chaque agent lié lit dès la requête suivante, et supprimer un skill retire le bundle du disque — tout agent encore lié perd l’accès.
 
-## Versionnage
-
-Les compétences sont versionnées. Enregistrer une compétence crée une nouvelle version ; l'agent qui attache la compétence se fige sur une version spécifique. Mettre à jour une compétence ne propage pas automatiquement — les agents prennent la nouvelle version à l'enregistrement. C'est intentionnel : une compétence est un contrat, et versionner le contrat est ainsi qu'on tient le contrat.
+</Warning>
 
 ## Quand y recourir
 
-| Utilise … quand                                                               | Compétence | Instructions inline |
-| ----------------------------------------------------------------------------- | ---------- | ------------------- |
-| Le motif se répète sur plusieurs agents                                       | ✓          |                     |
-| Le comportement implique un script que le modèle mimerait sinon               | ✓          |                     |
-| Le comportement est la voix d'un agent                                        |            | ✓                   |
-| Tu veux que l'organisation régisse le comportement par une seule modification | ✓          |                     |
-| Les instructions de l'agent tiennent encore sur un écran                      |            | ✓                   |
+| Utilise … quand                                                      | Skill | Instructions inline |
+| -------------------------------------------------------------------- | ----- | ------------------- |
+| Le motif se répète sur plusieurs agents                              | ✓     |                     |
+| Le comportement passe par des scripts que le modèle imiterait sinon  | ✓     |                     |
+| Le comportement est la voix d’un seul agent                          |       | ✓                   |
+| Tu veux que l’organisation gouverne le comportement en un seul geste | ✓     |                     |
+| Les instructions de l’agent tiennent encore sur un écran             |       | ✓                   |
 
-Les instructions inline sont la bonne forme pour un agent. Les compétences sont la bonne forme quand le même comportement apparaît dans deux ou trois agents et que le coût de maintenance pour garder leurs instructions inline synchronisées commence à mordre.
+Les instructions inline sont la bonne forme pour un agent. Les skills sont la bonne forme quand le même comportement revient dans deux ou trois agents et que le coût de garder leurs instructions inline synchronisées commence à peser.
 
-## Construis-en une
+## Construis-en un
 
-Les compétences sont le niveau d'abstraction au-dessus des quatre boutons — elles te laissent livrer un comportement une fois et le faire prendre par chaque agent qui en a besoin par attachement. La marche suivante naturelle est [Construire un outil sur mesure](/fr/tutorials/developer/build-a-custom-tool) — elle parcourt la publication d'une compétence avec script depuis une page vierge jusqu'à l'attachement à un agent.
+Les skills sont le niveau d’abstraction au-dessus des quatre boutons — ils te laissent livrer un comportement une fois et laisser chaque agent qui en a besoin le récupérer en le liant. La marche suivante naturelle est [Construire un outil personnalisé](/fr/tutorials/developer/build-a-custom-tool) — elle va d’une page blanche à un skill avec scripts lié à un agent.

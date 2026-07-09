@@ -5,7 +5,7 @@ description: Demande une recherche ouverte à l'assistant, regarde-le lancer un 
 
 Quand une demande mérite son propre contexte ciblé — recherche citée, extraction en masse, longue rédaction — l'assistant lance un **worker** : un agent éphémère composé pour exactement cette tâche, avec exactement les capacités que l'assistant lui accorde depuis son propre ensemble. Il n'y a rien à configurer ; ce parcours fait tourner un job de recherche de bout en bout et te montre comment lire la carte de job.
 
-Le versant conceptuel (sous-ensembles de capacités, budgets, méthodologies) vit dans [Workers d'agent](/platform/agents/delegation).
+Le versant conceptuel (sous-ensembles de capacités, budgets, méthodologies) vit dans [Workers d'agent](/fr/platform/agents/delegation).
 
 ## Avant de commencer
 
@@ -31,4 +31,4 @@ Un worker à court de temps ou frappé par une erreur se termine avec un statut 
 
 ## Où cela s'inscrit
 
-Une demande, un worker, une carte : c'est la plus petite forme utile. La même mécanique passe à l'échelle avec plusieurs workers dans un tour — chacun a sa carte, sa progression et sa transcription. Pour des étapes fixes avec validations ou planification entre elles, prends plutôt un [workflow](/fr/platform/workflows/concepts).
+Une demande, un worker, une carte : c'est la plus petite forme utile. La même mécanique passe à l'échelle avec plusieurs workers dans un tour — chacun a sa carte, sa progression et sa transcription. Pour des étapes fixes avec validations ou planification entre elles, prends plutôt une [automatisation](/fr/platform/automations/concepts).

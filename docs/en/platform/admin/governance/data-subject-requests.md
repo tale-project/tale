@@ -5,6 +5,12 @@ description: The GDPR Article 17 workflow for erasing a person's data across cha
 
 Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (right to erasure) and the equivalent CCPA right under California law. Each request becomes a receipt: it names the subject, the reason code, the SLA deadline, and the cascade of rows the system erased across threads, documents, workflow executions, and personal prompt templates. Admins and Owners read this page when a subject files a request, when a deadline is closing in, or when an audit asks for the receipt of a past erasure.
 
+<Frame caption="Governance > Data subject requests — the DSAR governance policy (cooling-off window, dual approval, daily limit) above the request receipts list with File request.">
+
+![The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above an empty erasure-requests table with a File request button.](/images/platform/governance-data-subject-requests.webp)
+
+</Frame>
+
 ## A worked filing
 
 To file a request, open **Settings > Governance > Data subject requests** and click **File request**. Pick the subject, choose a reason code (consent withdrawn, no longer necessary, unlawful processing, legal obligation, objection, child subject, or contract termination), and add a free-text narrative. The request enters a cooling-off window before the cascade runs — any Admin can cancel during the window. After the window elapses, the cascade erases the subject's threads, documents, workflow executions, RAG embeddings, and personal prompts, and the receipt records counts for each category.

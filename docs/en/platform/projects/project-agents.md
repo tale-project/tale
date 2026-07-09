@@ -1,37 +1,48 @@
 ---
-title: Project agents
-description: Project-scoped agents versus org agents — when to reach for each, how Project agents shadow org agents in the picker, and how publishing works inside a Project.
+title: Agents and models in a project
+description: The Agents & models tab curates which agents and models members see inside a project — Recommended pins favourites to the top, Restricted allows nothing else.
 ---
 
-A Project agent is an agent that only exists inside the Project. It appears in the chat agent picker for members of the Project, never elsewhere; it inherits the Project's Files and Instructions automatically; deleting the Project deletes it. Reach for Project agents when an agent needs Project-specific instructions a generic org agent should not carry.
+A project's **Agents & models** tab decides which agents and models members meet when they chat inside the project. It does not create new agents — agents are built org-wide under [Agents](/platform/agents/concepts) — it curates the existing catalog for this project's context, so a member opening the picker sees the right tools for the work first.
 
-This page covers the difference between Project agents and org agents, the shadow rule that decides which one shows up when both share a name, and how publishing changes between the two scopes.
+<Frame caption="The Agents & models tab — one Recommended/Restricted choice for agents, one for models.">
 
-## Project agents versus org agents
+![The Agents & models tab of a project showing two radio groups, Agents and Models, each offering a Recommended mode and a Restricted mode with an Add button.](/images/platform/project-agents-models.webp)
 
-An **org agent** lives in the org's [Agents](/platform/admin/agents) list and shows up in any chat the user has access to. A **Project agent** lives only in the Project; outside the Project, it does not exist. The shapes are the same — same instructions, knowledge, tools, model — only the visibility differs.
+</Frame>
 
-## The shadow rule
+## The two modes
 
-Project agents and org agents can share a name. When they do, inside the Project the **Project agent wins** — it shadows the org agent in the picker. Outside the Project, the org agent is what shows. This lets a team take an org-wide agent ("Sales assistant") and override it for a specific account with extra instructions, without naming it differently.
+Agents and models are curated separately, each with the same two modes:
 
-## Publishing into a Project
+- **Recommended** — the items you list are pinned to the top of the picker; everything else the member could normally use stays available below. This is the default, and the right mode for steering without blocking.
+- **Restricted** — only the items you list are available in this project. Members picking anything else get a clear refusal: the composer reports that the agent or model isn't available in this project and asks them to pick another.
 
-Creating an agent from inside the Project produces a Project agent automatically. Creating one from the org **Agents** list produces an org agent that any Project can opt into. To move an org agent into a Project, duplicate it into the Project's Agents tab — the original stays org-wide; the duplicate becomes a Project agent that the team can edit without affecting the org-wide copy.
+The list order is the order members see, and the first item is the default — drag to reorder. **Add agent** and **Add model** extend the list.
 
-## Permissions
+<Warning>
 
-Project agents follow Project membership. Members of the Project can run them; Editors of the Project can edit them; the Project owner can delete them. Org-level Editor and Developer roles do not automatically have access to a Project's agents — Project membership is the only path in.
+In **Restricted** mode an empty list locks every member out of chatting in the project — there is nothing left to pick. Add at least one item before saving, or switch back to **Recommended**.
 
-## When to reach for each
+</Warning>
 
-| Use … when                                            | Project agent | Org agent |
-| ----------------------------------------------------- | ------------- | --------- |
-| Instructions are specific to this Project's data      | ✓             |           |
-| The same prompt would be useful to every team         |               | ✓         |
-| You need a one-off variation of an existing org agent | ✓             |           |
-| You want to share an agent across many Projects       |               | ✓         |
+## What members experience
+
+Inside the project, the composer's agent picker and model picker reflect the curation — recommended items first, restricted items only. A chat moved into the project with a now-disallowed agent doesn't break silently: the send is refused with the agent-not-available message, and the member picks an allowed one. Outside the project nothing changes; curation is scoped to chats that run in the project's context.
+
+## Who can change it
+
+Editing the tab follows org roles: an editor or admin role is required to save changes, and members without it see the project read-only, with a banner pointing them at a project editor. Changes land on **Save** in the tab strip — the same unified Save/Discard cluster the General and Instructions tabs use.
+
+## When to reach for each mode
+
+| Use … when                                            | Recommended | Restricted |
+| ----------------------------------------------------- | ----------- | ---------- |
+| You want the right agent to be the obvious first pick | ✓           |            |
+| Members should keep access to the full catalog        | ✓           |            |
+| Compliance or cost demands a fixed, short list        |             | ✓          |
+| An expensive model must not be used for this work     |             | ✓          |
 
 ## Where this fits
 
-Project agents are the answer to "we love this agent but it needs to behave differently for this customer". The wider [Agents](/platform/agents/concepts) section is org-wide; reach for that when the audience is everyone. The natural follow-up is [Use projects](/tutorials/member/use-projects), which walks a Project that ends with a Project agent doing real work.
+This tab is project-side curation of an org-side catalog: building agents, their instructions, and their knowledge is the [Agents](/platform/agents/concepts) section's job; deciding which of them this project surfaces is yours. For how the picker behaves inside a chat, see [Agents in chat](/platform/chat/agents-in-chat).

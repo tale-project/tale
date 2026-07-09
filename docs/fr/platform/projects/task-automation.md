@@ -1,47 +1,57 @@
 ---
 title: Automatisation des tâches
-description: Le pack task-ops par défaut — comment l'affectation à un agent le met au travail, la revue humaine obligatoire, les garde-fous (budgets, simultanéité, disjoncteurs) et l'arrêt d'urgence.
+description: Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence.
 ---
 
-Affecter une tâche du board à un agent IA le met au travail. Le **pack task-ops** — onze workflows en fichiers, provisionnés pour chaque organisation — couvre tout le cycle de vie : triage, exécution, revue, escalade, respect des SLA et nettoyage. Chaque workflow est un fichier JSON qui appartient à votre organisation : ajustez les seuils, modifiez les prompts ou désactivez des déclencheurs individuels sur le workflow lui-même. Une tâche qu'une automatisation propose reste dans le [Backlog](/fr/platform/projects/backlog) jusqu'à ce qu'un humain la Démarre — à partir de ce moment, c'est une tâche de tableau comme une autre et elle entre dans la boucle ci-dessous.
+Affecter une tâche du tableau à un agent IA la met au travail. Le **pack task-ops** — onze workflows en fichiers, provisionnés pour chaque organisation — couvre tout le cycle de vie : triage, exécution, revue, escalade, tenue des SLA et nettoyage. Chaque workflow est un simple fichier JSON que ton organisation possède : ajuste les seuils, édite les prompts ou désactive des déclencheurs individuels sur le workflow lui-même. Une tâche qu’une automatisation propose reste dans le [Backlog](/fr/platform/projects/backlog) jusqu’à ce qu’un humain la Démarre — à partir de ce moment, c’est une tâche de tableau comme une autre et elle entre dans la boucle ci-dessous.
 
-## La boucle d'exécution
+<Frame caption="Le tableau des tâches du projet — affecter une carte à un agent est ce qui lance la boucle ci-dessous.">
 
-1. **Affectez** une tâche à un agent (ou laissez le _triage des non-affectées_ noter et router automatiquement les nouvelles tâches — les correspondances sûres sont affectées directement, les autres reçoivent un commentaire de suggestion).
-2. L'agent **accuse réception** (la tâche passe à _En cours_), travaille dans son propre fil de tâche avec les outils dédiés et publie son résultat en commentaire.
-3. La tâche se gare à **_En revue_** — les agents ne peuvent jamais passer une tâche à _Terminé_ ; cette règle est appliquée côté serveur, quelle que soit la configuration des workflows.
-4. Un humain **approuve** (le seul chemin automatisé vers _Terminé_) ou **demande des modifications** — le retour réengage le même agent sur le fil partagé et ouvre une nouvelle revue. Les revues se traitent depuis la fiche de tâche ou directement depuis la boîte de réception.
+![Un tableau kanban de tâches dans le projet Website relaunch, montrant cinq cartes de tâches réparties sur ses colonnes de statut.](/images/platform/projects-task-board.webp)
 
-Les échecs ramènent la tâche à _À faire_ avec un commentaire explicatif. Quand une tâche racine décomposée a des sous-tâches, la tâche parente attend la clôture de la dernière sous-tâche puis remonte à _En revue_.
+</Frame>
+
+## La boucle d’exécution
+
+1. **Affecte** une tâche à un agent (ou laisse le _triage des non-affectées_ noter et router automatiquement les nouvelles tâches — les correspondances très sûres s’affectent seules, les autres reçoivent un commentaire de suggestion).
+2. L’agent **accuse réception** (la tâche passe à _En cours_), travaille dans son propre fil de tâche avec les outils de tâches et publie son résultat en commentaire.
+3. La tâche se gare en **_En revue_** — les agents ne peuvent jamais poser _Terminé_ ; la règle est appliquée côté serveur, quelle que soit la configuration des workflows.
+4. Un humain **approuve** (le seul chemin automatisé vers _Terminé_) ou **demande des modifications** avec un retour, ce qui réengage le même agent sur le fil partagé et ouvre un nouveau portail de revue. Les revues se traitent depuis la fiche de tâche ou directement depuis la Boîte de réception.
+
+Les échecs ramènent la tâche à _À faire_ avec un commentaire d’explication. Quand une tâche racine décomposée a des sous-tâches, la tâche parente attend la fermeture de la dernière sous-tâche, puis remonte en _En revue_.
 
 ## Mentions, dépendances, échéances
 
-- **@-mentionne un agent** dans un commentaire ou dans la description d'une tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur prévisualise si chaque agent mentionné répondra réellement (automatisation coupée, budget épuisé, en pause). Modifier une description ne déclenche que les mentions nouvellement ajoutées ; ce que l'automatisation écrit elle-même ne déclenche personne.
-- Quand un **bloqueur se ferme**, les tâches dépendantes reçoivent le décompte des bloqueurs restants ; le travail d'agent totalement débloqué redémarre automatiquement, les humains sont notifiés.
-- Les **échéances** pilotent une échelle SLA : avertissement à 24 h, relance de retard, puis escalade humaine vers le créateur du projet et les admins — répétée une fois si la tâche reste en retard. Chaque niveau ne se déclenche qu'une fois ; repousser l'échéance réinitialise l'échelle.
+- **@-mentionne un agent** dans un commentaire ou dans la description d’une tâche et il lit le texte qui le mentionne, puis agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur prévisualise si chaque agent mentionné répondra vraiment (automatisation coupée, budget épuisé, agent en pause). Modifier une description ne déclenche que les mentions nouvellement ajoutées, et ce que l’automatisation écrit elle-même ne déclenche jamais personne.
+- Quand un **bloqueur se ferme**, les tâches dépendantes reçoivent une note listant les bloqueurs restants ; le travail d’agent totalement débloqué redémarre seul, le travail humain reçoit une notification en boîte de réception.
+- Les **échéances** actionnent une échelle SLA : un avertissement 24 heures avant, une relance en cas de retard, puis une escalade humaine vers le créateur du projet et les admins de l’org — répétée une fois de plus si la tâche reste en retard. Chaque niveau ne tire qu’une fois ; repousser l’échéance réarme l’échelle.
 
 ## Garde-fous
 
-Chaque exécution d'agent — affectation, mention, révision, escalade, externe — passe la même porte d'admission :
+Chaque exécution d’agent — affectation, mention, révision, escalade, externe — passe le même portail d’admission :
 
-- **Budgets** (par agent, mensuels) : au seuil d'alerte l'agent reçoit une consigne d'économie et les admins sont notifiés une fois ; au seuil de pause les nouvelles exécutions sont refusées. Réinitialisation au changement de mois.
-- **Plafonds de simultanéité** (par agent et pour l'organisation) : les exécutions excédentaires attendent et démarrent dès qu'une place se libère.
-- **Disjoncteur par tâche** : au-delà du nombre d'exécutions par heure configuré sur une même tâche, son automatisation se met en pause jusqu'à ce qu'un humain change son statut.
+- **Budgets** (par agent, mensuels) : au seuil d’alerte, l’agent reçoit une consigne d’économie et les admins sont notifiés une fois ; au seuil de pause, les nouvelles exécutions sont refusées. Réinitialisation au changement de mois.
+- **Plafonds de simultanéité** (par agent et pour toute l’organisation) : les exécutions en trop font la file et démarrent seules quand une place se libère.
+- **Disjoncteur par tâche** : au-delà du nombre configuré d’exécutions par heure sur une même tâche, l’automatisation de cette tâche se met en pause jusqu’à ce qu’un humain change son statut.
 
-Les plafonds de l'organisation (simultanéité des exécutions, exécutions par tâche et par heure) sont des valeurs fixes de la plateforme ; le budget et le parallélisme par agent vivent dans sa configuration.
+Les plafonds à l’échelle de l’organisation (simultanéité des exécutions, exécutions par tâche et par heure) sont des valeurs fixes de la plateforme ; le budget et le parallélisme par agent vivent dans la configuration de l’agent.
 
-## Choisir l'assigné
+## Choisir le bon assigné
 
-Toutes les tâches ne vont pas à un agent de code. Règle simple :
+Toutes les tâches ne sont pas faites pour un agent de code. La règle simple :
 
-| Forme de tâche                                                                         | Assigner                                                                                                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Recherche, rédaction, synthèses, livrables personnels                                  | Une **personne** — désactive le triage non assigné sur les projets personnels pour que les agents ne les prennent pas automatiquement                                                                                                                                          |
-| Automatisation générale avec outils plateforme (commentaires, workflows, intégrations) | Un **Agent** (boucle d'outils plateforme)                                                                                                                                                                                                                                      |
-| Travail sur dépôt — bugs, fonctionnalités, refactors, PR                               | Un **Agent de code** avec le bon dispatch : tale-daemon (`runtime`) pour les workspaces git, bac à sable durable si configuré, ou accepte que les agents de code bac-à-sable seul passent encore par la boucle plateforme sur le board tant que ces champs ne sont pas définis |
+| Forme de la tâche                                                                          | Assigner                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, rédaction, synthèses, livrables personnels                                      | Une **personne** — désactive le tri des tâches non assignées sur les projets personnels pour que les agents ne s’en emparent pas tout seuls                                                                                                                            |
+| Automatisation générale avec les outils plateforme (commentaires, workflows, intégrations) | Un **Agent** (boucle d’outils plateforme)                                                                                                                                                                                                                              |
+| Travail de dépôt — bugs, fonctionnalités, refactorisations, PRs                            | Un **agent de code** avec le bon dispatch : tale-daemon (`runtime`) pour un espace de travail git, sandbox durable quand c’est configuré — ou accepte qu’un agent de code sandbox-seulement passe par la boucle plateforme sur le tableau tant que ces champs manquent |
 
-Le sélecteur d'assigné sépare **Agents** et **Agents de code** et affiche une ligne d'indication de dispatch pour chaque agent de code. Les agents image n'apparaissent pas dans la liste d'assignation.
+Le sélecteur d’assigné groupe les **Agents** et les **Agents de code** séparément et affiche un indice de dispatch d’une ligne pour chaque agent de code. Les agents d’image n’apparaissent pas dans la liste des assignés de tâches.
 
-## L'arrêt d'urgence
+## L’arrêt d’urgence
 
-La politique de gouvernance `task_automation` porte l'interrupteur principal : mettre `enabled: false` dans le fichier de configuration `governance/task-automation.json` de l'organisation arrête le chemin d'exécution — ce qui tourne se termine, rien de nouveau ne démarre. Réservé aux admins, audité.
+La politique de gouvernance `task_automation` porte l’interrupteur principal : la couper arrête le chemin d’exécution — le travail en vol se termine, rien de neuf ne démarre. Elle est réservée aux admins et auditée ; sur une instance auto-hébergée, la politique est l’un des fichiers de configuration de gouvernance de l’org, aux côtés des limites couvertes sur [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+
+## Où cela s’inscrit
+
+L’automatisation des tâches est ce qui transforme le tableau du projet d’une liste de choses à faire en une surface de délégation : un humain affecte ou approuve, le pack fait tourner tout ce qu’il y a entre les deux, et le portail de revue garde _Terminé_ comme décision humaine. La lecture suivante naturelle est [Backlog du projet](/fr/platform/projects/backlog) pour la façon dont le travail proposé entre dans la boucle, et [L’éditeur de workflow](/fr/platform/automations/editor) pour ajuster les workflows du pack lui-même.

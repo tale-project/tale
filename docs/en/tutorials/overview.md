@@ -3,19 +3,39 @@ title: Tutorials
 description: Role-indexed task walks — Member, Editor, Developer, Admin. Each tutorial takes a fresh instance from "I want to do X" to a working result.
 ---
 
-Tutorials is the section where you read end-to-end walkthroughs of common tasks. Each tutorial takes a fresh instance from "I want to do X" to a working result; they assume you have the right role and either Cloud or self-hosted ready to use.
+Tutorials are end-to-end walkthroughs: each takes a fresh instance from "I want to do X" to a working, verified result. They assume you have the right role and a running workspace; the concept pages under [Platform](/platform) explain the mental model, tutorials show the mechanic from start to finish.
 
-The tabs below are role-indexed: pick the role you're operating as, then the task. Concept pages under [Platform](/platform) explain the mental model; tutorials here show the mechanic from start to finish.
+If you have not walked a [get-started journey](/get-started/quickstart) yet, start there — tutorials build on the day-one moves those cover.
 
-## Pages in this section
+## Pick by role
 
-**[Member tutorials](/tutorials/member/chat-effectively)** — chatting effectively, using projects, having voice conversations.
+<CardGroup cols="2">
 
-**[Editor tutorials](/tutorials/editor/first-agent-end-to-end)** — building a first agent end-to-end, binding knowledge, building workflows with approvals, delegating between agents.
+<Card title="Member tutorials" icon="message-circle" href="/tutorials/member/chat-effectively">
 
-**[Developer tutorials](/tutorials/developer/call-tale-from-a-script)** — calling Tale from a script, triggering workflows via webhooks, building custom tools, standing up an MCP server.
+Chat effectively, work in projects, hold voice conversations.
 
-**[Admin tutorials](/tutorials/admin/office-add-in)** — installing the Office add-in, wiring meeting transcription, connecting a local provider, SSO with OIDC, restricting models by team.
+</Card>
+
+<Card title="Editor tutorials" icon="bot" href="/tutorials/editor/first-agent-end-to-end">
+
+Build a first agent end to end, bind knowledge, delegate between agents, ship workflows with approvals.
+
+</Card>
+
+<Card title="Developer tutorials" icon="terminal" href="/tutorials/developer/call-tale-from-a-script">
+
+Call Tale from a script, trigger workflows via webhooks, build custom tools, stand up an MCP server.
+
+</Card>
+
+<Card title="Admin tutorials" icon="shield" href="/tutorials/admin/office-add-in">
+
+Install the Office add-in, wire meeting transcription, connect a local provider.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

@@ -99,19 +99,26 @@ export function Card({ title, icon, href, children, className }: CardProps) {
 }
 
 interface CardGroupProps {
-  cols?: 1 | 2 | 3 | 4;
+  /**
+   * Markdown-authored usage (`<CardGroup cols="3">`) travels through
+   * rehype-raw as an HTML attribute, so the value may arrive as a string —
+   * accept both forms and coerce before comparing.
+   */
+  cols?: 1 | 2 | 3 | 4 | '1' | '2' | '3' | '4';
   children?: ReactNode;
 }
 
 export function CardGroup({ cols = 2, children }: CardGroupProps) {
+  const parsed = Number(cols);
+  const colCount = Number.isNaN(parsed) ? 2 : parsed;
   return (
     <div
       className={cn(
         'my-6 grid gap-3',
-        cols === 1 && 'grid-cols-1',
-        cols === 2 && 'grid-cols-1 sm:grid-cols-2',
-        cols === 3 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-        cols === 4 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+        colCount === 1 && 'grid-cols-1',
+        colCount === 2 && 'grid-cols-1 sm:grid-cols-2',
+        colCount === 3 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+        colCount === 4 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
       )}
     >
       {children}

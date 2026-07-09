@@ -9,17 +9,45 @@ If you are inside the product as a Developer-role user (building agents, workflo
 
 ## Pages in this section
 
-**[API reference](/develop/api-reference)** — endpoints, authentication, OpenAI-compatible endpoints, error model, versioning.
+<CardGroup cols="2">
 
-**[Webhooks](/develop/webhooks)** — outbound (Tale → you) and inbound (you → Tale), signing, idempotency, retries.
+<Card title="API reference" icon="code" href="/develop/api-reference">
 
-**[AI-assisted development](/develop/ai-assisted-development)** — using Tale agents to author Tale workflows, the `.agents/` skill files.
+Endpoints, authentication, OpenAI-compatible endpoints, error model, versioning.
 
-**[Integrations](/develop/integrations)** — third-party integrations from a developer perspective.
+</Card>
 
-**[Status page](/develop/status-page)** — Cloud incident reporting, self-hosted metrics pointers.
+<Card title="Webhooks" icon="webhook" href="/develop/webhooks">
 
-**[Rate limits](/develop/rate-limits)** — per-key, per-IP, per-org limits and how to interpret 429s.
+Outbound (Tale → you) and inbound (you → Tale), signing, idempotency, retries.
+
+</Card>
+
+<Card title="AI-assisted development" icon="sparkles" href="/develop/ai-assisted-development">
+
+Using Tale agents to author Tale workflows, the `.agents/` skill files.
+
+</Card>
+
+<Card title="Integrations" icon="plug" href="/develop/integrations">
+
+Third-party integrations from a developer perspective.
+
+</Card>
+
+<Card title="Status page" icon="activity" href="/develop/status-page">
+
+Cloud incident reporting, self-hosted metrics pointers.
+
+</Card>
+
+<Card title="Rate limits" icon="gauge" href="/develop/rate-limits">
+
+Per-key, per-IP, per-org limits and how to interpret 429s.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

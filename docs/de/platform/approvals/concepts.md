@@ -1,49 +1,37 @@
 ---
-title: Genehmigungs-Konzepte
-description: Eine Genehmigung ist eine Karte, die ein Mensch klicken muss, bevor eine automatisierte Aktion fortfährt. Diese Seite benennt die vier Auslöser, das Genehmiger-Routing und was eine Genehmigung im Audit-Log hinterlässt.
+title: Genehmigungskonzepte
+description: Eine Genehmigung ist eine Karte im Chat, die die Aktion eines Agents anhält, bis du entscheidest. Diese Seite benennt, was eine auslöst, welche Entscheidungen jede Karte bietet und was jede Entscheidung hinterlässt.
 ---
 
-Eine Genehmigung ist die Naht zwischen einer automatisierten Aktion und einer menschlichen Entscheidung. Sie ist eine Karte, die eine Person klicken muss — Genehmigen, Ablehnen oder Änderungen anfordern —, bevor die Aktion fortfährt. Redakteure und Entwickler konfigurieren, wo Genehmigungen verlangt werden; der Genehmiger-Pool entscheidet.
+Eine Genehmigung ist die Naht zwischen der Initiative eines Agents und deinem Urteil: eine Karte, die im Chat dort erscheint, wo die Aktion versucht wurde, und die Aktion anhält, bis ein Mensch entscheidet. Agents schlagen vor — einen Dokument-Schreibzugriff, einen ausgehenden API-Aufruf, einen Workflow-Lauf — und nichts läuft, solange die Karte aussteht. Der Chat-Composer sagt es ausdrücklich: **Beantworte die ausstehende Anfrage oben, um fortzufahren**.
 
-Diese Seite vermittelt dir das mentale Modell, was eine Genehmigung ist, was sie auslöst und was jede Entscheidung hinterlässt. Lies sie, bevor du ein Gate in einem Workflow konfigurierst oder einen Agent verdrahtest, der in die Wissensdatenbank zurückschreibt.
+Diese Seite ist das Denkmodell — was eine Genehmigung auslöst, was die Karte bietet und was eine Entscheidung hinterlässt. Die Workflow-spezifischen Tore stehen auf [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows); wo die Anforderungen deklariert werden, steht auf [Genehmigungen konfigurieren](/de/platform/approvals/configure).
 
-## Was eine Genehmigung ist
+## Was eine Genehmigung auslöst
 
-Eine Genehmigung lebt als Zeile in der Genehmigungs-Tabelle und als Karte in der Chat-Oberfläche. Die Karte trägt den Kontext der Aktion (wer ausgelöst hat, was sich ändern soll, warum eine Genehmigung verlangt war) und die drei Entscheidungs-Knöpfe. Genehmiger können ihre Entscheidung mit einem Kommentar versehen; der Kommentar landet neben der Aktion im Audit-Log.
+Jede Karte stammt von einem Agent, der auf etwas wirken will, das das Gespräch überdauert:
 
-Offene Genehmigungen tauchen an zwei Orten auf: inline im Chat, wo die Aktion versucht wurde, und im Posteingang des Genehmigers (im Bereich Konversationen). Genehmiger können von jeder Oberfläche aus handeln; die Entscheidung propagiert gleich.
+- **Pläne** — ein Agent schlägt einen mehrstufigen Plan als Karte **Vorgeschlagener Plan** vor; **Genehmigen & ausführen** startet ihn.
+- **Dokument-Schreibzugriffe** — eine Karte **In Dokumenten speichern** hält Dateien, die ein Agent ablegen will; nichts landet im Dokumenten-Hub, bevor du genehmigst.
+- **Wissens-Schreibzugriffe** — eine Karte **In Wissensdatenbank speichern** hält einen Fakt, den ein Agent organisationsweit festhalten will.
+- **Integrationsaufrufe** — eine Operation mit Genehmigungspflicht (typischerweise ausgehende Schreibzugriffe) hält an, mit den exakten Parametern sichtbar.
+- **MCP-Tools** — ein Tool, das der Server mit **Genehmigung erforderlich** markiert, fragt, bevor es läuft.
+- **Workflow-Erstellung, -Aktualisierungen und -Läufe** — die Tore auf der Workflow-Seite, behandelt in [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
 
-## Die vier Auslöser
+## Die Entscheidungen auf einer Karte
 
-**Workflow-Gates.** Ein Schritt in einem Workflow ist als Genehmigungs-Gate konfiguriert. Der Lauf pausiert, bis das Gate sich auflöst. Siehe [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows).
+Jede Karte trägt den exakten Payload der Aktion — die Datei, den Fakt, die Parameter — und zwei Entscheidungen: genehmigen (der Button benennt die Aktion, etwa **Workflow ausführen** oder **Genehmigen & ausführen**) oder ablehnen. Integrationskarten fügen einen dritten Weg hinzu, **Änderungen vorschlagen**: Beschreib in freiem Text, was falsch ist, und der Agent überarbeitet den Aufruf, statt ihn aufzugeben.
 
-**Dokument-Schreibvorgänge.** Ein Agent versucht, in die Wissensdatenbank zu schreiben — ein Dokument, einen Kunden, ein Produkt, einen Lieferanten erstellen oder bearbeiten — und die Governance-Richtlinie auf dieser Ressource verlangt Freigabe. Der Schreibvorgang wird nicht festgeschrieben, bis er genehmigt ist.
+<Note>
 
-**Integrations-Aufrufe.** Ein Agent versucht, ein externes System über eine Integration aufzurufen, die Genehmigung für ausgehende Schreibvorgänge verlangt. Der Aufruf wird gehalten, bis ein Genehmiger auf Genehmigen klickt.
+Genehmigungen werden in dem Gespräch entschieden, das sie unterbrechen — von der Person, die diesen Chat führt. Es gibt keinen separaten Genehmigungs-Posteingang und kein Routing an einen Genehmiger-Pool; die Person, für die der Agent arbeitet, ist die Person, die entscheidet.
 
-**Agent-Erstellung und Skill-Installation.** Wenn die Governance-Richtlinie eine Admin-Prüfung verlangt, erzeugt das Erstellen eines neuen Agents oder das Installieren einer Fähigkeit eine Genehmigungs-Karte an den konfigurierten Pool.
+</Note>
 
-## Genehmiger-Routing
+## Zustände und die Spur
 
-Jede Genehmigung wird mit einem Genehmiger-Pool erstellt — ein Team, eine Rolle oder eine explizite Liste von Personen. Der erste berechtigte Genehmiger, der klickt, entscheidet; der Rest des Pools sieht die Karte in einen aufgelösten Zustand übergehen. Handelt niemand innerhalb des Gate-Timeouts, eskaliert die Genehmigung gemäss der Eskalationsrichtlinie des Gates (typisch: an einen Fallback-Pool umleiten oder den Lauf fehlschlagen lassen).
-
-Genehmiger können ihre eigene Anfrage nicht genehmigen: die Person, die die Aktion ausgelöst hat, wird aus dem berechtigten Pool ausgeschlossen, auch wenn sie sonst drin wäre.
-
-## Zustände und Timeouts
-
-Eine Genehmigung hat vier Lebenszyklus-Zustände:
-
-- **pending** — erstellt, noch nicht entschieden.
-- **approved** — ein Genehmiger hat auf Genehmigen geklickt; die Aktion fährt fort.
-- **rejected** — ein Genehmiger hat auf Ablehnen geklickt; die Aktion wird aufgegeben, der Lauf hält die Ablehnung fest.
-- **timed-out** — keine Entscheidung im konfigurierten Fenster; je nach Richtlinie eskaliert oder fehlgeschlagen.
-
-Jeder Zustandsübergang landet im Audit-Log mit Akteur, Zeitstempel und Kommentar. Die Übergänge sind append-only: eine aufgelöste Genehmigung kann nicht wieder geöffnet werden.
-
-## Zusammengesetzt
-
-Ein Finance-Operations-Team konfiguriert drei Governance-Richtlinien: Workflow-Schritte, die Mail an externe Adressen senden, verlangen Genehmigung; Agent-Schreibvorgänge in die Kundendatenbank verlangen Genehmigung; neue MCP-Server-Installationen verlangen Genehmigung. Drei Auslöser, ein Genehmiger-Pool (das Finance-Team), eine Audit-Spur. Das Team sieht jede offene Genehmigung in seinem Posteingang und jede aufgelöste Entscheidung im Audit-Log.
+Eine Karte wandert von **Ausstehend** über **Wird ausgeführt** zu **Abgeschlossen** — oder **Abgelehnt** — und behält ihren entschiedenen Zustand im Transkript, sodass sich ein Chat als Protokoll dessen wiederliest, was erlaubt wurde. Jede Entscheidung landet außerdem im [Audit-Log](/de/platform/admin/governance/audit-logs) mit Akteur, Aktion und Zeitstempel. Entschiedene Karten lassen sich nicht wieder öffnen; ein neuer Versuch heißt ein frischer Vorschlag und eine frische Karte.
 
 ## Wo das hingehört
 
-Genehmigungen sind die Oberfläche, an der Automatisierung und Verantwortlichkeit zusammentreffen — sie lassen dich die Arbeit an Agents und Workflows delegieren, ohne die Aufzeichnung aufzugeben, wer was genehmigt hat. Die natürliche nächste Lektüre ist [Genehmigungen konfigurieren](/de/platform/approvals/configure) für die Felder pro Ressource und [Genehmigungen in Workflows](/de/platform/workflows/approvals-in-workflows) für die Gate-Spezifika.
+Genehmigungen sind das, was dich Agents echte Fähigkeiten anvertrauen lässt — Dateien, APIs, Workflows — ohne das Protokoll aus der Hand zu geben, wer was erlaubt hat. Lies als Nächstes [Genehmigungen konfigurieren](/de/platform/approvals/configure), um zu sehen, wo eine Anforderung eingeschaltet wird, und [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) für die Tore rund um Workflows.

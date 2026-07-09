@@ -1,6 +1,7 @@
 ---
 name: design-ui
 icon: lucide:palette
+labels: ['Design']
 description: Read this before any visual or UI work — building or changing a screen, component, page, route, or styling — so you build to the project's design system instead of inventing one. A product's UI is usually more than one design language (a dense product app, a marketing site, docs) that share a substrate but are not interchangeable. This skill is the literacy — locate the design system (its design docs, its design tokens, its component library), learn the token vocabulary, and identify which surface you're on. Building to it is implement-ui. Never design a surface from imagination, hardcode a colour the token system already names, or copy one surface's patterns onto another.
 ---
 

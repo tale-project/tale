@@ -5,6 +5,12 @@ description: Per-org caps on token cost, request count, upload size, image gener
 
 Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls toggle web search, code execution, and file upload by scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when a feature should be off for a subset of users, or when a regulator names a retention window that differs from the default.
 
+<Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
+
+![The Policies and Limits governance page showing an empty budget-rules table above the upload-policy fields for allowed file types, sizes, and volume.](/images/platform/governance-policies-limits.webp)
+
+</Frame>
+
 ## A worked budget
 
 To cap an Editor's monthly spend, open **Settings > Governance > Budgets** and click **Add rule**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and the next month-period request that would push an Editor over the cap is refused with a budget-exceeded error. A warning threshold below the cap fires an alert before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.

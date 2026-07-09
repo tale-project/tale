@@ -9,20 +9,40 @@ Diese Übersicht nennt, was jede Seite behandelt, und verweist auf die tiefere R
 
 ## Was Entwickler abdeckt
 
-Die Entwickler-Oberfläche sitzt neben dem Rest der Einstellungen der Organisation, aber mit einem engeren Publikum. Sie setzt voraus, dass du weisst, was eine REST-API ist, wie ein Webhook aussieht und was ein MCP-Server tut — die Seiten erklären die zugrundeliegenden Konzepte nicht neu; sie erklären, wie Tale sie offenlegt.
+Die Entwickler-Oberfläche sitzt neben dem Rest der Einstellungen der Organisation, aber mit einem engeren Publikum. Sie setzt voraus, dass du weißt, was eine REST-API ist, wie ein Webhook aussieht und was ein MCP-Server tut — die Seiten erklären die zugrundeliegenden Konzepte nicht neu; sie erklären, wie Tale sie offenlegt.
 
 Dieselbe Oberfläche in den Cloud- und Self-hosted-Tabs unterscheidet sich nur in der Deployment-Form; die Oberfläche hier ist identisch. Die Konfigurationsdatei-Entsprechungen einiger dieser Funktionen (Env-Vars, JSON-Konfigurationen für Custom Tools) liegen einen Tab weiter in der Self-hosted-Dokumentation.
 
 ## Seiten in diesem Bereich
 
-**[API-Schlüssel](/de/platform/admin/api-keys)** — Entwickler lesen das, wenn sie ein Skript, einen Cron-Job oder einen internen Dienst an Tales REST-API verdrahten; die Oberfläche ist mit Admin unter Einstellungen > API-Schlüssel geteilt.
+<CardGroup cols="2">
 
-**[MCP-Server](/de/platform/integrations/mcp-servers)** — Entwickler lesen das, wenn sie einen externen MCP-Protokoll-Prozess registrieren und wählen, welche seiner Tools die Agents der Organisation aufrufen dürfen.
+<Card title="API-Schlüssel" icon="key" href="/de/platform/admin/api-keys">
 
-**[Agent-Webhook-Trigger](/de/platform/agents/webhook-triggers)** — Entwickler lesen das, wenn sie wollen, dass ein externes System bei einem eingehenden POST einen bestimmten Agent feuert.
+Ein Skript, einen Cron-Job oder einen internen Dienst an Tales REST-API verdrahten. Geteilt mit Admin unter Einstellungen > API-Schlüssel.
 
-**[Agent-Tools](/de/platform/agents/tools)** — Entwickler lesen das, wenn sie den Toolbelt eines Agents um ein Custom Tool erweitern, das die Agents der Organisation aufrufen können.
+</Card>
+
+<Card title="MCP-Server" icon="server" href="/de/platform/integrations/mcp-servers">
+
+Einen externen MCP-Protokoll-Prozess registrieren und wählen, welche seiner Tools die Agents der Organisation aufrufen dürfen.
+
+</Card>
+
+<Card title="Agent-Webhook-Trigger" icon="webhook" href="/de/platform/agents/webhook-triggers">
+
+Einen bestimmten Agent von einem externen System bei einem eingehenden POST feuern.
+
+</Card>
+
+<Card title="Agent-Tools" icon="wrench" href="/de/platform/agents/tools">
+
+Den Toolbelt eines Agents um ein Custom Tool erweitern, das die Agents der Organisation aufrufen können.
+
+</Card>
+
+</CardGroup>
 
 ## Wo das hingehört
 
-Entwickler ist die Brücke zwischen Tale und dem Rest der Codebase, die die Organisation fährt. Die natürliche Erstlektüre hängt davon ab, was du verdrahten willst — für ausgehend (etwas innerhalb von Tale ruft nach aussen) [Agent-Tools](/de/platform/agents/tools) und [MCP-Server](/de/platform/integrations/mcp-servers); für eingehend (etwas von aussen ruft in Tale hinein) [API-Schlüssel](/de/platform/admin/api-keys) und [Agent-Webhook-Trigger](/de/platform/agents/webhook-triggers).
+Entwickler ist die Brücke zwischen Tale und dem Rest der Codebase, die die Organisation fährt. Die natürliche Erstlektüre hängt davon ab, was du verdrahten willst — für ausgehend (etwas innerhalb von Tale ruft nach außen) [Agent-Tools](/de/platform/agents/tools) und [MCP-Server](/de/platform/integrations/mcp-servers); für eingehend (etwas von außen ruft in Tale hinein) [API-Schlüssel](/de/platform/admin/api-keys) und [Agent-Webhook-Trigger](/de/platform/agents/webhook-triggers).

@@ -1,48 +1,48 @@
 ---
 title: Projekt-Konzepte
-description: Ein Projekt ist ein geteilter Arbeitsbereich, der Dateien, Anweisungen, Konversationen und projektgebundene Agents bündelt. Diese Seite erklärt, wann du zu einem Projekt greifst statt zu einer einzelnen Konversation.
+description: Ein Projekt bündelt Chats, Dateien, Anweisungen, Aufgaben und Diskussionen in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt.
 ---
 
-Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsblock dieselben Dateien, dieselben Anweisungen und dieselben Agents über viele Konversationen hinweg braucht. Es ist ein geteilter Arbeitsbereich, der vier Dinge bündelt — Dateien, Anweisungen, Konversationen und projektgebundene Agents —, die dir zwischen Konversationen folgen, sodass du Kontext nicht jedes Mal neu einfügst.
+Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben dieselben Dateien, dieselben Anweisungen und dieselben Arbeitsflächen über viele Chats und viele Personen hinweg braucht. Diese Seite gibt dir das mentale Modell — lies sie, bevor du dein erstes Projekt erstellst, und komm zurück, wenn du entscheidest, ob ein wachsender Chat in eines befördert werden soll.
 
-Diese Seite vermittelt dir das mentale Modell, wann du zu einem Projekt greifst. Lies sie, bevor du eines startest; komm zurück, wenn du dich fragst, ob du eine einzelne Konversation weiter füttern oder den Kontext in ein Projekt befördern solltest.
+<Frame caption="Der Tab Allgemein — Identität, Freigabe und die Statistik-Leiste sind die Eingangstür des Projekts.">
 
-## Die vier Stücke
+![Der Tab Allgemein des Projekts Website-Relaunch mit den Feldern für Name und Beschreibung, dem Freigabe-Bereich und einer Statistik-Leiste, die zwei Dateien und zwei Chats zählt.](/images/platform/project-general-tab.webp)
 
-**Dateien** sind das Arbeitsset des Projekts — die Dokumente, Tabellen und Bilder, zu denen du immer wiederkommst. Dateien werden auf Projekt-Ebene angehängt und sind für jede Konversation im Projekt sichtbar, ohne die Kosten von erneutem Upload oder erneuter Indexierung.
+</Frame>
 
-**Anweisungen** sind das System-Prompt auf Projekt-Ebene — die Stimme und die Einschränkungen, die für jede Konversation im Projekt gelten. Sie komponieren mit den Anweisungen des Agents: die Projekt-Anweisungen rahmen die Arbeit, die Anweisungen des Agents rahmen die Antwort.
+## Was ein Projekt besitzt
 
-**Konversationen** sind die Gespräche. Jede Konversation im Projekt sieht die Dateien und Anweisungen des Projekts. Konversationen bleiben innerhalb des Projekts; sie erscheinen nicht in der org-weiten Chat-Historie.
+**Chats**, die im Projekt gestartet werden, tragen seinen Kontext automatisch. Sie bleiben deine, bis du an einem Chat **Mit Projekt teilen** umlegst — der Chats-Tab teilt sich entsprechend in **Deine Chats** und **Mit Projekt geteilt**. Das Teilen eines Chats blendet deine persönlichen Erinnerungen und Anweisungen aus den Antworten aus, die andere Mitglieder sehen.
 
-**Projekt-Agents** sind Agents, die auf das Projekt beschränkt sind. Sie überschatten die org-weiten Agents mit demselben Namen — wo beide existieren, gewinnt die Projekt-Version im Projekt. Nutz Projekt-Agents für Verhalten, das Leser ausserhalb des Projekts überraschen würde.
+**Anweisungen** sind Kontext, der für jeden Chat im Projekt gilt — die Rahmung, die Randbedingungen und das Vokabular der Arbeit —, damit niemand sie pro Chat neu einfügt.
 
-## Freigabe-Modell
+**Dateien** auf dem Tab **Wissen** sind Referenzmaterial, aus dem jeder Chat im Projekt schöpfen kann — abgelegt in einem Ordnerbaum, den du einmal befüllst, statt sie pro Chat neu anzuhängen. Sie bleiben auf dieses Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch in `@`-Pickern außerhalb davon auf — siehe [Dateien verwalten](/de/platform/projects/manage-files).
 
-Ein Projekt gehört seinem Ersteller in der Voreinstellung; der Ersteller kann Mitglieder hinzufügen. Mitglieder sehen die Dateien und Konversationen des Projekts, aber nicht Konversationen, die vor ihrer Mitgliedschaft existierten, ausser sie sind explizit freigegeben. Ein Mitglied zu entfernen entzieht ihm den Zugriff auf den nächsten Request; Transkripte, die es bereits heruntergeladen hat, bleiben auf seinem Gerät.
+**Aufgaben und Diskussionen** machen das Projekt zu einem Ort, an dem Arbeit läuft, statt nur besprochen zu werden: ein Board mit Status und [Automatisierung](/de/platform/projects/task-automation) sowie [Diskussionen in Threads](/de/platform/projects/discussions) für Entscheidungen.
 
-## Zusammengesetzt — ein Sales-Account-Projekt
+**Agenten & Modelle** ist eine Kuratierungsfläche: welche Agenten und Modelle Mitglieder in diesem Projekt zuerst sehen — oder überhaupt sehen ([Agenten und Modelle](/de/platform/projects/project-agents)).
 
-Ein Sales-Account-Projekt bündelt die Artefakte, zu denen ein Verkäufer für einen Kunden immer wiederkommt:
+## Erstellen und Identität
 
-- Dateien: der Vertrag des Kunden, die Angebotsentwürfe, die Gesprächsnotizen.
-- Anweisungen: „Du arbeitest am Account Acme. Verweise auf die Gesprächsnotizen nach Datum; zitiere den Vertrag nach Abschnittsnummer."
-- Konversationen: eine pro Deal-Phase — Qualifizierung, Demo-Vorbereitung, Angebot, Verhandlung.
-- Projekt-Agents: ein Deal-Zusammenfassungs-Agent, der die Acme-Stimme kennt, plus die Standard-Agents der Organisation.
+**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel** — dem Präfix für Aufgaben-IDs wie `WR-1`. Das Kürzel steht fest; nach dem Erstellen des Projekts lässt es sich nicht mehr ändern. Beschreibung, besitzendes Team, Icon und Farbe bleiben später auf dem Tab **Allgemein** änderbar, wo die vereinheitlichten Buttons **Speichern** und **Verwerfen** in der Tab-Leiste sitzen.
 
-Jede Konversation im Projekt sieht dieselben Dateien und Anweisungen; der Verkäufer öffnet pro Deal-Phase eine neue Konversation, und der Kontext folgt.
+## Das Freigabe-Modell
+
+Geteilt wird pro Team, nicht per Einzeleinladung. Ein Projekt steht standardmäßig auf **Organisationsweit**; wählst du ein besitzendes Team, gilt es nur für dieses Team, und weitere Teams kommen auf dem Tab Allgemein dazu. Org-Admins haben immer Zugriff. Umbenennen, Archivieren und Löschen liegen im Zeilenmenü der Projektliste — beim Löschen fragt Tale, was mit dem Inhalt passiert: Dateien und Chats lösen (sie werden zu Bibliotheksdokumenten und persönlichen Chats) oder sie mitlöschen.
 
 ## Wann du danach greifst
 
-| Nutz … wenn                                            | Projekt | Einzelne Konversation |
-| ------------------------------------------------------ | ------- | --------------------- |
-| Dieselben Dateien gelten über viele Konversationen     | ✓       |                       |
-| Dieselben Anweisungen gelten über viele Konversationen | ✓       |                       |
-| Mehrere Personen arbeiten am selben Block              | ✓       |                       |
-| Die Konversation ist einmalig                          |         | ✓                     |
+| Nimm … wenn                                                 | Projekt | Einzel-Chat |
+| ----------------------------------------------------------- | ------- | ----------- |
+| Dieselben Dateien gelten über viele Chats                   | ✓       |             |
+| Dieselben Anweisungen gelten über viele Chats               | ✓       |             |
+| Mehrere Personen arbeiten am selben Vorhaben                | ✓       |             |
+| Die Arbeit hat Aufgaben, Verantwortliche und Entscheidungen | ✓       |             |
+| Die Frage ist einmalig                                      |         | ✓           |
 
-Einzelne Konversationen sind die richtige Form, wenn du eine Antwort einmal explorierst. Projekte sind die richtige Form, wenn derselbe Kontext der Arbeit über viele Sitzungen folgt.
+Ein Einzel-Chat ist die richtige Form, um eine Antwort einmal zu erkunden. In dem Moment, in dem der Kontext den Chat überleben soll, zieh um — die Composer-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat in ein Projekt.
 
-## Bau eines
+## Wo das hingehört
 
-Projekte sind die Naht zwischen Agents und Konversationen: die Dateien, Anweisungen, Konversationen und Agents, die zusammen reisen. Die natürliche nächste Lektüre ist [Projekte nutzen](/de/tutorials/member/use-projects) — sie geht die vier Stücke auf einem frischen Projekt durch, von der Erstellung bis zur ersten Antwort, die die Dateien des Projekts zitiert.
+Projekte sind die Naht, an der Chats, Wissen und Aufgaben-Automatisierung zusammentreffen. Die natürliche nächste Lektüre ist [Projekte nutzen](/de/tutorials/member/use-projects) — ein frisches Projekt von Anfang bis Ende; die Tab-Seiten in diesem Bereich vertiefen [Dateien](/de/platform/projects/manage-files), [Agenten und Modelle](/de/platform/projects/project-agents) und [Diskussionen](/de/platform/projects/discussions).

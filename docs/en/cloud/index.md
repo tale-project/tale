@@ -10,15 +10,39 @@ This section covers the concerns specific to running on Cloud — onboarding, re
 
 ## Pages in this section
 
-**[Onboarding](/cloud/onboarding)** — sign up, verify the org, configure the first model provider, publish your first agent. About an hour for an Editor.
+<CardGroup cols="2">
 
-**[Data residency](/cloud/data-residency)** — where your data lives, which sub-processors touch it, and what changes when you switch region.
+<Card title="Onboarding" icon="rocket" href="/cloud/onboarding">
 
-**[Billing](/cloud/billing)** — plans, seats, metered components, budgets, and where to find the invoice.
+Sign up, verify the org, configure the first model provider, publish your first agent. About an hour for an Editor.
 
-**[Trust and compliance](/cloud/trust-and-compliance)** — the certifications Tale ships with, the shared-responsibility split, and what evidence you can hand an auditor.
+</Card>
 
-**[Migrate to self-hosted](/cloud/migrate-to-self-hosted)** — export from Cloud, stand up a self-hosted instance, import.
+<Card title="Data residency" icon="map-pin" href="/cloud/data-residency">
+
+Where your data lives, which sub-processors touch it, and what changes when you switch region.
+
+</Card>
+
+<Card title="Billing" icon="credit-card" href="/cloud/billing">
+
+Plans, seats, metered components, budgets, and where to find the invoice.
+
+</Card>
+
+<Card title="Trust and compliance" icon="shield-check" href="/cloud/trust-and-compliance">
+
+The certifications Tale ships with, the shared-responsibility split, and what evidence you can hand an auditor.
+
+</Card>
+
+<Card title="Migrate to self-hosted" icon="server" href="/cloud/migrate-to-self-hosted">
+
+Export from Cloud, stand up a self-hosted instance, import.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

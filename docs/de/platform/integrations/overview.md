@@ -1,73 +1,53 @@
 ---
 title: Integrationen
-description: Drittsysteme, aus denen Tale liest und in die es schreibt — Kommunikation, Speicher, Identität, Entwicklung, Wissen — und wie sich die Integrations-Oberfläche von MCP unterscheidet.
+description: Die Drittsysteme, mit denen sich Tale verbindet — der Katalog unter Einstellungen > Integrationen, was jeder Konnektor tut, wie das Verbinden abläuft und wie sich die Oberfläche von MCP unterscheidet.
 ---
 
-Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks. Agents rufen sie als Tools auf, Workflows triggern sie an Schritten, und die Dokumenten-Pipeline zieht Dateien aus ihnen. Jede Integration ist eine einzige JSON-Konfiguration plus eine Credential, die die Org einmal speichert; einmal verbunden, kann alles in Tale sie ohne erneute Authentifizierung nutzen. Diese Übersicht benennt die ausgelieferten Integrationen, gruppiert danach, was sie tun.
+Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks: Agents rufen sie als Tools auf, Workflows rufen sie in Schritten auf, und die Wissens-Pipeline zieht Dokumente durch sie hindurch. Die Organisation verbindet jede genau einmal unter **Einstellungen > Integrationen**; von da an kann alles in Tale sie nutzen, ohne sich neu zu authentifizieren. Diese Übersicht benennt den mitgelieferten Katalog und die zwei Wege, ihn zu erweitern.
 
-Die Form einer Integration ist über jeden Eintrag unten gleich — eine OpenAI-kompatible REST-Oberfläche oder ein OAuth2-Tanz, mit in einer JSON-Konfiguration unter `builtin-configs/integrations/` deklarierten Operationen. Benutzerdefinierte Integrationen folgen derselben Form; eine Code-Änderung brauchst du nicht, um eine hinzuzufügen.
+<Frame caption="Einstellungen > Integrationen auf dem Tab Alle Integrationen — der volle Katalog, jede Karte ein Verbinden entfernt.">
 
-## Wie Integrationen sich von MCP unterscheiden
+![Die Seite Einstellungen Integrationen mit einem Suchfeld, einem Button Integration hinzufügen und einem Kartenraster aus zwölf Diensten, darunter Confluence, GitHub, Gmail, Slack und Twilio.](/images/platform/integrations-catalog.webp)
 
-Zwei Oberflächen lassen einen Agent über Tale hinausreichen. **Integrationen** sind Erstanbieter-Konnektoren, durch OAuth oder API-Key gesichert, die die Org einmal unter **Einstellungen > Integrationen** konfiguriert. **MCP-Server** sind externe Prozesse (oft self-hosted), die das Model Context Protocol freigeben; die Org registriert sie unter **Einstellungen > MCP-Server** und genehmigt jedes Tool beim ersten Aufruf. Greif zu einer Integration, wenn für dein Zielsystem eine existiert; greif zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn keine Integration abdeckt, was du brauchst, und du die Brücke selbst hosten kannst.
+</Frame>
 
-## Kommunikation
+## Der Katalog
 
-| Integration   | Was sie tut                                                        | Einrichtung                             |
-| ------------- | ------------------------------------------------------------------ | --------------------------------------- |
-| **Slack**     | Kanäle lesen, Nachrichten senden, auf Ereignisse reagieren.        | OAuth2 vom Slack-Workspace.             |
-| **Teams**     | Dieselbe Form für Microsoft Teams — Kanäle und Chats.              | OAuth über Microsoft Entra ID.          |
-| **Discord**   | Bot-getriebener Nachrichtenversand und Kanal-Lesen.                | Discord-Bot-Token.                      |
-| **Gmail**     | Inbox lesen, Mail senden, labeln.                                  | OAuth über Google.                      |
-| **Outlook**   | Inbox lesen, Mail senden, Kalender lesen.                          | OAuth über Microsoft Entra ID.          |
-| **IMAP/SMTP** | Mail über ein privates Postfach empfangen und senden — ohne OAuth. | IMAP- und SMTP-Host, Port und Passwort. |
-| **Twilio**    | SMS, Voice, WhatsApp Business.                                     | Twilio Account-SID und Auth-Token.      |
+Die Seite hat zwei Tabs — **Verbunden** zeigt, was die Organisation bereits nutzt, **Alle Integrationen** den vollen Katalog mit einem Suchfeld. Die Beschreibung jeder Karte ist der ehrliche Einzeiler dessen, was dir das Verbinden bringt:
 
-## Speicher und Dokumente
+| Integration             | Was sie tut                                                                                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confluence**          | Importiert Confluence-Cloud-Seiten in Tales Wissensdatenbank.                                                                                                                                                                         |
+| **Discord**             | Postet Nachrichten und verwaltet Kanäle in deinem Discord-Server.                                                                                                                                                                     |
+| **GitHub**              | Verwaltet Repositories, Issues und Pull Requests auf GitHub.                                                                                                                                                                          |
+| **Gmail**               | Liest, sendet und organisiert E-Mails in Gmail.                                                                                                                                                                                       |
+| **Google Drive**        | Importiert Dateien aus Google Drive in Tales Wissensdatenbank.                                                                                                                                                                        |
+| **IMAP / SMTP Mailbox** | Verbindet einen privaten IMAP- und SMTP-Mailserver mit dem Posteingang — kein Gmail- oder Outlook-Konto nötig; der Versand kann über ein separates SMTP-Relay (Resend, SendGrid, Amazon SES, …) laufen statt über den Postfach-Login. |
+| **Microsoft Outlook**   | Verwaltet Outlook-Mail, -Kalender und -Kontakte.                                                                                                                                                                                      |
+| **Shopify**             | Synchronisiert Produkte, Kunden und Bestellungen aus deinem Shopify-Shop.                                                                                                                                                             |
+| **Slack**               | Sendet Nachrichten und interagiert mit Kanälen in Slack.                                                                                                                                                                              |
+| **Tavily**              | Websuche und Seitenextraktion in Echtzeit für KI-Recherche.                                                                                                                                                                           |
+| **Microsoft Teams**     | Sendet Nachrichten und verwaltet Kanäle in Microsoft Teams.                                                                                                                                                                           |
+| **Twilio**              | Sendet SMS und führt Sprachanrufe mit Twilio.                                                                                                                                                                                         |
 
-| Integration       | Was sie tut                                                                                                                                | Einrichtung                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| **Microsoft 365** | OneDrive- und SharePoint-Dokumentensynchronisation ins [Wissen](/de/platform/knowledge/documents); Single Sign-on über Microsoft Entra ID. | OAuth über Microsoft Entra ID; derselbe Tenant treibt SSO und Dokumenten-Sync. |
-| **Google Drive**  | Dateien aus Drive-Ordnern ins Wissen ziehen.                                                                                               | OAuth über Google.                                                             |
-| **Confluence**    | Confluence-Seiten ins Wissen ziehen; Agents zitieren die Quellseite.                                                                       | API-Token + Base-URL (Cloud oder self-hosted).                                 |
-| **WebDAV**        | Ordner von einem beliebigen WebDAV-Server lesen (Nextcloud, ownCloud, generisch).                                                          | Server-URL, Benutzername, Passwort.                                            |
+## Eine verbinden
 
-Über jede dieser Quellen synchronisierte Dokumente fliessen durch dieselbe Indexierungs-Pipeline wie Direktuploads — siehe [Dokumente](/de/platform/knowledge/documents). Das Quellfeld jedes indizierten Dokuments benennt die Integration, sodass Zitate auf das Original zurückzeigen.
+Klicke auf **Verbinden** auf einer Karte. OAuth-gestützte Dienste führen durch den Einwilligungs-Flow des Anbieters; Token-gestützte fragen im Abschnitt **Authentifizierung** nach dem Zugangsnachweis. Die Detailansicht listet außerdem die Operationen der Integration — die mit **Genehmigung erforderlich** markierten halten im Chat, bis eine Person zustimmt; so bleiben ausgehende Schreibzugriffe nachvollziehbar ([Genehmigungen konfigurieren](/de/platform/approvals/configure)).
 
-## Identität
+Dokumente, die über Confluence oder Google Drive hereinkommen, fließen durch dieselbe Indexierungs-Pipeline wie direkte Uploads, und Zitate zeigen zurück auf die Quelle — siehe [Dokumente](/de/platform/knowledge/documents).
 
-Microsoft 365 deckt auch Identität ab. Sie unter **Einstellungen > Integrationen** zu verbinden aktiviert OneDrive- und SharePoint-Lesen; sie unter **Einstellungen > Authentifizierung** zu verbinden aktiviert Single Sign-on für die ganze Org über denselben Entra-ID-Tenant. Die zwei Pfade teilen Credentials und Provisionierungsregeln — siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für das Rollen-Mapping.
+## Über den Katalog hinaus erweitern
 
-## Wissen und Recherche
+**Integration hinzufügen** lädt einen eigenen Konnektor hoch — ein kleines Paket aus `config.json`, einer `connector.js` oder `.ts` und einem Icon (als `.zip` oder Einzeldateien, 1 MB gesamt). Die Vorschau zeigt vor der Installation seine Operationen, erlaubten Hosts und den Konnektor-Code, und das Ergebnis erscheint im Katalog wie jeder mitgelieferte Eintrag.
 
-| Integration | Was sie tut                                                                                     | Einrichtung               |
-| ----------- | ----------------------------------------------------------------------------------------------- | ------------------------- |
-| **Tavily**  | Open-Web-Suche und Seitenextraktion für die [Tiefenrecherche](/de/platform/chat/deep-research). | API-Key von `tavily.com`. |
+Wenn kein Konnektor passt und du die Brücke selbst hosten kannst, registriere stattdessen einen [MCP-Server](/de/platform/integrations/mcp-servers) — eine generische Protokolloberfläche statt eines anbieterspezifischen Konnektors.
 
-## Quellcode
+<Note>
 
-| Integration | Was sie tut                                                    | Einrichtung                         |
-| ----------- | -------------------------------------------------------------- | ----------------------------------- |
-| **GitHub**  | Repositories lesen, Code suchen, auf Issues und PRs reagieren. | GitHub-App oder persönliches Token. |
+WebDAV steht nicht in diesem Katalog, weil es in die andere Richtung zeigt: Es serviert Tales Dokumente als Netzlaufwerk an deine Geräte. Siehe [WebDAV](/de/platform/integrations/webdav).
 
-## Vertikal: Commerce und Hospitality
+</Note>
 
-| Integration | Was sie tut                              | Einrichtung              |
-| ----------- | ---------------------------------------- | ------------------------ |
-| **Shopify** | Bestellungen, Kunden und Produkte lesen. | Shopify-Admin-API-Token. |
+## Wo das hingehört
 
-## KI-Dienste
-
-| Integration  | Was sie tut                                                                           | Einrichtung                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **AI image** | Bildgenerierungs-Oberfläche, die die konfigurierten bild-getaggten Modelle umwickelt. | Keine Einrichtung — nutzt die Modell-Provider unter [Einstellungen > Provider](/de/platform/admin/providers). |
-
-## Eine eigene Integration hinzufügen
-
-Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; unter dem org-first Layout ist jeder `integrations/`-Unterbaum der Org unabhängig. Die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `builtin-configs/integrations/`.
-
-Für reichere oder selbst gehostete Brücken sind [MCP-Server](/de/platform/integrations/mcp-servers) die alternative Oberfläche — jeder MCP-Server, den du registrierst, fügt seine Tools dem Agent-Werkzeuggürtel hinzu mit pro-Tool-Genehmigung.
-
-## Wo das hineinpasst
-
-Integrationen sind, wie Agents auf die Welt ausserhalb von Tale wirken. Welche Seite du als Nächstes liest, hängt davon ab, wozu du gekommen bist — für den Agent-Autor erklärt [Agent-Tools](/de/platform/agents/tools), wie die Operationen einer Integration als Tool-Familie am Agent auftauchen; für den Org-Admin ist [Einstellungen > Integrationen](/de/platform/admin/integrations) der Ort, an dem Credentials gespeichert und rotiert werden; für den Entwickler, der etwas Neues verdrahtet, ist [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) der End-to-End-Bau einer benutzerdefinierten Brücke.
+Integrationen sind der Weg, auf dem Agents auf die Welt außerhalb von Tale wirken. Für Agent-Autoren zeigt [Agent-Tools](/de/platform/agents/tools), wie die Operationen einer Integration als Tools auftauchen; für Genehmiger ist [Genehmigungen konfigurieren](/de/platform/approvals/configure) der Ort, an dem Schreiboperationen angehalten werden; für Builder ohne passenden Konnektor ist [MCP-Server](/de/platform/integrations/mcp-servers) die offene Alternative.

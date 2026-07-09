@@ -1,50 +1,59 @@
 ---
 title: Agent-Konzepte
-description: Ein Agent ist die Vier-Knöpfe-Kombination aus Instructions, Wissen, Tools und einem Modell. Diese Seite vermittelt dir das mentale Modell, das der Rest des Agents-Abschnitts voraussetzt.
+description: Ein Agent ist die Vier-Knöpfe-Kombination aus Anweisungen, Wissen, Tools und einem Modell. Diese Seite vermittelt dir das mentale Modell, das der Rest des Agenten-Abschnitts voraussetzt.
 ---
 
-Ein Agent ist die Einheit, zu der Tale greift, wenn dieselbe Frage immer wiederkommt. Er ist die Vier-Knöpfe-Kombination aus Instructions, Wissen, Tools und einem Modell — die vier Dinge, an denen du drehst, damit der Agent sich anders verhält. Redakteure und Entwickler bauen sie; Mitglieder und andere Rollen führen sie aus.
+Ein Agent ist die Einheit, zu der Tale greift, wenn dieselbe Frage immer wiederkommt. Er ist die Vier-Knöpfe-Kombination aus Anweisungen, Wissen, Tools und einem Modell — die vier Dinge, an denen du drehst, damit der Agent sich anders verhält. Redakteure und Entwickler bauen sie; Mitglieder und andere Rollen führen sie aus.
 
-Diese Seite vermittelt dir das mentale Modell, das der Rest des Abschnitts voraussetzt. Lies sie einmal, bevor du deinen ersten Agent baust; komm zurück, wenn du nicht mehr weisst, ob ein Verhalten, das du ändern willst, in den Instructions, im Wissen, in den Tools oder im Modell sitzt.
+Diese Seite vermittelt dir das mentale Modell, das der Rest des Abschnitts voraussetzt. Lies sie einmal, bevor du deinen ersten Agent baust; komm zurück, wenn du nicht mehr weißt, ob ein Verhalten, das du ändern willst, in den Anweisungen, im Wissen, in den Tools oder im Modell sitzt.
 
 ## Die vier Knöpfe
 
-**Instructions** sind das System-Prompt — die Prosa, die jede Antwort rahmt. Halt sie kurz, meinungsstark und konkret; lange Instructions verwässern in langen Konversationen. Sag die Stimme, die Einschränkungen und die Ablehnungsfälle.
+**Anweisungen** sind das System-Prompt — die Prosa, die jede Antwort rahmt. Halte Anweisungen kurz, meinungsstark und konkret; lange Anweisungen verwässern in langen Konversationen. Benenne die Stimme, die Einschränkungen und die Ablehnungsfälle.
 
-**Wissen** ist das, worauf der Agent zurückgreifen kann. Bind Dokumente, Kunden, Produkte, Lieferanten oder Websites aus der Wissensdatenbank an; der Agent holt sich Chunks zur Antwortzeit und zitiert sie. Wissen, das nicht angebunden ist, ist für den Agent unsichtbar — es gibt kein implizites Ziehen aus der gesamten Bibliothek der Organisation.
+**Wissen** ist das, was der Agent aus der Wissensdatenbank der Organisation abrufen kann. Ein Abrufmodus entscheidet, ob der Agent bei Bedarf sucht, ob relevante Chunks in jede Antwort injiziert werden, ob beides passiert oder keines — und Scope-Schalter entscheiden, ob Team-Dokumente, Organisationsdokumente und die eigenen Uploads des Agents durchsuchbar sind. Wissen außerhalb dieser Scopes ist für den Agent unsichtbar — es gibt kein implizites Ziehen aus allem, was die Organisation besitzt.
 
-**Tools** sind das, was der Agent zusätzlich zum Text-Antworten kann. Eingebaute Tool-Familien decken Web, Dateien, RAG über Wissen, Code-Ausführung, Sub-Agent-Delegation, Workflow-Aufruf, MCP-Server und User-Eingaben ab. Schalt sie pro Agent ein — jedes Tool, das du erlaubst, weitet die Vertrauensgrenze, also halt die Liste kurz.
+**Tools** sind das, was der Agent über Text-Antworten hinaus tun kann. Der Tab **Tools** des Agents ist eine Checkliste pro Tool, gruppiert nach Kategorie — Kunden- und Produktdaten, Dateien, Workflows, Websuche, Code-Ausführung und mehr. Schalte jedes Tool einzeln frei; jedes Tool, das du gewährst, weitet die Vertrauensgrenze, also halte die Liste kurz.
 
-**Modell** ist das LLM hinter jeder Antwort. Wähl das primäre, setz einen Fallback, Tale löst zur Request-Zeit auf. Modellwechsel trainiert nichts neu — die anderen drei Knöpfe sind das „Gedächtnis" des Modells für den Job.
+**Modell** ist das LLM hinter jeder Antwort. Modelle sind eine geordnete Liste: der erste Eintrag ist das primäre Modell, der Rest sind Fallbacks, die Tale der Reihe nach probiert, wenn das primäre nicht verfügbar ist. Ein Modellwechsel trainiert nichts neu — die anderen drei Knöpfe des Agents sind das „Gedächtnis“ des Modells für den Job.
 
-## Fähigkeiten als Bündel
+```mermaid
+flowchart LR
+    I[Anweisungen] --> A((Agent))
+    K[Wissen] --> A
+    T[Tools] --> A
+    M[Modell] --> A
+    A --> R[Antwort mit Zitaten]
+```
 
-Eine Fähigkeit verpackt Instructions und (optional) ein Sandbox-Skript in ein wiederverwendbares Bündel, das du an einen Agent hängen kannst. Greif zu einer Fähigkeit, wenn dasselbe Muster über mehrere Agents auftaucht — eine Schreibstimme, eine Berechnung, eine mehrstufige Aufgabe. Fähigkeiten komponieren mit den vier Knöpfen: ein Agent mit drei Fähigkeiten hat die Instructions jeder Fähigkeit plus seine eigenen.
+## Skills als Bündel
 
-Die Konzept-Seite zu Fähigkeiten beleuchtet den Trade-off zwischen Fähigkeiten und Inline-Instructions im Detail: siehe [Fähigkeiten](/de/platform/agents/skills).
+Ein Skill verpackt Anweisungen — und optional Skripte und Referenzdateien — in ein wiederverwendbares Bündel, das du an einen Agent bindest. Greif zu einem Skill, wenn dasselbe Muster über mehrere Agenten auftaucht: eine Schreibstimme, eine Berechnung, eine mehrstufige Aufgabe. Skills komponieren mit den vier Knöpfen; ein Agent kann bis zu zehn binden und liest jeden zur Laufzeit.
+
+Die Skills-Seite beleuchtet den Trade-off zwischen einem Skill und Inline-Anweisungen im Detail: siehe [Agent-Skills](/de/platform/agents/skills).
 
 ## Zusammengesetzt — ein Support-Triage-Agent
 
-Ein erster nützlicher Agent ist der Support-Triage-Agent: er liest die eingehende Konversation, entscheidet, ob er direkt antwortet, an einen Menschen eskaliert oder an einen Spezialisten weitergibt. Die vier Knöpfe:
+Ein erster nützlicher Agent ist der Support-Triage-Agent: er liest die eingehende Frage, beantwortet, was er kann, und eskaliert den Rest. Die vier Knöpfe:
 
-- Instructions: ein Absatz Stimme + drei explizite Ablehnungsfälle.
-- Wissen: die Produkt-Dokumentation und der FAQ-Ordner; nicht der Quellcode.
-- Tools: RAG, Web-Suche und das Sub-Agent-Tool für die Eskalation. Keine Code-Ausführung.
-- Modell: ein fähiges Modell als primäres, ein kleineres als Fallback, wenn das primäre Rate-Limits trifft.
+- Anweisungen: ein Absatz Stimme plus drei explizite Ablehnungsfälle.
+- Wissen: Abruf bei Bedarf über die Produktdokumentation; keine eigenen Uploads für den Agent.
+- Tools: Websuche und die Konversations-Tools. Keine Code-Ausführung.
+- Modell: ein fähiges primäres Modell mit einem günstigeren Fallback direkt dahinter.
 
-Die Konversation läuft dann: User-Nachricht → Instructions rahmen die Antwort → Wissens-Retrieval findet drei relevante Chunks → Tools antworten entweder oder delegieren → die Antwort landet mit Zitaten.
+Die Konversation läuft dann so: User-Nachricht → Anweisungen rahmen die Antwort → das Wissens-Retrieval findet die relevanten Chunks → Tools füllen die Lücken → die Antwort landet mit Zitaten. Die Eskalation an einen Spezialisten ist kein Tool-Schalter — sie folgt Delegationsbeziehungen zwischen Agents. Siehe [Agent Workers](/de/platform/agents/delegation).
 
 ## Wann du danach greifst
 
-Ein einzelner Agent ist die richtige Form, wenn die Konversation in einer Domäne und einer Stimme bleibt. Greif zu einem [Workflow](/de/platform/workflows/concepts), wenn die Arbeit mehrstufig ist und du Genehmigungen oder Zeitpläne dazwischen willst; greif zu einem rohen Chat (kein Agent), wenn du eine Antwort selbst explorierst und die Modell-Defaults reichen.
+Ein einzelner Agent ist die richtige Form, wenn die Konversation in einer Domäne und einer Stimme bleibt. Greif zu einer [Automatisierung](/de/platform/automations/concepts), wenn die Arbeit mehrstufig ist und du Genehmigungen oder Zeitpläne dazwischen willst; greif zu einem rohen Chat (ohne Agent), wenn du eine Antwort selbst erkundest und die Modell-Defaults reichen.
 
-| Nutz … wenn                                         | Agent | Roher Chat | Workflow |
-| --------------------------------------------------- | ----- | ---------- | -------- |
-| Dieselbe Frage kehrt wieder                         | ✓     |            |          |
-| Die Stimme oder die Einschränkungen sind wichtig    | ✓     |            |          |
-| Du brauchst Genehmigungen oder Zeitpläne dazwischen |       |            | ✓        |
-| Du explorierst eine Antwort einmalig                |       | ✓          |          |
+| Nutze … wenn                                                | Agent | Roher Chat | Automatisierung |
+| ----------------------------------------------------------- | ----- | ---------- | --------------- |
+| Dieselbe Frage kehrt wieder                                 | ✓     |            |                 |
+| Die Stimme oder die Einschränkungen sind wichtig            | ✓     |            |                 |
+| Du brauchst Genehmigungen oder Zeitpläne zwischen Schritten |       |            | ✓               |
+| Du erkundest eine Antwort einmalig                          |       | ✓          |                 |
 
 ## Bau einen
 
-Die vier Knöpfe sind das, woraus jeder Tale-Agent besteht: dreh an einem, und du hast das Verhalten verändert; dreh an dreien, und du hast ein neues Produkt gemacht. Die natürliche nächste Lektüre ist [Bau deinen ersten Agent](/de/tutorials/editor/first-agent-end-to-end) — sie geht die vier Knöpfe auf einer frischen Instanz durch.
+Die vier Knöpfe sind das, woraus jeder Tale-Agent besteht: dreh an einem, und du hast das Verhalten des Agents verändert; dreh an dreien, und du hast ein neues Produkt gebaut. Die natürliche nächste Lektüre ist [Bau deinen ersten Agent](/de/tutorials/editor/first-agent-end-to-end) — sie geht die vier Knöpfe auf einer frischen Instanz von Anfang bis Ende durch.

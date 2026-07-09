@@ -1,55 +1,49 @@
 ---
 title: MCP servers
-description: MCP servers are external processes that expose tools to Tale's agents over the Model Context Protocol. Admins register them under Settings > MCP servers; the per-tool approval rule decides what each agent may call.
+description: Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight.
 ---
 
-An MCP server is an external process that exposes tools to Tale's agents over the Model Context Protocol. Where a first-party integration is a vendor-specific connector Tale ships, an MCP server is a generic bridge anyone can host — the protocol is open, the contract is one of tools and resources, and the org decides per server what its agents may reach. Admins register MCP servers under **Settings > MCP servers**; Developers and Editors point agents at them.
+An MCP server is an external process that exposes tools to Tale's agents over the Model Context Protocol. Where an [integration](/platform/integrations/overview) is a vendor-specific connector Tale ships, an MCP server is a generic bridge anyone can host — an internal API, a vendor without a connector, a script that computes something Tale's built-in tools cannot. You host the server; Tale only talks to it.
 
-This page is the reference for what an MCP server brings into Tale, how registration works, how the per-tool approval rule shapes what an agent may call, and how MCP servers differ from first-party integrations. The protocol itself is documented upstream; what follows is the Tale-side surface.
+<Frame caption="The Add MCP server form — a connection and an authentication method are the whole registration.">
 
-## What an MCP server brings
+![The Add MCP server dialog under Settings API MCP with fields for name, display name, description, a transport type selector showing Streamable HTTP, a URL field, and an authentication method set to None.](/images/platform/settings-mcp-add-dialog.webp)
 
-An MCP server speaks the Model Context Protocol over HTTP or stdio. Once registered, Tale fetches the server's tool manifest — a list of named tools, their input schemas, and what each one does — and exposes the tools as a tool family on every agent the server is bound to. The agent calls the tool the same way it calls any other tool; the request travels through Tale to the MCP server, the server's reply travels back, and the agent uses it in the reply.
-
-The server can also expose **resources** (read-only context the agent can pull) and **prompts** (named templates the agent can compose). Tools are the most common surface; resources and prompts are optional capabilities a server may or may not implement.
+</Frame>
 
 ## Registering a server
 
-Open **Settings > MCP servers** and click **Add server**. The form asks for:
+Open **Settings > API > MCP** and click **Add MCP server**. The form takes:
 
-- **Name** — a human label that appears on the agent's tool list and on every approval card.
-- **Transport** — HTTP or stdio. HTTP servers carry a URL; stdio servers carry a command Tale spawns. The URL must be a valid `http://` or `https://` address — the form flags a malformed one inline before you can save.
-- **Authentication** — none, bearer token, or OAuth. Tokens go into a secret field; OAuth walks the dance like a first-party integration.
+- **Name** and **Display name** — the identifier, and the label agents and approval cards show.
+- **Transport type** — **Streamable HTTP**, **SSE**, or **stdio**. The HTTP transports take a **URL** — the form flags a malformed one inline before you can save; stdio takes the command Tale spawns.
+- **Authentication** — **None**, **API Key**, or **OAuth 2.0** (token URL, client ID and secret, scopes).
 - **Allowed agents** — which agents may bind to this server. The default is no agents; reach for **All agents** only when the server is generic enough that every agent benefits.
 
-Saving the form triggers a handshake: Tale connects to the server, fetches the manifest, and stores it. A handshake failure surfaces the upstream error next to the row.
+**Save server**, then use **Test connection** on the row to verify the handshake — the row's status shows **Connected**, **Disconnected**, or **Error** with the upstream message.
 
-## The per-tool approval rule
+## The discovered tools
 
-The first time an agent calls a tool from an MCP server, Tale surfaces an approval card to the org's MCP approver pool (configured under **Settings > Governance > MCP approvals**). The approver decides whether the tool is allowed for that agent. Three outcomes:
+Once connected, Tale fetches the server's manifest and lists it as **Discovered Tools** — each tool's name, description, and whether the server flags it **Requires approval**. Flagged tools ask in chat every time an agent calls them, with the exact arguments shown on the card; unflagged tools run like any built-in tool.
 
-- **Approve once** — the tool runs this time, and the next call surfaces the card again.
-- **Approve for this agent** — the tool is allowed for this agent forever; subsequent calls run without a card.
-- **Deny** — the tool is blocked for this agent; subsequent calls fail with an authorisation error.
+<Warning>
 
-The per-tool approval is per agent and per tool. Approving the `read_file` tool for the support agent does not approve it for the sales agent, and does not approve the `write_file` tool on the same server. This is intentional — every tool on every MCP server widens the trust boundary, and the per-tool decision is how the org keeps the boundary tight.
+Every MCP tool widens what your agents can reach, and the approval flags come from the server's author — connecting a server means accepting its tool contract. Read the discovered list before pointing agents at a server you did not write.
 
-## What an MCP server is good for
+</Warning>
 
-Reach for an MCP server when you want an agent to reach into something no first-party integration covers — an internal API, a vendor without a Tale connector, a local script that does a calculation Tale's built-in tools cannot. The deployment is on you; Tale only talks to the server.
+## Using it from agents
 
-A common pattern is one MCP server per internal service the agents need. The server runs alongside the rest of the org's infrastructure, speaks MCP, and the team that owns the service also owns the contract.
+A registered, active server's tools join the toolbelt agents can call; the request travels through Tale to your server and the reply comes back into the conversation. The server can also expose resources and prompts where its author implements them — tools are the common surface.
 
-## Disabling and removing a server
+## Deactivating and removing
 
-Each server has an enabled toggle on its row. Disabling stops Tale from calling it; the server's tools stop appearing in agent tool lists, and any agent that depended on them surfaces a configuration error. Removing the server deletes its manifest and revokes every per-tool approval that referenced it.
+Each server row can be deactivated — its tools drop out of agent toolbelts until you activate it again, with the registration kept. Deleting the server removes the registration entirely after a confirmation; re-adding it later is a fresh registration with a fresh manifest fetch.
 
-Re-adding a server with the same name starts from a clean slate — the manifest is re-fetched, and every per-tool approval has to be re-decided. There is no opaque carry-over of approvals across a delete-and-re-add.
+## MCP server or integration
 
-## MCP servers versus first-party integrations
-
-Both surfaces let an agent reach beyond Tale; the difference is who owns the connector. First-party integrations are vendor-specific, ship as part of Tale, and carry the credentials and the operation list Tale's team maintains. MCP servers are generic, hosted by you, and carry whatever tools the server's author chose to expose. Reach for an integration when one exists for the target system; reach for an MCP server when you need to host the bridge yourself.
+Both let an agent reach beyond Tale; the difference is who owns the connector. Integrations are vendor-specific, shipped, and maintained in the catalog; MCP servers are generic and yours to run. Reach for the integration when one exists for the target system; reach for MCP when you need the bridge to be your own code.
 
 ## Where this fits
 
-MCP servers are the open-ended extension surface for an agent's toolbelt — the lever for when no first-party integration covers what you need. The natural next read is [Integrations overview](/platform/integrations/overview) for the first-party catalogue, and [Agent tools](/platform/agents/tools) for how an MCP server's tools surface to the agent and the trust boundary they widen.
+MCP is the open-ended extension surface of the agent toolbelt. The natural next reads are [Agent tools](/platform/agents/tools) for how tools surface on an agent, [Configure approvals](/platform/approvals/configure) for the flags that hold risky calls, and the [MCP server from scratch](/tutorials/developer/mcp-server-from-scratch) tutorial for building one end to end.

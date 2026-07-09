@@ -7,6 +7,12 @@ Enterprise SSO lets your members sign in with your identity provider (IdP) inste
 
 Tale speaks four protocols: **OIDC**, plain **OAuth2**, **SAML 2.0** for sign-in, and **SCIM 2.0** for provisioning. You can enable sign-in, provisioning, or both.
 
+<Frame caption="Settings > Enterprise SSO — the protocol picker and sign-in fields on one page, with the redirect URL to register in the IdP shown ready to copy.">
+
+![The Enterprise SSO settings page showing the Protocol dropdown set to Microsoft Entra ID, display name and email domain fields, and the sign-in section with the redirect URL, issuer URL, client ID, and scopes.](/images/platform/settings-enterprise-sso.webp)
+
+</Frame>
+
 ## Choosing a protocol
 
 Open **Settings > Enterprise SSO**, pick a **Protocol**, and fill in only that protocol's fields — the rest stay hidden. A **Setup guide** on the same page lists the exact steps and shows the URLs you paste into your IdP. Use **Test connection** before saving to validate the configuration, and **Save** to enable sign-in.

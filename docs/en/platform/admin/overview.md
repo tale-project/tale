@@ -5,21 +5,85 @@ description: Admin is the configuration plane — members, teams, providers, API
 
 Admin is the configuration plane of Tale. It covers the people who can sign in, the teams that group them, the AI providers behind every reply, the API keys that let external code talk to the org, the third-party integrations agents reach through, and the branding the rest of the org sees. Only Admins and Owners see the full Admin menu; Developers see a subset, and other roles do not see it at all.
 
-These pages describe what each setting does and what it changes about the running product. Most of them are read once during setup and then revisited when something changes — a new hire, a rotated key, a new provider, a new integration. The role-and-permission story behind the menu lives in [Members and roles](/platform/admin/members-and-roles); the page indexed below assumes that story and goes per-feature from there.
+These pages describe what each setting does and what it changes about the running product. Most are read once during setup and revisited when something changes — a new hire, a rotated key, a new provider. The role-and-permission story behind the whole menu lives in [Members and roles](/platform/admin/members-and-roles); start there, because every other Admin page references the role names it defines.
 
-## Pages in this section
+## Configuration areas
 
-**[Members and roles](/platform/admin/members-and-roles)** — Admins and Owners read this when they invite people or scope access by role.
+<CardGroup cols="2">
 
-**[Agents](/platform/admin/agents)** — Admins and Owners read this to see every agent the org has and step in when one needs governance.
+<Card title="Members and roles" icon="users" href="/platform/admin/members-and-roles">
 
-**[API keys](/platform/admin/api-keys)** — Admins and Developers read this when they wire external code or an internal service to Tale's REST API.
+The six roles and the resource-level matrix that says who can read, write, configure, and govern.
 
-**[Integrations](/platform/admin/integrations)** — Admins read this when they install or rotate the credentials behind Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, and MCP.
+</Card>
 
-**[Providers](/platform/admin/providers)** — Admins read this when they connect OpenAI, Anthropic, Azure, or a local Ollama and pick which models the org may use.
+<Card title="Teams" icon="users-round" href="/platform/admin/teams">
 
-**[Teams](/platform/admin/teams)** — Admins read this to group members into teams that share agents, prompts, and integrations.
+Group members into teams that share agents, prompts, and integrations.
+
+</Card>
+
+<Card title="Agents" icon="bot" href="/platform/admin/agents">
+
+Every agent the org has, and where an Admin steps in when one needs governance.
+
+</Card>
+
+<Card title="AI providers" icon="cpu" href="/platform/admin/providers">
+
+Connect the OpenAI-compatible providers behind every reply and pick which models the org may use.
+
+</Card>
+
+<Card title="Token sources" icon="key-round" href="/platform/admin/token-sources">
+
+Shared credentials that agents and tools draw on without each member holding the secret.
+
+</Card>
+
+<Card title="Integrations" icon="plug" href="/platform/admin/integrations">
+
+Install and rotate the credentials behind Slack, Gmail, Outlook, Google Drive, GitHub, Shopify, and more.
+
+</Card>
+
+<Card title="Enterprise SSO" icon="shield-check" href="/platform/admin/enterprise-sso">
+
+Wire sign-in to your identity provider with SAML or OIDC.
+
+</Card>
+
+<Card title="API keys" icon="key" href="/platform/admin/api-keys">
+
+Mint and scope the keys external code uses to reach Tale's REST API.
+
+</Card>
+
+<Card title="Branding" icon="palette" href="/platform/admin/branding">
+
+The name, logo, and colors the rest of the org sees.
+
+</Card>
+
+<Card title="Two-factor authentication" icon="smartphone" href="/platform/admin/two-factor-authentication">
+
+Require a second factor for sign-in and manage enrolment across the org.
+
+</Card>
+
+<Card title="Changelog" icon="history" href="/platform/admin/changelog">
+
+The in-product record of what shipped and when.
+
+</Card>
+
+<Card title="Governance" icon="scale" href="/platform/admin/governance/audit-logs">
+
+Audit logs, policies and limits, guardrails, analytics, retention, and legal hold.
+
+</Card>
+
+</CardGroup>
 
 ## Where this fits
 

@@ -2,6 +2,10 @@
   "languageSwitcher": {
     "ariaLabel": "Switch language"
   },
+  "markdownImage": {
+    "zoom": "Zoom image",
+    "close": "Close"
+  },
   "skeleton": {
     "loading": "Loading content"
   },

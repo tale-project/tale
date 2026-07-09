@@ -1,11 +1,11 @@
 ---
 title: Automation concepts
-description: An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views the Automations catalog installs in one action. This page names the pieces and when to reach for one instead of a lone agent or workflow.
+description: An automation is the installable bundle of integrations, agents, skills, a workflow, and builtin views — and the workflow inside it is how it runs. This page names the pieces, the runtime around them, and when to reach for an automation instead of a lone agent.
 ---
 
-An automation is the unit Tale reaches for when a job needs more than one moving part wired together — an integration credential, one or more agents, a workflow, sometimes a page of its own — and you want all of it installed and connected in one action instead of assembled by hand. Owners, Admins, and Developers install automations from the Automations catalog; once installed, Editors and Members use whatever it shipped — an Inbox tab, a Backlog entry, a chat agent — without needing to know what's underneath. This page names the pieces an automation bundles, how a bundle groups several automations together, and when an automation is the right unit instead of a single agent or a single workflow.
+An automation is the unit Tale reaches for when a job needs more than one moving part wired together — an integration credential, one or more agents, a workflow, sometimes a page of its own — and you want all of it installed and connected in one action instead of assembled by hand. Owners, Admins, and Developers install automations from the Automations catalog; once installed, Editors and Members use whatever it shipped — an Inbox tab, a Backlog entry, a chat agent — without needing to know what's underneath. This page names the pieces an automation bundles, the workflow that makes it run, and when an automation is the right unit instead of a single agent.
 
-## The pieces
+## What an automation bundles
 
 An automation's manifest names up to five kinds of pieces, and most automations only use some of them.
 
@@ -19,6 +19,18 @@ An automation's manifest names up to five kinds of pieces, and most automations 
 
 **Configuration** is not a separate settings file. An automation that needs an operator value reads it from an integration's credential or from a workflow trigger or node variable; the automation's Configuration tab is a read-only summary of the pieces above, not a place to add new settings.
 
+## The workflow inside
+
+There is no standalone workflow surface in Tale — a workflow lives and runs inside its automation, and the automation's **Editor** tab is where you meet it. The definition is a graph of typed steps: **LLM** steps call an agent or model, **Action** steps do concrete work such as calling an integration or creating and updating tasks on the project board, **Condition** steps branch the graph on a yes or no, **Loop** steps repeat over a set, and **Sandbox** steps run code. Every save snapshots a version you can restore from **History**. [The workflow editor](/platform/automations/editor) is the operating manual for that surface.
+
+**Triggers** decide when the workflow runs. Three kinds attach on the **Triggers** tab: **Schedules** (cron), **Webhooks** (an external POST), and **Events** (something happens inside Tale, such as `task.created`) — and you can always fire a run by hand from the editor's **Test workflow** panel. The [triggers reference](/platform/automations/triggers) covers each.
+
+**Executions** are the run history. Every run writes a record — status, timing, the input it received, and a per-step journal of what each step consumed and produced. The **Executions** tab is the audit trail and the debugging surface in one place; [Execution logs](/platform/automations/execution-logs) reads one end to end.
+
+## Where humans fit
+
+Automations run without you, but they change and start only with you: the AI editor's proposed changes to a workflow land as approval cards before they apply, an agent that wants to run a workflow needs your approval first, and a run that needs an answer pauses as **Waiting for input**. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers all three. A loop that re-enters the same review gate — a task sent back for another pass — opens a fresh request each round rather than reusing the resolved card.
+
 ## Bundles and hidden automations
 
 A bundle groups several automations that only make sense installed together. [Resolve GitHub issues](/platform/automations/builtin) installs four automations — a triager, a syncer, a PR creator, and a PR reviewer — through one aggregated wizard, bound to the project you choose. Most of a bundle's members are hidden: they never appear as their own card in the catalog, because installing one alone would be meaningless without its siblings. Hidden doesn't mean gone — the [Automation assistant](/platform/automations/assistant) can still find and explain them; only the catalog's grid hides them.
@@ -31,15 +43,15 @@ A bundle groups several automations that only make sense installed together. [Re
 
 ## When to reach for it
 
-| Use … when                                                                    | Automation | Agent | Workflow |
-| ----------------------------------------------------------------------------- | ---------- | ----- | -------- |
-| You want a ready-integrated feature installed in one action                   | ✓          |       |          |
-| The same question just recurs in chat, no external system involved            |            | ✓     |          |
-| You're wiring a brand-new integration and trigger yourself                    |            |       | ✓        |
-| You need approvals or scheduling between steps and nothing off-the-shelf fits |            |       | ✓        |
+| Use … when                                                             | Automation | Agent | Agent webhook |
+| ---------------------------------------------------------------------- | ---------- | ----- | ------------- |
+| You want a ready-integrated feature installed in one action            | ✓          |       |               |
+| The work has multiple steps, branches, schedules, or approvals between | ✓          |       |               |
+| The same question just recurs in chat, no external system involved     |            | ✓     |               |
+| One agent reply per incoming POST is enough                            |            |       | ✓             |
 
-Reach for an automation first — check the catalog before building the pieces yourself. Reach for a lone agent or workflow when the job is genuinely new and nothing shipped covers it.
+Check the catalog before building anything — the automation you need may already ship. When nothing shipped fits, you still build an automation: describe the workflow to the [AI editor](/platform/automations/editor) or upload a package, rather than assembling loose pieces. An [agent webhook](/platform/agents/webhook-triggers) is the one seam outside this model — reach for it when a single agent reply per incoming payload is all the job needs.
 
 ## Build one
 
-An automation is the whole bundle a real feature needs — the integration it calls, the agents and workflow that do the work, the view it renders — wired together and installed in one action; reach for a lone agent or workflow only when you're building the piece yourself. The natural next read is [Browse and install](/platform/automations/catalog) — it walks the catalog, the side panel, and the install wizard end to end.
+An automation is the whole bundle a real feature needs — the integration it calls, the agents that do the work, the workflow that runs it, the view it renders — wired together and installed in one action, with the workflow's runtime (triggers, executions, approvals) living on the automation's own tabs. The natural next read is [Browse and install](/platform/automations/catalog) — it walks the catalog, the side panel, and the install wizard end to end; [The workflow editor](/platform/automations/editor) picks up from there for the surface where the automation's engine gets built and tuned.

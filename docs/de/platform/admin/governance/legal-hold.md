@@ -3,21 +3,27 @@ title: Legal Hold
 description: Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer, ein Dokument, einen Thread oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern.
 ---
 
-Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtshalt ausliefert. Ein Hold heftet ein Ziel — einen Benutzer, ein Dokument, einen Thread, eine Workflow-Ausführung oder die gesamte Organisation — außer Reichweite des Aufbewahrungs-Sweeps und der Löschungs-Kaskade für betroffene Personen. Admins und Inhaber lesen diese Seite, wenn der Rechtsbeistand bittet, die Daten einer Custodian-Person zu sichern, wenn eine Freigabe-Anfrage die Vier-Augen-Freigabe braucht, oder wenn ein Audit abgleicht, welche Holds zu einem gegebenen Datum in Kraft waren.
+Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtshalt ausliefert. Ein Hold heftet ein Ziel — einen Benutzer, ein Dokument, einen Thread, eine Workflow-Ausführung oder die gesamte Organisation — außer Reichweite des Aufbewahrungs-Sweeps und der Löschungs-Kaskade für betroffene Personen. Admins und Inhaber lesen diese Seite, wenn der Rechtsbeistand bittet, die Daten einer Custodian-Person zu sichern, wenn ein Freigabeantrag die Vier-Augen-Freigabe braucht, oder wenn ein Audit abgleicht, welche Holds zu einem gegebenen Datum in Kraft waren.
+
+<Frame caption="Governance > Legal Hold — die Tabelle der aktiven Holds mit der Aktion Legal Hold setzen über der vier-Augen-kontrollierten Warteschlange der Freigabeanträge.">
+
+![Die Governance-Seite Legal Hold zeigt eine leere Tabelle der aktiven Holds mit einer Schaltfläche Legal Hold setzen über der leeren Warteschlange der Freigabeanträge.](/images/platform/governance-legal-hold.webp)
+
+</Frame>
 
 ## Eine durchgespielte Platzierung
 
-Um einen Hold auf einen Benutzer zu platzieren, öffne **Einstellungen > Governance > Legal Hold** und klick auf **Legal Hold platzieren**. Wähle den Zieltyp — Benutzer, Thread, Dokument, Ausführung oder Organisation — wähle das konkrete Ziel, füge einen Grund hinzu und verknüpfe den Hold mit einer Sache, falls eine offen ist. Der Hold wirkt sofort; Aufbewahrungs-Sweeps überspringen die Zeilen des Ziels, die Löschungs-Kaskade meldet sie als **Durch Hold übersprungen**, und die Zielzeile trägt das Badge **Auf Legal Hold** in jeder Liste, in der sie erscheint.
+Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien > Legal Hold** und klick auf **Legal Hold setzen**. Wähle den Zieltyp — Benutzer, Thread, Dokument, Ausführung oder Organisation — wähle das konkrete Ziel, füge einen Grund hinzu und verknüpfe den Hold mit einem Fall, falls einer offen ist. Der Hold wirkt sofort; Aufbewahrungs-Sweeps überspringen die Zeilen des Ziels, die Löschungs-Kaskade meldet sie als **Durch Legal Hold übersprungen**, und die Zielzeile trägt das Badge **Unter Legal Hold** in jeder Liste, in der sie erscheint.
 
 ## Die vier Bereiche
 
-**Aktive Holds** ist die Arbeitsliste jedes Holds, der gerade in Kraft ist. Jede Zeile trägt den Typ, das Ziel, den Grund, die Sache, wer ihn platziert hat und wann. Filtere nach Typ oder nach Sache, um die Ansicht einzugrenzen.
+**Aktive Holds** ist die Arbeitsliste jedes Holds, der gerade in Kraft ist. Jede Zeile trägt den Typ, das Ziel, den Grund, den Fall, wer ihn gesetzt hat und wann. Filtere nach Typ oder nach Fall, um die Ansicht einzugrenzen.
 
-**Freigabe-Anfragen** ist die Vier-Augen-Warteschlange. Einen Hold freigeben verlangt, dass ein anderer Admin die Anfrage genehmigt; genehmigte Anfragen warten zusätzlich eine Abkühlphase ab, bevor sie wirken. Der Bereich teilt sich in _wartet auf Freigabe_ und _genehmigt, wartet auf Abkühlphase_, sodass die Warteschlange und der Timer beide sichtbar sind.
+**Freigabeanträge** ist die Vier-Augen-Warteschlange. Einen Hold freigeben verlangt, dass ein anderer Admin die Anfrage genehmigt; genehmigte Anfragen warten zusätzlich eine Abkühlphase ab, bevor sie wirken. Der Bereich teilt sich in _wartet auf Freigabe_ und _genehmigt, wartet auf Abkühlphase_, sodass die Warteschlange und der Timer beide sichtbar sind.
 
-**Sachen** gruppiert Holds nach Fall. Jede Sache trägt einen Namen, eine Fallnummer und die Liste der verknüpften Holds. Eine Sache zu schließen reicht Freigabe-Anfragen für jeden verknüpften Hold ein — weiterhin unter Vier-Augen-Genehmigung pro Anfrage.
+**Fälle** gruppiert Holds nach Fall. Jeder Fall trägt einen Namen, eine Fallnummer und die Liste der verknüpften Holds. Einen Fall zu schließen reicht Freigabeanträge für jeden verknüpften Hold ein — weiterhin unter Vier-Augen-Genehmigung pro Antrag.
 
-**Freigabe-Historie** ist das nur-lesbare Audit der effektiven und abgelehnten Freigaben. Nutz es, um gegen ein Beweissicherungsschreiben der Gegenseite abzugleichen oder einen Audit-Bericht zu speisen.
+**Freigabeverlauf** ist das nur-lesbare Audit der effektiven und abgelehnten Freigaben. Nutz es, um gegen ein Beweissicherungsschreiben der Gegenseite abzugleichen oder einen Audit-Bericht zu speisen.
 
 ## Hold-und-Kaskade-Interaktion
 

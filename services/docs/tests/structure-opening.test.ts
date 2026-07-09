@@ -10,7 +10,10 @@ import { walkDocs } from './lib/walk';
 
 /**
  * Every page opens with at least two sentences of prose between the
- * frontmatter and the first structural element (heading, list, table, fence).
+ * frontmatter and the first structural element (heading, list, table, fence,
+ * or component tag — a hero `<Frame>` ends the opening the same way a
+ * heading does, and a page that leads with a component before two sentences
+ * fails).
  *
  * From `.agents/skills/write-docs/SKILL.md` Rule 2:
  *
@@ -53,7 +56,7 @@ describe('opening paragraph', () => {
           file: rel,
           line: 0,
           rule: 'opening-too-short',
-          detail: `opening has ${sentences} sentence(s); needs ≥ 2 of prose before the first heading/list/table/code (covering what/who/why)`,
+          detail: `opening has ${sentences} sentence(s); needs ≥ 2 of prose before the first heading/list/table/code/component (covering what/who/why)`,
         });
       }
     }

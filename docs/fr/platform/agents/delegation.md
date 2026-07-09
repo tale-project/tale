@@ -5,7 +5,7 @@ description: Un agent peut lancer un worker ciblé pour une tâche via le tool s
 
 Tu lances un worker quand une tâche mérite son propre contexte ciblé : recherche ouverte, extraction en masse, rédaction d'un long document. L'agent avec qui tu discutes compose un **worker** à la demande — un nom, des instructions de tâche, une méthode de travail optionnelle et une sélection d'outils — le fait tourner et replie le résultat dans sa réponse. Les workers sont éphémères : ils existent pour un seul job, et leur exécution apparaît comme une **carte de job** dans le chat.
 
-Cette page te donne le modèle mental pour savoir quand un worker est la bonne forme et comment la plateforme le maintient borné. Le parcours de bout en bout vit dans [Confier du travail à un worker](/tutorials/editor/delegate-between-agents).
+Cette page te donne le modèle mental pour savoir quand un worker est la bonne forme et comment la plateforme le maintient borné. Le parcours de bout en bout vit dans [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents).
 
 ## Comment tourne un job
 

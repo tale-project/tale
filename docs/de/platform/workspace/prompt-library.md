@@ -7,6 +7,12 @@ Die Prompt-Bibliothek ist die Oberfläche gespeicherter Prompts von Tale. Dort h
 
 Diese Seite ist die Referenz dafür, was ein Prompt ist, wie sich die drei Sichtbarkeits-Stufen verhalten, wie der Versionsverlauf funktioniert und wie Prompts in einen Chat gelangen. Die Bibliothek liegt unter **Prompts** in der Sidebar; dieselbe Bibliothek erscheint inline im Chat-Composer.
 
+<Frame caption="Die Prompt-Bibliothek über dem Chat-Composer — bereitgestellte Starter-Prompts mit den Sichtbarkeits-Tabs und Filtern, die die Liste eingrenzen.">
+
+![Der Prompt-Bibliotheks-Dialog offen über dem Chat-Composer, listet bereitgestellte Starter-Prompts mit Sichtbarkeits-Tabs und einer Filterzeile darüber.](/images/platform/prompt-library-dialog.webp)
+
+</Frame>
+
 ## Was ein Prompt ist
 
 Ein Prompt ist ein gespeicherter Textbrocken — meist eine Frage oder eine Anweisung, die du sonst in den Composer tippen würdest — mit einem Titel und ein paar Metadaten-Feldern. Wenn du in Chat zu einem gespeicherten Prompt greifst, fügt Tale seinen Inhalt in den Composer; du kannst vor dem Senden bearbeiten, der Prompt ist keine verdeckte Systemnachricht.
@@ -45,9 +51,9 @@ Manche Prompts enthalten Template-Variablen — Platzhalter wie `{{customer_name
 
 ## Grenzen und Lebenszyklus
 
-Der Inhalt eines Prompts hat ein Grössen-Limit — das Bibliotheks-Formular zeigt die aktuelle Auslastung gegen das Maximum, und die Speichern-Schaltfläche ist deaktiviert, wenn du es überschreitest. Das Limit ist grosszügig genug, dass die meisten Prompts passen; wenn du anstösst, ist die richtige Antwort meist, dass der Prompt zwei Prompts ist.
+Der Inhalt eines Prompts hat ein Größen-Limit — das Bibliotheks-Formular zeigt die aktuelle Auslastung gegen das Maximum, und die Speichern-Schaltfläche ist deaktiviert, wenn du es überschreitest. Das Limit ist großzügig genug, dass die meisten Prompts passen; wenn du anstößt, ist die richtige Antwort meist, dass der Prompt zwei Prompts ist.
 
-Einen Prompt zu löschen ist nur über den Versionsverlauf umkehrbar, wenn du ihn vorher mindestens einmal gespeichert hast. Persönliche Prompts werden bei Account-Löschung dauerhaft gelöscht; Team-Prompts überleben Team-Reorganisationen, ausser das Team wird gelöscht; globale Prompts überleben alles ausser einem expliziten Löschen.
+Einen Prompt zu löschen ist nur über den Versionsverlauf umkehrbar, wenn du ihn vorher mindestens einmal gespeichert hast. Persönliche Prompts werden bei Account-Löschung dauerhaft gelöscht; Team-Prompts überleben Team-Reorganisationen, außer das Team wird gelöscht; globale Prompts überleben alles außer einem expliziten Löschen.
 
 ## Wo das hingehört
 

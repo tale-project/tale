@@ -1,0 +1,20 @@
+{
+  "_comment": "Old slug → new slug for every moved or merged docs page. Slugs are locale-less like nav.json (e.g. \"platform/workspace/prompt-library\"); one entry covers en, /de, and /fr — the server serves 301s and the prerender writes meta-refresh stubs. Guarded by services/docs/tests/redirects.test.ts.",
+  "redirects": {
+    "platform/workspace/document-comparison": "platform/knowledge/documents",
+    "platform/conversations/overview": "platform/automations/builtin",
+    "platform/agents/catalog": "platform/automations/concepts",
+    "platform/apps/overview": "platform/automations/concepts",
+    "platform/apps/install-and-manage": "platform/automations/catalog",
+    "platform/projects/workforce-metrics": "platform/projects/task-automation",
+    "self-hosted/operate/workforce-operations": "self-hosted/operate/observability/operations",
+    "platform/automations/workflows": "platform/automations/editor",
+    "platform/automations/metrics": "platform/automations/execution-logs",
+    "platform/workflows/concepts": "platform/automations/concepts",
+    "platform/workflows/workflows": "platform/automations/editor",
+    "platform/workflows/triggers": "platform/automations/triggers",
+    "platform/workflows/execution-logs": "platform/automations/execution-logs",
+    "platform/workflows/approvals-in-workflows": "platform/automations/approvals-in-workflows",
+    "platform/workflows/metrics": "platform/automations/execution-logs"
+  }
+}

@@ -5,6 +5,12 @@ description: Comment fonctionne le catalogue des automatisations — le panneau 
 
 Le catalogue des automatisations (**Automatisations** dans la barre latérale) est l’endroit où les Propriétaires, Admins et Développeurs parcourent chaque automatisation disponible pour l’organisation et décident lesquelles installer. Cette page couvre le catalogue lui-même — le panneau latéral qu’ouvre une carte, l’assistant d’installation, et les actions de réinstallation, désinstallation et mise à jour qui suivent. Ce que fait chaque automatisation livrée vit sur [Automatisations livrées](/fr/platform/automations/builtin) ; le modèle mental des pièces qu’une automatisation empaquette vit sur [Concepts d’automatisation](/fr/platform/automations/concepts).
 
+<Frame caption="Le catalogue des automatisations — chaque carte est une automatisation installable ; le bundle installe tous ses membres via un seul assistant.">
+
+![Le catalogue des automatisations sur l’onglet Toutes les automatisations, avec les cartes des trois automatisations d’e-mail et du bundle Résoudre les issues GitHub, chacune avec son icône et sa description.](/images/platform/automations-catalog.webp)
+
+</Frame>
+
 ## Installer une automatisation
 
 Clique sur une carte et son panneau latéral s’ouvre — le même mode aperçu-au-clic que [Paramètres > Intégrations](/fr/platform/integrations/overview) utilise pour son propre catalogue. Le panneau liste ce que l’installation ajoute : ses pages, workflows, agents, compétences, et les intégrations qu’elle requiert, plus le projet qu’elle cible si elle est scopée à un projet. Clique sur **Installer** et l’assistant s’ouvre.
