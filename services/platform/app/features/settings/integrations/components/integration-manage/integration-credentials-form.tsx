@@ -10,6 +10,7 @@ import { Loader2, Pencil, Save } from 'lucide-react';
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 import { startCase } from '@/lib/utils/string';
@@ -40,6 +41,8 @@ interface IntegrationCredentialsFormProps {
   oauth2FieldsComplete: boolean;
   isEditingOAuth2: boolean;
   credentials: Record<string, string>;
+  /** imap_smtp: whether the "separate SMTP provider" fields are shown. */
+  smtpSeparate: boolean;
   displayBindings: string[];
   editableConfigFields: Array<{
     key: string;
@@ -51,6 +54,7 @@ interface IntegrationCredentialsFormProps {
   testResult: { success: boolean; message: string } | null;
   onAuthMethodChange: (method: string) => void;
   onCredentialChange: (key: string, value: string) => void;
+  onSmtpSeparateChange: (value: boolean) => void;
   onConfigValueChange: (key: string, value: string) => void;
   onSqlConfigChange: (key: string, value: string) => void;
   onOAuth2FieldChange: (
@@ -76,6 +80,7 @@ export function IntegrationCredentialsForm({
   oauth2FieldsComplete,
   isEditingOAuth2,
   credentials,
+  smtpSeparate,
   displayBindings,
   editableConfigFields,
   configValues,
@@ -83,6 +88,7 @@ export function IntegrationCredentialsForm({
   testResult,
   onAuthMethodChange,
   onCredentialChange,
+  onSmtpSeparateChange,
   onConfigValueChange,
   onSqlConfigChange,
   onOAuth2FieldChange,
@@ -242,36 +248,42 @@ export function IntegrationCredentialsForm({
 
         {integration.type === 'imap_smtp' && (
           <>
-            <Text variant="label">
-              {t('integrations.manageDialog.smtpSection')}
-            </Text>
-            <Input
-              id="manage-smtp-username"
-              label={t('integrations.manageDialog.smtpUsername')}
-              placeholder={
-                integration.smtpAuth?.username ??
-                t('integrations.manageDialog.optional')
-              }
-              value={credentials['smtpUsername'] ?? ''}
-              onChange={(e) =>
-                onCredentialChange('smtpUsername', e.target.value)
-              }
+            <Switch
+              id="manage-smtp-separate"
+              label={t('integrations.manageDialog.smtpSeparateToggle')}
+              description={t('integrations.manageDialog.smtpSeparateHint')}
+              checked={smtpSeparate}
+              onCheckedChange={onSmtpSeparateChange}
               disabled={busy}
             />
-            <Input
-              id="manage-smtp-password"
-              label={t('integrations.manageDialog.smtpPassword')}
-              type="password"
-              placeholder="••••••••"
-              value={credentials['smtpPassword'] ?? ''}
-              onChange={(e) =>
-                onCredentialChange('smtpPassword', e.target.value)
-              }
-              disabled={busy}
-            />
-            <Text variant="caption" className="text-muted-foreground">
-              {t('integrations.manageDialog.smtpHint')}
-            </Text>
+            {smtpSeparate && (
+              <>
+                <Input
+                  id="manage-smtp-username"
+                  label={t('integrations.manageDialog.smtpUsername')}
+                  placeholder={integration.smtpAuth?.username ?? ''}
+                  value={credentials['smtpUsername'] ?? ''}
+                  onChange={(e) =>
+                    onCredentialChange('smtpUsername', e.target.value)
+                  }
+                  disabled={busy}
+                />
+                <Input
+                  id="manage-smtp-password"
+                  label={t('integrations.manageDialog.smtpPassword')}
+                  type="password"
+                  placeholder={integration.smtpAuth ? '••••••••' : ''}
+                  value={credentials['smtpPassword'] ?? ''}
+                  onChange={(e) =>
+                    onCredentialChange('smtpPassword', e.target.value)
+                  }
+                  disabled={busy}
+                />
+                <Text variant="caption" className="text-muted-foreground">
+                  {t('integrations.manageDialog.smtpHint')}
+                </Text>
+              </>
+            )}
           </>
         )}
 

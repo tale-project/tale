@@ -38,6 +38,8 @@ export function IntegrationCredentialsFormConnected({
       oauth2FieldsComplete={manage.oauth2FieldsComplete}
       isEditingOAuth2={manage.isEditingOAuth2}
       credentials={manage.credentials}
+      smtpSeparate={manage.smtpSeparate}
+      onSmtpSeparateChange={manage.handleSmtpSeparateChange}
       displayBindings={manage.displayBindings}
       editableConfigFields={manage.editableConfigFields}
       configValues={manage.configValues}

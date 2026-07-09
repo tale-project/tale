@@ -111,6 +111,10 @@ const updateCredentialsArgs = {
   oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
   oauth2Config: v.optional(oauth2ConfigStoredValidator),
   smtpAuth: v.optional(smtpAuthEncryptedValidator),
+  // Drop stored separate-SMTP credentials so sending reverts to the mailbox
+  // login. Needed because a blank smtpAuth means "leave unchanged" — this is
+  // the only way the credentials form can turn a separate provider back off.
+  clearSmtpAuth: v.optional(v.boolean()),
   connectionConfig: v.optional(connectionConfigValidator),
   sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   capabilities: v.optional(capabilitiesValidator),
@@ -144,10 +148,13 @@ export const updateCredentials = mutation({
       cred.organizationId,
     );
 
-    const { credentialId, ...updates } = args;
+    const { credentialId, clearSmtpAuth, ...updates } = args;
     const cleanUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined),
     );
+    // Patching a field to `undefined` removes it (see tasks/mutations.ts) —
+    // revert sending to the mailbox login when the separate provider is off.
+    if (clearSmtpAuth) cleanUpdates.smtpAuth = undefined;
     await ctx.db.patch(credentialId, cleanUpdates);
 
     // Cascade on connect/disconnect transitions: connecting installs the
@@ -195,10 +202,13 @@ export const updateCredentials = mutation({
 export const updateCredentialsInternal = internalMutation({
   args: updateCredentialsArgs,
   handler: async (ctx, args) => {
-    const { credentialId, ...updates } = args;
+    const { credentialId, clearSmtpAuth, ...updates } = args;
     const cleanUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined),
     );
+    // Patching a field to `undefined` removes it — revert sending to the
+    // mailbox login when the separate SMTP provider is turned off.
+    if (clearSmtpAuth) cleanUpdates.smtpAuth = undefined;
     await ctx.db.patch(credentialId, cleanUpdates);
   },
 });

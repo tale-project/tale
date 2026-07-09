@@ -38,6 +38,7 @@ function makeProps(integration: Integration): FormProps {
     oauth2FieldsComplete: false,
     isEditingOAuth2: false,
     credentials: {},
+    smtpSeparate: false,
     displayBindings: ['username', 'password'],
     editableConfigFields: [],
     configValues: {},
@@ -45,6 +46,7 @@ function makeProps(integration: Integration): FormProps {
     testResult: null,
     onAuthMethodChange: vi.fn(),
     onCredentialChange: vi.fn(),
+    onSmtpSeparateChange: vi.fn(),
     onConfigValueChange: vi.fn(),
     onSqlConfigChange: vi.fn(),
     onOAuth2FieldChange: vi.fn(),
@@ -66,10 +68,39 @@ function makeIntegration(type: string): Integration {
 }
 
 describe('IntegrationCredentialsForm — SMTP fields', () => {
-  it('renders optional SMTP credential fields for imap_smtp', () => {
+  it('shows the separate-provider toggle for imap_smtp', () => {
     render(
       <IntegrationCredentialsForm
         {...makeProps(makeIntegration('imap_smtp'))}
+      />,
+    );
+
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+    expect(
+      screen.getByText('integrations.manageDialog.smtpSeparateToggle'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the SMTP credential fields while the toggle is off', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText('integrations.manageDialog.smtpUsername'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('integrations.manageDialog.smtpHint'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('reveals the SMTP credential fields when the toggle is on', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+        smtpSeparate
       />,
     );
 
@@ -84,13 +115,14 @@ describe('IntegrationCredentialsForm — SMTP fields', () => {
     ).toBeInTheDocument();
   });
 
-  it('does not render SMTP fields for a normal REST integration', () => {
+  it('does not render the SMTP toggle or fields for a normal REST integration', () => {
     render(
       <IntegrationCredentialsForm
         {...makeProps(makeIntegration('rest_api'))}
       />,
     );
 
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText('integrations.manageDialog.smtpUsername'),
     ).not.toBeInTheDocument();

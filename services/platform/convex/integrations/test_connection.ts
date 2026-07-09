@@ -34,6 +34,8 @@ export interface TestConnectionArgs {
   basicAuth?: BasicAuth;
   /** Inline SMTP auth (imap_smtp) for pre-save testing (plaintext, not yet encrypted) */
   smtpAuth?: BasicAuth;
+  /** Ignore any stored smtpAuth and dry-run the mailbox login for sending. */
+  clearSmtpAuth?: boolean;
   /** Inline OAuth2 auth for pre-save testing (plaintext tokens, not yet encrypted) */
   oauth2Auth?: OAuth2Auth;
   /** Inline connection config for pre-save testing (not yet persisted) */
@@ -254,12 +256,14 @@ async function testImapSmtpConnection(
   overrides?: {
     basicAuth?: TestConnectionArgs['basicAuth'];
     smtpAuth?: TestConnectionArgs['smtpAuth'];
+    clearSmtpAuth?: boolean;
     connectionConfig?: TestConnectionArgs['connectionConfig'];
   },
 ): Promise<void> {
   const connection = await resolveImapSmtpConnection(ctx, integration, {
     basicAuth: overrides?.basicAuth,
     smtpAuth: overrides?.smtpAuth,
+    clearSmtpAuth: overrides?.clearSmtpAuth,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() with mailbox-specific keys
     connectionConfig: overrides?.connectionConfig as
       | Record<string, unknown>
@@ -313,6 +317,7 @@ export async function testConnection(
     args.sqlConnectionConfig ||
     args.basicAuth ||
     args.smtpAuth ||
+    args.clearSmtpAuth ||
     args.apiKeyAuth ||
     args.oauth2Auth ||
     args.connectionConfig
@@ -330,6 +335,7 @@ export async function testConnection(
       await testImapSmtpConnection(ctx, integration, {
         basicAuth: args.basicAuth,
         smtpAuth: args.smtpAuth,
+        clearSmtpAuth: args.clearSmtpAuth,
         connectionConfig: args.connectionConfig,
       });
     } else {
