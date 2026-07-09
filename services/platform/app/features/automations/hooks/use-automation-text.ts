@@ -43,11 +43,11 @@ export interface ConfigFieldText {
 }
 
 /**
- * Config-field display text: the manifest's `i18n.<locale>.config.<key>`
- * override → the field's literal `label`/`placeholder`/`help` → the humanized
- * field `key`. Call with the automation's `i18n` block (config form /
- * Overview), or with no argument for view-authored `Form` fields, which carry
- * literals only.
+ * Config-field display text: the field's own `i18n.<locale>` (view Form) →
+ * the manifest's `i18n.<locale>.config.<key>` → the field's literal
+ * `label`/`placeholder`/`help` → the humanized field `key`. Call with the
+ * automation's `i18n` block (config form / Overview), or with no argument for
+ * view-authored `Form` fields (field-level `i18n` still applies).
  */
 export function useConfigFieldText(
   i18n?: AutomationManifestI18n,

@@ -74,6 +74,12 @@
         "description": "Damit wird der Workflow sofort abgebrochen. Laufende Schritte werden verworfen und die Ausführung wird als fehlgeschlagen markiert. Das lässt sich nicht rückgängig machen.",
         "confirm": "Ausführung stoppen"
       }
+    },
+    "stage": {
+      "work": "Arbeit",
+      "deliver": "Abliefern",
+      "review": "Prüfung",
+      "repair": "Reparatur"
     }
   },
   "accessDenied": {
@@ -626,7 +632,7 @@
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
       "notInstalledDescription": "Installiere diese Automatisierung, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
-      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
+      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben. Für einen kundenorientierten Desk benenne das Projekt nach dem Kundenunternehmen.",
       "projectLabel": "Projekt",
       "projectPlaceholder": "Projekt auswählen",
       "projectSearchPlaceholder": "Projekte suchen …",
@@ -702,7 +708,7 @@
       "doneTitle": "{name} ist bereit",
       "doneNeedsSetupTitle": "Einrichtung von {name} abschließen",
       "doneNeedsSetup": "Eine erforderliche Integration ist noch nicht verbunden — verbinde sie im Integrationen-Tab der Automatisierung, bevor sie laufen kann.",
-      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
+      "doneAllConnected": "Alles, was sie braucht, ist verbunden. Fertig öffnet den Desk der Automatisierung.",
       "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der Automatisierung abschließen.",
       "doneScheduleVars": "Erforderliche Zeitplan-Variablen sind noch nicht gesetzt: {fields}. Setze sie im Trigger-Tab der Automatisierung, bevor sie laufen kann.",
       "doneBundleScheduleVars": "Diese Mitglieder brauchen noch Zeitplan-Variablen, bevor sie laufen können: {members}",
@@ -734,6 +740,7 @@
       "run": "Workflow-Lauf",
       "discuss": "Diskussion",
       "openLink": "Link öffnen",
+      "externalRef": "Externe Referenz",
       "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…"
     },
     "review": {
@@ -752,6 +759,7 @@
       "start": "Starten",
       "markDone": "Als erledigt markieren",
       "merge": "Pull Request mergen",
+      "cancel": "Abbrechen",
       "all": "Alle"
     },
     "agents": {
@@ -7666,11 +7674,11 @@
     "create": {
       "title": "Projekt erstellen",
       "nameLabel": "Projektname",
-      "namePlaceholder": "z. B. Q2 Sales Hiring",
+      "namePlaceholder": "z. B. Acme AG",
       "keyLabel": "Projektkürzel",
       "keyDescription": "Präfix für Aufgaben-IDs (z. B. TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
       "descriptionLabel": "Beschreibung",
-      "descriptionPlaceholder": "Optional — wofür ist dieses Projekt?",
+      "descriptionPlaceholder": "Optional — bei einem Kundendesk den Firmennamen als Projektnamen verwenden.",
       "teamLabel": "Verantwortliches Team",
       "teamPlaceholder": "Team auswählen (optional, Standard: organisationsweit)",
       "iconLabel": "Symbol",

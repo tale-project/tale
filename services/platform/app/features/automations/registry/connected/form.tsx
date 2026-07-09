@@ -11,10 +11,13 @@
  * exactly like the config editor, and `onSuccess` runs the declarative effect
  * union (`useActionEffect`). `initial` values are sentinel-capable
  * (`$config:`, `$state.`, …) and resolve against the live runtime once.
+ * Optional `when` + `whenQuery` hide the form when a predicate fails (e.g.
+ * Create Setup after the setup folder already exists).
  */
 import type { Fields, PuckComponent } from '@measured/puck';
 import { Button } from '@tale/ui/button';
 import { Field } from '@tale/ui/field';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SquarePen } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
@@ -25,7 +28,9 @@ import {
   isFunctionAllowed,
   resolveBindingArgs,
 } from '@/lib/shared/platform/function_bindings';
+import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import type { AutomationConfigField } from '@/lib/shared/schemas/automation_views';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -35,6 +40,7 @@ import {
 } from '../../components/config-field-inputs';
 import { useConfigFieldText } from '../../hooks/use-automation-text';
 import { useBoundAction } from '../../hooks/use-bound-action';
+import { useBoundQuery } from '../../hooks/use-bound-query';
 import {
   useActionEffect,
   type ActionEffect,
@@ -45,14 +51,19 @@ import { BindingStates, BlockFrame } from '../block-frame';
 import type { BoundActionSpec } from './bound-button';
 
 export interface FormBlockProps {
-  /** Literal block title, rendered verbatim. */
+  /** Literal block title (English); overridden by `i18n.<locale>.title`. */
   title?: string;
+  /** Per-locale overrides for the block title (`i18n.de.title`, …). */
+  i18n?: Record<string, Record<string, string>>;
   fields: AutomationConfigField[];
   /** Initial values per field key (sentinel-capable, resolved once). */
   initial?: Record<string, unknown>;
   /** The submit action — its args read the entered values via `$input.*`. */
   submit: BoundActionSpec;
   onSuccess?: ActionEffect;
+  /** Hide when this predicate is false (against `whenQuery` data or `{}`). */
+  when?: string;
+  whenQuery?: { path: string; args?: unknown };
 }
 
 type FieldError = 'required' | 'invalid';
@@ -75,21 +86,26 @@ export function missingRequiredFields(
 
 export function Form({
   title,
+  i18n,
   fields,
   initial,
   submit,
   onSuccess,
+  when,
+  whenQuery,
 }: FormBlockProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
-  // View-authored fields carry literals only — the no-arg resolver chain
-  // (literal `label` → humanized `key`).
+  const { locale } = useLocale();
+  // View-authored fields: field.i18n → literal label → humanized key.
   const text = useConfigFieldText();
+  const resolvedTitle = resolveLocalizedProp(title, i18n, 'title', locale);
   const runtime = useAutomationRuntime();
   const viewState = useOptionalViewState();
   const { dispatch, isPending } = useBoundAction(submit.path, submit.mode);
   const applyEffect = useActionEffect();
   const baseId = useId();
+  const gateQuery = useBoundQuery(whenQuery?.path ?? '', whenQuery?.args ?? {});
 
   const blocked = !isFunctionAllowed(
     submit.path,
@@ -152,8 +168,18 @@ export function Form({
     }
   };
 
+  if (when !== undefined) {
+    if (whenQuery && (gateQuery.isLoading || gateQuery.blocked)) {
+      return null;
+    }
+    const whenItem: Record<string, unknown> = isRecord(gateQuery.data)
+      ? gateQuery.data
+      : {};
+    if (!evaluateWhen(when, whenItem)) return null;
+  }
+
   return (
-    <BlockFrame title={title} icon={SquarePen}>
+    <BlockFrame title={resolvedTitle} icon={SquarePen}>
       <BindingStates blocked={blocked} path={submit.path}>
         <form
           noValidate
@@ -214,14 +240,26 @@ export const formBlock: {
   render: PuckComponent<Partial<FormBlockProps>>;
 } = {
   fields: { title: { type: 'text' } },
-  render: ({ title, fields, initial, submit, onSuccess }) =>
+  render: ({
+    title,
+    i18n,
+    fields,
+    initial,
+    submit,
+    onSuccess,
+    when,
+    whenQuery,
+  }) =>
     submit?.path && fields && fields.length > 0 ? (
       <Form
         title={title}
+        i18n={i18n}
         fields={fields}
         initial={initial}
         submit={submit}
         onSuccess={onSuccess}
+        when={when}
+        whenQuery={whenQuery}
       />
     ) : (
       <></>

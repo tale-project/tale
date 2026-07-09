@@ -13,16 +13,16 @@
           {
             "type": "Text",
             "props": {
-              "text": "Every top-level project folder except `_setup` is one quarter. Click Start on that quarter row — there is no toolbar Start without a row.",
+              "text": "1. Ensure `_setup` exists (create it in Project Files if missing).\n2. Create a quarter folder and drop source files.\n3. Click Start on the quarter row.\n4. Track retries on Returns — Quarters Start does not re-run an existing return.",
               "variant": "muted"
             }
           },
           {
             "type": "Alert",
             "props": {
-              "variant": "warning",
-              "title": "Setup folder required",
-              "description": "Start needs the `_setup` folder. Without it, Start is hidden until setupFolderId is set."
+              "variant": "info",
+              "title": "Getting started",
+              "description": "Start stays hidden until `_setup` exists. After success, review artifacts in the quarter folder; Mark done only after ESTV filing."
             }
           },
           {
@@ -60,6 +60,21 @@
                   "onSuccess": {
                     "kind": "toast",
                     "titleKey": "list.created"
+                  },
+                  "onAlreadyExists": {
+                    "kind": "toast",
+                    "titleKey": "This quarter already has a return — open Returns and click Start to retry."
+                  }
+                },
+                {
+                  "label": "Open files",
+                  "when": "setupFolderId",
+                  "variant": "ghost",
+                  "effect": {
+                    "kind": "navigate",
+                    "to": "/dashboard/$id/projects/$projectId/files",
+                    "params": { "id": "$orgId", "projectId": "$projectId" },
+                    "search": { "folderId": "$selected._id" }
                   }
                 }
               ]
@@ -75,6 +90,13 @@
         "root": { "props": {} },
         "zones": {},
         "content": [
+          {
+            "type": "Text",
+            "props": {
+              "text": "Start re-runs from backlog, todo, or cancelled. Cancel stops a stuck in-progress return. Mark done only after ESTV filing.",
+              "variant": "muted"
+            }
+          },
           {
             "type": "Collection",
             "props": {
@@ -106,6 +128,11 @@
                 }
               ],
               "subjectType": "task",
+              "onRowClick": {
+                "kind": "openDetail",
+                "subjectType": "task",
+                "id": "$selected._id"
+              },
               "actions": [
                 {
                   "labelKey": "list.start",
@@ -116,6 +143,37 @@
                     "organizationId": "$orgId",
                     "taskId": "$selected._id",
                     "workflowSlug": "vat-return-desk-e2e"
+                  }
+                },
+                {
+                  "labelKey": "list.cancel",
+                  "label": "Cancel",
+                  "path": "tasks/mutations:updateTaskStatus",
+                  "mode": "mutation",
+                  "variant": "destructive",
+                  "confirm": {
+                    "title": "Cancel this return?",
+                    "description": "Marks the return cancelled so you can Start again."
+                  },
+                  "when": "status == in_progress",
+                  "args": {
+                    "taskId": "$selected._id",
+                    "status": "cancelled"
+                  }
+                },
+                {
+                  "labelKey": "list.markDone",
+                  "path": "tasks/mutations:updateTaskStatus",
+                  "mode": "mutation",
+                  "variant": "primary",
+                  "confirm": {
+                    "title": "Mark done after ESTV?",
+                    "description": "Confirm only after ESTV filing."
+                  },
+                  "when": "status == in_review",
+                  "args": {
+                    "taskId": "$selected._id",
+                    "status": "done"
                   }
                 }
               ]

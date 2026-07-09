@@ -74,6 +74,12 @@
         "description": "Le workflow est annulé immédiatement. Les étapes en cours sont abandonnées et l'exécution est marquée comme échouée. Cette action est irréversible.",
         "confirm": "Arrêter l'exécution"
       }
+    },
+    "stage": {
+      "work": "Travail",
+      "deliver": "Livraison",
+      "review": "Revue",
+      "repair": "Réparation"
     }
   },
   "accessDenied": {
@@ -627,7 +633,7 @@
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
       "notInstalledDescription": "Installez cette automatisation pour ajouter ses agents et workflows à votre organisation.",
-      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisissez où vivront ses tâches et ses pages.",
+      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisis où vivront ses tâches et ses pages. Pour un desk client, nomme le projet d'après l'entreprise cliente.",
       "projectLabel": "Projet",
       "projectPlaceholder": "Sélectionner un projet",
       "projectSearchPlaceholder": "Rechercher des projets…",
@@ -703,7 +709,7 @@
       "doneTitle": "{name} est prête",
       "doneNeedsSetupTitle": "Terminer la configuration de {name}",
       "doneNeedsSetup": "Une intégration requise n'est pas encore connectée — connecte-la depuis l'onglet Intégrations de l'automatisation avant qu'elle puisse s'exécuter.",
-      "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
+      "doneAllConnected": "Tout ce dont elle a besoin est connecté. Terminer ouvre le desk de l'automatisation.",
       "doneSomeSkipped": "Tu as ignoré certaines étapes — termine-les à tout moment depuis la liste de configuration de l'automatisation.",
       "doneScheduleVars": "Des variables de planification requises ne sont pas encore définies : {fields}. Définis-les dans l'onglet Déclencheurs de l'automatisation avant qu'elle puisse s'exécuter.",
       "doneBundleScheduleVars": "Ces membres ont encore besoin de variables de planification avant de pouvoir s'exécuter : {members}",
@@ -735,6 +741,7 @@
       "run": "Exécution du workflow",
       "discuss": "Discussion",
       "openLink": "Ouvrir le lien",
+      "externalRef": "Référence externe",
       "chatPlaceholder": "Pose une question sur cet élément…"
     },
     "review": {
@@ -748,11 +755,12 @@
       "refresh": "Actualiser",
       "error": "Impossible de charger les données : {error}",
       "notConnected": "Cette intégration n'est pas encore connectée. Connecte-la pour charger les données.",
-      "needsConfig": "Configurez cette automatisation pour charger les données.",
+      "needsConfig": "Configure cette automatisation pour charger les données.",
       "created": "Créé",
       "start": "Démarrer",
       "markDone": "Marquer comme terminé",
       "merge": "Merger la pull request",
+      "cancel": "Annuler",
       "all": "Tous"
     },
     "agents": {
@@ -7667,11 +7675,11 @@
     "create": {
       "title": "Créer un projet",
       "nameLabel": "Nom du projet",
-      "namePlaceholder": "par ex. Q2 Sales Hiring",
+      "namePlaceholder": "par ex. Acme SA",
       "keyLabel": "Clé du projet",
       "keyDescription": "Préfixe des identifiants de tâches (par ex. TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optionnel — à quoi sert ce projet ?",
+      "descriptionPlaceholder": "Optionnel — pour un bureau client, utilise le nom de l'entreprise comme nom de projet.",
       "teamLabel": "Équipe propriétaire",
       "teamPlaceholder": "Choisir une équipe (optionnel, par défaut toute l'organisation)",
       "iconLabel": "Icône",

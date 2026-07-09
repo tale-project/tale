@@ -42,15 +42,26 @@ vi.mock('../../runtime/automation-runtime', () => ({
   }),
 }));
 
-// View-authored fields carry literals only — no i18n override, so
-// `useConfigFieldText` humanizes each fixture's `key`, start-cased
-// (e.g. `title` → `Title`).
+// View-authored fields resolve via `useConfigFieldText` (field.i18n →
+// literal → humanized `key`, e.g. `title` → `Title`).
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => ({ locale: 'en' }),
 }));
 
 vi.mock('../../runtime/view-state', () => ({
   useOptionalViewState: () => null,
+}));
+
+// Optional `when`/`whenQuery` gate — unused in these fixtures; stub so the
+// hook never reaches Convex.
+vi.mock('../../hooks/use-bound-query', () => ({
+  useBoundQuery: () => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+    blocked: false,
+    needsConfig: false,
+  }),
 }));
 
 // The bound dispatch — captured per test.

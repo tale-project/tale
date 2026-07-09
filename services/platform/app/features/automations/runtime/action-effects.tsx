@@ -49,7 +49,12 @@ export interface EffectContext {
 /** A fully resolved, ready-to-apply effect (or null when it can't/shouldn't run). */
 export type ResolvedEffect =
   | { kind: 'openDetail'; subjectType: string; id: string; title?: string }
-  | { kind: 'navigate'; to: string; params?: Record<string, unknown> }
+  | {
+      kind: 'navigate';
+      to: string;
+      params?: Record<string, unknown>;
+      search?: Record<string, unknown>;
+    }
   | { kind: 'toast'; title: string }
   | { kind: 'setState'; key: string; value: unknown }
   | null;
@@ -89,10 +94,15 @@ export function resolveEffect(
     const to = resolve(effect.to);
     if (!to) return null;
     const params = resolveBindingArgs(effect.params ?? {}, ctx);
+    const search =
+      effect.search === undefined
+        ? undefined
+        : resolveBindingArgs(effect.search, ctx);
     return {
       kind: 'navigate',
       to,
       params: isRecord(params) ? params : undefined,
+      search: isRecord(search) ? search : undefined,
     };
   }
   if (effect.kind === 'toast') {
@@ -171,8 +181,13 @@ export function useActionEffect(): (
           const go = navigate as (opts: {
             to: string;
             params?: Record<string, unknown>;
+            search?: Record<string, unknown>;
           }) => Promise<void>;
-          void go({ to: resolved.to, params: resolved.params });
+          void go({
+            to: resolved.to,
+            params: resolved.params,
+            search: resolved.search,
+          });
           return;
         }
       }

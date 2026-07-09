@@ -21,6 +21,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonText } from '@tale/ui/skeleton';
@@ -46,6 +47,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { useT } from '@/lib/i18n/client';
 import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { startCase } from '@/lib/utils/string';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
@@ -344,9 +346,11 @@ function TabContent({ tab }: { tab: AutomationTabDoc }) {
   return <AutomationView data={tab.data} />;
 }
 
-/** A view body: the tabbed shell (navigated) or a flat Puck Data document. Tab
- *  labels are literal display strings. */
+/** A view body: the tabbed shell (navigated) or a flat Puck Data document.
+ *  Tab labels resolve pack-authored `i18n.<locale>.label` over the English
+ *  literal. */
 function ViewBody({ view }: { view: AutomationViewDoc }) {
+  const { locale } = useLocale();
   if (view.tabs && view.tabs.length > 0) {
     return (
       <Tabs
@@ -354,7 +358,9 @@ function ViewBody({ view }: { view: AutomationViewDoc }) {
         defaultValue={view.tabs[0].id}
         items={view.tabs.map((tab) => ({
           value: tab.id,
-          label: tab.label,
+          label:
+            resolveLocalizedProp(tab.label, tab.i18n, 'label', locale) ??
+            tab.label,
           content: <TabContent tab={tab} />,
         }))}
       />
@@ -396,12 +402,14 @@ function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
  * gated on developer access AND the automation actually having a workflow
  * (`manifest.workflows[0]`); Configuration and Integrations always show. Tab
  * selection is URL-addressable via the `tab` search param; the default is
- * Editor for a developer with a workflow, otherwise the first bundled view,
- * else Integrations. The strip's trailing slot carries the active tab's
- * Save/Discard plus — on the Editor tab — the single AI Assistant toggle;
- * lifecycle actions (Reinstall / Export / Uninstall / Remove-from-project)
- * live on the Automations catalog card and the Configuration tab's projects
- * list, not here. Scoped to `projectId` when rendered under a project route.
+ * the first bundled view when one exists (operators and developers alike —
+ * developers still reach Editor from the strip), else Editor for a developer
+ * with a workflow, else Integrations. The strip's trailing slot carries the
+ * active tab's Save/Discard plus — on the Editor tab — the single AI Assistant
+ * toggle; lifecycle actions (Reinstall / Export / Uninstall /
+ * Remove-from-project) live on the Automations catalog card and the
+ * Configuration tab's projects list, not here. Scoped to `projectId` when
+ * rendered under a project route.
  */
 function InstalledAutomationBody({
   organizationId,
@@ -420,6 +428,7 @@ function InstalledAutomationBody({
 }) {
   const { t } = useT('automations');
   const { t: tWorkflows } = useT('workflows');
+  const { locale } = useLocale();
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
   useOpenTimeIntegrityCheck(organizationId, automationSlug);
@@ -511,12 +520,21 @@ function InstalledAutomationBody({
         ),
       };
     }
+    const viewTitle =
+      resolveLocalizedProp(view.title, view.i18n, 'title', locale) ??
+      view.title;
+    const viewDescription = resolveLocalizedProp(
+      view.description,
+      view.i18n,
+      'description',
+      locale,
+    );
     return {
       value: uniqueTabValue(viewId),
-      label: view.title ?? startCase(viewId),
+      label: viewTitle ?? startCase(viewId),
       content: (
         <VStack gap={4}>
-          {view.description && <Text variant="muted">{view.description}</Text>}
+          {viewDescription && <Text variant="muted">{viewDescription}</Text>}
           <ViewBody view={view} />
         </VStack>
       ),
@@ -615,9 +633,10 @@ function InstalledAutomationBody({
       content: configuration,
     },
   ];
-  // An unknown/absent `?tab=` falls back to Editor for a developer with a
-  // workflow, otherwise the first bundled view, else Integrations — the first
-  // visible tab, and where the "Finish setup" banner lives, so a no-workflow
+  // An unknown/absent `?tab=` falls back to the first bundled view when the
+  // automation ships one — including for developers (Editor stays one click
+  // away). Without views: Editor for a developer with a workflow, else
+  // Integrations (where the "Finish setup" banner lives), so a no-workflow
   // automation (e.g. an email inbox) opens on something actionable rather than
   // its last (Configuration) tab. Validated against the tabs actually RENDERED
   // (not `usedTabValues`, which also reserves gated tab values for
@@ -625,9 +644,8 @@ function InstalledAutomationBody({
   // from before a role change, or on a non-developer's guessed URL, falls
   // back cleanly instead of selecting a tab that isn't in `tabItems`.
   const renderedTabValues = new Set(tabItems.map((item) => item.value));
-  const defaultTab = showDevTabs
-    ? EDITOR_TAB
-    : (viewTabs[0]?.value ?? INTEGRATIONS_TAB);
+  const defaultTab =
+    viewTabs[0]?.value ?? (showDevTabs ? EDITOR_TAB : INTEGRATIONS_TAB);
   const activeTab =
     tabState.tab !== null && renderedTabValues.has(tabState.tab)
       ? tabState.tab

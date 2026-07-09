@@ -6,6 +6,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
+import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import {
   ChevronDown,
@@ -19,7 +20,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -56,6 +57,8 @@ import { ProjectCreateFolderDialog } from './project-create-folder-dialog';
 interface ProjectFilesTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
+  /** Deep-link from automation navigate / shareable URL (`?folderId=`). */
+  initialFolderId?: string;
 }
 
 type ProjectDocumentRow = ReturnType<
@@ -88,9 +91,11 @@ function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
 export function ProjectFilesTab({
   organizationId,
   projectId,
+  initialFolderId,
 }: ProjectFilesTabProps) {
   const { t } = useT('projects');
   const { t: tDocuments } = useT('documents');
+  const navigate = useNavigate();
   const { project } = useProject(projectId);
   const { documents, isLoading } = useProjectDocuments(projectId);
   const { folders } = useProjectFolders(projectId);
@@ -124,6 +129,50 @@ export function ProjectFilesTab({
     parentId?: Id<'folders'>;
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
+  const hydratedFolderIdRef = useRef<string | null>(null);
+
+  const syncFolderSearch = useCallback(
+    (folderId: Id<'folders'> | null) => {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/files',
+        params: { id: organizationId, projectId: String(projectId) },
+        search: folderId ? { folderId: String(folderId) } : {},
+        replace: true,
+      });
+    },
+    [navigate, organizationId, projectId],
+  );
+
+  const selectFolder = useCallback(
+    (folderId: Id<'folders'> | null) => {
+      setSelectedFolderId(folderId);
+      syncFolderSearch(folderId);
+    },
+    [syncFolderSearch],
+  );
+
+  // One-shot deep-link hydrate: select + expand the folder (and ancestors)
+  // once folders have loaded and `initialFolderId` matches a real row.
+  useEffect(() => {
+    if (!initialFolderId || folders.length === 0) return;
+    if (hydratedFolderIdRef.current === initialFolderId) return;
+    const match = folders.find((f) => String(f._id) === initialFolderId);
+    if (!match) return;
+    hydratedFolderIdRef.current = initialFolderId;
+    setSelectedFolderId(match._id);
+    const toExpand = new Set<string>();
+    let cursor: ProjectFolderRow | undefined = match;
+    while (cursor) {
+      toExpand.add(String(cursor._id));
+      const parentId = cursor.parentId;
+      cursor = parentId ? folders.find((f) => f._id === parentId) : undefined;
+    }
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const id of toExpand) next.add(id);
+      return next;
+    });
+  }, [folders, initialFolderId]);
 
   const { childFolders, filesByFolder } = useMemo(
     () => buildTree(folders, documents),
@@ -309,7 +358,7 @@ export function ProjectFilesTab({
     async (folderId: Id<'folders'>) => {
       try {
         await deleteFolder({ folderId });
-        if (selectedFolderId === folderId) setSelectedFolderId(null);
+        if (selectedFolderId === folderId) selectFolder(null);
         toast({
           title: t('files.folderDeleted', { defaultValue: 'Folder deleted' }),
           variant: 'success',
@@ -332,7 +381,7 @@ export function ProjectFilesTab({
         });
       }
     },
-    [deleteFolder, selectedFolderId, t],
+    [deleteFolder, selectFolder, selectedFolderId, t],
   );
 
   const handleRetryIndexing = useCallback(
@@ -471,7 +520,8 @@ export function ProjectFilesTab({
               onClick={() => {
                 // Click = select as upload target; toggles expansion too so
                 // the target is always visible.
-                setSelectedFolderId(isSelected ? null : folder._id);
+                const next = isSelected ? null : folder._id;
+                selectFolder(next);
                 if (!isExpanded) toggleFolder(id);
                 else if (isSelected) toggleFolder(id);
               }}
