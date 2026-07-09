@@ -217,11 +217,23 @@ export function ResourceDetailProvider({
         }}
       >
         {target && (
-          <ResponsiveDialogContent className="max-w-3xl">
-            <ResponsiveDialogTitle>
+          <ResponsiveDialogContent
+            className={
+              // Pin height on desktop (task-modal pattern) so tall task detail
+              // scrolls inside the body. Leaving overflow on the dialog itself
+              // clips the last BlockFrame's border/shadow flush against the
+              // bottom edge — the "truncated card" look. md: only: the mobile
+              // drawer path already scrolls its own children wrapper.
+              'max-w-3xl md:flex md:h-[85dvh] md:flex-col md:overflow-hidden'
+            }
+          >
+            <ResponsiveDialogTitle className="shrink-0">
               {target.title ?? t('detail.title')}
             </ResponsiveDialogTitle>
-            <div className="mt-4">
+            {/* pb keeps the last BlockFrame's border/shadow inside the
+                scrollport — overflow clips anything that paints past the
+                content box. */}
+            <div className="mt-4 md:min-h-0 md:flex-1 md:overflow-y-auto md:pb-3">
               {target.subjectType === 'task' ? (
                 <TaskDetailSections target={target} />
               ) : (
