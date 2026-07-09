@@ -17,12 +17,6 @@ The two editions run the same product — pick by who should operate the stack.
 
 <Tabs>
 
-<Tab title="Cloud">
-
-Cloud instances are set up for you: fill in the [demo request form](https://tale.dev/request-demo) and the Tale team provisions your own instance. Once it is ready, open it and sign up — the form asks for your name, email, and a password; verify the email link when it arrives, name your organization, and you land in the dashboard. The setup wizard offers to connect an AI provider right away — paste an [OpenRouter](https://openrouter.ai) key there and chat works immediately. The [admin journey](/get-started/admins) walks the same wizard with screenshots when you want more than the happy path.
-
-</Tab>
-
 <Tab title="Self-hosted">
 
 With [Docker](https://www.docker.com/products/docker-desktop) running, three commands stand up the whole stack on your machine:
@@ -34,6 +28,12 @@ tale dev
 ```
 
 The first run pulls images — expect five to ten minutes. When the browser opens, sign up: the first account claims the **Owner** role and creates your organization. The [self-hosted quickstart](/self-hosted/install/quickstart) covers every step in depth, including Windows and troubleshooting.
+
+</Tab>
+
+<Tab title="Cloud">
+
+Cloud instances are set up for you: fill in the [demo request form](https://tale.dev/request-demo) and the Tale team provisions your own instance. Once it is ready, open it and sign up — the form asks for your name, email, and a password; verify the email link when it arrives, name your organization, and you land in the dashboard. The setup wizard offers to connect an AI provider right away — paste an [OpenRouter](https://openrouter.ai) key there and chat works immediately. The [admin journey](/get-started/admins) walks the same wizard with screenshots when you want more than the happy path.
 
 </Tab>
 

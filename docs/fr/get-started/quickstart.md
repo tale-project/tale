@@ -17,12 +17,6 @@ Les deux éditions font tourner le même produit — choisis selon qui doit expl
 
 <Tabs>
 
-<Tab title="Cloud">
-
-Les instances Cloud sont montées pour toi : remplis le [formulaire de demande de démo](https://tale.dev/fr/request-demo) et l’équipe Tale provisionne ta propre instance. Une fois qu’elle est prête, ouvre-la et inscris-toi — le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail, nomme ton organisation et tu atterris dans le dashboard. L’assistant de configuration propose de connecter un fournisseur d’IA tout de suite — colle une clé [OpenRouter](https://openrouter.ai) à cet endroit et le chat fonctionne immédiatement. Le [parcours admin](/fr/get-started/admins) déroule le même assistant, captures d’écran à l’appui, quand tu veux plus que le chemin le plus direct.
-
-</Tab>
-
 <Tab title="Auto-hébergé">
 
 Avec [Docker](https://www.docker.com/products/docker-desktop) en marche, trois commandes montent toute la stack sur ta machine :
@@ -34,6 +28,12 @@ tale dev
 ```
 
 Le premier lancement récupère les images — compte cinq à dix minutes. Quand le navigateur s’ouvre, inscris-toi : le premier compte revendique le rôle **Propriétaire** et crée ton organisation. Le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) couvre chaque étape en profondeur, Windows et dépannage compris.
+
+</Tab>
+
+<Tab title="Cloud">
+
+Les instances Cloud sont montées pour toi : remplis le [formulaire de demande de démo](https://tale.dev/fr/request-demo) et l’équipe Tale provisionne ta propre instance. Une fois qu’elle est prête, ouvre-la et inscris-toi — le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail, nomme ton organisation et tu atterris dans le dashboard. L’assistant de configuration propose de connecter un fournisseur d’IA tout de suite — colle une clé [OpenRouter](https://openrouter.ai) à cet endroit et le chat fonctionne immédiatement. Le [parcours admin](/fr/get-started/admins) déroule le même assistant, captures d’écran à l’appui, quand tu veux plus que le chemin le plus direct.
 
 </Tab>
 

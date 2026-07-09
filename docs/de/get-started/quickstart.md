@@ -17,12 +17,6 @@ Beide Editionen sind dasselbe Produkt — entscheide danach, wer den Stack betre
 
 <Tabs>
 
-<Tab title="Cloud">
-
-Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://tale.dev/de/request-demo) aus, und das Tale-Team stellt deine eigene Instanz bereit. Sobald sie steht, öffne sie und registriere dich — das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt, benenne deine Organisation, und du landest im Dashboard. Der Setup-Assistent bietet direkt an, einen KI-Anbieter zu verbinden — füge dort einen [OpenRouter](https://openrouter.ai)-Schlüssel ein, und der Chat funktioniert sofort. Der [Einstieg für Admins](/de/get-started/admins) geht denselben Assistenten mit Screenshots durch, wenn du mehr willst als den Happy Path.
-
-</Tab>
-
 <Tab title="Selbst gehostet">
 
 Mit laufendem [Docker](https://www.docker.com/products/docker-desktop) stellen drei Befehle den ganzen Stack auf deiner Maschine auf:
@@ -34,6 +28,12 @@ tale dev
 ```
 
 Der erste Lauf zieht die Images — rechne mit fünf bis zehn Minuten. Sobald der Browser aufgeht, registriere dich: Das erste Konto übernimmt die Rolle **Inhaber** und erstellt deine Organisation. Der [selbst gehostete Quickstart](/de/self-hosted/install/quickstart) erklärt jeden Schritt in der Tiefe, samt Windows und Fehlersuche.
+
+</Tab>
+
+<Tab title="Cloud">
+
+Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://tale.dev/de/request-demo) aus, und das Tale-Team stellt deine eigene Instanz bereit. Sobald sie steht, öffne sie und registriere dich — das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt, benenne deine Organisation, und du landest im Dashboard. Der Setup-Assistent bietet direkt an, einen KI-Anbieter zu verbinden — füge dort einen [OpenRouter](https://openrouter.ai)-Schlüssel ein, und der Chat funktioniert sofort. Der [Einstieg für Admins](/de/get-started/admins) geht denselben Assistenten mit Screenshots durch, wenn du mehr willst als den Happy Path.
 
 </Tab>
 
