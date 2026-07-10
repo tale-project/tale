@@ -57,6 +57,7 @@ import {
   baselineTables,
   produces,
 } from '../../convex/migrations/testing/world/manifest.testkit';
+import { WORLD_ENCRYPTION_SECRET_HEX } from '../../convex/migrations/testing/world/seed_db.testkit';
 import { seedWorldFs } from '../../convex/migrations/testing/world/seed_fs.testkit';
 import {
   Compose,
@@ -241,6 +242,39 @@ async function main(): Promise<number> {
     }
     header('Tier 1 — booting current stack');
     await upStack(undefined);
+  }
+
+  // The corpus's JWE fixtures are frozen under the world key; decrypting
+  // migrations (0.2.87/01) read the key the entrypoint pushed into the
+  // deployment from .env.test. Fail fast on drift — the alternative is a bare
+  // JWEDecryptionFailed deep inside applyUp. ENCRYPTION_SECRET must stay
+  // unset: getSecretKey() prefers it over ENCRYPTION_SECRET_HEX.
+  const stackKey = await capture([
+    'docker',
+    'exec',
+    PLATFORM,
+    'printenv',
+    'ENCRYPTION_SECRET_HEX',
+  ]);
+  if (stackKey.stdout.trim() !== WORLD_ENCRYPTION_SECRET_HEX) {
+    throw new Error(
+      'the migtest stack must boot with the world corpus encryption key — ' +
+        'set ENCRYPTION_SECRET_HEX in .env.test to WORLD_ENCRYPTION_SECRET_HEX ' +
+        '(convex/migrations/testing/world/seed_db.testkit.ts)',
+    );
+  }
+  const stackB64Key = await capture([
+    'docker',
+    'exec',
+    PLATFORM,
+    'printenv',
+    'ENCRYPTION_SECRET',
+  ]);
+  if (stackB64Key.exitCode === 0) {
+    throw new Error(
+      'the migtest stack must not set ENCRYPTION_SECRET — it shadows the ' +
+        'world corpus key in ENCRYPTION_SECRET_HEX (getSecretKey precedence)',
+    );
   }
 
   // --- Inject the 0.2.84 baseline world -----------------------------------
