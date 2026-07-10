@@ -12,12 +12,13 @@
  *   task's activity timeline (`tasks/queries:listTaskActivity`), the task's
  *   comment thread (`TaskComments` on the `task_discussion` surface — the one
  *   workflow `task.list_comments` reads, so desk feedback loops close here),
- *   and an `AgentChat` with the automation's `implementer` role on the shared
- *   `('task', id)` thread. The two task queries run through `useBoundQuery`,
- *   so they must be in the hosting automation's `capabilities.functions` allowlist
- *   (a task-based automation's manifest carries them); a non-allowlisting automation degrades to
- *   the blocked notice, and an unmapped `implementer` role degrades inside
- *   `AgentChat` itself.
+ *   and — only when the automation maps an `implementer` role — an `AgentChat`
+ *   on the shared `('task', id)` thread (an unmapped cast renders no chat
+ *   section here; a pack-authored AgentChat block keeps its explicit notice).
+ *   The two task queries run through `useBoundQuery`, so they must be in the
+ *   hosting automation's `capabilities.functions` allowlist (a task-based
+ *   automation's manifest carries them); a non-allowlisting automation
+ *   degrades to the blocked notice.
  * - anything else — the resource's workflow run via the reused `SubjectRun`,
  *   unchanged.
  *
@@ -59,6 +60,7 @@ import { BindingStates, BlockFrame } from '../registry/block-frame';
 import { AgentChat } from '../registry/connected/agent-chat';
 import { DetailPanel } from '../registry/connected/detail-panel';
 import { SubjectRun } from '../registry/connected/subject-run';
+import { useAutomationRuntime } from './automation-runtime';
 
 export interface ResourceDetailTarget {
   subjectType: string;
@@ -186,6 +188,13 @@ function TaskCommentsSection({ taskId }: { taskId: string }) {
 function TaskDetailSections({ target }: { target: ResourceDetailTarget }) {
   const { t } = useT('automations');
   const { t: tTasks } = useT('tasks');
+  // The chat section only exists when the automation actually casts an
+  // implementer — an unmapped role here would just render a "role
+  // unavailable" notice next to the comments section, which reads as noise
+  // in a platform-composed dialog. (A pack-AUTHORED AgentChat block keeps
+  // its explicit notice — the cast is that author's data to debug.)
+  const { roles } = useAutomationRuntime();
+  const implementerMapped = roles?.implementer !== undefined;
   return (
     <Stack gap={4}>
       <DetailPanel
@@ -220,13 +229,15 @@ function TaskDetailSections({ target }: { target: ResourceDetailTarget }) {
       </BlockFrame>
       <TaskActivitySection taskId={target.id} />
       <TaskCommentsSection taskId={target.id} />
-      <AgentChat
-        title={t('detail.discuss')}
-        roleToken="implementer"
-        subject={{ type: 'task', id: target.id }}
-        placeholder={t('detail.chatPlaceholder')}
-        height={360}
-      />
+      {implementerMapped && (
+        <AgentChat
+          title={t('detail.discuss')}
+          roleToken="implementer"
+          subject={{ type: 'task', id: target.id }}
+          placeholder={t('detail.chatPlaceholder')}
+          height={360}
+        />
+      )}
     </Stack>
   );
 }

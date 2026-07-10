@@ -115,6 +115,19 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   }),
 }));
 
+// The chat section is gated on the automation's cast — the runtime context
+// supplies `roles`; tests flip it to cover mapped and unmapped automations.
+let runtimeRoles: Record<string, string> | undefined = {
+  implementer: 'desk/helper',
+};
+vi.mock('./automation-runtime', () => ({
+  useAutomationRuntime: () => ({
+    organizationId: 'org_1',
+    automationSlug: 'desk',
+    roles: runtimeRoles,
+  }),
+}));
+
 // Frame chrome → title marker + children; states → children (happy path).
 vi.mock('../registry/block-frame', () => ({
   BlockFrame: ({
@@ -178,6 +191,7 @@ afterEach(() => {
   boundQueryCalls.length = 0;
   taskCommentsCalls.length = 0;
   useTaskCalls.length = 0;
+  runtimeRoles = { implementer: 'desk/helper' };
 });
 
 describe('ResourceDetail — task subject composition', () => {
@@ -241,6 +255,18 @@ describe('ResourceDetail — task subject composition', () => {
     // is retired for this overlay — see the component header).
     expect(screen.getByText('automations.detail.run')).toBeInTheDocument();
     expect(screen.getByText('automations.detail.activity')).toBeInTheDocument();
+  });
+
+  it('hides the chat section entirely when the automation maps no implementer role', () => {
+    activityReturn = bound({ data: [] });
+    runtimeRoles = {};
+
+    openDetail({ subjectType: 'task', id: 'task123' });
+
+    // No AgentChat — not even the "role unavailable" notice; the comments
+    // section stays (it is the desk feedback channel, role-independent).
+    expect(agentChatCalls).toHaveLength(0);
+    expect(taskCommentsCalls).toHaveLength(1);
   });
 
   it('renders activity rows with localized actions, status transition and time', () => {
