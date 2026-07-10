@@ -1,18 +1,33 @@
 /**
- * Reference migration: fork the `personalization` governance policy into
- * `custom_instructions` + `user_memories` on the legacy `governancePolicies`
- * table.
+ * 0.2.73 / 03 — fork the org-default `personalization` governance policy into
+ * separate `custom_instructions` + `user_memories` policies.
  *
- * The legacy table is absent from today's schema, so it is read/written
- * untyped (`ctx.db.query('governancePolicies' as never)`, `(ctx.db as any)`).
- * `up` forks the row in two and deletes the original; `down` re-merges. Both
- * idempotent + shape-guarded. The runner never executes a `reference`
- * migration; the test calls `up`/`down` directly.
+ * Shipped in v0.2.73 (verified against `git grep personalization v0.2.72` vs
+ * `v0.2.73` over `convex/governance/` + `lib/shared/schemas/governance.ts`):
+ * the `'personalization'` policyType was replaced by `'custom_instructions'`
+ * and `'user_memories'` (the legacy literal was retained only as a deploy-window
+ * slot the schema comment ties to `migrations/split_personalization_toggle`).
+ * Operates on the legacy untyped `governancePolicies` table — absent from
+ * today's schema, so it is read/written untyped
+ * (`ctx.db.query('governancePolicies' as never)`, `(ctx.db as any)`).
+ *
+ * up: for each row with `policyType === 'personalization'`, insert two rows
+ * (`custom_instructions` and `user_memories`) copying its `config` + metadata,
+ * then delete the original. Idempotent (skips if the forked rows already exist
+ * for the org).
+ * down: re-merge — for each org that has BOTH `custom_instructions` and
+ * `user_memories` rows, reinsert a single `personalization` row (config taken
+ * from the `custom_instructions` side, which `up` cloned identically) and
+ * delete the two split rows.
+ *
+ * Reversible, no data loss (both forked rows carry the same cloned config).
+ * Reference-only: the runner never executes it — the test calls `up`/`down`
+ * directly.
  */
 
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineReferenceMigration } from '../../../framework/define';
+import type { MigrationDoc } from '../../../framework/types';
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -58,11 +73,19 @@ function carry(src: GovPolicyRow, policyType: string) {
   };
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineReferenceMigration({
+  title: 'Fork personalization governance policy into per-feature policies',
+  description:
+    "Forks each governancePolicies row of policyType 'personalization' into two " +
+    "rows ('custom_instructions' and 'user_memories') copying its config, then " +
+    'deletes the original. down re-merges the two rows back into a single ' +
+    'personalization row. Operates on the legacy untyped governancePolicies ' +
+    'table. Reversible, no data loss.',
+  destructive: false,
+  snapshot: 'none',
   table: 'governancePolicies',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     if (str(doc.policyType) !== 'personalization') return;
     const organizationId = str(doc.organizationId);
     if (!organizationId) return;
@@ -89,7 +112,7 @@ export const migration: DbMigration = {
     await (ctx.db as any).delete(doc._id);
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     // Drive the re-merge off the custom_instructions row; ignore the other one
     // (it is deleted here so it isn't re-processed).
     if (str(doc.policyType) !== 'custom_instructions') return;
@@ -113,4 +136,4 @@ export const migration: DbMigration = {
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy table absent from schema
     await (ctx.db as any).delete(memories._id);
   },
-};
+});

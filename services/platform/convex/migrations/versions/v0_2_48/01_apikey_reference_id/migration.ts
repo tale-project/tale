@@ -1,5 +1,3 @@
-import type { MigrationMeta } from '../../../framework/types';
-
 /**
  * 0.2.48 / 01 — better-auth 1.5 `apikey.userId` → `referenceId` (+ new
  * `configId`).
@@ -14,18 +12,20 @@ import type { MigrationMeta } from '../../../framework/types';
  * new fields"). This reference migration captures that deferred backfill: the
  * data transform that moves `userId` → `referenceId`.
  *
- * up: `referenceId = userId`, leave `configId` unset/undefined, unset `userId`.
- * down: `userId = referenceId`, unset `referenceId` + `configId`.
- *
  * Pure rename of an identity reference — fully reversible, no data lost
  * (`configId` has no pre-1.5 source, so it is left undefined and dropped on
- * down). Reference-only: the runner never executes it.
+ * down). Reference-only: the per-row transform is idempotent and
+ * shape-guarded and stays under round-trip test for the audit trail; the
+ * runner never executes it — the test calls `up`/`down` directly.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.48/01_apikey_reference_id',
-  semver: '0.2.48',
-  numericId: 1,
-  slug: 'apikey_reference_id',
+
+import { defineReferenceMigration } from '../../../framework/define';
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+export const migration = defineReferenceMigration({
   title: 'Backfill better-auth apikey.userId into referenceId',
   description:
     'better-auth 1.5 renamed apikey.userId to referenceId and added configId. ' +
@@ -33,8 +33,32 @@ export const meta: MigrationMeta = {
     'backfill); this migration is that backfill. up sets referenceId=userId, ' +
     'leaves configId undefined, unsets userId; down sets userId=referenceId and ' +
     'unsets referenceId+configId. Reversible, no data loss.',
-  kind: 'reference',
-  reversible: true,
   destructive: false,
   snapshot: 'none',
-};
+  table: 'apikey',
+
+  async up(ctx, doc) {
+    // Already migrated (referenceId set, userId cleared) → no-op.
+    if (doc.userId === undefined) return;
+    const userId = str(doc.userId);
+    if (userId === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- legacy field shape
+    await (ctx.db as any).patch(doc._id, {
+      referenceId: userId,
+      userId: undefined,
+    });
+  },
+
+  async down(ctx, doc) {
+    // Already reverted (userId set) → no-op.
+    if (doc.userId !== undefined) return;
+    const referenceId = str(doc.referenceId);
+    if (referenceId === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- legacy field shape
+    await (ctx.db as any).patch(doc._id, {
+      userId: referenceId,
+      referenceId: undefined,
+      configId: undefined,
+    });
+  },
+});

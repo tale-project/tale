@@ -1,7 +1,5 @@
-import type { MigrationMeta } from '../../../framework/types';
-
 /**
- * 0.2.91 / 01 — optional `taskActivity.context` for workflow attribution.
+ * 0.2.91 / 02 — optional `taskActivity.context` for workflow attribution.
  *
  * Adds an optional object `{ workflowSlug?, wfExecutionId? }` so workflow-engine
  * writes can name which automation drove a timeline row. Purely additive — every
@@ -12,11 +10,10 @@ import type { MigrationMeta } from '../../../framework/types';
  * down: drop `context` when present so rows re-validate against the pre-change
  * schema. Idempotent.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.91/02_task_activity_context',
-  semver: '0.2.91',
-  numericId: 2,
-  slug: 'task_activity_context',
+
+import { defineReferenceMigration } from '../../../framework/define';
+
+export const migration = defineReferenceMigration({
   title: 'Add optional taskActivity.context for workflow attribution',
   description:
     'Adds the optional taskActivity.context object (workflowSlug + ' +
@@ -24,8 +21,17 @@ export const meta: MigrationMeta = {
     'automation that wrote them. Purely additive; up is a documented no-op ' +
     'and down drops context to re-validate against the pre-change schema. ' +
     'Reference-only: the runner never executes it.',
-  kind: 'reference',
-  reversible: true,
   destructive: false,
   snapshot: 'none',
-};
+  table: 'taskActivity',
+
+  async up(_ctx, _doc) {
+    // No-op: optional field — existing rows stay valid without `context`.
+  },
+
+  async down(ctx, doc) {
+    if (doc.context === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- dropped optional field
+    await (ctx.db as any).patch(doc._id, { context: undefined });
+  },
+});

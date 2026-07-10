@@ -1,11 +1,22 @@
 /**
- * Reference migration: fold the legacy `audit_retention` governance policy into
- * the unified `retention_policy` — see meta.ts for the historical context.
+ * 0.2.48 / 02 — fold the legacy `audit_retention` governance policy into the
+ * unified `retention_policy`.
+ *
+ * v0.2.48 (#1577, "central retention & deletion configuration") removed the
+ * `'audit_retention'` literal from the `governancePolicies.policyType` union.
+ * Convex validates EXISTING rows against the new schema at push time, so any
+ * org holding an `audit_retention` row would have failed the deploy — the
+ * release shipped an ad-hoc `convex/migrations/merge_audit_retention.ts`
+ * mutation to reshape those rows first. That one-shot file was later deleted
+ * (#1879) and never ported into this versioned framework; this reference
+ * migration restores it to the audit trail under round-trip test.
  *
  * Per-row over `governancePolicies`, idempotent, shape-guarded. `up` acts on
  * `audit_retention` rows; `down` acts on `retention_policy` rows that `up`
- * touched (those carrying `auditLogRetentionDays`). The runner never executes a
- * `reference` migration; the test calls `up`/`down` directly.
+ * touched (those carrying `auditLogRetentionDays`). Destructive (up deletes
+ * the legacy rows). `governancePolicies` was dropped at 0.2.85, so this can
+ * never be replayed against today's schema — reference-only; the runner never
+ * executes it; the test calls `up`/`down` directly.
  *
  * Asymmetry (why `destructive` + `snapshot: 'table-rows'`): when an org had no
  * `retention_policy` row, `up` creates a minimal one; `down` cannot tell that
@@ -15,9 +26,7 @@
  * not run.
  */
 
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineReferenceMigration } from '../../../framework/define';
 
 // `governancePolicies` was dropped from the schema at 0.2.85; this reference
 // migration reads/writes it untyped (the runner never executes it). One alias
@@ -52,11 +61,20 @@ async function policyForOrg(
     .first();
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineReferenceMigration({
+  title: 'Fold legacy audit_retention governance policy into retention_policy',
+  description:
+    'v0.2.48 dropped the audit_retention policyType literal; existing rows had ' +
+    'to be reshaped before the push could validate. up folds each ' +
+    'audit_retention row’s retentionDays into the org’s retention_policy ' +
+    '(auditLogRetentionDays + auditLogsEnabled), then deletes the legacy row; ' +
+    'down re-creates the audit_retention row and strips those fields back off. ' +
+    'Reference-only — governancePolicies was dropped at 0.2.85.',
+  destructive: true,
+  snapshot: 'table-rows',
   table: 'governancePolicies',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     if (doc.policyType !== 'audit_retention') return; // only legacy rows
     const organizationId = str(doc.organizationId);
     if (!organizationId) return;
@@ -98,7 +116,7 @@ export const migration: DbMigration = {
     await db.delete(doc._id); // drop the legacy audit_retention row
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (doc.policyType !== 'retention_policy') return;
     const organizationId = str(doc.organizationId);
     if (!organizationId) return;
@@ -124,4 +142,4 @@ export const migration: DbMigration = {
     delete restored.auditLogRetentionDays;
     await db.patch(doc._id, { config: restored, updatedAt: Date.now() });
   },
-};
+});

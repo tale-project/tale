@@ -1,5 +1,3 @@
-import type { MigrationMeta } from '../../../framework/types';
-
 /**
  * 0.2.90 / 09 — app-embedded discussions: add the `threadMetadata` kind
  * `'app_discussion'` plus its `appSlug` / `subjectType` / `subjectId` columns
@@ -29,21 +27,22 @@ import type { MigrationMeta } from '../../../framework/types';
  * shipped shape change for the audit trail and keeps its (no-op)
  * forward/inverse transforms under round-trip test; the runner never executes
  * a `reference` migration (Convex validates at push time, so an already-safe
- * additive change needs no post-deploy pass).
+ * additive change needs no post-deploy pass) — the test calls `up`/`down`
+ * directly.
  *
  * up: NO-OP. Nothing to backfill — the new columns are absent on every
- * historical row and stay absent (only `getOrCreateAutomationThread` populates them).
+ * historical row and stay absent (only `getOrCreateAutomationThread` populates
+ * them; no app-subject attribution can be reconstructed for pre-change rows).
  * down: drop `appSlug`/`subjectType`/`subjectId` if present and clear a
  * `kind: 'app_discussion'` back to undefined, so a row re-validates against
  * the pre-change schema (which had neither the columns nor the literal). A
  * downgraded app thread degrades to a plain owner-only chat — no message data
  * is lost. Idempotent.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.90/09_thread_metadata_app_discussion',
-  semver: '0.2.90',
-  numericId: 9,
-  slug: 'thread_metadata_app_discussion',
+
+import { defineReferenceMigration } from '../../../framework/define';
+
+export const migration = defineReferenceMigration({
   title: "Add threadMetadata 'app_discussion' kind + app-subject columns",
   description:
     "Adds the 'app_discussion' threadMetadata kind (the AgentChat block's " +
@@ -57,8 +56,39 @@ export const meta: MigrationMeta = {
     'documented no-op and down strips the new columns and clears the new ' +
     'kind literal to re-validate against the pre-change schema. ' +
     'Reference-only: the runner never executes it.',
-  kind: 'reference',
-  reversible: true,
   destructive: false,
   snapshot: 'none',
-};
+  table: 'threadMetadata',
+
+  async up(_ctx, _doc) {
+    // No-op: `appSlug`/`subjectType`/`subjectId` are NEW optional columns and
+    // `'app_discussion'` is a NEW kind literal. Historical rows carry no
+    // app-subject attribution and none can be reconstructed, so there is
+    // nothing to backfill. Only `getOrCreateAutomationThread` writes the new shape.
+    // Kept explicit + idempotent.
+  },
+
+  async down(ctx, doc) {
+    // Strip the new columns + kind literal so the row re-validates against
+    // the pre-change schema. Absent already → nothing to do (idempotent).
+    const clearsKind = doc.kind === 'app_discussion';
+    if (
+      doc.appSlug === undefined &&
+      doc.subjectType === undefined &&
+      doc.subjectId === undefined &&
+      !clearsKind
+    ) {
+      return;
+    }
+    // `appSlug` was renamed out of the live schema by the later apps→automations
+    // cutover; this historical migration still clears the pre-change column, so
+    // the write is untyped (`as any`) — matching `v0_2_88/01`'s convention.
+    // oxlint-disable-next-line typescript/no-explicit-any -- field absent from the current schema
+    await (ctx.db as any).patch(doc._id, {
+      appSlug: undefined,
+      subjectType: undefined,
+      subjectId: undefined,
+      ...(clearsKind ? { kind: undefined } : {}),
+    });
+  },
+});

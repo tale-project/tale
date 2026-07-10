@@ -4,7 +4,9 @@ import { v } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { migration as module } from './migration';
+
+const migration = module.spec;
 
 const DIR = 'migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);

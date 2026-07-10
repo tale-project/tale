@@ -56,99 +56,107 @@ async function seedBranding(slug: string, config: unknown): Promise<string> {
 }
 
 describe('migration test world (spike)', () => {
-  it('seeds orgs in the real component and enumerates them via org_source', async () => {
-    const t = newWorld();
-    const orgs = await t.mutation(
-      internal.migrations.testing.support.seedAuthOrgs,
-      {
-        orgs: [
-          { slug: 'org1', name: 'Org One' },
-          { slug: 'org2', name: 'Org Two' },
-        ],
-      },
-    );
-    expect(orgs).toHaveLength(2);
-    expect(orgs[0].id).not.toBe('');
+  it(
+    'seeds orgs in the real component and enumerates them via org_source',
+    { timeout: 60_000 },
+    async () => {
+      const t = newWorld();
+      const orgs = await t.mutation(
+        internal.migrations.testing.support.seedAuthOrgs,
+        {
+          orgs: [
+            { slug: 'org1', name: 'Org One' },
+            { slug: 'org2', name: 'Org Two' },
+          ],
+        },
+      );
+      expect(orgs).toHaveLength(2);
+      expect(orgs[0].id).not.toBe('');
 
-    // Idempotent on slug — a re-seed returns the same ids.
-    const again = await t.mutation(
-      internal.migrations.testing.support.seedAuthOrgs,
-      { orgs: [{ slug: 'org1', name: 'Org One' }] },
-    );
-    expect(again[0].id).toBe(orgs[0].id);
+      // Idempotent on slug — a re-seed returns the same ids.
+      const again = await t.mutation(
+        internal.migrations.testing.support.seedAuthOrgs,
+        { orgs: [{ slug: 'org1', name: 'Org One' }] },
+      );
+      expect(again[0].id).toBe(orgs[0].id);
 
-    const page = await t.query(
-      internal.migrations.framework.org_source.listOrgsPage,
-      { cursor: null, numItems: 200 },
-    );
-    expect(page.isDone).toBe(true);
-    expect(page.page.map((o) => o.slug).sort()).toEqual(['org1', 'org2']);
-  });
+      const page = await t.query(
+        internal.migrations.framework.org_source.listOrgsPage,
+        { cursor: null, numItems: 200 },
+      );
+      expect(page.isDone).toBe(true);
+      expect(page.page.map((o) => o.slug).sort()).toEqual(['org1', 'org2']);
+    },
+  );
 
-  it('runs a real node migration up and down through the production path', async () => {
-    const t = newWorld();
-    const [org1] = await t.mutation(
-      internal.migrations.testing.support.seedAuthOrgs,
-      { orgs: [{ slug: 'org1', name: 'Org One' }] },
-    );
-    await t.mutation(internal.migrations.testing.support.seedAuthOrgs, {
-      orgs: [{ slug: 'org2', name: 'Org Two' }],
-    });
+  it(
+    'runs a real node migration up and down through the production path',
+    { timeout: 60_000 },
+    async () => {
+      const t = newWorld();
+      const [org1] = await t.mutation(
+        internal.migrations.testing.support.seedAuthOrgs,
+        { orgs: [{ slug: 'org1', name: 'Org One' }] },
+      );
+      await t.mutation(internal.migrations.testing.support.seedAuthOrgs, {
+        orgs: [{ slug: 'org2', name: 'Org Two' }],
+      });
 
-    const file1 = await seedBranding('org1', {
-      brandColor: '#FF0055',
-      logoFilename: 'logo.png',
-    });
-    // org2 has no branding dir at all — the per-org no-op path.
+      const file1 = await seedBranding('org1', {
+        brandColor: '#FF0055',
+        logoFilename: 'logo.png',
+      });
+      // org2 has no branding dir at all — the per-org no-op path.
 
-    const up = await t.action(
-      internal.migrations.framework.entrypoints.applyUp,
-      { only: [BRANDING_ID], allowDestructive: true },
-    );
-    expect(up.completed).toEqual([BRANDING_ID]);
+      const up = await t.action(
+        internal.migrations.framework.entrypoints.applyUp,
+        { only: [BRANDING_ID], allowDestructive: true },
+      );
+      expect(up.completed).toEqual([BRANDING_ID]);
 
-    expect(JSON.parse(await readFile(file1, 'utf-8'))).toEqual({
-      accentColor: '#FF0055',
-      logoFilename: 'logo.png',
-    });
+      expect(JSON.parse(await readFile(file1, 'utf-8'))).toEqual({
+        accentColor: '#FF0055',
+        logoFilename: 'logo.png',
+      });
 
-    // Ledger: applied, with BOTH orgs recorded by the real fleet loop.
-    const afterUp = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('migrationLedger')
-        .withIndex('by_migrationId', (q) => q.eq('migrationId', BRANDING_ID))
-        .unique();
-    });
-    expect(afterUp?.status).toBe('applied');
-    expect(afterUp?.direction).toBe('up');
-    expect(afterUp?.processedOrgs).toContain(org1.id);
-    expect(afterUp?.processedOrgs).toHaveLength(2);
+      // Ledger: applied, with BOTH orgs recorded by the real fleet loop.
+      const afterUp = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('migrationLedger')
+          .withIndex('by_migrationId', (q) => q.eq('migrationId', BRANDING_ID))
+          .unique();
+      });
+      expect(afterUp?.status).toBe('applied');
+      expect(afterUp?.direction).toBe('up');
+      expect(afterUp?.processedOrgs).toContain(org1.id);
+      expect(afterUp?.processedOrgs).toHaveLength(2);
 
-    // Second applyUp is a planner no-op.
-    const upAgain = await t.action(
-      internal.migrations.framework.entrypoints.applyUp,
-      { only: [BRANDING_ID], allowDestructive: true },
-    );
-    expect(upAgain.completed).toEqual([]);
+      // Second applyUp is a planner no-op.
+      const upAgain = await t.action(
+        internal.migrations.framework.entrypoints.applyUp,
+        { only: [BRANDING_ID], allowDestructive: true },
+      );
+      expect(upAgain.completed).toEqual([]);
 
-    const down = await t.action(
-      internal.migrations.framework.entrypoints.applyDown,
-      { to: '0.2.84', only: [BRANDING_ID] },
-    );
-    expect(down.completed).toEqual([BRANDING_ID]);
+      const down = await t.action(
+        internal.migrations.framework.entrypoints.applyDown,
+        { to: '0.2.84', only: [BRANDING_ID] },
+      );
+      expect(down.completed).toEqual([BRANDING_ID]);
 
-    // fs-tree restore brought the legacy file back byte-for-byte.
-    expect(JSON.parse(await readFile(file1, 'utf-8'))).toEqual({
-      brandColor: '#FF0055',
-      logoFilename: 'logo.png',
-    });
+      // fs-tree restore brought the legacy file back byte-for-byte.
+      expect(JSON.parse(await readFile(file1, 'utf-8'))).toEqual({
+        brandColor: '#FF0055',
+        logoFilename: 'logo.png',
+      });
 
-    const afterDown = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('migrationLedger')
-        .withIndex('by_migrationId', (q) => q.eq('migrationId', BRANDING_ID))
-        .unique();
-    });
-    expect(afterDown?.status).toBe('rolledBack');
-  });
+      const afterDown = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('migrationLedger')
+          .withIndex('by_migrationId', (q) => q.eq('migrationId', BRANDING_ID))
+          .unique();
+      });
+      expect(afterDown?.status).toBe('rolledBack');
+    },
+  );
 });

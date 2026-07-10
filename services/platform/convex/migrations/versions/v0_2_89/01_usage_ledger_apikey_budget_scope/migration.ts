@@ -1,5 +1,3 @@
-import type { MigrationMeta } from '../../../framework/types';
-
 /**
  * 0.2.89 / 01 — per-API-key budget scope: add `usageLedger.apiKeyId` and the
  * `apiKey` budget rule scope (+ its `apiKeyId` target).
@@ -21,21 +19,22 @@ import type { MigrationMeta } from '../../../framework/types';
  * — it records the shipped shape change for the audit trail and keeps its
  * (no-op) forward/inverse transforms under round-trip test; the runner never
  * executes a `reference` migration (Convex validates at push time, so an
- * already-safe additive change needs no post-deploy pass).
+ * already-safe additive change needs no post-deploy pass) — the test calls
+ * `up`/`down` directly.
  *
  * up: NO-OP. Nothing to backfill — `apiKeyId` is absent on every historical row
- * and stays absent (only new openai-compat writes populate it).
+ * and stays absent (only new openai-compat writes populate it; no attribution
+ * can be reconstructed for pre-change rows).
  * down: drop `usageLedger.apiKeyId` if present, so a row re-validates against the
  * pre-change schema (which had no such field). Idempotent; loses only the new
  * attribution column, which the pre-change schema never had. No budget-rule
  * `down` is needed — a widened enum narrows cleanly for rules that never used
  * the new literal, and this reference documents that inverse in prose.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.89/01_usage_ledger_apikey_budget_scope',
-  semver: '0.2.89',
-  numericId: 1,
-  slug: 'usage_ledger_apikey_budget_scope',
+
+import { defineReferenceMigration } from '../../../framework/define';
+
+export const migration = defineReferenceMigration({
   title: 'Add usageLedger.apiKeyId + apiKey budget scope',
   description:
     'Adds the optional usageLedger.apiKeyId field (+ by_org_apiKey_period ' +
@@ -45,8 +44,22 @@ export const meta: MigrationMeta = {
     'data-safe (new optional field + widened enum), so up is a documented ' +
     'no-op and down drops usageLedger.apiKeyId to re-validate against the ' +
     'pre-change schema. Reference-only: the runner never executes it.',
-  kind: 'reference',
-  reversible: true,
   destructive: false,
   snapshot: 'none',
-};
+  table: 'usageLedger',
+
+  async up(_ctx, _doc) {
+    // No-op: `apiKeyId` is a NEW optional column. Historical rows have no key
+    // attribution and none can be reconstructed, so there is nothing to
+    // backfill. Only new openai-compat writes populate the field. Kept explicit
+    // + idempotent.
+  },
+
+  async down(ctx, doc) {
+    // Drop the new column so the row re-validates against the pre-change schema
+    // (which had no `apiKeyId`). Absent already → nothing to do (idempotent).
+    if (doc.apiKeyId === undefined) return;
+    // oxlint-disable-next-line typescript/no-explicit-any -- new optional field absent from the pre-change Doc type
+    await (ctx.db as any).patch(doc._id, { apiKeyId: undefined });
+  },
+});
