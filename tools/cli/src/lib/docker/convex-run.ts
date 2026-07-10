@@ -52,7 +52,7 @@ const SAFE_FN_RE = /^[A-Za-z0-9_/.:-]+$/;
  */
 const SAFE_ARGS_RE = /^[A-Za-z0-9_,[\]{}":. /\\-]*$/;
 
-export interface ConvexRunScriptOptions {
+interface ConvexRunScriptOptions {
   /** Optional function args object, serialized and charset-guarded. */
   args?: Record<string, unknown>;
   /** In-container `timeout(1)` budget for the run. Default 120s. */
