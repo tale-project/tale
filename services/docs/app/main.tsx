@@ -23,6 +23,15 @@ if (!root) throw new Error('Missing #root element');
 // createRoot too — its non-Start TanStack Router Suspense markers don't
 // rehydrate cleanly; see services/web/app/main.tsx.)
 //
+// The initial route load MUST finish before the first render. Rendering
+// while the `$.tsx` loader is still awaiting its doc-body chunk makes
+// React's first commit an empty match tree — it tears down the prerendered
+// page into a blank frame (~100ms locally, a full chunk round-trip in
+// production) before the real content commits: a visible flicker on every
+// cold load. Awaiting `router.load()` first keeps the prerendered DOM
+// painted until the whole final tree can commit in one pass. A load
+// failure still renders — the router surfaces route errors itself.
+//
 // `<AppShell>` is mounted without `locale` because docs reads its locale
 // from the URL — `__root.tsx` calls `<LocaleSync>` directly with
 // `useCurrentLocale()`.
@@ -32,10 +41,17 @@ if (!root) throw new Error('Missing #root element');
 // favicon + theme-color meta for OS-dark users via `ThemeAssetSync` in
 // `__root.tsx`, even though the docs body has no `dark:` Tailwind
 // classes. M9.
-createRoot(root).render(
-  <StrictMode>
-    <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
-      <RouterProvider router={router} />
-    </AppShell>
-  </StrictMode>,
-);
+void router
+  .load()
+  .catch((error: unknown) => {
+    console.error('[docs] initial route load failed', error);
+  })
+  .then(() => {
+    createRoot(root).render(
+      <StrictMode>
+        <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+          <RouterProvider router={router} />
+        </AppShell>
+      </StrictMode>,
+    );
+  });
