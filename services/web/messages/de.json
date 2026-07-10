@@ -45,9 +45,9 @@
       "title": "Was ist Governance in Tale?",
       "description": "Tale Governance hält Agent-Aktionen hinter Freigabe-Karten, schreibt jeden Entscheid ins Audit-Log und filtert PII und unsichere Inhalte in beide Richtungen."
     },
-    "platformConversations": {
-      "title": "Was sind Conversations in Tale?",
-      "description": "Tale Conversations halten geteilte Threads, Verlauf und Übergaben an einem Ort, damit Teams ohne Kontextverlust weiterarbeiten."
+    "platformProjects": {
+      "title": "Was sind Projekte in Tale?",
+      "description": "Tale-Projekte bündeln Chats, Dateien, Anweisungen und ein Task-Board in einem geteilten Arbeitsbereich — weise eine Aufgabe einem Agent zu und prüfe das Ergebnis, bevor es rausgeht."
     },
     "changelog": {
       "title": "Was ist neu in Tale? — Changelog",
@@ -80,6 +80,10 @@
         "label": "Chat",
         "description": "Alltag-KI mit Zitationen, Tools und Arena."
       },
+      "projects": {
+        "label": "Projekte",
+        "description": "Geteilte Arbeitsbereiche, in denen Agents Aufgaben übernehmen."
+      },
       "automations": {
         "label": "Automations",
         "description": "Typisierte Workflows mit Triggern und Freigaben."
@@ -91,10 +95,6 @@
       "governance": {
         "label": "Governance",
         "description": "Freigaben, Audit-Trail und Ausgabenkontrolle."
-      },
-      "conversations": {
-        "label": "Conversations",
-        "description": "Geteilte Threads, die dein Team fortsetzen kann."
       }
     },
     "resource": {
@@ -1285,179 +1285,6 @@
       }
     }
   },
-  "platformConversations": {
-    "eyebrow": "Conversations",
-    "title": "Was sind Conversations in Tale?",
-    "description": "Conversations sind die geteilten Threads, die dein Team fortsetzt — Verlauf, Übergaben und Kontext, die eine Sitzung überdauern, damit Arbeit nicht bei einem leeren Composer neu startet.",
-    "capabilities": {
-      "heading": "Warum geteilte Threads zählen",
-      "description": "Threads, die dein ganzes Team aufnehmen kann — mit Verlauf, Übergaben und Governance, die dem Gespräch folgen.",
-      "items": [
-        {
-          "title": "Weitermachen, wo das Team aufgehört hat",
-          "body": "Geteilte Threads halten das Transkript für alle verfügbar, die den Kontext brauchen.",
-          "docsLabel": "Geteilte Threads"
-        },
-        {
-          "title": "Übergaben ohne Copy-Paste",
-          "body": "Gib einen Thread an einen Spezial-Agent oder Teamkollegen weiter, ohne Zitationen und Tool-Verlauf zu verlieren.",
-          "docsLabel": "Agents im Chat"
-        },
-        {
-          "title": "Durchsuchbarer Verlauf",
-          "body": "Öffne Verlauf anzeigen, um jeden Thread zu sehen, den du fortsetzen kannst — und durchsuche den Verlauf.",
-          "docsLabel": "Chat-Übersicht"
-        },
-        {
-          "title": "Governance bleibt angehängt",
-          "body": "Freigabe-Karten und ihr gelöster Zustand bleiben im Transkript als Nachweis dessen, was erlaubt war.",
-          "docsLabel": "Freigabe-Konzepte"
-        },
-        {
-          "title": "Projects, wenn Arbeit wächst",
-          "body": "Wird ein Thread zu einem nachverfolgbaren Arbeitspaket, tragen Projects Dateien, Agents und Backlog neben dem Gespräch.",
-          "docsLabel": "Projects-Übersicht"
-        }
-      ]
-    },
-    "faq": {
-      "heading": "FAQ zu Conversations",
-      "items": [
-        {
-          "q": "Was sind Conversations in Tale?",
-          "a": "Tale Conversations sind geteilte Chat-Threads, die dein Team fortsetzen kann — mit Verlauf, Übergaben und angehängten Freigabe-Nachweisen."
-        },
-        {
-          "q": "Worin unterscheidet sich das von Chat?",
-          "a": "Chat ist die Alltags-Composer-Oberfläche. Conversations benennt die geteilte, dauerhafte Thread-Schicht, die Teams übergeben und fortsetzen."
-        },
-        {
-          "q": "Kann ich ein Gespräch an einen Teamkollegen oder einen anderen Agent übergeben?",
-          "a": "Ja. Ein geteilter Thread behält seinen vollen Verlauf, sodass eine Person oder ein spezialisierter Agent ihn aufnehmen kann, ohne den Kontext zu verlieren — und Governance bleibt an jede Aktion gebunden."
-        },
-        {
-          "q": "Sieht das ganze Team jede Conversation?",
-          "a": "Nein — Projekte grenzen ab, wer was sieht. Ein Thread gehört zu seinem Workspace, und nur dessen Mitglieder können ihn lesen oder fortsetzen."
-        }
-      ]
-    },
-    "docs": [
-      {
-        "label": "Geteilte Threads",
-        "path": "/platform/chat/shared-threads"
-      },
-      {
-        "label": "Chat-Übersicht",
-        "path": "/platform/chat/overview"
-      },
-      {
-        "label": "Chat-Grundlagen",
-        "path": "/platform/chat/basics"
-      },
-      {
-        "label": "Agents im Chat",
-        "path": "/platform/chat/agents-in-chat"
-      },
-      {
-        "label": "Projects-Übersicht",
-        "path": "/platform/projects/overview"
-      }
-    ],
-    "tour": {
-      "heading": "So funktionieren geteilte Conversations",
-      "description": "Vergleiche Modelle, setze belegte Threads fort, grenze nach Projekt ab und gib Aktionen frei, die den Chat verlassen.",
-      "stages": [
-        {
-          "id": "arena",
-          "eyebrow": "Arena",
-          "title": "Entwürfe vergleichen\nvor der Übergabe",
-          "description": "Geteilte Threads können denselben Prompt durch zwei Modelle laufen lassen — der nächste Owner wählt die stärkere Antwort, ohne den Thread zu verlassen."
-        },
-        {
-          "id": "projects",
-          "eyebrow": "Projekte",
-          "title": "Threads gehören\nzu Workspaces",
-          "description": "Projekte legen fest, wer welche Threads sieht — Support-Eskalationen bleiben außerhalb von Engineering."
-        },
-        {
-          "id": "govern",
-          "eyebrow": "Freigaben",
-          "title": "Im Thread freigeben",
-          "description": "Wenn eine Conversation Mails senden oder Systeme ändern würde, landet die Freigabe-Karte dort, wo die Arbeit schon ist."
-        },
-        {
-          "id": "knowledge",
-          "eyebrow": "Wissen",
-          "title": "Geteilte Antworten in denselben\nLibraries verankern",
-          "description": "Alle im Thread sehen dieselben Zitate — kein privater Kontext, den der nächste Leser nicht prüfen kann."
-        }
-      ]
-    },
-    "demos": {
-      "hero": {
-        "label": "Animierte Demo: Ein Teammate steigt in einen geteilten Pilot-Thread ein und fragt, was der Kunde schon freigegeben hat; der Agent fasst die Zusagen mit den Original-Zitaten zusammen.",
-        "prompt": "Steige mitten im Pilot ein — was hat Acme in diesem Thread schon freigegeben?",
-        "routedTitle": "Geteilter Pilot-Thread fortgesetzt",
-        "routedDetail": "Pilot-Agent hat Verlauf, Quellen und Tools behalten.",
-        "reply1": "Acme hat den 40-Seat-Basel-Scope und den Air-Gap-Install-Pfad unterschrieben.",
-        "reply2": "Das Hardware-Sizing für das Appliance-Image ist bei ihrer IT noch offen.",
-        "reply3": "Das QBR-Deck ist Donnerstag fällig; Legal hat die MSA-Redlines gestern freigegeben —",
-        "reply4": "einziger Blocker ist noch ihre VPN-Allow-List für die Registry.",
-        "citation1": "acme-pilot-msa.pdf",
-        "citation2": "Basel-Scope-Sheet",
-        "composerAgentRouted": "Pilot-Agent",
-        "composerModel": "Claude Opus"
-      },
-      "govern": {
-        "label": "Animierte Demo: Im geteilten Pilot-Thread pausiert das Senden des QBR-Decks an Acme auf einer Freigabe-Karte, bis der neue Owner entscheidet.",
-        "approvalTitle": "QBR-Deck an Acmes Steering-Liste senden?",
-        "requester": "Geteilter Pilot · Pilot-Agent",
-        "audit1": "Freigegeben von jordan@nordwind.eu",
-        "audit2": "Deck per Outlook gesendet",
-        "audit3": "Entscheidung im Pilot-Journal gespeichert",
-        "budgetValue": "CHF 90 / 400"
-      },
-      "projects": {
-        "label": "Animierte Demo: Projekte, die entscheiden, welche Mitglieder welche geteilten Pilot- und Handoff-Threads sehen.",
-        "project1": "Acme-Basel-Pilot",
-        "agents1": "3 Agents",
-        "members1": "6",
-        "project2": "Partner-Übergaben",
-        "agents2": "2 Agents",
-        "members2": "5",
-        "project3": "QBR-War-Room",
-        "agents3": "2 Agents",
-        "members3": "4",
-        "project4": "Legal-Redlines",
-        "agents4": "1 Agent",
-        "members4": "3"
-      },
-      "knowledge": {
-        "label": "Animierte Demo: Geteilte Pilot-Bibliotheken, die jeder im Thread öffnen kann — MSA, Scope-Sheet, VPN-Runbook und QBR-Vorlage.",
-        "source1": "acme-pilot-msa.pdf",
-        "sourceType1": "pdf",
-        "source2": "Basel-Scope-Sheet",
-        "sourceType2": "entry",
-        "source3": "vpn-allowlist-runbook.pdf",
-        "sourceType3": "pdf",
-        "source4": "QBR-Vorlage",
-        "sourceType4": "entry"
-      },
-      "arena": {
-        "label": "Animierte Demo: Im geteilten Pilot-Thread schreibt Arena dasselbe QBR-Update zweimal — der neue Owner wählt die klarere Version.",
-        "prompt": "Entwirf das QBR-Update für morgen für Acmes Steering Committee.",
-        "agent": "Pilot-Agent",
-        "modelA": "Claude Opus",
-        "modelB": "GPT-5.5",
-        "replyA1": "Starte mit unterschriebenem Scope und freigegebenen MSA-Redlines.",
-        "replyA2": "Nenne die VPN-Allow-List als einzigen offenen Blocker.",
-        "replyA3": "Schließe mit dem Donnerstags-Deck-Owner und dem Ask an IT.",
-        "replyB1": "Öffne mit dem Fortschritt seit letzter Woche, dann dem Blocker.",
-        "replyB2": "Behalte das Donnerstags-Datum und nenne den Allow-List-Owner.",
-        "replyB3": "Biete eine 15-Minuten-IT-Session an, falls die Liste rutscht."
-      }
-    }
-  },
   "platformGovernance": {
     "eyebrow": "Governance",
     "title": "Was ist Governance in Tale?",
@@ -1698,7 +1525,7 @@
         },
         {
           "q": "Welche Module gehören zu Tale?",
-          "a": "Chat, Agents, Knowledge, Automations, Conversations und Governance — plus Projekte, die Arbeit nach Team abgrenzen."
+          "a": "Chat, Projekte, Knowledge, Agents, Automations und Governance — die Projekte grenzen Arbeit, Dateien und Agents nach Team ab."
         },
         {
           "q": "Ist Tale Open Source?",
@@ -1980,6 +1807,188 @@
         "project4": "Engineering-Wiki",
         "agents4": "4 Agents",
         "members4": "12"
+      }
+    }
+  },
+  "platformProjects": {
+    "eyebrow": "Projekte",
+    "title": "Was sind Projekte in Tale?",
+    "description": "Projekte sind geteilte Arbeitsbereiche, die Chats, Dateien, Anweisungen und das Task-Board zu einem Vorhaben bündeln — der Kontext bleibt bei der Arbeit, und Agents übernehmen Aufgaben dort, wo dein Team sie liegen lässt.",
+    "capabilities": {
+      "heading": "Ein Arbeitsbereich pro Vorhaben",
+      "description": "Ein Projekt hält alles, was ein Kunde, ein Launch oder eine Recherche braucht, an einem Ort — und setzt Agents mitten darin an die Arbeit.",
+      "items": [
+        {
+          "title": "Kontext, der bei der Arbeit bleibt",
+          "body": "Chats, Dateien, Anweisungen und Diskussionen liegen auf den Tabs des Projekts — niemand kopiert Hintergrund in einen frischen Composer.",
+          "docsLabel": "Projekt-Überblick"
+        },
+        {
+          "title": "Ein Board, von dem Agents arbeiten",
+          "body": "Weise eine Aufgabenkarte einem Agent zu, und das Task-Ops-Paket führt sie aus — Triage, Ausführung, Review und Eskalation inklusive.",
+          "docsLabel": "Aufgaben-Automatisierung"
+        },
+        {
+          "title": "Ein Backlog mit menschlicher Triage",
+          "body": "Automatisierungen schlagen Arbeit vor; jemand startet, was sich lohnt, und schließt, was nicht. Nichts läuft ungeprüft.",
+          "docsLabel": "Projekt-Backlog"
+        },
+        {
+          "title": "Dateien, die im Projekt bleiben",
+          "body": "Der Wissens-Tab hält den Ordnerbaum des Projekts — im Projekt für Retrieval indexiert, außerhalb unsichtbar.",
+          "docsLabel": "Dateien verwalten"
+        },
+        {
+          "title": "Die richtigen Agents griffbereit",
+          "body": "Kuratiere, welche Agents und Modelle Mitglieder im Projekt sehen — der empfohlene Spezialist ist einen Klick entfernt.",
+          "docsLabel": "Agents und Modelle"
+        }
+      ]
+    },
+    "faq": {
+      "heading": "Projekte-FAQ",
+      "items": [
+        {
+          "q": "Was ist ein Projekt in Tale?",
+          "a": "Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen zu einem Vorhaben bündelt — ein Kunde, ein Launch, eine Recherche — damit der Kontext bei der Arbeit bleibt."
+        },
+        {
+          "q": "Wie arbeiten Agents an Projektaufgaben?",
+          "a": "Die Zuweisung einer Board-Aufgabe an einen Agent startet den Task-Ops-Loop: Der Agent führt aus, ein menschliches Review-Gate prüft das Ergebnis, und Budgets, Parallelitätslimits und ein Notausschalter halten Läufe in Leitplanken."
+        },
+        {
+          "q": "Wer sieht die Chats und Dateien eines Projekts?",
+          "a": "Nur die Mitglieder des Projekts. Chats, Dateien und Threads bleiben auf ihren Arbeitsbereich beschränkt — Support-Eskalationen bleiben aus dem Engineering raus."
+        },
+        {
+          "q": "Was unterscheidet ein Projekt von einem Chat?",
+          "a": "Ein Chat beantwortet eine Frage und ist vorbei. Ein Projekt trägt laufende Arbeit: geteilter Verlauf, ein Task-Board, Anweisungen für jeden Chat und Dateien, die Agents zitieren können."
+        }
+      ]
+    },
+    "docs": [
+      {
+        "label": "Projekt-Überblick",
+        "path": "/platform/projects/overview"
+      },
+      {
+        "label": "Projekt-Konzepte",
+        "path": "/platform/projects/concepts"
+      },
+      {
+        "label": "Aufgaben-Automatisierung",
+        "path": "/platform/projects/task-automation"
+      },
+      {
+        "label": "Projekt-Backlog",
+        "path": "/platform/projects/backlog"
+      },
+      {
+        "label": "Dateien verwalten",
+        "path": "/platform/projects/manage-files"
+      },
+      {
+        "label": "Agents und Modelle",
+        "path": "/platform/projects/project-agents"
+      }
+    ],
+    "tour": {
+      "heading": "Wie Projekte Arbeit erledigen",
+      "description": "Weise eine Aufgabe einem Agent zu, setz den Projekt-Chat mit seinem Kontext fort, stütze Antworten auf Projektdateien — und halte, was rausgeht, hinter dem Review.",
+      "stages": [
+        {
+          "id": "tasks",
+          "eyebrow": "Aufgaben",
+          "title": "Karte zuweisen,\nein Agent übernimmt",
+          "description": "Die Zuweisung einer Board-Aufgabe an einen Agent startet den Task-Ops-Loop — Ausführung, Prüfungen und Eskalation laufen über Workflows, die deiner Organisation gehören."
+        },
+        {
+          "id": "chat",
+          "eyebrow": "Chats",
+          "title": "Jeder Chat startet\nmit dem Kontext",
+          "description": "Projekt-Anweisungen und -Dateien reisen in jedem Thread mit — ein neuer Chat setzt den Relaunch dort fort, wo der letzte aufgehört hat."
+        },
+        {
+          "id": "knowledge",
+          "eyebrow": "Wissen",
+          "title": "Dateien, die im\nProjekt bleiben",
+          "description": "Der Wissens-Tab hält den Ordnerbaum des Projekts für Retrieval indexiert — in Projekt-Chats zitiert, außerhalb unsichtbar."
+        },
+        {
+          "id": "govern",
+          "eyebrow": "Review",
+          "title": "Nichts geht raus\nohne Entscheidung",
+          "description": "Würde eine Aufgabe veröffentlichen oder senden, landet die Freigabe-Karte beim Projekt-Owner — und die Entscheidung bleibt im Audit-Trail."
+        }
+      ]
+    },
+    "demos": {
+      "projects": {
+        "label": "Animierte Demo: die Projektliste — jeder geteilte Arbeitsbereich mit seinen Agents und Mitgliedern.",
+        "project1": "Website-Relaunch",
+        "agents1": "3 Agents",
+        "members1": "7",
+        "project2": "Acme-Onboarding",
+        "agents2": "2 Agents",
+        "members2": "5",
+        "project3": "Pricing-Revamp",
+        "agents3": "2 Agents",
+        "members3": "4",
+        "project4": "Support-Eskalationen",
+        "agents4": "1 Agent",
+        "members4": "6"
+      },
+      "automation": {
+        "label": "Animierte Demo: Eine einem Agent zugewiesene Board-Aufgabe durchläuft den Task-Ops-Loop und endet in einer Review-Anfrage.",
+        "trigger": "Aufgabe an Agent zugewiesen",
+        "llm": "Migrationsleitfaden entwerfen",
+        "condition": "Checkliste bestanden?",
+        "branchYes": "Ja",
+        "action": "Review anfordern",
+        "actionAlt": "An Owner eskalieren",
+        "run1": "#214",
+        "runTone1": "done",
+        "duration1": "48s",
+        "run2": "#215",
+        "runTone2": "pending",
+        "duration2": "—",
+        "run3": "#216",
+        "runTone3": "running",
+        "duration3": "12s"
+      },
+      "hero": {
+        "label": "Animierte Demo: Ein Projekt-Chat setzt den Website-Relaunch mit den Anweisungen und Dateien des Projekts als Kontext fort; der Agent antwortet mit Zitaten.",
+        "prompt": "Was fehlt noch, bevor der Relaunch live geht?",
+        "routedTitle": "Website-Relaunch · Projekt-Chat",
+        "routedDetail": "Der Relaunch-Agent lädt die Projekt-Anweisungen und -Dateien.",
+        "reply1": "Zwei Board-Aufgaben sind offen: das Redirect-Map-Review und der Text der Pricing-Seite.",
+        "reply2": "Die Launch-Checkliste verlangt einen Staging-Durchlauf, sobald beide zu sind.",
+        "reply3": "Der DNS-Umzug ist mit der IT für Donnerstag 06:00 gebucht,",
+        "reply4": "das einzige offene Risiko ist also der ungetestete /docs-Redirect.",
+        "citation1": "launch-checkliste.pdf",
+        "citation2": "Redirect-Map",
+        "composerAgentRouted": "Relaunch-Agent",
+        "composerModel": "Claude Opus"
+      },
+      "knowledge": {
+        "label": "Animierte Demo: der Wissens-Tab des Projekts — Brand-Guidelines, der Crawl der aktuellen Site, die Redirect-Map und die Launch-Checkliste.",
+        "source1": "brand-guidelines.pdf",
+        "sourceType1": "pdf",
+        "source2": "Crawl der aktuellen Site",
+        "sourceType2": "website",
+        "source3": "Redirect-Map",
+        "sourceType3": "entry",
+        "source4": "launch-checkliste.pdf",
+        "sourceType4": "pdf"
+      },
+      "govern": {
+        "label": "Animierte Demo: Das Veröffentlichen der neuen Pricing-Seite pausiert auf einer Freigabe-Karte, bis der Projekt-Owner entscheidet.",
+        "approvalTitle": "Neue Pricing-Seite in Produktion veröffentlichen?",
+        "requester": "Website-Relaunch · Relaunch-Agent",
+        "audit1": "Freigegeben von mira@nordwind.eu",
+        "audit2": "Pricing-Seite veröffentlicht",
+        "audit3": "Aufgabe #212 auf dem Board geschlossen",
+        "budgetValue": "CHF 120 / 400"
       }
     }
   },

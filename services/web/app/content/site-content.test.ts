@@ -50,10 +50,10 @@ describe('site content contracts', () => {
     const platform = buildPlatformNavItems();
     expect(platform.map((p) => p.navKey)).toEqual([
       'chat',
+      'projects',
       'knowledge',
       'agents',
       'automations',
-      'conversations',
       'governance',
     ]);
     const resources = buildResourcesNavItems();

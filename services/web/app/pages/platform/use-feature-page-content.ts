@@ -6,10 +6,10 @@ import { useT } from '@/lib/i18n/client';
 type FeatureNamespace =
   | 'platformAgents'
   | 'platformChat'
+  | 'platformProjects'
   | 'platformAutomations'
   | 'platformKnowledge'
-  | 'platformGovernance'
-  | 'platformConversations';
+  | 'platformGovernance';
 
 interface CapItem {
   title: string;

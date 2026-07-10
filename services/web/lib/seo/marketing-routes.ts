@@ -31,10 +31,10 @@ const ROUTE_SEO_KEYS = [
   { url: '/platform', key: 'platform' },
   { url: '/platform/agents', key: 'platformAgents' },
   { url: '/platform/chat', key: 'platformChat' },
+  { url: '/platform/projects', key: 'platformProjects' },
   { url: '/platform/automations', key: 'platformAutomations' },
   { url: '/platform/knowledge', key: 'platformKnowledge' },
   { url: '/platform/governance', key: 'platformGovernance' },
-  { url: '/platform/conversations', key: 'platformConversations' },
   { url: '/changelog', key: 'changelog' },
 ] as const;
 
