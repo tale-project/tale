@@ -65,12 +65,31 @@ const ANNOTATION_KEYS = new Set([
   'deprecated',
 ]);
 
+/** Keys whose VALUE maps property NAMES to schemas — those names are data,
+ *  not keywords: a config field is allowed to be called `description` or
+ *  `default`, and dropping it here would blind the drift gate to its
+ *  changes (a real bug the version-checkpoint suite caught). */
+const PROPERTY_MAP_KEYS = new Set([
+  'properties',
+  'patternProperties',
+  '$defs',
+  'definitions',
+]);
+
 /** Recursively drop annotation-only keywords so they never read as drift. */
 function stripAnnotations(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(stripAnnotations);
   if (node && typeof node === 'object') {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node)) {
+      if (PROPERTY_MAP_KEYS.has(k) && v && typeof v === 'object') {
+        const map: Record<string, unknown> = {};
+        for (const [name, schema] of Object.entries(v)) {
+          map[name] = stripAnnotations(schema);
+        }
+        out[k] = map;
+        continue;
+      }
       if (ANNOTATION_KEYS.has(k)) continue;
       out[k] = stripAnnotations(v);
     }
