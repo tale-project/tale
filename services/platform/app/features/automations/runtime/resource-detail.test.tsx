@@ -58,12 +58,20 @@ vi.mock('@tale/ui/responsive-dialog', () => ({
 }));
 
 // Composed sections → capture the exact props the overlay hands them.
-const detailPanelCalls: Record<string, unknown>[] = [];
-vi.mock('../registry/connected/detail-panel', () => ({
-  DetailPanel: (props: Record<string, unknown>) => {
-    detailPanelCalls.push(props);
-    return <div data-testid="detail-panel" />;
-  },
+vi.mock('./request-changes-button', () => ({
+  RequestChangesButton: () => <div data-testid="request-changes" />,
+}));
+
+vi.mock('../registry/connected/bound-button', () => ({
+  BoundButton: ({ action }: { action: { labelKey?: string } }) => (
+    <button type="button" data-testid="mark-done">
+      {action.labelKey}
+    </button>
+  ),
+}));
+
+vi.mock('./task-input-refs', () => ({
+  TaskInputRefs: () => <div data-testid="task-input-refs" />,
 }));
 
 const subjectRunCalls: Record<string, unknown>[] = [];
@@ -101,6 +109,8 @@ vi.mock('../../tasks/hooks/queries', () => ({
         _id: taskId,
         organizationId: 'org_1',
         projectId: 'proj_1',
+        status: 'in_review',
+        title: 'VAT return — SoftInstallQ1',
       },
       canEdit: true,
       canClaim: false,
@@ -128,17 +138,20 @@ vi.mock('./automation-runtime', () => ({
   }),
 }));
 
-// Frame chrome → title marker + children; states → children (happy path).
+// Frame chrome → title marker + actions + children; states → children.
 vi.mock('../registry/block-frame', () => ({
   BlockFrame: ({
     title,
+    actions,
     children,
   }: {
     title?: string;
+    actions?: ReactNode;
     children?: ReactNode;
   }) => (
     <section>
       <h3>{title}</h3>
+      {actions}
       {children}
     </section>
   ),
@@ -185,7 +198,6 @@ function openDetail(target: ResourceDetailTarget) {
 }
 
 afterEach(() => {
-  detailPanelCalls.length = 0;
   subjectRunCalls.length = 0;
   agentChatCalls.length = 0;
   boundQueryCalls.length = 0;
@@ -195,44 +207,32 @@ afterEach(() => {
 });
 
 describe('ResourceDetail — task subject composition', () => {
-  it('composes DetailPanel + SubjectRun + activity + AgentChat for a task', () => {
+  it('composes status/actions → Input → Outcome → Details for a task', () => {
     activityReturn = bound({ data: [] });
 
     openDetail({ subjectType: 'task', id: 'task123' });
 
-    // Fields section binds getTask on the overlay's id (org via sentinel) and
-    // reads through the result's `task.` envelope.
-    expect(detailPanelCalls).toHaveLength(1);
-    expect(detailPanelCalls[0]?.query).toEqual({
-      path: 'tasks/queries:getTask',
-      args: { taskId: 'task123', organizationId: '$orgId' },
-    });
-    const fields = detailPanelCalls[0]?.fields as { field: string }[];
-    expect(fields.map((f) => f.field)).toEqual([
-      'task.title',
-      'task.number',
-      'task.status',
-      'task.priority',
-      'task.externalUrl',
-    ]);
+    expect(screen.getByText('tasks.status.in_review')).toBeInTheDocument();
+    expect(screen.getByTestId('request-changes')).toBeInTheDocument();
+    expect(screen.getByTestId('mark-done')).toBeInTheDocument();
 
-    // The run section keeps the existing SubjectRun, unchanged.
+    expect(screen.getByText('automations.detail.input')).toBeInTheDocument();
+    expect(screen.getByText('VAT return — SoftInstallQ1')).toBeInTheDocument();
+    expect(screen.getByTestId('task-input-refs')).toBeInTheDocument();
+
     expect(subjectRunCalls).toEqual([
       { subjectType: 'task', subjectId: 'task123' },
     ]);
 
-    // Activity binds the platform activity query through the automation allowlist.
+    expect(screen.getByText('automations.detail.more')).toBeInTheDocument();
     expect(boundQueryCalls).toEqual([
       {
         path: 'tasks/queries:listTaskActivity',
         args: { taskId: 'task123', organizationId: '$orgId' },
       },
     ]);
-
-    // The comments section mounts the shared task_discussion surface with the
-    // resolved task's own org/project and user-level permissions — the same
-    // thread workflow `task.list_comments` reads for desk feedback loops.
-    expect(useTaskCalls).toEqual(['task123']);
+    // Status bar + comments section each resolve the task.
+    expect(useTaskCalls.length).toBeGreaterThanOrEqual(2);
     expect(taskCommentsCalls).toHaveLength(1);
     expect(taskCommentsCalls[0]).toMatchObject({
       taskId: 'task123',
@@ -242,7 +242,6 @@ describe('ResourceDetail — task subject composition', () => {
       currentUserId: 'user_1',
     });
 
-    // The chat rides the automation's implementer role on the shared task thread.
     expect(agentChatCalls).toHaveLength(1);
     expect(agentChatCalls[0]).toMatchObject({
       roleToken: 'implementer',
@@ -251,10 +250,10 @@ describe('ResourceDetail — task subject composition', () => {
       placeholder: 'automations.detail.chatPlaceholder',
     });
 
-    // Section labels are platform i18n strings (the per-bundle label catalog
-    // is retired for this overlay — see the component header).
-    expect(screen.getByText('automations.detail.run')).toBeInTheDocument();
     expect(screen.getByText('automations.detail.activity')).toBeInTheDocument();
+    expect(
+      screen.queryByText('automations.detail.run'),
+    ).not.toBeInTheDocument();
   });
 
   it('hides the chat section entirely when the automation maps no implementer role', () => {
@@ -314,9 +313,15 @@ describe('ResourceDetail — non-task subjects keep the run-only body', () => {
     expect(subjectRunCalls).toEqual([
       { subjectType: 'order', subjectId: 'order9' },
     ]);
-    expect(detailPanelCalls).toHaveLength(0);
     expect(agentChatCalls).toHaveLength(0);
     expect(boundQueryCalls).toHaveLength(0);
+    expect(screen.queryByTestId('request-changes')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('automations.detail.input'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('automations.detail.more'),
+    ).not.toBeInTheDocument();
   });
 
   it('falls back to the generic localized dialog title', () => {

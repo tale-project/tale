@@ -6,9 +6,9 @@
  * body gated on the state. Because lifecycle is modeled once here, the would-be
  * error / empty / waiting render-kinds need no dedicated component.
  *
- * The header doubles as a per-step disclosure toggle: each step collapses/expands
- * independently (state lives per envelope instance, keyed by stepSlug upstream),
- * so a run with several long agent summaries stays scannable.
+ * Collapse is three-state: `auto` follows partState defaults; a user click
+ * locks open or closed until remount. `waiting_human` always expands under auto
+ * (and when `forceExpanded` is set by the shell).
  */
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
@@ -45,13 +45,21 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
   empty: 'slate',
 };
 
+/** Default expand under `auto` — full partState table. */
+const AUTO_EXPANDED: Record<PartState, boolean> = {
+  running: true,
+  loading: true,
+  waiting_human: true,
+  waiting_external: true,
+  queued_capacity: true,
+  output_error: true,
+  output_available: false,
+  skipped: false,
+  upcoming: false,
+  empty: false,
+};
+
 // States whose own affordance replaces the panel body (nothing useful to show).
-// `upcoming` is a quiet preview row (no skeleton); `skipped` is a lane the run
-// moved past (a mark, never a body); `loading` is the imminent step;
-// `output_error` shows its error message instead — a failed/canceled step has no
-// meaningful result, and rendering the body would dump the abandoned step's raw
-// output (e.g. a stopped sandbox step's `{status:'running'}` handoff envelope) as
-// JSON, which must never surface.
 const BODY_SUPPRESSED = new Set<PartState>([
   'upcoming',
   'skipped',
@@ -62,27 +70,27 @@ const BODY_SUPPRESSED = new Set<PartState>([
   'output_error',
 ]);
 
+type CollapseOverride = 'auto' | 'open' | 'closed';
+
 export function PartEnvelope({
   part,
   children,
+  forceExpanded = false,
 }: {
   part: RenderPart;
   children: ReactNode;
+  /** Shell pin — e.g. waiting_human must stay visible outside a collapsed Steps block. */
+  forceExpanded?: boolean;
 }) {
   const { t } = useT('operator');
-  // A step's `labelKey` is a PLATFORM `automations` catalog key (the same
-  // convention `boundActionSchema.labelKey` resolves through in
-  // `bound-button.tsx`), never a retired bundle label; the raw step name is
-  // the fallback when the step carries no key.
   const { t: tAutomations } = useT('automations');
-  const [collapsed, setCollapsed] = useState(false);
+  const [override, setOverride] = useState<CollapseOverride>('auto');
   const title = part.labelKey
     ? tAutomations(part.labelKey, { defaultValue: part.title })
     : part.title;
   const showBody = !BODY_SUPPRESSED.has(part.partState);
   const isGate = part.treatment === 'gate';
 
-  // Is there anything below the header to collapse? Only then show the toggle.
   const hasBody =
     showBody ||
     part.partState === 'loading' ||
@@ -90,7 +98,10 @@ export function PartEnvelope({
     part.partState === 'waiting_external' ||
     part.partState === 'empty' ||
     (part.partState === 'output_error' && part.error !== undefined);
-  const open = !collapsed;
+
+  const autoOpen = AUTO_EXPANDED[part.partState];
+  const open =
+    forceExpanded || (override === 'auto' ? autoOpen : override === 'open');
 
   const titleCluster = (
     <>
@@ -106,11 +117,6 @@ export function PartEnvelope({
           {t('gate', { defaultValue: 'Decision' })}
         </Badge>
       )}
-      {/* The step's STAGE deliberately renders no chip here: the StageTimeline
-          header owns that dimension, and a per-step "work" chip next to the
-          role chip read as two same-looking badges of unclear meaning. */}
-      {/* Icon must go through the Badge `icon` prop: preflight makes svg a
-          block element, so an icon passed as children stacks above the text. */}
       {part.role && (
         <Badge variant="outline" icon={Bot}>
           {part.role}
@@ -126,7 +132,11 @@ export function PartEnvelope({
           {hasBody ? (
             <button
               type="button"
-              onClick={() => setCollapsed((c) => !c)}
+              onClick={() => {
+                // User gesture always wins over auto; toggle relative to what
+                // is currently shown (including forceExpanded / auto).
+                setOverride(open ? 'closed' : 'open');
+              }}
               aria-expanded={open}
               className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left"
             >

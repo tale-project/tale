@@ -8,10 +8,11 @@
  * justification for the step `ui` config / render-kinds: how a step renders when
  * fused into a domain surface. Given just `{organizationId, executionId}`.
  *
- * A terminal run also offers a **Re-run**: a failed run is terminal and cannot be
+ * A terminal **failed** run also offers a **Re-run**: a failed run cannot be
  * resumed, so this starts a fresh, subject-linked run (copying the original's
- * input). Because the new run carries the same subject, the surrounding
- * `SubjectRun` swaps to it reactively.
+ * input). Successful completed runs do not show Re-run here — desk actions
+ * (Request changes / Start) own intentional re-runs so operators are not
+ * offered a second anonymous retry next to feedback-first flows.
  *
  * A still-running run offers a **Stop**: a confirmed cancel of the underlying
  * workflow (abandons in-progress steps, marks the run failed). This is the only
@@ -34,10 +35,6 @@ import { useExecutionProjection } from '../hooks/use-execution-projection';
 import { mapExecutionError } from '../lib/map-execution-error';
 import { OperatorView } from './operator-view';
 import { RerunButton } from './rerun-button';
-
-/** Terminal execution states — a re-run is offered only once a run has settled
- * (a still-running run is left alone; the concurrency guard refuses a second). */
-const TERMINAL_STATUSES = new Set(['completed', 'failed']);
 
 /** In-flight states — a Stop is offered only here, mirroring the backend
  * `cancelExecution` guard (it rejects any non-running/pending status). */
@@ -104,7 +101,8 @@ export function EmbeddedRun({
 
   if (error) return <Text variant="error">{error.message}</Text>;
   if (!projection) return isLoading ? <SkeletonText lines={4} /> : null;
-  const showRerun = TERMINAL_STATUSES.has(projection.status);
+  /** Failed executions only — completed runs use desk Start / Request changes. */
+  const showRerun = projection.status === 'failed';
   const showStop = RUNNING_STATUSES.has(projection.status);
   return (
     <Stack gap={3}>

@@ -197,7 +197,7 @@ export function TaskComments({
               body={c.body}
               organizationId={organizationId}
               projectId={projectId}
-              className="mt-0.5 wrap-break-word whitespace-pre-wrap"
+              className="mt-0.5 wrap-break-word"
             />
           )}
 

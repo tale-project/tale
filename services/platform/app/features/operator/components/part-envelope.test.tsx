@@ -80,8 +80,8 @@ describe('PartEnvelope', () => {
     expect(screen.queryByText(/outputFileIds/)).not.toBeInTheDocument();
   });
 
-  it('still renders the render-kind body for an available output', () => {
-    render(
+  it('still renders the render-kind body for an available output when expanded', async () => {
+    const { user } = render(
       <PartEnvelope
         part={part({
           partState: 'output_available',
@@ -97,6 +97,44 @@ describe('PartEnvelope', () => {
       </PartEnvelope>,
     );
 
+    // output_available defaults to collapsed — expand to see the body.
+    await user.click(
+      screen.getByRole('button', { name: /Implement the fix/i }),
+    );
     expect(screen.getByText('done')).toBeInTheDocument();
+  });
+
+  it('defaults output_available to collapsed', () => {
+    render(
+      <PartEnvelope
+        part={part({
+          partState: 'output_available',
+          data: { summary: 'done' },
+        })}
+      >
+        <RenderKindRouter
+          part={part({
+            partState: 'output_available',
+            data: { summary: 'done' },
+          })}
+        />
+      </PartEnvelope>,
+    );
+    expect(screen.queryByText('done')).not.toBeInTheDocument();
+  });
+
+  it('keeps waiting_human expanded under auto', () => {
+    render(
+      <PartEnvelope
+        part={part({
+          partState: 'waiting_human',
+          render: 'review',
+          data: { mode: 'gate' },
+        })}
+      >
+        <div>needs approval</div>
+      </PartEnvelope>,
+    );
+    expect(screen.getByText('needs approval')).toBeInTheDocument();
   });
 });

@@ -19,6 +19,8 @@ export interface StepUiAnnotation {
     entryKind?: string;
     mode?: string;
     cardinality?: string;
+    /** Operator surface — `outcome` promotes into the Outcome strip. */
+    surface?: string;
     fields?: { key: string; labelKey: string; type: string }[];
     /** For a `gate`-treated step: maps the step's scalar verdict output (e.g.
      * `"yes"`/`"no"`) to a pack Tier-2 label key, so the panel can render a

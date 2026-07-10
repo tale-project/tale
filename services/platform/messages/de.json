@@ -41,7 +41,21 @@
     },
     "action": {
       "open": "Öffnen",
-      "openFile": "{name} öffnen"
+      "openFile": "{name} öffnen",
+      "technicalDetails": "Technische Details"
+    },
+    "section": {
+      "outcome": "Ergebnis",
+      "runDetails": "Laufdetails"
+    },
+    "outcome": {
+      "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
+      "failed": "Dieser Schritt ist fehlgeschlagen."
+    },
+    "artifact": {
+      "filed": "{title} abgelegt",
+      "updated": "{title} aktualisiert",
+      "unchanged": "{title} bereits aktuell"
     },
     "verdict": {
       "yes": "Ja",
@@ -737,10 +751,24 @@
     "detail": {
       "title": "Details",
       "activity": "Aktivität",
+      "input": "Eingabe",
+      "more": "Details",
       "run": "Workflow-Lauf",
       "discuss": "Diskussion",
       "externalRef": "Externe Referenz",
-      "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…"
+      "subjectFolder": "Ordner",
+      "relatedFolder": "Zugehöriger Ordner",
+      "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…",
+      "awaitingHuman": "Wartet auf dich. Öffne die Outcome-Dateien zum Prüfen, dann Als erledigt markieren — oder Änderungen anfordern, wenn etwas nicht stimmt.",
+      "markDoneConfirmTitle": "Als erledigt markieren?",
+      "markDoneConfirmDescription": "Bestätige erst, wenn du den menschlichen Folgeschritt für diesen Eintrag erledigt hast. Um das Ergebnis zu ändern, nutze Änderungen anfordern.",
+      "requestChangesTitle": "Änderungen anfordern",
+      "requestChangesDescription": "Schreib, was falsch ist. Dein Kommentar geht in den nächsten Lauf, bevor er startet — ohne Feedback würde die Pipeline nur unverändert erneut laufen.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "Was soll sich ändern?",
+      "requestChangesSubmit": "Senden und erneut ausführen",
+      "requestChangesEmpty": "Schreib, was sich ändern soll, bevor der Lauf startet.",
+      "requestChangesStarted": "Änderungen angefordert — der Lauf startet"
     },
     "review": {
       "none": "Keine ausstehenden Prüfungen.",
@@ -758,6 +786,7 @@
       "created": "Erstellt",
       "start": "Starten",
       "markDone": "Als erledigt markieren",
+      "requestChanges": "Änderungen anfordern",
       "merge": "Pull Request mergen",
       "cancel": "Abbrechen",
       "all": "Alle"

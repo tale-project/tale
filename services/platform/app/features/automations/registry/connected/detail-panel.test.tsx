@@ -123,6 +123,27 @@ describe('DetailPanel — field kinds', () => {
     expect(screen.getByText('completed')).toBeInTheDocument();
   });
 
+  it('maps badge values through valueLabels when provided', () => {
+    queryReturn = bound({ data: { ...RECORD, status: 'in_review' } });
+
+    render(
+      <DetailPanel
+        query={QUERY}
+        fields={[
+          {
+            labelKey: 'Status',
+            field: 'status',
+            kind: 'badge',
+            valueLabels: { in_review: 'In review' },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('In review')).toBeInTheDocument();
+    expect(screen.queryByText('in_review')).not.toBeInTheDocument();
+  });
+
   it('renders http(s) link fields as safe external anchors', () => {
     queryReturn = bound({ data: RECORD });
 
@@ -139,7 +160,7 @@ describe('DetailPanel — field kinds', () => {
     expect(anchor).toHaveAttribute('rel', 'noreferrer');
   });
 
-  it('keeps a non-URL link value as inert text', () => {
+  it('dashes a non-URL link value instead of dumping opaque text', () => {
     queryReturn = bound({ data: RECORD });
 
     render(
@@ -149,7 +170,8 @@ describe('DetailPanel — field kinds', () => {
       />,
     );
 
-    expect(screen.getByText(RECORD.note)).toBeInTheDocument();
+    expect(screen.queryByText(RECORD.note)).not.toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 

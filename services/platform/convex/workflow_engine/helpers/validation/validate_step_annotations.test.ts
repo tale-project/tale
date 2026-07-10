@@ -30,6 +30,22 @@ describe('validateStepAnnotations', () => {
     expect(warnings.some((w) => w.includes('layout'))).toBe(true);
   });
 
+  it('warns on an unknown surface value', () => {
+    const { errors, warnings } = validateStepAnnotations({
+      ui: { render: 'artifact', params: { surface: 'deliver' } },
+    });
+    expect(errors).toEqual([]);
+    expect(warnings.some((w) => w.includes('surface'))).toBe(true);
+  });
+
+  it('accepts surface outcome without warnings', () => {
+    const { errors, warnings } = validateStepAnnotations({
+      ui: { render: 'artifact', params: { surface: 'outcome' } },
+    });
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
   it('warns on an unknown field type', () => {
     const { warnings } = validateStepAnnotations({
       ui: {

@@ -18,6 +18,7 @@ import {
   REVIEW_CARDINALITIES,
   REVIEW_MODES,
   STREAM_ENTRY_KINDS,
+  SURFACES,
   isRenderKind,
 } from '../../../../lib/shared/platform/render_kinds';
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
@@ -31,6 +32,7 @@ const PARAM_VOCABULARIES: ReadonlyArray<readonly [string, readonly string[]]> =
     ['entryKind', STREAM_ENTRY_KINDS],
     ['mode', REVIEW_MODES],
     ['cardinality', REVIEW_CARDINALITIES],
+    ['surface', SURFACES],
   ];
 
 export function validateStepAnnotations(step: Record<string, unknown>): {

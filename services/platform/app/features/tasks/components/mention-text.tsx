@@ -1,9 +1,20 @@
 'use client';
 
-import { Text } from '@tale/ui/text';
-import { Fragment, useMemo } from 'react';
+/**
+ * Task / description prose: GFM markdown (shared chat renderer) with
+ * `@handle` mention pills overlaid on text nodes. Workflow and agent comments
+ * ship real markdown; user comments stay readable and keep mention chips.
+ */
+import { Children, Fragment, useMemo, type ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
+import {
+  markdownComponents,
+  markdownWrapperStyles,
+} from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { memberHandleVariants } from '../lib/mention-handles';
@@ -97,9 +108,32 @@ export function MentionizedText({
   );
 }
 
+/** Mentionize string leaves under a markdown block (p / li). Nested
+ *  elements (strong, em, code) keep their own children — mentions almost
+ *  always sit in adjacent text nodes, not inside emphasis. */
+function mentionizeChildren(
+  children: ReactNode,
+  organizationId: string,
+  projectId: string | undefined,
+): ReactNode {
+  return Children.map(children, (child, index) => {
+    if (typeof child !== 'string') return child;
+    return (
+      <MentionizedText
+        // oxlint-disable-next-line react/no-array-index-key -- leaf order stable per render
+        key={index}
+        body={child}
+        organizationId={organizationId}
+        projectId={projectId}
+      />
+    );
+  });
+}
+
 /**
- * Task-prose wrapper for {@link MentionizedText}: comment bodies and the
- * description read view render through the shared `Text` body typography.
+ * Task-prose wrapper: GFM markdown via the shared chat renderer, with
+ * `@handle` pills on text nodes. Comment threads and the description read
+ * view both go through here.
  */
 export function MentionText({
   body,
@@ -112,13 +146,50 @@ export function MentionText({
   projectId?: string;
   className?: string;
 }) {
+  const components = useMemo(
+    () => ({
+      ...markdownComponents,
+      p: ({
+        node: _node,
+        children,
+        ...props
+      }: {
+        node?: unknown;
+        children?: ReactNode;
+      } & React.HTMLAttributes<HTMLParagraphElement>) => (
+        <p {...props}>
+          {mentionizeChildren(children, organizationId, projectId)}
+        </p>
+      ),
+      li: ({
+        node: _node,
+        children,
+        ...props
+      }: {
+        node?: unknown;
+        children?: ReactNode;
+      } & React.LiHTMLAttributes<HTMLLIElement>) => (
+        <li {...props}>
+          {mentionizeChildren(children, organizationId, projectId)}
+        </li>
+      ),
+    }),
+    [organizationId, projectId],
+  );
+
   return (
-    <Text as="p" variant="body" className={className}>
-      <MentionizedText
-        body={body}
-        organizationId={organizationId}
-        projectId={projectId}
-      />
-    </Text>
+    <div
+      className={cn(
+        'text-sm',
+        markdownWrapperStyles,
+        // Comment / description density — chat h1/h2 sizes are too loud here.
+        '[&_h1]:mt-2 [&_h1]:text-base [&_h2]:mt-2 [&_h2]:text-sm [&_h3]:mt-2 [&_h3]:text-sm',
+        className,
+      )}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {body}
+      </ReactMarkdown>
+    </div>
   );
 }

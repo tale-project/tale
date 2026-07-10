@@ -58,6 +58,7 @@ function parseParams(
   if (typeof raw.entryKind === 'string') params.entryKind = raw.entryKind;
   if (typeof raw.mode === 'string') params.mode = raw.mode;
   if (typeof raw.cardinality === 'string') params.cardinality = raw.cardinality;
+  if (typeof raw.surface === 'string') params.surface = raw.surface;
   if (isRecord(raw.verdictLabels)) {
     const verdictLabels: Record<string, string> = {};
     for (const [key, value] of Object.entries(raw.verdictLabels)) {
@@ -169,21 +170,55 @@ function displayInput(step: DefinitionStep): {
   };
 }
 
-/** Resolve a node's harvested output files to openable {name,url} links. */
+/** Resolve a node's harvested output files to openable {name,url} links.
+ * Covers sandbox `outputFiles[].storageId` and the document-action create
+ * contract's top-level `fileId` (+ optional `title`). */
 function filesForNode(
   node: ExecutionNodeState | undefined,
   urlByStorageId: ReadonlyMap<string, string>,
 ): { name: string; url: string }[] | undefined {
   const out = parseOutput(node);
-  if (!isRecord(out) || !Array.isArray(out.outputFiles)) return undefined;
+  if (!isRecord(out)) return undefined;
   const files: { name: string; url: string }[] = [];
-  for (const f of out.outputFiles) {
-    if (!isRecord(f)) continue;
-    if (typeof f.name !== 'string' || typeof f.storageId !== 'string') continue;
-    const url = urlByStorageId.get(f.storageId);
-    if (url) files.push({ name: f.name, url });
+  const seen = new Set<string>();
+
+  if (Array.isArray(out.outputFiles)) {
+    for (const f of out.outputFiles) {
+      if (!isRecord(f)) continue;
+      if (typeof f.name !== 'string' || typeof f.storageId !== 'string')
+        continue;
+      const url = urlByStorageId.get(f.storageId);
+      if (!url || seen.has(f.storageId)) continue;
+      seen.add(f.storageId);
+      files.push({ name: f.name, url });
+    }
   }
+
+  // Document create/upsert: `{ title, fileId, action, documentId, … }`.
+  if (typeof out.fileId === 'string') {
+    const url = urlByStorageId.get(out.fileId);
+    if (url && !seen.has(out.fileId)) {
+      seen.add(out.fileId);
+      const name =
+        typeof out.title === 'string' && out.title.trim() !== ''
+          ? out.title
+          : out.fileId;
+      files.push({ name, url });
+    }
+  }
+
   return files.length > 0 ? files : undefined;
+}
+
+/** Collect every storage id a step output may expose for URL resolution. */
+function collectStorageIdsFromOutput(out: unknown, into: Set<string>): void {
+  if (!isRecord(out)) return;
+  if (Array.isArray(out.outputFiles)) {
+    for (const f of out.outputFiles) {
+      if (isRecord(f) && typeof f.storageId === 'string') into.add(f.storageId);
+    }
+  }
+  if (typeof out.fileId === 'string') into.add(out.fileId);
 }
 
 function projectStep(
@@ -299,20 +334,14 @@ export function useExecutionProjection(args: {
   const liveTimeline =
     runningSandboxStepSlug !== null ? liveOp.data?.liveTimeline : undefined;
 
-  // Harvested output-file storage ids across all steps → resolved to openable
-  // urls (one batched query) so the stream panel can offer "Open summary.md".
+  // Harvested storage ids across all steps → resolved to openable urls (one
+  // batched query). Covers sandbox `outputFiles` and document-action `fileId`.
   const outputFileStorageIds = useMemo<string[]>(() => {
     const live = statuses.data;
     if (!live) return [];
     const ids = new Set<string>();
     for (const slug of Object.keys(live.nodes)) {
-      const out = parseOutput(live.nodes[slug]);
-      if (isRecord(out) && Array.isArray(out.outputFiles)) {
-        for (const f of out.outputFiles) {
-          if (isRecord(f) && typeof f.storageId === 'string')
-            ids.add(f.storageId);
-        }
-      }
+      collectStorageIdsFromOutput(parseOutput(live.nodes[slug]), ids);
     }
     return [...ids];
   }, [statuses.data]);
