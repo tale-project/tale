@@ -189,8 +189,7 @@ export function PromptListRow({
             trigger={
               <Button
                 variant="ghost"
-                size="icon"
-                className="size-11"
+                size="icon-sm"
                 aria-label={t('actions.more')}
               >
                 <MoreHorizontal className="size-4" />

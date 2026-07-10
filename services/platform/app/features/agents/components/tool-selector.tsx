@@ -26,11 +26,12 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Label } from '@/app/components/ui/forms/label';
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useAutomationDisplay } from '@/app/features/automations/hooks/use-automation-text';
@@ -321,19 +322,20 @@ export function ToolSelector({
                   />
                 </Card>
               ) : (
-                <div className="grid items-start gap-4 md:grid-cols-2">
+                <div className="columns-1 gap-x-4 md:columns-2">
                   {displayCategories.map(([category, toolNames]) => (
-                    <ToolCategoryCard
-                      key={category}
-                      category={category}
-                      toolNames={toolNames}
-                      selectedSet={selectedSet}
-                      isLoading={isLoading}
-                      onCategoryChange={handleCategoryChange}
-                      toolDescription={toolDescription}
-                      t={t}
-                      tTools={tTools}
-                    />
+                    <div key={category} className="mb-4 break-inside-avoid">
+                      <ToolCategoryCard
+                        category={category}
+                        toolNames={toolNames}
+                        selectedSet={selectedSet}
+                        isLoading={isLoading}
+                        onCategoryChange={handleCategoryChange}
+                        toolDescription={toolDescription}
+                        t={t}
+                        tTools={tTools}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -368,6 +370,7 @@ function ToolCategoryCard({
 }) {
   const label = t(`agents.tools.categories.${category}`);
   const Icon = CATEGORY_ICONS[category] ?? Wrench;
+  const categoryCheckboxId = useId();
 
   const enabledValues = isLoading
     ? []
@@ -379,19 +382,15 @@ function ToolCategoryCard({
 
   return (
     <Card padding="md">
-      <Stack gap={3}>
-        <Row gap={2} align="center" justify="between">
-          <Row gap={2} align="center" className="min-w-0">
-            <Icon
-              className="text-muted-foreground size-4 shrink-0"
-              aria-hidden="true"
-            />
-            {/* Parent checkbox: the category label doubles as enable-all for
-                the tools this card currently SHOWS — under an active search
-                filter it only ever toggles the visible rows, never hidden
-                ones. */}
+      <Stack gap={4}>
+        {/* Checkbox-first header so the enable-all control shares a column
+            with the tool rows below. Icon sits in the label (aria-hidden)
+            rather than before the box — that was crowding the title and
+            shifting the header checkbox right of the children. */}
+        <Row gap={3} align="start" justify="between">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
             <Checkbox
-              label={label}
+              id={categoryCheckboxId}
               checked={
                 allSelected ? true : someSelected ? 'indeterminate' : false
               }
@@ -402,8 +401,19 @@ function ToolCategoryCard({
                 )
               }
               disabled={isLoading}
+              className="mt-0.5"
             />
-          </Row>
+            <Label
+              htmlFor={categoryCheckboxId}
+              className="flex min-w-0 cursor-pointer items-center gap-2 leading-5"
+            >
+              <Icon
+                className="text-muted-foreground size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="truncate">{label}</span>
+            </Label>
+          </div>
           <Badge
             aria-label={t('agents.tools.enabledCountLabel', {
               enabled,
@@ -415,6 +425,7 @@ function ToolCategoryCard({
         </Row>
         <CheckboxGroup
           columns={1}
+          className="gap-3 [&>div]:gap-3"
           options={toolNames.map((name) => ({
             value: name,
             label: isLoading ? 'Tool name' : toolDisplayName(tTools, name),
