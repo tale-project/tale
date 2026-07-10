@@ -4,6 +4,8 @@ import {
   clearSessionDoneLatches,
   deriveDoneState,
   isEffectAction,
+  isSessionDoneLatched,
+  markSessionDoneLatched,
   sessionLatchKey,
   type RowActionSpec,
 } from './bound-button';
@@ -83,6 +85,16 @@ describe('sessionLatchKey', () => {
   it('returns undefined without a stable row id', () => {
     expect(sessionLatchKey('path:a', { name: 'x' })).toBeUndefined();
     expect(sessionLatchKey('path:a', undefined)).toBeUndefined();
+  });
+});
+
+describe('isSessionDoneLatched', () => {
+  it('reflects entries recorded by markSessionDoneLatched', () => {
+    const path = 'tasks/public_actions:createTaskFromExternalIssue';
+    const row = { _id: 'folder_1', name: '2025Q4' };
+    expect(isSessionDoneLatched(path, row)).toBe(false);
+    expect(markSessionDoneLatched(path, row)).toBe(true);
+    expect(isSessionDoneLatched(path, row)).toBe(true);
   });
 });
 
