@@ -66,7 +66,7 @@ export const labelStringSchema = z.string();
  * already accepted without an explicit field — this helper is for sites
  * that want a typed `i18n` (view/tab/formField).
  */
-export const localizedStringProps = z
+const localizedStringProps = z
   .record(z.string(), z.record(z.string(), z.string()))
   .optional();
 
@@ -142,7 +142,7 @@ export const actionEffectSchema = z.discriminatedUnion('kind', [
  * Confirm dialog for a bound action. `true` keeps the platform default
  * ("Are you sure?" + action label). An object supplies pack-authored copy.
  */
-export const actionConfirmSchema = z.union([
+const actionConfirmSchema = z.union([
   z.boolean(),
   z
     .object({
@@ -194,7 +194,7 @@ export const boundActionSchema = z
  * Effect-only row action — no Convex call; click applies `effect` against the
  * row (e.g. navigate to Project Files with `$selected._id` as folderId).
  */
-export const effectActionSchema = z
+const effectActionSchema = z
   .object({
     label: z.string().optional(),
     labelKey: z.string().optional(),
@@ -207,7 +207,7 @@ export const effectActionSchema = z
   .passthrough();
 
 /** Collection / board row action: bound function call OR effect-only. */
-export const rowActionSchema = z.union([boundActionSchema, effectActionSchema]);
+const rowActionSchema = z.union([boundActionSchema, effectActionSchema]);
 
 /**
  * One table column: a spec the DataTable mapper (`bound-columns`) turns into a

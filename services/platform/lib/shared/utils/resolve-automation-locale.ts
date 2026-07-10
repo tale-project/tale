@@ -48,12 +48,23 @@ function localeLayers<T>(
  */
 export function resolveLocalizedProp(
   base: string | undefined,
-  i18n: Record<string, Record<string, string>> | undefined,
+  /**
+   * Pack-authored locale maps are often `.passthrough()` Zod objects, so
+   * values may carry `unknown` index signatures alongside known string props.
+   * Only string prop values are selected (`pickField`).
+   */
+  i18n: Record<string, Record<string, unknown>> | undefined,
   prop: string,
   locale: string,
 ): string | undefined {
   const layers = localeLayers(i18n, locale);
-  return pickField([...layers.map((l) => l?.[prop]), base]);
+  return pickField([
+    ...layers.map((l) => {
+      const v = l?.[prop];
+      return typeof v === 'string' ? v : undefined;
+    }),
+    base,
+  ]);
 }
 
 /** An automation's localized `name`/`description` (hub card, page headers…). */
