@@ -239,12 +239,5 @@
       "cancel": "Abbrechen"
     }
   },
-  "tasks": {
-    "backlog": {
-      "close": "Schliessen",
-      "empty": {
-        "description": "Vorgeschlagene Aufgaben landen hier — aus Automatisierungen oder von deinem Team — bis du sie startest oder schliesst."
-      }
-    }
-  }
+  "tasks": {}
 }

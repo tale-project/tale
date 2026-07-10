@@ -372,8 +372,11 @@ describe('agentUpsertTaskByExternalRef — reopen policy', () => {
     const created = await upsert(t, projectA, 'owner/repo#dismissed');
     expect(await taskStatus(t, created.taskId)).toBe('backlog');
 
+    const { taskId } = created;
+    if (!taskId) throw new Error('expected a taskId');
+
     await t.run(async (ctx) => {
-      await ctx.db.patch(created.taskId!, {
+      await ctx.db.patch(taskId, {
         status: 'cancelled',
         updatedAt: Date.now(),
         statusChangedAt: Date.now(),

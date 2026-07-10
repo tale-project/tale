@@ -6918,8 +6918,7 @@
       "board": "Board",
       "list": "Liste",
       "table": "Tabelle",
-      "timeline": "Zeitachse",
-      "backlog": "Backlog"
+      "timeline": "Zeitachse"
     },
     "board": {
       "noTasks": "Keine Aufgaben"
@@ -7080,16 +7079,6 @@
       "humanLabel": "Menschen",
       "costTrend": "Tägliche Ausgaben",
       "costLabel": "Ausgaben"
-    },
-    "backlog": {
-      "caption": "Backlog-Aufgaben zur Sichtung",
-      "actions": "Aktionen",
-      "start": "Starten",
-      "close": "Schließen",
-      "empty": {
-        "title": "Keine Aufgaben zu sichten",
-        "description": "Vorgeschlagene Aufgaben landen hier — aus Automatisierungen oder von deinem Team — bis du sie startest oder schließt."
-      }
     }
   },
   "tables": {
