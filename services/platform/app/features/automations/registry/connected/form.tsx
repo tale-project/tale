@@ -25,6 +25,7 @@ import { useId, useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { deriveConfigValues } from '@/lib/shared/platform/derive_config';
 import {
+  argsReferenceProjectId,
   isFunctionAllowed,
   resolveBindingArgs,
 } from '@/lib/shared/platform/function_bindings';
@@ -112,6 +113,10 @@ export function Form({
     runtime.allowlist,
     submit.mode,
   );
+  const needsProject =
+    runtime.projectId === undefined &&
+    (argsReferenceProjectId(submit.args) ||
+      (whenQuery !== undefined && argsReferenceProjectId(whenQuery.args)));
 
   // `initial` may carry binding sentinels (`$config:owner`, `$state.taskId`) —
   // resolve them once against the live runtime; unresolved references become
@@ -172,6 +177,19 @@ export function Form({
     if (whenQuery && (gateQuery.isLoading || gateQuery.blocked)) {
       return null;
     }
+    // Unresolved `$projectId` (or other config) on the gate query — show the
+    // project empty state when that's why, otherwise stay hidden rather than
+    // evaluating `when` against `{}`.
+    if (whenQuery && gateQuery.needsConfig) {
+      if (needsProject) {
+        return (
+          <BlockFrame title={resolvedTitle} icon={SquarePen}>
+            <BindingStates needsProject>{null}</BindingStates>
+          </BlockFrame>
+        );
+      }
+      return null;
+    }
     const whenItem: Record<string, unknown> = isRecord(gateQuery.data)
       ? gateQuery.data
       : {};
@@ -180,7 +198,11 @@ export function Form({
 
   return (
     <BlockFrame title={resolvedTitle} icon={SquarePen}>
-      <BindingStates blocked={blocked} path={submit.path}>
+      <BindingStates
+        blocked={blocked}
+        path={submit.path}
+        needsProject={needsProject}
+      >
         <form
           noValidate
           onSubmit={(e) => {

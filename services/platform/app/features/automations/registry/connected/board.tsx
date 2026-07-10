@@ -40,7 +40,11 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { useBoardDnd, type BoardMove } from '@/app/hooks/use-board-dnd';
 import { useT } from '@/lib/i18n/client';
-import type { FunctionMode } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+  type FunctionMode,
+} from '@/lib/shared/platform/function_bindings';
 import { cn } from '@/lib/utils/cn';
 import { isRecord, primitiveString } from '@/lib/utils/type-utils';
 
@@ -219,6 +223,9 @@ export function Board({
     query.path,
     query.args,
   );
+  const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
   const applyEffect = useActionEffect();
   const { dispatch } = useBoundAction(move.path, move.mode);
 
@@ -320,7 +327,9 @@ export function Board({
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
+        awaitingState={awaitingState}
         loading={isLoading && rows.length === 0}
       >
         {rows.length === 0 ? (

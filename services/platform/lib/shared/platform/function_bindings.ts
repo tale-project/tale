@@ -245,12 +245,11 @@ export function resolveBindingArgs(
   const templateScope = { ...ctx.config, ...ctx.selected };
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
-    // Undefined when the app isn't project-scoped: fall through so the literal
-    // `$projectId` passes through (a visible failure rather than a silent
-    // `undefined` into a project-gated query).
-    if (args === '$projectId' && ctx.projectId !== undefined) {
-      return ctx.projectId;
-    }
+    // Unbound `$projectId` resolves to `undefined` (the `$config:` / `$state.`
+    // posture) so `bindingArgsResolved` is false and callers gate the call —
+    // an org-route visit to a project-scoped view shows an empty state instead
+    // of firing Convex with the literal `"$projectId"`.
+    if (args === '$projectId') return ctx.projectId;
     if (args === '$selected') return ctx.selected;
     if (args.startsWith('$selected.') && ctx.selected) {
       return ctx.selected[args.slice('$selected.'.length)];
@@ -293,13 +292,14 @@ export function resolveBindingArgs(
 
 /**
  * Whether a resolved args tree is fully bound — i.e. holds no `undefined`. A
- * `$config:<key>` (or `$selected.`/`$result.`/`$state.`/`$input.`/`$lane`/
- * `$selection.ids`) reference whose value is absent resolves to `undefined`;
- * a literal/`$orgId`/`$projectId` never does. So an
- * `undefined` anywhere means a binding the live context couldn't satisfy yet —
- * typically an app whose `requires.config` hasn't been filled in. Callers gate
- * the actual call on this so an unconfigured view shows an empty state instead
- * of firing a malformed request (e.g. `listGitHubIssues` missing `owner`).
+ * `$config:<key>` (or `$projectId` / `$selected.` / `$result.` / `$state.` /
+ * `$input.` / `$lane` / `$selection.ids`) reference whose value is absent
+ * resolves to `undefined`; a literal / `$orgId` never does. So an `undefined`
+ * anywhere means a binding the live context couldn't satisfy yet — typically
+ * an app whose `requires.config` hasn't been filled in, or a project-scoped
+ * view opened without a project. Callers gate the actual call on this so an
+ * unconfigured view shows an empty state instead of firing a malformed
+ * request (e.g. `listGitHubIssues` missing `owner`).
  */
 export function bindingArgsResolved(resolved: unknown): boolean {
   if (resolved === undefined) return false;
@@ -328,6 +328,24 @@ export function argsReferenceViewState(args: unknown): boolean {
   if (args !== null && typeof args === 'object') {
     return Object.values(args as Record<string, unknown>).some(
       argsReferenceViewState,
+    );
+  }
+  return false;
+}
+
+/**
+ * Whether an authored args tree references `$projectId` — i.e. the block is
+ * project-scoped. Same scan shape as `argsReferenceViewState`. Bound hooks
+ * report an unbound `$projectId` as `needsConfig`; callers that detect this
+ * sentinel read it as "open from a project" (`BindingStates.needsProject`)
+ * instead of the generic configure prompt.
+ */
+export function argsReferenceProjectId(args: unknown): boolean {
+  if (typeof args === 'string') return args === '$projectId';
+  if (Array.isArray(args)) return args.some(argsReferenceProjectId);
+  if (args !== null && typeof args === 'object') {
+    return Object.values(args as Record<string, unknown>).some(
+      argsReferenceProjectId,
     );
   }
   return false;

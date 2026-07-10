@@ -22,7 +22,10 @@ import type { ReactNode } from 'react';
 import { STATUS_VARIANT } from '@/app/components/ui/data-table/cell-kinds';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -124,6 +127,8 @@ export function DetailPanel({
     query.args,
   );
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
   const record = isRecord(data) ? data : undefined;
 
   const items: StatGridItem[] = fields.map((f) => ({
@@ -152,7 +157,8 @@ export function DetailPanel({
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
         loading={isLoading && record === undefined}
       >

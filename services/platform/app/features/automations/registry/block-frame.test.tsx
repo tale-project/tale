@@ -78,6 +78,31 @@ describe('BindingStates', () => {
     ).toBeInTheDocument();
   });
 
+  it('needsProject precedes awaitingState and loading', () => {
+    render(
+      <BindingStates needsProject awaitingState loading>
+        loaded
+      </BindingStates>,
+    );
+    expect(
+      screen.getByText('automations.list.needsProject'),
+    ).toBeInTheDocument();
+  });
+
+  it('needsConfig precedes needsProject', () => {
+    render(
+      <BindingStates needsConfig needsProject>
+        loaded
+      </BindingStates>,
+    );
+    expect(
+      screen.getByText('automations.list.needsConfig'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('automations.list.needsProject'),
+    ).not.toBeInTheDocument();
+  });
+
   it('awaitingState shows the neutral selection placeholder', () => {
     render(<BindingStates awaitingState>loaded</BindingStates>);
     expect(

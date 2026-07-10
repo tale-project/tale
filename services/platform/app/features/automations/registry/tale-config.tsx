@@ -32,7 +32,7 @@ import {
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
@@ -249,6 +249,16 @@ export function registerConnectedBlock<Props extends DefaultComponentProps>(
 }
 
 export const taleConfig: Config<TaleComponents> = {
+  // Stack authored blocks with the same gap the rest of the product uses
+  // between cards. Puck's headless `<Render>` passes a single DropZone as
+  // `children` (not the blocks themselves), so a plain flex gap on the root
+  // never reaches the cards — `[&>div]:contents` dissolves that wrapper so
+  // Text / Alert / Form / Collection become the flex children.
+  root: {
+    render: ({ children }: { children: ReactNode }) => (
+      <div className="flex flex-col gap-4 [&>div]:contents">{children}</div>
+    ),
+  },
   components: {
     Heading: {
       fields: {

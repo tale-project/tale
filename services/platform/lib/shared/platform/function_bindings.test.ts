@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FunctionBinding,
+  argsReferenceProjectId,
   argsReferenceViewState,
   bindingArgsResolved,
   collectViewBindings,
@@ -88,10 +89,18 @@ describe('resolveBindingArgs', () => {
       }),
     ).toBe('proj_1');
   });
-  it('leaves $projectId as a literal when no project is bound (org-scoped)', () => {
-    // Fail-visible: an org-scoped app that mis-binds $projectId sends the literal,
-    // not a silent `undefined`, into a project-gated call.
-    expect(resolveBindingArgs('$projectId', ctx)).toBe('$projectId');
+  it('resolves unbound $projectId to undefined so callers gate the call', () => {
+    // Same posture as `$config:` / `$state.`: unresolved → undefined →
+    // `bindingArgsResolved` false → empty state instead of a Convex reject.
+    expect(resolveBindingArgs('$projectId', ctx)).toBeUndefined();
+    expect(
+      bindingArgsResolved(
+        resolveBindingArgs(
+          { organizationId: '$orgId', projectId: '$projectId' },
+          ctx,
+        ),
+      ),
+    ).toBe(false);
   });
   it('interpolates $tpl: row fields into a string ({field} syntax)', () => {
     const tctx = {
@@ -143,8 +152,8 @@ describe('resolveBindingArgs', () => {
   });
 
   it('$state.<key> resolves to undefined when unset (gates, not a literal)', () => {
-    // Unlike `$selected.`/`$projectId` (fail-visible literals), an unset state
-    // key must gate the call so the block shows its awaiting placeholder.
+    // Same posture as `$config:` / `$projectId`: an unset state key must gate
+    // the call so the block shows its awaiting placeholder.
     expect(
       resolveBindingArgs('$state.conversationId', {
         organizationId: 'org_1',
@@ -608,6 +617,21 @@ describe('argsReferenceViewState', () => {
     expect(argsReferenceViewState('state.x')).toBe(false);
     expect(argsReferenceViewState({ a: 42, b: null })).toBe(false);
     expect(argsReferenceViewState(undefined)).toBe(false);
+  });
+});
+
+describe('argsReferenceProjectId', () => {
+  it('detects $projectId at any depth', () => {
+    expect(argsReferenceProjectId('$projectId')).toBe(true);
+    expect(argsReferenceProjectId({ projectId: '$projectId' })).toBe(true);
+    expect(argsReferenceProjectId(['x', { a: '$projectId' }])).toBe(true);
+  });
+
+  it('ignores other sentinels and non-strings', () => {
+    expect(argsReferenceProjectId('$orgId')).toBe(false);
+    expect(argsReferenceProjectId('$state.projectId')).toBe(false);
+    expect(argsReferenceProjectId({ a: 42 })).toBe(false);
+    expect(argsReferenceProjectId(undefined)).toBe(false);
   });
 });
 

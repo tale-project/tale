@@ -23,7 +23,10 @@ import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { Gauge } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -167,6 +170,8 @@ export function StatGrid({ title, query, cols, stats }: StatGridProps) {
     query.args,
   );
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
   const record = isRecord(data) ? data : undefined;
 
   return (
@@ -174,7 +179,8 @@ export function StatGrid({ title, query, cols, stats }: StatGridProps) {
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
         loading={isLoading && record === undefined}
         skeleton={
