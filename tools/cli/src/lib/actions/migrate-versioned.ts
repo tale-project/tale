@@ -41,6 +41,10 @@ interface MigrationStatus {
   pending: MigrationMeta[];
   pendingDestructive: string[];
   references: MigrationMeta[];
+  /** Migrations whose last run FAILED — resumable via `tale migrate up`.
+   *  Optional so the CLI keeps working against a pre-failed-field backend. */
+  failed?: MigrationMeta[];
+  failedErrors?: Record<string, string>;
 }
 
 export interface ApplyResult {

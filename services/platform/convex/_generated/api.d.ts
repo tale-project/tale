@@ -960,8 +960,7 @@ import type * as migrations_framework_snapshot_store from "../migrations/framewo
 import type * as migrations_framework_test_helpers from "../migrations/framework/test_helpers.js";
 import type * as migrations_framework_types from "../migrations/framework/types.js";
 import type * as migrations_testing_support from "../migrations/testing/support.js";
-import type * as migrations_versions_v0_2_1_01_agent_bindings_agent_slug_index from "../migrations/versions/v0_2_1/01_agent_bindings_agent_slug/index.js";
-import type * as migrations_versions_v0_2_1_01_agent_bindings_agent_slug_meta from "../migrations/versions/v0_2_1/01_agent_bindings_agent_slug/meta.js";
+import type * as migrations_versions_v0_2_1_01_agent_bindings_agent_slug_migration from "../migrations/versions/v0_2_1/01_agent_bindings_agent_slug/migration.js";
 import type * as migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_index from "../migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/index.js";
 import type * as migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_meta from "../migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/meta.js";
 import type * as migrations_versions_v0_2_14_01_usage_ledger_drop_cost_fields_index from "../migrations/versions/v0_2_14/01_usage_ledger_drop_cost_fields/index.js";
@@ -1053,8 +1052,7 @@ import type * as migrations_versions_v0_3_3_01_normalize_auth_user_emails_index 
 import type * as migrations_versions_v0_3_3_01_normalize_auth_user_emails_meta from "../migrations/versions/v0_3_3/01_normalize_auth_user_emails/meta.js";
 import type * as migrations_versions_v0_3_4_01_branding_single_accent_color_index from "../migrations/versions/v0_3_4/01_branding_single_accent_color/index.js";
 import type * as migrations_versions_v0_3_4_01_branding_single_accent_color_meta from "../migrations/versions/v0_3_4/01_branding_single_accent_color/meta.js";
-import type * as migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_index from "../migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/index.js";
-import type * as migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_meta from "../migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/meta.js";
+import type * as migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_migration from "../migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/migration.js";
 import type * as migrations_versions_v0_3_4_03_backfill_contacts_from_customers_index from "../migrations/versions/v0_3_4/03_backfill_contacts_from_customers/index.js";
 import type * as migrations_versions_v0_3_4_03_backfill_contacts_from_customers_meta from "../migrations/versions/v0_3_4/03_backfill_contacts_from_customers/meta.js";
 import type * as migrations_versions_v0_3_4_04_backfill_conversation_contact_id_index from "../migrations/versions/v0_3_4/04_backfill_conversation_contact_id/index.js";
@@ -2727,8 +2725,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/framework/test_helpers": typeof migrations_framework_test_helpers;
   "migrations/framework/types": typeof migrations_framework_types;
   "migrations/testing/support": typeof migrations_testing_support;
-  "migrations/versions/v0_2_1/01_agent_bindings_agent_slug/index": typeof migrations_versions_v0_2_1_01_agent_bindings_agent_slug_index;
-  "migrations/versions/v0_2_1/01_agent_bindings_agent_slug/meta": typeof migrations_versions_v0_2_1_01_agent_bindings_agent_slug_meta;
+  "migrations/versions/v0_2_1/01_agent_bindings_agent_slug/migration": typeof migrations_versions_v0_2_1_01_agent_bindings_agent_slug_migration;
   "migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/index": typeof migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_index;
   "migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/meta": typeof migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_meta;
   "migrations/versions/v0_2_14/01_usage_ledger_drop_cost_fields/index": typeof migrations_versions_v0_2_14_01_usage_ledger_drop_cost_fields_index;
@@ -2820,8 +2817,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_3_3/01_normalize_auth_user_emails/meta": typeof migrations_versions_v0_3_3_01_normalize_auth_user_emails_meta;
   "migrations/versions/v0_3_4/01_branding_single_accent_color/index": typeof migrations_versions_v0_3_4_01_branding_single_accent_color_index;
   "migrations/versions/v0_3_4/01_branding_single_accent_color/meta": typeof migrations_versions_v0_3_4_01_branding_single_accent_color_meta;
-  "migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/index": typeof migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_index;
-  "migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/meta": typeof migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_meta;
+  "migrations/versions/v0_3_4/02_backfill_contacts_from_vendors/migration": typeof migrations_versions_v0_3_4_02_backfill_contacts_from_vendors_migration;
   "migrations/versions/v0_3_4/03_backfill_contacts_from_customers/index": typeof migrations_versions_v0_3_4_03_backfill_contacts_from_customers_index;
   "migrations/versions/v0_3_4/03_backfill_contacts_from_customers/meta": typeof migrations_versions_v0_3_4_03_backfill_contacts_from_customers_meta;
   "migrations/versions/v0_3_4/04_backfill_conversation_contact_id/index": typeof migrations_versions_v0_3_4_04_backfill_conversation_contact_id_index;

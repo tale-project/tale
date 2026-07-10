@@ -685,6 +685,95 @@ export function dumpMeta(migrations: DiscoveredMigration[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// _generated/api.d.ts maintenance
+// ---------------------------------------------------------------------------
+
+const API_DTS_PATH = path.join(here, '../convex/_generated/api.d.ts');
+
+/**
+ * Every single-dot .ts module under versions/ — folder handlers/metas plus
+ * the version-shared helper modules (legacy_governance.ts, …). Mirrors what
+ * `convex codegen` lists; two-dot files (tests, testkits) are bundler-skipped
+ * and never appear.
+ */
+function versionsModuleRels(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, rel: string): void => {
+    for (const entry of readdirSync(dir).sort()) {
+      const full = path.join(dir, entry);
+      const childRel = rel ? `${rel}/${entry}` : entry;
+      if (statSync(full).isDirectory()) {
+        walk(full, childRel);
+      } else if (
+        entry.endsWith('.ts') &&
+        entry.split('.').length === 2 // single-dot: a pushed Convex module
+      ) {
+        out.push(`migrations/versions/${childRel.slice(0, -3)}`);
+      }
+    }
+  };
+  if (existsSync(VERSIONS_DIR)) walk(VERSIONS_DIR, '');
+  return out.sort();
+}
+
+function apiAliasOf(moduleRel: string): string {
+  return moduleRel.replaceAll('/', '_').replaceAll('.', '_');
+}
+
+/**
+ * Rewrite api.d.ts's `migrations/versions/**` import + module-map sections to
+ * match the file tree. `skipLibCheck` makes a stale entry FAIL SILENTLY — the
+ * unresolved `import type` degrades the whole generated api to `any` and
+ * typecheck explodes far away in app/ code — so this must stay in lockstep
+ * with every port. Convex's own `codegen` produces the identical section but
+ * needs a running backend; this keeps the committed file true without one.
+ */
+export function rewriteApiDts(content: string): string {
+  const moduleRels = versionsModuleRels();
+
+  const importLine = (rel: string): string =>
+    `import type * as ${apiAliasOf(rel)} from "../${rel}.js";`;
+  const mapLine = (rel: string): string =>
+    `  "${rel}": typeof ${apiAliasOf(rel)};`;
+
+  const lines = content.split('\n');
+  const isVersionsImport = (l: string): boolean =>
+    l.startsWith('import type * as migrations_versions_');
+  const isVersionsMapEntry = (l: string): boolean =>
+    l.startsWith('  "migrations/versions/');
+
+  const firstImport = lines.findIndex(isVersionsImport);
+  const firstMap = lines.findIndex(isVersionsMapEntry);
+  if (firstImport < 0 || firstMap < 0) {
+    throw new Error(
+      'api.d.ts has no migrations/versions section — regenerate it with `bunx convex codegen` once, then re-run migrations:sync.',
+    );
+  }
+
+  const withoutOld = lines.filter(
+    (l) => !isVersionsImport(l) && !isVersionsMapEntry(l),
+  );
+  // Recompute anchors on the filtered array (same predicate targets removed
+  // contiguous blocks; the anchor is where the first removed line sat).
+  let importAnchor = 0;
+  let mapAnchor = 0;
+  {
+    let seen = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (i === firstImport) importAnchor = seen;
+      if (i === firstMap) mapAnchor = seen;
+      if (!isVersionsImport(lines[i]) && !isVersionsMapEntry(lines[i])) seen++;
+    }
+  }
+
+  withoutOld.splice(importAnchor, 0, ...moduleRels.map(importLine));
+  const mapInsertAt =
+    mapAnchor + (mapAnchor >= importAnchor ? moduleRels.length : 0);
+  withoutOld.splice(mapInsertAt, 0, ...moduleRels.map(mapLine));
+  return withoutOld.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Entry
 // ---------------------------------------------------------------------------
 
@@ -704,6 +793,7 @@ export async function runMigrationsCodegen(
     const targets: Array<[string, string]> = [
       [REGISTRY_GEN_PATH, generateRegistry(migrations)],
       [NODE_REGISTRY_GEN_PATH, generateNodeRegistry(migrations)],
+      [API_DTS_PATH, rewriteApiDts(readFileSync(API_DTS_PATH, 'utf-8'))],
     ];
     for (const [filePath, content] of targets) {
       const existing = existsSync(filePath)

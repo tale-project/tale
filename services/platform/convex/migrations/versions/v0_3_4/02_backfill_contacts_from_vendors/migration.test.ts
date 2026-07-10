@@ -34,13 +34,11 @@ defineMigrationTest({
   },
 
   async expectUp(world) {
-    const contacts = await world.run((ctx) =>
+    const contacts: Array<Record<string, unknown>> = await world.run((ctx) =>
       ctx.db.query('contacts').collect(),
     );
     expect(contacts).toHaveLength(2);
-    const acme = contacts.find(
-      (c: Record<string, unknown>) => c.name === 'Acme Supply',
-    );
+    const acme = contacts.find((c) => c.name === 'Acme Supply');
     expect(acme).toMatchObject({
       organizationId: ORG,
       email: 'sales@acme.test',

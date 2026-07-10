@@ -379,6 +379,17 @@ describe('entrypoints.applyUp', () => {
     const failed = await ledgerRow(t, h.ids.TOUCH_ID);
     expect(failed?.status).toBe('failed');
     expect(failed?.error).toContain('injected crash at n=25');
+    // The failure surfaces on the status wire for operator triage.
+    const statusAfterCrash = await t.query(
+      internal.migrations.framework.entrypoints.status,
+      {},
+    );
+    expect(statusAfterCrash.failed.map((m: { id: string }) => m.id)).toContain(
+      h.ids.TOUCH_ID,
+    );
+    expect(statusAfterCrash.failedErrors[h.ids.TOUCH_ID]).toContain(
+      'injected crash at n=25',
+    );
     // The cursor sits at the end of batch 2 — rows 0..19 are committed…
     expect(typeof failed?.cursor).toBe('string');
     const afterCrash = await t.run((ctx) => ctx.db.query('items').collect());

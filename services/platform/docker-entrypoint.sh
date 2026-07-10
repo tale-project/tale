@@ -453,16 +453,23 @@ deploy_convex_functions() {
 
     # Run Convex data migrations. Non-fatal: each migration is idempotent,
     # so a transient failure here is retried on the next platform boot and
-    # must not prevent the platform from serving.
+    # must not prevent the platform from serving. runAll itself never throws
+    # on a migration failure — it prints a grep-stable
+    # [migrations][deploy-failure] line instead — so key the loud banner on
+    # that marker, not the exit code.
     log_info "Running Convex data migrations..."
     local migrations_exit=0
-    timeout 600 bunx convex run migrations:runAll \
+    local migrations_output=""
+    migrations_output=$(timeout 600 bunx convex run migrations:runAll \
       --url "$CONVEX_URL" \
-      --admin-key "$ADMIN_KEY" 2>&1 || migrations_exit=$?
-    if [ $migrations_exit -eq 0 ]; then
-      log_ok "Convex data migrations complete"
-    else
+      --admin-key "$ADMIN_KEY" 2>&1) || migrations_exit=$?
+    [ -n "$migrations_output" ] && printf '%s\n' "$migrations_output"
+    if [ $migrations_exit -ne 0 ]; then
       log_error "Convex data migrations failed (exit code: $migrations_exit) — platform will continue; legacy data may need manual backfill."
+    elif printf '%s' "$migrations_output" | grep -q '\[migrations\]\[deploy-failure\]'; then
+      log_error "A DATA MIGRATION FAILED during this deploy. The platform boots on the current schema, but pending data was NOT migrated. Inspect with 'tale migrate status'; re-run with 'tale migrate up' (idempotent, resumable from the ledger)."
+    else
+      log_ok "Convex data migrations complete"
     fi
 
     # Validate the deployed built-in config catalog against its Zod schemas.

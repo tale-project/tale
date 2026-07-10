@@ -68,21 +68,27 @@ const metaValidator = v.object({
 // Reads (queries)
 // --------------------------------------------------------------------------
 
-/** Reduce ledger rows to the planner's view. */
-async function readLedgerStates(ctx: {
+interface LedgerRowView extends LedgerState {
+  error?: string;
+}
+
+/** Reduce ledger rows to the planner's view (+ the error for failed rows). */
+async function readLedgerRows(ctx: {
   db: {
     query: (t: 'migrationLedger') => { collect: () => Promise<unknown[]> };
   };
-}): Promise<LedgerState[]> {
+}): Promise<LedgerRowView[]> {
   const rows = (await ctx.db.query('migrationLedger').collect()) as Array<{
     migrationId: string;
     direction: 'up' | 'down';
     status: 'running' | 'applied' | 'rolledBack' | 'failed';
+    error?: string;
   }>;
   return rows.map((r) => ({
     migrationId: r.migrationId,
     direction: r.direction,
     status: r.status,
+    error: r.error,
   }));
 }
 
@@ -94,9 +100,13 @@ export const status = internalQuery({
     pending: v.array(metaValidator),
     pendingDestructive: v.array(v.string()),
     references: v.array(metaValidator),
+    /** Migrations whose last run FAILED — resumable via `tale migrate up`. */
+    failed: v.array(metaValidator),
+    /** migrationId → the recorded failure message, for operator triage. */
+    failedErrors: v.record(v.string(), v.string()),
   }),
   handler: async (ctx) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = await readLedgerRows(ctx);
     const ledger = indexLedger(ledgerRows);
     const steps = orderMigrations(ALL_META);
 
@@ -109,12 +119,24 @@ export const status = internalQuery({
       .map((s) => s.meta);
     const frontier = appliedFrontier(steps, ledger);
 
+    const failedRows = ledgerRows.filter((r) => r.status === 'failed');
+    const failedIds = new Set(failedRows.map((r) => r.migrationId));
+    const failed = steps
+      .filter((s) => failedIds.has(s.meta.id))
+      .map((s) => s.meta);
+    const failedErrors: Record<string, string> = {};
+    for (const row of failedRows) {
+      failedErrors[row.migrationId] = row.error ?? 'unknown error';
+    }
+
     return {
       frontier: frontier?.meta.id ?? null,
       applied,
       pending,
       pendingDestructive: pending.filter((m) => m.destructive).map((m) => m.id),
       references,
+      failed,
+      failedErrors,
     };
   },
 });
@@ -123,7 +145,7 @@ export const planUp = internalQuery({
   args: { to: v.optional(v.string()) },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = await readLedgerRows(ctx);
     return computePendingUp(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
@@ -132,7 +154,7 @@ export const planDown = internalQuery({
   args: { to: v.string() },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = await readLedgerRows(ctx);
     return computeRollback(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
