@@ -1,8 +1,14 @@
 'use node';
 
 /**
- * Node migration: rewrite `agentKind: 'opencode'` → `'claude-code'` in every
- * org agent JSON file. See {@link meta}.
+ * 0.2.90 / 01 — retire the archived `opencode` product slug from agent configs.
+ *
+ * OpenCode is no longer a product runtime (`cursor` replaced it in the
+ * registry). Any org agent file still carrying `agentKind: 'opencode'` is
+ * rewritten to `claude-code` (the gateway-managed default). Idempotent: files
+ * already on `claude-code` or `cursor` are untouched. A per-org fs-tree
+ * snapshot of the agents directory is taken first so `down` can restore the
+ * prior files.
  */
 
 import {
@@ -13,14 +19,22 @@ import {
   serializeAgentJson,
   walkAgentRelativePaths,
 } from '../../../../agents/file_utils';
-import type { NodeMigration } from '../../../framework/types';
-import { meta } from './meta';
+import { defineNodeMigration } from '../../../framework/define';
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Rewrite agentKind opencode → claude-code in agent configs',
+  description:
+    'Retires the archived opencode product slug: every external-agent config ' +
+    'with agentKind opencode becomes claude-code. Idempotent; cursor and ' +
+    'claude-code files are left unchanged. A per-org fs-tree snapshot of the ' +
+    'agents directory is taken first so down can restore the prior files.',
+  destructive: false,
+  snapshot: 'fs-tree',
+  subjects: { domains: ['agents'] },
+
   async up(_ctx, org, helpers) {
     const dir = resolveAgentsDir(org.slug);
-    await helpers.snapshotFsTree(meta.id, org.slug, dir);
+    await helpers.snapshotFsTree(dir);
 
     const relPaths = await walkAgentRelativePaths(org.slug);
     for (const rel of relPaths) {
@@ -45,7 +59,7 @@ export const migration: NodeMigration = {
         );
       } catch (err) {
         console.warn(
-          `[${meta.id}] skipping unparseable agent file ${org.slug}/${rel}:`,
+          `[${helpers.migrationId}] skipping unparseable agent file ${org.slug}/${rel}:`,
           err,
         );
         continue;
@@ -56,6 +70,6 @@ export const migration: NodeMigration = {
 
   async down(_ctx, org, helpers) {
     const dir = resolveAgentsDir(org.slug);
-    await helpers.restoreFsTree(meta.id, org.slug, dir);
+    await helpers.restoreFsTree(dir);
   },
-};
+});

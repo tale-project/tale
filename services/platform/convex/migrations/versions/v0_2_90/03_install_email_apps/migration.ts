@@ -1,31 +1,42 @@
 'use node';
 
 /**
- * Node migration: install the matching email inbox app for every org with an
- * ACTIVE credential for one of the email integrations, so the org keeps an
- * inbox UI when the built-in Conversations pages are removed.
+ * 0.2.90 / 03 — auto-install the email inbox apps for orgs already using the
+ * email integrations.
  *
- * Runs once per org (the node-runner contract). All reads/writes go through
- * internal functions by reference — the install itself is the shared
- * `installAutomationInternal` action (same core as the public `installAutomation`, minus
- * the developer-settings gate that cannot pass unauthenticated). A single
- * failed install/uninstall is logged and skipped rather than thrown: the
- * runner treats a handler throw as fatal for the whole fleet run, and one
- * org's broken catalog must not block every other org's migration.
+ * The dashboard's built-in Conversations pages are replaced by the
+ * reply-outlook-emails / reply-gmail-emails / reply-imap-emails apps, so an
+ * org that has a connected email integration would lose its inbox UI on
+ * upgrade unless the matching app is installed. Runs once per org (the
+ * node-runner contract); all reads/writes go through internal functions by
+ * reference. Per org: for every ACTIVE `integrationCredentials` row
+ * (`isActive && status === 'active'`, the canonical availability contract)
+ * whose slug is outlook / gmail / imap_smtp, install the mapped app via
+ * `installAutomationInternal` (the same core as the public `installAutomation`,
+ * minus the developer-settings gate that cannot pass unauthenticated inside a
+ * migration). The bundles ship no workflows, agents, or required config, so
+ * the install needs no wizard input.
+ *
+ * A single failed install/uninstall is logged and skipped rather than thrown:
+ * the runner treats a handler throw as fatal for the whole fleet run, and one
+ * org's broken catalog (e.g. the bundle missing from the deployment's
+ * built-in catalog) must not block every other org's migration.
  *
  * Idempotent both ways: `up` skips apps that are already installed (by
  * anyone), `down` removes ONLY install rows still carrying this migration's
- * `installedBy` marker — a human install is never touched.
+ * `installedBy` marker (`'migration:v0_2_90_install_email_apps'`) — a human
+ * install is never touched. Uninstall never touches the `conversations*`
+ * tables — it removes only the app shell, install row, and app-scoped
+ * env/secrets (none for these bundles).
  */
 
 import { getString, isRecord } from '../../../../../lib/utils/type-utils';
 import { internal } from '../../../../_generated/api';
-import type {
-  MigrationOrg,
-  NodeMigration,
-  NodeMigrationCtx,
-} from '../../../framework/types';
-import { meta } from './meta';
+import { defineNodeMigration } from '../../../framework/define';
+import type { MigrationOrg, NodeMigrationCtx } from '../../../framework/types';
+
+/** This migration's stable id, used as the log prefix in module helpers. */
+const MIGRATION_ID = '0.2.90/03_install_email_apps';
 
 /**
  * Email integration slug → the automation that fronts it. The slugs were
@@ -96,14 +107,27 @@ function warnSummary(
   // `tale migrate` down+up of this version (idempotent; installed apps are
   // skipped — but note a human-uninstalled app would be re-installed by up).
   console.error(
-    `[${meta.id}] ${org.slug}: ${failures.length} email app ${verb}(s) failed ` +
+    `[${MIGRATION_ID}] ${org.slug}: ${failures.length} email app ${verb}(s) failed ` +
       `(${failures.join(', ')}) — fix the cause and re-run this version ` +
       `(down+up); succeeded/already-handled apps are skipped on the next pass.`,
   );
 }
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Install the email inbox apps for orgs with active email credentials',
+  description:
+    'For each org with an ACTIVE integrationCredentials row for outlook, ' +
+    'gmail, or imap_smtp, installs the matching email inbox app ' +
+    '(reply-outlook-emails / reply-gmail-emails / reply-imap-emails) via installAutomationInternal with ' +
+    "the installedBy marker 'migration:v0_2_90_install_email_apps', so the " +
+    'org keeps an inbox UI when the built-in Conversations pages are ' +
+    'removed. Already-installed apps are skipped; a failed install is logged ' +
+    'and skipped. down uninstalls only the rows carrying the marker.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: {
+    tables: ['integrationCredentials', 'automationInstallations'],
+  },
 
   async up(ctx, org) {
     const credentials: CredentialLike[] = await ctx.runQuery(
@@ -129,7 +153,7 @@ export const migration: NodeMigration = {
         // (TALE_CONFIG_BUILTIN_DIR predates the email apps). Log + continue —
         // a throw would abort the whole fleet run.
         console.warn(
-          `[${meta.id}] ${org.slug}: installing "${appSlug}" failed:`,
+          `[${MIGRATION_ID}] ${org.slug}: installing "${appSlug}" failed:`,
           err,
         );
         failures.push(appSlug);
@@ -155,7 +179,7 @@ export const migration: NodeMigration = {
         );
       } catch (err) {
         console.warn(
-          `[${meta.id}] ${org.slug}: uninstalling "${appSlug}" failed:`,
+          `[${MIGRATION_ID}] ${org.slug}: uninstalling "${appSlug}" failed:`,
           err,
         );
         failures.push(appSlug);
@@ -163,4 +187,4 @@ export const migration: NodeMigration = {
     }
     warnSummary(org, 'uninstall', failures);
   },
-};
+});

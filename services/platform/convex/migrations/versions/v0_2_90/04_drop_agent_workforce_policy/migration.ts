@@ -1,4 +1,4 @@
-import type { MigrationMeta } from '../../../framework/types';
+'use node';
 
 /**
  * 0.2.90 / 04 — retire the `agent_workforce` governance policy.
@@ -11,11 +11,13 @@ import type { MigrationMeta } from '../../../framework/types';
  * This migration deletes that file per org. A per-org fs-tree snapshot of the
  * governance directory is taken first so `down` can restore the prior files.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.90/04_drop_agent_workforce_policy',
-  semver: '0.2.90',
-  numericId: 4,
-  slug: 'drop_agent_workforce_policy',
+
+import path from 'node:path';
+
+import { resolveGovernanceDir } from '../../../../governance/file_utils';
+import { defineNodeMigration } from '../../../framework/define';
+
+export const migration = defineNodeMigration({
   title: 'Delete the retired agent-workforce governance policy file',
   description:
     'Deletes <org>/governance/agent-workforce.json — the agent_workforce ' +
@@ -23,8 +25,25 @@ export const meta: MigrationMeta = {
     'capacity knobs became fixed deployment defaults). Idempotent: orgs ' +
     'without the file are untouched. A per-org fs-tree snapshot of the ' +
     'governance directory is taken first so down can restore the prior files.',
-  kind: 'node',
-  reversible: true,
   destructive: true,
   snapshot: 'fs-tree',
-};
+  subjects: { domains: ['governance'] },
+
+  async up(_ctx, org, helpers) {
+    const dir = resolveGovernanceDir(org.slug);
+    await helpers.snapshotFsTree(dir);
+    const removed = await helpers.removeFileSafe(
+      path.join(dir, 'agent-workforce.json'),
+    );
+    if (removed) {
+      console.log(
+        `[${helpers.migrationId}] removed agent-workforce.json for ${org.slug}`,
+      );
+    }
+  },
+
+  async down(_ctx, org, helpers) {
+    const dir = resolveGovernanceDir(org.slug);
+    await helpers.restoreFsTree(dir);
+  },
+});

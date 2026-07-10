@@ -1,23 +1,25 @@
 'use node';
 
 /**
- * Node migration: export each org's legacy `ssoProviders` row to the per-org
- * JSON files that are now the source of truth for the unified Enterprise SSO
- * connection, then re-sync the `configCache` mirror so V8 readers (queries /
- * mutations / auth-hooks) see the file immediately.
+ * 0.2.87 / 01 — migrate the legacy per-org `ssoProviders` row to the unified
+ * Enterprise SSO connection, now stored as per-org JSON files.
  *
- * The unified feature reads sign-in config from
+ * The unified feature reads sign-in + provisioning config from
  *   <org>/governance/sso/connection.json          (non-secret config)
  *   <org>/governance/sso/connection.secrets.json  (plaintext secrets)
- * not from a DB table — the `ssoConnections` table now holds ONLY SCIM token
- * state. So this migration maps the legacy row into a `SsoConnectionFile` plus a
- * `SsoConnectionSecrets`, DECRYPTING the legacy `clientIdEncrypted` /
- * `clientSecretEncrypted` (stored as compact JWE) back to plaintext for the
- * secrets sidecar.
+ * mirrored into the `configCache` table for V8 readers (queries / mutations /
+ * auth-hooks) — not from a DB table; the `ssoConnections` table now holds ONLY
+ * SCIM token state. This migration carries each existing `ssoProviders` row
+ * across so SSO keeps working after cutover — mapping the legacy
+ * `providerId`/`issuer`/scopes into the file's `oidc` block, the
+ * `roleMappingRules`/`defaultRole`/`providerFeatures` into the shared
+ * provisioning policy, and DECRYPTING the encrypted client credentials
+ * (stored as compact JWE) back to plaintext for the secrets sidecar.
  *
- * Idempotent per org: re-running overwrites the same files with the same
- * content. `down` restores the pre-migration `sso/` directory from the fs-tree
- * snapshot captured in `up`.
+ * Expand step: leaves `ssoProviders` intact (dropped by a later migration once
+ * all deployments have migrated). Idempotent per org: re-running overwrites
+ * the same files with the same content. `down` restores the pre-migration
+ * `sso/` directory from the fs-tree snapshot captured in `up`.
  */
 
 import type {
@@ -36,9 +38,8 @@ import {
   serializeSsoSecretsJson,
 } from '../../../../enterprise_sso/file_utils';
 import { decryptString } from '../../../../lib/crypto/decrypt_string';
-import type { NodeMigration } from '../../../framework/types';
+import { defineNodeMigration } from '../../../framework/define';
 import type { LegacySsoProviderRow } from './legacy_sso';
-import { meta } from './meta';
 
 type RoleSource = RoleMappingRule['source'];
 type ProviderId = SsoConnectionFile['oidc'] extends infer O
@@ -106,12 +107,23 @@ async function decryptOrEmpty(encrypted: string | undefined): Promise<string> {
   return decryptString(encrypted);
 }
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Migrate ssoProviders into the file-based Enterprise SSO connection',
+  description:
+    'For each org with a legacy ssoProviders row, writes its unified ' +
+    'connection.json (protocol oidc/oauth2, oidc block from issuer + scopes + ' +
+    'claim/feature mappings, provisioning from roleMappingRules/defaultRole/' +
+    'providerFeatures) and a connection.secrets.json with the decrypted client ' +
+    'credentials, then re-syncs the configCache mirror. A per-org fs-tree ' +
+    'snapshot of the sso/ directory is taken first so down can restore the ' +
+    'prior files. Idempotent (re-running overwrites the same files).',
+  destructive: false,
+  snapshot: 'fs-tree',
+  subjects: { tables: ['ssoProviders'], domains: ['governance'] },
 
   async up(ctx, org, helpers) {
     const dir = resolveSsoDir(org.slug);
-    await helpers.snapshotFsTree(meta.id, org.slug, dir);
+    await helpers.snapshotFsTree(dir);
 
     const row: LegacySsoProviderRow | null = await ctx.runQuery(
       internal.migrations.versions.v0_2_87['01_enterprise_sso_unify'].legacy_sso
@@ -187,10 +199,10 @@ export const migration: NodeMigration = {
 
   async down(ctx, org, helpers) {
     const dir = resolveSsoDir(org.slug);
-    await helpers.restoreFsTree(meta.id, org.slug, dir);
+    await helpers.restoreFsTree(dir);
     await ctx.runAction(
       internal.enterprise_sso.config.file_actions.syncConnectionCache,
       { organizationId: org.id },
     );
   },
-};
+});

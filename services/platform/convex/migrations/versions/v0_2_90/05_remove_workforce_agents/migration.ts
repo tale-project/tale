@@ -1,4 +1,4 @@
-import type { MigrationMeta } from '../../../framework/types';
+'use node';
 
 /**
  * 0.2.90 / 05 — remove the retired workforce persona agents from org disk.
@@ -10,11 +10,13 @@ import type { MigrationMeta } from '../../../framework/types';
  * (0.2.90/06). A per-org fs-tree snapshot of the agents directory is taken
  * first so `down` can restore the prior files.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.90/05_remove_workforce_agents',
-  semver: '0.2.90',
-  numericId: 5,
-  slug: 'remove_workforce_agents',
+
+import path from 'node:path';
+
+import { resolveAgentsDir } from '../../../../agents/file_utils';
+import { defineNodeMigration } from '../../../framework/define';
+
+export const migration = defineNodeMigration({
   title: 'Delete the retired workforce persona agent files',
   description:
     'Deletes the <org>/agents/workforce/ subtree (the retired persona ' +
@@ -22,8 +24,23 @@ export const meta: MigrationMeta = {
     'folder are untouched; other agent folders are never touched. A per-org ' +
     'fs-tree snapshot of the agents directory is taken first so down can ' +
     'restore the prior files.',
-  kind: 'node',
-  reversible: true,
   destructive: true,
   snapshot: 'fs-tree',
-};
+  subjects: { domains: ['agents'] },
+
+  async up(_ctx, org, helpers) {
+    const dir = resolveAgentsDir(org.slug);
+    await helpers.snapshotFsTree(dir);
+    const removed = await helpers.removeDirSafe(path.join(dir, 'workforce'));
+    if (removed) {
+      console.log(
+        `[${helpers.migrationId}] removed agents/workforce for ${org.slug}`,
+      );
+    }
+  },
+
+  async down(_ctx, org, helpers) {
+    const dir = resolveAgentsDir(org.slug);
+    await helpers.restoreFsTree(dir);
+  },
+});

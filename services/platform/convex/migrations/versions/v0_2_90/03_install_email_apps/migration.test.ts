@@ -1,223 +1,253 @@
 // @vitest-environment node
 
 /**
- * The real install/uninstall actions are filesystem- and deployment-bound
- * (`installAutomationInternal` copies bundle files from TALE_CONFIG_BUILTIN_DIR), so
- * this test drives the handler against a fake `NodeMigrationCtx` that
- * dispatches on function names and records calls — proving the org-selection
- * logic (active-credential gating + integration→app map), the installedBy
- * marker, idempotence in both directions, the marker-targeted `down`, and the
- * log-and-continue posture on a failed install. Org enumeration is covered by
- * the runner tests; the install/uninstall engines by the apps test suites.
+ * The real `installAutomationInternal`/`uninstallAutomationInternal` engines
+ * are catalog- and filesystem-bound (they copy bundle files from
+ * TALE_CONFIG_BUILTIN_DIR), so this file vi.mocks ONLY those two actions with
+ * row-effect equivalents (upsert/delete of the install row through the REAL
+ * mutations). Everything else — org fleet loop, credential read, the
+ * already-installed guard, the installedBy marker, and the marker-targeted
+ * down — runs the real production path. The install/uninstall engines
+ * themselves are covered by the automations test suites.
  */
 
-import { getFunctionName } from 'convex/server';
-import { describe, expect, it, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
-import { internal } from '../../../../_generated/api';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
+import { buildModules } from '../../../framework/test_helpers';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 import {
   emailAppInstallTargets,
-  INTEGRATION_TO_EMAIL_APP,
   MIGRATION_INSTALLED_BY,
-  migration,
   type CredentialLike,
-} from './index';
+} from './migration';
 
-const ORG = { id: 'org1', slug: 'org1' };
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-/** The migration never touches the filesystem — helpers must stay unused. */
-const helpers = new Proxy({} as NodeMigrationHelpers, {
-  get(_target, prop) {
-    throw new Error(`unexpected helpers.${String(prop)} access`);
-  },
-});
+const DIR = 'migrations/versions/v0_2_90/03_install_email_apps';
 
-const FN = {
-  listCredentials: getFunctionName(
-    internal.integrations.credential_queries.listInternal,
-  ),
-  getInstallation: getFunctionName(
-    internal.automations.install_mutations.getAutomationInstallationInternal,
-  ),
-  install: getFunctionName(
-    internal.automations.install_actions.installAutomationInternal,
-  ),
-  uninstall: getFunctionName(
-    internal.automations.install_actions.uninstallAutomationInternal,
-  ),
-};
+const EPOCH = 1_717_000_000_000;
 
-interface FakeState {
-  credentials: CredentialLike[];
-  /** appSlug → install row (as `getAutomationInstallationInternal` returns it). */
-  installs: Map<string, { installedBy: string }>;
-  installCalls: { automationSlug: string; installedBy: string }[];
-  uninstallCalls: string[];
-  /** App slugs whose install should throw (catalog-missing simulation). */
-  failInstalls?: ReadonlySet<string>;
-}
+/** Per-case control for the mocked install action (catalog-missing sim). */
+const mockControl = vi.hoisted(() => ({
+  failInstalls: new Set<string>(),
+}));
 
-function fakeCtx(state: FakeState): NodeMigrationCtx {
+vi.mock('../../../../automations/install_actions', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('../../../../automations/install_actions')
+    >();
+  const { internalAction } = await import('../../../../_generated/server');
+  const { internal } = await import('../../../../_generated/api');
   return {
-    runQuery: async (ref: unknown, args: { automationSlug?: string }) => {
-      const name = getFunctionName(ref as never);
-      if (name === FN.listCredentials) return state.credentials;
-      if (name === FN.getInstallation) {
-        return state.installs.get(args.automationSlug ?? '') ?? null;
-      }
-      throw new Error(`unexpected runQuery(${name})`);
-    },
-    runMutation: async (ref: unknown) => {
-      throw new Error(
-        `unexpected runMutation(${getFunctionName(ref as never)})`,
-      );
-    },
-    runAction: async (
-      ref: unknown,
-      args: { automationSlug: string; installedBy?: string },
-    ) => {
-      const name = getFunctionName(ref as never);
-      if (name === FN.install) {
-        if (state.failInstalls?.has(args.automationSlug)) {
+    ...original,
+    installAutomationInternal: internalAction({
+      handler: async (
+        ctx,
+        args: {
+          organizationId: string;
+          automationSlug: string;
+          installedBy: string;
+        },
+      ) => {
+        if (mockControl.failInstalls.has(args.automationSlug)) {
           throw new Error(
-            `App "${args.automationSlug}" not found in the catalog`,
+            `Automation "${args.automationSlug}" not found in the catalog`,
           );
         }
-        state.installCalls.push({
-          automationSlug: args.automationSlug,
-          installedBy: args.installedBy ?? '',
-        });
-        state.installs.set(args.automationSlug, {
-          installedBy: args.installedBy ?? '',
-        });
+        await ctx.runMutation(
+          internal.automations.install_mutations.upsertAutomationInstallation,
+          {
+            organizationId: args.organizationId,
+            automationSlug: args.automationSlug,
+            automationName: args.automationSlug,
+            installedBy: args.installedBy,
+            status: 'active',
+            resources: [],
+            requiredIntegrations: [],
+          },
+        );
         return { ok: true, workflows: 0, agents: 0, resources: 0 };
-      }
-      if (name === FN.uninstall) {
-        state.uninstallCalls.push(args.automationSlug);
-        state.installs.delete(args.automationSlug);
+      },
+    }),
+    uninstallAutomationInternal: internalAction({
+      handler: async (
+        ctx,
+        args: { organizationId: string; automationSlug: string },
+      ) => {
+        await ctx.runMutation(
+          internal.automations.install_mutations.deleteAutomationInstallation,
+          args,
+        );
         return { ok: true };
-      }
-      throw new Error(`unexpected runAction(${name})`);
-    },
+      },
+    }),
   };
-}
+});
 
 function active(slug: string): CredentialLike {
   return { slug, isActive: true, status: 'active' };
 }
 
-describe('0.2.90/03 install_email_apps', () => {
-  it('emailAppInstallTargets keeps only ACTIVE credentials of mapped integrations', () => {
-    const targets = emailAppInstallTargets([
-      active('outlook'),
-      { slug: 'gmail', isActive: false, status: 'active' }, // disabled
-      { slug: 'imap_smtp', isActive: true, status: 'error' }, // unhealthy
-      active('slack'), // active but not an email integration
-    ]);
-    expect(targets).toEqual(['reply-outlook-emails']);
+async function insertCredential(
+  // oxlint-disable-next-line typescript/no-explicit-any -- structural seed ctx
+  db: any,
+  organizationId: string,
+  cred: CredentialLike,
+): Promise<void> {
+  await db.insert('integrationCredentials', {
+    organizationId,
+    slug: cred.slug,
+    status: cred.status,
+    isActive: cred.isActive,
+    authMethod: 'oauth2',
   });
+}
 
-  it('up installs the mapped app per active credential, stamped with the marker', async () => {
-    const state: FakeState = {
-      credentials: [active('outlook'), active('gmail'), active('imap_smtp')],
-      installs: new Map(),
-      installCalls: [],
-      uninstallCalls: [],
-    };
-    await migration.up(fakeCtx(state), ORG, helpers);
+// Main ritual: the INACTIVE-credential no-op path (the corpus profile) —
+// up must install nothing, and down over the no-op world must change nothing.
+defineMigrationTest({
+  id: '0.2.90/03_install_email_apps',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-    expect(state.installCalls).toEqual(
-      Object.values(INTEGRATION_TO_EMAIL_APP).map((automationSlug) => ({
-        automationSlug,
-        installedBy: MIGRATION_INSTALLED_BY,
-      })),
-    );
-  });
-
-  it('up skips an already-installed app and is idempotent on a second run', async () => {
-    const state: FakeState = {
-      credentials: [active('outlook'), active('gmail')],
-      installs: new Map([
-        ['reply-outlook-emails', { installedBy: 'admin@acme.com' }],
-      ]),
-      installCalls: [],
-      uninstallCalls: [],
-    };
-    await migration.up(fakeCtx(state), ORG, helpers);
-    expect(state.installCalls).toEqual([
-      {
-        automationSlug: 'reply-gmail-emails',
-        installedBy: MIGRATION_INSTALLED_BY,
-      },
-    ]);
-    // The human install row was never overwritten.
-    expect(state.installs.get('reply-outlook-emails')).toEqual({
-      installedBy: 'admin@acme.com',
+  async seed(ctx, orgs) {
+    // INACTIVE credential: the active-filter is exercised, no install runs.
+    await insertCredential(ctx.db, orgs[0].id, {
+      slug: 'outlook',
+      isActive: false,
+      status: 'inactive',
     });
+    // org2 has no credentials at all.
+  },
 
-    await migration.up(fakeCtx(state), ORG, helpers);
-    expect(state.installCalls).toHaveLength(1);
-  });
+  async expectUp(world) {
+    const installs = await world.run<Array<Record<string, unknown>>>((ctx) =>
+      ctx.db.query('automationInstallations').collect(),
+    );
+    expect(installs).toEqual([]);
+  },
 
-  it('up logs and continues past a failed install instead of aborting the org', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      const state: FakeState = {
-        credentials: [active('outlook'), active('gmail')],
-        installs: new Map(),
-        installCalls: [],
-        uninstallCalls: [],
-        failInstalls: new Set(['reply-outlook-emails']),
-      };
-      await expect(
-        migration.up(fakeCtx(state), ORG, helpers),
-      ).resolves.toBeUndefined();
-      // reply-gmail-emails still installed despite reply-outlook-emails failing first.
-      expect(state.installCalls).toEqual([
-        {
-          automationSlug: 'reply-gmail-emails',
+  cases: {
+    'up installs the mapped app for an ACTIVE credential, stamped with the marker, and skips an already-installed app':
+      async (world) => {
+        const orgId = world.orgs[0].id;
+        await world.run(async (ctx) => {
+          await insertCredential(ctx.db, orgId, active('outlook'));
+          await insertCredential(ctx.db, orgId, active('gmail'));
+          // A human install of the gmail app predates the migration.
+          await ctx.db.insert('automationInstallations', {
+            organizationId: orgId,
+            automationSlug: 'reply-gmail-emails',
+            installedAt: EPOCH,
+            installedBy: 'admin@acme.com',
+            status: 'active',
+            resources: [],
+            requiredIntegrations: [],
+          });
+        });
+
+        await world.applyUpOnly();
+
+        const installs = await world.run<Array<Record<string, unknown>>>(
+          (ctx) => ctx.db.query('automationInstallations').collect(),
+        );
+        const bySlug = new Map(
+          installs.map((row: Record<string, unknown>) => [
+            row.automationSlug,
+            row,
+          ]),
+        );
+        expect(bySlug.get('reply-outlook-emails')).toMatchObject({
           installedBy: MIGRATION_INSTALLED_BY,
-        },
-      ]);
-      expect(warn).toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
-  });
+          status: 'active',
+        });
+        // The human install row was never overwritten.
+        expect(bySlug.get('reply-gmail-emails')).toMatchObject({
+          installedBy: 'admin@acme.com',
+        });
+        expect(installs).toHaveLength(2);
+      },
 
-  it('down uninstalls ONLY marker-stamped rows and is idempotent', async () => {
-    const state: FakeState = {
-      credentials: [],
-      installs: new Map([
-        ['reply-outlook-emails', { installedBy: MIGRATION_INSTALLED_BY }],
-        ['reply-gmail-emails', { installedBy: 'admin@acme.com' }],
-      ]),
-      installCalls: [],
-      uninstallCalls: [],
-    };
-    await migration.down(fakeCtx(state), ORG, helpers);
-    expect(state.uninstallCalls).toEqual(['reply-outlook-emails']);
-    expect(state.installs.has('reply-gmail-emails')).toBe(true);
+    'up logs and continues past a failed install instead of aborting the org':
+      async (world) => {
+        const warn = vi
+          .spyOn(console, 'warn')
+          .mockImplementation(() => undefined);
+        mockControl.failInstalls = new Set(['reply-outlook-emails']);
+        try {
+          const orgId = world.orgs[0].id;
+          await world.run(async (ctx) => {
+            await insertCredential(ctx.db, orgId, active('outlook'));
+            await insertCredential(ctx.db, orgId, active('gmail'));
+          });
 
-    await migration.down(fakeCtx(state), ORG, helpers);
-    expect(state.uninstallCalls).toHaveLength(1);
-  });
+          await world.applyUpOnly();
 
-  it('up + down round-trips to the pre-migration state', async () => {
-    const state: FakeState = {
-      credentials: [active('imap_smtp')],
-      installs: new Map(),
-      installCalls: [],
-      uninstallCalls: [],
-    };
-    const ctx = fakeCtx(state);
-    await migration.up(ctx, ORG, helpers);
-    expect([...state.installs.keys()]).toEqual(['reply-imap-emails']);
-    await migration.down(ctx, ORG, helpers);
-    expect(state.installs.size).toBe(0);
-  });
+          const slugs = await world.run(async (ctx) => {
+            const rows = await ctx.db
+              .query('automationInstallations')
+              .collect();
+            return rows.map(
+              (row: Record<string, unknown>) => row.automationSlug,
+            );
+          });
+          // reply-gmail-emails still installed despite outlook failing first.
+          expect(slugs).toEqual(['reply-gmail-emails']);
+          expect(warn).toHaveBeenCalled();
+        } finally {
+          mockControl.failInstalls = new Set();
+          warn.mockRestore();
+        }
+      },
+
+    'down uninstalls ONLY marker-stamped rows and is idempotent': async (
+      world,
+    ) => {
+      const orgId = world.orgs[0].id;
+      await world.run(async (ctx) => {
+        await insertCredential(ctx.db, orgId, active('outlook'));
+      });
+      await world.applyUpOnly();
+
+      // A human install appears between up and down.
+      await world.run(async (ctx) => {
+        await ctx.db.insert('automationInstallations', {
+          organizationId: orgId,
+          automationSlug: 'reply-gmail-emails',
+          installedAt: EPOCH,
+          installedBy: 'admin@acme.com',
+          status: 'active',
+          resources: [],
+          requiredIntegrations: [],
+        });
+      });
+
+      await world.applyDownOnly();
+
+      const installs = await world.run<Array<Record<string, unknown>>>((ctx) =>
+        ctx.db.query('automationInstallations').collect(),
+      );
+      // The marker-stamped outlook row is gone; the human gmail row survives.
+      expect(
+        installs.map((row: Record<string, unknown>) => row.automationSlug),
+      ).toEqual(['reply-gmail-emails']);
+    },
+  },
+
+  unit: {
+    'emailAppInstallTargets keeps only ACTIVE credentials of mapped integrations':
+      () => {
+        const targets = emailAppInstallTargets([
+          active('outlook'),
+          { slug: 'gmail', isActive: false, status: 'active' }, // disabled
+          { slug: 'imap_smtp', isActive: true, status: 'error' }, // unhealthy
+          active('slack'), // active but not an email integration
+        ]);
+        expect(targets).toEqual(['reply-outlook-emails']);
+      },
+  },
 });

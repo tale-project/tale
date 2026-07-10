@@ -303,12 +303,20 @@ export function defineMigrationTest(spec: MigrationTestSpec): void {
             await import('../framework/registry.node.gen');
           const migration = NODE_MIGRATIONS[meta.id];
           expect(migration).toBeDefined();
-          const { legacyNodeHelpers } =
-            await import('../framework/node_helpers');
+          // Re-invoke the per-org handler through the REAL node runner action
+          // (no planner/ledger gating): node handlers call `ctx.runAction`
+          // (config-cache sync, install engines), which a mutation ctx from
+          // `world.run` does not carry — only a real ActionCtx does.
           for (const org of world.orgs) {
-            await world.run(async (ctx) => {
-              await migration.up(ctx as never, org, legacyNodeHelpers);
-            });
+            await world.t.action(
+              internal.migrations.framework.node_runner.applyNodeForOrg,
+              {
+                migrationId: meta.id,
+                orgId: org.id,
+                orgSlug: org.slug,
+                direction: 'up',
+              },
+            );
           }
         } else {
           const { COMPONENT_MIGRATIONS } =

@@ -1,20 +1,25 @@
 'use node';
 
 /**
- * Node migration: move each org's Claude Code agent(s) from the old shipped
- * `openrouter:anthropic/claude-opus-4.8` pin to the Fable 5 default — the
- * rolling `~anthropic/claude-fable-latest` alias first (auto-tracks
- * Anthropic's newest Fable-class model), the concrete
- * `anthropic/claude-fable-5` second, Opus 4.8 third (the Fable entries'
- * `fallbackModelId` and the manual switch when Fable usage is rationed) —
- * appending both Fable catalog entries to the org's `providers/openrouter.json`
- * when absent so the new pin always resolves.
+ * 0.2.89 / 03 — retarget the Claude Code agent's default model to Fable 5.
+ *
+ * The shipped default pin for the in-sandbox Claude Code agent moves from the
+ * static `openrouter:anthropic/claude-opus-4.8` to the rolling
+ * `openrouter:~anthropic/claude-fable-latest` alias (auto-tracks Anthropic's
+ * newest Fable-class model), the concrete `anthropic/claude-fable-5` second,
+ * Opus 4.8 third (the Fable entries' `fallbackModelId` and the manual switch
+ * when Fable usage is rationed) — appending both Fable catalog entries to the
+ * org's `providers/openrouter.json` when absent so the new pin always
+ * resolves (the rolling alias is never auto-added by the weekly model sync —
+ * its `~anthropic` vendor prefix is outside the curated set).
  *
  * Conservative by design: an org without an `openrouter` provider file is
- * skipped entirely, an operator-edited `supportedModels` is left untouched,
- * and `down` removes only catalog entries that still structurally equal the
- * exact shapes `up` writes (a cron-added or operator-edited Fable entry
- * survives). Idempotent per org in both directions.
+ * skipped entirely, an operator-edited `supportedModels` is left untouched
+ * (the weekly sync's 3-way-merge spirit), and `down` removes only catalog
+ * entries that still structurally equal the exact shapes `up` writes (a
+ * cron-added or operator-edited Fable entry survives). Fully reversible in
+ * place — idempotent per org in both directions — so no fs snapshot is
+ * needed.
  */
 
 import type { ModelDefinition } from '../../../../../lib/shared/schemas/providers';
@@ -30,12 +35,11 @@ import {
   resolveProviderFilePath,
   serializeProviderJson,
 } from '../../../../providers/file_utils';
-import type {
-  MigrationOrg,
-  NodeMigration,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { meta } from './meta';
+import {
+  type BoundNodeHelpers,
+  defineNodeMigration,
+} from '../../../framework/define';
+import type { MigrationOrg } from '../../../framework/types';
 
 const PROVIDER_SLUG = 'openrouter';
 
@@ -96,7 +100,7 @@ export const FABLE_CATALOG_MODELS: readonly ModelDefinition[] = [
  */
 async function retargetClaudeCodeAgents(
   org: MigrationOrg,
-  helpers: NodeMigrationHelpers,
+  helpers: BoundNodeHelpers,
   from: readonly string[],
   to: readonly string[],
 ): Promise<void> {
@@ -110,7 +114,7 @@ async function retargetClaudeCodeAgents(
       config = parseAgentJson(raw);
     } catch (err) {
       console.warn(
-        `[${meta.id}] skipping unparseable agent file ${org.slug}/${rel}:`,
+        `[${helpers.migrationId}] skipping unparseable agent file ${org.slug}/${rel}:`,
         err,
       );
       continue;
@@ -122,8 +126,20 @@ async function retargetClaudeCodeAgents(
   }
 }
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Default the Claude Code agent to Claude Fable 5 (rolling latest)',
+  description:
+    'For each org with an openrouter provider config, appends the ' +
+    'anthropic/claude-fable-5 and ~anthropic/claude-fable-latest catalog ' +
+    'entries when absent, then retargets every claude-code agent whose ' +
+    'supportedModels still equals the old shipped default ' +
+    '(openrouter:anthropic/claude-opus-4.8) to the new Fable default. ' +
+    'Operator-edited pins and catalog entries are left untouched. down ' +
+    'restores the old pin and removes only the exact entries up added.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { domains: ['agents', 'providers'] },
+
   async up(_ctx, org, helpers) {
     const providerPath = resolveProviderFilePath(org.slug, PROVIDER_SLUG);
     const providerRaw = await helpers.readFileSafe(providerPath);
@@ -173,4 +189,4 @@ export const migration: NodeMigration = {
       await helpers.atomicWrite(providerPath, serializeProviderJson(provider));
     }
   },
-};
+});

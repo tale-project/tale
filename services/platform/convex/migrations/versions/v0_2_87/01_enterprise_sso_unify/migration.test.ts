@@ -1,116 +1,97 @@
 // @vitest-environment node
 
-/**
- * The node migration touches the real filesystem (snapshot + atomicWrite) and
- * decrypts the legacy encrypted credentials, so this test runs in the node
- * environment (the rest of convex/** runs in edge-runtime). It exercises the
- * handler directly with a stub Convex ctx — org enumeration and the configCache
- * sync (which need the Better Auth component / node_runner) are out of scope
- * here and covered by the runner/config_cache tests; this proves the
- * file + secrets export, the decrypt, idempotency, and the fs-snapshot rollback.
- */
-
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, expect, vi } from 'vitest';
 
-import { decryptString } from '../../../../lib/crypto/decrypt_string';
 import { encryptString } from '../../../../lib/crypto/encrypt_string';
+import { atomicWrite, readFileSafe } from '../../../../lib/file_io';
+import { buildModules } from '../../../framework/test_helpers';
 import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { migration } from './index';
-import type { LegacySsoProviderRow } from './legacy_sso';
+  defineMigrationTest,
+  type WorldHandle,
+} from '../../../testing/harness.testkit';
 
-// A valid 32-byte (64 hex char) key so getSecretKey() accepts it; the test owns
-// its own deterministic encryption secret.
-const ENCRYPTION_SECRET_HEX =
-  '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+const DIR = 'migrations/versions/v0_2_87/01_enterprise_sso_unify';
 
-function stubCtx(row: LegacySsoProviderRow | null): NodeMigrationCtx {
-  return {
-    runQuery: async () => row,
-    runAction: async () => null,
-    runMutation: async () => null,
-  };
+// The harness stubs ENCRYPTION_SECRET_HEX (the corpus key) before `seed`
+// runs, so seeding encrypts with the SAME key the handler decrypts with.
+// getSecretKey() prefers ENCRYPTION_SECRET (base64) when present — delete it
+// so a developer-shell value can't shadow the stubbed hex key.
+beforeEach(() => {
+  vi.stubEnv('ENCRYPTION_SECRET', undefined);
+});
+
+function connectionPath(world: WorldHandle, slug: string): string {
+  return path.join(
+    world.configRoot,
+    slug,
+    'governance',
+    'sso',
+    'connection.json',
+  );
+}
+function secretsPath(world: WorldHandle, slug: string): string {
+  return path.join(
+    world.configRoot,
+    slug,
+    'governance',
+    'sso',
+    'connection.secrets.json',
+  );
 }
 
-const ORG = { id: 'org1', slug: 'org1' };
+// Harness ritual: real fleet up (incl. the real sso configCache sync),
+// handler idempotency over migrated state (same files rewritten with the
+// same content), down restoring the seeded world digest — the untouched
+// ssoProviders ciphertext rows AND the (absent) sso/ files — and the ledger.
+defineMigrationTest({
+  id: '0.2.87/01_enterprise_sso_unify',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-async function legacyRow(): Promise<LegacySsoProviderRow> {
-  return {
-    _id: 'p1',
-    organizationId: 'org1',
-    providerId: 'entra-id',
-    issuer: 'https://login.microsoftonline.com/tid/v2.0',
-    clientIdEncrypted: await encryptString('the-client-id'),
-    clientSecretEncrypted: await encryptString('the-client-secret'),
-    scopes: ['openid', 'email', 'profile'],
-    autoProvisionRole: true,
-    roleMappingRules: [
-      { source: 'group', pattern: '*admin*', targetRole: 'admin' },
-    ],
-    defaultRole: 'member',
-    providerFeatures: {
-      entraId: {
-        autoProvisionTeam: true,
-        excludeGroups: ['Everyone'],
-        enableOneDriveAccess: true,
-        domainHint: 'acme.com',
+  async seed(ctx, orgs) {
+    // Encrypted AT SEED TIME with the app's own crypto under the stubbed
+    // world key — the handler must round-trip these back to plaintext.
+    await ctx.db.insert('ssoProviders', {
+      organizationId: orgs[0].id,
+      providerId: 'entra-id',
+      issuer: 'https://login.microsoftonline.com/tid/v2.0',
+      clientIdEncrypted: await encryptString('the-client-id'),
+      clientSecretEncrypted: await encryptString('the-client-secret'),
+      scopes: ['openid', 'email', 'profile'],
+      autoProvisionRole: true,
+      roleMappingRules: [
+        { source: 'group', pattern: '*admin*', targetRole: 'admin' },
+      ],
+      defaultRole: 'member',
+      providerFeatures: {
+        entraId: {
+          autoProvisionTeam: true,
+          excludeGroups: ['Everyone'],
+          enableOneDriveAccess: true,
+          domainHint: 'acme.com',
+        },
       },
-    },
-    createdAt: 1_700_000_000_000,
-    updatedAt: 1_700_000_000_000,
-  };
-}
+      createdAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_000,
+    });
+    // org2 has no legacy ssoProviders row: the per-org no-op path.
+  },
 
-describe('0.2.87/01 enterprise_sso_unify', () => {
-  let dir: string;
+  async expectUp(world) {
+    const [org1, org2] = world.orgs;
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'tale-mig-sso-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-    vi.stubEnv('ENCRYPTION_SECRET_HEX', ENCRYPTION_SECRET_HEX);
-    // getSecretKey() prefers ENCRYPTION_SECRET (base64) when present; unset it
-    // (stubEnv(undefined) deletes the var) so the hex test key is the one used.
-    vi.stubEnv('ENCRYPTION_SECRET', undefined);
-  });
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  const connectionPath = () =>
-    path.join(dir, 'org1', 'governance', 'sso', 'connection.json');
-  const secretsPath = () =>
-    path.join(dir, 'org1', 'governance', 'sso', 'connection.secrets.json');
-
-  it('up writes connection.json mapped from the legacy row', async () => {
-    await migration.up(stubCtx(await legacyRow()), ORG, helpers);
-
-    const connection = JSON.parse(await readFile(connectionPath(), 'utf-8'));
+    // connection.json mapped from the legacy row.
+    const connection = JSON.parse(
+      await readFile(connectionPath(world, org1.slug), 'utf-8'),
+    );
     expect(connection).toMatchObject({
       enabled: true,
       protocol: 'oidc',
@@ -130,63 +111,52 @@ describe('0.2.87/01 enterprise_sso_unify', () => {
       },
     });
     expect(connection.provisioning.roleMappingRules).toHaveLength(1);
-  });
 
-  it('up writes connection.secrets.json with DECRYPTED credentials', async () => {
-    await migration.up(stubCtx(await legacyRow()), ORG, helpers);
-
-    const secrets = JSON.parse(await readFile(secretsPath(), 'utf-8'));
+    // connection.secrets.json carries the DECRYPTED credentials.
+    const secrets = JSON.parse(
+      await readFile(secretsPath(world, org1.slug), 'utf-8'),
+    );
     expect(secrets).toEqual({
       clientId: 'the-client-id',
       clientSecret: 'the-client-secret',
     });
-    // Sanity: the legacy values really were ciphertext (round-trips back).
-    const row = await legacyRow();
-    expect(await decryptString(row.clientIdEncrypted)).toBe('the-client-id');
-  });
 
-  it('a second up is an idempotent no-op (same file content)', async () => {
-    const row = await legacyRow();
-    await migration.up(stubCtx(row), ORG, helpers);
-    const first = await readFile(connectionPath(), 'utf-8');
-    const firstSecrets = await readFile(secretsPath(), 'utf-8');
-
-    await migration.up(stubCtx(row), ORG, helpers);
-    expect(await readFile(connectionPath(), 'utf-8')).toBe(first);
-    expect(await readFile(secretsPath(), 'utf-8')).toBe(firstSecrets);
-  });
-
-  it('up is a no-op for an org with no legacy ssoProviders row', async () => {
-    await migration.up(stubCtx(null), ORG, helpers);
-    expect(await readFileSafe(connectionPath())).toBeNull();
-    expect(await readFileSafe(secretsPath())).toBeNull();
-  });
-
-  it('down restores the pre-migration sso dir from the snapshot', async () => {
-    const row = await legacyRow();
-    // No sso/ files existed before up, so the snapshot is empty and down must
-    // remove the files up created — restoring the prior (empty) state.
-    await migration.up(stubCtx(row), ORG, helpers);
-    expect(await readFileSafe(connectionPath())).not.toBeNull();
-    expect(await readFileSafe(secretsPath())).not.toBeNull();
-
-    await migration.down(stubCtx(row), ORG, helpers);
-    expect(await readFileSafe(connectionPath())).toBeNull();
-    expect(await readFileSafe(secretsPath())).toBeNull();
-  });
-
-  it('down restores prior sso files that existed before up', async () => {
-    // Seed a pre-existing connection.json so the snapshot is non-empty.
-    await atomicWrite(connectionPath(), '{"enabled":false}\n');
-    const row = await legacyRow();
-
-    await migration.up(stubCtx(row), ORG, helpers);
-    // up overwrote it.
-    expect(await readFileSafe(connectionPath())).not.toBe(
-      '{"enabled":false}\n',
+    // The real syncConnectionCache mirrored the file into configCache.
+    const cache = await world.run<Array<Record<string, unknown>>>((ctx) =>
+      ctx.db.query('configCache').collect(),
     );
+    const ssoRows = (orgId: string) =>
+      cache.filter(
+        (row: Record<string, unknown>) =>
+          row.organizationId === orgId && row.domain === 'sso',
+      );
+    expect(
+      ssoRows(org1.id).map((row: Record<string, unknown>) => row.key),
+    ).toEqual(['connection']);
+    expect(ssoRows(org2.id)).toEqual([]);
 
-    await migration.down(stubCtx(row), ORG, helpers);
-    expect(await readFileSafe(connectionPath())).toBe('{"enabled":false}\n');
-  });
+    // org2 had no legacy row — no files appear.
+    expect(await readFileSafe(connectionPath(world, org2.slug))).toBeNull();
+    expect(await readFileSafe(secretsPath(world, org2.slug))).toBeNull();
+  },
+
+  cases: {
+    'down restores prior sso files that existed before up': async (world) => {
+      // Seed a pre-existing connection.json so the snapshot is non-empty.
+      await atomicWrite(
+        connectionPath(world, world.orgs[0].slug),
+        '{"enabled":false}\n',
+      );
+      await world.applyUpOnly();
+      // up overwrote it.
+      expect(
+        await readFileSafe(connectionPath(world, world.orgs[0].slug)),
+      ).not.toBe('{"enabled":false}\n');
+
+      await world.applyDownOnly();
+      expect(
+        await readFileSafe(connectionPath(world, world.orgs[0].slug)),
+      ).toBe('{"enabled":false}\n');
+    },
+  },
 });

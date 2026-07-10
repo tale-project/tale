@@ -1,141 +1,102 @@
 // @vitest-environment node
 
-/**
- * The node migration touches the real filesystem (snapshot + atomicWrite), so
- * this runs in the node environment. It exercises the handler directly with a
- * stub Convex ctx — org enumeration is covered by the runner tests; this proves
- * the brandColor→accentColor merge rules and the fs-snapshot rollback.
- */
-
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
+import { readFileSafe } from '../../../../lib/file_io';
+import { buildModules } from '../../../framework/test_helpers';
 import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { migration } from './index';
+  defineMigrationTest,
+  type WorldHandle,
+} from '../../../testing/harness.testkit';
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const ctx: NodeMigrationCtx = {
-  runQuery: async () => null,
-  runMutation: async () => null,
-  runAction: async () => null,
-};
+const DIR = 'migrations/versions/v0_3_4/01_branding_single_accent_color';
 
-const ORG = { id: 'org1', slug: 'org1' };
+function brandingPath(world: WorldHandle, slug: string): string {
+  return path.join(world.configRoot, slug, 'branding', 'branding.json');
+}
 
-describe('0.3.4/01 branding_single_accent_color', () => {
-  let dir: string;
+async function writeBranding(
+  world: WorldHandle,
+  config: string,
+): Promise<string> {
+  const filePath = brandingPath(world, world.orgs[0].slug);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, config, 'utf-8');
+  return filePath;
+}
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'tale-mig-branding-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-  });
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
+// Harness ritual: real fleet up, destructive gating, handler idempotency over
+// migrated state (a rewritten file has no brandColor key), down restoring the
+// two-field file byte-for-byte from the fs-tree snapshot.
+defineMigrationTest({
+  id: '0.3.4/01_branding_single_accent_color',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-  const filePath = () => path.join(dir, 'org1', 'branding', 'branding.json');
+  async seedFs(root, orgs) {
+    const dir = path.join(root, orgs[0].slug, 'branding');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'branding.json'),
+      JSON.stringify({ brandColor: '#FF0055', logoFilename: 'logo.png' }),
+      'utf-8',
+    );
+    // org2 gets no branding file: the per-org no-op path.
+  },
 
-  async function writeBranding(config: Record<string, unknown>): Promise<void> {
-    await mkdir(path.dirname(filePath()), { recursive: true });
-    await writeFile(filePath(), JSON.stringify(config), 'utf-8');
-  }
+  async expectUp(world) {
+    const [org1, org2] = world.orgs;
+    // A lone brandColor maps onto accentColor and the key is dropped.
+    expect(
+      JSON.parse(await readFile(brandingPath(world, org1.slug), 'utf-8')),
+    ).toEqual({ accentColor: '#FF0055', logoFilename: 'logo.png' });
+    // No branding file → nothing appears.
+    expect(await readFileSafe(brandingPath(world, org2.slug))).toBeNull();
+  },
 
-  async function readBranding(): Promise<Record<string, unknown>> {
-    return JSON.parse(await readFile(filePath(), 'utf-8'));
-  }
+  cases: {
+    'keeps an explicitly-set accentColor when both fields are set': async (
+      world,
+    ) => {
+      const filePath = await writeBranding(
+        world,
+        JSON.stringify({ brandColor: '#FF0055', accentColor: '#00AA66' }),
+      );
+      await world.applyUpOnly();
+      expect(JSON.parse(await readFile(filePath, 'utf-8'))).toEqual({
+        accentColor: '#00AA66',
+      });
+    },
 
-  it('maps a lone brandColor onto accentColor and drops the key', async () => {
-    await writeBranding({ brandColor: '#FF0055', logoFilename: 'logo.png' });
+    'treats an empty-string accentColor as unset': async (world) => {
+      const filePath = await writeBranding(
+        world,
+        JSON.stringify({ brandColor: '#FF0055', accentColor: '' }),
+      );
+      await world.applyUpOnly();
+      expect(JSON.parse(await readFile(filePath, 'utf-8'))).toEqual({
+        accentColor: '#FF0055',
+      });
+    },
 
-    await migration.up(ctx, ORG, helpers);
-
-    expect(await readBranding()).toEqual({
-      accentColor: '#FF0055',
-      logoFilename: 'logo.png',
-    });
-  });
-
-  it('keeps an explicitly-set accentColor when both fields are set', async () => {
-    await writeBranding({ brandColor: '#FF0055', accentColor: '#00AA66' });
-
-    await migration.up(ctx, ORG, helpers);
-
-    expect(await readBranding()).toEqual({ accentColor: '#00AA66' });
-  });
-
-  it('treats an empty-string accentColor as unset', async () => {
-    await writeBranding({ brandColor: '#FF0055', accentColor: '' });
-
-    await migration.up(ctx, ORG, helpers);
-
-    expect(await readBranding()).toEqual({ accentColor: '#FF0055' });
-  });
-
-  it('is a no-op when the org has no branding file', async () => {
-    await migration.up(ctx, ORG, helpers);
-    expect(await readFileSafe(filePath())).toBeNull();
-  });
-
-  it('is idempotent — a second run leaves the migrated file unchanged', async () => {
-    await writeBranding({ brandColor: '#FF0055' });
-
-    await migration.up(ctx, ORG, helpers);
-    const first = await readFile(filePath(), 'utf-8');
-    await migration.up(ctx, ORG, helpers);
-
-    expect(await readFile(filePath(), 'utf-8')).toBe(first);
-  });
-
-  it('leaves an unparseable branding.json untouched', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      await mkdir(path.dirname(filePath()), { recursive: true });
-      await writeFile(filePath(), 'not json', 'utf-8');
-
-      await migration.up(ctx, ORG, helpers);
-
-      expect(await readFile(filePath(), 'utf-8')).toBe('not json');
-      expect(warn).toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it('down restores the pre-migration branding dir from the snapshot', async () => {
-    await writeBranding({ brandColor: '#FF0055', accentColor: '#00AA66' });
-
-    await migration.up(ctx, ORG, helpers);
-    expect(await readBranding()).toEqual({ accentColor: '#00AA66' });
-
-    await migration.down(ctx, ORG, helpers);
-    expect(await readBranding()).toEqual({
-      brandColor: '#FF0055',
-      accentColor: '#00AA66',
-    });
-  });
+    'leaves an unparseable branding.json untouched': async (world) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const filePath = await writeBranding(world, 'not json');
+        await world.applyUpOnly();
+        expect(await readFile(filePath, 'utf-8')).toBe('not json');
+        expect(warn).toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  },
 });

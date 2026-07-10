@@ -1,40 +1,45 @@
 // @vitest-environment node
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+/**
+ * Runs the REAL retire path end to end: the world carries the modern
+ * `automationInstallations` row (the migration's lookup) plus the legacy
+ * `<org>/apps/issue-desk/` tree, and `up` drives the real unbind/uninstall
+ * core. Two environment notes:
+ *
+ *  - TALE_CONFIG_BUILTIN_DIR is stubbed to a nonexistent root so the retired
+ *    bundle deterministically resolves as catalog-missing (production truth:
+ *    issue-desk left the builtin catalog) — the uninstall core then skips the
+ *    manifest-driven deregistration and only removes rows/files it can prove.
+ *  - the schema extends the world schema with `workflowEnv`: the uninstall
+ *    core's env sweep queries it by index, and convex-test refuses index
+ *    queries on undeclared tables.
+ */
+
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { getFunctionName } from 'convex/server';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineSchema } from 'convex/server';
+import { beforeEach, expect, vi } from 'vitest';
 
-import { internal } from '../../../../_generated/api';
+import { readFileSafe, sha256 } from '../../../../lib/file_io';
+import { workflowEnvTable } from '../../../../workflows/schema';
+import { buildModules } from '../../../framework/test_helpers';
 import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { APP_SLUG, RETIRE_MARKER, migration } from './index';
+  defineMigrationTest,
+  type WorldHandle,
+} from '../../../testing/harness.testkit';
+import { worldSchema } from '../../../testing/world_schema.testkit';
+import { APP_SLUG, RETIRE_MARKER } from './migration';
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const ORG = { id: 'org1', slug: 'org1' };
-const PROJECT = { id: 'project1', name: 'Engineering' };
+const DIR = 'migrations/versions/v0_2_92/01_retire_issue_desk';
+
+const EPOCH = 1_717_000_000_000;
+const PROJECT_NAME = 'Engineering';
 
 const APP_JSON = JSON.stringify({
   name: 'Resolve GitHub issues',
@@ -54,210 +59,209 @@ const DESK_IMPLEMENTER_JSON = JSON.stringify({
 });
 const DESK_REVIEWER_JSON = JSON.stringify({ displayName: 'Desk Reviewer' });
 
-const FN = {
-  getInstallation: getFunctionName(
-    internal.automations.install_mutations.getAutomationInstallationInternal,
-  ),
-  listBindings: getFunctionName(
-    internal.automations.install_mutations.listAutomationBindingsInternal,
-  ),
-  getProject: getFunctionName(
-    internal.projects.internal_queries.getProjectForInjection,
-  ),
-  deleteProjectSchedules: getFunctionName(
-    internal.automations.install_mutations.deleteProjectSchedules,
-  ),
-  unbind: getFunctionName(
-    internal.automations.install_mutations.unbindAutomationFromProject,
-  ),
-  bind: getFunctionName(
-    internal.automations.install_mutations.bindAutomationToProject,
-  ),
-  upsertWorkflow: getFunctionName(
-    internal.workflows.installations.upsertInstallation,
-  ),
-  upsertAgent: getFunctionName(
-    internal.agents.installations.upsertInstallation,
-  ),
-  upsertAutomationInstallation: getFunctionName(
-    internal.automations.install_mutations.upsertAutomationInstallation,
-  ),
-  reconcileSchedules: getFunctionName(
-    internal.automations.install_mutations.reconcileAutomationSchedules,
-  ),
-  uninstall: getFunctionName(
-    internal.automations.install_actions.uninstallAutomationInternal,
-  ),
-};
+// The retired bundle is gone from the builtin catalog by design; point the
+// catalog root somewhere empty so a developer-shell value can't resurrect it.
+beforeEach(() => {
+  vi.stubEnv(
+    'TALE_CONFIG_BUILTIN_DIR',
+    path.join(path.sep, 'nonexistent', 'tale-builtin-catalog'),
+  );
+});
 
-interface FakeState {
-  installed: boolean;
-  bindings: Array<{ projectId: string }>;
-  calls: Record<string, Array<Record<string, unknown>>>;
+function appDir(world: WorldHandle): string {
+  return path.join(world.configRoot, world.orgs[0].slug, 'apps', APP_SLUG);
 }
 
-function record(state: FakeState, name: string, args: unknown): void {
-  (state.calls[name] ??= []).push(args as Record<string, unknown>);
-}
+defineMigrationTest({
+  id: '0.2.92/01_retire_issue_desk',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  // The uninstall core sweeps `workflowEnv` (see the file header).
+  schema: defineSchema({
+    ...worldSchema.tables,
+    workflowEnv: workflowEnvTable,
+  }),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-function fakeCtx(state: FakeState, appDir: string): NodeMigrationCtx {
-  return {
-    runQuery: async (ref: unknown, args: Record<string, unknown>) => {
-      const name = getFunctionName(ref as never);
-      if (name === FN.getInstallation) return state.installed ? {} : null;
-      if (name === FN.listBindings) return state.bindings;
-      if (name === FN.getProject) {
-        return args.projectId === PROJECT.id
-          ? { _id: PROJECT.id, name: PROJECT.name }
-          : null;
-      }
-      throw new Error(`unexpected runQuery(${name})`);
-    },
-    runMutation: async (ref: unknown, args: Record<string, unknown>) => {
-      const name = getFunctionName(ref as never);
-      record(state, name, args);
-      return { ok: true };
-    },
-    runAction: async (ref: unknown, args: Record<string, unknown>) => {
-      const name = getFunctionName(ref as never);
-      record(state, name, args);
-      if (name === FN.uninstall) {
-        // Mirrors uninstallAutomationInternal's file removal.
-        await rm(appDir, { recursive: true, force: true });
-      }
-      return { ok: true };
-    },
-  };
-}
+  async seed(ctx, orgs) {
+    const orgId = orgs[0].id;
+    const projectId = await ctx.db.insert('projects', {
+      organizationId: orgId,
+      name: PROJECT_NAME,
+      createdBy: 'user_admin',
+      createdAt: EPOCH,
+      updatedAt: EPOCH,
+    });
+    await ctx.db.insert('automationInstallations', {
+      organizationId: orgId,
+      automationSlug: APP_SLUG,
+      automationName: 'Resolve GitHub issues',
+      installedAt: EPOCH,
+      installedBy: 'user_admin',
+      status: 'active',
+      resources: [],
+      requiredIntegrations: ['github'],
+    });
+    await ctx.db.insert('automationProjectBindings', {
+      organizationId: orgId,
+      automationSlug: APP_SLUG,
+      projectId,
+      boundAt: EPOCH,
+      boundBy: 'user_admin',
+    });
+    // The ownership ledger rows deleteProjectSchedules resolves slugs from.
+    // contentHash = sha256(bundle file bytes): down re-hashes the restored
+    // files, so the seeded hash must be the true one for the round-trip.
+    await ctx.db.insert('wfInstallations', {
+      organizationId: orgId,
+      workflowSlug: `${APP_SLUG}/desk-process`,
+      installedAt: EPOCH,
+      installedBy: 'user_admin',
+      contentHash: sha256(DESK_PROCESS_JSON),
+      automationSlug: APP_SLUG,
+    });
+    await ctx.db.insert('wfInstallations', {
+      organizationId: orgId,
+      workflowSlug: `${APP_SLUG}/reconcile`,
+      installedAt: EPOCH,
+      installedBy: 'user_admin',
+      contentHash: sha256(RECONCILE_JSON),
+      automationSlug: APP_SLUG,
+    });
+    await ctx.db.insert('wfSchedules', {
+      organizationId: orgId,
+      projectId,
+      workflowSlug: `${APP_SLUG}/reconcile`,
+      cronExpression: '*/15 * * * *',
+      timezone: 'UTC',
+      isActive: true,
+      createdAt: EPOCH,
+      createdBy: 'system',
+      // No operator overrides: down's reconcile deliberately restores {}.
+      variables: {},
+    });
+    await ctx.db.insert('agentInstallations', {
+      organizationId: orgId,
+      agentSlug: `${APP_SLUG}/desk-implementer`,
+      installedAt: EPOCH,
+      installedBy: 'user_admin',
+      contentHash: sha256(DESK_IMPLEMENTER_JSON),
+      enabled: true,
+      automationSlug: APP_SLUG,
+    });
+    await ctx.db.insert('agentInstallations', {
+      organizationId: orgId,
+      agentSlug: `${APP_SLUG}/desk-reviewer`,
+      installedAt: EPOCH,
+      installedBy: 'user_admin',
+      contentHash: sha256(DESK_REVIEWER_JSON),
+      enabled: true,
+      automationSlug: APP_SLUG,
+    });
+    // org2 has neither the install row nor the tree: the per-org no-op path
+    // for up AND for down (restoreFsTree finds no snapshot).
+  },
 
-describe('0.2.92/01 retire_issue_desk', () => {
-  let dir: string;
-  let appDir: string;
-
-  beforeEach(async () => {
-    dir = await mkdtempSafe();
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-    appDir = path.join(dir, ORG.slug, 'apps', APP_SLUG);
-    await mkdir(path.join(appDir, 'agents'), { recursive: true });
-    await mkdir(path.join(appDir, 'workflows', APP_SLUG), { recursive: true });
-    await writeFile(path.join(appDir, 'app.json'), APP_JSON, 'utf8');
-    await writeFile(path.join(appDir, 'icon.svg'), '<svg/>', 'utf8');
+  async seedFs(root, orgs) {
+    const dir = path.join(root, orgs[0].slug, 'apps', APP_SLUG);
+    await mkdir(path.join(dir, 'agents'), { recursive: true });
+    await mkdir(path.join(dir, 'workflows', APP_SLUG), { recursive: true });
+    await writeFile(path.join(dir, 'app.json'), APP_JSON, 'utf8');
+    await writeFile(path.join(dir, 'icon.svg'), '<svg/>', 'utf8');
     await writeFile(
-      path.join(appDir, 'agents', 'desk-implementer.json'),
+      path.join(dir, 'agents', 'desk-implementer.json'),
       DESK_IMPLEMENTER_JSON,
       'utf8',
     );
     await writeFile(
-      path.join(appDir, 'agents', 'desk-reviewer.json'),
+      path.join(dir, 'agents', 'desk-reviewer.json'),
       DESK_REVIEWER_JSON,
       'utf8',
     );
     await writeFile(
-      path.join(appDir, 'workflows', APP_SLUG, 'desk-process.json'),
+      path.join(dir, 'workflows', APP_SLUG, 'desk-process.json'),
       DESK_PROCESS_JSON,
       'utf8',
     );
     await writeFile(
-      path.join(appDir, 'workflows', APP_SLUG, 'reconcile.json'),
+      path.join(dir, 'workflows', APP_SLUG, 'reconcile.json'),
       RECONCILE_JSON,
       'utf8',
     );
-  });
+  },
 
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
+  // down re-registers rows through the shared upsert/bind/reconcile mutations,
+  // which stamp wall-clock times and the RETIRE_MARKER actor by design (the
+  // meta documents both); the data content itself must round-trip exactly.
+  equality: {
+    dropFields: {
+      automationInstallations: ['installedAt', 'installedBy'],
+      automationProjectBindings: ['boundAt', 'boundBy'],
+      wfInstallations: ['installedAt', 'installedBy'],
+      agentInstallations: ['installedAt', 'installedBy'],
+      wfSchedules: ['createdAt'],
+    },
+  },
 
-  async function mkdtempSafe(): Promise<string> {
-    const { mkdtemp } = await import('node:fs/promises');
-    return mkdtemp(path.join(tmpdir(), 'tale-mig-retireissuedesk-'));
-  }
+  async expectUp(world) {
+    const rows = await world.run(async (ctx) => ({
+      installs: await ctx.db.query('automationInstallations').collect(),
+      bindings: await ctx.db.query('automationProjectBindings').collect(),
+      schedules: await ctx.db.query('wfSchedules').collect(),
+      workflows: await ctx.db.query('wfInstallations').collect(),
+      agents: await ctx.db.query('agentInstallations').collect(),
+    }));
+    // Unbound, schedule deleted, install row gone.
+    expect(rows.installs).toEqual([]);
+    expect(rows.bindings).toEqual([]);
+    expect(rows.schedules).toEqual([]);
+    // The retired bundle is absent from the catalog, so the uninstall core
+    // cannot read a manifest — the workflow/agent registration rows survive
+    // (today's real behaviour) and are re-stamped by down's upserts.
+    expect(rows.workflows).toHaveLength(2);
+    expect(rows.agents).toHaveLength(2);
 
-  it('is a no-op for an org without issue-desk installed', async () => {
-    const state: FakeState = { installed: false, bindings: [], calls: {} };
-    await migration.up(fakeCtx(state, appDir), ORG, helpers);
-    expect(state.calls[FN.uninstall]).toBeUndefined();
-    // The directory this test seeded is untouched (up never even looked at it).
-    expect(await readFileSafe(path.join(appDir, 'app.json'))).toBe(APP_JSON);
-  });
-
-  it('up unbinds every project, uninstalls, and removes the directory', async () => {
-    const state: FakeState = {
-      installed: true,
-      bindings: [{ projectId: PROJECT.id }],
-      calls: {},
-    };
-    await migration.up(fakeCtx(state, appDir), ORG, helpers);
-
-    expect(state.calls[FN.deleteProjectSchedules]).toEqual([
-      {
-        organizationId: ORG.id,
-        automationSlug: APP_SLUG,
-        projectId: PROJECT.id,
-      },
-    ]);
-    expect(state.calls[FN.unbind]).toEqual([
-      {
-        organizationId: ORG.id,
-        automationSlug: APP_SLUG,
-        projectId: PROJECT.id,
-      },
-    ]);
-    expect(state.calls[FN.uninstall]).toEqual([
-      { organizationId: ORG.id, automationSlug: APP_SLUG },
-    ]);
-    expect(await readFileSafe(path.join(appDir, 'app.json'))).toBeNull();
-  });
-
-  it('down restores the directory, re-registers rows, and rebinds projects', async () => {
-    const state: FakeState = {
-      installed: true,
-      bindings: [{ projectId: PROJECT.id }],
-      calls: {},
-    };
-    await migration.up(fakeCtx(state, appDir), ORG, helpers);
-    await migration.down(fakeCtx(state, appDir), ORG, helpers);
-
-    expect(await readFile(path.join(appDir, 'app.json'), 'utf8')).toBe(
+    // The bound-project sidecar rode into the snapshot and stays on disk
+    // (the modern uninstall removes automations/, never the legacy apps/).
+    const sidecar = await readFileSafe(
+      path.join(appDir(world), '.migration-v0_2_92-bindings.json'),
+    );
+    expect(sidecar).not.toBeNull();
+    expect(JSON.parse(sidecar ?? '')).toMatchObject({
+      boundProjects: [expect.objectContaining({ name: PROJECT_NAME })],
+    });
+    expect(await readFileSafe(path.join(appDir(world), 'app.json'))).toBe(
       APP_JSON,
     );
+
+    // org2 was skipped entirely.
+    expect(
+      await readFileSafe(
+        path.join(
+          world.configRoot,
+          world.orgs[1].slug,
+          'apps',
+          APP_SLUG,
+          'app.json',
+        ),
+      ),
+    ).toBeNull();
+  },
+
+  async expectDown(world) {
     // The bookkeeping sidecar never survives into the restored bundle.
     expect(
-      await readFileSafe(path.join(appDir, '.migration-v0_2_92-bindings.json')),
+      await readFileSafe(
+        path.join(appDir(world), '.migration-v0_2_92-bindings.json'),
+      ),
     ).toBeNull();
 
-    expect(state.calls[FN.upsertWorkflow]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          organizationId: ORG.id,
-          workflowSlug: 'issue-desk/desk-process',
-          installedBy: RETIRE_MARKER,
-          automationSlug: APP_SLUG,
-        }),
-        expect.objectContaining({
-          organizationId: ORG.id,
-          workflowSlug: 'issue-desk/reconcile',
-          installedBy: RETIRE_MARKER,
-          automationSlug: APP_SLUG,
-        }),
-      ]),
-    );
-    expect(state.calls[FN.upsertAgent]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          agentSlug: 'issue-desk/desk-implementer',
-          installedBy: RETIRE_MARKER,
-        }),
-        expect.objectContaining({
-          agentSlug: 'issue-desk/desk-reviewer',
-          installedBy: RETIRE_MARKER,
-        }),
-      ]),
-    );
-    expect(state.calls[FN.upsertAutomationInstallation]).toEqual([
+    const rows = await world.run(async (ctx) => ({
+      installs: await ctx.db.query('automationInstallations').collect(),
+      bindings: await ctx.db.query('automationProjectBindings').collect(),
+      schedules: await ctx.db.query('wfSchedules').collect(),
+    }));
+    expect(rows.installs).toEqual([
       expect.objectContaining({
-        organizationId: ORG.id,
         automationSlug: APP_SLUG,
         automationName: 'Resolve GitHub issues',
         installedBy: RETIRE_MARKER,
@@ -266,40 +270,22 @@ describe('0.2.92/01 retire_issue_desk', () => {
         requiredIntegrations: ['github'],
       }),
     ]);
-    expect(state.calls[FN.bind]).toEqual([
-      {
-        organizationId: ORG.id,
+    expect(rows.bindings).toEqual([
+      expect.objectContaining({
         automationSlug: APP_SLUG,
-        projectId: PROJECT.id,
         boundBy: RETIRE_MARKER,
-      },
+      }),
     ]);
-    expect(state.calls[FN.reconcileSchedules]).toEqual([
-      {
-        organizationId: ORG.id,
-        automationSlug: APP_SLUG,
-        desired: [
-          {
-            workflowSlug: 'issue-desk/reconcile',
-            cronExpression: '*/15 * * * *',
-            timezone: 'UTC',
-            projectId: PROJECT.id,
-            variables: {},
-          },
-        ],
-      },
+    // The reconcile schedule is rebuilt from the restored file's declared
+    // spec; operator variable overrides are NOT restored (meta-documented).
+    expect(rows.schedules).toEqual([
+      expect.objectContaining({
+        workflowSlug: `${APP_SLUG}/reconcile`,
+        cronExpression: '*/15 * * * *',
+        timezone: 'UTC',
+        isActive: true,
+        variables: {},
+      }),
     ]);
-  });
-
-  it('down is a no-op when the org never had issue-desk (nothing was snapshotted)', async () => {
-    const state: FakeState = { installed: false, bindings: [], calls: {} };
-    // Never ran `up` — no snapshot exists for this org under this migration id.
-    await migration.down(fakeCtx(state, appDir), ORG, helpers);
-    expect(state.calls[FN.upsertAutomationInstallation]).toBeUndefined();
-    expect(state.calls[FN.bind]).toBeUndefined();
-    // The directory this test seeded (never touched by `up`) is untouched.
-    expect(await readFile(path.join(appDir, 'app.json'), 'utf8')).toBe(
-      APP_JSON,
-    );
-  });
+  },
 });

@@ -1,8 +1,34 @@
 'use node';
 
 /**
- * Node migration: retire the `issue-desk` builtin app, org by org. See
- * {@link meta}.
+ * 0.2.92 / 01 — retire the `issue-desk` builtin app, org by org.
+ *
+ * `issue-desk` left the builtin catalog (`builtin-configs/apps/`), replaced by
+ * the "Resolve GitHub issues" bundle (`resolve-github-issues`, four hidden
+ * member automations: triage-github-issues, sync-github-issues,
+ * create-github-pr, review-github-pr). Uninstall-only by design — this
+ * migration does NOT install the new bundle; an admin re-installs it where
+ * wanted.
+ *
+ * Per org that has `issue-desk` installed: snapshots its on-disk app
+ * directory (`<org>/apps/issue-desk/` — the manifest, both agents, and both
+ * workflows all live there; nothing fans out to a shared domain dir, so one
+ * `fs-tree` snapshot covers the whole bundle), records which projects had it
+ * bound (a small sidecar JSON written into that same directory before the
+ * snapshot, so ONE snapshot call also preserves the binding list), then runs
+ * the ordinary uninstall core: unbind every bound project (deleting each
+ * project's `issue-desk/reconcile` schedule first, since `uninstallAutomation`
+ * refuses while any binding remains), deregister the two workflows and two
+ * agents, sweep their env/secrets, delete the copied files, and delete the
+ * install row. `down` restores the snapshotted directory, recreates the
+ * `wfInstallations` / `agentInstallations` / `appInstallations` rows by
+ * re-hashing the restored files (the builtin catalog copy is GONE by design,
+ * so the normal reinstall path — which copies FROM the catalog — cannot run
+ * any more; this is why the fs-tree snapshot is retained rather than treated
+ * as a disposable rollback aid), and rebinds every project the sidecar
+ * recorded. Schedule variables an operator had customized (owner/repo/test
+ * command/repo notes) are NOT restored by `down` — same as any fresh
+ * install/bind, the operator re-enters them once.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -14,14 +40,12 @@ import {
   sha256,
   validateOrgSlug,
 } from '../../../../lib/file_io';
-import type {
-  NodeMigration,
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { meta } from './meta';
+import { defineNodeMigration } from '../../../framework/define';
 
 export const APP_SLUG = 'issue-desk';
+
+/** This migration's stable id, used as the log prefix. */
+const MIGRATION_ID = '0.2.92/01_retire_issue_desk';
 
 /** `<basename>` (no `.json`) of the app's two bundled workflows. */
 const WORKFLOW_NAMES = ['desk-process', 'reconcile'] as const;
@@ -68,26 +92,46 @@ async function readJsonSafe(filePath: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch (err) {
-    console.warn(`[${meta.id}] could not read/parse ${filePath}:`, err);
+    console.warn(`[${MIGRATION_ID}] could not read/parse ${filePath}:`, err);
     return null;
   }
 }
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Retire the issue-desk builtin app',
+  description:
+    'For every org with `issue-desk` installed: snapshots its app directory ' +
+    '(fs-tree) plus the bound-project list, unbinds every project (deleting ' +
+    "each project's issue-desk/reconcile schedule), then runs the ordinary " +
+    'uninstall core (deregister workflows/agents, sweep env/secrets, delete ' +
+    'files, delete the install row). Does NOT install the replacement ' +
+    '"Resolve GitHub issues" bundle — an admin re-installs it. down restores ' +
+    'the app directory and re-registers the workflows/agents/install row/' +
+    'project bindings from the restored files; per-schedule operator ' +
+    'variable overrides are not restored (re-enter them, as with any fresh ' +
+    'install).',
+  destructive: true,
+  snapshot: 'fs-tree',
+  subjects: {
+    tables: [
+      'automationInstallations',
+      'automationProjectBindings',
+      'projects',
+      'wfInstallations',
+      'wfSchedules',
+      'agentInstallations',
+    ],
+    domains: ['apps'],
+  },
 
-  async up(
-    ctx: NodeMigrationCtx,
-    org: { id: string; slug: string },
-    helpers: NodeMigrationHelpers,
-  ) {
+  async up(ctx, org, helpers) {
     const install: unknown = await ctx.runQuery(
       internal.automations.install_mutations.getAutomationInstallationInternal,
       { organizationId: org.id, automationSlug: APP_SLUG },
     );
     if (!install) {
       console.log(
-        `[${meta.id}] ${org.slug}: issue-desk not installed, skipping`,
+        `[${MIGRATION_ID}] ${org.slug}: issue-desk not installed, skipping`,
       );
       return;
     }
@@ -119,7 +163,7 @@ export const migration: NodeMigration = {
       path.join(dir, BINDINGS_SIDECAR),
       JSON.stringify({ boundProjects }),
     );
-    await helpers.snapshotFsTree(meta.id, org.slug, dir);
+    await helpers.snapshotFsTree(dir);
 
     for (const binding of bindings) {
       await ctx.runMutation(
@@ -141,7 +185,7 @@ export const migration: NodeMigration = {
     }
 
     console.log(
-      `[${meta.id}] ${org.slug}: retiring issue-desk (bound projects: ` +
+      `[${MIGRATION_ID}] ${org.slug}: retiring issue-desk (bound projects: ` +
         `${boundProjects.length > 0 ? boundProjects.map((p) => p.name).join(', ') : 'none'})`,
     );
 
@@ -154,13 +198,9 @@ export const migration: NodeMigration = {
     );
   },
 
-  async down(
-    ctx: NodeMigrationCtx,
-    org: { id: string; slug: string },
-    helpers: NodeMigrationHelpers,
-  ) {
+  async down(ctx, org, helpers) {
     const dir = legacyAppDir(org.slug);
-    await helpers.restoreFsTree(meta.id, org.slug, dir);
+    await helpers.restoreFsTree(dir);
 
     const sidecarPath = path.join(dir, BINDINGS_SIDECAR);
     const raw = await helpers.readFileSafe(sidecarPath);
@@ -283,9 +323,9 @@ export const migration: NodeMigration = {
     }
 
     console.log(
-      `[${meta.id}] ${org.slug}: restored issue-desk (bound projects: ` +
+      `[${MIGRATION_ID}] ${org.slug}: restored issue-desk (bound projects: ` +
         `${boundProjects.length > 0 ? boundProjects.map((p) => p.name).join(', ') : 'none'}) — ` +
         'per-schedule operator variables (owner/repo/testCommand/repoNotes) were not restored.',
     );
   },
-};
+});

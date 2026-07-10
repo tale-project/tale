@@ -1,55 +1,28 @@
 // @vitest-environment node
 
-/**
- * Filesystem-touching node migration → node environment. Exercises the handler
- * directly against a tmp TALE_CONFIG_DIR with the real fs helpers; proves the
- * catalog append + pin retarget, the operator-edit guards, idempotency, and
- * the exact in-place inverse. Org enumeration is covered by the runner tests.
- */
-
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
+import { readFileSafe } from '../../../../lib/file_io';
+import { buildModules } from '../../../framework/test_helpers';
 import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
+  defineMigrationTest,
+  type WorldHandle,
+} from '../../../testing/harness.testkit';
 import {
   FABLE_CATALOG_MODELS,
-  migration,
   NEW_SUPPORTED_MODELS,
   OLD_SUPPORTED_MODELS,
-} from './index';
+} from './migration';
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const ctx: NodeMigrationCtx = {
-  runQuery: async () => null,
-  runAction: async () => null,
-  runMutation: async () => null,
-};
-
-const ORG = { id: 'org1', slug: 'org1' };
+const DIR = 'migrations/versions/v0_2_89/03_claude_code_fable_default';
 
 const PROVIDER_FIXTURE = {
   displayName: 'OpenRouter',
@@ -78,130 +51,136 @@ const AGENT_FIXTURE = {
   },
 };
 
-describe('0.2.89/03 claude_code_fable_default', () => {
-  let dir: string;
+function providerPath(world: WorldHandle, slug: string): string {
+  return path.join(world.configRoot, slug, 'providers', 'openrouter.json');
+}
+function agentPath(world: WorldHandle, slug: string): string {
+  return path.join(
+    world.configRoot,
+    slug,
+    'agents',
+    'chat',
+    'claude-code.json',
+  );
+}
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'tale-mig-ccfable-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-  });
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
+async function readJson(p: string): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(p, 'utf-8')) as Record<string, unknown>;
+}
 
-  const providerPath = () =>
-    path.join(dir, 'org1', 'providers', 'openrouter.json');
-  const agentPath = () =>
-    path.join(dir, 'org1', 'agents', 'chat', 'claude-code.json');
+function modelIds(provider: Record<string, unknown>): string[] {
+  return (provider.models as { id: string }[]).map((m) => m.id);
+}
 
-  async function seed(
-    provider: object | null = PROVIDER_FIXTURE,
-    agent: object | null = AGENT_FIXTURE,
-  ): Promise<void> {
-    if (provider) {
-      await mkdir(path.dirname(providerPath()), { recursive: true });
-      await writeFile(providerPath(), JSON.stringify(provider, null, 2));
-    }
-    if (agent) {
-      await mkdir(path.dirname(agentPath()), { recursive: true });
-      await writeFile(agentPath(), JSON.stringify(agent, null, 2));
-    }
-  }
+// Harness ritual: real fleet up, handler idempotency over migrated state
+// (second pass appends nothing, retargets nothing), and down restoring the
+// seeded world — this migration is its own exact in-place inverse
+// (snapshot: 'none'), so the digest equality proves the inverse precisely.
+defineMigrationTest({
+  id: '0.2.89/03_claude_code_fable_default',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-  async function readJson(p: string): Promise<Record<string, unknown>> {
-    const raw = await readFileSafe(p);
-    if (raw === null) throw new Error(`expected file at ${p}`);
-    return JSON.parse(raw) as Record<string, unknown>;
-  }
+  async seedFs(root, orgs) {
+    // org1: the full path — provider catalog + shipped-default agent pin.
+    const providerDir = path.join(root, orgs[0].slug, 'providers');
+    const agentDir = path.join(root, orgs[0].slug, 'agents', 'chat');
+    await mkdir(providerDir, { recursive: true });
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(
+      path.join(providerDir, 'openrouter.json'),
+      JSON.stringify(PROVIDER_FIXTURE, null, 2),
+    );
+    await writeFile(
+      path.join(agentDir, 'claude-code.json'),
+      JSON.stringify(AGENT_FIXTURE, null, 2),
+    );
+    // org2: an old-pin agent but NO openrouter provider — the org must be
+    // skipped entirely (the new pin could never resolve).
+    const org2AgentDir = path.join(root, orgs[1].slug, 'agents', 'chat');
+    await mkdir(org2AgentDir, { recursive: true });
+    await writeFile(
+      path.join(org2AgentDir, 'claude-code.json'),
+      JSON.stringify(AGENT_FIXTURE, null, 2),
+    );
+  },
 
-  it('up appends both Fable catalog entries and retargets the default pin', async () => {
-    await seed();
-    await migration.up(ctx, ORG, helpers);
+  async expectUp(world) {
+    const [org1, org2] = world.orgs;
 
-    const provider = await readJson(providerPath());
-    const ids = (provider.models as { id: string }[]).map((m) => m.id);
-    expect(ids).toEqual([
+    // Both Fable entries appended; the shipped-default pin retargeted.
+    const provider = await readJson(providerPath(world, org1.slug));
+    expect(modelIds(provider)).toEqual([
       'anthropic/claude-opus-4.8',
       'anthropic/claude-fable-5',
       '~anthropic/claude-fable-latest',
     ]);
-
-    const agent = await readJson(agentPath());
+    const agent = await readJson(agentPath(world, org1.slug));
     expect(agent.supportedModels).toEqual(NEW_SUPPORTED_MODELS);
-  });
 
-  it('up is idempotent — a second run adds nothing and changes nothing', async () => {
-    await seed();
-    await migration.up(ctx, ORG, helpers);
-    const providerAfterFirst = await readFileSafe(providerPath());
-    const agentAfterFirst = await readFileSafe(agentPath());
+    // org2 has no openrouter provider: no catalog appears, pin untouched.
+    expect(await readFileSafe(providerPath(world, org2.slug))).toBeNull();
+    const org2Agent = await readJson(agentPath(world, org2.slug));
+    expect(org2Agent.supportedModels).toEqual(OLD_SUPPORTED_MODELS);
+  },
 
-    await migration.up(ctx, ORG, helpers);
-    expect(await readFileSafe(providerPath())).toEqual(providerAfterFirst);
-    expect(await readFileSafe(agentPath())).toEqual(agentAfterFirst);
-  });
+  cases: {
+    'up leaves an operator-edited pin untouched (still appends the catalog)':
+      async (world) => {
+        const edited = {
+          ...AGENT_FIXTURE,
+          supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        };
+        await writeFile(
+          agentPath(world, world.orgs[0].slug),
+          JSON.stringify(edited, null, 2),
+        );
+        await world.applyUpOnly();
 
-  it('up leaves an operator-edited pin untouched (still appends the catalog)', async () => {
-    const edited = {
-      ...AGENT_FIXTURE,
-      supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
-    };
-    await seed(PROVIDER_FIXTURE, edited);
-    await migration.up(ctx, ORG, helpers);
-
-    const agent = await readJson(agentPath());
-    expect(agent.supportedModels).toEqual([
-      'openrouter:anthropic/claude-sonnet-4.6',
-    ]);
-    const provider = await readJson(providerPath());
-    expect((provider.models as { id: string }[]).length).toBe(3);
-  });
-
-  it('up is a no-op for an org without an openrouter provider', async () => {
-    await seed(null, AGENT_FIXTURE);
-    await migration.up(ctx, ORG, helpers);
-
-    expect(await readFileSafe(providerPath())).toBeNull();
-    const agent = await readJson(agentPath());
-    expect(agent.supportedModels).toEqual(OLD_SUPPORTED_MODELS);
-  });
-
-  it('down restores the old pin and removes exactly the entries up added', async () => {
-    await seed();
-    await migration.up(ctx, ORG, helpers);
-    await migration.down(ctx, ORG, helpers);
-
-    const provider = await readJson(providerPath());
-    const ids = (provider.models as { id: string }[]).map((m) => m.id);
-    expect(ids).toEqual(['anthropic/claude-opus-4.8']);
-
-    const agent = await readJson(agentPath());
-    expect(agent.supportedModels).toEqual(OLD_SUPPORTED_MODELS);
-  });
-
-  it('down keeps a Fable entry that does not match the exact added shape', async () => {
-    // A cron-added entry (no qualityScore) — must survive down untouched.
-    const cronAdded = {
-      id: 'anthropic/claude-fable-5',
-      displayName: 'Claude Fable 5',
-      tags: ['chat', 'vision'],
-      contextWindow: 1000000,
-    };
-    await seed(
-      {
-        ...PROVIDER_FIXTURE,
-        models: [...PROVIDER_FIXTURE.models, cronAdded],
+        const agent = await readJson(agentPath(world, world.orgs[0].slug));
+        expect(agent.supportedModels).toEqual([
+          'openrouter:anthropic/claude-sonnet-4.6',
+        ]);
+        const provider = await readJson(
+          providerPath(world, world.orgs[0].slug),
+        );
+        expect(modelIds(provider)).toHaveLength(3);
       },
-      AGENT_FIXTURE,
-    );
-    await migration.down(ctx, ORG, helpers);
 
-    const provider = await readJson(providerPath());
-    const ids = (provider.models as { id: string }[]).map((m) => m.id);
-    expect(ids).toContain('anthropic/claude-fable-5');
-    expect(FABLE_CATALOG_MODELS.map((m) => m.id)).toContain(
-      'anthropic/claude-fable-5',
-    );
-  });
+    'down keeps a Fable entry that does not match the exact added shape':
+      async (world) => {
+        // A cron-added entry (no qualityScore) — must survive down untouched.
+        const cronAdded = {
+          id: 'anthropic/claude-fable-5',
+          displayName: 'Claude Fable 5',
+          tags: ['chat', 'vision'],
+          contextWindow: 1000000,
+        };
+        await writeFile(
+          providerPath(world, world.orgs[0].slug),
+          JSON.stringify(
+            {
+              ...PROVIDER_FIXTURE,
+              models: [...PROVIDER_FIXTURE.models, cronAdded],
+            },
+            null,
+            2,
+          ),
+        );
+        await world.applyUpOnly();
+        await world.applyDownOnly();
+
+        const provider = await readJson(
+          providerPath(world, world.orgs[0].slug),
+        );
+        expect(modelIds(provider)).toContain('anthropic/claude-fable-5');
+        expect(FABLE_CATALOG_MODELS.map((m) => m.id)).toContain(
+          'anthropic/claude-fable-5',
+        );
+        // The exact-shape rolling alias `up` added was removed again.
+        expect(modelIds(provider)).not.toContain(
+          '~anthropic/claude-fable-latest',
+        );
+      },
+  },
 });

@@ -1,187 +1,235 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
-import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { migration, RETIRED_WORKFLOW_SLUGS } from './index';
+import { readFileSafe } from '../../../../lib/file_io';
+import { buildModules } from '../../../framework/test_helpers';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const ORG = { id: 'org1', slug: 'org1' };
-const DIGEST = JSON.stringify({ name: 'Send the daily digest', steps: [] });
-const KEEPER = JSON.stringify({ name: 'Run an assigned task', steps: [] });
-const TRIAGE = JSON.stringify({ name: 'Triage a new discussion', steps: [] });
-const KEEPER_DISCUSSION = JSON.stringify({
-  name: 'React to a mention in a discussion',
-  steps: [],
-});
+const DIR = 'migrations/versions/v0_2_90/07_remove_retired_task_workflows';
 
-describe('0.2.90/07 remove_retired_task_workflows', () => {
-  let dir: string;
-  let mutationCalls: Array<Record<string, unknown>>;
-  let actionCalls: Array<Record<string, unknown>>;
-  let ctx: NodeMigrationCtx;
+const EPOCH = 1_717_000_000_000;
+const SURVIVOR_SLUG = 'projects/tasks/triage-unassigned-tasks';
+/** Fixed literal — the provisioner skips provisioned slugs BEFORE hashing. */
+const SURVIVOR_HASH = 'testhash-triage-unassigned-tasks-v1';
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'tale-mig-retiredwf-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-    mutationCalls = [];
-    actionCalls = [];
-    ctx = {
-      runQuery: async () => null,
-      runAction: async (_fn: unknown, args: Record<string, unknown>) => {
-        actionCalls.push(args);
-        return { provisioned: 0, skipped: 0, failed: 0 };
+/** Minimal valid workflow JSON (the 0.2.84-era pack shape). */
+function workflowJson(extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    metadata: { labels: ['Tasks'], ...(extra.metadata as object | undefined) },
+    steps: [
+      {
+        config: {},
+        name: 'Start',
+        nextSteps: {},
+        stepSlug: 'start',
+        stepType: 'start',
       },
-      runMutation: async (_fn: unknown, args: Record<string, unknown>) => {
-        mutationCalls.push(args);
-        return { events: 0, schedules: 0, installations: 0, provisions: 0 };
-      },
-    };
+    ],
+    ...extra,
   });
+}
 
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
+const RETIRED_FILES = [
+  ['projects', 'tasks', 'send-daily-digest.json'],
+  ['projects', 'tasks', 'reassign-paused-agent-work.json'],
+  ['projects', 'discussions', 'triage-new-discussion.json'],
+] as const;
 
-  async function seedFiles(): Promise<{
-    tasksDir: string;
-    discussionsDir: string;
-  }> {
-    const tasksDir = path.join(dir, ORG.slug, 'workflows', 'projects', 'tasks');
-    const discussionsDir = path.join(
-      dir,
-      ORG.slug,
-      'workflows',
-      'projects',
-      'discussions',
-    );
-    await mkdir(tasksDir, { recursive: true });
-    await mkdir(discussionsDir, { recursive: true });
+// Harness ritual: real fleet up, destructive gating, handler idempotency over
+// migrated state (files already gone; removeDefaultProvisioning is a no-op),
+// and down restoring the seed digest — restoreFsTree brings the files back and
+// the REAL provisioner then runs; the survivor's seeded provision marker makes
+// it SKIP (no wall-clock rows), and the retired files carry no autoInstall, so
+// the digest round-trips exactly.
+defineMigrationTest({
+  id: '0.2.90/07_remove_retired_task_workflows',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
+
+  async seed(ctx, orgs) {
+    // The SURVIVOR autoInstall workflow's rows (mirrors the world corpus):
+    // the provision marker stops down's provisioner from re-inserting
+    // wall-clock rows for it.
+    await ctx.db.insert('wfInstallations', {
+      organizationId: orgs[0].id,
+      workflowSlug: SURVIVOR_SLUG,
+      installedAt: EPOCH,
+      installedBy: 'system',
+      contentHash: SURVIVOR_HASH,
+    });
+    await ctx.db.insert('wfDefaultProvisions', {
+      organizationId: orgs[0].id,
+      workflowSlug: SURVIVOR_SLUG,
+      contentHash: SURVIVOR_HASH,
+      provisionedAt: EPOCH,
+    });
+    await ctx.db.insert('wfEventSubscriptions', {
+      organizationId: orgs[0].id,
+      workflowSlug: SURVIVOR_SLUG,
+      eventType: 'task.created',
+      isActive: true,
+      createdAt: EPOCH,
+      createdBy: 'system',
+    });
+  },
+
+  async seedFs(root, orgs) {
+    const wfDir = path.join(root, orgs[0].slug, 'workflows');
+    await mkdir(path.join(wfDir, 'projects', 'tasks'), { recursive: true });
+    await mkdir(path.join(wfDir, 'projects', 'discussions'), {
+      recursive: true,
+    });
+    // The three retired files — deliberately WITHOUT metadata.autoInstall so
+    // down's provisioner leaves them inert after the restore (the corpus
+    // profile `retiredWorkflowAutoInstall`).
+    for (const rel of RETIRED_FILES) {
+      await writeFile(path.join(wfDir, ...rel), workflowJson(), 'utf8');
+    }
+    // Keeper files the sweep must never touch.
     await writeFile(
-      path.join(tasksDir, 'send-daily-digest.json'),
-      DIGEST,
+      path.join(wfDir, 'projects', 'tasks', 'run-assigned-task.json'),
+      workflowJson(),
       'utf8',
     );
     await writeFile(
-      path.join(tasksDir, 'reassign-paused-agent-work.json'),
-      DIGEST,
+      path.join(
+        wfDir,
+        'projects',
+        'discussions',
+        'react-to-discussion-mention.json',
+      ),
+      workflowJson(),
       'utf8',
     );
+    // The survivor autoInstall workflow (already provisioned via the seed).
     await writeFile(
-      path.join(tasksDir, 'run-assigned-task.json'),
-      KEEPER,
+      path.join(wfDir, 'projects', 'tasks', 'triage-unassigned-tasks.json'),
+      workflowJson({
+        metadata: { autoInstall: true, labels: ['Tasks'] },
+        triggers: { events: [{ eventType: 'task.created' }] },
+      }),
       'utf8',
     );
-    await writeFile(
-      path.join(discussionsDir, 'triage-new-discussion.json'),
-      TRIAGE,
-      'utf8',
-    );
-    await writeFile(
-      path.join(discussionsDir, 'react-to-discussion-mention.json'),
-      KEEPER_DISCUSSION,
-      'utf8',
-    );
-    return { tasksDir, discussionsDir };
-  }
+    // org2: an EMPTY workflows dir — down's provisioner must find the dir
+    // (listCatalogArea ENOENTs into a scheduler retry otherwise).
+    await mkdir(path.join(root, orgs[1].slug, 'workflows'), {
+      recursive: true,
+    });
+  },
 
-  it('deletes all three retired files, removes their rows, keeps the rest', async () => {
-    const { tasksDir, discussionsDir } = await seedFiles();
+  async expectUp(world) {
+    const [org1] = world.orgs;
+    const wfDir = path.join(world.configRoot, org1.slug, 'workflows');
 
-    await migration.up(ctx, ORG, helpers);
-
-    expect(
-      await readFileSafe(path.join(tasksDir, 'send-daily-digest.json')),
-    ).toBeNull();
+    for (const rel of RETIRED_FILES) {
+      expect(await readFileSafe(path.join(wfDir, ...rel))).toBeNull();
+    }
+    // Keepers and the survivor are untouched.
     expect(
       await readFileSafe(
-        path.join(tasksDir, 'reassign-paused-agent-work.json'),
+        path.join(wfDir, 'projects', 'tasks', 'run-assigned-task.json'),
       ),
-    ).toBeNull();
-    expect(
-      await readFileSafe(path.join(tasksDir, 'run-assigned-task.json')),
-    ).toBe(KEEPER);
+    ).not.toBeNull();
     expect(
       await readFileSafe(
-        path.join(discussionsDir, 'triage-new-discussion.json'),
+        path.join(
+          wfDir,
+          'projects',
+          'discussions',
+          'react-to-discussion-mention.json',
+        ),
       ),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(
       await readFileSafe(
-        path.join(discussionsDir, 'react-to-discussion-mention.json'),
+        path.join(wfDir, 'projects', 'tasks', 'triage-unassigned-tasks.json'),
       ),
-    ).toBe(KEEPER_DISCUSSION);
-    expect(mutationCalls.map((c) => c.workflowSlug)).toEqual([
-      ...RETIRED_WORKFLOW_SLUGS,
-    ]);
-  });
+    ).not.toBeNull();
 
-  it('down restores the files and re-runs the provisioner', async () => {
-    const { tasksDir, discussionsDir } = await seedFiles();
-
-    await migration.up(ctx, ORG, helpers);
-    await migration.down(ctx, ORG, helpers);
-
+    // The survivor's provisioning rows are never touched by the sweep.
+    const survivors = await world.run(async (ctx) => ({
+      installations: await ctx.db.query('wfInstallations').collect(),
+      provisions: await ctx.db.query('wfDefaultProvisions').collect(),
+      events: await ctx.db.query('wfEventSubscriptions').collect(),
+    }));
     expect(
-      await readFileSafe(path.join(tasksDir, 'send-daily-digest.json')),
-    ).toBe(DIGEST);
-    expect(
-      await readFileSafe(
-        path.join(tasksDir, 'reassign-paused-agent-work.json'),
+      survivors.installations.map(
+        (row: Record<string, unknown>) => row.workflowSlug,
       ),
-    ).toBe(DIGEST);
+    ).toEqual([SURVIVOR_SLUG]);
     expect(
-      await readFileSafe(
-        path.join(discussionsDir, 'triage-new-discussion.json'),
+      survivors.provisions.map(
+        (row: Record<string, unknown>) => row.workflowSlug,
       ),
-    ).toBe(TRIAGE);
-    expect(actionCalls).toEqual([
-      { organizationId: ORG.id, orgSlug: ORG.slug },
-    ]);
-  });
-
-  it('is idempotent when the files are already gone (rows still purged)', async () => {
-    const tasksDir = path.join(dir, ORG.slug, 'workflows', 'projects', 'tasks');
-    await mkdir(tasksDir, { recursive: true });
-    await writeFile(
-      path.join(tasksDir, 'run-assigned-task.json'),
-      KEEPER,
-      'utf8',
-    );
-
-    await migration.up(ctx, ORG, helpers);
-    await migration.up(ctx, ORG, helpers);
-
+    ).toEqual([SURVIVOR_SLUG]);
     expect(
-      await readFileSafe(path.join(tasksDir, 'run-assigned-task.json')),
-    ).toBe(KEEPER);
-    // All three slugs' rows purged on both runs.
-    expect(mutationCalls).toHaveLength(6);
-  });
+      survivors.events.map((row: Record<string, unknown>) => row.workflowSlug),
+    ).toEqual([SURVIVOR_SLUG]);
+  },
+
+  cases: {
+    'up purges the retired slugs’ provisioning rows even when seeded': async (
+      world,
+    ) => {
+      const orgId = world.orgs[0].id;
+      const retired = 'projects/tasks/send-daily-digest';
+      await world.run(async (ctx) => {
+        await ctx.db.insert('wfInstallations', {
+          organizationId: orgId,
+          workflowSlug: retired,
+          installedAt: EPOCH,
+          installedBy: 'system',
+          contentHash: 'testhash-send-daily-digest-v1',
+        });
+        await ctx.db.insert('wfDefaultProvisions', {
+          organizationId: orgId,
+          workflowSlug: retired,
+          contentHash: 'testhash-send-daily-digest-v1',
+          provisionedAt: EPOCH,
+        });
+        await ctx.db.insert('wfEventSubscriptions', {
+          organizationId: orgId,
+          workflowSlug: retired,
+          eventType: 'task.created',
+          isActive: true,
+          createdAt: EPOCH,
+          createdBy: 'system',
+        });
+        await ctx.db.insert('wfSchedules', {
+          organizationId: orgId,
+          workflowSlug: retired,
+          cronExpression: '0 6 * * *',
+          timezone: 'UTC',
+          isActive: true,
+          createdAt: EPOCH,
+          createdBy: 'system',
+        });
+      });
+
+      await world.applyUpOnly();
+
+      const rows = await world.run(async (ctx) => ({
+        installations: await ctx.db.query('wfInstallations').collect(),
+        provisions: await ctx.db.query('wfDefaultProvisions').collect(),
+        events: await ctx.db.query('wfEventSubscriptions').collect(),
+        schedules: await ctx.db.query('wfSchedules').collect(),
+      }));
+      const slugsOf = (list: Array<Record<string, unknown>>) =>
+        list.map((row) => row.workflowSlug);
+      // The retired slug's rows are gone; the survivor's remain.
+      expect(slugsOf(rows.installations)).toEqual([SURVIVOR_SLUG]);
+      expect(slugsOf(rows.provisions)).toEqual([SURVIVOR_SLUG]);
+      expect(slugsOf(rows.events)).toEqual([SURVIVOR_SLUG]);
+      expect(rows.schedules).toEqual([]);
+    },
+  },
 });

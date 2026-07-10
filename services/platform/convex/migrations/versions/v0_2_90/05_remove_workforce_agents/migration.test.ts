@@ -1,61 +1,34 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 
-import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../../../lib/file_io';
-import {
-  restoreFsTree,
-  snapshotFsTree,
-} from '../../../framework/snapshot_store';
-import type {
-  NodeMigrationCtx,
-  NodeMigrationHelpers,
-} from '../../../framework/types';
-import { migration } from './index';
+import { readFileSafe } from '../../../../lib/file_io';
+import { buildModules } from '../../../framework/test_helpers';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+// World-building imports the whole convex tree; under the fully parallel suite
+// the default 5s budget flakes — and a timed-out ritual's zombie async work
+// can then corrupt the file's later tests. Chain tests size timeouts likewise.
+vi.setConfig({ testTimeout: 60_000 });
 
-const ctx: NodeMigrationCtx = {
-  runQuery: async () => null,
-  runAction: async () => null,
-  runMutation: async () => null,
-};
+const DIR = 'migrations/versions/v0_2_90/05_remove_workforce_agents';
 
-const ORG = { id: 'org1', slug: 'org1' };
 const ANALYST = JSON.stringify({ slug: 'analyst', supportedModels: [] });
 const CHAT = JSON.stringify({ slug: 'assistant', supportedModels: [] });
 
-describe('0.2.90/05 remove_workforce_agents', () => {
-  let dir: string;
+// Harness ritual: real fleet up, destructive gating, handler idempotency over
+// migrated state (a re-run finds no workforce/ folder), down restoring the
+// deleted subtree byte-for-byte from the fs-tree snapshot.
+defineMigrationTest({
+  id: '0.2.90/05_remove_workforce_agents',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+  orgs: [{ slug: 'org1' }, { slug: 'org2' }],
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'tale-mig-wfagents-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-  });
-
-  afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  it('deletes agents/workforce/ and leaves other folders untouched', async () => {
-    const agentsDir = path.join(dir, ORG.slug, 'agents');
+  async seedFs(root, orgs) {
+    const agentsDir = path.join(root, orgs[0].slug, 'agents');
     await mkdir(path.join(agentsDir, 'workforce'), { recursive: true });
     await mkdir(path.join(agentsDir, 'chat'), { recursive: true });
     await writeFile(
@@ -68,48 +41,18 @@ describe('0.2.90/05 remove_workforce_agents', () => {
       CHAT,
       'utf8',
     );
+    // org2 gets no agents dir: the missing-folder no-op path.
+  },
 
-    await migration.up(ctx, ORG, helpers);
-
+  async expectUp(world) {
+    const [org1] = world.orgs;
+    const agentsDir = path.join(world.configRoot, org1.slug, 'agents');
     expect(
       await readFileSafe(path.join(agentsDir, 'workforce', 'analyst.json')),
     ).toBeNull();
+    // Other agent folders are never touched.
     expect(
       await readFileSafe(path.join(agentsDir, 'chat', 'assistant.json')),
     ).toBe(CHAT);
-  });
-
-  it('down restores the deleted folder after up', async () => {
-    const agentsDir = path.join(dir, ORG.slug, 'agents');
-    await mkdir(path.join(agentsDir, 'workforce'), { recursive: true });
-    await writeFile(
-      path.join(agentsDir, 'workforce', 'analyst.json'),
-      ANALYST,
-      'utf8',
-    );
-
-    await migration.up(ctx, ORG, helpers);
-    await migration.down(ctx, ORG, helpers);
-
-    expect(
-      await readFileSafe(path.join(agentsDir, 'workforce', 'analyst.json')),
-    ).toBe(ANALYST);
-  });
-
-  it('is idempotent when the org has no workforce folder', async () => {
-    const agentsDir = path.join(dir, ORG.slug, 'agents');
-    await mkdir(path.join(agentsDir, 'chat'), { recursive: true });
-    await writeFile(
-      path.join(agentsDir, 'chat', 'assistant.json'),
-      CHAT,
-      'utf8',
-    );
-
-    await migration.up(ctx, ORG, helpers);
-    await migration.up(ctx, ORG, helpers);
-
-    expect(
-      await readFileSafe(path.join(agentsDir, 'chat', 'assistant.json')),
-    ).toBe(CHAT);
-  });
+  },
 });

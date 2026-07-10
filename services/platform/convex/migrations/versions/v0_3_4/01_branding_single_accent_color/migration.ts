@@ -1,13 +1,14 @@
 'use node';
 
 /**
- * Node migration: rewrite each org's `branding.json` from the legacy two-field
- * contract (brandColor + accentColor) to the single accent color that now
- * drives the whole derived palette (#1960).
+ * 0.3.4 / 01 — merge the legacy `brandColor` into the single `accentColor`
+ * (#1960: the whole branded palette is now derived from one accent color).
  *
- * Merge rule: an explicitly-set `accentColor` wins (it was the field with a
- * visible product effect before #2483); otherwise the saved `brandColor` value
- * becomes the `accentColor`. The `brandColor` key is dropped either way.
+ * For each org with a `branding.json`, rewrites the file dropping `brandColor`:
+ * an explicitly-set `accentColor` wins (it was the field with a visible
+ * product effect before #2483); otherwise the saved `brandColor` value becomes
+ * the `accentColor`, so no configured color silently disappears. Orgs without
+ * a branding file (or without a `brandColor` key) are untouched.
  *
  * Idempotent per org: a rewritten file has no `brandColor` key, so a re-run is
  * a no-op. `down` restores the pre-migration branding directory from the
@@ -22,14 +23,22 @@ import {
   resolveBrandingFilePath,
   serializeBrandingJson,
 } from '../../../../branding/file_utils';
-import type { NodeMigration } from '../../../framework/types';
-import { meta } from './meta';
+import { defineNodeMigration } from '../../../framework/define';
 
-export const migration: NodeMigration = {
-  meta,
+export const migration = defineNodeMigration({
+  title: 'Merge branding brandColor into the single accentColor',
+  description:
+    'For each org with a branding.json, drops the legacy brandColor field: ' +
+    'a set accentColor is kept, otherwise the brandColor value becomes the ' +
+    'accentColor (no configured color is lost). A per-org fs-tree snapshot ' +
+    'of <org>/branding/ is taken first so down restores the prior files.',
+  destructive: true,
+  snapshot: 'fs-tree',
+  subjects: { domains: ['branding'] },
+
   async up(_ctx, org, helpers) {
     const dir = resolveBrandingDir(org.slug);
-    await helpers.snapshotFsTree(meta.id, org.slug, dir);
+    await helpers.snapshotFsTree(dir);
 
     const filePath = resolveBrandingFilePath(org.slug);
     const content = await helpers.readFileSafe(filePath);
@@ -61,6 +70,6 @@ export const migration: NodeMigration = {
 
   async down(_ctx, org, helpers) {
     const dir = resolveBrandingDir(org.slug);
-    await helpers.restoreFsTree(meta.id, org.slug, dir);
+    await helpers.restoreFsTree(dir);
   },
-};
+});
