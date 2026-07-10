@@ -1,3 +1,4 @@
 {
-  "displayName": "Desk Implementer"
+  "displayName": "Desk Implementer",
+  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"]
 }

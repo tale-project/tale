@@ -179,7 +179,7 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
       const agent = JSON.parse(
         await readFile(path.join(chatDir, file), 'utf-8'),
       ) as Record<string, unknown>;
-      expect(agent.kind, `${org}/agents/chat/${file} kind`).not.toBe(
+      expect(agent.agentKind, `${org}/agents/chat/${file} agentKind`).not.toBe(
         'opencode',
       );
     }

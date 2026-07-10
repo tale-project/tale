@@ -55,10 +55,14 @@ const seedFullWorld = (configRoot: string) =>
   buildSeededWorld(configRoot, modules, authModules);
 
 /** Apply every version-boundary injection (validity per boundary is the
- *  versions suite's job; here they only need to insert cleanly). */
-async function applyInjections(world: SeededWorld): Promise<void> {
+ *  versions suite's job; here they only need to insert/patch cleanly). */
+async function applyInjections(
+  world: SeededWorld,
+  configRoot: string,
+): Promise<void> {
   for (const injection of WORLD_INJECTIONS) {
     await world.t.run((ctx) => injection.seed(ctx as never, world.orgs));
+    await injection.seedFs?.(configRoot, world.orgs);
   }
 }
 
@@ -114,7 +118,7 @@ describe('baseline world corpus', () => {
   it('version-boundary injections seed cleanly and carry the edge rows', async () => {
     const world = await seedFullWorld(root);
     const collect = collectVia(world.t);
-    await applyInjections(world);
+    await applyInjections(world, root);
 
     // Bindings are deliberately configless (manifest profile
     // appConfigSeeded:false — the 0.2.96/01 ↔ 0.3.4/09 config pair is not
@@ -189,8 +193,8 @@ describe('baseline world corpus', () => {
     try {
       const a = await seedFullWorld(root);
       const b = await seedFullWorld(rootB);
-      await applyInjections(a);
-      await applyInjections(b);
+      await applyInjections(a, root);
+      await applyInjections(b, rootB);
 
       // storageId values are world-local (opaque); exclude the tables that
       // embed them (threadFiles at baseline, appUploadIntents injected), then

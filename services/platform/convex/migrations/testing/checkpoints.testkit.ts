@@ -22,12 +22,23 @@
  * Two-dot basename: test-only module, excluded from the Convex bundle.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 import type { SchemaFingerprint } from '../framework/schema_fingerprint';
+import {
+  configSchemaCandidates,
+  validateJsonValue,
+  type JsonSchemaNode,
+} from './config_validate.testkit';
 import { validateDoc } from './schema_validate.testkit';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -136,6 +147,61 @@ export function materializeScaffold(
     written++;
   }
   return written;
+}
+
+/**
+ * Validate every org-config JSON file under `configRoot` against the config
+ * schemas release `version` actually shipped. A file maps to its schema key
+ * via `configSchemaCandidates`; a version where no candidate key exists did
+ * not know the shape yet and skips the file (never a false positive).
+ * Returns human-readable violations; empty = every known file parses and
+ * matches that release's shape.
+ */
+export function validateConfigTreeAtVersion(
+  version: string,
+  configRoot: string,
+): string[] {
+  const checkpoint = loadConfigCheckpoint(version);
+  const errors: string[] = [];
+
+  const walk = (dir: string, orgRel: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) continue; // sidecars, .gitkeep, dotfiles
+      const abs = path.join(dir, entry.name);
+      const rel = orgRel === '' ? entry.name : `${orgRel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+        continue;
+      }
+      if (!entry.name.endsWith('.json')) continue;
+
+      const key = configSchemaCandidates(rel).find(
+        (candidate) => checkpoint.schemas[candidate] !== undefined,
+      );
+      if (!key) continue;
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(readFileSync(abs, 'utf-8'));
+      } catch (err) {
+        errors.push(
+          `release ${version}: ${rel} is not valid JSON (${err instanceof Error ? err.message : String(err)})`,
+        );
+        continue;
+      }
+      const schema = checkpoint.schemas[key] as JsonSchemaNode;
+      const violation = validateJsonValue(parsed, schema, rel);
+      if (violation) {
+        errors.push(`release ${version} (${key}): ${violation}`);
+      }
+    }
+  };
+
+  for (const orgDir of readdirSync(configRoot, { withFileTypes: true })) {
+    if (!orgDir.isDirectory() || orgDir.name.startsWith('.')) continue;
+    walk(path.join(configRoot, orgDir.name), '');
+  }
+  return errors;
 }
 
 /**

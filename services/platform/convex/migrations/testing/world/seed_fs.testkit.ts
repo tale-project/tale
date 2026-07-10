@@ -21,7 +21,6 @@ import { cp, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseAgentJson, serializeAgentJson } from '../../../agents/file_utils';
 import {
   parseProviderJson,
   serializeProviderJson,
@@ -48,10 +47,9 @@ const CANONICALIZED_SEED_FILES: ReadonlyArray<{
   relPath: string;
   canonicalize: (content: string) => string;
 }> = [
-  {
-    relPath: path.join(WORLD_ORGS.alpha.slug, 'agents/chat/claude-code.json'),
-    canonicalize: (content) => serializeAgentJson(parseAgentJson(content)),
-  },
+  // claude-code.json (0.2.98/01's other rewrite target) is not baseline: the
+  // external-agent shape was impossible before v0.2.85, so the 0.2.85 fs
+  // injection writes it — pre-canonicalized through the same helpers.
   {
     relPath: path.join(WORLD_ORGS.alpha.slug, 'providers/openrouter.json'),
     canonicalize: (content) =>

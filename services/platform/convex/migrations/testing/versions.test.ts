@@ -29,8 +29,12 @@ import { compareSemver } from '../framework/semver';
 import { buildModules } from '../framework/test_helpers';
 import { isRunnableKind } from '../framework/types';
 import {
+  checkpointVersions,
   hasCheckpoint,
+  loadScaffold,
   materializeScaffold,
+  readBlob,
+  validateConfigTreeAtVersion,
   validateWorldAtVersion,
 } from './checkpoints.testkit';
 import { digestWorld, diffWorldDigests } from './digest.testkit';
@@ -47,11 +51,17 @@ import { WORLD_ENCRYPTION_SECRET_HEX } from './world/seed_db.testkit';
 const BASELINE = '0.2.84';
 
 /** Seed the injections born while release `version` was current (the walk
- *  crosses the boundary, then the rows appear — as on a real deployment). */
-async function injectAfter(world: SeededWorld, version: string): Promise<void> {
+ *  crosses the boundary, then the rows/files appear — as on a real
+ *  deployment). */
+async function injectAfter(
+  world: SeededWorld,
+  version: string,
+  configRoot: string,
+): Promise<void> {
   for (const injection of WORLD_INJECTIONS) {
     if (injection.afterVersion !== version) continue;
     await world.t.run((ctx) => injection.seed(ctx as never, world.orgs));
+    await injection.seedFs?.(configRoot, world.orgs);
   }
 }
 
@@ -105,11 +115,12 @@ describe('version checkpoints (real per-release schemas)', () => {
 
       // The seed corpus itself must be a valid deployment of the baseline
       // release — anachronistic seeds fail here before any migration runs.
-      const baselineErrors = await validateWorldAtVersion(
-        BASELINE,
-        worldTables(),
-        collect,
-      );
+      // Config files count too: every file the fixtures lay down must match
+      // the shape the baseline release's Zod schemas declared.
+      const baselineErrors = [
+        ...(await validateWorldAtVersion(BASELINE, worldTables(), collect)),
+        ...validateConfigTreeAtVersion(BASELINE, root),
+      ];
       violations.push(...baselineErrors.map((e) => `  at baseline: ${e}`));
 
       for (const version of RUNNABLE_VERSIONS) {
@@ -117,13 +128,12 @@ describe('version checkpoints (real per-release schemas)', () => {
           internal.migrations.framework.entrypoints.applyUp,
           { to: version, allowDestructive: true },
         );
-        const errors = await validateWorldAtVersion(
-          version,
-          worldTables(),
-          collect,
-        );
+        const errors = [
+          ...(await validateWorldAtVersion(version, worldTables(), collect)),
+          ...validateConfigTreeAtVersion(version, root),
+        ];
         violations.push(...errors.map((e) => `  after ≤${version}: ${e}`));
-        await injectAfter(world, version);
+        await injectAfter(world, version, root);
       }
 
       expect(
@@ -170,6 +180,7 @@ describe('version checkpoints (real per-release schemas)', () => {
               await world.t.run((ctx) =>
                 injection.seed(ctx as never, world.orgs),
               );
+              await injection.seedFs?.(versionRoot, world.orgs);
             }
           }
           const atVersion = await digestWorld(
@@ -213,7 +224,8 @@ describe('version checkpoints (real per-release schemas)', () => {
     },
   );
 
-  it('the scaffold store materializes an initialized project of an era', async () => {
+  it('the scaffold store materializes an initialized project of every era', async () => {
+    // One full materialization proves the write path…
     const dir = await mkdtemp(path.join(tmpdir(), 'tale-scaffold-'));
     try {
       const count = materializeScaffold('0.2.85', dir);
@@ -223,5 +235,24 @@ describe('version checkpoints (real per-release schemas)', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+    // …and every version's scaffold blobs must be readable. Releases before
+    // builtin-configs/ existed have legitimately empty manifests; once a
+    // version ships files, no later version may regress to empty.
+    let scaffoldsBegan: string | null = null;
+    for (const version of checkpointVersions()) {
+      const manifest = loadScaffold(version);
+      const count = Object.keys(manifest.files).length;
+      if (count > 0 && scaffoldsBegan === null) scaffoldsBegan = version;
+      if (scaffoldsBegan !== null) {
+        expect(
+          count,
+          `scaffold manifest for ${version} is empty although scaffolds began at ${scaffoldsBegan}`,
+        ).toBeGreaterThan(0);
+      }
+      for (const blobKey of Object.values(manifest.files)) {
+        readBlob(blobKey); // throws on a missing/corrupt blob
+      }
+    }
+    expect(scaffoldsBegan, 'no version ships any scaffold').not.toBeNull();
   });
 });

@@ -14,12 +14,28 @@
  * Two-dot basename keeps this out of the Convex push bundle.
  */
 
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { parseAgentJson, serializeAgentJson } from '../../../agents/file_utils';
 import {
   TRIAGE_WORKFLOW_HASH,
   WORLD_EPOCH_MS,
   WORLD_WORKFORCE_AGENT_SLUGS,
   type SeedWorldOrgs,
 } from './seed_db.testkit';
+
+/** Fixture files a version-boundary injection copies in (shapes that were
+ *  impossible at 0.2.84), keyed by version folder. Declared here, not in
+ *  seed_fs.testkit — manifest re-exports the injections, and seed_fs imports
+ *  the manifest, so an import in the other direction would be a cycle. */
+const WORLD_INJECTED_FIXTURE_DIR = fileURLToPath(
+  new URL(
+    '../../../../tests/fixtures/migrations-world/injected',
+    import.meta.url,
+  ),
+);
 
 /** The slice of a convex-test `t.run` ctx an injection needs (structural —
  *  never imports generated server types; harness passes `ctx as never`). */
@@ -51,13 +67,16 @@ export interface WorldInjection {
   /** Tables the injection populates (consumed by the corpus coverage guard). */
   readonly tables: readonly string[];
   seed(ctx: InjectionCtx, orgs: SeedWorldOrgs): Promise<void>;
+  /** Optional fs half: patch org-config files with shapes born in this
+   *  release (e.g. a field the era's schema introduced). */
+  seedFs?(configRoot: string, orgs: SeedWorldOrgs): Promise<void>;
 }
 
 export const WORLD_INJECTIONS: readonly WorldInjection[] = [
   {
     afterVersion: '0.2.85',
     reason:
-      "appInstallations, appProjectBindings, agentInstallations, and wfDefaultProvisions first appear in the v0.2.85 schema, and userNotifications.resourceType gained 'dashboard' there — none of it can sit in a 0.2.84 baseline.",
+      "appInstallations, appProjectBindings, agentInstallations, and wfDefaultProvisions first appear in the v0.2.85 schema, userNotifications.resourceType gained 'dashboard' there, and the external-agent config shape (agentKind/authMode) was born with them — none of it can sit in a 0.2.84 baseline.",
     tables: [
       'appInstallations',
       'appProjectBindings',
@@ -65,6 +84,37 @@ export const WORLD_INJECTIONS: readonly WorldInjection[] = [
       'wfDefaultProvisions',
       'userNotifications',
     ],
+    async seedFs(configRoot, orgs) {
+      // The external-agent files (agentKind + authMode + the 'external-agent'
+      // primaryBehavior value) were IMPOSSIBLE before v0.2.85 — copy in the
+      // fixture files a real 0.2.85+ deployment carried. claude-code.json is
+      // 0.2.98/01's in-place rewrite target (`snapshot: 'none'`), so it lands
+      // pre-canonicalized through the migration's own parse/serialize.
+      const files: Array<[string, string, boolean]> = [
+        [orgs.alpha.slug, 'claude-code.json', true],
+        [orgs.alpha.slug, 'legacy-opencode.json', false],
+        [orgs.beta.slug, 'helper-opencode.json', false],
+      ];
+      for (const [slug, file, canonicalize] of files) {
+        const source = readFileSync(
+          path.join(
+            WORLD_INJECTED_FIXTURE_DIR,
+            'v0_2_85',
+            slug,
+            'agents',
+            'chat',
+            file,
+          ),
+          'utf-8',
+        );
+        const target = path.join(configRoot, slug, 'agents', 'chat', file);
+        mkdirSync(path.dirname(target), { recursive: true });
+        writeFileSync(
+          target,
+          canonicalize ? serializeAgentJson(parseAgentJson(source)) : source,
+        );
+      }
+    },
     async seed(ctx, orgs) {
       const { alpha, beta } = orgs;
 

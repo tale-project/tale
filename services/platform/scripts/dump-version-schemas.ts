@@ -49,7 +49,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 
 import {
   computeFingerprint,
@@ -113,6 +113,47 @@ function saveIndex(index: CheckpointIndex): void {
     ),
   );
   writeFileSync(INDEX_PATH, `${JSON.stringify(sorted, null, 2)}\n`);
+}
+
+/** Delete blob files no index entry references (re-derived fixtures leave
+ *  their previous content-addressed blobs behind). Scaffold entries are
+ *  MANIFESTS whose `files` map references second-level content blobs — those
+ *  are live too. Returns the count. */
+function collectGarbageBlobs(index: CheckpointIndex): number {
+  if (!existsSync(BLOBS_DIR)) return 0;
+  const referenced = new Set<string>();
+  const readBlobLocal = (key: string): string =>
+    gunzipSync(readFileSync(path.join(BLOBS_DIR, `${key}.json.gz`))).toString(
+      'utf-8',
+    );
+  for (const entry of Object.values(index)) {
+    for (const [kind, key] of Object.entries(entry)) {
+      if (typeof key !== 'string') continue;
+      referenced.add(`${key}.json.gz`);
+      if (kind !== 'scaffold') continue;
+      try {
+        const manifest = JSON.parse(readBlobLocal(key)) as {
+          files?: Record<string, string>;
+        };
+        for (const fileKey of Object.values(manifest.files ?? {})) {
+          referenced.add(`${fileKey}.json.gz`);
+        }
+      } catch (err) {
+        console.warn(
+          `[dump-version-schemas] unreadable scaffold manifest ${key}; skipping GC entirely:`,
+          err instanceof Error ? err.message : err,
+        );
+        return 0;
+      }
+    }
+  }
+  let removed = 0;
+  for (const file of readdirSync(BLOBS_DIR)) {
+    if (!file.endsWith('.json.gz') || referenced.has(file)) continue;
+    rmSync(path.join(BLOBS_DIR, file));
+    removed++;
+  }
+  return removed;
 }
 
 /** Store content once, gzipped, keyed by its sha; returns the blob key. */
@@ -389,6 +430,11 @@ function withWorktree<T>(tag: string, fn: (worktree: string) => T): T {
 
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
+  // Re-derive configSchema from every tag's REAL Zod schemas (worktree eval)
+  // instead of the committed config.snapshot.json: historical snapshots were
+  // captured with the annotation-stripper bug that dropped properties named
+  // description/title/default/id, so the fast path is permanently lossy.
+  const slowConfig = process.argv.includes('--slow-config');
   const onlyTagIdx = process.argv.indexOf('--tag');
   const onlyTag = onlyTagIdx >= 0 ? process.argv[onlyTagIdx + 1] : null;
 
@@ -403,7 +449,7 @@ async function main(): Promise<void> {
     const version = tag.slice(1);
     const entry = index[version] ?? {};
     const needSchema = force || !entry.dbSchema;
-    const needConfig = force || !entry.configSchema;
+    const needConfig = force || slowConfig || !entry.configSchema;
     const needScaffold = force || !entry.scaffold;
     if (!needSchema && !needConfig && !needScaffold) {
       skipped++;
@@ -411,7 +457,8 @@ async function main(): Promise<void> {
     }
     try {
       let schemaFp = needSchema ? schemaFromCommittedSnapshot(tag) : null;
-      let configFp = needConfig ? configFromCommittedSnapshot(tag) : null;
+      let configFp =
+        needConfig && !slowConfig ? configFromCommittedSnapshot(tag) : null;
       if ((needSchema && !schemaFp) || (needConfig && !configFp)) {
         withWorktree(tag, (worktree) => {
           if (needSchema && !schemaFp) schemaFp = schemaFromWorktree(worktree);
@@ -464,10 +511,11 @@ async function main(): Promise<void> {
   }
 
   saveIndex(index);
+  const orphans = collectGarbageBlobs(index);
   console.log(
     `[dump-version-schemas] ${written} fixture(s) written, ${skipped} tag(s) already complete${
-      failures.length > 0 ? `, ${failures.length} FAILED` : ''
-    }.`,
+      orphans > 0 ? `, ${orphans} orphaned blob(s) removed` : ''
+    }${failures.length > 0 ? `, ${failures.length} FAILED` : ''}.`,
   );
   if (failures.length > 0) {
     console.error('  failures:\n  - ' + failures.join('\n  - '));
