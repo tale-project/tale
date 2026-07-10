@@ -299,8 +299,7 @@ export const listTasksByProject = query({
     includeArchived: v.optional(v.boolean()),
     status: v.optional(taskStatusValidator),
     // Multi-status scope: only tasks whose status is IN this set. The Board and
-    // List pass the triaged statuses (everything but `backlog`) while the
-    // Backlog triage tab passes `['backlog']` — one query, view-scoped
+    // List pass every board status (including `backlog`) — one query, all lanes.
     // server-side instead of client filtering. Omitted ⇒ all statuses.
     statuses: v.optional(v.array(taskStatusValidator)),
     assigneeId: v.optional(v.string()),

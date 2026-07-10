@@ -44,11 +44,8 @@ function makeTask(
   } as unknown as TaskRow;
 }
 
-// Backlog tasks are PROPOSED work triaged on the Backlog tab — the board must
-// render neither a backlog lane nor any backlog card, even if a backlog row
-// somehow reaches it.
-describe('KanbanBoard backlog exclusion', () => {
-  it('renders the triaged lanes but no backlog lane and no backlog card', () => {
+describe('KanbanBoard backlog lane', () => {
+  it('renders every status lane including backlog and its cards', () => {
     render(
       <KanbanBoard
         tasks={[
@@ -58,8 +55,8 @@ describe('KanbanBoard backlog exclusion', () => {
       />,
     );
 
-    // Every triaged lane is present…
     for (const lane of [
+      'Backlog',
       'To do',
       'In progress',
       'In review',
@@ -68,9 +65,7 @@ describe('KanbanBoard backlog exclusion', () => {
     ]) {
       expect(screen.getByText(lane)).toBeInTheDocument();
     }
-    // …the backlog lane is not, and neither is the backlog task's card.
-    expect(screen.queryByText('Backlog')).not.toBeInTheDocument();
     expect(screen.getByText('Triaged task')).toBeInTheDocument();
-    expect(screen.queryByText('Proposed task')).not.toBeInTheDocument();
+    expect(screen.getByText('Proposed task')).toBeInTheDocument();
   });
 });

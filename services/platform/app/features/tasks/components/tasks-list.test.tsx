@@ -44,11 +44,8 @@ function makeTask(
   } as unknown as TaskRow;
 }
 
-// Backlog tasks are PROPOSED work triaged on the Backlog tab — the list must
-// render neither a Backlog section nor any backlog row, even if a backlog row
-// somehow reaches it.
-describe('TasksList backlog exclusion', () => {
-  it('renders the triaged sections but no backlog section and no backlog row', () => {
+describe('TasksList backlog section', () => {
+  it('renders every status section including backlog and its rows', () => {
     render(
       <TasksList
         tasks={[
@@ -58,8 +55,8 @@ describe('TasksList backlog exclusion', () => {
       />,
     );
 
-    // Every triaged section header is present…
     for (const section of [
+      'Backlog',
       'To do',
       'In progress',
       'In review',
@@ -68,9 +65,7 @@ describe('TasksList backlog exclusion', () => {
     ]) {
       expect(screen.getByText(section)).toBeInTheDocument();
     }
-    // …the Backlog section is not, and neither is the backlog task's row.
-    expect(screen.queryByText('Backlog')).not.toBeInTheDocument();
     expect(screen.getByText('Triaged task')).toBeInTheDocument();
-    expect(screen.queryByText('Proposed task')).not.toBeInTheDocument();
+    expect(screen.getByText('Proposed task')).toBeInTheDocument();
   });
 });

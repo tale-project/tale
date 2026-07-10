@@ -287,7 +287,9 @@ const SYNC_OPEN_STATUS = 'backlog' as const;
  * system own the open/closed lifecycle:
  *  - create: `closed` → 'done', otherwise → {@link SYNC_OPEN_STATUS}
  *  - existing + `closed`: move to 'done' (unless already terminal)
- *  - existing + `open`: reopen to {@link SYNC_OPEN_STATUS} only if currently terminal
+ *  - existing + `open`: reopen to {@link SYNC_OPEN_STATUS} only when currently
+ *    `done` (issue reopened on GitHub). A human `cancelled` dismissal is left
+ *    alone — sync must not resurrect rejected proposals.
  *  - otherwise the local status is left untouched
  *
  * Drives the GitHub issue-sync automation (builtin-configs/workflows/github/)
@@ -416,10 +418,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         patch.status = 'done';
         patch.completedAt = now;
         patch.rank = await computeEndRank(ctx, existing.projectId, 'done');
-      } else if (
-        args.externalState === 'open' &&
-        TERMINAL_STATUSES.has(existing.status)
-      ) {
+      } else if (args.externalState === 'open' && existing.status === 'done') {
         statusFrom = existing.status;
         patch.status = SYNC_OPEN_STATUS;
         patch.completedAt = undefined;

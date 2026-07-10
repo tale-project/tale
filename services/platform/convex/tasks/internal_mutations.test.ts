@@ -351,3 +351,37 @@ describe('agentUpsertTaskByExternalRef — label preservation on reconcile', () 
     expect(await taskLabels(t, created.taskId)).toEqual([]);
   });
 });
+
+describe('agentUpsertTaskByExternalRef — reopen policy', () => {
+  it('reopens a done task when the external issue is open again', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const created = await upsert(t, projectA, 'owner/repo#reopen-done');
+    await reconcile(t, 'owner/repo#reopen-done', 'closed');
+    expect(await taskStatus(t, created.taskId)).toBe('done');
+
+    await reconcile(t, 'owner/repo#reopen-done', 'open');
+    expect(await taskStatus(t, created.taskId)).toBe('backlog');
+  });
+
+  it('does not resurrect a human-cancelled proposal while the issue stays open', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const created = await upsert(t, projectA, 'owner/repo#dismissed');
+    expect(await taskStatus(t, created.taskId)).toBe('backlog');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(created.taskId!, {
+        status: 'cancelled',
+        updatedAt: Date.now(),
+        statusChangedAt: Date.now(),
+      });
+    });
+    expect(await taskStatus(t, created.taskId)).toBe('cancelled');
+
+    await reconcile(t, 'owner/repo#dismissed', 'open');
+    expect(await taskStatus(t, created.taskId)).toBe('cancelled');
+  });
+});

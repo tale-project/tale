@@ -25,14 +25,12 @@ export const TASK_STATUS_ORDER: TaskStatus[] = [
 ];
 
 /**
- * The statuses the Board renders as lanes and the List as sections (left →
- * right / top → bottom). `backlog` is deliberately absent: backlog tasks are
- * PROPOSED work (populated by automations such as the GitHub issue sync) and
- * live on the Backlog triage tab until a human starts or closes them.
+ * Statuses the Board renders as lanes and the List as sections (left → right /
+ * top → bottom). `backlog` is the leftmost lane — proposed work (often synced
+ * by automations) uses the same card, modal, and status picker as every other
+ * status.
  */
-export const TRIAGED_TASK_STATUSES: TaskStatus[] = TASK_STATUS_ORDER.filter(
-  (status) => status !== 'backlog',
-);
+export const BOARD_TASK_STATUSES: TaskStatus[] = TASK_STATUS_ORDER;
 
 const TASK_STATUS_SET = new Set<string>(TASK_STATUS_ORDER);
 

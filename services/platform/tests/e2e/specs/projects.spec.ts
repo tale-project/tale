@@ -4,9 +4,9 @@ import { t } from '../helpers/i18n';
 
 /**
  * Projects smoke: create a project, confirm a task shows in both the board and
- * list views, triage a backlog proposal (created off the board, Started onto
- * it), then delete the project (cascade-removes its tasks — there is no
- * per-task delete affordance in the UI). Several create surfaces share the
+ * list views, move a backlog proposal through the shared status picker, then
+ * delete the project (cascade-removes its tasks — there is no per-task delete
+ * affordance in the UI). Several create surfaces share the
  * "Create project"/"Create task" label, so locators scope to the open dialog
  * and use the button role.
  */
@@ -97,9 +97,8 @@ test('creates a project with a task shown in both views, then deletes it', async
     timeout: TIMEOUT.VISIBLE,
   });
 
-  // Backlog triage: a task created with status "Backlog" is a proposal — it
-  // stays off the board and shows on the Backlog tab, where Start promotes it
-  // onto the board (status → To do).
+  // Backlog tasks use the same board/list surfaces as every other status — they
+  // appear in the leftmost lane/section and move via drag or the status picker.
   const backlogTitle = `E2E Backlog ${suffix}`;
   await newTaskButton.click();
   await expect(taskDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
@@ -118,23 +117,28 @@ test('creates a project with a task shown in both views, then deletes it', async
     .click();
   await expect(taskDialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
 
-  // The board settled (the todo task is painted) and shows no backlog task.
-  await expect(page.getByText(taskTitle).first()).toBeVisible({
+  await expect(page.getByText(backlogTitle).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
-  await expect(page.getByText(backlogTitle)).toHaveCount(0);
 
-  // The Backlog tab lists the proposal; Start moves it off the backlog…
-  await page.goto(boardUrl.replace('/tasks/board', '/tasks/backlog'));
-  const backlogRow = page.getByRole('row').filter({ hasText: backlogTitle });
-  await expect(backlogRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await backlogRow
-    .getByRole('button', { name: t('tasks.backlog.start') })
+  // Promote the proposal through the shared status picker (no backlog-only verbs).
+  await page.getByText(backlogTitle).first().click();
+  const backlogDetail = page.getByRole('dialog').filter({
+    hasText: backlogTitle,
+  });
+  await expect(backlogDetail).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await backlogDetail
+    .getByRole('button', { name: t('tasks.fields.status'), exact: true })
     .click();
-  await expect(backlogRow).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
+  await page
+    .getByRole('listbox', { name: t('tasks.fields.status') })
+    .getByRole('option', { name: t('tasks.status.todo') })
+    .click();
+  await backlogDetail
+    .getByRole('button', { name: t('common.actions.close') })
+    .click();
+  await expect(backlogDetail).toBeHidden({ timeout: TIMEOUT.PERSIST });
 
-  // …and onto the board.
-  await page.goto(boardUrl);
   await expect(page.getByText(backlogTitle).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });

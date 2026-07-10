@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
-import { TRIAGED_TASK_STATUSES, type TaskStatus } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
@@ -99,8 +99,7 @@ export function TasksList({
       autoScroll={dnd.autoScroll}
     >
       <div className="h-full min-h-0 overflow-auto overscroll-contain">
-        {/* No backlog section: proposed tasks live on the Backlog triage tab. */}
-        {TRIAGED_TASK_STATUSES.map((status) => {
+        {BOARD_TASK_STATUSES.map((status) => {
           const rows = dnd.columns[status]
             .map((id) => dnd.byId.get(id))
             .filter((t): t is TaskRow => t != null);
