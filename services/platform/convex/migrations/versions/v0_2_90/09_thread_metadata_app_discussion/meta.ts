@@ -1,7 +1,7 @@
 import type { MigrationMeta } from '../../../framework/types';
 
 /**
- * 0.2.90 / 01 — app-embedded discussions: add the `threadMetadata` kind
+ * 0.2.90 / 09 — app-embedded discussions: add the `threadMetadata` kind
  * `'app_discussion'` plus its `appSlug` / `subjectType` / `subjectId` columns
  * and the `by_org_app_subject` index.
  *
@@ -40,9 +40,9 @@ import type { MigrationMeta } from '../../../framework/types';
  * is lost. Idempotent.
  */
 export const meta: MigrationMeta = {
-  id: '0.2.90/01_thread_metadata_app_discussion',
+  id: '0.2.90/09_thread_metadata_app_discussion',
   semver: '0.2.90',
-  numericId: 1,
+  numericId: 9,
   slug: 'thread_metadata_app_discussion',
   title: "Add threadMetadata 'app_discussion' kind + app-subject columns",
   description:

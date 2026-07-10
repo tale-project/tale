@@ -50,7 +50,6 @@ import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_
 import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
 import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
-import { meta as threadMetadataAppDiscussionMeta } from '../versions/v0_2_90/01_thread_metadata_app_discussion/meta';
 import { migration as backfillConversationIntegrationName } from '../versions/v0_2_90/02_backfill_conversation_integration_name';
 import { meta as backfillConversationIntegrationNameMeta } from '../versions/v0_2_90/02_backfill_conversation_integration_name/meta';
 import { meta as installEmailAppsMeta } from '../versions/v0_2_90/03_install_email_apps/meta';
@@ -63,6 +62,8 @@ import { meta as dropWorkforceAgentInstallationsMeta } from '../versions/v0_2_90
 import { meta as removeRetiredTaskWorkflowsMeta } from '../versions/v0_2_90/07_remove_retired_task_workflows/meta';
 import { migration as deleteWorkforceDigestNotifications } from '../versions/v0_2_90/08_delete_workforce_digest_notifications';
 import { meta as deleteWorkforceDigestNotificationsMeta } from '../versions/v0_2_90/08_delete_workforce_digest_notifications/meta';
+// 09 records the additive app_discussion threadMetadata shape (reference).
+import { meta as threadMetadataAppDiscussionMeta } from '../versions/v0_2_90/09_thread_metadata_app_discussion/meta';
 import { migration as appConfigToScheduleVariables } from '../versions/v0_2_91/01_app_config_to_schedule_variables';
 import { meta as appConfigToScheduleVariablesMeta } from '../versions/v0_2_91/01_app_config_to_schedule_variables/meta';
 import { meta as taskActivityContextMeta } from '../versions/v0_2_91/02_task_activity_context/meta';
@@ -144,7 +145,6 @@ export const ALL_META: readonly MigrationMeta[] = [
   backfillConversationContactIdMeta,
   backfillSupportCaseContactIdMeta,
   customersVendorsToContactsTeardownMeta,
-  threadMetadataAppDiscussionMeta,
   backfillConversationIntegrationNameMeta,
   installEmailAppsMeta,
   dropAgentWorkforcePolicyMeta,
@@ -152,6 +152,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   dropWorkforceAgentInstallationsMeta,
   removeRetiredTaskWorkflowsMeta,
   deleteWorkforceDigestNotificationsMeta,
+  threadMetadataAppDiscussionMeta,
   appConfigToScheduleVariablesMeta,
   taskActivityContextMeta,
   retireIssueDeskMeta,

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModules } from '../../../framework/test_helpers';
 import { migration } from './index';
 
-const DIR = 'migrations/versions/v0_2_90/01_thread_metadata_app_discussion';
+const DIR = 'migrations/versions/v0_2_90/09_thread_metadata_app_discussion';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
 
 // Minimal post-change threadMetadata shape: the new columns + widened kind are
@@ -63,7 +63,7 @@ async function insertRow(
   });
 }
 
-describe('0.2.90/01 thread_metadata_app_discussion (reference)', () => {
+describe('0.2.90/09 thread_metadata_app_discussion (reference)', () => {
   it('up is a no-op; down strips the app columns + kind so rows re-validate against the pre-change schema', async () => {
     const t = convexTest(fixtureSchema, modules);
 

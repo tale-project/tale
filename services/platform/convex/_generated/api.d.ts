@@ -1004,8 +1004,6 @@ import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_index 
 import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_meta from "../migrations/versions/v0_2_89/03_claude_code_fable_default/meta.js";
 import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index.js";
 import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta.js";
-import type * as migrations_versions_v0_2_90_01_thread_metadata_app_discussion_index from "../migrations/versions/v0_2_90/01_thread_metadata_app_discussion/index.js";
-import type * as migrations_versions_v0_2_90_01_thread_metadata_app_discussion_meta from "../migrations/versions/v0_2_90/01_thread_metadata_app_discussion/meta.js";
 import type * as migrations_versions_v0_2_90_02_backfill_conversation_integration_name_index from "../migrations/versions/v0_2_90/02_backfill_conversation_integration_name/index.js";
 import type * as migrations_versions_v0_2_90_02_backfill_conversation_integration_name_meta from "../migrations/versions/v0_2_90/02_backfill_conversation_integration_name/meta.js";
 import type * as migrations_versions_v0_2_90_03_install_email_apps_index from "../migrations/versions/v0_2_90/03_install_email_apps/index.js";
@@ -1020,6 +1018,8 @@ import type * as migrations_versions_v0_2_90_07_remove_retired_task_workflows_in
 import type * as migrations_versions_v0_2_90_07_remove_retired_task_workflows_meta from "../migrations/versions/v0_2_90/07_remove_retired_task_workflows/meta.js";
 import type * as migrations_versions_v0_2_90_08_delete_workforce_digest_notifications_index from "../migrations/versions/v0_2_90/08_delete_workforce_digest_notifications/index.js";
 import type * as migrations_versions_v0_2_90_08_delete_workforce_digest_notifications_meta from "../migrations/versions/v0_2_90/08_delete_workforce_digest_notifications/meta.js";
+import type * as migrations_versions_v0_2_90_09_thread_metadata_app_discussion_index from "../migrations/versions/v0_2_90/09_thread_metadata_app_discussion/index.js";
+import type * as migrations_versions_v0_2_90_09_thread_metadata_app_discussion_meta from "../migrations/versions/v0_2_90/09_thread_metadata_app_discussion/meta.js";
 import type * as migrations_versions_v0_2_91_01_app_config_to_schedule_variables_index from "../migrations/versions/v0_2_91/01_app_config_to_schedule_variables/index.js";
 import type * as migrations_versions_v0_2_91_01_app_config_to_schedule_variables_meta from "../migrations/versions/v0_2_91/01_app_config_to_schedule_variables/meta.js";
 import type * as migrations_versions_v0_2_91_02_task_activity_context_index from "../migrations/versions/v0_2_91/02_task_activity_context/index.js";
@@ -2766,8 +2766,6 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_89/03_claude_code_fable_default/meta": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_meta;
   "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index;
   "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta;
-  "migrations/versions/v0_2_90/01_thread_metadata_app_discussion/index": typeof migrations_versions_v0_2_90_01_thread_metadata_app_discussion_index;
-  "migrations/versions/v0_2_90/01_thread_metadata_app_discussion/meta": typeof migrations_versions_v0_2_90_01_thread_metadata_app_discussion_meta;
   "migrations/versions/v0_2_90/02_backfill_conversation_integration_name/index": typeof migrations_versions_v0_2_90_02_backfill_conversation_integration_name_index;
   "migrations/versions/v0_2_90/02_backfill_conversation_integration_name/meta": typeof migrations_versions_v0_2_90_02_backfill_conversation_integration_name_meta;
   "migrations/versions/v0_2_90/03_install_email_apps/index": typeof migrations_versions_v0_2_90_03_install_email_apps_index;
@@ -2782,6 +2780,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_90/07_remove_retired_task_workflows/meta": typeof migrations_versions_v0_2_90_07_remove_retired_task_workflows_meta;
   "migrations/versions/v0_2_90/08_delete_workforce_digest_notifications/index": typeof migrations_versions_v0_2_90_08_delete_workforce_digest_notifications_index;
   "migrations/versions/v0_2_90/08_delete_workforce_digest_notifications/meta": typeof migrations_versions_v0_2_90_08_delete_workforce_digest_notifications_meta;
+  "migrations/versions/v0_2_90/09_thread_metadata_app_discussion/index": typeof migrations_versions_v0_2_90_09_thread_metadata_app_discussion_index;
+  "migrations/versions/v0_2_90/09_thread_metadata_app_discussion/meta": typeof migrations_versions_v0_2_90_09_thread_metadata_app_discussion_meta;
   "migrations/versions/v0_2_91/01_app_config_to_schedule_variables/index": typeof migrations_versions_v0_2_91_01_app_config_to_schedule_variables_index;
   "migrations/versions/v0_2_91/01_app_config_to_schedule_variables/meta": typeof migrations_versions_v0_2_91_01_app_config_to_schedule_variables_meta;
   "migrations/versions/v0_2_91/02_task_activity_context/index": typeof migrations_versions_v0_2_91_02_task_activity_context_index;
