@@ -17,6 +17,9 @@ function payloadWithoutSystemFields(
 export const migration: DbMigration = {
   meta,
   table: LEGACY_TABLE,
+  // up MOVES rows: down must walk the populated target table, not the
+  // then-empty legacy one (it would silently restore nothing).
+  downTable: TARGET_TABLE,
 
   async up(ctx: MutationCtx, doc: MigrationDoc) {
     const storageId = doc.storageId;

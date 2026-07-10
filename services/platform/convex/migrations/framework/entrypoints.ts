@@ -363,9 +363,14 @@ async function runNodeMigration(
         },
       );
       processed.add(org.id);
+      // Record the cursor that FETCHED this page, not `res.continueCursor`:
+      // a mid-page crash must resume by re-fetching the SAME page (the
+      // processed set skips finished orgs; handlers are idempotent). Storing
+      // the next page's cursor would silently skip the crashed org and the
+      // rest of its page while the run still completed as applied.
       await ctx.runMutation(
         internal.migrations.framework.ledger.recordOrgProgress,
-        { migrationId: meta.id, orgId: org.id, orgCursor: res.continueCursor },
+        { migrationId: meta.id, orgId: org.id, orgCursor: cursor },
       );
     }
 

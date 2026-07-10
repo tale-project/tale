@@ -55,6 +55,10 @@ export const migration: DbMigration = {
   },
 
   async down(ctx: MutationCtx, doc: MigrationDoc) {
+    // Fold ONLY onto the DSAR row — the runner feeds down every
+    // governancePolicies row for the org, and folding onto the first one
+    // seen (e.g. password_policy) would corrupt both rows.
+    if (str(doc.policyType) !== 'dsar_governance') return;
     const organizationId = str(doc.organizationId);
     if (!organizationId) return;
     const pending = await pendingRowForOrg(ctx, organizationId);

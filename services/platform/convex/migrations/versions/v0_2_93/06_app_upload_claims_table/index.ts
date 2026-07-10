@@ -28,6 +28,9 @@ function claimKey(doc: MigrationDoc): { org: string; slug: string } | null {
 export const migration: DbMigration = {
   meta,
   table: LEGACY_TABLE,
+  // up MOVES rows: down must walk the populated target table, not the
+  // then-empty legacy one (it would silently restore nothing).
+  downTable: TARGET_TABLE,
 
   async up(ctx: MutationCtx, doc: MigrationDoc) {
     const keys = claimKey(doc);

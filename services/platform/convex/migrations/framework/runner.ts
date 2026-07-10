@@ -66,8 +66,14 @@ export const applyDbBatch = internalMutation({
     }
 
     const batchSize = migration.batchSize ?? DEFAULT_BATCH_SIZE;
+    // Down over a table-MOVE migration walks the target table — the legacy
+    // `table` is empty once up completed and would restore nothing.
+    const sourceTable =
+      args.direction === 'down'
+        ? (migration.downTable ?? migration.table)
+        : migration.table;
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/undeclared tables are read untyped
-    const page = await (ctx.db.query(migration.table as any) as any).paginate({
+    const page = await (ctx.db.query(sourceTable as any) as any).paginate({
       cursor: row.cursor ?? null,
       numItems: batchSize,
     });

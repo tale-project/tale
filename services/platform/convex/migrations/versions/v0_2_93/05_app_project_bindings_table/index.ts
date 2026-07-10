@@ -41,6 +41,9 @@ function normalizeBindingPayload(payload: Record<string, unknown>): void {
 export const migration: DbMigration = {
   meta,
   table: LEGACY_TABLE,
+  // up MOVES rows: down must walk the populated target table, not the
+  // then-empty legacy one (it would silently restore nothing).
+  downTable: TARGET_TABLE,
 
   async up(ctx: MutationCtx, doc: MigrationDoc) {
     const keys = bindingKey(doc);
@@ -75,9 +78,14 @@ export const migration: DbMigration = {
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
+    // `by_org_automation_slug_project` (not the historical
+    // `by_org_slug_project`): the world schema keeps that name at its
+    // 0.2.88-era field list ['organizationId','appSlug','projectId'], so the
+    // automationSlug lookup lives under its own name. Same fields, same
+    // semantics.
     const existingLegacy = await db
       .query(LEGACY_TABLE)
-      .withIndex('by_org_slug_project', (q: any) =>
+      .withIndex('by_org_automation_slug_project', (q: any) =>
         q
           .eq('organizationId', keys.org)
           .eq('automationSlug', keys.slug)

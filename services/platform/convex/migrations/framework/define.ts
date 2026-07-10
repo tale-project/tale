@@ -106,6 +106,12 @@ export interface DbMigrationSpec extends MigrationInfo {
    * schema — Convex permits reading such tables at runtime.
    */
   readonly table: string;
+  /**
+   * Table the runner paginates for `down` when `up` MOVED rows into a
+   * different table (expand/contract renames) — `table` is empty after `up`,
+   * so a down over it would silently restore nothing. Defaults to `table`.
+   */
+  readonly downTable?: string;
   /** Rows per batch transaction (1..1000). Default 100. */
   readonly batchSize?: number;
   up(ctx: MutationCtx, doc: MigrationDoc, run: DbRun): Promise<void>;

@@ -25,7 +25,9 @@ const fixtureSchema = defineSchema({
         contentHash: v.string(),
       }),
     ),
-  }).index('by_org_slug', ['organizationId', 'automationSlug']),
+    // The down queries the legacy table under the world-schema index name
+    // (`by_org_slug` keeps its 0.2.88-era appSlug field list there).
+  }).index('by_org_automation_slug', ['organizationId', 'automationSlug']),
   automationInstallations: defineTable({
     organizationId: v.string(),
     automationSlug: v.string(),

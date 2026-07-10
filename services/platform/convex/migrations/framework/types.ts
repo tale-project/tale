@@ -90,6 +90,13 @@ export interface DbMigration {
    * schema — Convex permits reading such tables at runtime.
    */
   readonly table: string;
+  /**
+   * Table the runner paginates for `down` when `up` MOVED rows into a
+   * different table (expand/contract renames): the inverse must walk the
+   * TARGET table — `table` is empty once `up` completes, so a `down` over it
+   * would silently restore nothing. Defaults to `table` (in-place transforms).
+   */
+  readonly downTable?: string;
   /** Rows per batch transaction. Default 100. */
   readonly batchSize?: number;
   /** Forward per-row transform. Mutate via `ctx.db`; idempotent. */

@@ -44,6 +44,7 @@ export function composeDb(
   return {
     meta,
     table: spec.table,
+    downTable: spec.downTable,
     batchSize: spec.batchSize,
     up: (ctx, doc) => spec.up(ctx, doc, makeDbRun(ctx, meta.id)),
     down: (ctx, doc) => spec.down(ctx, doc, makeDbRun(ctx, meta.id)),

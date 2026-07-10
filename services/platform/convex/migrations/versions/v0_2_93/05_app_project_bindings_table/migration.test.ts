@@ -15,11 +15,19 @@ const bindingTable = defineTable({
   projectId: v.id('projects'),
   boundAt: v.number(),
   boundBy: v.string(),
-}).index('by_org_slug_project', [
-  'organizationId',
-  'automationSlug',
-  'projectId',
-]);
+})
+  .index('by_org_slug_project', [
+    'organizationId',
+    'automationSlug',
+    'projectId',
+  ])
+  // The down queries the legacy table under the world-schema index name
+  // (`by_org_slug_project` keeps its 0.2.88-era appSlug field list there).
+  .index('by_org_automation_slug_project', [
+    'organizationId',
+    'automationSlug',
+    'projectId',
+  ]);
 
 const fixtureSchema = defineSchema({
   appProjectBindings: bindingTable,
