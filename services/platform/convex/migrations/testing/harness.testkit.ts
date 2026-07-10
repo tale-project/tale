@@ -19,7 +19,8 @@
  *   6. snapshot hygiene: table-rows snapshots exist after up and are fully
  *      consumed by down; fs-tree sidecars appear under the config root
  *
- * Node-kind test files must carry `// @vitest-environment node` (asserted).
+ * Node-kind test files must carry the vitest node-environment docblock
+ * (asserted; knip misreads the literal directive in comments as a dep).
  * Two-dot basename: test-only module, excluded from the Convex bundle.
  */
 
