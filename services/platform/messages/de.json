@@ -7530,7 +7530,7 @@
       "nameLabel": "Projektname",
       "namePlaceholder": "z. B. Acme AG",
       "keyLabel": "Projektkürzel",
-      "keyDescription": "Präfix für Aufgaben-IDs (z. B. TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
+      "keyDescription": "Kurzes Präfix für Aufgaben-IDs — nur Buchstaben und Ziffern (z. B. wird aus TAL dann TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
       "descriptionLabel": "Beschreibung",
       "descriptionPlaceholder": "Optional — bei einem Kundendesk den Firmennamen als Projektnamen verwenden.",
       "teamLabel": "Verantwortliches Team",

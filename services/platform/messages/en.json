@@ -4929,7 +4929,7 @@
       "nameLabel": "Project name",
       "namePlaceholder": "e.g. Acme AG",
       "keyLabel": "Project key",
-      "keyDescription": "Prefix for task IDs (e.g. TAL-1). Fixed — it can't be changed after the project is created.",
+      "keyDescription": "Short prefix for task IDs — letters and digits only (e.g. TAL becomes TAL-1). Fixed — it can't be changed after the project is created.",
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Optional — for a client desk, use the company name as the project name.",
       "teamLabel": "Owning team",

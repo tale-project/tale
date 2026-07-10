@@ -7531,7 +7531,7 @@
       "nameLabel": "Nom du projet",
       "namePlaceholder": "par ex. Acme SA",
       "keyLabel": "Clé du projet",
-      "keyDescription": "Préfixe des identifiants de tâches (par ex. TAL-1). Fixe — impossible à modifier après la création du projet.",
+      "keyDescription": "Court préfixe pour les identifiants de tâches — lettres et chiffres uniquement (par ex. TAL devient TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Optionnel — pour un bureau client, utilise le nom de l'entreprise comme nom de projet.",
       "teamLabel": "Équipe propriétaire",
