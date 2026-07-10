@@ -29,7 +29,6 @@ import {
   BoundButton,
   EffectButton,
   isEffectAction,
-  type BoundActionSpec,
   type RowActionSpec,
 } from './bound-button';
 

@@ -32,7 +32,7 @@ import {
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactElement } from 'react';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
@@ -255,8 +255,13 @@ export const taleConfig: Config<TaleComponents> = {
   // never reaches the cards — `[&>div]:contents` dissolves that wrapper so
   // Text / Alert / Form / Collection become the flex children.
   root: {
-    render: ({ children }: { children: ReactNode }) => (
-      <div className="flex flex-col gap-4 [&>div]:contents">{children}</div>
+    // Accept Puck's full root props (id/puck/editMode/children) — a narrow
+    // `{ children }` annotation is a weak type and fails assignability to
+    // `PuckComponent<any>`.
+    render: (props) => (
+      <div className="flex flex-col gap-4 [&>div]:contents">
+        {props.children}
+      </div>
     ),
   },
   components: {

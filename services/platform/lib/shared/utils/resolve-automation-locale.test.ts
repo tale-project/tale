@@ -156,6 +156,17 @@ describe('resolveLocalizedProp', () => {
       undefined,
     );
   });
+
+  it('skips non-string passthrough values and falls through', () => {
+    expect(
+      resolveLocalizedProp(
+        'Base',
+        { de: { text: 42, other: true }, en: { text: 'English' } },
+        'text',
+        'de',
+      ),
+    ).toBe('English');
+  });
 });
 
 describe('resolveConfigFieldLocale', () => {

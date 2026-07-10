@@ -164,7 +164,7 @@ export function ProjectFilesTab({
     let cursor: ProjectFolderRow | undefined = match;
     while (cursor) {
       toExpand.add(String(cursor._id));
-      const parentId = cursor.parentId;
+      const parentId: Id<'folders'> | undefined = cursor.parentId;
       cursor = parentId ? folders.find((f) => f._id === parentId) : undefined;
     }
     setExpanded((prev) => {
