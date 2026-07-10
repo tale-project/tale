@@ -5,12 +5,14 @@ point; it links to the deeper guides rather than duplicating them.
 
 ## Get running (from a fresh clone)
 
-Prerequisites: **Bun ≥ 1.3**, **Python 3.12**, and **uv** on your `PATH`
-([why and how](../docs/en/develop/contributor-setup.md#prerequisites)).
+Prerequisites: **Bun ≥ 1.3**
+([why and how](../docs/en/develop/contributor-setup.md#prerequisites)). Python 3.12 and
+uv are only needed for the full gate — `bun run check` / `bun run verify` shell out to
+`uvx ruff` and run the Python test suites — and for the bundled Python skills.
 
 ```bash
 bun install            # wire up every workspace
-bun run setup:check    # validate Bun, Python, uv, ports, the Convex CLI
+bun run setup:check    # validate Bun, free ports, the Convex CLI
 bun run dev            # boot Convex + Vite (wait for the READY banner)
 ```
 
@@ -42,6 +44,15 @@ faster format/lint/typecheck/test subset while iterating.
 - The complete engineering contract — code style, security rules, TypeScript and
   React conventions, the full pre-PR checklist — is in
   [`AGENTS.md`](../AGENTS.md). Read it once.
+
+## Known issues
+
+- **xlsx security vulnerability**: the project uses xlsx@0.18.5, which has known
+  vulnerabilities (Prototype Pollution and ReDoS). It is the latest released version —
+  no fix exists yet. The package parses Excel files in the documents feature.
+- **ENVIRONMENT_FALLBACK warning**: the platform build may print an
+  `ENVIRONMENT_FALLBACK` error. It is a Convex-specific warning and does not prevent
+  successful builds.
 
 ## Reporting bugs & ideas
 
