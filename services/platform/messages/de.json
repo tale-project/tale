@@ -1954,6 +1954,35 @@
       "messagePlaceholder": "Antwort eingeben...",
       "send": "Senden"
     },
+    "compose": {
+      "compose": "Verfassen",
+      "newEmail": "Neue E-Mail",
+      "title": "Neue E-Mail",
+      "description": "Beginne eine neue E-Mail-Konversation mit einem Kontakt.",
+      "to": "An",
+      "toPlaceholder": "Kontakt auswählen",
+      "searchContacts": "Kontakte durchsuchen",
+      "contactsLoading": "Kontakte werden geladen…",
+      "noContacts": "Noch keine Kontakte mit E-Mail-Adresse",
+      "inboxLabel": "Postfach",
+      "inboxPlaceholder": "Postfach auswählen",
+      "fromLabel": "Absender",
+      "fromDomainHint": "Beliebige Adresse unter {domain}",
+      "fromInvalid": "Gib eine Adresse unter {domain} ein",
+      "from": "Absender: {from}",
+      "noEmailIntegration": "Verbinde eine E-Mail-Integration, um E-Mails zu senden.",
+      "subject": "Betreff",
+      "subjectPlaceholder": "Worum geht es?",
+      "bodyPlaceholder": "Schreib deine Nachricht…",
+      "fillRequired": "Wähle einen Kontakt, ein Postfach und einen Betreff, um zu senden.",
+      "discard": "Verwerfen",
+      "discardConfirm": {
+        "title": "Entwurf verwerfen?",
+        "description": "Du verwirfst diesen E-Mail-Entwurf endgültig. Das lässt sich nicht rückgängig machen."
+      },
+      "sent": "E-Mail gesendet",
+      "uploadFailed": "Anhang konnte nicht hochgeladen werden"
+    },
     "updating": "Konversationen werden aktualisiert...",
     "bulk": {
       "sendMessages": "Nachrichten senden",

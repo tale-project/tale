@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
+import { composeEmailConversation as composeEmailConversationHelper } from './compose_email_conversation';
 import * as ConversationsHelpers from './helpers';
 import {
   bulkReplyToConversations as bulkReplyToConversationsHelper,
@@ -97,6 +98,34 @@ export const replyToConversation = mutationWithRLS({
   returns: v.id('conversationMessages'),
   handler: async (ctx, args) => {
     return await replyToConversationHelper(ctx, args);
+  },
+});
+
+export const composeEmailConversation = mutationWithRLS({
+  args: {
+    organizationId: v.string(),
+    contactId: v.id('contacts'),
+    integrationName: v.string(),
+    subject: v.string(),
+    content: v.string(),
+    from: v.optional(v.string()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id('_storage'),
+          fileName: v.string(),
+          contentType: v.string(),
+          size: v.number(),
+        }),
+      ),
+    ),
+  },
+  returns: v.object({
+    conversationId: v.id('conversations'),
+    messageId: v.id('conversationMessages'),
+  }),
+  handler: async (ctx, args) => {
+    return await composeEmailConversationHelper(ctx, args);
   },
 });
 

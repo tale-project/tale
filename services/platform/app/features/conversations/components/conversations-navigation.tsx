@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -11,6 +13,8 @@ import { useApproxConversationCountByStatus } from '../hooks/queries';
 
 interface ConversationsNavigationProps {
   organizationId: string;
+  /** Trailing action pinned to the right of the tab row (e.g. Compose). */
+  action?: ReactNode;
 }
 
 const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
@@ -25,6 +29,7 @@ function CountBadge({ count }: { count: number }) {
 
 export function ConversationsNavigation({
   organizationId,
+  action,
 }: ConversationsNavigationProps) {
   const { t } = useT('conversations');
 
@@ -51,5 +56,9 @@ export function ConversationsNavigation({
     };
   });
 
-  return <TabNavigation items={navigationItems} standalone={false} prefetch />;
+  return (
+    <TabNavigation items={navigationItems} standalone={false} prefetch>
+      {action}
+    </TabNavigation>
+  );
 }

@@ -1954,6 +1954,35 @@
       "messagePlaceholder": "Type your reply...",
       "send": "Send"
     },
+    "compose": {
+      "compose": "Compose",
+      "newEmail": "New email",
+      "title": "New email",
+      "description": "Start a new email conversation with a contact.",
+      "to": "To",
+      "toPlaceholder": "Select a contact",
+      "searchContacts": "Search contacts",
+      "contactsLoading": "Loading contacts…",
+      "noContacts": "No contacts with an email address yet",
+      "inboxLabel": "Inbox",
+      "inboxPlaceholder": "Select an inbox",
+      "fromLabel": "From",
+      "fromDomainHint": "Any address at {domain}",
+      "fromInvalid": "Enter an address at {domain}",
+      "from": "From: {from}",
+      "noEmailIntegration": "Connect an email integration to send email.",
+      "subject": "Subject",
+      "subjectPlaceholder": "What's this about?",
+      "bodyPlaceholder": "Write your message…",
+      "fillRequired": "Choose a contact, an inbox, and a subject to send.",
+      "discard": "Discard",
+      "discardConfirm": {
+        "title": "Discard draft?",
+        "description": "This draft email will be permanently discarded. This can't be undone."
+      },
+      "sent": "Email sent",
+      "uploadFailed": "Failed to upload attachment"
+    },
     "updating": "Updating conversations...",
     "bulk": {
       "sendMessages": "Send messages",

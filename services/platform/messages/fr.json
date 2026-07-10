@@ -1955,6 +1955,35 @@
       "messagePlaceholder": "Saisis ta réponse...",
       "send": "Envoyer"
     },
+    "compose": {
+      "compose": "Rédiger",
+      "newEmail": "Nouvel e-mail",
+      "title": "Nouvel e-mail",
+      "description": "Démarre une nouvelle conversation par e-mail avec un contact.",
+      "to": "À",
+      "toPlaceholder": "Sélectionne un contact",
+      "searchContacts": "Rechercher des contacts",
+      "contactsLoading": "Chargement des contacts…",
+      "noContacts": "Aucun contact avec une adresse e-mail pour l'instant",
+      "inboxLabel": "Boîte",
+      "inboxPlaceholder": "Sélectionne une boîte",
+      "fromLabel": "Expéditeur",
+      "fromDomainHint": "N'importe quelle adresse sur {domain}",
+      "fromInvalid": "Saisis une adresse sur {domain}",
+      "from": "Expéditeur : {from}",
+      "noEmailIntegration": "Connecte une intégration e-mail pour envoyer des e-mails.",
+      "subject": "Objet",
+      "subjectPlaceholder": "De quoi s'agit-il ?",
+      "bodyPlaceholder": "Écris ton message…",
+      "fillRequired": "Choisis un contact, une boîte et un objet pour envoyer.",
+      "discard": "Supprimer",
+      "discardConfirm": {
+        "title": "Supprimer le brouillon ?",
+        "description": "Ce brouillon d'e-mail sera définitivement supprimé. Cette action est irréversible."
+      },
+      "sent": "E-mail envoyé",
+      "uploadFailed": "Échec de l'envoi de la pièce jointe"
+    },
     "updating": "Mise à jour des conversations...",
     "bulk": {
       "sendMessages": "Envoyer les messages",

@@ -1,0 +1,393 @@
+'use client';
+
+import { Button } from '@tale/ui/button';
+import { Center, Row, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+import { Loader2Icon, Trash2Icon, XIcon } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { PanelFooter } from '@/app/components/layout/panel-footer';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Input } from '@/app/components/ui/forms/input';
+import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { toast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
+import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+
+import {
+  useComposeEmailConversation,
+  useGenerateUploadUrl,
+} from '../hooks/mutations';
+import { useEmailIntegrations } from '../hooks/queries';
+import {
+  emailDomain,
+  isSenderAddressValid,
+  supportsDynamicSender,
+} from '../lib/email-integrations';
+import { ContactRecipientPicker } from './contact-recipient-picker';
+import { messageDraftKeys, type AttachedFile } from './message-editor/types';
+
+// Milkdown is heavy; load it only once compose is open (mirrors the reply
+// composer in the conversation panel).
+const MessageEditor = lazyComponent(
+  () =>
+    import('./message-editor').then((mod) => ({ default: mod.MessageEditor })),
+  {
+    loading: () => (
+      <Center className="p-4">
+        <Loader2Icon className="text-muted-foreground size-6 animate-spin" />
+      </Center>
+    ),
+  },
+);
+
+export interface ComposeEmailPaneProps {
+  organizationId: string;
+  /** Seed the recipient (e.g. arriving from a contact row). */
+  initialContactId?: string;
+  /** Navigate to the created conversation after a successful send. */
+  onSent: (conversationId: string) => void;
+  /** Dismiss compose (keeps the draft — Discard clears it). */
+  onClose: () => void;
+}
+
+interface UploadedAttachment {
+  storageId: Id<'_storage'>;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+/**
+ * Compose a brand-new outbound email, rendered IN the inbox reading pane where a
+ * thread normally shows: the same header/scroll/footer skeleton as
+ * `ConversationPanel`, with the reply composer (Milkdown) at the bottom.
+ *
+ * Draft lifecycle: every field (recipient, inbox, sender override, subject) plus
+ * the body is persisted per user + org, so closing or navigating away and
+ * reopening resumes the in-progress email. Arriving from a contact row seeds the
+ * recipient. A successful send — and the explicit Discard — clear the whole
+ * draft. The body draft is owned by `MessageEditor` (keyed via
+ * {@link messageDraftKeys}); Discard clears that same key.
+ *
+ * "Empty" fields are stored as `''` rather than `null`: `usePersistedState`'s
+ * type guard rejects a stored string when the initial value is `null`, which
+ * would silently drop a restored recipient/inbox.
+ */
+export function ComposeEmailPane({
+  organizationId,
+  initialContactId,
+  onSent,
+  onClose,
+}: ComposeEmailPaneProps) {
+  const { t } = useT('conversations');
+  const { t: tCommon } = useT('common');
+  const { user } = useAuth();
+  const { emailIntegrations, isLoading: integrationsLoading } =
+    useEmailIntegrations(organizationId);
+  const { mutateAsync: composeEmail } = useComposeEmailConversation();
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+
+  const draftPrefix = user?.userId
+    ? `compose-${user.userId}-${organizationId}`
+    : `compose-${organizationId}`;
+  const composeBodyMessageId = `compose-${organizationId}`;
+
+  const [contactId, setContactId, clearContactId] = usePersistedState(
+    `${draftPrefix}-contact`,
+    initialContactId ?? '',
+  );
+  const [integrationName, setIntegrationName, clearIntegrationName] =
+    usePersistedState(`${draftPrefix}-inbox`, '');
+  const [senderAddress, setSenderAddress, clearSenderAddress] =
+    usePersistedState(`${draftPrefix}-sender`, '');
+  const [subject, setSubject, clearSubject] = usePersistedState(
+    `${draftPrefix}-subject`,
+    '',
+  );
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+
+  // Seeded recipient (from a contact row) wins over a restored draft contact.
+  useEffect(() => {
+    if (initialContactId) setContactId(initialContactId);
+  }, [initialContactId, setContactId]);
+
+  const selectedIntegration = useMemo(
+    () => emailIntegrations.find((i) => i.slug === integrationName) ?? null,
+    [emailIntegrations, integrationName],
+  );
+
+  // Once inboxes load: keep the persisted inbox only if it's still connected,
+  // else auto-select the sole inbox (or clear when there's a choice to make).
+  useEffect(() => {
+    if (integrationsLoading) return;
+    const stillConnected =
+      integrationName !== '' &&
+      emailIntegrations.some((i) => i.slug === integrationName);
+    if (stillConnected) return;
+    setIntegrationName(
+      emailIntegrations.length === 1 ? emailIntegrations[0].slug : '',
+    );
+  }, [
+    integrationsLoading,
+    emailIntegrations,
+    integrationName,
+    setIntegrationName,
+  ]);
+
+  // Sender is an OVERRIDE over the inbox's configured address: empty means "use
+  // the inbox default", so switching inbox (which clears the override) falls
+  // back cleanly without an effect that could clobber a restored override.
+  const senderDefault = selectedIntegration?.fromAddress ?? '';
+  const senderInputValue = senderAddress || senderDefault;
+  const effectiveSender = senderAddress.trim() || senderDefault;
+  const dynamicSender = supportsDynamicSender(selectedIntegration);
+  const senderDomain = senderDefault ? emailDomain(senderDefault) : '';
+  const senderValid =
+    !dynamicSender || isSenderAddressValid(effectiveSender, senderDomain);
+
+  const hasEmailIntegration = emailIntegrations.length > 0;
+  const canSend = Boolean(
+    contactId &&
+    integrationName &&
+    subject.trim() &&
+    hasEmailIntegration &&
+    senderValid,
+  );
+
+  const handleInboxChange = (slug: string) => {
+    setIntegrationName(slug);
+    clearSenderAddress();
+  };
+
+  const clearDraftFields = useCallback(() => {
+    clearContactId();
+    clearIntegrationName();
+    clearSenderAddress();
+    clearSubject();
+  }, [clearContactId, clearIntegrationName, clearSenderAddress, clearSubject]);
+
+  const discardDraft = useCallback(() => {
+    clearDraftFields();
+    // The body/instruction drafts live inside MessageEditor's own persistence;
+    // clear the same keys so a discard truly empties the composer on reopen.
+    const keys = messageDraftKeys(user?.userId, composeBodyMessageId);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(keys.body);
+        window.localStorage.removeItem(keys.improveInstruction);
+      } catch (error) {
+        console.warn('Failed to clear compose body draft:', error);
+      }
+    }
+    onClose();
+  }, [clearDraftFields, user?.userId, composeBodyMessageId, onClose]);
+
+  const uploadAttachments = async (
+    attachments: AttachedFile[],
+  ): Promise<UploadedAttachment[]> => {
+    const valid = attachments.filter((a) => a.file);
+    return Promise.all(
+      valid.map(async (attachment) => {
+        const file = attachment.file;
+        if (!file) throw new Error('missing file');
+        const uploadUrl = await generateUploadUrl({});
+        const result = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file,
+        });
+        if (!result.ok) throw new Error('upload failed');
+        const { storageId } = await result.json();
+        if (typeof storageId !== 'string') throw new Error('upload failed');
+        return {
+          storageId: toId<'_storage'>(storageId),
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+        };
+      }),
+    );
+  };
+
+  const handleSend = async (message: string, attachments?: AttachedFile[]) => {
+    if (!contactId || !integrationName || !subject.trim()) return;
+
+    let uploaded: UploadedAttachment[] | undefined;
+    if (attachments && attachments.length > 0) {
+      try {
+        uploaded = await uploadAttachments(attachments);
+      } catch (error) {
+        console.error('Error uploading attachments:', error);
+        toast({ title: t('compose.uploadFailed'), variant: 'destructive' });
+        return;
+      }
+    }
+
+    try {
+      const result = await composeEmail({
+        organizationId,
+        contactId: toId<'contacts'>(contactId),
+        integrationName,
+        subject: subject.trim(),
+        content: message,
+        ...(dynamicSender && effectiveSender ? { from: effectiveSender } : {}),
+        ...(uploaded?.length ? { attachments: uploaded } : {}),
+      });
+      toast({ title: t('compose.sent'), variant: 'success' });
+      // MessageEditor clears its own body draft on a successful send; clear the
+      // field drafts here so a sent email never reappears as a draft.
+      clearDraftFields();
+      onSent(result.conversationId);
+    } catch (error) {
+      // Re-throw so MessageEditor keeps the draft and shows its own error toast.
+      console.error('Failed to compose email:', error);
+      throw error;
+    }
+  };
+
+  return (
+    <>
+      <Stack gap={0} className="relative min-h-0 flex-1">
+        <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
+          <div className="border-border bg-background sticky top-0 z-20 border-b p-4 sm:px-6 sm:py-4">
+            <Row justify="between" align="center" gap={2}>
+              <Stack gap={0} className="min-w-0">
+                <Text variant="label" className="truncate">
+                  {t('compose.title')}
+                </Text>
+                <Text variant="muted" className="truncate text-xs">
+                  {t('compose.description')}
+                </Text>
+              </Stack>
+              <Row gap={1} className="shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Trash2Icon}
+                  onClick={() => setConfirmDiscardOpen(true)}
+                >
+                  {t('compose.discard')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onClose}
+                  aria-label={tCommon('aria.close')}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </Row>
+            </Row>
+          </div>
+
+          <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
+            <Stack gap={4}>
+              <ContactRecipientPicker
+                organizationId={organizationId}
+                value={contactId || null}
+                onChange={setContactId}
+              />
+
+              {integrationsLoading ? null : !hasEmailIntegration ? (
+                <Text variant="muted">{t('compose.noEmailIntegration')}</Text>
+              ) : (
+                <>
+                  {emailIntegrations.length > 1 && (
+                    <SearchableSelect
+                      label={t('compose.inboxLabel')}
+                      required
+                      value={integrationName || null}
+                      onValueChange={handleInboxChange}
+                      options={emailIntegrations.map((i) => ({
+                        value: i.slug,
+                        label: i.title,
+                        description: i.fromAddress,
+                      }))}
+                      placeholder={t('compose.inboxPlaceholder')}
+                      aria-label={t('compose.inboxLabel')}
+                    />
+                  )}
+
+                  {selectedIntegration &&
+                    (dynamicSender ? (
+                      <Input
+                        label={t('compose.fromLabel')}
+                        required
+                        type="email"
+                        value={senderInputValue}
+                        onChange={(event) =>
+                          setSenderAddress(event.target.value)
+                        }
+                        description={t('compose.fromDomainHint', {
+                          domain: senderDomain,
+                        })}
+                        errorMessage={
+                          senderAddress.trim() !== '' && !senderValid
+                            ? t('compose.fromInvalid', { domain: senderDomain })
+                            : undefined
+                        }
+                        placeholder={`you@${senderDomain}`}
+                        aria-label={t('compose.fromLabel')}
+                      />
+                    ) : (
+                      <Text variant="muted">
+                        {t('compose.from', {
+                          from:
+                            selectedIntegration.fromAddress ??
+                            selectedIntegration.title,
+                        })}
+                      </Text>
+                    ))}
+                </>
+              )}
+
+              <Input
+                label={t('compose.subject')}
+                required
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder={t('compose.subjectPlaceholder')}
+              />
+            </Stack>
+          </div>
+        </Stack>
+
+        <PanelFooter className="px-4 py-3">
+          <div className="mx-auto w-full max-w-3xl">
+            <MessageEditor
+              onSave={handleSend}
+              placeholder={t('compose.bodyPlaceholder')}
+              organizationId={organizationId}
+              messageId={composeBodyMessageId}
+              disabled={!canSend}
+            />
+            {hasEmailIntegration && !canSend && (
+              <Text variant="muted" className="mt-2 text-xs">
+                {t('compose.fillRequired')}
+              </Text>
+            )}
+          </div>
+        </PanelFooter>
+      </Stack>
+
+      {confirmDiscardOpen && (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setConfirmDiscardOpen(false);
+          }}
+          variant="destructive"
+          title={t('compose.discardConfirm.title')}
+          description={t('compose.discardConfirm.description')}
+          confirmText={t('compose.discard')}
+          onConfirm={discardDraft}
+        />
+      )}
+    </>
+  );
+}
