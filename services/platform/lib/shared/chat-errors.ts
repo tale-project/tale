@@ -178,6 +178,17 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'output_cap_too_high';
   }
 
+  // OpenRouter (and similar) reject when max_tokens alone fills the whole
+  // context window: "…1048576 in the output". That is an output-cap misconfig,
+  // not a conversation that grew too long — classify before the broad
+  // context_length matcher below.
+  if (
+    /in the output\b/i.test(message) &&
+    /context.?length|context.?window|maximum context/i.test(message)
+  ) {
+    return 'output_cap_too_high';
+  }
+
   if (/fewer max_tokens|token.*limit|max_tokens/i.test(message)) {
     return 'token_limit';
   }
@@ -262,7 +273,7 @@ export function buildHumanErrorSentence(
     case 'unsupported_parameter':
       return 'The model rejected a request parameter — likely a provider or model configuration mismatch.';
     case 'output_cap_too_high':
-      return 'The model’s configured max output tokens exceeds what it supports. Ask an administrator to lower it.';
+      return "This model's max output tokens leave no room for the prompt (or exceed what it supports). Try again — a bad cached cap is cleared automatically — or ask an administrator to lower it.";
     case 'tool_failure':
       return 'The agent hit an error while accessing data. Try rephrasing your request.';
     case 'provider_error':

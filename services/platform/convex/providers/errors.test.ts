@@ -153,6 +153,15 @@ describe('shouldFailoverToNextModel', () => {
     ).toBe(false);
   });
 
+  it('returns true for OpenRouter output-budget-in-context errors', () => {
+    expect(
+      shouldFailoverToNextModel({
+        message:
+          "This endpoint's maximum context length is 1048576 tokens. However, you requested about 1064907 tokens (3270 of text input, 13061 of tool input, 1048576 in the output).",
+      }),
+    ).toBe(true);
+  });
+
   it('returns false for NoProviderAvailableError (no_providers)', () => {
     expect(
       shouldFailoverToNextModel(

@@ -67,6 +67,15 @@ describe('classifyChatErrorCode', () => {
     ).toBe('context_length');
   });
 
+  it('classifies OpenRouter output-budget-in-context errors as output_cap_too_high', () => {
+    expect(
+      classifyChatErrorCode({
+        message:
+          "This endpoint's maximum context length is 1048576 tokens. However, you requested about 1064907 tokens (3270 of text input, 13061 of tool input, 1048576 in the output).",
+      }),
+    ).toBe('output_cap_too_high');
+  });
+
   it('prefers operator-config parameter mismatch over token_limit', () => {
     expect(
       classifyChatErrorCode({

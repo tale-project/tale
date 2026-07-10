@@ -1581,7 +1581,7 @@
     "errorHintCreditExhausted": "The AI provider's credit limit was exceeded. Contact your administrator to add credits.",
     "errorHintMissingApiKey": "No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.",
     "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
-    "errorHintOutputCapTooHigh": "This model's configured max output tokens is higher than the model supports. Ask your administrator to lower the model's Max output tokens setting.",
+    "errorHintOutputCapTooHigh": "This model's max output tokens leave no room for the prompt (or exceed what the model supports). Try again — Tale clears a bad cached cap automatically — or ask an administrator to lower Max output tokens.",
     "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",

@@ -623,6 +623,7 @@ import type * as lib_agent_response_guardrails_block from "../lib/agent_response
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
 import type * as lib_agent_response_model_capabilities_infer from "../lib/agent_response/model_capabilities/infer.js";
 import type * as lib_agent_response_model_capabilities_normalize from "../lib/agent_response/model_capabilities/normalize.js";
+import type * as lib_agent_response_model_capabilities_sanitize_max_output from "../lib/agent_response/model_capabilities/sanitize_max_output.js";
 import type * as lib_agent_response_model_metadata from "../lib/agent_response/model_metadata.js";
 import type * as lib_agent_response_model_routing_domain_data_ar from "../lib/agent_response/model_routing/domain/data/ar.js";
 import type * as lib_agent_response_model_routing_domain_data_bg from "../lib/agent_response/model_routing/domain/data/bg.js";
@@ -2385,6 +2386,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/index": typeof lib_agent_response_index;
   "lib/agent_response/model_capabilities/infer": typeof lib_agent_response_model_capabilities_infer;
   "lib/agent_response/model_capabilities/normalize": typeof lib_agent_response_model_capabilities_normalize;
+  "lib/agent_response/model_capabilities/sanitize_max_output": typeof lib_agent_response_model_capabilities_sanitize_max_output;
   "lib/agent_response/model_metadata": typeof lib_agent_response_model_metadata;
   "lib/agent_response/model_routing/domain/data/ar": typeof lib_agent_response_model_routing_domain_data_ar;
   "lib/agent_response/model_routing/domain/data/bg": typeof lib_agent_response_model_routing_domain_data_bg;

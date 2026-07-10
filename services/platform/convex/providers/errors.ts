@@ -245,6 +245,11 @@ export function shouldFailoverToNextModel(error: unknown): boolean {
   // Explicit provider-unavailable errors always qualify.
   if (error instanceof ProviderUnavailableError) return true;
 
+  // Output-cap misconfig (including OpenRouter's "… in the output" shape that
+  // also mentions context length) is model/config-scoped — another model, or
+  // the same model after the poisoned cache row is cleared, may succeed.
+  if (classifyChatErrorCode(error) === 'output_cap_too_high') return true;
+
   // Exclude universal errors that would fail on any model.
   if (NO_FAILOVER_PATTERNS.some((p) => message.includes(p))) return false;
 
