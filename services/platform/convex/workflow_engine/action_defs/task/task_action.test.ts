@@ -115,3 +115,142 @@ describe('taskAction update_status — optional comment ride-along', () => {
     }
   });
 });
+
+describe('taskAction list_comments — timeline feedback read', () => {
+  // Fixture timeline (ascending): user asks → workflow posts figures with the
+  // prepared anchor → user leaves two feedback comments → an agent replies.
+  const timeline = [
+    {
+      messageId: 'm1',
+      authorType: 'user',
+      authorId: 'u1',
+      body: 'is Q2 ready?',
+      createdAt: 100,
+    },
+    {
+      messageId: 'm2',
+      authorType: 'agent',
+      authorId: 'workflow',
+      body: '[automated] [vat:prepared] figures…',
+      createdAt: 200,
+    },
+    {
+      messageId: 'm3',
+      authorType: 'user',
+      authorId: 'u1',
+      body: 'box 302 looks wrong',
+      createdAt: 300,
+    },
+    {
+      messageId: 'm4',
+      authorType: 'user',
+      authorId: 'u2',
+      body: 'DE invoices are reverse-charge',
+      createdAt: 400,
+    },
+    {
+      messageId: 'm5',
+      authorType: 'agent',
+      authorId: 'helper',
+      body: 'looking into it',
+      createdAt: 500,
+    },
+  ];
+
+  function ctxListing(rows: unknown[]): ActionCtx {
+    return {
+      // Deliberately shuffled: the action must order by createdAt itself.
+      runQuery: () => Promise.resolve(rows.toReversed()),
+      runMutation: () => {
+        throw new Error('unexpected runMutation');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+    } as unknown as ActionCtx;
+  }
+
+  function exec(params: Record<string, unknown>, rows: unknown[] = timeline) {
+    return taskAction.execute(
+      ctxListing(rows),
+      {
+        operation: 'list_comments',
+        taskId: 'task_1',
+        ...params,
+      } as unknown as ExecParams,
+      { organizationId: 'org_1' },
+    ) as Promise<{ comments: Array<{ messageId: string }>; count: number }>;
+  }
+
+  it('returns the full timeline ascending when unfiltered', async () => {
+    const result = await exec({});
+    expect(result.count).toBe(5);
+    expect(result.comments.map((c) => c.messageId)).toEqual([
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+      'm5',
+    ]);
+  });
+
+  it('filters to the requested author types', async () => {
+    const result = await exec({ authorTypes: ['user'] });
+    expect(result.comments.map((c) => c.messageId)).toEqual(['m1', 'm3', 'm4']);
+    expect(result.count).toBe(3);
+  });
+
+  it('afterMarker keeps only comments strictly newer than the newest anchor', async () => {
+    const result = await exec({ afterMarker: '[vat:prepared]' });
+    expect(result.comments.map((c) => c.messageId)).toEqual(['m3', 'm4', 'm5']);
+  });
+
+  it('applies the watermark before the author filter (workflow anchor still consumes user comments)', async () => {
+    const result = await exec({
+      afterMarker: '[vat:prepared]',
+      authorTypes: ['user'],
+    });
+    expect(result.comments.map((c) => c.messageId)).toEqual(['m3', 'm4']);
+    expect(result.count).toBe(2);
+  });
+
+  it('afterMarker with no matching comment returns everything', async () => {
+    const result = await exec({
+      afterMarker: '[never-posted]',
+      authorTypes: ['user'],
+    });
+    expect(result.comments.map((c) => c.messageId)).toEqual(['m1', 'm3', 'm4']);
+  });
+
+  it('an anchor as the newest comment yields an empty result', async () => {
+    const anchored = [
+      ...timeline,
+      {
+        messageId: 'm6',
+        authorType: 'agent',
+        authorId: 'workflow',
+        body: '[automated] [vat:prepared] new figures',
+        createdAt: 600,
+      },
+    ];
+    const result = await exec(
+      { afterMarker: '[vat:prepared]', authorTypes: ['user'] },
+      anchored,
+    );
+    expect(result.comments).toEqual([]);
+    expect(result.count).toBe(0);
+  });
+
+  it('limit keeps the most recent N, still ascending; non-positive is ignored', async () => {
+    const limited = await exec({ authorTypes: ['user'], limit: 2 });
+    expect(limited.comments.map((c) => c.messageId)).toEqual(['m3', 'm4']);
+    const zero = await exec({ authorTypes: ['user'], limit: 0 });
+    expect(zero.count).toBe(3);
+  });
+
+  it('an empty timeline yields count 0', async () => {
+    const result = await exec({ afterMarker: '[vat:prepared]' }, []);
+    expect(result.comments).toEqual([]);
+    expect(result.count).toBe(0);
+  });
+});

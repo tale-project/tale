@@ -87,6 +87,21 @@ type TaskActionParams =
       body: string;
     }
   | {
+      operation: 'list_comments';
+      taskId: string;
+      /** Keep only these author types (meta `authorType`; workflow-authored
+       *  comments are stored as `agent`). Omit → all authors. */
+      authorTypes?: ('user' | 'agent')[];
+      /** Watermark: return only comments strictly newer than the NEWEST
+       *  comment whose body contains this marker (any author — the marker is
+       *  matched before `authorTypes` filtering, so a workflow-posted anchor
+       *  still consumes user comments). No match → everything. */
+      afterMarker?: string;
+      /** Keep the most recent N after filtering (result stays ascending).
+       *  Non-positive values are ignored. */
+      limit?: number;
+    }
+  | {
       operation: 'sweep';
       kind: 'stale' | 'due_soon' | 'overdue_ladder' | 'archivable';
       staleAfterHours?: number;
@@ -142,7 +157,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
   type: 'task',
   title: 'Task Operation',
   description:
-    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, archive, subtask_progress, list_dependents, list_open_for_assignee, list_open_external, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
+    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, list_comments, archive, subtask_progress, list_dependents, list_open_for_assignee, list_open_external, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('create'),
@@ -170,6 +185,13 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       operation: v.literal('comment'),
       taskId: v.id('tasks'),
       body: v.string(),
+    }),
+    v.object({
+      operation: v.literal('list_comments'),
+      taskId: v.id('tasks'),
+      authorTypes: v.optional(v.array(taskActorTypeValidator)),
+      afterMarker: v.optional(v.string()),
+      limit: v.optional(v.number()),
     }),
     v.object({
       operation: v.literal('sweep'),
@@ -453,6 +475,38 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             attribution,
           },
         );
+      }
+
+      case 'list_comments': {
+        const all = await ctx.runQuery(
+          internal.tasks.internal_queries.listTaskDiscussionMessagesInternal,
+          { taskId: toId<'tasks'>(params.taskId), organizationId },
+        );
+        // Order by createdAt, not array order — the message store is
+        // chronological today, but the watermark below compares timestamps
+        // and must not depend on that staying true.
+        let comments = [...all].sort((a, b) => a.createdAt - b.createdAt);
+        if (params.afterMarker) {
+          const marker = params.afterMarker;
+          // Watermark over ALL comments (before the author filter): the
+          // anchor is typically workflow-posted, yet must still consume the
+          // user comments that preceded it.
+          let watermark = -1;
+          for (const m of comments) {
+            if (m.body.includes(marker) && m.createdAt > watermark) {
+              watermark = m.createdAt;
+            }
+          }
+          comments = comments.filter((m) => m.createdAt > watermark);
+        }
+        if (params.authorTypes && params.authorTypes.length > 0) {
+          const allowed = new Set<string>(params.authorTypes);
+          comments = comments.filter((m) => allowed.has(m.authorType));
+        }
+        if (typeof params.limit === 'number' && params.limit > 0) {
+          comments = comments.slice(-params.limit);
+        }
+        return { operation: 'list_comments', comments, count: comments.length };
       }
 
       case 'upsert_external': {
