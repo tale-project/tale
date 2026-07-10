@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  clearSessionDoneLatches,
   deriveDoneState,
   isEffectAction,
+  sessionLatchKey,
   type RowActionSpec,
 } from './bound-button';
+
+afterEach(() => {
+  clearSessionDoneLatches();
+});
 
 describe('deriveDoneState', () => {
   it('is not done and does not latch for a plain action', () => {
@@ -57,6 +63,26 @@ describe('deriveDoneState', () => {
     expect(
       deriveDoneState({ doneWhen: 'status == done' }, undefined, false),
     ).toMatchObject({ done: false });
+  });
+});
+
+describe('sessionLatchKey', () => {
+  it('keys by path and stable row _id', () => {
+    expect(
+      sessionLatchKey('tasks/public_actions:createTaskFromExternalIssue', {
+        _id: 'folder_1',
+        name: '2025Q4',
+      }),
+    ).toBe('tasks/public_actions:createTaskFromExternalIssue::folder_1');
+  });
+
+  it('falls back to id when _id is absent', () => {
+    expect(sessionLatchKey('path:a', { id: 7 })).toBe('path:a::7');
+  });
+
+  it('returns undefined without a stable row id', () => {
+    expect(sessionLatchKey('path:a', { name: 'x' })).toBeUndefined();
+    expect(sessionLatchKey('path:a', undefined)).toBeUndefined();
   });
 });
 

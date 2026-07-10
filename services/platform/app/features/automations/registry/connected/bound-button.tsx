@@ -70,6 +70,38 @@ export function deriveDoneState(
   return { done: justRan || doneByRow, latchesOnRun };
 }
 
+/**
+ * Session latch for consume-once actions. Collection rebuilds column cells when
+ * the bound query refreshes after a create, which remounts `BoundButton` and
+ * would wipe React `useState` — keep the latch in module memory keyed by
+ * `path` + stable row id so "Created" survives that remount for the tab.
+ */
+const sessionDoneLatches = new Set<string>();
+
+/** Stable row key for the session latch (`_id` / `id`); undefined → no latch. */
+export function sessionLatchRowKey(
+  item: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!item) return undefined;
+  const id = item._id ?? item.id;
+  if (typeof id === 'string' && id.length > 0) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return undefined;
+}
+
+export function sessionLatchKey(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): string | undefined {
+  const rowKey = sessionLatchRowKey(item);
+  return rowKey === undefined ? undefined : `${path}::${rowKey}`;
+}
+
+/** Test helper — clear latches between cases. */
+export function clearSessionDoneLatches(): void {
+  sessionDoneLatches.clear();
+}
+
 export function BoundButton({
   action,
   item,
@@ -84,7 +116,12 @@ export function BoundButton({
   const applyEffect = useActionEffect();
   // Consume-once feedback: a successful run leaves the row "done" for the session,
   // even when the row carries no persistent signal (e.g. a GitHub issue → task).
-  const [justRan, setJustRan] = useState(false);
+  // Seed from the module latch so a Collection remount after create still shows
+  // the done label.
+  const latchKey = sessionLatchKey(action.path, item);
+  const [justRan, setJustRan] = useState(
+    () => latchKey !== undefined && sessionDoneLatches.has(latchKey),
+  );
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (item && action.when && !evaluateWhen(action.when, item)) return null;
@@ -133,7 +170,10 @@ export function BoundButton({
       applyEffect(effect, result, item);
       // Only consume-once actions (those declaring a done label) latch to done.
       // Idempotent re-clicks (`created: false`) must not latch "Created".
-      if (latchesOnRun && !alreadyExists) setJustRan(true);
+      if (latchesOnRun && !alreadyExists) {
+        if (latchKey !== undefined) sessionDoneLatches.add(latchKey);
+        setJustRan(true);
+      }
     } catch (err) {
       // The mutation/action layer (useConvexMutation) already toasts + logs the
       // failure; surface it here too rather than swallowing the rejection.
