@@ -1,0 +1,12 @@
+{
+  "agentKind": "opencode",
+  "i18n": {
+    "en": {
+      "description": "Legacy sandboxed coding agent (pre-rename)",
+      "displayName": "Legacy Coder"
+    }
+  },
+  "primaryBehavior": "external-agent",
+  "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
+  "visibleInChat": true
+}

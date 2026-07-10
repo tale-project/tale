@@ -1,0 +1,13 @@
+{
+  "agentKind": "claude-code",
+  "authMode": "managed",
+  "i18n": {
+    "en": {
+      "description": "Coding agent in an isolated sandbox",
+      "displayName": "Claude Code"
+    }
+  },
+  "primaryBehavior": "external-agent",
+  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"],
+  "visibleInChat": true
+}

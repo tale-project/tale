@@ -16,7 +16,7 @@
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous bunx convex deploy",
     "convex:codegen": "[ -z \"$CONVEX_DEPLOYMENT\" ] && echo 'Skipped convex codegen (no CONVEX_DEPLOYMENT)' || bunx convex codegen",
     "generate:openapi": "bun scripts/generate-openapi.ts",
-    "migrations:check": "bun scripts/check-migrations.ts && bun scripts/check-schema-snapshot.ts && bun scripts/check-config-snapshot.ts",
+    "migrations:check": "bun scripts/check-migrations.ts && bun scripts/check-migration-corpus.ts && bun scripts/check-schema-snapshot.ts && bun scripts/check-config-snapshot.ts",
     "migrations:snapshot": "bun scripts/check-schema-snapshot.ts --write && bun scripts/check-config-snapshot.ts --write",
     "migrations:sync": "bun scripts/migrations-codegen.ts --write",
     "configs:validate": "bun scripts/validate-builtin-configs.ts",
