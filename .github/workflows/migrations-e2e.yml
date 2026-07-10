@@ -59,11 +59,21 @@ jobs:
 
       - name: Resolve tier-2 source version
         id: from
+        # `github` context values never interpolate into the script (shell
+        # injection); they arrive as env vars, and the dispatch input must
+        # look like a version before it may reach the e2e image refs.
+        env:
+          FROM_INPUT: ${{ github.event.inputs.from_version }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          FROM="${{ github.event.inputs.from_version }}"
-          if [ -z "$FROM" ] && [ "${{ github.event_name }}" = "schedule" ]; then
+          FROM="$FROM_INPUT"
+          if [ -z "$FROM" ] && [ "$EVENT_NAME" = "schedule" ]; then
             # Nightly default: the previous minor's latest published tag.
             FROM=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p' | sed 's/^v//')
+          fi
+          if [ -n "$FROM" ] && ! echo "$FROM" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "from_version '$FROM' is not a plain X.Y.Z version" >&2
+            exit 1
           fi
           echo "version=$FROM" >> "$GITHUB_OUTPUT"
           echo "Tier-2 source version: '${FROM:-<none — tier 1>}'"
