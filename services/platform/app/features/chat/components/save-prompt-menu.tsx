@@ -22,7 +22,8 @@ export function SavePromptMenu({
   const { t: tChat } = useT('chat');
 
   // With an empty composer there's nothing to save as a draft, so the only
-  // useful action is the prompt library. Skip the menu and open it directly.
+  // useful action is the prompt library. Skip the menu and open it directly —
+  // BookOpen matches the destination (same icon as the library menu item).
   if (!canSavePromptDraft) {
     return (
       <Button
@@ -35,7 +36,7 @@ export function SavePromptMenu({
         onClick={onOpenPromptLibrary}
         className="focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset"
       >
-        <Bookmark className="size-4" aria-hidden="true" />
+        <BookOpen className="size-4" aria-hidden="true" />
       </Button>
     );
   }
