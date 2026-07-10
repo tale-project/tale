@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { redactAdminKey } from './reseed-all-orgs';
+import { redactAdminKey } from '../docker/convex-run';
 
 describe('redactAdminKey', () => {
   test('redacts the dashboard banner line', () => {

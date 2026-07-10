@@ -26,12 +26,12 @@ import { resolve } from 'node:path';
 // the right place.
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
   [
-    '# tale-bundle-sentinel:migrate-script-v1',
+    '# tale-bundle-sentinel:migrate-script-v2',
     'run-migrations.ts (MIGRATE_SCRIPT)',
   ],
   [
-    '# tale-bundle-sentinel:reseed-script-v1',
-    'reseed-all-orgs.ts (RESEED_SCRIPT)',
+    '# tale-bundle-sentinel:convex-run-script-v2',
+    'convex-run.ts (buildConvexRunScript — migrate/reseed/drain transport)',
   ],
 ];
 

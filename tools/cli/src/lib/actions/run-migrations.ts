@@ -10,16 +10,18 @@
  * destructive data migrations. Safe to re-run — already-provisioned content
  * and already-applied migrations are skipped.
  *
- * Mirrors the proven env-sourcing + admin-key derivation incantation from
- * reseed-all-orgs.ts so `INSTANCE_SECRET` is populated and the admin key
- * matches the entrypoint's runtime computation.
+ * Transport: same env-sourcing + admin-key incantation as
+ * docker/convex-run.ts's `buildConvexRunScript`, inlined here because this
+ * script chains TWO runs. Streams are never merged — `bunx convex run` prints
+ * return values to stdout and banners + function `console.*` logs to stderr;
+ * the informative migration log lines are relayed from stderr after a
+ * display-only banner filter.
  */
 
 import * as logger from '../../utils/logger';
-import { CONVEX_RUN_BANNER_GREP_V } from '../docker/convex-run';
+import { redactAdminKey, stripConvexBannerLines } from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
-import { redactAdminKey } from './reseed-all-orgs';
 
 interface RunMigrationsOptions {
   dryRun: boolean;
@@ -30,37 +32,33 @@ const MIGRATE_TIMEOUT_EXIT = 124;
 
 /**
  * The bash pipeline piped into the platform container. Re-derives ADMIN_KEY
- * inline from env.sh's helpers — see reseed-all-orgs.ts for why the
- * generate-admin-key.sh banner is deliberately not sourced. The trailing
- * `grep -v` strips `bunx convex run`'s decorative banner so the captured
- * stdout is the action's output alone; `|| true` keeps a zero-match grep
- * from poisoning `pipefail` (the real signal is the run's exit code).
+ * inline from env.sh's helpers — see docker/convex-run.ts for why the
+ * generate-admin-key.sh banner is deliberately not sourced. Both runners are
+ * void-returning, so stdout is discarded; their `console.*` output arrives on
+ * stderr and is relayed by the caller.
  */
 // The first line is a bash comment that acts as the bundle sentinel for
 // scripts/check-bundle.ts. It exists ONLY inside this template literal —
 // never repeat it in a comment or another string, or the post-build
 // binary check can pass while the script itself regressed to a runtime
 // fs read (which `bun --compile` does not bundle).
-const MIGRATE_SCRIPT = `# tale-bundle-sentinel:migrate-script-v1
+const MIGRATE_SCRIPT = `# tale-bundle-sentinel:migrate-script-v2
 set -eo pipefail
 source /app/env.sh
 env_normalize_common
 ensure_instance_secret
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 cd /app
-STRIP='${CONVEX_RUN_BANNER_GREP_V}'
 HOME=/home/app timeout ${MIGRATE_TIMEOUT_S} bunx convex run \\
   provisioning:provisionAll \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
-  --no-push 2>&1 \\
-  | { grep -v "$STRIP" || true; }
+  --no-push >/dev/null
 HOME=/home/app timeout ${MIGRATE_TIMEOUT_S} bunx convex run \\
   migrations:runAll \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
-  --no-push 2>&1 \\
-  | { grep -v "$STRIP" || true; }
+  --no-push >/dev/null
 `;
 
 export async function runMigrations(
@@ -113,8 +111,11 @@ export async function runMigrations(
     );
   }
 
-  if (result.stdout?.trim()) {
-    logger.info(redactAdminKey(result.stdout.trim()));
+  // The runners' console.* output (applied migrations, destructive-pending
+  // warnings) arrives on stderr; relay it minus the CLI's decorative banners.
+  const logs = stripConvexBannerLines(result.stderr).trim();
+  if (logs) {
+    logger.info(redactAdminKey(logs));
   }
   logger.success('Migrations complete.');
 }

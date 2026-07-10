@@ -29,7 +29,9 @@ mock.module('../../utils/logger', () => ({
 
 const { drainConvex, endDrainConvex } = await import('./drain-convex');
 
-function ok(stdout: string) {
+/** Frame the payload the way the sentinel transport delivers it. */
+function ok(payload: string) {
+  const stdout = `${realConvexRun.RESULT_BEGIN}\n${payload}\n${realConvexRun.RESULT_END}`;
   return { success: true, stdout, stderr: '', exitCode: 0 };
 }
 function fail(stderr: string) {

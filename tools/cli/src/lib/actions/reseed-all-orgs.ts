@@ -23,7 +23,11 @@
 
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
-import { CONVEX_RUN_BANNER_GREP_V } from '../docker/convex-run';
+import {
+  buildConvexRunScript,
+  parseSentinelJson,
+  redactAdminKey,
+} from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 
@@ -33,88 +37,23 @@ interface ReseedAllOrgsOptions {
 }
 
 /**
- * The bash script piped into the platform container. Uses the deploy
- * entrypoint's env-sourcing pattern so
- * `INSTANCE_SECRET` is guaranteed populated and the admin key derivation
- * matches the entrypoint's own runtime computation.
+ * The bash script piped into the platform container is the shared
+ * `buildConvexRunScript` incantation (docker/convex-run.ts): source env.sh so
+ * `INSTANCE_SECRET` is guaranteed populated, derive the admin key exactly as
+ * the deploy entrypoint does, run the deployed action with `--no-push`, and
+ * frame the JSON return value between the stdout sentinels.
  *
- * `--no-push` skips a redundant push step (we're calling an existing
- * deployed action). The trailing `grep -v` strips `bunx convex run`'s
- * decorative banner output ("Admin key", "📋", "✅ Admin", separators,
- * blank lines, etc.) so the final stdout is the action's JSON return
- * value alone — parseable in TypeScript.
- *
- * Runtime workdir is `/app` (services/platform/Dockerfile sets
- * `WORKDIR /app`; flattens services/platform/{convex,lib,env.sh,…} into
- * `/app/`). No `cd /app/services/platform` — that path does not exist
- * at runtime.
+ * Runtime workdir is `/app` (services/platform/Dockerfile sets `WORKDIR /app`;
+ * flattens services/platform/{convex,lib,env.sh,…} into `/app/`). No
+ * `cd /app/services/platform` — that path does not exist at runtime.
  */
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
 
-// The shell pipeline appends `|| true` to the grep so a zero-match
-// outcome (grep exits 1) does not poison `set -o pipefail`. The real
-// signal is `bunx convex run`'s exit code, captured before the grep
-// strips banner lines.
-//
-// `generate-admin-key.sh` is intentionally NOT sourced here even though
-// it provides a complete admin-key derivation routine — the script also
-// echoes a dashboard banner including a `   Admin Key:      <key>` line
-// that would land in our captured stdout. Sourcing once leaked the key
-// past the line-based grep filter (the grep anchored on `^Admin key`
-// which mis-matched the lower-case 'k' AND the 3-space indent). Re-
-// derive ADMIN_KEY inline from env.sh's helpers (`ensure_instance_secret`
-// is exported by env.sh; `generate_key` is the binary on $PATH that the
-// official Convex Docker image uses).
-// The first line is a bash comment that acts as the bundle sentinel for
-// scripts/check-bundle.ts. It exists ONLY inside this template literal —
-// never repeat it in a comment or another string (see run-migrations.ts).
-const RESEED_SCRIPT = `# tale-bundle-sentinel:reseed-script-v1
-set -eo pipefail
-source /app/env.sh
-env_normalize_common
-ensure_instance_secret
-ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
-cd /app
-HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
-  organizations/reseed_all_orgs:reseedAllOrgsFromBuiltin \\
-  --url "\${CONVEX_URL:-http://convex:3210}" \\
-  --admin-key "$ADMIN_KEY" \\
-  --no-push 2>&1 \\
-  | { grep -v "${CONVEX_RUN_BANNER_GREP_V}" || true; }
-`;
-
-/**
- * Defense-in-depth redactor for the captured `bunx convex run` stdout.
- * If anything upstream (env.sh's diagnostic mode, a future Convex CLI
- * banner, etc.) prints an admin-key line that slips past the bash grep,
- * this regex strips it before the value reaches the logger. Case-
- * insensitive, anchors on any leading whitespace.
- *
- * Charset includes `|` because self-hosted Convex admin keys are
- * formatted `<INSTANCE_NAME>|<base64-payload>` (e.g.
- * `tale_platform|01abc...`). Without the pipe the regex matched only
- * up to the first `|`, leaving the secret payload after it in the
- * logged stream (round-3 P1-adjacent secret leak).
- */
-const ADMIN_KEY_RE =
-  /\b([Aa]dmin[\s\-_][Kk]ey)\s*[:=]?\s*[A-Za-z0-9+/=._\-|]{12,}/g;
-
-/**
- * Catch the hyphenated argv form (`--admin-key <value>`) used by
- * `bunx convex run --admin-key …`. The `[Aa]dmin\s+[Kk]ey` shape
- * above requires whitespace between "Admin" and "Key" and so misses
- * `--admin-key`. Without this second pattern, a future Convex CLI
- * diagnostic line echoing its argv would slip the secret past the
- * redactor and into the logger.
- */
-const ADMIN_KEY_ARG_RE = /--admin-key([\s=]+)\S+/g;
-
-export function redactAdminKey(text: string): string {
-  return text
-    .replace(ADMIN_KEY_RE, '$1: <redacted>')
-    .replace(ADMIN_KEY_ARG_RE, '--admin-key$1<redacted>');
-}
+const RESEED_SCRIPT = buildConvexRunScript(
+  'organizations/reseed_all_orgs:reseedAllOrgsFromBuiltin',
+  { timeoutS: RESEED_TIMEOUT_S },
+);
 
 const CONFIRM_MESSAGE =
   '--override-all will factory-reset every registered org from the builtin catalog. ' +
@@ -133,46 +72,19 @@ type ReseedResult = {
 };
 
 /**
- * Extract the trailing JSON object from a stream of mixed-output stdout.
- * `bunx convex run` prints `null` for void-returning actions or the
- * action's return value for value-returning ones. We want the LAST
- * line(s) that form a parseable JSON object whose shape matches
- * `ReseedResult` — not just "anything after the last `{`", which would
- * mis-parse when per-org error strings include `{` (e.g. a JS object
- * literal in an error message).
- *
- * Strategy:
- *   1. Split into lines.
- *   2. Walk backwards; for each starting line that begins with `{`,
- *      try `JSON.parse(joinedSlice)`.
- *   3. First parse that produces a shape-validated ReseedResult wins.
+ * Shape guard over the sentinel-framed return value — the action returns a
+ * summary object; anything else (a bare `null` from an older backend, noise)
+ * degrades to the raw-stdout fallback below.
  */
-function parseTrailingJson(stdout: string): ReseedResult | null {
-  const trimmed = stdout.trim();
-  if (!trimmed) return null;
-
-  const lines = trimmed.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const candidate = lines[i].trimStart();
-    if (!candidate.startsWith('{')) continue;
-    const slice = lines.slice(i).join('\n');
-    try {
-      const parsed: unknown = JSON.parse(slice);
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        typeof (parsed as Record<string, unknown>).total === 'number' &&
-        typeof (parsed as Record<string, unknown>).succeeded === 'number' &&
-        typeof (parsed as Record<string, unknown>).failed === 'number' &&
-        Array.isArray((parsed as Record<string, unknown>).results)
-      ) {
-        return parsed as ReseedResult;
-      }
-    } catch {
-      // Not a complete JSON value starting at this line; try earlier.
-    }
-  }
-  return null;
+function isReseedResult(value: unknown): value is ReseedResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).total === 'number' &&
+    typeof (value as Record<string, unknown>).succeeded === 'number' &&
+    typeof (value as Record<string, unknown>).failed === 'number' &&
+    Array.isArray((value as Record<string, unknown>).results)
+  );
 }
 
 export async function reseedAllOrgsFromBuiltin(
@@ -258,14 +170,15 @@ export async function reseedAllOrgsFromBuiltin(
   }
 
   // All orgs succeeded. Parse and summarize.
-  const parsed = parseTrailingJson(result.stdout);
+  const value = parseSentinelJson<unknown>(result.stdout);
+  const parsed = isReseedResult(value) ? value : null;
   if (parsed) {
     logger.info(
       `Reseeded ${parsed.succeeded}/${parsed.total} orgs from builtin catalog.`,
     );
   } else if (result.stdout) {
     // Couldn't parse — surface raw stdout (redacted) so the operator
-    // isn't flying blind. Should be rare given the grep strip above.
+    // isn't flying blind. Should be rare given the sentinel framing.
     logger.info(redactAdminKey(result.stdout.trim()));
   }
 
