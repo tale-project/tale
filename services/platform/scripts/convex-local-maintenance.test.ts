@@ -347,6 +347,113 @@ console.log("ok");
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // Regression: node action packages point at a shared deps parent via
+  // externalPackageId. Prune must keep the parent's storageKey too — otherwise
+  // start_push / node actions hit InvalidModules ENOENT on the parent blob
+  // while every module child blob is still present.
+  it('keeps externalPackageId parent blobs for node source packages', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'convex-maint-ext-'));
+    const sqlitePath = join(dir, 'convex_local_backend.sqlite3');
+    const scriptPath = join(dir, 'assert-ext-refs.ts');
+    try {
+      writeFileSync(
+        scriptPath,
+        `
+import { Database } from "bun:sqlite";
+import { readReferencedModuleBlobNames } from ${JSON.stringify(join(import.meta.dirname, 'convex-local-maintenance.ts'))};
+
+const sqlitePath = ${JSON.stringify(sqlitePath)};
+const db = new Database(sqlitePath, { safeIntegers: true });
+db.exec(\`
+  CREATE TABLE documents (
+    id BLOB NOT NULL,
+    ts INTEGER NOT NULL,
+    table_id BLOB NOT NULL,
+    json_value TEXT NULL,
+    deleted INTEGER NOT NULL,
+    prev_ts INTEGER,
+    PRIMARY KEY (ts, table_id, id)
+  );
+\`);
+const tableId = new Uint8Array(16).fill(1);
+const insert = db.query(
+  "INSERT INTO documents (id, ts, table_id, json_value, deleted) VALUES (?, ?, ?, ?, ?)",
+);
+const childPackageId = "hg2nodechildpackage0000000000001";
+const parentPackageId = "k42depsparentpackage00000000001";
+insert.run(
+  new Uint8Array(16).fill(2),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "h42nodemodule",
+    sourcePackageId: childPackageId,
+    analyzeResult: null,
+    environment: "node",
+    path: "crawler/lib/html_to_sections.js",
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(3),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: childPackageId,
+    storageKey: "3a343c61-12b1-4f84-87de-c2dcd10126ea",
+    packageSize: 42,
+    externalPackageId: parentPackageId,
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(4),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: parentPackageId,
+    storageKey: "830e0b57-fd9f-4349-92eb-094fdd7e0ed5",
+    packageSize: 99,
+    deps: [{ package: "jsdom", version: "29.0.2" }],
+  }),
+  0n,
+);
+insert.run(
+  new Uint8Array(16).fill(5),
+  10n,
+  tableId,
+  JSON.stringify({
+    _id: "k42orphanpackage000000000000001",
+    storageKey: "modules/orphan.blob",
+    packageSize: 1,
+  }),
+  0n,
+);
+db.close();
+
+const refs = readReferencedModuleBlobNames(sqlitePath);
+const got = [...refs].sort().join(",");
+const expected = [
+  "3a343c61-12b1-4f84-87de-c2dcd10126ea",
+  "830e0b57-fd9f-4349-92eb-094fdd7e0ed5",
+].sort().join(",");
+if (got !== expected) {
+  console.error("unexpected refs:", got, "expected:", expected);
+  process.exit(1);
+}
+console.log("ok");
+`,
+      );
+      const result = spawnSync('bun', [scriptPath], {
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('ok');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('summarizeModuleBlobs', () => {
