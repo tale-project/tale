@@ -79,6 +79,7 @@ import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
+import { ProjectScopedViewGate } from './project-scoped-view-gate';
 
 /**
  * Tab values for the automation-owned tabs (as opposed to a manifest view's
@@ -335,14 +336,15 @@ function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
  * gated on developer access AND the automation actually having a workflow
  * (`manifest.workflows[0]`); Configuration and Integrations always show. Tab
  * selection is URL-addressable via the `tab` search param; the default is
- * the first bundled view when one exists (operators and developers alike —
- * developers still reach Editor from the strip), else Editor for a developer
- * with a workflow, else Integrations. The strip's trailing slot carries the
- * active tab's Save/Discard plus — on the Editor tab — the single AI Assistant
- * toggle; lifecycle actions (Reinstall / Export / Uninstall /
- * Remove-from-project) live on the Automations catalog card and the
- * Configuration tab's projects list, not here. Scoped to `projectId` when
- * rendered under a project route.
+ * Configuration for a project-scoped automation on the org route (views need
+ * a project), else the first bundled view when one exists (operators and
+ * developers alike — developers still reach Editor from the strip), else
+ * Editor for a developer with a workflow, else Integrations. The strip's
+ * trailing slot carries the active tab's Save/Discard plus — on the Editor
+ * tab — the single AI Assistant toggle; lifecycle actions (Reinstall /
+ * Export / Uninstall / Remove-from-project) live on the Automations catalog
+ * card and the Configuration tab's projects list, not here. Scoped to
+ * `projectId` when rendered under a project route.
  */
 function InstalledAutomationBody({
   organizationId,
@@ -461,15 +463,27 @@ function InstalledAutomationBody({
       'description',
       locale,
     );
+    const viewBody = (
+      <VStack gap={4}>
+        {viewDescription && <Text variant="muted">{viewDescription}</Text>}
+        <ViewBody view={view} />
+      </VStack>
+    );
     return {
       value: uniqueTabValue(viewId),
       label: viewTitle ?? startCase(viewId),
-      content: (
-        <VStack gap={4}>
-          {viewDescription && <Text variant="muted">{viewDescription}</Text>}
-          <ViewBody view={view} />
-        </VStack>
-      ),
+      content:
+        automation.scope === 'project' && projectId === undefined ? (
+          <ProjectScopedViewGate
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            firstViewId={view.id}
+          >
+            {viewBody}
+          </ProjectScopedViewGate>
+        ) : (
+          viewBody
+        ),
     };
   });
   const tabItems = [
@@ -557,19 +571,24 @@ function InstalledAutomationBody({
       content: configuration,
     },
   ];
-  // An unknown/absent `?tab=` falls back to the first bundled view when the
-  // automation ships one — including for developers (Editor stays one click
-  // away). Without views: Editor for a developer with a workflow, else
-  // Integrations (where the "Finish setup" banner lives), so a no-workflow
-  // automation (e.g. an email inbox) opens on something actionable rather than
-  // its last (Configuration) tab. Validated against the tabs actually RENDERED
-  // (not `usedTabValues`, which also reserves gated tab values for
-  // collision-avoidance even when they aren't shown) — a stale `?tab=editor`
-  // from before a role change, or on a non-developer's guessed URL, falls
-  // back cleanly instead of selecting a tab that isn't in `tabItems`.
+  // An unknown/absent `?tab=` falls back to Configuration for a project-scoped
+  // automation on the org route (no `projectId`) — desk views need a project,
+  // and Configuration already lists the bound-project entry points. Otherwise
+  // the first bundled view when the automation ships one — including for
+  // developers (Editor stays one click away). Without views: Editor for a
+  // developer with a workflow, else Integrations (where the "Finish setup"
+  // banner lives), so a no-workflow automation (e.g. an email inbox) opens on
+  // something actionable rather than its last (Configuration) tab. Validated
+  // against the tabs actually RENDERED (not `usedTabValues`, which also
+  // reserves gated tab values for collision-avoidance even when they aren't
+  // shown) — a stale `?tab=editor` from before a role change, or on a
+  // non-developer's guessed URL, falls back cleanly instead of selecting a
+  // tab that isn't in `tabItems`.
   const renderedTabValues = new Set(tabItems.map((item) => item.value));
   const defaultTab =
-    viewTabs[0]?.value ?? (showDevTabs ? EDITOR_TAB : INTEGRATIONS_TAB);
+    automation.scope === 'project' && projectId === undefined
+      ? CONFIGURATION_TAB
+      : (viewTabs[0]?.value ?? (showDevTabs ? EDITOR_TAB : INTEGRATIONS_TAB));
   const activeTab =
     tabState.tab !== null && renderedTabValues.has(tabState.tab)
       ? tabState.tab

@@ -39,7 +39,10 @@ import {
 } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -363,9 +366,11 @@ function CollectionBody({
     [columns, actions, subjectType, subjectIdField, rows],
   );
 
-  // A `$state.` reference the args carry reads as "awaiting selection", not
-  // "needs configuration" — detected on the RAW args (sentinels intact).
+  // A `$state.` / `$projectId` reference the args carry specializes the
+  // generic `needsConfig` empty state — detected on the RAW args.
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
 
   // The load-more affordance: always for the cursor-paginated path (the footer
   // also signals end-of-stream), and for the single-shot path only while the
@@ -386,7 +391,8 @@ function CollectionBody({
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
       >
         <DataTable<BoundRow>

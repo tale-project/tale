@@ -72,9 +72,9 @@ describe('Card', () => {
     });
 
     it('adds hover/focus affordances when interactive', () => {
-      expect(cardVariants({ interactive: true })).toContain(
-        'hover:border-border-strong',
-      );
+      const classes = cardVariants({ interactive: true });
+      expect(classes).toContain('cursor-pointer');
+      expect(classes).toContain('hover:border-border-strong');
     });
   });
 

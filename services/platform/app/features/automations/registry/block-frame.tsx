@@ -9,9 +9,10 @@
  *   right-aligned actions slot) over the registry `Section` (itself the
  *   `@tale/ui` Card surface). Title/description are literal display strings
  *   rendered verbatim (UI translations are platform-owned).
- * - `BindingStates` — the four framing states every bound block shares, in
+ * - `BindingStates` — the framing states every bound block shares, in
  *   precedence order: `blocked` (path not allowlisted), `needsConfig`
- *   (unresolved `$config:`), `awaitingState` (unresolved `$state.<key>` —
+ *   (unresolved `$config:`), `needsProject` (unresolved `$projectId` — open
+ *   from a bound project), `awaitingState` (unresolved `$state.<key>` —
  *   neutral "select something" placeholder), `loading` (skeleton). Visuals are
  *   extracted VERBATIM from Collection/ExternalList so existing views don't
  *   shift; those two blocks converge onto this in a follow-up.
@@ -63,8 +64,10 @@ export interface BindingStatesProps {
   blocked?: boolean;
   /** The bound function path, shown in the blocked notice. */
   path?: string;
-  /** A `$config:`/`$projectId` reference is unset — prompt to configure. */
+  /** A `$config:` reference is unset — prompt to configure. */
   needsConfig?: boolean;
+  /** A `$projectId` reference is unset — prompt to open from a project. */
+  needsProject?: boolean;
   /** A `$state.<key>` reference is unset — neutral selection placeholder. */
   awaitingState?: boolean;
   loading?: boolean;
@@ -86,6 +89,7 @@ export function BindingStates({
   blocked,
   path,
   needsConfig,
+  needsProject,
   awaitingState,
   loading,
   skeleton,
@@ -99,6 +103,9 @@ export function BindingStates({
   }
   if (needsConfig) {
     return <Text variant="muted">{t('list.needsConfig')}</Text>;
+  }
+  if (needsProject) {
+    return <Text variant="muted">{t('list.needsProject')}</Text>;
   }
   if (awaitingState) {
     return <Text variant="muted">{t('binding.awaitingSelection')}</Text>;

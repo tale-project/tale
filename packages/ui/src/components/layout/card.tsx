@@ -38,7 +38,7 @@ export const cardVariants = cva(
        * harmless) on a plain `<div>` card.
        */
       interactive: {
-        true: 'hover:border-border-strong focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        true: 'cursor-pointer hover:border-border-strong focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
         false: '',
       },
     },

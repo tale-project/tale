@@ -38,7 +38,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { convexErrorCode } from '@/app/hooks/use-action-query';
 import { useT } from '@/lib/i18n/client';
 import { excludeExisting } from '@/lib/shared/platform/exclude_by';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -189,10 +192,12 @@ export function ExternalList({
     [columns, actions, visibleRows],
   );
 
-  // A `$state.` reference the source args carry reads as "awaiting selection",
-  // not "needs configuration" — detected on the RAW args (sentinels intact).
+  // A `$state.` / `$projectId` reference the source args specialize the
+  // generic `needsConfig` empty state — detected on the RAW args.
   const awaitingState =
     query.needsConfig && argsReferenceViewState(source.args);
+  const needsProject =
+    query.needsConfig && !awaitingState && argsReferenceProjectId(source.args);
 
   // Only surface the full error state when nothing is VISIBLE and no page is in
   // flight: with accumulation a failed "Load more" must not wipe the rows
@@ -206,7 +211,8 @@ export function ExternalList({
       <BindingStates
         blocked={query.blocked}
         path={source.path}
-        needsConfig={query.needsConfig && !awaitingState}
+        needsConfig={query.needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
       >
         {fatalError ? (

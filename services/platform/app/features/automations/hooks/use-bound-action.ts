@@ -15,6 +15,7 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import {
   type FunctionMode,
+  bindingArgsResolved,
   isFunctionAllowed,
   isValidFunctionPath,
   resolveBindingArgs,
@@ -89,6 +90,9 @@ export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
         selectionIds: ctx?.selectionIds,
         lane: ctx?.lane,
       });
+      if (!bindingArgsResolved(resolved)) {
+        throw new Error(`Function "${path}" still has unresolved binding args`);
+      }
       // Phase-1 audit marker (server-side gate + persisted audit is Phase 3).
       console.info('[automation-binding]', {
         automationSlug,

@@ -29,7 +29,10 @@ import {
   type ChartSeries,
 } from '@/app/components/metrics/charts';
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
@@ -105,6 +108,8 @@ export function ChartCard({
     query.args,
   );
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
   const hasBindingState = blocked || needsConfig;
 
   const rows = extractChartRows(data, itemsKey);
@@ -147,7 +152,8 @@ export function ChartCard({
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
       >
         <div

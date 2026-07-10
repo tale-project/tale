@@ -20,6 +20,9 @@ vi.mock('@/lib/i18n/client', () => ({
     t: (key: string) => `${ns}.${key}`,
   }),
 }));
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
 
 // Router — effect/navigation hooks used by blocks; no routing is exercised.
 vi.mock('@tanstack/react-router', () => ({
