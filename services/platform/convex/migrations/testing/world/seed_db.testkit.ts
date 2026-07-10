@@ -46,8 +46,8 @@ export const WORLD_SSO_CLIENT_SECRET_JWE =
 
 /**
  * The two retired workforce persona slugs seeded as `agentInstallations` rows
- * (both members of 0.2.90/06's `WORKFORCE_AGENT_SLUGS`), matching the
- * `agents/workforce/*.json` fixture files 0.2.90/05 deletes.
+ * (both members of 0.3.4/05's `WORKFORCE_AGENT_SLUGS`), matching the
+ * `agents/workforce/*.json` fixture files 0.3.4/04 deletes.
  */
 export const WORLD_WORKFORCE_AGENT_SLUGS = [
   'analyst',
@@ -55,9 +55,9 @@ export const WORLD_WORKFORCE_AGENT_SLUGS = [
 ] as const;
 
 /** Fixed content-hash literals. Nothing in the chain re-derives them (the
- *  0.2.90/07-down provisioner skips marked workflows before comparing), so a
+ *  0.3.4/06-down provisioner skips marked workflows before comparing), so a
  *  stable literal beats hashing fixture bytes at seed time. */
-const TRIAGE_WORKFLOW_HASH = 'worldhash-triage-unassigned-tasks-v1';
+export const TRIAGE_WORKFLOW_HASH = 'worldhash-triage-unassigned-tasks-v1';
 
 /** One org as returned by `support.seedAuthOrgs` — the REAL component id. */
 export interface WorldOrgRef {
@@ -88,7 +88,6 @@ export interface SeedWorldOptions {
  * count mismatch, so this list cannot silently drift from the call sites.
  */
 export const WORLD_BLOB_CONTENTS: readonly string[] = [
-  'world-upload-intent-blob',
   'world-threadfile-q2-summary',
   'world-threadfile-analyze-py',
   'world-threadfile-revenue-png',
@@ -203,15 +202,16 @@ export async function seedWorldDb(
     updatedAt: WORLD_EPOCH_MS,
   });
 
-  // --- projects — stable FK holders for bindings and schedules ---------------
-  const projectPlatform = await db.insert('projects', {
+  // --- projects — stable FK holders; the injected 0.2.85 bindings re-resolve
+  // --- these rows by name ----------------------------------------------------
+  await db.insert('projects', {
     organizationId: alpha.id,
     name: 'Platform',
     createdBy: 'user_alpha_admin',
     createdAt: WORLD_EPOCH_MS,
     updatedAt: WORLD_EPOCH_MS,
   });
-  const projectWebsite = await db.insert('projects', {
+  await db.insert('projects', {
     organizationId: alpha.id,
     name: 'Website',
     createdBy: 'user_alpha_admin',
@@ -219,86 +219,15 @@ export async function seedWorldDb(
     updatedAt: WORLD_EPOCH_MS,
   });
 
-  // --- appInstallations — 0.2.88/01+02 + 0.2.91/01 look it up by (org, appSlug);
-  // --- 0.2.93/01 renames the slug fields; 0.2.93/04 moves the rows.
-  // --- Deliberately NO `config` (see manifest profile `appConfigSeeded`). ----
-  await db.insert('appInstallations', {
-    organizationId: alpha.id,
-    appSlug: 'issue-desk',
-    appName: 'Resolve GitHub issues',
-    installedAt: WORLD_EPOCH_MS,
-    installedBy: 'user_alpha_admin',
-    status: 'active',
-    requiredIntegrations: ['github'],
-    resources: [
-      {
-        domain: 'workflows',
-        path: 'issue-desk/desk-process.json',
-        contentHash: 'worldhash-desk-process-v1',
-      },
-      {
-        domain: 'workflows',
-        path: 'issue-desk/reconcile.json',
-        contentHash: 'worldhash-reconcile-v1',
-      },
-      {
-        domain: 'agents',
-        path: 'desk-implementer.json',
-        contentHash: 'worldhash-desk-implementer-v1',
-      },
-      {
-        domain: 'agents',
-        path: 'desk-reviewer.json',
-        contentHash: 'worldhash-desk-reviewer-v1',
-      },
-    ],
-  });
-  await db.insert('appInstallations', {
-    organizationId: beta.id,
-    appSlug: 'triage-github-issues',
-    appName: 'Triage GitHub issues',
-    installedAt: WORLD_EPOCH_MS,
-    installedBy: 'user_beta_admin',
-    status: 'active',
-    requiredIntegrations: ['github'],
-    resources: [],
-  });
+  // appInstallations / appProjectBindings are NOT baseline: both tables first
+  // shipped in v0.2.85 — the versions suite injects their rows at that
+  // boundary (world/injections.testkit.ts; the bindings re-resolve the
+  // project _ids above by name). appUploadClaims / appUploadIntents /
+  // supportCases first shipped in v0.2.96 and are injected there.
 
-  // --- appProjectBindings — both CONFIGLESS: the 0.2.88/01 copy and 0.2.91/01
-  // --- fold run as guarded no-ops (see manifest profile `appConfigSeeded`);
-  // --- 0.2.93/02 renames the slug field, 0.2.93/05 moves the rows ------------
-  await db.insert('appProjectBindings', {
-    organizationId: alpha.id,
-    appSlug: 'issue-desk',
-    projectId: projectPlatform,
-    boundAt: WORLD_EPOCH_MS,
-    boundBy: 'user_alpha_admin',
-  });
-  await db.insert('appProjectBindings', {
-    organizationId: alpha.id,
-    appSlug: 'issue-desk',
-    projectId: projectWebsite,
-    boundAt: WORLD_EPOCH_MS + 3600_000,
-    boundBy: 'user_alpha_admin',
-  });
-
-  // --- appUploadClaims / appUploadIntents — 0.2.93/06+07 move the rows -------
-  await db.insert('appUploadClaims', {
-    organizationId: alpha.id,
-    slug: 'custom-report',
-    claimedAt: WORLD_EPOCH_MS,
-    expiresAt: WORLD_EPOCH_MS + 3600_000,
-  });
-  await db.insert('appUploadIntents', {
-    storageId: await opts.storeBlob('world-upload-intent-blob'),
-    organizationId: alpha.id,
-    userId: 'user_alpha_admin',
-    createdAt: WORLD_EPOCH_MS,
-  });
-
-  // --- wfSchedules — pre-split org-level shape. 0.2.88/02 assigns the app
+  // --- wfSchedules — pre-split org-level shape. 0.2.96/02 assigns the app
   // --- schedule to the first issue-desk binding; the plain schedule is its
-  // --- skip path. `variables` carry NONE of 0.2.91/01's CONFIG_KEYS
+  // --- skip path. `variables` carry NONE of 0.3.4/09's CONFIG_KEYS
   // --- (owner/repo/testCommand/repoNotes) — see manifest `appConfigSeeded`. --
   await db.insert('wfSchedules', {
     organizationId: alpha.id,
@@ -320,7 +249,7 @@ export async function seedWorldDb(
     createdBy: 'user_alpha_admin',
   });
 
-  // --- wfEventSubscriptions — the pre-triage shape 0.2.92/02 keys on: the
+  // --- wfEventSubscriptions — the pre-triage shape 0.3.4/12 keys on: the
   // --- task.created row whose org gains the task.status_changed sibling ------
   await db.insert('wfEventSubscriptions', {
     organizationId: alpha.id,
@@ -331,10 +260,12 @@ export async function seedWorldDb(
     createdBy: 'system',
   });
 
-  // --- wfInstallations + wfDefaultProvisions — the SURVIVOR autoInstall
-  // --- workflow's rows, so 0.2.90/07's sweep leaves them and its down's
-  // --- provisioner SKIPS the file instead of re-inserting wall-clock rows
-  // --- (manifest profile `survivorWorkflowProvisionMarker`) ------------------
+  // --- wfInstallations — the SURVIVOR workflow's installation row, which
+  // --- 0.3.4/06's sweep must leave untouched. Its fixture file carries NO
+  // --- `metadata.autoInstall`, so 0.3.4/06-down's provisioner creates
+  // --- nothing (wall-clock stamps would break the seed↔down deep-compare);
+  // --- the wfDefaultProvisions marker is injected at 0.2.85 (its birth
+  // --- release) by world/injections.testkit.ts. ------------------------------
   await db.insert('wfInstallations', {
     organizationId: alpha.id,
     workflowSlug: 'projects/tasks/triage-unassigned-tasks',
@@ -342,14 +273,8 @@ export async function seedWorldDb(
     installedBy: 'system',
     contentHash: TRIAGE_WORKFLOW_HASH,
   });
-  await db.insert('wfDefaultProvisions', {
-    organizationId: alpha.id,
-    workflowSlug: 'projects/tasks/triage-unassigned-tasks',
-    contentHash: TRIAGE_WORKFLOW_HASH,
-    provisionedAt: WORLD_EPOCH_MS,
-  });
 
-  // --- threadFiles — RELATIVE paths only, one per source root, for 0.2.89/02
+  // --- threadFiles — RELATIVE paths only, one per source root, for 0.2.96/03
   // --- (`user_upload` → /user/uploads, `agent_write` → /user/code,
   // --- `run_output` → /user/output). No absolute edge row — its down strips
   // --- the prefix (manifest profile `threadFilePathsRelativeOnly`). ----------
@@ -387,32 +312,10 @@ export async function seedWorldDb(
     });
   }
 
-  // --- threadMetadata — old appSlug-era discussion rows for 0.2.93/03 (slug +
-  // --- subjectType rename) and 0.2.93/08 (kind rewrite), plus a chat survivor
-  await db.insert('threadMetadata', {
-    threadId: 'thread_alpha_app_1',
-    userId: 'user_alpha_admin',
-    chatType: 'general',
-    status: 'active',
-    createdAt: WORLD_EPOCH_MS,
-    organizationId: alpha.id,
-    kind: 'app_discussion',
-    appSlug: 'issue-desk',
-    subjectType: 'app', // 0.2.93/03 rewrites to 'automation'
-    subjectId: 'issue-desk',
-  });
-  await db.insert('threadMetadata', {
-    threadId: 'thread_alpha_app_2',
-    userId: 'user_alpha_member',
-    chatType: 'general',
-    status: 'active',
-    createdAt: WORLD_EPOCH_MS + 60_000,
-    organizationId: alpha.id,
-    kind: 'app_discussion',
-    appSlug: 'issue-desk',
-    subjectType: 'task', // slug-only path of 0.2.93/03 (subjectType untouched)
-    subjectId: 'task-100',
-  });
+  // --- threadMetadata — the chat survivor only. The app-era discussion rows
+  // --- (appSlug/subjectType/kind app_discussion) exist in NO released schema
+  // --- — the versions suite injects them at the 0.3.3 boundary
+  // --- (world/injections.testkit.ts).
   await db.insert('threadMetadata', {
     threadId: 'thread_alpha_chat_1',
     userId: 'user_alpha_admin',
@@ -420,10 +323,11 @@ export async function seedWorldDb(
     status: 'active',
     createdAt: WORLD_EPOCH_MS,
     organizationId: alpha.id,
-    kind: 'chat', // survivor — untouched by the 0.2.93 renames
+    // NO `kind` — the field itself is post-0.2.84 (born v0.2.96); a
+    // kind:'chat' survivor is injected at the 0.2.96 boundary instead.
   });
 
-  // --- customers / vendors — 0.3.4/02+03 copy them into contacts; the edge
+  // --- customers / vendors — 0.3.4/22+23 copy them into contacts; the edge
   // --- rows (source only) prove the nameless/emailless merge path ------------
   const customerAcme = await db.insert('customers', {
     organizationId: alpha.id,
@@ -461,7 +365,7 @@ export async function seedWorldDb(
     source: 'file_upload', // EDGE: no name, no email (0.3.4/02 merge edge)
   });
 
-  // --- conversations + conversationMessages — 0.2.90/02 derives
+  // --- conversations + conversationMessages — 0.3.4/01 derives
   // --- integrationName from the newest named message; 0.3.4/04 repoints
   // --- customerId → contactId. conv2 is the underivable/no-customer survivor.
   const convInvoice = await db.insert('conversations', {
@@ -472,7 +376,7 @@ export async function seedWorldDb(
     channel: 'email',
     direction: 'inbound',
     lastMessageAt: WORLD_EPOCH_MS + 1000,
-    // NO integrationName (0.2.90/02 backfills 'outlook'), NO contactId.
+    // NO integrationName (0.3.4/01 backfills 'outlook'), NO contactId.
   });
   await db.insert('conversationMessages', {
     organizationId: alpha.id,
@@ -502,8 +406,8 @@ export async function seedWorldDb(
     status: 'open',
     channel: 'email',
     direction: 'inbound',
-    // Survivor: no customerId (0.3.4/04 skip) and no named message
-    // (0.2.90/02 underivable skip).
+    // Survivor: no customerId (0.3.4/24 skip) and no named message
+    // (0.3.4/01 underivable skip).
   });
   const convBetaOrder = await db.insert('conversations', {
     organizationId: beta.id,
@@ -513,7 +417,7 @@ export async function seedWorldDb(
     channel: 'email',
     direction: 'inbound',
     lastMessageAt: WORLD_EPOCH_MS + 2000,
-    // NO integrationName — beta's 0.2.90/02 datapoint (backfills 'gmail').
+    // NO integrationName — beta's 0.3.4/01 datapoint (backfills 'gmail').
   });
   await db.insert('conversationMessages', {
     organizationId: beta.id,
@@ -527,84 +431,14 @@ export async function seedWorldDb(
     deliveredAt: WORLD_EPOCH_MS + 2000,
   });
 
-  // --- supportCases — 0.3.4/05 repoints customerId → contactId; the
-  // --- requester-only case is its skip path ---------------------------------
-  await db.insert('supportCases', {
-    organizationId: alpha.id,
-    subject: 'Invoice discrepancy for May',
-    status: 'open',
-    customerId: customerAcme,
-    createdBy: 'user_alpha_support',
-    createdByType: 'user',
-    createdAt: WORLD_EPOCH_MS,
-    updatedAt: WORLD_EPOCH_MS,
-  });
-  await db.insert('supportCases', {
-    organizationId: alpha.id,
-    subject: 'Password reset loop',
-    status: 'pending',
-    requesterEmail: 'visitor@example.com',
-    createdBy: 'user_alpha_support',
-    createdByType: 'user',
-    createdAt: WORLD_EPOCH_MS,
-    updatedAt: WORLD_EPOCH_MS,
-  });
+  // supportCases rows are injected at the 0.2.96 boundary (the table's birth
+  // release) by world/injections.testkit.ts — see the note above.
 
-  // --- agentInstallations — 0.2.90/06 snapshot-deletes the two workforce
-  // --- persona rows; 'assistant' is the survivor -----------------------------
-  await db.insert('agentInstallations', {
-    organizationId: alpha.id,
-    agentSlug: WORLD_WORKFORCE_AGENT_SLUGS[0], // 'analyst'
-    installedAt: WORLD_EPOCH_MS,
-    installedBy: 'system',
-    contentHash: 'worldhash-analyst-v1',
-    enabled: true,
-  });
-  await db.insert('agentInstallations', {
-    organizationId: alpha.id,
-    agentSlug: WORLD_WORKFORCE_AGENT_SLUGS[1], // 'product-manager'
-    installedAt: WORLD_EPOCH_MS,
-    installedBy: 'system',
-    contentHash: 'worldhash-product-manager-v1',
-    enabled: false,
-    disabledReason: 'user',
-  });
-  await db.insert('agentInstallations', {
-    organizationId: alpha.id,
-    agentSlug: 'assistant',
-    installedAt: WORLD_EPOCH_MS,
-    installedBy: 'system',
-    contentHash: 'worldhash-assistant-v1',
-    enabled: true,
-  });
+  // agentInstallations (born v0.2.85) and the workforce_digest notifications
+  // (their 'dashboard' resourceType joined the union in v0.2.85) are injected
+  // at that boundary by world/injections.testkit.ts.
 
-  // --- userNotifications — 0.2.90/08 snapshot-deletes the workforce_digest
-  // --- rows (one unread, one read); task_assigned is the survivor ------------
-  await db.insert('userNotifications', {
-    userId: 'user_alpha_admin',
-    organizationId: alpha.id,
-    type: 'workforce_digest',
-    titleKey: 'workforceDigest',
-    bodyKey: 'workforceDigestBody',
-    resourceType: 'dashboard',
-    resourceId: alpha.id,
-    actorType: 'system',
-    read: false,
-    createdAt: WORLD_EPOCH_MS,
-  });
-  await db.insert('userNotifications', {
-    userId: 'user_alpha_member',
-    organizationId: alpha.id,
-    type: 'workforce_digest',
-    titleKey: 'workforceDigest',
-    bodyKey: 'workforceDigestBody',
-    resourceType: 'dashboard',
-    resourceId: alpha.id,
-    actorType: 'system',
-    read: true,
-    readAt: WORLD_EPOCH_MS + 100,
-    createdAt: WORLD_EPOCH_MS,
-  });
+  // --- userNotifications — the task_assigned survivor (0.2.84-valid) --------
   await db.insert('userNotifications', {
     userId: 'user_alpha_admin',
     organizationId: alpha.id,
@@ -619,7 +453,7 @@ export async function seedWorldDb(
     createdAt: WORLD_EPOCH_MS,
   });
 
-  // --- integrationCredentials — 0.2.90/03 lists them per org; this row is
+  // --- integrationCredentials — 0.3.4/02 lists them per org; this row is
   // --- INACTIVE so the email-app install stays a no-op while the
   // --- active-filter is still exercised (manifest `emailCredentialsActive`) --
   await db.insert('integrationCredentials', {

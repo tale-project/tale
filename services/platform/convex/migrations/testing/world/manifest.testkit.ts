@@ -18,8 +18,8 @@
 export const WORLD_ORGS = {
   /** Gets EVERY fixture: the org the chain must transform end-to-end. */
   alpha: { slug: 'baseline-alpha', name: 'Baseline Alpha' },
-  /** Small subset: a second datapoint for per-org node migrations (0.2.90/01)
-   *  and the org-level rename migrations (0.2.93/01, 0.2.93/04). */
+  /** Small subset: a second datapoint for per-org node migrations (0.2.98/02)
+   *  and the org-level rename migrations (0.3.4/13, 0.3.4/16). */
   beta: { slug: 'baseline-beta', name: 'Baseline Beta' },
   /** No rows, empty config dirs: every migration's per-org no-op path. */
   empty: { slug: 'baseline-empty', name: 'Baseline Empty' },
@@ -38,24 +38,17 @@ export const baselineTables: string[] = [
   'modelSyncSettings', // 0.2.87/03 exports, /05 drops
   'ssoProviders', // 0.2.87/01 exports to governance/sso files
   'projects', // stable FK holder for bindings + schedules
-  'appInstallations', // 0.2.88/01+/02, 0.2.91/01 read; 0.2.93/01+/04 rename
-  'appProjectBindings', // 0.2.88/01, 0.2.91/01 read; 0.2.93/02+/05 rename
-  'appUploadClaims', // 0.2.93/06 moves to automationUploadClaims
-  'appUploadIntents', // 0.2.93/07 moves to automationUploadIntents
-  'wfSchedules', // 0.2.88/02 assigns projectId; 0.2.91/01 reads
-  'wfEventSubscriptions', // 0.2.92/02 adds the status_changed sibling
-  'wfInstallations', // survivor workflow's installation (0.2.90/07 sweep)
-  'wfDefaultProvisions', // provision marker that stops 0.2.90/07-down re-provisioning
-  'threadFiles', // 0.2.89/02 rewrites relative → absolute paths
-  'threadMetadata', // 0.2.93/03 renames appSlug; /08 rewrites kind
-  'conversations', // 0.2.90/02 backfills integrationName; 0.3.4/04 contactId
-  'conversationMessages', // 0.2.90/02's derivation source
-  'supportCases', // 0.3.4/05 backfills contactId
-  'customers', // 0.3.4/03 copies into contacts
-  'vendors', // 0.3.4/02 copies into contacts
-  'agentInstallations', // 0.2.90/06 drops the workforce persona rows
-  'userNotifications', // 0.2.90/08 drops the workforce_digest rows
-  'integrationCredentials', // 0.2.90/03 reads (inactive row → install no-op)
+  'wfSchedules', // 0.2.96/02 assigns projectId; 0.3.4/09 reads
+  'wfEventSubscriptions', // 0.3.4/12 adds the status_changed sibling
+  'wfInstallations', // survivor workflow's installation (0.3.4/06 sweep)
+  'threadFiles', // 0.2.96/03 rewrites relative → absolute paths
+  'threadMetadata', // chat survivor only; app-era rows arrive via injection
+  'conversations', // 0.3.4/01 backfills integrationName; 0.3.4/24 contactId
+  'conversationMessages', // 0.3.4/01's derivation source
+  'customers', // 0.3.4/23 copies into contacts
+  'vendors', // 0.3.4/22 copies into contacts
+  'userNotifications', // the 0.2.84-valid task_assigned survivor
+  'integrationCredentials', // 0.3.4/02 reads (inactive row → install no-op)
 ];
 
 /**
@@ -63,20 +56,30 @@ export const baselineTables: string[] = [
  * domain set — `automations/`, `skills/`, `token-sources/` arrived later; the
  * app bundles of that era lived under `apps/`). `baseline-empty` mirrors this
  * exact set with all dirs empty; `baseline-beta` carries the same set MINUS
- * `branding/` (the 0.3.4/01 missing-dir no-op path, like the spike's org2).
- * The `workflows/` dir MUST exist even when empty so 0.2.90/07-down's
+ * `branding/` (the 0.3.4/21 missing-dir no-op path, like the spike's org2).
+ * The `workflows/` dir MUST exist even when empty so 0.3.4/06-down's
  * `listCatalogArea` doesn't ENOENT into a scheduler retry.
  */
 export const baselineDomains: string[] = [
-  'agents', // 0.2.89/03, 0.2.90/01, 0.2.90/05 walk/rewrite it
-  'apps', // legacy issue-desk bundle tree (0.2.92/01's layout)
-  'branding', // 0.3.4/01 merges brandColor → accentColor
-  'governance', // 0.2.85/01, 0.2.87/02+03 write INTO it; 0.2.90/04 deletes from it
+  'agents', // 0.2.98/01, 0.2.98/02, 0.3.4/04 walk/rewrite it
+  'apps', // legacy issue-desk bundle tree (0.3.4/11's layout)
+  'branding', // 0.3.4/21 merges brandColor → accentColor
+  'governance', // 0.2.85/01, 0.2.87/02+03 write INTO it; 0.3.4/03 deletes from it
   'integrations', // empty ballast (no chain migration touches it)
   'prompts', // ballast (no chain migration touches the prompts domain)
-  'providers', // 0.2.89/03 appends the Fable catalog entries
-  'workflows', // 0.2.90/07 removes the retired file; down re-syncs the dir
+  'providers', // 0.2.98/01 appends the Fable catalog entries
+  'workflows', // 0.3.4/06 removes the retired file; down re-syncs the dir
 ];
+
+/**
+ * Version-boundary injections (world/injections.testkit.ts): rows whose
+ * tables/shapes were born AFTER 0.2.84 — appUploadClaims, appUploadIntents,
+ * supportCases (v0.2.96) and the app-era threadMetadata rows (dev-only). The
+ * versions suite seeds them when its walk crosses `afterVersion`; chains
+ * A/B/C run without them (their consuming migrations are covered by their
+ * own tests + the versions suite). Re-exported for the corpus guard.
+ */
+export { WORLD_INJECTIONS } from './injections.testkit';
 
 /**
  * Tables (empty at baseline) that gain rows mid-chain, keyed by the migration
@@ -97,19 +100,19 @@ export const produces: Record<string, string[]> = {
   // model-sync.json export re-syncs the governance configCache domain.
   '0.2.87/03_model_sync_db_to_json': ['configCache'],
   // Inserts the task.status_changed sibling ROW (table already seeded).
-  '0.2.92/02_triage_backlog_start_trigger': ['wfEventSubscriptions'],
+  '0.3.4/12_triage_backlog_start_trigger': ['wfEventSubscriptions'],
   // appInstallations rows move to the renamed table.
-  '0.2.93/04_app_installations_table': ['automationInstallations'],
+  '0.3.4/16_app_installations_table': ['automationInstallations'],
   // appProjectBindings rows move to the renamed table.
-  '0.2.93/05_app_project_bindings_table': ['automationProjectBindings'],
+  '0.3.4/17_app_project_bindings_table': ['automationProjectBindings'],
   // appUploadClaims rows move to the renamed table.
-  '0.2.93/06_app_upload_claims_table': ['automationUploadClaims'],
+  '0.3.4/18_app_upload_claims_table': ['automationUploadClaims'],
   // appUploadIntents rows move to the renamed table.
-  '0.2.93/07_app_upload_intents_table': ['automationUploadIntents'],
+  '0.3.4/19_app_upload_intents_table': ['automationUploadIntents'],
   // Vendor rows are copied into contacts (with a __migratedFrom stamp).
-  '0.3.4/02_backfill_contacts_from_vendors': ['contacts'],
+  '0.3.4/22_backfill_contacts_from_vendors': ['contacts'],
   // Customer rows are copied into contacts (minus the status enum).
-  '0.3.4/03_backfill_contacts_from_customers': ['contacts'],
+  '0.3.4/23_backfill_contacts_from_customers': ['contacts'],
 };
 
 /**
@@ -119,7 +122,7 @@ export const produces: Record<string, string[]> = {
  */
 export const profile = {
   /**
-   * 0.2.90/03 install_email_apps: chain-runs as a per-org no-op. One INACTIVE
+   * 0.3.4/02 install_email_apps: chain-runs as a per-org no-op. One INACTIVE
    * outlook credential is seeded so `credential_queries.listInternal` returns
    * a row and the active-filter (`isActive && status === 'active'`) is
    * exercised, but no ACTIVE email credential exists, so no automation install
@@ -128,38 +131,39 @@ export const profile = {
    */
   emailCredentialsActive: false,
   /**
-   * 0.2.92/01 retire_issue_desk: chain-runs as a per-org no-op — its
+   * 0.3.4/11 retire_issue_desk: chain-runs as a per-org no-op — its
    * `getAutomationInstallationInternal` reads the CURRENT
    * `automationInstallations` table, which is only populated later by
-   * 0.2.93/04. The legacy `apps/issue-desk/` config tree and the issue-desk
-   * `appInstallations` row are still seeded so the 0.2.93 renames get a real
-   * issue-desk datapoint and the tree round-trips untouched. The retire path
-   * is covered by the migration's own (fully faked-ctx) test.
+   * 0.3.4/16. The legacy `apps/issue-desk/` config tree is still seeded (the
+   * tree round-trips untouched); the issue-desk `appInstallations` row is
+   * injected at the 0.2.85 boundary, so the renames get their real issue-desk
+   * datapoint in the versions suite. The retire path is covered by the
+   * migration's own (fully faked-ctx) test.
    */
   issueDeskRetireChainNoop: true,
   /**
    * NO `config` is seeded on `appInstallations`/`appProjectBindings`, and the
-   * reconcile schedule's `variables` carry none of 0.2.91/01's CONFIG_KEYS
-   * (owner/repo/testCommand/repoNotes). The 0.2.88/01 → 0.2.91/01 pair is not
-   * round-trip composable in a full chain: 0.2.91/01's `up` clears the
+   * reconcile schedule's `variables` carry none of 0.3.4/09's CONFIG_KEYS
+   * (owner/repo/testCommand/repoNotes). The 0.2.96/01 → 0.3.4/09 pair is not
+   * round-trip composable in a full chain: 0.3.4/09's `up` clears the
    * org-level install config that no `down` ever restores, its `down`
    * materializes schedule CONFIG_KEYS onto configless bindings (the "accepted
    * edge case" in its source), and a leftover `config` would fail
-   * current-schema validation when 0.2.93/05 copies rows into
+   * current-schema validation when 0.3.4/17 copies rows into
    * `automationProjectBindings`. Copy/fold paths are covered by those
    * migrations' own tests. CHAIN-HARNESS FOLLOW-UP if config coverage is
    * wanted in-chain.
    */
   appConfigSeeded: false,
   /**
-   * 0.2.89/02 thread_files_absolute_paths: only RELATIVE paths are seeded.
+   * 0.2.96/03 thread_files_absolute_paths: only RELATIVE paths are seeded.
    * Its `down` strips `/user/<root>/` from ANY absolute row, so a seeded
    * already-absolute row (the idempotency edge) cannot round-trip; that edge
    * is covered by the migration's own test.
    */
   threadFilePathsRelativeOnly: true,
   /**
-   * 0.2.90/07 remove_retired_task_workflows: the retired workflow file
+   * 0.3.4/06 remove_retired_task_workflows: the retired workflow file
    * (`projects/tasks/send-daily-digest.json`) is seeded WITHOUT
    * `metadata.autoInstall` and without installation/trigger/provision rows.
    * Its `down` re-runs `syncDefaultWorkflowInstallations`, which re-provisions
@@ -170,11 +174,13 @@ export const profile = {
    */
   retiredWorkflowAutoInstall: false,
   /**
-   * The SURVIVOR autoInstall workflow
-   * (`projects/tasks/triage-unassigned-tasks.json`) carries seeded
-   * `wfInstallations` + `wfDefaultProvisions` rows so 0.2.90/07-down's
-   * provisioner SKIPS it ("already provisioned") instead of inserting
-   * wall-clock rows.
+   * The SURVIVOR workflow (`projects/tasks/triage-unassigned-tasks.json`)
+   * carries NO `metadata.autoInstall`, so 0.3.4/06-down's provisioner has
+   * nothing to (re-)provision and cannot mint wall-clock rows into the chain
+   * deep-compare. Its `wfInstallations` row is baseline; the
+   * `wfDefaultProvisions` marker (a v0.2.85-born table) is injected at that
+   * boundary and must round-trip untouched. The provisioner's
+   * skip-already-provisioned path is covered by the migration's own test.
    */
   survivorWorkflowProvisionMarker: true,
   /**
@@ -200,13 +206,13 @@ export const profile = {
   ssoSecretsFixedJwe: true,
   /**
    * The destructive `table-rows` migrations (0.2.85/03, 0.2.87/04, 0.2.87/05,
-   * 0.2.90/06, 0.2.90/08) restore rows on `down` via insert — restored rows
+   * 0.3.4/05, 0.3.4/07) restore rows on `down` via insert — restored rows
    * get NEW `_id`/`_creationTime`. The deep-compare must normalize system
    * fields (and treat `storageId` values as opaque).
    */
   snapshotRestoreAssignsNewIds: true,
   /**
-   * 0.2.89/03 claude_code_fable_default rewrites the alpha claude-code agent
+   * 0.2.98/01 claude_code_fable_default rewrites the alpha claude-code agent
    * pin and openrouter provider catalog IN PLACE (`snapshot: 'none'`), so the
    * round-tripped bytes are `serialize(parse(original))`. `seedWorldFs`
    * canonicalizes those two seeded files through the same parse/serialize the
@@ -226,18 +232,18 @@ export const indexPortNotes = [
   {
     table: 'appInstallations',
     historicalName: 'by_org_slug',
-    historicalFields: ['organizationId', 'appSlug'], // kept — 0.2.88/01, 0.2.88/02, 0.2.91/01 `up`
+    historicalFields: ['organizationId', 'appSlug'], // kept — 0.2.96/01, 0.2.96/02, 0.3.4/09 `up`
     worldName: 'by_org_automation_slug',
     worldFields: ['organizationId', 'automationSlug'],
-    portIn: ['0.2.93/04_app_installations_table (down)'],
+    portIn: ['0.3.4/16_app_installations_table (down)'],
   },
   {
     table: 'appProjectBindings',
     historicalName: 'by_org_slug_project',
-    historicalFields: ['organizationId', 'appSlug', 'projectId'], // kept — 0.2.88/02 `up`
+    historicalFields: ['organizationId', 'appSlug', 'projectId'], // kept — 0.2.96/02 `up`
     worldName: 'by_org_automation_slug_project',
     worldFields: ['organizationId', 'automationSlug', 'projectId'],
-    portIn: ['0.2.93/05_app_project_bindings_table (down)'],
+    portIn: ['0.3.4/17_app_project_bindings_table (down)'],
   },
 ] as const;
 
@@ -246,6 +252,6 @@ export const indexPortNotes = [
  * (same index name + same field list on both the legacy and renamed table).
  */
 export const indexPortCheckedClean = [
-  '0.2.93/06_app_upload_claims_table (by_org_slug = [organizationId, slug])',
-  '0.2.93/07_app_upload_intents_table (by_storageId = [storageId])',
+  '0.3.4/18_app_upload_claims_table (by_org_slug = [organizationId, slug])',
+  '0.3.4/19_app_upload_intents_table (by_storageId = [storageId])',
 ] as const;

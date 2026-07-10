@@ -15,10 +15,12 @@
  */
 
 import { isRunnableKind } from '../convex/migrations/framework/types';
+import { hasCheckpoint } from '../convex/migrations/testing/checkpoints.testkit';
 import {
   baselineDomains,
   baselineTables,
   produces,
+  WORLD_INJECTIONS,
 } from '../convex/migrations/testing/world/manifest.testkit';
 import { worldSchema } from '../convex/migrations/testing/world_schema.testkit';
 import { discoverMigrations, validateSet } from './migrations-codegen';
@@ -62,6 +64,7 @@ async function main(): Promise<void> {
   const covered = new Set<string>([
     ...baselineTables,
     ...Object.values(produces).flat(),
+    ...WORLD_INJECTIONS.flatMap((i) => i.tables),
     ...FRAMEWORK_TABLES,
   ]);
   const domains = new Set(baselineDomains);
@@ -73,9 +76,30 @@ async function main(): Promise<void> {
       );
     }
   }
+  for (const injection of WORLD_INJECTIONS) {
+    if (!hasCheckpoint(injection.afterVersion)) {
+      errors.push(
+        `injection afterVersion "${injection.afterVersion}" has no version checkpoint — run bun scripts/dump-version-schemas.ts.`,
+      );
+    }
+    for (const table of injection.tables) {
+      if (!worldTables.has(table)) {
+        errors.push(
+          `injection (${injection.afterVersion}) table "${table}" is not declared in world_schema.testkit.ts.`,
+        );
+      }
+    }
+  }
 
   let guarded = 0;
   for (const m of migrations) {
+    // Every migration version must have a ground-truth checkpoint so the
+    // versions suite can hold the chain against the real released schema.
+    if (!hasCheckpoint(m.semver)) {
+      errors.push(
+        `${m.rel}: version ${m.semver} has no checkpoint fixture (testing/versions/) — run bun scripts/dump-version-schemas.ts.`,
+      );
+    }
     if (!isRunnableKind(m.kind)) continue;
     guarded++;
     for (const table of m.subjects?.tables ?? []) {
@@ -87,7 +111,7 @@ async function main(): Promise<void> {
       }
       if (!covered.has(table)) {
         errors.push(
-          `${m.rel}: subject table "${table}" is neither seeded at baseline, produced by an earlier migration (manifest \`produces\`), nor framework bookkeeping — extend the corpus or declare the producer.`,
+          `${m.rel}: subject table "${table}" is neither seeded at baseline, produced by an earlier migration (manifest \`produces\`), injected at a version boundary (world/injections.testkit.ts), nor framework bookkeeping — extend the corpus or declare the producer.`,
         );
       }
     }

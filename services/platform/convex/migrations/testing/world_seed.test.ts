@@ -16,8 +16,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildModules } from '../framework/test_helpers';
 import { digestDb, digestFs } from './digest.testkit';
-import { buildSeededWorld, collectVia } from './world/build.testkit';
 import {
+  buildSeededWorld,
+  collectVia,
+  type SeededWorld,
+} from './world/build.testkit';
+import {
+  WORLD_INJECTIONS,
   WORLD_ORGS,
   baselineDomains,
   baselineTables,
@@ -49,6 +54,14 @@ afterEach(async () => {
 const seedFullWorld = (configRoot: string) =>
   buildSeededWorld(configRoot, modules, authModules);
 
+/** Apply every version-boundary injection (validity per boundary is the
+ *  versions suite's job; here they only need to insert cleanly). */
+async function applyInjections(world: SeededWorld): Promise<void> {
+  for (const injection of WORLD_INJECTIONS) {
+    await world.t.run((ctx) => injection.seed(ctx as never, world.orgs));
+  }
+}
+
 describe('baseline world corpus', () => {
   it('seeds every baseline table and the edge rows the chain relies on', async () => {
     const { t, orgs } = await seedFullWorld(root);
@@ -75,14 +88,42 @@ describe('baseline world corpus', () => {
       true,
     );
 
+    // 0.2.96/03: relative thread-file paths backed by real storage blobs.
+    const threadFiles = await collect('threadFiles');
+    expect(threadFiles.length).toBeGreaterThan(0);
+    for (const file of threadFiles) {
+      expect(String(file.path).startsWith('/')).toBe(false);
+      expect(typeof file.storageId).toBe('string');
+    }
+
+    // 0.3.4/02: the seeded credential is INACTIVE (chain no-op by design).
+    const credentials = await collect('integrationCredentials');
+    expect(credentials.length).toBeGreaterThan(0);
+    expect(
+      credentials.every((r) => !(r.isActive && r.status === 'active')),
+    ).toBe(true);
+
+    // 0.3.4/22–25: merge-edge rows (a vendor/customer without email).
+    const vendors = await collect('vendors');
+    expect(vendors.some((r) => r.email === undefined)).toBe(true);
+
+    // Orgs resolve to distinct component ids.
+    expect(new Set([orgs.alpha.id, orgs.beta.id, orgs.empty.id]).size).toBe(3);
+  });
+
+  it('version-boundary injections seed cleanly and carry the edge rows', async () => {
+    const world = await seedFullWorld(root);
+    const collect = collectVia(world.t);
+    await applyInjections(world);
+
     // Bindings are deliberately configless (manifest profile
-    // appConfigSeeded:false — the 0.2.88/01 ↔ 0.2.91/01 config pair is not
+    // appConfigSeeded:false — the 0.2.96/01 ↔ 0.3.4/09 config pair is not
     // chain-composable; the copy/fold paths live in those migrations' tests).
     const bindings = await collect('appProjectBindings');
     expect(bindings.length).toBeGreaterThan(0);
     expect(bindings.every((r) => r.config === undefined)).toBe(true);
 
-    // 0.2.90/06: both retired workforce personas + one survivor.
+    // 0.3.4/05: both retired workforce personas + one survivor.
     const installs = await collect('agentInstallations');
     for (const slug of WORLD_WORKFORCE_AGENT_SLUGS) {
       expect(installs.some((r) => r.agentSlug === slug)).toBe(true);
@@ -93,32 +134,26 @@ describe('baseline world corpus', () => {
       ),
     ).toBe(true);
 
-    // 0.2.90/08: workforce_digest rows + a survivor notification.
+    // 0.3.4/07: workforce_digest rows + the baseline task_assigned survivor.
     const notifications = await collect('userNotifications');
     expect(notifications.some((r) => r.type === 'workforce_digest')).toBe(true);
     expect(notifications.some((r) => r.type !== 'workforce_digest')).toBe(true);
 
-    // 0.2.89/02: relative thread-file paths backed by real storage blobs.
-    const threadFiles = await collect('threadFiles');
-    expect(threadFiles.length).toBeGreaterThan(0);
-    for (const file of threadFiles) {
-      expect(String(file.path).startsWith('/')).toBe(false);
-      expect(typeof file.storageId).toBe('string');
-    }
+    // 0.3.4/25: the customer-backed case's FK resolves; the requester-only
+    // case is the skip path.
+    const cases = await collect('supportCases');
+    const customers = await collect('customers');
+    const customerIds = new Set(customers.map((r) => r._id));
+    expect(cases.some((r) => customerIds.has(r.customerId as string))).toBe(
+      true,
+    );
+    expect(cases.some((r) => r.customerId === undefined)).toBe(true);
 
-    // 0.2.90/03: the seeded credential is INACTIVE (chain no-op by design).
-    const credentials = await collect('integrationCredentials');
-    expect(credentials.length).toBeGreaterThan(0);
-    expect(
-      credentials.every((r) => !(r.isActive && r.status === 'active')),
-    ).toBe(true);
-
-    // 0.3.4/02–05: merge-edge rows (a vendor/customer without email).
-    const vendors = await collect('vendors');
-    expect(vendors.some((r) => r.email === undefined)).toBe(true);
-
-    // Orgs resolve to distinct component ids.
-    expect(new Set([orgs.alpha.id, orgs.beta.id, orgs.empty.id]).size).toBe(3);
+    // 0.3.4/15+/20: two app-era rows (rename + kind rewrite) and the
+    // kind-bearing chat survivor.
+    const threads = await collect('threadMetadata');
+    expect(threads.filter((r) => r.kind === 'app_discussion').length).toBe(2);
+    expect(threads.some((r) => r.kind === 'chat')).toBe(true);
   });
 
   it('lands the three fixture config trees with the 0.2.84 shapes', async () => {
@@ -132,8 +167,8 @@ describe('baseline world corpus', () => {
     ) as Record<string, unknown>;
     expect(branding.brandColor).toBeDefined();
 
-    // Legacy apps/ bundle layout (0.2.92/01-era) and workforce personas
-    // (0.2.90/05) exist for alpha.
+    // Legacy apps/ bundle layout (0.3.4/11-era) and workforce personas
+    // (0.3.4/04) exist for alpha.
     await access(
       path.join(root, WORLD_ORGS.alpha.slug, 'apps', 'issue-desk', 'app.json'),
     );
@@ -154,10 +189,19 @@ describe('baseline world corpus', () => {
     try {
       const a = await seedFullWorld(root);
       const b = await seedFullWorld(rootB);
+      await applyInjections(a);
+      await applyInjections(b);
 
-      // storageId values are world-local (opaque); exclude the table that
-      // embeds them, then require byte-identical digests.
-      const tables = baselineTables.filter((t) => t !== 'threadFiles');
+      // storageId values are world-local (opaque); exclude the tables that
+      // embed them (threadFiles at baseline, appUploadIntents injected), then
+      // require byte-identical digests. FK ids (customerId, projectId) are
+      // insertion-ordered in convex-test and thus reproducible.
+      const tables = [
+        ...new Set([
+          ...baselineTables,
+          ...WORLD_INJECTIONS.flatMap((i) => i.tables),
+        ]),
+      ].filter((t) => t !== 'threadFiles' && t !== 'appUploadIntents');
       expect(await digestDb(tables, collectVia(a.t))).toEqual(
         await digestDb(tables, collectVia(b.t)),
       );

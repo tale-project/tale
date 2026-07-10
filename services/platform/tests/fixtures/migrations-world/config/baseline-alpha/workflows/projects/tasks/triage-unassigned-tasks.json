@@ -1,5 +1,5 @@
 {
-  "metadata": { "autoInstall": true, "labels": ["Tasks"] },
+  "metadata": { "labels": ["Tasks"] },
   "steps": [
     {
       "config": {},
