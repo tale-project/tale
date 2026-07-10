@@ -736,6 +736,7 @@
     "errors": {
       "generic": "Etwas ist schiefgelaufen. Versuch es erneut.",
       "rateLimited": "Zu viele Anfragen. Warte einen Moment, dann versuch es erneut.",
+      "notConfigured": "Diese Installation hat noch keinen Formularversand eingerichtet — deine Nachricht wurde nicht gesendet. Erreich das Team bitte über einen anderen Kanal.",
       "serverUnavailable": "Deine Nachricht konnte gerade nicht gesendet werden. Versuch es in ein paar Minuten erneut.",
       "tooFast": "Moment — prüf deine Angaben, bevor du absendest."
     },

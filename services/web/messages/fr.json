@@ -736,6 +736,7 @@
     "errors": {
       "generic": "Quelque chose s’est mal passé. Réessaie.",
       "rateLimited": "Trop d’envois. Patiente un instant et réessaie.",
+      "notConfigured": "Cette installation n’a pas encore configuré l’envoi de formulaires — ton message n’a pas été envoyé. Contacte l’équipe par un autre canal.",
       "serverUnavailable": "Nous n’avons pas pu envoyer ton message pour le moment. Réessaie dans quelques minutes.",
       "tooFast": "Un instant — vérifie tes informations avant d’envoyer."
     },

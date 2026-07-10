@@ -736,6 +736,7 @@
     "errors": {
       "generic": "Something went wrong. Try again.",
       "rateLimited": "Too many submissions. Wait a moment, then try again.",
+      "notConfigured": "This deployment has no form delivery configured yet, so your message was not sent. Please use another channel to reach the team.",
       "serverUnavailable": "We couldn't send your message right now. Please try again in a few minutes.",
       "tooFast": "Hold on — review your details before submitting."
     },
