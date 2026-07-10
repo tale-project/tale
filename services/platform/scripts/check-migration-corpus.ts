@@ -16,11 +16,11 @@
 
 import { isRunnableKind } from '../convex/migrations/framework/types';
 import { hasCheckpoint } from '../convex/migrations/testing/checkpoints.testkit';
+import { WORLD_INJECTIONS } from '../convex/migrations/testing/world/injections.testkit';
 import {
   baselineDomains,
   baselineTables,
   produces,
-  WORLD_INJECTIONS,
 } from '../convex/migrations/testing/world/manifest.testkit';
 import { worldSchema } from '../convex/migrations/testing/world_schema.testkit';
 import { discoverMigrations, validateSet } from './migrations-codegen';

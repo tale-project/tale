@@ -1,8 +1,10 @@
 // @vitest-environment node
 
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -237,5 +239,117 @@ describe('validateValue / validateDoc', () => {
     expect(validateValue(1, { type: 'vectorIndex??' }, 'p')).toContain(
       'unknown validator node type',
     );
+  });
+});
+
+describe('push safety — the bundled migrations surface', () => {
+  // The Convex bundler takes every single-dot convex/**/*.ts as an entry
+  // point; two-dot testkit/test files are excluded as ENTRIES but still get
+  // inlined when a bundled file imports them at runtime. An isolate entry
+  // (no 'use node') is bundled platform:browser, so any `node:*` import
+  // anywhere in its runtime import closure — including one inside a
+  // transitively reached 'use node' file — fails the whole push. Regression:
+  // support.ts → manifest.testkit re-export → injections.testkit (node:fs)
+  // broke `npx convex dev --once` for every E2E shard.
+  const CONVEX_ROOT = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../..',
+  );
+  const MIGRATIONS_ROOT = path.join(CONVEX_ROOT, 'migrations');
+
+  const sources = new Map<string, string>();
+  const read = (file: string) => {
+    let src = sources.get(file);
+    if (src === undefined) {
+      src = readFileSync(file, 'utf8');
+      sources.set(file, src);
+    }
+    return src;
+  };
+  const hasUseNode = (file: string) =>
+    /^['"]use node['"]/.test(read(file).trimStart());
+
+  /** Runtime import/re-export specifiers — `import type`/`export type` are
+   *  erased by the bundler and deliberately skipped. */
+  const runtimeImportSpecs = (file: string): string[] => {
+    const src = read(file);
+    const specs: string[] = [];
+    for (const m of src.matchAll(
+      /(?:^|\n)\s*(?:import|export)\s+(type\s+)?[^'";]*?from\s+['"]([^'"]+)['"]/g,
+    )) {
+      if (!m[1]) specs.push(m[2]);
+    }
+    for (const m of src.matchAll(/(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g)) {
+      specs.push(m[1]);
+    }
+    return specs;
+  };
+
+  const resolveRelative = (from: string, spec: string): string | null => {
+    if (!spec.startsWith('.')) return null;
+    const base = path.resolve(path.dirname(from), spec);
+    for (const candidate of [base + '.ts', base + '.js', base]) {
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
+  const listBundledIsolateEntries = (dir: string): string[] => {
+    const entries: string[] = [];
+    for (const name of readdirSync(dir)) {
+      const p = path.join(dir, name);
+      if (statSync(p).isDirectory()) {
+        entries.push(...listBundledIsolateEntries(p));
+        continue;
+      }
+      if (!name.endsWith('.ts') || name.endsWith('.d.ts')) continue;
+      if (name.split('.').length > 2) continue; // testkit/test files: not entries
+      if (hasUseNode(p)) continue; // node entries bundle platform:node
+      entries.push(p);
+    }
+    return entries;
+  };
+
+  it('keeps node-only code out of every isolate entry’s import closure', () => {
+    const violations: string[] = [];
+    for (const entry of listBundledIsolateEntries(MIGRATIONS_ROOT)) {
+      const cameFrom = new Map<string, string>();
+      const chainOf = (file: string) => {
+        const chain = [file];
+        let cursor = file;
+        while (cameFrom.has(cursor)) {
+          cursor = cameFrom.get(cursor) as string;
+          chain.unshift(cursor);
+        }
+        return chain.map((f) => path.relative(CONVEX_ROOT, f)).join(' -> ');
+      };
+      const seen = new Set([entry]);
+      const queue = [entry];
+      while (queue.length > 0) {
+        const current = queue.shift() as string;
+        for (const spec of runtimeImportSpecs(current)) {
+          if (spec.startsWith('node:')) {
+            violations.push(`\`${spec}\` via ${chainOf(current)}`);
+            continue;
+          }
+          const resolved = resolveRelative(current, spec);
+          if (!resolved || seen.has(resolved)) continue;
+          seen.add(resolved);
+          cameFrom.set(resolved, current);
+          if (hasUseNode(resolved)) {
+            violations.push(`'use node' file via ${chainOf(resolved)}`);
+            continue;
+          }
+          queue.push(resolved);
+        }
+      }
+    }
+    expect(
+      violations,
+      `node-only code reachable from the Convex isolate bundle — the push ` +
+        `('npx convex dev --once') fails on these:\n${violations.join('\n')}`,
+    ).toEqual([]);
   });
 });

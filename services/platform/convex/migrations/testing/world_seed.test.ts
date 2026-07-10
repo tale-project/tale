@@ -21,8 +21,8 @@ import {
   collectVia,
   type SeededWorld,
 } from './world/build.testkit';
+import { WORLD_INJECTIONS } from './world/injections.testkit';
 import {
-  WORLD_INJECTIONS,
   WORLD_ORGS,
   baselineDomains,
   baselineTables,

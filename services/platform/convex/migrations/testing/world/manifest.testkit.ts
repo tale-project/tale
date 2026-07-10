@@ -71,15 +71,18 @@ export const baselineDomains: string[] = [
   'workflows', // 0.3.4/06 removes the retired file; down re-syncs the dir
 ];
 
-/**
- * Version-boundary injections (world/injections.testkit.ts): rows whose
+/*
+ * Version-boundary injections live in `injections.testkit.ts`: rows whose
  * tables/shapes were born AFTER 0.2.84 — appUploadClaims, appUploadIntents,
  * supportCases (v0.2.96) and the app-era threadMetadata rows (dev-only). The
  * versions suite seeds them when its walk crosses `afterVersion`; chains
  * A/B/C run without them (their consuming migrations are covered by their
- * own tests + the versions suite). Re-exported for the corpus guard.
+ * own tests + the versions suite). NOT re-exported here: `support.ts` imports
+ * this manifest into the push bundle, and a runtime re-export would drag
+ * `injections.testkit.ts`'s `node:*`/fs-reading world into the isolate bundle
+ * and break the Convex push (testkit.test.ts guards the closure) — consumers
+ * import `WORLD_INJECTIONS` from `./injections.testkit` directly.
  */
-export { WORLD_INJECTIONS } from './injections.testkit';
 
 /**
  * Tables (empty at baseline) that gain rows mid-chain, keyed by the migration
