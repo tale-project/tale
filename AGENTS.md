@@ -52,11 +52,11 @@ Safety and architecture invariants — they hold even where no linter covers the
 - **Secrets live in environment variables only** — never hardcode or commit them; scrub logs.
 - **Validate at every boundary** — user input, external APIs, webhooks; parameterized queries only, never string-built SQL or shell.
 - **Org configuration is files, not tables** — per-org config is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a Convex table or DB row.
-- **A data-model or org-config schema change ships a migration** — versioned and reversible; `migrations:check` fails without one. Follow the existing migrations under `convex/migrations/versions/` rather than inventing a shape.
+- **A data-model or org-config schema change ships a migration** — versioned, reversible, idempotent; `migrations:check` fails without one. Scaffold with `bun run gen:migration` (the registries are generated — `migrations:sync`, never hand-edited) and follow [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md).
 - **Accessibility is WCAG 2.1 AA** — real HTML, keyboard reachable, visible focus, labelled controls, AA contrast.
 - **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header); branch off `main`, never commit to it. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution line** — `.husky/commit-msg` strips Cursor/Claude attribution trailers before commitlint runs.
 - **A change is rarely one file** — sweep the concept's blast radius (`search-codebase`): a user-visible string → every locale (+ docs); a new UI element → label + a11y + docs + tests; an env var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones — run them.
-- **Scaffold a new part** (service / package / tool / skill) from a template (`bun run gen …`), never hand-rolled — so it carries the standard configs and test layout.
+- **Scaffold a new part** (service / package / tool / skill / migration) from a template (`bun run gen …`), never hand-rolled — so it carries the standard configs and test layout.
 - **Instructions are docs too** — change a path, command, or pattern a skill or this file documents, and update it in the same change (`bun run skills:check` guards the skill set).
 
 ## Skills and guides index
@@ -88,6 +88,7 @@ skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are pro
 | [`create-issue`](.agents/skills/create-issue/SKILL.md)             | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels                        |
 | [`test-code`](.agents/skills/test-code/SKILL.md)                   | writing tests, or proving behaviour by observing the real outcome                                                 |
 | [`validate-configs`](.agents/skills/validate-configs/SKILL.md)     | editing builtin-configs/ or fixture config JSON, a config-domain schema, or a red config gate                     |
+| [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)   | adding/changing/testing a versioned data migration, or a red migrations:check / corpus gate                       |
 | [`author-skill`](.agents/skills/author-skill/SKILL.md)             | adding, editing, or moving a skill                                                                                |
 | [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing any end-user docs page — journey-first, with the repo facts in [`docs/AGENTS.md`](docs/AGENTS.md) |
 | [`write-translations`](.agents/skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                                              |

@@ -66,7 +66,8 @@ which walks the deployed `$TALE_CONFIG_BUILTIN_DIR` and logs any issue loudly wi
   `convex/migrations/config.snapshot.json`. Data-safe growth (new optional field, widened enum,
   removed field) → refresh with `bun run --filter @tale/platform migrations:snapshot`.
   Data-incompatible (new required field, retype, narrowed enum/literal, optional→required,
-  tightened constraint) → write a versioned migration under `convex/migrations/versions/` FIRST
+  tightened constraint) → ship the versioned migration FIRST — scaffold with
+  `bun run gen:migration` and follow [`convex-migrations`](../convex-migrations/SKILL.md)
   (enforced by `migrations:check`).
 - **Fixtures track builtins byte-for-byte.** A builtin app-bundle refresh re-syncs its pinned
   copies in both fixture trees (enforced by `convex/apps/fixture_bundle_drift.test.ts` — its header

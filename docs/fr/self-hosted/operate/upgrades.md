@@ -73,6 +73,28 @@ Trois garanties que le pattern te donne :
 
 La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale update && tale deploy && tale status` et confirmation visuelle dans le navigateur.
 
+## Travailler avec les migrations de données
+
+Chaque déploiement applique automatiquement les migrations de données en attente — mais seulement celles qui ne détruisent rien. Les migrations qui suppriment ou écrasent des données (suppression d'une table, retrait d'une colonne) ne tournent jamais sans surveillance : le déploiement les saute, affiche celles qui attendent et vous laisse la décision.
+
+```bash
+# Ce qui est appliqué, en attente, en échec
+tale migrate status
+
+# Appliquer les migrations en attente, en validant chaque étape destructrice
+tale migrate up --step
+
+# Tout appliquer sans confirmation (CI / après revue du plan)
+tale migrate up --yes
+
+# Ramener les données à une version antérieure
+tale migrate down --to 0.3.3
+```
+
+Les migrations destructrices sauvegardent les lignes ou fichiers de configuration concernés avant d'y toucher : `tale migrate down` peut ainsi reconstruire ce qu'elles ont retiré. Les deux sens sont reprenables : la progression est suivie par migration (et par organisation pour les migrations de fichiers de configuration), un crash ou un timeout reprend donc là où il s'était arrêté.
+
+Si une migration échoue pendant un déploiement, la plateforme démarre quand même sur son schéma actuel — le journal de démarrage affiche une erreur bien visible et `tale migrate status` montre la migration en échec avec son message. Corrigez la cause, puis relancez `tale migrate up` ; le travail déjà accompli est sauté.
+
 ## Rollback
 
 ```bash
