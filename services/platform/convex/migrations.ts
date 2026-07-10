@@ -1,17 +1,5 @@
-import { Migrations } from '@convex-dev/migrations';
-
-import { components, internal } from './_generated/api';
-import type { DataModel } from './_generated/dataModel';
+import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
-
-/**
- * Registry for one-time, run-once data migrations. Define future migrations
- * here with `migrations.define(...)` and run them via `migrations.runner(...)`;
- * the component tracks which have applied so each runs exactly once across
- * deploys. There are none today — the product ships greenfield — but the
- * machinery is kept so future schema changes have a first-class home.
- */
-export const migrations = new Migrations<DataModel>(components.migrations);
 
 /**
  * Deploy-time MIGRATION runner: applies pending versioned data migrations.
