@@ -6,7 +6,7 @@ import { t } from '../helpers/i18n';
 
 /**
  * Knowledge-entity CRUD round-trip, parametrized over the shared DataTable
- * lists. Create carries its own `create` per entity (vendors uses CSV
+ * lists. Create carries its own `create` per entity (contacts uses CSV
  * manual-entry); edit/delete are shared because only the manually-created rows
  * expose those actions.
  */
@@ -66,12 +66,12 @@ interface CrudEntity {
   /**
    * Resolve the list row carrying `name`. Defaults to {@link rowByCell} (an
    * exact-name cell match), which is correct for the text-only name cell
-   * (vendors). Override per entity when the name cell isn't a plain text cell.
+   * (contacts). Override per entity when the name cell isn't a plain text cell.
    */
   rowByName?: (page: Page, name: string) => Locator;
 }
 
-/** CSV manual-entry create (vendors): one `email,name` line. */
+/** CSV manual-entry create (contacts): one `email,name` line. */
 async function createViaCsvImport(
   page: Page,
   options: {
@@ -101,20 +101,20 @@ async function createViaCsvImport(
 
 const ENTITIES: CrudEntity[] = [
   {
-    segment: 'vendors',
-    createLabel: t('vendors.importMenu.importVendors'),
-    emptyStateTitle: t('emptyStates.vendors.title'),
-    editDialogTitle: t('vendors.editVendor'),
-    deleteDialogTitle: t('vendors.deleteVendor'),
-    nameFieldLabel: t('vendors.name'),
-    updateSuccess: t('vendors.updateSuccess'),
+    segment: 'contacts',
+    createLabel: t('contacts.importMenu.importContacts'),
+    emptyStateTitle: t('emptyStates.contacts.title'),
+    editDialogTitle: t('contacts.editContact'),
+    deleteDialogTitle: t('contacts.deleteContact'),
+    nameFieldLabel: t('contacts.name'),
+    updateSuccess: t('contacts.updateSuccess'),
     create: (page, name) =>
       createViaCsvImport(page, {
-        menuTrigger: t('vendors.importMenu.importVendors'),
-        menuItem: t('vendors.importMenu.manualEntry'),
-        dialogTitle: t('vendors.addVendors'),
+        menuTrigger: t('contacts.importMenu.importContacts'),
+        menuItem: t('contacts.importMenu.manualEntry'),
+        dialogTitle: t('contacts.import.addContacts'),
         importLabel: t('common.actions.import'),
-        email: `e2e-vendor-${name.split(' ').pop() ?? ''}@example.test`,
+        email: `e2e-contact-${name.split(' ').pop() ?? ''}@example.test`,
         name,
       }),
   },

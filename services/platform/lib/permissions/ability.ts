@@ -13,13 +13,12 @@ export type PlatformResource =
   | 'conversationMessages'
   | 'conversations'
   | 'agents'
-  | 'customers'
+  | 'contacts'
   | 'documents'
   | 'integrations'
   | 'onedriveSyncConfigs'
   | 'products'
   | 'projects'
-  | 'vendors'
   | 'websites'
   | 'wfDefinitions' // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   | 'wfExecutions'
@@ -83,11 +82,10 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'conversationMessages',
         'conversations',
         'agents',
-        'customers',
+        'contacts',
         'documents',
         'products',
         'projects',
-        'vendors',
         'websites',
       ];
       for (const resource of contentResources) {

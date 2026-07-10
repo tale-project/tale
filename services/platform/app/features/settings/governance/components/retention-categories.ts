@@ -64,16 +64,10 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     i18nKey: 'messageFeedback',
   },
   {
-    id: 'customers',
-    configKey: 'customersRetentionDays',
-    enabledKey: 'customersEnabled',
-    i18nKey: 'customers',
-  },
-  {
-    id: 'vendors',
-    configKey: 'vendorsRetentionDays',
-    enabledKey: 'vendorsEnabled',
-    i18nKey: 'vendors',
+    id: 'contacts',
+    configKey: 'contactsRetentionDays',
+    enabledKey: 'contactsEnabled',
+    i18nKey: 'contacts',
   },
   {
     id: 'externalConversations',

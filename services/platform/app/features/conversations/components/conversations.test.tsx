@@ -21,7 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 // The bulk-actions hook reaches for convex mutations; stub it out so the list
-// renders without a backend (mirrors customers-table.test.tsx).
+// renders without a backend (mirrors contact-table.test.tsx).
 vi.mock('../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     isBulkProcessing: false,

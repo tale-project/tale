@@ -390,23 +390,23 @@ describe('listConversationsPaginated flat list-row fields', () => {
     const rawHtml = `<p>Hello from Ada</p>${'x'.repeat(300)}`;
 
     await t.run(async (ctx) => {
-      const customerId = await ctx.db.insert('customers', {
+      const contactId = await ctx.db.insert('contacts', {
         organizationId: ORG,
         name: 'Ada Lovelace',
         email: 'ada@example.com',
         source: 'manual_import',
       });
-      const withCustomer = await ctx.db.insert('conversations', {
+      const withContact = await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
         integrationName: 'outlook',
-        customerId,
-        subject: 'With customer',
+        contactId,
+        subject: 'With contact',
         lastMessageAt: 200,
       });
       await ctx.db.insert('conversationMessages', {
         organizationId: ORG,
-        conversationId: withCustomer,
+        conversationId: withContact,
         channel: 'email',
         direction: 'inbound',
         deliveryState: 'delivered',
@@ -414,7 +414,7 @@ describe('listConversationsPaginated flat list-row fields', () => {
         sentAt: 200,
         deliveredAt: 200,
       });
-      // A row with no customer and no messages — both fields stay absent.
+      // A row with no contact and no messages — both fields stay absent.
       await ctx.db.insert('conversations', {
         organizationId: ORG,
         status: 'open',
@@ -434,11 +434,11 @@ describe('listConversationsPaginated flat list-row fields', () => {
     );
 
     expect(result.page).toHaveLength(2);
-    const [withCustomer, bare] = result.page;
-    expect(withCustomer.senderName).toBe('Ada Lovelace');
+    const [withContact, bare] = result.page;
+    expect(withContact.senderName).toBe('Ada Lovelace');
     // Raw (HTML intact — the block cleans client-side) and capped at 200.
-    expect(withCustomer.lastMessagePreview).toBe(rawHtml.slice(0, 200));
-    expect(withCustomer.lastMessagePreview).toHaveLength(200);
+    expect(withContact.lastMessagePreview).toBe(rawHtml.slice(0, 200));
+    expect(withContact.lastMessagePreview).toHaveLength(200);
     expect(bare.senderName).toBeUndefined();
     expect(bare.lastMessagePreview).toBeUndefined();
   });

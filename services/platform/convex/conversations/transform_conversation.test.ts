@@ -11,7 +11,7 @@ vi.mock('../approvals/helpers', () => ({
 }));
 
 // Minimal ctx whose message query resolves to "no messages" and whose
-// `db.get` is unused (every test prefetches the customer via options.customer).
+// `db.get` is unused (every test prefetches the contact via options.contact).
 function createMockCtx() {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
@@ -36,7 +36,7 @@ function makeConversation(
     _id: 'conv_1',
     _creationTime: 1_700_000_000_000,
     organizationId: 'org_1',
-    customerId: 'cust_1',
+    contactId: 'cont_1',
     subject: 'Help with my order',
     status: 'open',
     metadata: {},
@@ -44,17 +44,17 @@ function makeConversation(
   } as unknown as Doc<'conversations'>;
 }
 
-function makeCustomerDoc(
-  overrides: Partial<Doc<'customers'>> = {},
-): Doc<'customers'> {
+function makeContactDoc(
+  overrides: Partial<Doc<'contacts'>> = {},
+): Doc<'contacts'> {
   return {
-    _id: 'cust_1',
+    _id: 'cont_1',
     _creationTime: 1_700_000_000_000,
     organizationId: 'org_1',
-    email: 'customer@example.com',
-    metadata: {},
+    email: 'contact@example.com',
+    source: 'manual_import',
     ...overrides,
-  } as unknown as Doc<'customers'>;
+  } as unknown as Doc<'contacts'>;
 }
 
 function makeMessageDoc(
@@ -137,10 +137,10 @@ describe('transformConversation message ordering', () => {
 
     const ctx = createMockCtxWithMessages(messages);
     const conversation = makeConversation();
-    const customer = makeCustomerDoc();
+    const contact = makeContactDoc();
 
     const result = await transformConversation(ctx, conversation, {
-      customer,
+      contact,
       includeAllMessages: true,
     });
 
@@ -153,51 +153,78 @@ describe('transformConversation message ordering', () => {
   });
 });
 
-describe('transformConversation customer name fallback', () => {
-  it('leaves name undefined for a found customer that has no name', async () => {
+describe('transformConversation contact name fallback', () => {
+  it('leaves name undefined for a found contact that has no name', async () => {
     const ctx = createMockCtx();
     const conversation = makeConversation();
-    // A customer doc that exists but carries no name (and an empty-string name
+    // A contact doc that exists but carries no name (and an empty-string name
     // should be treated the same way).
-    const customer = makeCustomerDoc({ name: undefined });
+    const contact = makeContactDoc({ name: undefined });
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
-    expect(result.customer.name).toBeUndefined();
+    expect(result.contact.name).toBeUndefined();
     // Email is still populated so downstream consumers have a real identifier.
-    expect(result.customer.email).toBe('customer@example.com');
+    expect(result.contact.email).toBe('contact@example.com');
   });
 
-  it('leaves name undefined for an empty-string customer name', async () => {
+  it('leaves name undefined for an empty-string contact name', async () => {
     const ctx = createMockCtx();
     const conversation = makeConversation();
-    const customer = makeCustomerDoc({ name: '' });
+    const contact = makeContactDoc({ name: '' });
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
-    expect(result.customer.name).toBeUndefined();
+    expect(result.contact.name).toBeUndefined();
   });
 
-  it('leaves name undefined in the no-customer fallback', async () => {
+  it('leaves name undefined in the no-contact fallback', async () => {
     const ctx = createMockCtx();
     const conversation = makeConversation();
 
-    // A prefetched `null` is trusted as "no customer for this conversation".
+    // A prefetched `null` is trusted as "no contact for this conversation".
     const result = await transformConversation(ctx, conversation, {
-      customer: null,
+      contact: null,
     });
 
-    expect(result.customer.name).toBeUndefined();
+    expect(result.contact.name).toBeUndefined();
   });
 
-  it('preserves a real customer name when present', async () => {
+  it('preserves a real contact name when present', async () => {
     const ctx = createMockCtx();
     const conversation = makeConversation();
-    const customer = makeCustomerDoc({ name: 'Ada Lovelace' });
+    const contact = makeContactDoc({ name: 'Ada Lovelace' });
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
-    expect(result.customer.name).toBe('Ada Lovelace');
+    expect(result.contact.name).toBe('Ada Lovelace');
+  });
+
+  it('exposes no status field on the contact display object', async () => {
+    const ctx = createMockCtx();
+    const conversation = makeConversation();
+    const contact = makeContactDoc({ name: 'Ada Lovelace' });
+
+    const result = await transformConversation(ctx, conversation, { contact });
+
+    expect('status' in result.contact).toBe(false);
+  });
+
+  it('strips the deprecated customerId so it never leaks into the ConversationItem output', async () => {
+    const ctx = createMockCtx();
+    // A pre-#2618 row that still physically carries customerId (expand-contract
+    // keeps it optional in the schema so existing rows validate on read). It
+    // must NOT reach the transformed output — the returns validator has no
+    // customerId, so a leak throws ReturnsValidationError and breaks loading
+    // the conversation.
+    const conversation = makeConversation({ customerId: 'cust_legacy' });
+    const contact = makeContactDoc();
+
+    const result = await transformConversation(ctx, conversation, { contact });
+
+    expect('customerId' in result).toBe(false);
+    // contactId still flows through as the live link.
+    expect(result.contact_id).toBe('cont_1');
   });
 });
 
@@ -238,32 +265,32 @@ describe('transformConversation flat list-row fields', () => {
     };
   }
 
-  it('flattens the customer name onto senderName', async () => {
+  it('flattens the contact name onto senderName', async () => {
     const ctx = createMockCtxWithMessage(null);
     const conversation = makeConversation();
-    const customer = makeCustomerDoc({ name: 'Ada Lovelace' });
+    const contact = makeContactDoc({ name: 'Ada Lovelace' });
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
     expect(result.senderName).toBe('Ada Lovelace');
   });
 
-  it('leaves senderName undefined when the customer has no name (the client renders its own fallback)', async () => {
+  it('leaves senderName undefined when the contact has no name (the client renders its own fallback)', async () => {
     const ctx = createMockCtxWithMessage(null);
     const conversation = makeConversation();
-    const customer = makeCustomerDoc({ name: undefined });
+    const contact = makeContactDoc({ name: undefined });
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
     expect(result.senderName).toBeUndefined();
   });
 
-  it('leaves senderName undefined when there is no customer', async () => {
+  it('leaves senderName undefined when there is no contact', async () => {
     const ctx = createMockCtxWithMessage(null);
     const conversation = makeConversation();
 
     const result = await transformConversation(ctx, conversation, {
-      customer: null,
+      contact: null,
     });
 
     expect(result.senderName).toBeUndefined();
@@ -273,9 +300,9 @@ describe('transformConversation flat list-row fields', () => {
     const raw = '<p>Hello <b>there</b></p>';
     const ctx = createMockCtxWithMessage(makeMessageDocWithContent(raw));
     const conversation = makeConversation();
-    const customer = makeCustomerDoc();
+    const contact = makeContactDoc();
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
     // No server-side HTML cleaning — the block strips tags client-side.
     expect(result.lastMessagePreview).toBe(raw);
@@ -285,9 +312,9 @@ describe('transformConversation flat list-row fields', () => {
     const long = 'x'.repeat(500);
     const ctx = createMockCtxWithMessage(makeMessageDocWithContent(long));
     const conversation = makeConversation();
-    const customer = makeCustomerDoc();
+    const contact = makeContactDoc();
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
     expect(result.lastMessagePreview).toBe('x'.repeat(200));
   });
@@ -295,9 +322,9 @@ describe('transformConversation flat list-row fields', () => {
   it('leaves lastMessagePreview undefined when the conversation has no messages', async () => {
     const ctx = createMockCtxWithMessage(null);
     const conversation = makeConversation();
-    const customer = makeCustomerDoc();
+    const contact = makeContactDoc();
 
-    const result = await transformConversation(ctx, conversation, { customer });
+    const result = await transformConversation(ctx, conversation, { contact });
 
     expect(result.lastMessagePreview).toBeUndefined();
   });

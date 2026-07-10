@@ -53,9 +53,8 @@ notifications.agentCircuitTrippedBody
 # `tEntity('searchPlaceholder')` in app/hooks/use-table-config-factory.ts is
 # resolved against a runtime `entityNamespace` parameter — the regex scanner
 # can't tie the literal `'searchPlaceholder'` back to its callsite namespace.
-customers.searchPlaceholder
+contacts.searchPlaceholder
 products.searchPlaceholder
-vendors.searchPlaceholder
 websites.searchPlaceholder
 
 

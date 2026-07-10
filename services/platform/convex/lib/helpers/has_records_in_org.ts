@@ -1,11 +1,6 @@
 import type { DatabaseReader } from '../../_generated/server';
 
-type OrgTable =
-  | 'customers'
-  | 'conversations'
-  | 'products'
-  | 'vendors'
-  | 'websites';
+type OrgTable = 'conversations' | 'products' | 'websites';
 
 export async function hasRecordsInOrg(
   db: DatabaseReader,

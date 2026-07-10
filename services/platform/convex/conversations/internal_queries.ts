@@ -13,7 +13,7 @@ const internalConversationRecordValidator = v.object({
   _id: v.id('conversations'),
   _creationTime: v.number(),
   organizationId: v.string(),
-  customerId: v.optional(v.id('customers')),
+  contactId: v.optional(v.id('contacts')),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
@@ -93,7 +93,7 @@ export const getMessageByExternalId = internalQuery({
 export const queryConversations = internalQuery({
   args: {
     organizationId: v.string(),
-    customerId: v.optional(v.id('customers')),
+    contactId: v.optional(v.id('contacts')),
     status: v.optional(conversationStatusValidator),
     priority: v.optional(conversationPriorityValidator),
     channel: v.optional(v.string()),

@@ -116,9 +116,9 @@ describe('validateActionParameters', () => {
     });
   });
 
-  describe('customer action', () => {
+  describe('contact action', () => {
     it('should pass with valid query operation', () => {
-      const result = validateActionParameters('customer', {
+      const result = validateActionParameters('contact', {
         operation: 'query',
         paginationOpts: { numItems: 10, cursor: null },
       });
@@ -129,7 +129,7 @@ describe('validateActionParameters', () => {
 
     it('should fail when query operation is missing required paginationOpts', () => {
       // AI agent commonly forgets required fields for an operation
-      const result = validateActionParameters('customer', {
+      const result = validateActionParameters('contact', {
         operation: 'query',
       });
 

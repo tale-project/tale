@@ -63,12 +63,11 @@ export const messageValidator = v.object({
   attachments: v.optional(v.array(emailAttachmentMetaValidator)),
 });
 
-export const customerInfoValidator = v.object({
+export const contactInfoValidator = v.object({
   id: v.string(),
   name: v.optional(v.string()),
   email: v.string(),
   locale: v.optional(v.string()),
-  status: v.string(),
   source: v.optional(v.string()),
   created_at: v.string(),
 });
@@ -83,7 +82,7 @@ export const conversationItemValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),
   organizationId: v.string(),
-  customerId: v.optional(v.string()),
+  contactId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
@@ -97,13 +96,13 @@ export const conversationItemValidator = v.object({
   id: v.string(),
   title: v.string(),
   description: v.string(),
-  customer_id: v.string(),
+  contact_id: v.string(),
   business_id: v.string(),
   message_count: v.number(),
   unread_count: v.number(),
   // Flat list-row fields for the ConversationList block (single-level item
-  // map): the customer's display name and the latest message's raw content,
-  // capped server-side. Optional — absent when there is no named customer /
+  // map): the contact's display name and the latest message's raw content,
+  // capped server-side. Optional — absent when there is no named contact /
   // no message yet.
   senderName: v.optional(v.string()),
   lastMessagePreview: v.optional(v.string()),
@@ -113,7 +112,7 @@ export const conversationItemValidator = v.object({
   resolved_by: v.optional(v.string()),
   created_at: v.string(),
   updated_at: v.string(),
-  customer: customerInfoValidator,
+  contact: contactInfoValidator,
   messages: v.array(messageValidator),
   pendingApproval: v.optional(v.union(approvalItemValidator, v.null())),
 });
@@ -130,7 +129,7 @@ export const conversationDocValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),
   organizationId: v.string(),
-  customerId: v.optional(v.string()),
+  contactId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),

@@ -78,11 +78,11 @@ describe('validateStepConfig', () => {
       // After fix: nextSteps is stripped from parameters and a warning is emitted,
       // so validation no longer fails just because of misplaced nextSteps.
       const result = validateStepConfig({
-        stepSlug: 'find_customers',
-        name: 'Find Customers',
+        stepSlug: 'find_contacts',
+        name: 'Find Contacts',
         stepType: 'action',
         config: {
-          type: 'customer',
+          type: 'contact',
           operation: 'query',
           paginationOpts: { numItems: 10, cursor: null },
           nextSteps: { success: 'next_step' },

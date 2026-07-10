@@ -1,6 +1,6 @@
 export const EVENT_TYPE_CATEGORIES = {
-  customers: {
-    label: 'Customers',
+  contacts: {
+    label: 'Contacts',
   },
   conversations: {
     label: 'Conversations',
@@ -61,22 +61,22 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
       'Triggered when a user or agent is @mentioned in a discussion reply',
     filterFields: [{ key: 'projectId', label: 'Project', inputType: 'text' }],
   },
-  'customer.created': {
-    category: 'customers',
-    label: 'Customer created',
-    description: 'Triggered when a new customer is created',
+  'contact.created': {
+    category: 'contacts',
+    label: 'Contact created',
+    description: 'Triggered when a new contact is created',
     filterFields: [],
   },
-  'customer.updated': {
-    category: 'customers',
-    label: 'Customer updated',
-    description: 'Triggered when a customer is updated',
+  'contact.updated': {
+    category: 'contacts',
+    label: 'Contact updated',
+    description: 'Triggered when a contact is updated',
     filterFields: [],
   },
-  'customer.deleted': {
-    category: 'customers',
-    label: 'Customer deleted',
-    description: 'Triggered when a customer is deleted',
+  'contact.deleted': {
+    category: 'contacts',
+    label: 'Contact deleted',
+    description: 'Triggered when a contact is deleted',
     filterFields: [],
   },
   'conversation.created': {

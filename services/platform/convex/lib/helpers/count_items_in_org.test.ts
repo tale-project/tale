@@ -37,7 +37,7 @@ describe('countItemsInOrg', () => {
 
     const count = await countItemsInOrg(
       db as unknown as DatabaseReader,
-      'customers',
+      'contacts',
       'org_1',
     );
 
@@ -49,7 +49,7 @@ describe('countItemsInOrg', () => {
 
     const count = await countItemsInOrg(
       db as unknown as DatabaseReader,
-      'customers',
+      'contacts',
       'org_1',
     );
 
@@ -61,7 +61,7 @@ describe('countItemsInOrg', () => {
 
     const count = await countItemsInOrg(
       db as unknown as DatabaseReader,
-      'customers',
+      'contacts',
       'org_1',
     );
 
@@ -73,7 +73,7 @@ describe('countItemsInOrg', () => {
 
     const count = await countItemsInOrg(
       db as unknown as DatabaseReader,
-      'customers',
+      'contacts',
       'org_1',
       5,
     );
@@ -92,7 +92,7 @@ describe('countItemsInOrg', () => {
   it('uses by_organizationId index', async () => {
     const { db, builder } = createMockDb(1);
 
-    await countItemsInOrg(db as unknown as DatabaseReader, 'vendors', 'org_1');
+    await countItemsInOrg(db as unknown as DatabaseReader, 'contacts', 'org_1');
 
     expect(builder.withIndex).toHaveBeenCalledWith(
       'by_organizationId',

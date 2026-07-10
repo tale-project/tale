@@ -7,7 +7,7 @@
  *     `requireOrganizationId(ctx)` (tasks/helpers/context.ts) and passes it to
  *     its mutation; cross-tenant writes are closed by the `callerOrgId` guard
  *     in each domain's `internal_mutations` (the target row must belong to the
- *     caller's org — see customers/products/vendors/websites/conversations).
+ *     caller's org — see contacts/products/websites/conversations).
  *  2. APPROVAL / HUMAN-IN-THE-LOOP (async tools only). Tools that transmit
  *     externally or run automations (integration send, workflow run, human
  *     input, location) park the run and resume here once the user approves or
@@ -15,7 +15,7 @@
  *     resume path: it saves the system continuation message, opens a stream,
  *     RE-ENFORCES the budget before re-scheduling generation (so an approval
  *     can't bypass a spend limit), and reschedules the agent. Direct CRM-style
- *     writes (customer/product/vendor/website/conversation) are NOT approval
+ *     writes (contact/product/website/conversation) are NOT approval
  *     gated by design — they are reversible and destructive deletes are simply
  *     not exposed to agents.
  */

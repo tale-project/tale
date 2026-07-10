@@ -16,7 +16,7 @@ import {
   useSendMessageViaIntegration,
 } from './mutations';
 
-const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
+const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 export function getSelectedConversationIds(
   selectionState: SelectionState,
@@ -94,16 +94,16 @@ export function useBulkActions({
           conversations,
         );
 
-        // Dispatch a real reply to each customer through the conversation's
+        // Dispatch a real reply to each contact through the conversation's
         // integration — mirroring the single-conversation reply path. A
-        // conversation without a usable customer email cannot be delivered, so
+        // conversation without a usable contact email cannot be delivered, so
         // it is counted as a failure rather than silently dropped.
         const results = await Promise.allSettled(
           selectedConversations.map((conversation) => {
-            const customerEmail = conversation.customer.email;
-            if (!customerEmail || customerEmail === UNKNOWN_CUSTOMER_EMAIL) {
+            const contactEmail = conversation.contact.email;
+            if (!contactEmail || contactEmail === UNKNOWN_CONTACT_EMAIL) {
               return Promise.reject(
-                new Error(tConversations('panel.customerEmailNotFound')),
+                new Error(tConversations('panel.contactEmailNotFound')),
               );
             }
 
@@ -118,7 +118,7 @@ export function useBulkActions({
               organizationId,
               integrationName: conversation.integrationName ?? 'outlook',
               content: body,
-              to: [customerEmail],
+              to: [contactEmail],
               subject: replySubject,
               text: body,
             });

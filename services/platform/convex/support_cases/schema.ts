@@ -75,12 +75,15 @@ export const supportCasesTable = defineTable({
   assigneeType: v.optional(supportCaseActorTypeValidator),
   assigneeId: v.optional(v.string()),
 
-  // The customer this case is for. Optional — a case can be opened against a
-  // free-text requester before the customer record exists. `requesterEmail` /
-  // `requesterName` capture the reporter when there is no linked `customers`
-  // row (e.g. inbound email from an unknown address).
-  customerId: v.optional(v.id('customers')),
+  // The contact this case is for (issue #2618). Optional — a case can be opened
+  // against a free-text requester before the contact record exists.
+  // `requesterEmail` / `requesterName` capture the reporter when there is no
+  // linked contact (e.g. inbound email from an unknown address).
   contactId: v.optional(v.id('contacts')),
+  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
+  // the teardown migration unsets it (expand-contract; the `customers` table is
+  // gone so this is a bare string, not v.id). Drop in the contract phase.
+  customerId: v.optional(v.string()),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
 
@@ -114,7 +117,6 @@ export const supportCasesTable = defineTable({
   .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
   .index('by_org_escalation', ['organizationId', 'escalationLevel'])
   .index('by_assignee', ['organizationId', 'assigneeType', 'assigneeId'])
-  .index('by_customer', ['customerId'])
   .index('by_contact', ['contactId'])
   // Due-soon / overdue SLA sweeps.
   .index('by_org_sla', ['organizationId', 'slaDueAt']);

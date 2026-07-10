@@ -7,12 +7,12 @@ import type { Infer } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type {
   bulkOperationResultValidator,
+  contactInfoValidator,
   conversationItemValidator,
   conversationListResponseValidator,
   conversationPriorityValidator,
   conversationStatusValidator,
   conversationWithMessagesValidator,
-  customerInfoValidator,
   messageStatusValidator,
   messageValidator,
 } from './validators';
@@ -25,7 +25,7 @@ export type ConversationStatus = Infer<typeof conversationStatusValidator>;
 export type ConversationPriority = Infer<typeof conversationPriorityValidator>;
 export type MessageStatus = Infer<typeof messageStatusValidator>;
 export type MessageInfo = Infer<typeof messageValidator>;
-export type CustomerInfo = Infer<typeof customerInfoValidator>;
+export type ContactInfo = Infer<typeof contactInfoValidator>;
 export type ConversationItem = Infer<typeof conversationItemValidator>;
 export type ConversationListResponse = Infer<
   typeof conversationListResponseValidator
@@ -41,7 +41,7 @@ export type BulkOperationResult = Infer<typeof bulkOperationResultValidator>;
 
 export interface CreateConversationArgs {
   organizationId: string;
-  customerId?: Id<'customers'>;
+  contactId?: Id<'contacts'>;
   externalMessageId?: string;
   subject?: string;
   status?: ConversationStatus;
@@ -56,7 +56,7 @@ export interface CreateConversationArgs {
 
 /** Partial updates for conversation fields */
 export interface ConversationUpdates {
-  customerId?: Id<'customers'>;
+  contactId?: Id<'contacts'>;
   subject?: string;
   status?: ConversationStatus;
   priority?: ConversationPriority;
@@ -85,7 +85,7 @@ export interface QueryConversationsArgs {
   priority?: ConversationPriority;
   channel?: string;
   direction?: 'inbound' | 'outbound';
-  customerId?: Id<'customers'>;
+  contactId?: Id<'contacts'>;
 
   paginationOpts: {
     numItems: number;

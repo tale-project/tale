@@ -32,7 +32,7 @@ export type ToolAvailability = 'any' | 'primary-only';
  * Defines the structure of a tool in the LLM tools registry.
  */
 export interface ToolDefinition {
-  name: string; // unique tool identifier (e.g., 'customer_search')
+  name: string; // unique tool identifier (e.g., 'contact_read')
   tool: ConvexAgentTool; // the actual createTool result
   availability: ToolAvailability; // see ToolAvailability — required by design
   /**

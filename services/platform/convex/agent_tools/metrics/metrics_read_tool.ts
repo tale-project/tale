@@ -37,7 +37,7 @@ export const metricsReadTool: ToolDefinition = {
 OPERATIONS:
 • 'daily_summary': Aggregates over a look-back window — tasks created / completed / cancelled, reviews passed vs changes-requested, agent runs and failures, total agent spend (costCents), pending reviews, queued runs, and open circuit breakers. Returns 'activity' (a single rolled-up figure) and a 'capped' flag (true ⇒ the org is large and the numbers are a lower bound).
 
-Use this to spot bottlenecks (rising pendingReviews/queuedRuns/openBreakers), track throughput and spend, and justify reassigning or decomposing work. For per-entity counts (customers, products, vendors) use the matching *_read 'count'/'list' operation.`,
+Use this to spot bottlenecks (rising pendingReviews/queuedRuns/openBreakers), track throughput and spend, and justify reassigning or decomposing work. For per-entity counts (contacts, products) use the matching *_read 'count'/'list' operation.`,
     inputSchema: metricsReadArgs,
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);

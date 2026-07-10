@@ -105,7 +105,7 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   "name": "Analyze Customer",
   "systemPrompt": "You are a customer analyst. Analyze the customer data and provide insights.",
   "userPrompt": "Analyze this customer: {{steps.get_customer.output.data}}",
-  "tools": ["customer_read", "product_read"],
+  "tools": ["contact_read", "product_read"],
   "outputFormat": "json"
 }
 \`\`\`
@@ -129,7 +129,7 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   ✓ {{steps.analyze.output.data.score}}
 
 **Available Tools for LLM Steps:**
-- customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
+- contact_read: Fetch contact by ID, email, or list all (operation: get_by_id, get_by_email, list)
 - product_read: Fetch product by ID or list all (operation: get_by_id, list)
 - rag_search: Search knowledge base (automatically scoped when knowledgeFileIds is set)`,
 

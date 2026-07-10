@@ -8,17 +8,17 @@ import { render, screen } from '@/tests/utils/render';
 
 import { ConversationHeader } from './conversation-header';
 
-vi.mock('@/app/features/customers/hooks/queries', () => ({
-  useCustomers: () => ({ customers: [] }),
-  useCustomerById: () => null,
+vi.mock('@/app/features/contacts/hooks/queries', () => ({
+  useContacts: () => ({ contacts: [] }),
+  useContactById: () => null,
 }));
 
-vi.mock('@/app/features/customers/components/customer-info-popover', () => ({
-  CustomerInfoPopover: ({
+vi.mock('@/app/features/contacts/components/contact-info-popover', () => ({
+  ContactInfoPopover: ({
     trigger,
   }: {
     trigger: React.ReactNode;
-    customer: unknown;
+    contact: unknown;
     open: boolean;
     onOpenChange: (open: boolean) => void;
   }) => <>{trigger}</>,
@@ -55,7 +55,7 @@ function makeConversation(overrides = {}) {
     title: 'Project proposal feedback',
     subject: 'Re: Project proposal feedback',
     description: 'A conversation about project proposal',
-    customer_id: 'cust-1',
+    contact_id: 'contact-1',
     business_id: 'biz-1',
     message_count: 5,
     unread_count: 0,
@@ -63,12 +63,11 @@ function makeConversation(overrides = {}) {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     status: 'open' as const,
-    customerId: 'cust-1',
-    customer: {
-      id: 'cust-1',
+    contactId: 'contact-1',
+    contact: {
+      id: 'contact-1',
       name: 'Sarah Johnson',
       email: 'sarah@company.com',
-      status: 'active',
       source: 'api',
       locale: 'en',
       created_at: new Date().toISOString(),
@@ -97,7 +96,7 @@ describe('ConversationHeader', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders customer name and email', () => {
+  it('renders contact name and email', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
@@ -109,7 +108,7 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('sarah@company.com')).toBeInTheDocument();
   });
 
-  it('renders avatar initial from customer name', () => {
+  it('renders avatar initial from contact name', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
@@ -153,15 +152,14 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('Project proposal feedback')).toBeInTheDocument();
   });
 
-  it('falls back to email when customer name is missing', () => {
+  it('falls back to email when contact name is missing', () => {
     render(
       <ConversationHeader
         conversation={makeConversation({
-          customer: {
-            id: 'cust-1',
+          contact: {
+            id: 'contact-1',
             name: undefined,
             email: 'sarah@company.com',
-            status: 'active',
             source: 'api',
             locale: 'en',
             created_at: new Date().toISOString(),

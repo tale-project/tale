@@ -743,7 +743,7 @@ export const listExpiredTwoFactorAttempts = internalQuery({
   },
 });
 
-export const listExpiredCustomers = internalQuery({
+export const listExpiredContacts = internalQuery({
   args: {
     organizationId: v.string(),
     cutoffMs: v.number(),
@@ -753,7 +753,7 @@ export const listExpiredCustomers = internalQuery({
   handler: async (ctx, args) => {
     const rows = [];
     for await (const row of ctx.db
-      .query('customers')
+      .query('contacts')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
@@ -767,7 +767,7 @@ export const listExpiredCustomers = internalQuery({
   },
 });
 
-export const listGraceExpiredCustomers = internalQuery({
+export const listGraceExpiredContacts = internalQuery({
   args: {
     organizationId: v.string(),
     graceCutoffMs: v.number(),
@@ -777,56 +777,7 @@ export const listGraceExpiredCustomers = internalQuery({
   handler: async (ctx, args) => {
     const rows = [];
     for await (const row of ctx.db
-      .query('customers')
-      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = row.statusChangedAt ?? Date.now();
-      if (ts >= args.graceCutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listExpiredVendors = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('vendors')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'active') continue;
-      if (row._creationTime >= args.cutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listGraceExpiredVendors = internalQuery({
-  args: {
-    organizationId: v.string(),
-    graceCutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('vendors')
+      .query('contacts')
       .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
