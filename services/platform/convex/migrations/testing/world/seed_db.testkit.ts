@@ -82,6 +82,19 @@ export interface SeedWorldOptions {
 }
 
 /**
+ * Every `storeBlob` content, in EXACT call order — the container e2e's
+ * support action pre-stores these (mutations cannot `storage.store`) and the
+ * seeding mutation consumes the resulting ids as a queue, throwing on any
+ * count mismatch, so this list cannot silently drift from the call sites.
+ */
+export const WORLD_BLOB_CONTENTS: readonly string[] = [
+  'world-upload-intent-blob',
+  'world-threadfile-q2-summary',
+  'world-threadfile-analyze-py',
+  'world-threadfile-revenue-png',
+];
+
+/**
  * The slice of a convex-test mutation ctx the seeder needs, kept structural so
  * this module never imports generated server types. The harness passes its
  * real ctx across the boundary with `ctx as never` (house pattern for
