@@ -1,13 +1,24 @@
 /**
  * DB migration: add the `task.status_changed` (backlog -> todo) subscription
  * for `projects/tasks/triage-unassigned-tasks` in every org that already
- * carries its `task.created` subscription. See {@link meta}.
+ * carries its `task.created` subscription.
+ *
+ * The workflow file gained a second declared trigger so a human's Backlog
+ * "Start" (the board's status-change action) routes a synced proposal (e.g.
+ * from the resolve-github-issues bundle's triage-github-issues) through
+ * scoring and assignment, the same as a task created directly at To do.
+ * Trigger rows are create-if-absent only (`provision_defaults_mutations.ts`),
+ * so an org already provisioned from the OLD file (one `task.created`
+ * subscription) never picks up the new one on its own — this migration adds
+ * it directly. Purely additive (never touches the existing `task.created`
+ * subscription or any org customization of it), so `destructive: false` and
+ * `snapshot: 'none'`: `down` deletes exactly the row `up` added, identified
+ * the same way `up` found where to add it.
  */
 
 import type { Id } from '../../../../_generated/dataModel';
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
 
 const WORKFLOW_SLUG = 'projects/tasks/triage-unassigned-tasks';
 const NEW_EVENT_TYPE = 'task.status_changed';
@@ -31,11 +42,22 @@ async function findSibling(
   return null;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: "Subscribe triage-unassigned-tasks to a Backlog->To do 'Start' too",
+  description:
+    'For every org with a `task.created` event subscription on ' +
+    '`projects/tasks/triage-unassigned-tasks`, adds a sibling ' +
+    '`task.status_changed` subscription (eventFilter fromStatus:"backlog", ' +
+    'toStatus:"todo"), create-if-absent. Lets a human Backlog "Start" route a ' +
+    'synced proposal task through scoring and assignment, matching a task ' +
+    'created directly at To do. down removes exactly the subscription this ' +
+    'migration added per org.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['wfEventSubscriptions'] },
   table: 'wfEventSubscriptions',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     if (
       doc.workflowSlug !== WORKFLOW_SLUG ||
       doc.eventType !== 'task.created'
@@ -59,7 +81,7 @@ export const migration: DbMigration = {
     });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (
       doc.workflowSlug !== WORKFLOW_SLUG ||
       doc.eventType !== 'task.created'
@@ -81,4 +103,4 @@ export const migration: DbMigration = {
       await ctx.db.delete(sub._id);
     }
   },
-};
+});

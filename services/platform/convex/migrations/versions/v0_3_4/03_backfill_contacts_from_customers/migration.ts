@@ -14,8 +14,8 @@ import type { WithoutSystemFields } from 'convex/server';
 
 import type { Doc } from '../../../../_generated/dataModel';
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
+import type { MigrationDoc } from '../../../framework/types';
 
 const SOURCE_TABLE = 'customers';
 
@@ -64,11 +64,19 @@ function toContactPayload(
   return fields as unknown as WithoutSystemFields<Doc<'contacts'>>;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Backfill contacts from customers',
+  description:
+    'Copies every customers row into the new contacts table, dropping the ' +
+    'customer-only status field and recording the origin in ' +
+    'metadata.__migratedFrom. Idempotent; down removes the contacts ' +
+    'materialized from customers and leaves the customers rows untouched.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['customers', 'contacts'] },
   table: SOURCE_TABLE,
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const organizationId = getStr(doc.organizationId);
     if (!organizationId) return;
 
@@ -83,7 +91,7 @@ export const migration: DbMigration = {
     await ctx.db.insert('contacts', toContactPayload(doc));
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     const organizationId = getStr(doc.organizationId);
     if (!organizationId) return;
 
@@ -95,4 +103,4 @@ export const migration: DbMigration = {
       }
     }
   },
-};
+});

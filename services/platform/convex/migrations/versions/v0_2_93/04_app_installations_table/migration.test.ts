@@ -1,97 +1,87 @@
-import { convexTest } from 'convex-test';
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
+
+import { expect } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_93/04_app_installations_table';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+const ORG = 'org_1';
 
-const fixtureSchema = defineSchema({
-  appInstallations: defineTable({
-    organizationId: v.string(),
-    automationSlug: v.string(),
-    automationName: v.optional(v.string()),
-    installedAt: v.number(),
-    installedBy: v.string(),
-    status: v.union(v.literal('active'), v.literal('broken')),
-    requiredIntegrations: v.array(v.string()),
-    resources: v.array(
-      v.object({
-        domain: v.string(),
-        path: v.string(),
-        contentHash: v.string(),
-      }),
-    ),
-    // The down queries the legacy table under the world-schema index name
-    // (`by_org_slug` keeps its 0.2.88-era appSlug field list there).
-  }).index('by_org_automation_slug', ['organizationId', 'automationSlug']),
-  automationInstallations: defineTable({
-    organizationId: v.string(),
-    automationSlug: v.string(),
-    automationName: v.optional(v.string()),
-    installedAt: v.number(),
-    installedBy: v.string(),
-    status: v.union(v.literal('active'), v.literal('broken')),
-    requiredIntegrations: v.array(v.string()),
-    resources: v.array(
-      v.object({
-        domain: v.string(),
-        path: v.string(),
-        contentHash: v.string(),
-      }),
-    ),
-  }).index('by_org_slug', ['organizationId', 'automationSlug']),
-});
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (the legacy table is
+// empty), down walking the populated target table (`downTable`) and restoring
+// the seed digest byte-for-byte, and the ledger transitions.
+defineMigrationTest({
+  id: '0.2.93/04_app_installations_table',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-describe('0.2.93/04 app_installations_table', () => {
-  it('up copies into automationInstallations; down restores; idempotent', async () => {
-    const t = convexTest(fixtureSchema, modules);
-
-    await t.run((ctx) =>
-      ctx.db.insert('appInstallations', {
-        organizationId: 'org_1',
-        automationSlug: 'inbox',
-        automationName: 'Inbox',
-        installedAt: 1,
-        installedBy: 'user',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-      }),
-    );
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('appInstallations').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
+  async seed(ctx) {
+    // Post-0.2.93/01 shape: the slug/name renames already ran.
+    await ctx.db.insert('appInstallations', {
+      organizationId: ORG,
+      automationSlug: 'inbox',
+      automationName: 'Inbox',
+      installedAt: 1,
+      installedBy: 'user',
+      status: 'active',
+      requiredIntegrations: [],
+      resources: [],
     });
+  },
 
+  async expectUp(world) {
     expect(
-      await t.run((ctx) => ctx.db.query('appInstallations').collect()),
+      await world.run((ctx) => ctx.db.query('appInstallations').collect()),
     ).toHaveLength(0);
-    let target = await t.run((ctx) =>
+    const target = (await world.run((ctx) =>
       ctx.db.query('automationInstallations').collect(),
-    );
+    )) as Array<Record<string, unknown>>;
     expect(target).toHaveLength(1);
-    expect(target[0].automationSlug).toBe('inbox');
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('automationInstallations').collect()) {
-        await migration.down(ctx as never, d as never);
-      }
+    expect(target[0]).toMatchObject({
+      organizationId: ORG,
+      automationSlug: 'inbox',
+      automationName: 'Inbox',
+      installedBy: 'user',
+      status: 'active',
     });
+  },
 
-    target = await t.run((ctx) =>
-      ctx.db.query('automationInstallations').collect(),
-    );
-    expect(target).toHaveLength(0);
-    const legacy = await t.run((ctx) =>
-      ctx.db.query('appInstallations').collect(),
-    );
-    expect(legacy).toHaveLength(1);
-    expect(legacy[0].automationSlug).toBe('inbox');
-  });
+  cases: {
+    'a row already present in the target drops the legacy row without duplicating':
+      async (world) => {
+        await world.run(async (ctx) => {
+          await ctx.db.insert('appInstallations', {
+            organizationId: ORG,
+            automationSlug: 'digest',
+            installedAt: 2,
+            installedBy: 'user',
+            status: 'active',
+            requiredIntegrations: [],
+            resources: [],
+          });
+          await ctx.db.insert('automationInstallations', {
+            organizationId: ORG,
+            automationSlug: 'digest',
+            installedAt: 2,
+            installedBy: 'user',
+            status: 'active',
+            requiredIntegrations: [],
+            resources: [],
+          });
+        });
+
+        await world.applyUpOnly();
+
+        expect(
+          await world.run((ctx) => ctx.db.query('appInstallations').collect()),
+        ).toHaveLength(0);
+        const target = (await world.run((ctx) =>
+          ctx.db.query('automationInstallations').collect(),
+        )) as Array<Record<string, unknown>>;
+        expect(
+          target.filter((r) => r.automationSlug === 'digest'),
+        ).toHaveLength(1);
+      },
+  },
 });

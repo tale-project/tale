@@ -1,69 +1,51 @@
-import { convexTest } from 'convex-test';
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
+
+import { expect } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR =
   'migrations/versions/v0_2_93/08_thread_metadata_automation_discussion';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+const ORG = 'org_1';
 
-const fixtureSchema = defineSchema({
-  threadMetadata: defineTable({
-    threadId: v.string(),
-    userId: v.string(),
-    chatType: v.literal('personal'),
-    status: v.literal('active'),
-    createdAt: v.number(),
-    kind: v.optional(
-      v.union(
-        v.literal('chat'),
-        v.literal('app_discussion'),
-        v.literal('automation_discussion'),
-      ),
-    ),
-  }),
-});
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (already-renamed kinds
+// are skipped), down restoring the seed digest byte-for-byte, and the ledger
+// transitions.
+defineMigrationTest({
+  id: '0.2.93/08_thread_metadata_automation_discussion',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-describe('0.2.93/08 thread_metadata_automation_discussion', () => {
-  it('up renames kind; down restores; idempotent', async () => {
-    const t = convexTest(fixtureSchema, modules);
+  async seed(ctx) {
+    await ctx.db.insert('threadMetadata', {
+      threadId: 't1',
+      userId: 'u1',
+      chatType: 'general',
+      status: 'active',
+      createdAt: 1,
+      organizationId: ORG,
+      kind: 'app_discussion',
+    });
+    // A non-discussion kind must be left untouched.
+    await ctx.db.insert('threadMetadata', {
+      threadId: 't2',
+      userId: 'u1',
+      chatType: 'general',
+      status: 'active',
+      createdAt: 2,
+      organizationId: ORG,
+      kind: 'chat',
+    });
+  },
 
-    await t.run((ctx) =>
-      ctx.db.insert('threadMetadata', {
-        threadId: 't1',
-        userId: 'u1',
-        chatType: 'personal',
-        status: 'active',
-        createdAt: 1,
-        kind: 'app_discussion',
-      }),
+  async expectUp(world) {
+    const rows = (await world.run((ctx) =>
+      ctx.db.query('threadMetadata').collect(),
+    )) as Array<Record<string, unknown>>;
+    expect(rows.find((r) => r.threadId === 't1')?.kind).toBe(
+      'automation_discussion',
     );
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('threadMetadata').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
-    });
-    let rows = await t.run((ctx) => ctx.db.query('threadMetadata').collect());
-    expect(rows[0].kind).toBe('automation_discussion');
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('threadMetadata').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
-    });
-    rows = await t.run((ctx) => ctx.db.query('threadMetadata').collect());
-    expect(rows[0].kind).toBe('automation_discussion');
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('threadMetadata').collect()) {
-        await migration.down(ctx as never, d as never);
-      }
-    });
-    rows = await t.run((ctx) => ctx.db.query('threadMetadata').collect());
-    expect(rows[0].kind).toBe('app_discussion');
-  });
+    expect(rows.find((r) => r.threadId === 't2')?.kind).toBe('chat');
+  },
 });

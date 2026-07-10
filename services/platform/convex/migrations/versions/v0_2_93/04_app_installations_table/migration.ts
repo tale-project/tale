@@ -1,6 +1,13 @@
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+/**
+ * DB migration: move rows from legacy `appInstallations` into
+ * `automationInstallations` and delete the legacy row.
+ *
+ * Runs after 01–03 field renames. Idempotent: a row already present in the
+ * target table causes the legacy row to be dropped without re-inserting.
+ */
+
+import { defineDbMigration } from '../../../framework/define';
+import type { MigrationDoc } from '../../../framework/types';
 
 const LEGACY_TABLE = 'appInstallations';
 const TARGET_TABLE = 'automationInstallations';
@@ -39,14 +46,20 @@ function normalizeInstallPayload(payload: Record<string, unknown>): void {
   delete payload.appName;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Rename appInstallations table to automationInstallations',
+  description:
+    'Copies each appInstallations row into automationInstallations and deletes ' +
+    'the legacy row. Reversible via down (tests call down on target rows).',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['appInstallations', 'automationInstallations'] },
   table: LEGACY_TABLE,
   // up MOVES rows: down must walk the populated target table, not the
   // then-empty legacy one (it would silently restore nothing).
   downTable: TARGET_TABLE,
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const keys = orgSlug(doc);
     if (!keys) return;
     const payload = payloadWithoutSystemFields(doc);
@@ -68,7 +81,7 @@ export const migration: DbMigration = {
     await db.delete(doc._id);
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     const keys = orgSlug(doc);
     if (!keys) return;
     const payload = payloadWithoutSystemFields(doc);
@@ -93,4 +106,4 @@ export const migration: DbMigration = {
     await db.insert(LEGACY_TABLE, payload);
     await db.delete(doc._id);
   },
-};
+});

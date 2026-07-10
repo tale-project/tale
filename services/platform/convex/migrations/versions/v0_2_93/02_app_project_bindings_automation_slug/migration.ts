@@ -1,16 +1,23 @@
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+/** DB migration: rename `appProjectBindings.appSlug` → `automationSlug`. */
+
+import { defineDbMigration } from '../../../framework/define';
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Rename appProjectBindings.appSlug to automationSlug',
+  description:
+    'Copies appSlug→automationSlug on every appProjectBindings row and clears ' +
+    'the legacy field. Reversible. Runs on deploy before new code reads the ' +
+    'recolumned by_org_slug_project index.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['appProjectBindings'] },
   table: 'appProjectBindings',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const legacySlug = str((doc as Record<string, unknown>).appSlug);
     if (legacySlug === undefined) return;
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy field absent from schema
@@ -20,7 +27,7 @@ export const migration: DbMigration = {
     });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (doc.automationSlug === undefined) return;
     const automationSlug = str(doc.automationSlug);
     if (automationSlug === undefined) return;
@@ -30,4 +37,4 @@ export const migration: DbMigration = {
       automationSlug: undefined,
     });
   },
-};
+});

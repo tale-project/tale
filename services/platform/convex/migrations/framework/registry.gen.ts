@@ -7,7 +7,7 @@
 // V8-safe: node/reference migrations contribute inline meta literals only —
 // their handler modules ('use node' / test-only) are never imported here.
 
-import { composeDb, composeLegacyComponent, composeLegacyDb } from './compose';
+import { composeComponent, composeDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 import { migration as m0_2_85_02 } from '../versions/v0_2_85/02_dsar_pending_table_split/migration';
 import { migration as m0_2_85_03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables/migration';
@@ -19,21 +19,21 @@ import { migration as m0_2_89_02 } from '../versions/v0_2_89/02_thread_files_abs
 import { migration as m0_2_90_02 } from '../versions/v0_2_90/02_backfill_conversation_integration_name/migration';
 import { migration as m0_2_90_06 } from '../versions/v0_2_90/06_drop_workforce_agent_installations/migration';
 import { migration as m0_2_90_08 } from '../versions/v0_2_90/08_delete_workforce_digest_notifications/migration';
-import { migration as m0_2_91_01 } from '../versions/v0_2_91/01_app_config_to_schedule_variables';
-import { migration as m0_2_92_02 } from '../versions/v0_2_92/02_triage_backlog_start_trigger';
-import { migration as m0_2_93_01 } from '../versions/v0_2_93/01_automation_slug_fields';
-import { migration as m0_2_93_02 } from '../versions/v0_2_93/02_app_project_bindings_automation_slug';
-import { migration as m0_2_93_03 } from '../versions/v0_2_93/03_thread_metadata_automation_slug';
-import { migration as m0_2_93_04 } from '../versions/v0_2_93/04_app_installations_table';
-import { migration as m0_2_93_05 } from '../versions/v0_2_93/05_app_project_bindings_table';
-import { migration as m0_2_93_06 } from '../versions/v0_2_93/06_app_upload_claims_table';
-import { migration as m0_2_93_07 } from '../versions/v0_2_93/07_app_upload_intents_table';
-import { migration as m0_2_93_08 } from '../versions/v0_2_93/08_thread_metadata_automation_discussion';
+import { migration as m0_2_91_01 } from '../versions/v0_2_91/01_app_config_to_schedule_variables/migration';
+import { migration as m0_2_92_02 } from '../versions/v0_2_92/02_triage_backlog_start_trigger/migration';
+import { migration as m0_2_93_01 } from '../versions/v0_2_93/01_automation_slug_fields/migration';
+import { migration as m0_2_93_02 } from '../versions/v0_2_93/02_app_project_bindings_automation_slug/migration';
+import { migration as m0_2_93_03 } from '../versions/v0_2_93/03_thread_metadata_automation_slug/migration';
+import { migration as m0_2_93_04 } from '../versions/v0_2_93/04_app_installations_table/migration';
+import { migration as m0_2_93_05 } from '../versions/v0_2_93/05_app_project_bindings_table/migration';
+import { migration as m0_2_93_06 } from '../versions/v0_2_93/06_app_upload_claims_table/migration';
+import { migration as m0_2_93_07 } from '../versions/v0_2_93/07_app_upload_intents_table/migration';
+import { migration as m0_2_93_08 } from '../versions/v0_2_93/08_thread_metadata_automation_discussion/migration';
 import { migration as m0_3_4_02 } from '../versions/v0_3_4/02_backfill_contacts_from_vendors/migration';
-import { migration as m0_3_4_03 } from '../versions/v0_3_4/03_backfill_contacts_from_customers';
-import { migration as m0_3_4_04 } from '../versions/v0_3_4/04_backfill_conversation_contact_id';
-import { migration as m0_3_4_05 } from '../versions/v0_3_4/05_backfill_support_case_contact_id';
-import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails';
+import { migration as m0_3_4_03 } from '../versions/v0_3_4/03_backfill_contacts_from_customers/migration';
+import { migration as m0_3_4_04 } from '../versions/v0_3_4/04_backfill_conversation_contact_id/migration';
+import { migration as m0_3_4_05 } from '../versions/v0_3_4/05_backfill_support_case_contact_id/migration';
+import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
@@ -650,25 +650,25 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.2.90/02_backfill_conversation_integration_name": composeDb(requireMeta("0.2.90/02_backfill_conversation_integration_name"), m0_2_90_02),
   "0.2.90/06_drop_workforce_agent_installations": composeDb(requireMeta("0.2.90/06_drop_workforce_agent_installations"), m0_2_90_06),
   "0.2.90/08_delete_workforce_digest_notifications": composeDb(requireMeta("0.2.90/08_delete_workforce_digest_notifications"), m0_2_90_08),
-  "0.2.91/01_app_config_to_schedule_variables": composeLegacyDb(m0_2_91_01),
-  "0.2.92/02_triage_backlog_start_trigger": composeLegacyDb(m0_2_92_02),
-  "0.2.93/01_automation_slug_fields": composeLegacyDb(m0_2_93_01),
-  "0.2.93/02_app_project_bindings_automation_slug": composeLegacyDb(m0_2_93_02),
-  "0.2.93/03_thread_metadata_automation_slug": composeLegacyDb(m0_2_93_03),
-  "0.2.93/04_app_installations_table": composeLegacyDb(m0_2_93_04),
-  "0.2.93/05_app_project_bindings_table": composeLegacyDb(m0_2_93_05),
-  "0.2.93/06_app_upload_claims_table": composeLegacyDb(m0_2_93_06),
-  "0.2.93/07_app_upload_intents_table": composeLegacyDb(m0_2_93_07),
-  "0.2.93/08_thread_metadata_automation_discussion": composeLegacyDb(m0_2_93_08),
+  "0.2.91/01_app_config_to_schedule_variables": composeDb(requireMeta("0.2.91/01_app_config_to_schedule_variables"), m0_2_91_01),
+  "0.2.92/02_triage_backlog_start_trigger": composeDb(requireMeta("0.2.92/02_triage_backlog_start_trigger"), m0_2_92_02),
+  "0.2.93/01_automation_slug_fields": composeDb(requireMeta("0.2.93/01_automation_slug_fields"), m0_2_93_01),
+  "0.2.93/02_app_project_bindings_automation_slug": composeDb(requireMeta("0.2.93/02_app_project_bindings_automation_slug"), m0_2_93_02),
+  "0.2.93/03_thread_metadata_automation_slug": composeDb(requireMeta("0.2.93/03_thread_metadata_automation_slug"), m0_2_93_03),
+  "0.2.93/04_app_installations_table": composeDb(requireMeta("0.2.93/04_app_installations_table"), m0_2_93_04),
+  "0.2.93/05_app_project_bindings_table": composeDb(requireMeta("0.2.93/05_app_project_bindings_table"), m0_2_93_05),
+  "0.2.93/06_app_upload_claims_table": composeDb(requireMeta("0.2.93/06_app_upload_claims_table"), m0_2_93_06),
+  "0.2.93/07_app_upload_intents_table": composeDb(requireMeta("0.2.93/07_app_upload_intents_table"), m0_2_93_07),
+  "0.2.93/08_thread_metadata_automation_discussion": composeDb(requireMeta("0.2.93/08_thread_metadata_automation_discussion"), m0_2_93_08),
   "0.3.4/02_backfill_contacts_from_vendors": composeDb(requireMeta("0.3.4/02_backfill_contacts_from_vendors"), m0_3_4_02),
-  "0.3.4/03_backfill_contacts_from_customers": composeLegacyDb(m0_3_4_03),
-  "0.3.4/04_backfill_conversation_contact_id": composeLegacyDb(m0_3_4_04),
-  "0.3.4/05_backfill_support_case_contact_id": composeLegacyDb(m0_3_4_05),
+  "0.3.4/03_backfill_contacts_from_customers": composeDb(requireMeta("0.3.4/03_backfill_contacts_from_customers"), m0_3_4_03),
+  "0.3.4/04_backfill_conversation_contact_id": composeDb(requireMeta("0.3.4/04_backfill_conversation_contact_id"), m0_3_4_04),
+  "0.3.4/05_backfill_support_case_contact_id": composeDb(requireMeta("0.3.4/05_backfill_support_case_contact_id"), m0_3_4_05),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */
 export const COMPONENT_MIGRATIONS: Readonly<
   Record<string, ComponentMigration>
 > = {
-  "0.3.3/01_normalize_auth_user_emails": composeLegacyComponent(m0_3_3_01),
+  "0.3.3/01_normalize_auth_user_emails": composeComponent(requireMeta("0.3.3/01_normalize_auth_user_emails"), m0_3_3_01),
 };

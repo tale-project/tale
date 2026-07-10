@@ -10,8 +10,7 @@
 
 import type { Doc, Id } from '../../../../_generated/dataModel';
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
 
 /** The legacy FK table these conversations were linked to. */
 const FROM_TABLE = 'customers';
@@ -45,11 +44,18 @@ async function contactForCustomer(
   return match?._id ?? null;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Backfill conversation.contactId from customerId',
+  description:
+    'Sets conversations.contactId to the contact migrated from the linked ' +
+    'customer (via metadata.__migratedFrom). Idempotent; down clears contactId ' +
+    'and leaves customerId untouched.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['conversations', 'contacts'] },
   table: 'conversations',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     if (doc.contactId) return; // already repointed
     const organizationId = getStr(doc.organizationId);
     const customerId = getStr(doc.customerId);
@@ -61,10 +67,10 @@ export const migration: DbMigration = {
     await ctx.db.patch(doc._id as Id<'conversations'>, { contactId });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (!doc.contactId) return;
     await ctx.db.patch(doc._id as Id<'conversations'>, {
       contactId: undefined,
     });
   },
-};
+});

@@ -1,70 +1,57 @@
-import { convexTest } from 'convex-test';
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
+
+import { expect } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_93/01_automation_slug_fields';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+const ORG = 'org_1';
 
-const fixtureSchema = defineSchema({
-  appInstallations: defineTable({
-    organizationId: v.string(),
-    appSlug: v.optional(v.string()),
-    automationSlug: v.optional(v.string()),
-    appName: v.optional(v.string()),
-    automationName: v.optional(v.string()),
-    installedAt: v.number(),
-    installedBy: v.string(),
-    status: v.union(v.literal('active'), v.literal('broken')),
-    requiredIntegrations: v.array(v.string()),
-    resources: v.array(
-      v.object({
-        domain: v.string(),
-        path: v.string(),
-        contentHash: v.string(),
-      }),
-    ),
-  }).index('by_org_slug', ['organizationId', 'automationSlug']),
-});
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (renamed rows are
+// skipped), down restoring the seed digest byte-for-byte (appSlug/appName
+// back, automation* fields gone), and the ledger transitions.
+defineMigrationTest({
+  id: '0.2.93/01_automation_slug_fields',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-describe('0.2.93/01 automation_slug_fields (reference)', () => {
-  it('up renames appSlug/appName; down restores; idempotent', async () => {
-    const t = convexTest(fixtureSchema, modules);
-
-    await t.run((ctx) =>
-      ctx.db.insert('appInstallations', {
-        organizationId: 'org_1',
-        appSlug: 'inbox',
-        appName: 'Inbox',
-        installedAt: 1,
-        installedBy: 'user',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-      }),
-    );
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('appInstallations').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
+  async seed(ctx) {
+    await ctx.db.insert('appInstallations', {
+      organizationId: ORG,
+      appSlug: 'inbox',
+      appName: 'Inbox',
+      installedAt: 1,
+      installedBy: 'user',
+      status: 'active',
+      requiredIntegrations: [],
+      resources: [],
     });
-    let rows = await t.run((ctx) => ctx.db.query('appInstallations').collect());
-    expect(rows[0].automationSlug).toBe('inbox');
-    expect(rows[0].automationName).toBe('Inbox');
-    expect(rows[0].appSlug).toBeUndefined();
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('appInstallations').collect()) {
-        await migration.down(ctx as never, d as never);
-      }
+    // A row without the optional appName — only the slug is renamed.
+    await ctx.db.insert('appInstallations', {
+      organizationId: ORG,
+      appSlug: 'issue-desk',
+      installedAt: 2,
+      installedBy: 'user',
+      status: 'active',
+      requiredIntegrations: [],
+      resources: [],
     });
-    rows = await t.run((ctx) => ctx.db.query('appInstallations').collect());
-    expect(rows[0].appSlug).toBe('inbox');
-    expect(rows[0].appName).toBe('Inbox');
-    expect(rows[0].automationSlug).toBeUndefined();
-  });
+  },
+
+  async expectUp(world) {
+    const rows = (await world.run((ctx) =>
+      ctx.db.query('appInstallations').collect(),
+    )) as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+
+    const inbox = rows.find((r) => r.automationSlug === 'inbox');
+    expect(inbox?.automationName).toBe('Inbox');
+    expect(inbox?.appSlug).toBeUndefined();
+    expect(inbox?.appName).toBeUndefined();
+
+    const desk = rows.find((r) => r.automationSlug === 'issue-desk');
+    expect(desk?.automationName).toBeUndefined();
+    expect(desk?.appSlug).toBeUndefined();
+  },
 });

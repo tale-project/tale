@@ -1,16 +1,25 @@
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+/**
+ * DB migration: rename `threadMetadata.appSlug` → `automationSlug` and map
+ * install-scoped `subjectType: 'app'` → `'automation'`.
+ */
+
+import { defineDbMigration } from '../../../framework/define';
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Rename threadMetadata app-subject columns to automation naming',
+  description:
+    'Copies appSlug→automationSlug on app_discussion rows and rewrites ' +
+    "install-scoped subjectType 'app' to 'automation'. Reversible.",
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['threadMetadata'] },
   table: 'threadMetadata',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const legacySlug = str((doc as Record<string, unknown>).appSlug);
     const legacyType = str(doc.subjectType);
     const needsSlug =
@@ -24,7 +33,7 @@ export const migration: DbMigration = {
     });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (doc.automationSlug === undefined && doc.subjectType !== 'automation') {
       return;
     }
@@ -37,4 +46,4 @@ export const migration: DbMigration = {
       ...(doc.subjectType === 'automation' ? { subjectType: 'app' } : {}),
     });
   },
-};
+});

@@ -1,83 +1,51 @@
-import { convexTest } from 'convex-test';
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
+
+import { expect } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_93/05_app_project_bindings_table';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+const ORG = 'org_1';
 
-const bindingTable = defineTable({
-  organizationId: v.string(),
-  automationSlug: v.string(),
-  projectId: v.id('projects'),
-  boundAt: v.number(),
-  boundBy: v.string(),
-})
-  .index('by_org_slug_project', [
-    'organizationId',
-    'automationSlug',
-    'projectId',
-  ])
-  // The down queries the legacy table under the world-schema index name
-  // (`by_org_slug_project` keeps its 0.2.88-era appSlug field list there).
-  .index('by_org_automation_slug_project', [
-    'organizationId',
-    'automationSlug',
-    'projectId',
-  ]);
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (the legacy table is
+// empty), down walking the populated target table (`downTable`) and restoring
+// the seed digest byte-for-byte, and the ledger transitions.
+defineMigrationTest({
+  id: '0.2.93/05_app_project_bindings_table',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-const fixtureSchema = defineSchema({
-  appProjectBindings: bindingTable,
-  automationProjectBindings: bindingTable,
-  projects: defineTable({ organizationId: v.string() }),
-});
-
-describe('0.2.93/05 app_project_bindings_table', () => {
-  it('up copies rows; down restores; idempotent', async () => {
-    const t = convexTest(fixtureSchema, modules);
-    const projectId = await t.run((ctx) =>
-      ctx.db.insert('projects', { organizationId: 'org_1' }),
-    );
-
-    await t.run((ctx) =>
-      ctx.db.insert('appProjectBindings', {
-        organizationId: 'org_1',
-        automationSlug: 'inbox',
-        projectId,
-        boundAt: 1,
-        boundBy: 'user',
-      }),
-    );
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('appProjectBindings').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
+  async seed(ctx) {
+    const projectId = await ctx.db.insert('projects', {
+      organizationId: ORG,
+      name: 'Alpha',
+      createdBy: 'tester',
+      createdAt: 0,
+      updatedAt: 0,
     });
-
-    expect(
-      await t.run((ctx) => ctx.db.query('appProjectBindings').collect()),
-    ).toHaveLength(0);
-    expect(
-      await t.run((ctx) => ctx.db.query('automationProjectBindings').collect()),
-    ).toHaveLength(1);
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db
-        .query('automationProjectBindings')
-        .collect()) {
-        await migration.down(ctx as never, d as never);
-      }
+    // Post-0.2.93/02 shape: the slug rename already ran.
+    await ctx.db.insert('appProjectBindings', {
+      organizationId: ORG,
+      automationSlug: 'inbox',
+      projectId,
+      boundAt: 1,
+      boundBy: 'user',
     });
+  },
 
+  async expectUp(world) {
     expect(
-      await t.run((ctx) => ctx.db.query('automationProjectBindings').collect()),
+      await world.run((ctx) => ctx.db.query('appProjectBindings').collect()),
     ).toHaveLength(0);
-    expect(
-      await t.run((ctx) => ctx.db.query('appProjectBindings').collect()),
-    ).toHaveLength(1);
-  });
+    const target = (await world.run((ctx) =>
+      ctx.db.query('automationProjectBindings').collect(),
+    )) as Array<Record<string, unknown>>;
+    expect(target).toHaveLength(1);
+    expect(target[0]).toMatchObject({
+      organizationId: ORG,
+      automationSlug: 'inbox',
+      boundBy: 'user',
+    });
+  },
 });

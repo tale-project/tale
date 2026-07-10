@@ -1,13 +1,10 @@
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+/** DB migration: move `appUploadIntents` → `automationUploadIntents`. */
 
-const LEGACY_TABLE = 'appUploadClaims';
-const TARGET_TABLE = 'automationUploadClaims';
+import { defineDbMigration } from '../../../framework/define';
+import type { MigrationDoc } from '../../../framework/types';
 
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
+const LEGACY_TABLE = 'appUploadIntents';
+const TARGET_TABLE = 'automationUploadIntents';
 
 function payloadWithoutSystemFields(
   doc: MigrationDoc,
@@ -18,32 +15,29 @@ function payloadWithoutSystemFields(
   return payload;
 }
 
-function claimKey(doc: MigrationDoc): { org: string; slug: string } | null {
-  const org = str(doc.organizationId);
-  const slug = str(doc.slug);
-  if (org === undefined || slug === undefined) return null;
-  return { org, slug };
-}
-
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Rename appUploadIntents table to automationUploadIntents',
+  description:
+    'Copies each appUploadIntents row into automationUploadIntents and deletes ' +
+    'the legacy row. Idempotent.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['appUploadIntents', 'automationUploadIntents'] },
   table: LEGACY_TABLE,
   // up MOVES rows: down must walk the populated target table, not the
   // then-empty legacy one (it would silently restore nothing).
   downTable: TARGET_TABLE,
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
-    const keys = claimKey(doc);
-    if (!keys) return;
+  async up(ctx, doc) {
+    const storageId = doc.storageId;
+    if (storageId === undefined) return;
     const payload = payloadWithoutSystemFields(doc);
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
     const existing = await db
       .query(TARGET_TABLE)
-      .withIndex('by_org_slug', (q: any) =>
-        q.eq('organizationId', keys.org).eq('slug', keys.slug),
-      )
+      .withIndex('by_storageId', (q: any) => q.eq('storageId', storageId))
       .first();
     if (existing) {
       await db.delete(doc._id);
@@ -53,18 +47,16 @@ export const migration: DbMigration = {
     await db.delete(doc._id);
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
-    const keys = claimKey(doc);
-    if (!keys) return;
+  async down(ctx, doc) {
+    const storageId = doc.storageId;
+    if (storageId === undefined) return;
     const payload = payloadWithoutSystemFields(doc);
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
     const existingLegacy = await db
       .query(LEGACY_TABLE)
-      .withIndex('by_org_slug', (q: any) =>
-        q.eq('organizationId', keys.org).eq('slug', keys.slug),
-      )
+      .withIndex('by_storageId', (q: any) => q.eq('storageId', storageId))
       .first();
     if (existingLegacy) {
       await db.delete(doc._id);
@@ -73,4 +65,4 @@ export const migration: DbMigration = {
     await db.insert(LEGACY_TABLE, payload);
     await db.delete(doc._id);
   },
-};
+});

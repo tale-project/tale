@@ -233,9 +233,15 @@ describe('migration.up batch wrapper', () => {
     );
 
     const { migration } =
-      await import('../../migrations/versions/v0_3_3/01_normalize_auth_user_emails/index');
+      await import('../../migrations/versions/v0_3_3/01_normalize_auth_user_emails/migration');
+    const { makeDbRun } = await import('../../migrations/framework/compose');
     const ctx = createBetterAuthTestCtx(store);
-    const result = await migration.up(ctx as never, null, 50);
+    const result = await migration.spec.up(
+      ctx as never,
+      null,
+      50,
+      makeDbRun(ctx as never, MIGRATION_ID),
+    );
 
     expect(result.merged).toBeGreaterThanOrEqual(1);
     expect(listUsers(store)).toHaveLength(1);

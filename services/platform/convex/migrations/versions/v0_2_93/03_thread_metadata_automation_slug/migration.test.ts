@@ -1,72 +1,58 @@
-import { convexTest } from 'convex-test';
-import { defineSchema, defineTable } from 'convex/server';
-import { v } from 'convex/values';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
+
+import { expect } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_93/03_thread_metadata_automation_slug';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+const ORG = 'org_1';
 
-const fixtureSchema = defineSchema({
-  threadMetadata: defineTable({
-    threadId: v.string(),
-    userId: v.string(),
-    chatType: v.literal('general'),
-    status: v.literal('active'),
-    createdAt: v.number(),
-    organizationId: v.optional(v.string()),
-    kind: v.optional(v.literal('app_discussion')),
-    appSlug: v.optional(v.string()),
-    automationSlug: v.optional(v.string()),
-    subjectType: v.optional(v.string()),
-    subjectId: v.optional(v.string()),
-  }).index('by_org_automation_subject', [
-    'organizationId',
-    'automationSlug',
-    'subjectType',
-    'subjectId',
-  ]),
-});
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (renamed rows are
+// skipped), down restoring the seed digest byte-for-byte, and the ledger
+// transitions.
+defineMigrationTest({
+  id: '0.2.93/03_thread_metadata_automation_slug',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-describe('0.2.93/03 thread_metadata_automation_slug', () => {
-  it('up renames appSlug and subjectType app→automation; down restores', async () => {
-    const t = convexTest(fixtureSchema, modules);
-
-    await t.run((ctx) =>
-      ctx.db.insert('threadMetadata', {
-        threadId: 't1',
-        userId: 'u1',
-        chatType: 'general',
-        status: 'active',
-        createdAt: 1,
-        kind: 'app_discussion',
-        organizationId: 'org_1',
-        appSlug: 'inbox',
-        subjectType: 'app',
-        subjectId: 'inbox',
-      }),
-    );
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('threadMetadata').collect()) {
-        await migration.up(ctx as never, d as never);
-      }
+  async seed(ctx) {
+    await ctx.db.insert('threadMetadata', {
+      threadId: 't1',
+      userId: 'u1',
+      chatType: 'general',
+      status: 'active',
+      createdAt: 1,
+      kind: 'app_discussion',
+      organizationId: ORG,
+      appSlug: 'inbox',
+      subjectType: 'app',
+      subjectId: 'inbox',
     });
-    let rows = await t.run((ctx) => ctx.db.query('threadMetadata').collect());
-    expect(rows[0].automationSlug).toBe('inbox');
-    expect(rows[0].subjectType).toBe('automation');
-    expect(rows[0].appSlug).toBeUndefined();
-
-    await t.run(async (ctx) => {
-      for (const d of await ctx.db.query('threadMetadata').collect()) {
-        await migration.down(ctx as never, d as never);
-      }
+    // A plain chat row without app columns must be left untouched.
+    await ctx.db.insert('threadMetadata', {
+      threadId: 't2',
+      userId: 'u1',
+      chatType: 'general',
+      status: 'active',
+      createdAt: 2,
+      kind: 'chat',
+      organizationId: ORG,
     });
-    rows = await t.run((ctx) => ctx.db.query('threadMetadata').collect());
-    expect(rows[0].appSlug).toBe('inbox');
-    expect(rows[0].subjectType).toBe('app');
-    expect(rows[0].automationSlug).toBeUndefined();
-  });
+  },
+
+  async expectUp(world) {
+    const rows = (await world.run((ctx) =>
+      ctx.db.query('threadMetadata').collect(),
+    )) as Array<Record<string, unknown>>;
+
+    const discussion = rows.find((r) => r.threadId === 't1');
+    expect(discussion?.automationSlug).toBe('inbox');
+    expect(discussion?.subjectType).toBe('automation');
+    expect(discussion?.appSlug).toBeUndefined();
+
+    const chat = rows.find((r) => r.threadId === 't2');
+    expect(chat?.automationSlug).toBeUndefined();
+    expect(chat?.subjectType).toBeUndefined();
+  },
 });

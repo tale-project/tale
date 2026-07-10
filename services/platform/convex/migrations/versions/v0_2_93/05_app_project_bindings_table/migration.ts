@@ -1,6 +1,7 @@
-import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+/** DB migration: move `appProjectBindings` → `automationProjectBindings`. */
+
+import { defineDbMigration } from '../../../framework/define';
+import type { MigrationDoc } from '../../../framework/types';
 
 const LEGACY_TABLE = 'appProjectBindings';
 const TARGET_TABLE = 'automationProjectBindings';
@@ -38,14 +39,20 @@ function normalizeBindingPayload(payload: Record<string, unknown>): void {
   delete payload.appSlug;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Rename appProjectBindings table to automationProjectBindings',
+  description:
+    'Copies each appProjectBindings row into automationProjectBindings and ' +
+    'deletes the legacy row. Idempotent.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['appProjectBindings', 'automationProjectBindings'] },
   table: LEGACY_TABLE,
   // up MOVES rows: down must walk the populated target table, not the
   // then-empty legacy one (it would silently restore nothing).
   downTable: TARGET_TABLE,
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const keys = bindingKey(doc);
     if (!keys) return;
     const payload = payloadWithoutSystemFields(doc);
@@ -70,7 +77,7 @@ export const migration: DbMigration = {
     await db.delete(doc._id);
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     const keys = bindingKey(doc);
     if (!keys) return;
     const payload = payloadWithoutSystemFields(doc);
@@ -99,4 +106,4 @@ export const migration: DbMigration = {
     await db.insert(LEGACY_TABLE, payload);
     await db.delete(doc._id);
   },
-};
+});

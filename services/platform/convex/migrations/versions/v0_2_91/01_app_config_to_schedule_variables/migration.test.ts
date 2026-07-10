@@ -1,221 +1,223 @@
-import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
 
-import { internal } from '../../../../_generated/api';
+import { expect } from 'vitest';
+
+import { buildModules } from '../../../framework/test_helpers';
 import {
-  buildModules,
-  historicalSchema,
-} from '../../../framework/test_helpers';
-import { meta } from './meta';
+  defineMigrationTest,
+  type WorldHandle,
+  type WorldSeedCtx,
+} from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_91/01_app_config_to_schedule_variables';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
-
 const ORG = 'org_cfg';
 const APP = 'issue-desk';
 
 async function seedProjectAndSchedule(
-  t: ReturnType<typeof convexTest>,
+  ctx: WorldSeedCtx,
+  organizationId: string,
   variables?: Record<string, unknown>,
-) {
-  return t.run(async (ctx) => {
-    const projectId = await ctx.db.insert('projects', {
+): Promise<{ projectId: string; scheduleId: string }> {
+  const projectId = await ctx.db.insert('projects', {
+    organizationId,
+    name: 'Alpha',
+    createdBy: 'tester',
+    createdAt: 0,
+    updatedAt: 0,
+  });
+  const scheduleId = await ctx.db.insert('wfSchedules', {
+    organizationId,
+    projectId,
+    workflowSlug: 'issue-desk/reconcile',
+    cronExpression: '0 * * * *',
+    timezone: 'UTC',
+    isActive: true,
+    createdAt: 0,
+    createdBy: 'tester',
+    ...(variables !== undefined && { variables }),
+  });
+  return { projectId, scheduleId };
+}
+
+async function bindingsFor(
+  world: WorldHandle,
+  organizationId: string,
+): Promise<Array<Record<string, unknown>>> {
+  const all = (await world.run((ctx) =>
+    ctx.db.query('appProjectBindings').collect(),
+  )) as Array<Record<string, unknown>>;
+  return all.filter((b) => b.organizationId === organizationId);
+}
+
+async function scheduleFor(
+  world: WorldHandle,
+  organizationId: string,
+): Promise<Record<string, unknown> | undefined> {
+  const all = (await world.run((ctx) =>
+    ctx.db.query('wfSchedules').collect(),
+  )) as Array<Record<string, unknown>>;
+  return all.find((s) => s.organizationId === organizationId);
+}
+
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state (cleared bindings are
+// skipped), down restoring the seed digest byte-for-byte (config back on the
+// binding, CONFIG_KEYS stripped off the schedule), and the ledger transitions.
+//
+// The seed keeps the round trip byte-clean on purpose: the binding config
+// carries ONLY the recognized CONFIG_KEYS (a non-key entry like `repository`
+// is dropped by up and never restored — covered as a case), the schedule's
+// seeded variables carry NO config key (a stale value would be overwritten
+// and lost — covered as a case), and the org-level appInstallations row
+// carries no config (its clear is one-way by design — covered as a case).
+defineMigrationTest({
+  id: '0.2.91/01_app_config_to_schedule_variables',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+
+  async seed(ctx) {
+    const { projectId } = await seedProjectAndSchedule(ctx, ORG, {
+      maxReworkLoops: 3,
+    });
+    await ctx.db.insert('appInstallations', {
       organizationId: ORG,
-      name: 'Alpha',
+      appSlug: APP,
+      installedAt: 0,
+      installedBy: 'tester',
+      status: 'active',
+      requiredIntegrations: [],
+      resources: [],
+    });
+    await ctx.db.insert('appProjectBindings', {
+      organizationId: ORG,
+      appSlug: APP,
+      projectId,
+      boundAt: 0,
+      boundBy: 'tester',
+      config: {
+        owner: 'acme',
+        repo: 'widgets',
+        testCommand: 'bun test',
+        repoNotes: 'no flaky tests',
+      },
+    });
+    // A second, unconfigured binding in another project must be left alone.
+    const otherProjectId = await ctx.db.insert('projects', {
+      organizationId: ORG,
+      name: 'Beta',
       createdBy: 'tester',
       createdAt: 0,
       updatedAt: 0,
     });
-    const scheduleId = await ctx.db.insert('wfSchedules', {
+    await ctx.db.insert('appProjectBindings', {
       organizationId: ORG,
-      projectId,
-      workflowSlug: 'issue-desk/reconcile',
-      cronExpression: '0 * * * *',
-      timezone: 'UTC',
-      isActive: true,
-      createdAt: 0,
-      createdBy: 'tester',
-      ...(variables !== undefined && { variables }),
+      appSlug: APP,
+      projectId: otherProjectId,
+      boundAt: 0,
+      boundBy: 'tester',
     });
-    return { projectId, scheduleId };
-  });
-}
+  },
 
-describe('0.2.91/01 app_config_to_schedule_variables', () => {
-  it("up folds a binding's config onto the reconcile schedule and clears both tables", async () => {
-    const t = convexTest(historicalSchema, modules);
-    const { projectId, scheduleId } = await seedProjectAndSchedule(t);
-    const bindingId = await t.run(async (ctx) => {
-      await ctx.db.insert('appInstallations', {
-        organizationId: ORG,
-        appSlug: APP,
-        installedAt: 0,
-        installedBy: 'tester',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-        config: { repository: 'acme/widgets', owner: 'acme', repo: 'widgets' },
-      });
-      return ctx.db.insert('appProjectBindings', {
-        organizationId: ORG,
-        appSlug: APP,
-        projectId,
-        boundAt: 0,
-        boundBy: 'tester',
-        config: {
-          repository: 'acme/widgets',
-          owner: 'acme',
-          repo: 'widgets',
-          testCommand: 'bun test',
-          repoNotes: 'no flaky tests',
-        },
-      });
-    });
+  async expectUp(world) {
+    for (const binding of await bindingsFor(world, ORG)) {
+      expect(binding.config).toBeUndefined();
+    }
 
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
-    });
-
-    const binding = await t.run((ctx) => ctx.db.get(bindingId));
-    expect(binding?.config).toBeUndefined();
-
-    const install = await t.run((ctx) =>
-      ctx.db
-        .query('appInstallations')
-        .withIndex('by_org_slug', (q) =>
-          q.eq('organizationId', ORG).eq('appSlug', APP),
-        )
-        .first(),
-    );
-    expect(install?.config).toBeUndefined();
-
-    const schedule = await t.run((ctx) => ctx.db.get(scheduleId));
+    // The static `maxReworkLoops` default survives; the config keys land on
+    // the schedule.
+    const schedule = await scheduleFor(world, ORG);
     expect(schedule?.variables).toEqual({
+      maxReworkLoops: 3,
       owner: 'acme',
       repo: 'widgets',
       testCommand: 'bun test',
       repoNotes: 'no flaky tests',
     });
-  });
+  },
 
-  it('merges onto existing schedule variables (config wins) and leaves an empty-config binding untouched', async () => {
-    const t = convexTest(historicalSchema, modules);
-    const { projectId, scheduleId } = await seedProjectAndSchedule(t, {
-      maxReworkLoops: 3,
-      owner: 'stale-owner',
-    });
-    const bindingId = await t.run(async (ctx) => {
-      await ctx.db.insert('appInstallations', {
-        organizationId: ORG,
-        appSlug: APP,
-        installedAt: 0,
-        installedBy: 'tester',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-      });
-      return ctx.db.insert('appProjectBindings', {
-        organizationId: ORG,
-        appSlug: APP,
-        projectId,
-        boundAt: 0,
-        boundBy: 'tester',
-        config: { owner: 'acme', repo: 'widgets' },
-      });
-    });
-    // A second, unconfigured binding in another project must be left alone.
-    const otherProjectId = await t.run((ctx) =>
-      ctx.db.insert('projects', {
-        organizationId: ORG,
-        name: 'Beta',
-        createdBy: 'tester',
-        createdAt: 0,
-        updatedAt: 0,
-      }),
-    );
-    const unconfiguredBindingId = await t.run((ctx) =>
-      ctx.db.insert('appProjectBindings', {
-        organizationId: ORG,
-        appSlug: APP,
-        projectId: otherProjectId,
-        boundAt: 0,
-        boundBy: 'tester',
-      }),
-    );
+  cases: {
+    'merging wins over a stale schedule value and drops non-key config entries':
+      async (world) => {
+        const org = 'org_cfg2';
+        await world.run(async (ctx) => {
+          const { projectId } = await seedProjectAndSchedule(ctx, org, {
+            maxReworkLoops: 3,
+            owner: 'stale-owner',
+          });
+          await ctx.db.insert('appProjectBindings', {
+            organizationId: org,
+            appSlug: APP,
+            projectId,
+            boundAt: 0,
+            boundBy: 'tester',
+            // The raw `repository` composite is not a recognized key.
+            config: {
+              repository: 'acme/widgets',
+              owner: 'acme',
+              repo: 'widgets',
+            },
+          });
+        });
 
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
-    });
+        await world.applyUpOnly();
 
-    const schedule = await t.run((ctx) => ctx.db.get(scheduleId));
-    // The static `maxReworkLoops` default survives; `owner` converges to the
-    // binding's configured value (config wins over the stale placeholder).
-    expect(schedule?.variables).toEqual({
-      maxReworkLoops: 3,
-      owner: 'acme',
-      repo: 'widgets',
-    });
+        const schedule = await scheduleFor(world, org);
+        expect(schedule?.variables).toEqual({
+          maxReworkLoops: 3,
+          owner: 'acme',
+          repo: 'widgets',
+        });
+        const [binding] = await bindingsFor(world, org);
+        expect(binding.config).toBeUndefined();
+      },
 
-    const binding = await t.run((ctx) => ctx.db.get(bindingId));
-    expect(binding?.config).toBeUndefined();
+    'clears the org-level appInstallations config; down restores the binding but not that legacy copy':
+      async (world) => {
+        const org = 'org_cfg3';
+        await world.run(async (ctx) => {
+          const { projectId } = await seedProjectAndSchedule(ctx, org);
+          await ctx.db.insert('appInstallations', {
+            organizationId: org,
+            appSlug: APP,
+            installedAt: 0,
+            installedBy: 'tester',
+            status: 'active',
+            requiredIntegrations: [],
+            resources: [],
+            config: { owner: 'acme', repo: 'widgets' },
+          });
+          await ctx.db.insert('appProjectBindings', {
+            organizationId: org,
+            appSlug: APP,
+            projectId,
+            boundAt: 0,
+            boundBy: 'tester',
+            config: { owner: 'acme', repo: 'widgets', testCommand: 'bun test' },
+          });
+        });
 
-    const unconfigured = await t.run((ctx) =>
-      ctx.db.get(unconfiguredBindingId),
-    );
-    expect(unconfigured?.config).toBeUndefined();
-  });
+        const installFor = async (): Promise<
+          Record<string, unknown> | undefined
+        > => {
+          const all = (await world.run((ctx) =>
+            ctx.db.query('appInstallations').collect(),
+          )) as Array<Record<string, unknown>>;
+          return all.find((i) => i.organizationId === org);
+        };
 
-  it('down restores the binding config from the schedule and strips those keys back off it', async () => {
-    const t = convexTest(historicalSchema, modules);
-    const { projectId, scheduleId } = await seedProjectAndSchedule(t);
-    const bindingId = await t.run(async (ctx) => {
-      await ctx.db.insert('appInstallations', {
-        organizationId: ORG,
-        appSlug: APP,
-        installedAt: 0,
-        installedBy: 'tester',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [],
-        config: { owner: 'acme', repo: 'widgets' },
-      });
-      return ctx.db.insert('appProjectBindings', {
-        organizationId: ORG,
-        appSlug: APP,
-        projectId,
-        boundAt: 0,
-        boundBy: 'tester',
-        config: { owner: 'acme', repo: 'widgets', testCommand: 'bun test' },
-      });
-    });
+        await world.applyUpOnly();
+        expect((await installFor())?.config).toBeUndefined();
 
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
-    });
-    await t.action(internal.migrations.framework.entrypoints.applyDown, {
-      to: '0.2.90',
-      only: [meta.id],
-    });
-
-    const binding = await t.run((ctx) => ctx.db.get(bindingId));
-    expect(binding?.config).toEqual({
-      owner: 'acme',
-      repo: 'widgets',
-      testCommand: 'bun test',
-    });
-
-    const schedule = await t.run((ctx) => ctx.db.get(scheduleId));
-    expect(schedule?.variables).toEqual({});
-
-    // The org-level legacy copy is NOT restored (documented limitation).
-    const install = await t.run((ctx) =>
-      ctx.db
-        .query('appInstallations')
-        .withIndex('by_org_slug', (q) =>
-          q.eq('organizationId', ORG).eq('appSlug', APP),
-        )
-        .first(),
-    );
-    expect(install?.config).toBeUndefined();
-  });
+        await world.applyDownOnly();
+        const [binding] = await bindingsFor(world, org);
+        expect(binding.config).toEqual({
+          owner: 'acme',
+          repo: 'widgets',
+          testCommand: 'bun test',
+        });
+        const schedule = await scheduleFor(world, org);
+        expect(schedule?.variables).toEqual({});
+        // The org-level legacy copy is NOT restored (documented limitation).
+        expect((await installFor())?.config).toBeUndefined();
+      },
+  },
 });
