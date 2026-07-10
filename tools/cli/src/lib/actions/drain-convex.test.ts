@@ -12,11 +12,11 @@ mock.module('../docker/find-platform-container', () => ({
   findPlatformContainer: findPlatformContainerMock,
 }));
 // Partial mock: stub only `runConvexAdmin` so later test files still see the
-// real banner/JSON helpers (Bun on Windows keeps mock.module global per run).
+// real helpers (Bun keeps mock.module global per run on every platform — a
+// stubbed shared helper here fails other files' tests in CI's file order).
 mock.module('../docker/convex-run', () => ({
   ...realConvexRun,
   runConvexAdmin: runConvexAdminMock,
-  redactAdminKey: (s: string) => s,
 }));
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,
