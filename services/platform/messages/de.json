@@ -1577,7 +1577,7 @@
     "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
     "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
     "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
-    "errorHintOutputCapTooHigh": "Die konfigurierten maximalen Ausgabe-Tokens sind höher als dieses Modell unterstützt. Bitte deinen Administrator, die maximalen Ausgabe-Tokens des Modells zu senken.",
+    "errorHintOutputCapTooHigh": "Die maximalen Ausgabe-Tokens dieses Modells lassen keinen Platz für den Prompt (oder liegen über dem, was das Modell unterstützt). Versuche es erneut — Tale löscht einen fehlerhaften Cache-Wert automatisch — oder bitte deinen Administrator, die maximalen Ausgabe-Tokens zu senken.",
     "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
     "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",

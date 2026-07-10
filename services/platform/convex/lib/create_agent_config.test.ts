@@ -118,6 +118,21 @@ describe('createAgentConfig', () => {
         | undefined;
       expect(callSettings?.maxOutputTokens).toBe(32768);
     });
+
+    it('ignores a model cap that fills the whole context window', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        modelMaxOutputTokens: 1048576,
+        modelContextWindow: 1048576,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(32768);
+    });
   });
 
   describe('providerOptions is no longer agent-level', () => {

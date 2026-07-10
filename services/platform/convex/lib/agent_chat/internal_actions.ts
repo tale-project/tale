@@ -832,6 +832,7 @@ export async function runGenerationCore(
             instructions: finalInstructions,
             languageModel,
             modelMaxOutputTokens: modelData.maxOutputTokens,
+            modelContextWindow: modelData.contextWindow,
             convexToolNames:
               filteredToolNames.length > 0 ? filteredToolNames : undefined,
             extraTools: allExtraTools,
@@ -1171,6 +1172,19 @@ export async function runGenerationCore(
           triedCount: attemptedCount > 0 ? attemptedCount : undefined,
           raw: getString(err, 'message') ?? 'Unknown error',
         });
+        if (code === 'output_cap_too_high' && lastResolvedModelId) {
+          try {
+            await ctx.runMutation(
+              internal.model_catalog.mutations.clearModelMaxOutputTokens,
+              { modelId: lastResolvedModelId },
+            );
+          } catch (clearErr) {
+            console.warn(
+              '[runAgentGeneration] failed to clear poisoned maxOutputTokens cache:',
+              clearErr,
+            );
+          }
+        }
 
         if (newestAssistant?.status === 'failed') {
           // Already failed (generateAgentResponse saved it with its own

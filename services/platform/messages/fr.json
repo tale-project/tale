@@ -1578,7 +1578,7 @@
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
     "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour commencer à discuter.",
     "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
-    "errorHintOutputCapTooHigh": "Le nombre maximal de tokens en sortie configuré est supérieur à ce que ce modèle prend en charge. Demande à ton administrateur de réduire le nombre maximal de tokens en sortie du modèle.",
+    "errorHintOutputCapTooHigh": "Le plafond de tokens en sortie de ce modèle ne laisse pas de place pour le prompt (ou dépasse ce que le modèle prend en charge). Réessaie — Tale efface automatiquement un plafond mis en cache incorrect — ou demande à ton administrateur de le baisser.",
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",

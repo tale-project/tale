@@ -26,6 +26,7 @@ import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { resolveAgeRecipients } from '../lib/age_keygen';
 import type { NormalizedCapability } from '../lib/agent_response/model_capabilities/normalize';
 import { normalizeCatalogPayload } from '../lib/agent_response/model_capabilities/normalize';
+import { usableMaxOutputTokens } from '../lib/agent_response/model_capabilities/sanitize_max_output';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -222,6 +223,7 @@ async function applyCachedCapabilities<
     { modelId: data.modelId },
   );
   if (!cap) return data;
+  const contextWindow = data.contextWindow ?? cap.contextWindow;
   return {
     ...data,
     reasoning: data.reasoning ?? cap.reasoning,
@@ -229,8 +231,11 @@ async function applyCachedCapabilities<
     inputCentsPerMillion: data.inputCentsPerMillion ?? cap.inputCentsPerMillion,
     outputCentsPerMillion:
       data.outputCentsPerMillion ?? cap.outputCentsPerMillion,
-    maxOutputTokens: data.maxOutputTokens ?? cap.maxOutputTokens,
-    contextWindow: data.contextWindow ?? cap.contextWindow,
+    maxOutputTokens: usableMaxOutputTokens(
+      data.maxOutputTokens ?? cap.maxOutputTokens,
+      contextWindow,
+    ),
+    contextWindow,
   };
 }
 

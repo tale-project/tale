@@ -365,6 +365,7 @@
       },
       "qualityScore": 0.86,
       "contextWindow": 1048576,
+      "maxOutputTokens": 101376,
       "cost": {
         "inputCentsPerMillion": 90,
         "outputCentsPerMillion": 308
@@ -386,6 +387,7 @@
       },
       "qualityScore": 0.84,
       "contextWindow": 202752,
+      "maxOutputTokens": 128000,
       "cost": {
         "inputCentsPerMillion": 98,
         "outputCentsPerMillion": 308
@@ -418,7 +420,8 @@
       "description": "Multimodal Z.ai GLM 5 Turbo",
       "tags": ["chat", "vision"],
       "qualityScore": 0.76,
-      "contextWindow": 131072,
+      "contextWindow": 202752,
+      "maxOutputTokens": 131072,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
