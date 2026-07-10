@@ -8,7 +8,7 @@ export async function createConversation(
   ctx: ActionCtx,
   params: {
     organizationId: string;
-    customerId?: Id<'customers'>;
+    contactId?: Id<'contacts'>;
     subject?: string;
     status?: ConversationStatus;
     priority?: ConversationPriority;
@@ -23,7 +23,7 @@ export async function createConversation(
       internal.conversations.internal_mutations.createConversation,
       {
         organizationId: params.organizationId,
-        customerId: params.customerId,
+        contactId: params.contactId,
         subject: params.subject,
         status: params.status,
         priority: params.priority,

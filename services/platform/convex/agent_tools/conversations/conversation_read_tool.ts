@@ -4,7 +4,7 @@
  * Unified read-only conversation operations for agents.
  * Supports:
  * - operation = 'get_by_id': fetch a single conversation by conversationId
- * - operation = 'list': list conversations with optional filters (status, customerId)
+ * - operation = 'list': list conversations with optional filters (status, contactId)
  * - operation = 'get_messages': read messages from a specific conversation
  */
 
@@ -34,7 +34,7 @@ const conversationReadArgs = z.discriminatedUnion('operation', [
       .array(z.string())
       .optional()
       .describe(
-        "Fields to return. Default: ['_id','subject','status','priority','channel','direction','customerId','lastMessageAt']",
+        "Fields to return. Default: ['_id','subject','status','priority','channel','direction','contactId','lastMessageAt']",
       ),
   }),
   z.object({
@@ -43,10 +43,10 @@ const conversationReadArgs = z.discriminatedUnion('operation', [
       .enum(['open', 'closed', 'spam', 'archived'])
       .optional()
       .describe('Filter by conversation status'),
-    customerId: z
+    contactId: z
       .string()
       .optional()
-      .describe('Filter by customer ID (Convex Id<"customers"> string format)'),
+      .describe('Filter by contact ID (Convex Id<"contacts"> string format)'),
     cursor: z
       .string()
       .nullable()
@@ -84,15 +84,15 @@ export const conversationReadTool: ToolDefinition = {
   name: 'conversation_read',
   availability: 'any',
   tool: createTool({
-    description: `Customer conversation read tool for accessing conversation data and message history.
+    description: `Conversation read tool for accessing conversation data and message history.
 
 SCOPE LIMITATION:
-This tool accesses the internal conversations database (inbound/outbound customer conversations).
-It does NOT access the agent's own chat thread — use this to look up customer support conversations.
+This tool accesses the internal conversations database (inbound/outbound contact conversations).
+It does NOT access the agent's own chat thread — use this to look up contact support conversations.
 
 OPERATIONS:
 • 'get_by_id': Fetch a single conversation by its Convex ID. Returns conversation metadata.
-• 'list': Browse conversations for the organization. Supports filters: status (open/closed/spam/archived), customerId.
+• 'list': Browse conversations for the organization. Supports filters: status (open/closed/spam/archived), contactId.
   Use pagination (cursor) for large result sets.
 • 'get_messages': Read messages from a specific conversation. Returns message content, sender direction, timestamps, and delivery state.
   Use pagination (cursor) for conversations with many messages.
@@ -109,7 +109,7 @@ Core conversation fields:
 • priority: Priority level — 'low' | 'medium' | 'high' | 'urgent' (optional)
 • channel: Communication channel (string, optional)
 • direction: Message direction — 'inbound' | 'outbound' (optional)
-• customerId: Associated customer ID (Id<"customers">, optional)
+• contactId: Associated contact ID (Id<"contacts">, optional)
 • integrationName: Integration source name (string, optional)
 • lastMessageAt: Timestamp of last message (number, optional)
 
@@ -124,7 +124,7 @@ BEST PRACTICES:
 • Use 'list' to find conversations, then 'get_messages' to read their content.
 • Always specify 'fields' in get_by_id to minimize response size.
 • Use status filter in 'list' to narrow results (e.g., only 'open' conversations).
-• Use customerId filter to find conversations for a specific customer.
+• Use contactId filter to find conversations for a specific contact.
 • Paginate through messages — some conversations may have hundreds of messages.`,
     inputSchema: conversationReadArgs,
     execute: async (
@@ -155,7 +155,7 @@ BEST PRACTICES:
         cursor: args.cursor,
         numItems: args.numItems,
         status: args.status,
-        customerId: args.customerId,
+        contactId: args.contactId,
       });
     },
   }),

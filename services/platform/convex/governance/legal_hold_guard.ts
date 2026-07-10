@@ -3,8 +3,8 @@
  * gated through the retention / GDPR pipeline.
  *
  * Round-2 v08 B4: `loadActiveHolds` was only consulted by retention,
- * erasure, and the chat-thread delete path. Documents, customers,
- * vendors, conversations, and folders all bypassed it — an org-level
+ * erasure, and the chat-thread delete path. Documents, contacts,
+ * conversations, and folders all bypassed it — an org-level
  * "nuclear halt" hold could be silently overridden by a user clicking
  * Delete in the UI or hitting the public REST API.
  *
@@ -34,8 +34,7 @@ export type GuardedTargetType =
   | 'document'
   | 'execution'
   | 'userMembership'
-  | 'customer'
-  | 'vendor'
+  | 'contact'
   | 'conversation'
   | 'folder'
   | 'org';

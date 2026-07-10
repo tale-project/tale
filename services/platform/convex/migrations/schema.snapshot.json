@@ -2795,6 +2795,245 @@
         "optional": false
       }
     },
+    "contacts": {
+      "address": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "city": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "country": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "postalCode": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "state": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "street": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            }
+          }
+        },
+        "optional": true
+      },
+      "email": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "externalId": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "lifecycleStatus": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "active"
+            },
+            {
+              "type": "literal",
+              "value": "trashed"
+            },
+            {
+              "type": "literal",
+              "value": "expired"
+            },
+            {
+              "type": "literal",
+              "value": "deleted"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "locale": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "metadata": {
+        "ft": {
+          "type": "any"
+        },
+        "optional": true
+      },
+      "name": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "notes": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "phone": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "source": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "manual_import"
+            },
+            {
+              "type": "literal",
+              "value": "file_upload"
+            },
+            {
+              "type": "literal",
+              "value": "api_import"
+            },
+            {
+              "type": "literal",
+              "value": "shopify"
+            },
+            {
+              "type": "literal",
+              "value": "woocommerce"
+            },
+            {
+              "type": "literal",
+              "value": "magento"
+            },
+            {
+              "type": "literal",
+              "value": "bigcommerce"
+            },
+            {
+              "type": "literal",
+              "value": "prestashop"
+            },
+            {
+              "type": "literal",
+              "value": "chargebee"
+            },
+            {
+              "type": "literal",
+              "value": "stripe"
+            },
+            {
+              "type": "literal",
+              "value": "recurly"
+            },
+            {
+              "type": "literal",
+              "value": "salesforce"
+            },
+            {
+              "type": "literal",
+              "value": "hubspot"
+            },
+            {
+              "type": "literal",
+              "value": "pipedrive"
+            },
+            {
+              "type": "literal",
+              "value": "zoho"
+            },
+            {
+              "type": "literal",
+              "value": "sap"
+            },
+            {
+              "type": "literal",
+              "value": "oracle"
+            },
+            {
+              "type": "literal",
+              "value": "netsuite"
+            },
+            {
+              "type": "literal",
+              "value": "mailchimp"
+            },
+            {
+              "type": "literal",
+              "value": "klaviyo"
+            },
+            {
+              "type": "literal",
+              "value": "sendgrid"
+            },
+            {
+              "type": "literal",
+              "value": "webhook"
+            },
+            {
+              "type": "literal",
+              "value": "zapier"
+            },
+            {
+              "type": "literal",
+              "value": "custom"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "statusChangedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "tags": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "string"
+          }
+        },
+        "optional": true
+      }
+    },
     "conversationMessages": {
       "channel": {
         "ft": {
@@ -2905,10 +3144,16 @@
         },
         "optional": true
       },
+      "contactId": {
+        "ft": {
+          "tableName": "contacts",
+          "type": "id"
+        },
+        "optional": true
+      },
       "customerId": {
         "ft": {
-          "tableName": "customers",
-          "type": "id"
+          "type": "string"
         },
         "optional": true
       },
@@ -3027,244 +3272,6 @@
       "type": {
         "ft": {
           "type": "string"
-        },
-        "optional": true
-      }
-    },
-    "customers": {
-      "address": {
-        "ft": {
-          "type": "object",
-          "value": {
-            "city": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "country": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "postalCode": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "state": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "street": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            }
-          }
-        },
-        "optional": true
-      },
-      "email": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "externalId": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "number"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "lifecycleStatus": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "active"
-            },
-            {
-              "type": "literal",
-              "value": "trashed"
-            },
-            {
-              "type": "literal",
-              "value": "expired"
-            },
-            {
-              "type": "literal",
-              "value": "deleted"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "locale": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "metadata": {
-        "ft": {
-          "type": "any"
-        },
-        "optional": true
-      },
-      "name": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "source": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "manual_import"
-            },
-            {
-              "type": "literal",
-              "value": "file_upload"
-            },
-            {
-              "type": "literal",
-              "value": "api_import"
-            },
-            {
-              "type": "literal",
-              "value": "shopify"
-            },
-            {
-              "type": "literal",
-              "value": "woocommerce"
-            },
-            {
-              "type": "literal",
-              "value": "magento"
-            },
-            {
-              "type": "literal",
-              "value": "bigcommerce"
-            },
-            {
-              "type": "literal",
-              "value": "prestashop"
-            },
-            {
-              "type": "literal",
-              "value": "chargebee"
-            },
-            {
-              "type": "literal",
-              "value": "stripe"
-            },
-            {
-              "type": "literal",
-              "value": "recurly"
-            },
-            {
-              "type": "literal",
-              "value": "salesforce"
-            },
-            {
-              "type": "literal",
-              "value": "hubspot"
-            },
-            {
-              "type": "literal",
-              "value": "pipedrive"
-            },
-            {
-              "type": "literal",
-              "value": "zoho"
-            },
-            {
-              "type": "literal",
-              "value": "sap"
-            },
-            {
-              "type": "literal",
-              "value": "oracle"
-            },
-            {
-              "type": "literal",
-              "value": "netsuite"
-            },
-            {
-              "type": "literal",
-              "value": "mailchimp"
-            },
-            {
-              "type": "literal",
-              "value": "klaviyo"
-            },
-            {
-              "type": "literal",
-              "value": "sendgrid"
-            },
-            {
-              "type": "literal",
-              "value": "webhook"
-            },
-            {
-              "type": "literal",
-              "value": "zapier"
-            },
-            {
-              "type": "literal",
-              "value": "custom"
-            }
-          ]
-        },
-        "optional": false
-      },
-      "status": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "active"
-            },
-            {
-              "type": "literal",
-              "value": "churned"
-            },
-            {
-              "type": "literal",
-              "value": "potential"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "statusChangedAt": {
-        "ft": {
-          "type": "number"
         },
         "optional": true
       }
@@ -4147,6 +4154,13 @@
       "parentId": {
         "ft": {
           "tableName": "folders",
+          "type": "id"
+        },
+        "optional": true
+      },
+      "projectId": {
+        "ft": {
+          "tableName": "projects",
           "type": "id"
         },
         "optional": true
@@ -8764,6 +8778,12 @@
         },
         "optional": true
       },
+      "pendingBackgroundTasks": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
       "progressText": {
         "ft": {
           "type": "string"
@@ -8893,6 +8913,12 @@
               },
               "optional": false
             },
+            "agentSlug": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
             "allowedModels": {
               "fieldType": {
                 "type": "array",
@@ -8916,6 +8942,27 @@
                 }
               },
               "optional": false
+            },
+            "threadId": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "toolGrants": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": true
+            },
+            "userId": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
             }
           }
         },
@@ -9070,6 +9117,50 @@
           ]
         },
         "optional": false
+      }
+    },
+    "sandboxToolCalls": {
+      "calledAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "outcome": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "paramsFingerprint": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "sessionId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "tool": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "userId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
       }
     },
     "sandboxUserEnv": {
@@ -9835,6 +9926,13 @@
         },
         "optional": true
       },
+      "contactId": {
+        "ft": {
+          "tableName": "contacts",
+          "type": "id"
+        },
+        "optional": true
+      },
       "createdAt": {
         "ft": {
           "type": "number"
@@ -9865,8 +9963,7 @@
       },
       "customerId": {
         "ft": {
-          "tableName": "customers",
-          "type": "id"
+          "type": "string"
         },
         "optional": true
       },
@@ -10019,6 +10116,27 @@
           ]
         },
         "optional": false
+      },
+      "context": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "wfExecutionId": {
+              "fieldType": {
+                "tableName": "wfExecutions",
+                "type": "id"
+              },
+              "optional": true
+            },
+            "workflowSlug": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            }
+          }
+        },
+        "optional": true
       },
       "createdAt": {
         "ft": {
@@ -13207,245 +13325,6 @@
       "voiceOutput": {
         "ft": {
           "type": "boolean"
-        },
-        "optional": true
-      }
-    },
-    "vendors": {
-      "address": {
-        "ft": {
-          "type": "object",
-          "value": {
-            "city": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "country": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "postalCode": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "state": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            },
-            "street": {
-              "fieldType": {
-                "type": "string"
-              },
-              "optional": true
-            }
-          }
-        },
-        "optional": true
-      },
-      "email": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "externalId": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "number"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "lifecycleStatus": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "active"
-            },
-            {
-              "type": "literal",
-              "value": "trashed"
-            },
-            {
-              "type": "literal",
-              "value": "expired"
-            },
-            {
-              "type": "literal",
-              "value": "deleted"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "locale": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "metadata": {
-        "ft": {
-          "type": "any"
-        },
-        "optional": true
-      },
-      "name": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "notes": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "phone": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "source": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "manual_import"
-            },
-            {
-              "type": "literal",
-              "value": "file_upload"
-            },
-            {
-              "type": "literal",
-              "value": "api_import"
-            },
-            {
-              "type": "literal",
-              "value": "shopify"
-            },
-            {
-              "type": "literal",
-              "value": "woocommerce"
-            },
-            {
-              "type": "literal",
-              "value": "magento"
-            },
-            {
-              "type": "literal",
-              "value": "bigcommerce"
-            },
-            {
-              "type": "literal",
-              "value": "prestashop"
-            },
-            {
-              "type": "literal",
-              "value": "chargebee"
-            },
-            {
-              "type": "literal",
-              "value": "stripe"
-            },
-            {
-              "type": "literal",
-              "value": "recurly"
-            },
-            {
-              "type": "literal",
-              "value": "salesforce"
-            },
-            {
-              "type": "literal",
-              "value": "hubspot"
-            },
-            {
-              "type": "literal",
-              "value": "pipedrive"
-            },
-            {
-              "type": "literal",
-              "value": "zoho"
-            },
-            {
-              "type": "literal",
-              "value": "sap"
-            },
-            {
-              "type": "literal",
-              "value": "oracle"
-            },
-            {
-              "type": "literal",
-              "value": "netsuite"
-            },
-            {
-              "type": "literal",
-              "value": "mailchimp"
-            },
-            {
-              "type": "literal",
-              "value": "klaviyo"
-            },
-            {
-              "type": "literal",
-              "value": "sendgrid"
-            },
-            {
-              "type": "literal",
-              "value": "webhook"
-            },
-            {
-              "type": "literal",
-              "value": "zapier"
-            },
-            {
-              "type": "literal",
-              "value": "custom"
-            }
-          ]
-        },
-        "optional": false
-      },
-      "statusChangedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "tags": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "string"
-          }
         },
         "optional": true
       }

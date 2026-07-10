@@ -72,7 +72,7 @@ const priorityValidator = v.union(
 type ConversationActionParams =
   | {
       operation: 'create';
-      customerId?: Id<'customers'>;
+      contactId?: Id<'contacts'>;
       subject?: string;
       status?: ConversationStatus;
       priority?: ConversationPriority;
@@ -157,7 +157,7 @@ Then create an approval with resourceType: 'conversations' to trigger sending wh
     // create: Create a new conversation
     v.object({
       operation: v.literal('create'),
-      customerId: v.optional(v.id('customers')),
+      contactId: v.optional(v.id('contacts')),
       subject: v.optional(v.string()),
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
@@ -244,7 +244,7 @@ Then create an approval with resourceType: 'conversations' to trigger sending wh
       case 'create': {
         return await createConversation(ctx, {
           organizationId,
-          customerId: params.customerId,
+          contactId: params.contactId,
           subject: params.subject,
           status: params.status,
           priority: params.priority,

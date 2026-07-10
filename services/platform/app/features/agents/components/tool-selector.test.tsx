@@ -18,8 +18,8 @@ const mockAvailableWorkflows = vi.fn(() => ({
 vi.mock('../hooks/queries', () => ({
   useAvailableTools: () => ({
     tools: [
-      { name: 'customer_read', available: true },
-      { name: 'customer_write', available: true },
+      { name: 'contact_read', available: true },
+      { name: 'contact_write', available: true },
       { name: 'product_read', available: true },
       { name: 'product_write', available: true },
       { name: 'run_code', available: true },
@@ -31,14 +31,14 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 // Resolved from messages/en.json — settings.agents.tools.* and chat.tools.*.
-const CUSTOMERS_GROUP = 'Customers';
+const CONTACTS_GROUP = 'Contacts';
 const PRODUCTS_GROUP = 'Products';
 const SYSTEM_GROUP = 'System';
-const CUSTOMER_READ = 'Customer data';
-const CUSTOMER_WRITE = 'Update customer';
+const CONTACT_READ = 'Contact data';
+const CONTACT_WRITE = 'Update contact';
 const PRODUCT_READ = 'Product catalog';
 const RUN_CODE = 'Run code';
-const CUSTOMER_READ_DESCRIPTION = 'Look up and list customer records';
+const CONTACT_READ_DESCRIPTION = 'Look up and list contact records';
 const SEARCH_PLACEHOLDER = 'Search tools…';
 const NO_RESULTS = 'No results found';
 
@@ -63,11 +63,11 @@ function renderSelector(
 
 describe('ToolSelector', () => {
   it('groups tools by category with labels, descriptions, and counts', async () => {
-    const { container } = renderSelector({ value: ['customer_read'] });
+    const { container } = renderSelector({ value: ['contact_read'] });
 
     // Category enable-all checkboxes carry the category label.
     expect(
-      screen.getByRole('checkbox', { name: CUSTOMERS_GROUP }),
+      screen.getByRole('checkbox', { name: CONTACTS_GROUP }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('checkbox', { name: PRODUCTS_GROUP }),
@@ -77,13 +77,13 @@ describe('ToolSelector', () => {
     ).toBeInTheDocument();
 
     // Tool rows show the shared display name plus a one-line description.
-    expect(screen.getByRole('checkbox', { name: CUSTOMER_READ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: CONTACT_READ })).toBeChecked();
     expect(
-      screen.getByRole('checkbox', { name: CUSTOMER_WRITE }),
+      screen.getByRole('checkbox', { name: CONTACT_WRITE }),
     ).not.toBeChecked();
-    expect(screen.getByText(CUSTOMER_READ_DESCRIPTION)).toBeInTheDocument();
+    expect(screen.getByText(CONTACT_READ_DESCRIPTION)).toBeInTheDocument();
 
-    // Enabled-count badge: 1 of 2 customer tools on.
+    // Enabled-count badge: 1 of 2 contact tools on.
     expect(screen.getByLabelText('1 of 2 tools enabled')).toHaveTextContent(
       '1/2',
     );
@@ -93,11 +93,11 @@ describe('ToolSelector', () => {
 
   it('marks a partially enabled group indeterminate and a full group checked', () => {
     renderSelector({
-      value: ['customer_read', 'product_read', 'product_write'],
+      value: ['contact_read', 'product_read', 'product_write'],
     });
 
     expect(
-      screen.getByRole('checkbox', { name: CUSTOMERS_GROUP }),
+      screen.getByRole('checkbox', { name: CONTACTS_GROUP }),
     ).toHaveAttribute('data-state', 'indeterminate');
     expect(
       screen.getByRole('checkbox', { name: PRODUCTS_GROUP }),
@@ -108,50 +108,47 @@ describe('ToolSelector', () => {
   });
 
   it('toggling one tool preserves selections in other groups', async () => {
-    const { onChange, user } = renderSelector({ value: ['customer_read'] });
+    const { onChange, user } = renderSelector({ value: ['contact_read'] });
 
     await user.click(screen.getByRole('checkbox', { name: PRODUCT_READ }));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0][0].sort()).toEqual([
-      'customer_read',
+      'contact_read',
       'product_read',
     ]);
   });
 
   it('group enable-all selects every tool in the group, and clears when full', async () => {
     const { onChange, user, unmount } = renderSelector({
-      value: ['customer_read'],
+      value: ['contact_read'],
     });
 
     // Indeterminate → click selects the rest of the group.
-    await user.click(screen.getByRole('checkbox', { name: CUSTOMERS_GROUP }));
+    await user.click(screen.getByRole('checkbox', { name: CONTACTS_GROUP }));
     expect(onChange.mock.calls[0][0].sort()).toEqual([
-      'customer_read',
-      'customer_write',
+      'contact_read',
+      'contact_write',
     ]);
     unmount();
 
     const { onChange: onChange2, user: user2 } = renderSelector({
-      value: ['customer_read', 'customer_write'],
+      value: ['contact_read', 'contact_write'],
     });
 
     // Fully selected → click clears the group.
-    await user2.click(screen.getByRole('checkbox', { name: CUSTOMERS_GROUP }));
+    await user2.click(screen.getByRole('checkbox', { name: CONTACTS_GROUP }));
     expect(onChange2.mock.calls[0][0]).toEqual([]);
   });
 
   it('filters tools and groups by search query', async () => {
     const { user } = renderSelector();
 
-    await user.type(
-      screen.getByPlaceholderText(SEARCH_PLACEHOLDER),
-      'customer',
-    );
+    await user.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), 'contact');
 
-    // Customer tools stay; unrelated groups disappear.
+    // Contact tools stay; unrelated groups disappear.
     expect(
-      screen.getByRole('checkbox', { name: CUSTOMER_READ }),
+      screen.getByRole('checkbox', { name: CONTACT_READ }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('checkbox', { name: PRODUCT_READ }),
@@ -171,7 +168,7 @@ describe('ToolSelector', () => {
 
     expect(screen.getByText(NO_RESULTS)).toBeInTheDocument();
     expect(
-      screen.queryByRole('checkbox', { name: CUSTOMER_READ }),
+      screen.queryByRole('checkbox', { name: CONTACT_READ }),
     ).not.toBeInTheDocument();
   });
 
@@ -183,7 +180,7 @@ describe('ToolSelector', () => {
     ).not.toBeInTheDocument();
     // The rest of the catalog still renders.
     expect(
-      screen.getByRole('checkbox', { name: CUSTOMER_READ }),
+      screen.getByRole('checkbox', { name: CONTACT_READ }),
     ).toBeInTheDocument();
   });
 
@@ -194,7 +191,7 @@ describe('ToolSelector', () => {
       screen.queryByPlaceholderText(SEARCH_PLACEHOLDER),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('checkbox', { name: CUSTOMER_READ }),
+      screen.queryByRole('checkbox', { name: CONTACT_READ }),
     ).not.toBeInTheDocument();
     // Integration bindings (the external agent's MCP grant set) stay.
     expect(screen.getByText('Bound integrations')).toBeInTheDocument();

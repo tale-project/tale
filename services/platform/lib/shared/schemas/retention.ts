@@ -18,8 +18,7 @@ export const RETENTION_CATEGORIES = [
   'promptTemplates',
   'messageFeedback',
   'memoryAudit',
-  'customers',
-  'vendors',
+  'contacts',
   'externalConversations',
   'messageMetadata',
   // Round-2 V6 P0-17: in-app notifications (security alerts, lockout

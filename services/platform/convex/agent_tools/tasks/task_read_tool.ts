@@ -7,7 +7,7 @@
  * - 'list_assigned_to_me': tasks assigned to the calling agent
  * - 'list_comments': comments on a task
  *
- * Mirrors the `customer_read` discriminated-union pattern.
+ * Mirrors the `contact_read` discriminated-union pattern.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';

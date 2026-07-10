@@ -5,8 +5,8 @@ import { v } from 'convex/values';
  * shape (active/trashed/expired/deleted) so retention's two-pass
  * grace-window machinery is uniform across tables.
  *
- * For tables that already use `status` for a business concern (customers,
- * conversations, audit logs), this is stored under `lifecycleStatus`
+ * For tables that already use `status` for a business concern
+ * (conversations, audit logs), this is stored under `lifecycleStatus`
  * instead of `status`. `threadMetadata` is the single legacy exception:
  * its `status` field shipped before this generalisation and continues to
  * serve as the lifecycle status. The trash registry knows which tables
@@ -48,8 +48,7 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   // can recover before the grace-period purge.
   'promptTemplate',
   'messageFeedback',
-  'customer',
-  'vendor',
+  'contact',
   'externalConversation',
   // Round-2 V2 P1-A/B: `messageMetadata` and `workflowTriggerLog` were
   // listed here but their schema-side state never matched (former had

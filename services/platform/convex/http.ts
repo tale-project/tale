@@ -25,13 +25,13 @@ import {
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
 import {
-  listCustomers,
-  createCustomer,
-  getCustomer,
-  patchCustomer,
-  deleteCustomer,
-  customerPostActions,
-} from './customers/rest_api';
+  listContacts,
+  createContact,
+  getContact,
+  patchContact,
+  deleteContact,
+  contactPostActions,
+} from './contacts/rest_api';
 import {
   listDocuments,
   createDocument,
@@ -102,14 +102,6 @@ import {
   threadPostActions,
 } from './threads/rest_api';
 import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
-import {
-  listVendors,
-  createVendor,
-  bulkCreateVendors,
-  getVendor,
-  patchVendor,
-  deleteVendor,
-} from './vendors/rest_api';
 import {
   listWebsites,
   createWebsite,
@@ -1174,78 +1166,44 @@ http.route({
   handler: restOptionsHandler,
 });
 
-// Customers
+// Contacts
 http.route({
-  path: '/api/v1/customers',
+  path: '/api/v1/contacts',
   method: 'GET',
-  handler: listCustomers,
+  handler: listContacts,
 });
 http.route({
-  path: '/api/v1/customers',
+  path: '/api/v1/contacts',
   method: 'POST',
-  handler: createCustomer,
+  handler: createContact,
 });
 http.route({
-  path: '/api/v1/customers',
+  path: '/api/v1/contacts',
   method: 'OPTIONS',
   handler: restOptionsHandler,
 });
 http.route({
-  pathPrefix: '/api/v1/customers/',
+  pathPrefix: '/api/v1/contacts/',
   method: 'GET',
-  handler: getCustomer,
+  handler: getContact,
 });
 http.route({
-  pathPrefix: '/api/v1/customers/',
+  pathPrefix: '/api/v1/contacts/',
   method: 'PATCH',
-  handler: patchCustomer,
+  handler: patchContact,
 });
 http.route({
-  pathPrefix: '/api/v1/customers/',
+  pathPrefix: '/api/v1/contacts/',
   method: 'DELETE',
-  handler: deleteCustomer,
+  handler: deleteContact,
 });
 http.route({
-  pathPrefix: '/api/v1/customers/',
+  pathPrefix: '/api/v1/contacts/',
   method: 'POST',
-  handler: customerPostActions,
+  handler: contactPostActions,
 });
 http.route({
-  pathPrefix: '/api/v1/customers/',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-
-// Vendors
-http.route({ path: '/api/v1/vendors', method: 'GET', handler: listVendors });
-http.route({ path: '/api/v1/vendors', method: 'POST', handler: createVendor });
-http.route({
-  path: '/api/v1/vendors',
-  method: 'OPTIONS',
-  handler: restOptionsHandler,
-});
-http.route({
-  pathPrefix: '/api/v1/vendors/',
-  method: 'GET',
-  handler: getVendor,
-});
-http.route({
-  pathPrefix: '/api/v1/vendors/',
-  method: 'PATCH',
-  handler: patchVendor,
-});
-http.route({
-  pathPrefix: '/api/v1/vendors/',
-  method: 'DELETE',
-  handler: deleteVendor,
-});
-http.route({
-  pathPrefix: '/api/v1/vendors/',
-  method: 'POST',
-  handler: bulkCreateVendors,
-});
-http.route({
-  pathPrefix: '/api/v1/vendors/',
+  pathPrefix: '/api/v1/contacts/',
   method: 'OPTIONS',
   handler: restOptionsHandler,
 });

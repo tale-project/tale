@@ -98,7 +98,7 @@ describe('applyEnvTightening', () => {
   });
 
   it('throws RetentionConfigMissingError when category absent', () => {
-    expect(() => applyEnvTightening(baseConfig, 'customers')).toThrow(
+    expect(() => applyEnvTightening(baseConfig, 'contacts')).toThrow(
       RetentionConfigMissingError,
     );
   });

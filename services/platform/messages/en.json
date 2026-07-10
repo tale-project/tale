@@ -933,7 +933,7 @@
       }
     },
     "tools": {
-      "customerRead": "Customer data",
+      "contactRead": "Contact data",
       "productRead": "Product catalog",
       "ragSearch": "Knowledge base",
       "knowledgeWrite": "Knowledge entry",
@@ -947,12 +947,10 @@
       "saveWorkflowDefinition": "Saving workflow",
       "validateWorkflowDefinition": "Validating workflow",
       "excel": "Excel file",
-      "customerWrite": "Update customer",
+      "contactWrite": "Update contact",
       "productWrite": "Update product",
       "websiteRead": "Read website",
       "websiteWrite": "Update website",
-      "vendorRead": "Read vendor",
-      "vendorWrite": "Update vendor",
       "conversationRead": "Read conversation",
       "conversationWrite": "Reply to conversation",
       "discussionRead": "Read discussion",
@@ -1730,9 +1728,6 @@
       "statusSkipped": "Skipped"
     },
     "labels": {
-      "name": "Name",
-      "email": "Email",
-      "status": "Status",
       "phone": "Phone",
       "source": "Source",
       "locale": "Locale",
@@ -1932,7 +1927,7 @@
   },
   "conversations": {
     "title": "Inbox",
-    "unknownCustomer": "Unknown customer",
+    "unknownContact": "Unknown contact",
     "messagePlaceholder": "Type a message",
     "searchPlaceholder": "Search conversations",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
@@ -1989,7 +1984,7 @@
     },
     "header": {
       "moreActions": "More actions",
-      "customerInfo": "Customer info",
+      "contactInfo": "Contact info",
       "closeConversation": "Close conversation",
       "closing": "Closing...",
       "reopenConversation": "Reopen conversation",
@@ -2031,7 +2026,7 @@
       "noMessages": "No messages yet",
       "invalidFileAttachment": "Invalid file attachment",
       "defaultSubject": "Re: Conversation",
-      "customerEmailNotFound": "Cannot send email: customer email not found",
+      "contactEmailNotFound": "Cannot send email: contact email not found",
       "replySubjectPrefix": "Re: {subject}",
       "loadFailed": "Failed to load conversation",
       "loadFailedDescription": "Something went wrong while loading this conversation.",
@@ -2077,64 +2072,58 @@
       "medium": "Medium"
     }
   },
-  "customers": {
-    "title": "Customers",
-    "searchPlaceholder": "Search customers",
+  "contacts": {
+    "title": "Contacts",
+    "searchPlaceholder": "Search contacts",
     "filter": {
       "source": {
         "manual": "Manual",
         "upload": "Upload"
-      },
-      "status": {
-        "active": "Active",
-        "potential": "Potential",
-        "churned": "Churned"
       }
     },
     "importForm": {
       "manualEntry": "Manual entry",
       "upload": "Upload",
-      "formatHint": "Format: email, name (optional), locale (optional). One customer per line.",
+      "formatHint": "Format: email, name (optional), locale (optional). One contact per line.",
       "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
-      "statusNote": "Imported customers are tagged as (Active)",
       "expectedColumns": "Expected columns: email, name, locale"
     },
-    "editCustomer": "Edit customer",
-    "deleteCustomer": "Delete customer",
+    "editContact": "Edit contact",
+    "deleteContact": "Delete contact",
     "importMenu": {
-      "importCustomers": "Import customers",
+      "importContacts": "Import contacts",
       "fromDevice": "From your device",
       "manualEntry": "Manual entry"
     },
-    "thisCustomer": "this customer",
-    "updateSuccess": "Customer updated successfully",
-    "updateError": "Failed to update customer",
+    "thisContact": "this contact",
+    "updateSuccess": "Contact updated successfully",
+    "updateError": "Failed to update contact",
     "name": "Name",
-    "namePlaceholder": "Enter customer name",
+    "namePlaceholder": "Enter contact name",
     "email": "Email",
     "emailPlaceholder": "Enter email address",
     "locale": "Locale",
     "localePlaceholder": "e.g., en-US",
-    "status": "Status",
+    "phone": "Phone",
     "import": {
       "selectDataSource": "Please select a data source",
       "provideData": "Please provide data",
-      "noValidData": "No valid customer data found",
+      "noValidData": "No valid contact data found",
       "success": "Import successful",
-      "successDescription": "Successfully imported {success} customers{failed, select, 0 {} other {, {failed} failed}}",
-      "noneImported": "No customers were imported",
+      "successDescription": "Successfully imported {success} contacts{failed, select, 0 {} other {, {failed} failed}}",
+      "noneImported": "No contacts were imported",
       "error": "Import error",
-      "addCustomers": "Add customers",
-      "uploadCustomers": "Upload customers",
+      "addContacts": "Add contacts",
+      "uploadContacts": "Upload contacts",
       "import": "Import",
       "errorCodes": {
-        "duplicate_email": "A customer with this email already exists",
-        "duplicate_external_id": "A customer with this external ID already exists",
+        "duplicate_email": "A contact with this email already exists",
+        "duplicate_external_id": "A contact with this external ID already exists",
         "unknown": "An unexpected error occurred"
       }
     },
     "deleteConfirmation": "Are you sure you want to delete {name}?",
-    "deleteError": "Failed to delete customer",
+    "deleteError": "Failed to delete contact",
     "deleteWarning": "This action cannot be undone."
   },
   "dataNotice": {
@@ -2163,11 +2152,8 @@
     "thisMember": "this member",
     "confirmRemoveMember": "Are you sure you want to remove {name} from the team? They will lose access to this organization and all associated resources.",
     "toSend": "to send",
-    "vendorInfo": {
-      "title": "Vendor information"
-    },
-    "customerInfo": {
-      "title": "Customer details"
+    "contactInfo": {
+      "title": "Contact details"
     }
   },
   "documentWriteApproval": {
@@ -2521,17 +2507,13 @@
       "title": "No providers configured",
       "description": "Add an LLM provider to get started with AI features"
     },
-    "customers": {
-      "title": "No customers yet",
-      "description": "Upload your first customer to get started"
+    "contacts": {
+      "title": "No contacts yet",
+      "description": "Upload your first contact to get started"
     },
     "products": {
       "title": "No products yet",
       "description": "Import your products to help your AI understand context"
-    },
-    "vendors": {
-      "title": "No vendors yet",
-      "description": "Upload your first vendor to get started"
     },
     "websites": {
       "title": "No websites yet",
@@ -2772,13 +2754,9 @@
         "title": "Memory audit log",
         "description": "Change-log of personalization memories (proposed, approved, edited, dismissed, deleted)."
       },
-      "customers": {
-        "title": "Customers",
+      "contacts": {
+        "title": "Contacts",
         "description": "Per-org CRM records: name, email, address, locale, metadata."
-      },
-      "vendors": {
-        "title": "Vendors",
-        "description": "Per-org vendor records: name, email, phone, address, free-text notes."
       },
       "externalConversations": {
         "title": "External conversations",
@@ -3328,6 +3306,7 @@
         "promptTemplate": "Prompt templates",
         "messageFeedback": "Message feedback",
         "customer": "Customers",
+        "contact": "Contacts",
         "vendor": "Vendors",
         "externalConversation": "External conversations",
         "messageMetadata": "Message metadata",
@@ -3880,8 +3859,7 @@
     "knowledgeEntries": "Knowledge entries",
     "websites": "Websites",
     "products": "Products",
-    "customers": "Customers",
-    "vendors": "Vendors"
+    "contacts": "Contacts"
   },
   "knowledgeEntries": {
     "title": "Knowledge entries",
@@ -4072,13 +4050,9 @@
       "title": "Products",
       "description": "Manage your product catalog."
     },
-    "customers": {
-      "title": "Customers",
-      "description": "Manage your customer database."
-    },
-    "vendors": {
-      "title": "Vendors",
-      "description": "Manage your vendor relationships."
+    "contacts": {
+      "title": "Contacts",
+      "description": "Manage your contact database."
     },
     "projects": {
       "title": "Projects",
@@ -5695,9 +5669,8 @@
         "enabledCount": "{enabled}/{total}",
         "enabledCountLabel": "{enabled} of {total} tools enabled",
         "categories": {
-          "customers": "Customers",
+          "contacts": "Contacts",
           "products": "Products",
-          "vendors": "Vendors",
           "websites": "Websites",
           "conversations": "Conversations",
           "discussions": "Discussions",
@@ -5718,7 +5691,7 @@
           "file_list": "Browse the files in the workspace",
           "file_delete": "Remove files from the workspace",
           "run_code": "Execute code in a sandbox for calculations and data work",
-          "customer_read": "Look up and list customer records",
+          "contact_read": "Look up and list contact records",
           "product_read": "Browse the product catalog",
           "rag_search": "Search the organization's knowledge base",
           "knowledge_write": "Add new entries to the knowledge base",
@@ -5742,12 +5715,10 @@
           "request_user_location": "Ask for the current location in the chat",
           "conversation_read": "Read customer conversations",
           "conversation_write": "Draft and send replies in conversations",
-          "customer_write": "Create and update customer records",
+          "contact_write": "Create and update contact records",
           "product_write": "Create and update products",
           "website_read": "Read the organization's websites",
           "website_write": "Add and update websites",
-          "vendor_read": "Look up vendor records",
-          "vendor_write": "Create and update vendor records",
           "discussion_read": "Read internal discussions",
           "discussion_write": "Post to internal discussions",
           "agent_read": "View other agents' configurations",
@@ -6794,6 +6765,7 @@
           "chat_history.retention_expired": "Chat history retention expired",
           "document.retention_deleted": "Document retention deleted",
           "customer.retention_deleted": "Customer retention deleted",
+          "contact.retention_deleted": "Contact retention deleted",
           "vendor.retention_deleted": "Vendor retention deleted",
           "prompt_template.retention_deleted": "Prompt template retention deleted",
           "usage_ledger.retention_deleted": "Usage ledger retention deleted",
@@ -6885,6 +6857,9 @@
           "customer.retention_expired": "Customer expired by retention",
           "customer.retention_override_restore": "Customer restored (retention override)",
           "customer.restored_by_admin": "Customer restored by admin",
+          "contact.retention_expired": "Contact expired by retention",
+          "contact.retention_override_restore": "Contact restored (retention override)",
+          "contact.restored_by_admin": "Contact restored by admin",
           "vendor.retention_expired": "Vendor expired by retention",
           "vendor.retention_override_restore": "Vendor restored (retention override)",
           "vendor.restored_by_admin": "Vendor restored by admin",
@@ -6917,6 +6892,7 @@
           "workflow_creation": "Workflow creation",
           "workflow_update": "Workflow update",
           "customer": "Customer",
+          "contact": "Contact",
           "vendor": "Vendor",
           "product": "Product",
           "organization": "Organization",
@@ -7606,57 +7582,6 @@
       "regenerateFailed": "Failed to generate new backup codes.",
       "invalidCode": "Invalid or expired code. Please try again."
     }
-  },
-  "vendors": {
-    "title": "Vendors",
-    "searchPlaceholder": "Search vendors",
-    "addVendors": "Add vendors",
-    "uploadVendors": "Upload vendors",
-    "importForm": {
-      "manualEntry": "Manual entry",
-      "upload": "Upload",
-      "formatHint": "Format: email, name (optional), locale (optional). One vendor per line.",
-      "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
-      "expectedColumns": "Expected columns: email, name, locale"
-    },
-    "editVendor": "Edit vendor",
-    "deleteVendor": "Delete vendor",
-    "importMenu": {
-      "importVendors": "Import vendors",
-      "fromDevice": "From your device",
-      "manualEntry": "Manual entry"
-    },
-    "noValidData": "No valid vendor data found",
-    "noneImported": "No vendors were imported",
-    "name": "Name",
-    "thisVendor": "this vendor",
-    "updateSuccess": "Vendor updated successfully",
-    "updateError": "Failed to update vendor",
-    "namePlaceholder": "Enter vendor name",
-    "email": "Email",
-    "emailPlaceholder": "Enter email address",
-    "locale": "Locale",
-    "localePlaceholder": "e.g., en-US",
-    "filter": {
-      "source": {
-        "manual": "Manual import",
-        "upload": "File upload"
-      }
-    },
-    "import": {
-      "selectDataSource": "Please select a data source",
-      "provideData": "Please provide vendor data",
-      "success": "Import successful",
-      "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
-      "error": "Failed to import vendors",
-      "errorCodes": {
-        "duplicate_email": "A vendor with this email already exists",
-        "duplicate_external_id": "A vendor with this external ID already exists",
-        "unknown": "An unexpected error occurred"
-      }
-    },
-    "deleteConfirmation": "Are you sure you want to delete {name}?",
-    "deleteError": "Failed to delete vendor"
   },
   "websites": {
     "title": "Websites",

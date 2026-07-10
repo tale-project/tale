@@ -66,8 +66,11 @@ async function handleFormSubmit(request: Request): Promise<Response> {
   }
   if (!DISCORD_WEBHOOK_URL) {
     console.error('[forms] WEB_DISCORD_WEBHOOK_URL is not set');
+    // `not_configured` is a stable machine code — the client maps it to a
+    // distinct "form isn't set up on this deployment" message instead of the
+    // transient "try again later" (see lib/forms/submit-errors.ts).
     return Response.json(
-      { ok: false, error: 'Service not configured' },
+      { ok: false, error: 'not_configured' },
       { status: 503 },
     );
   }

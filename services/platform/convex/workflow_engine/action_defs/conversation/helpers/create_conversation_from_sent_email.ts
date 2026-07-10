@@ -9,10 +9,10 @@ import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH } from './constants';
-import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
+import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import { normalizeEmails } from './normalize_email';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
-import { customerEmailFromConversationMetadata } from './resolve_customer_email';
+import { contactEmailFromConversationMetadata } from './resolve_contact_email';
 import { resolveEmailConversationTarget } from './resolve_email_conversation_target';
 import type {
   EmailType,
@@ -184,7 +184,7 @@ export async function createConversationFromSentEmail(
         email.messageId,
         existingRootConversation._id,
       );
-      const customerEmail = customerEmailFromConversationMetadata(
+      const customerEmail = contactEmailFromConversationMetadata(
         existingRootConversation.metadata,
         existingRootConversation.direction,
       );
@@ -249,14 +249,14 @@ export async function createConversationFromSentEmail(
       ? 'inbound'
       : 'outbound';
 
-    const customerResult = await findOrCreateCustomerFromEmail(
+    const contactResult = await findOrCreateContactFromEmail(
       ctx,
       params.organizationId,
       email,
       rootDirection,
     );
 
-    if (!customerResult) {
+    if (!contactResult) {
       skippedCount++;
       continue;
     }
@@ -271,7 +271,7 @@ export async function createConversationFromSentEmail(
       internal.conversations.internal_mutations.createConversationWithMessage,
       {
         organizationId: params.organizationId,
-        customerId: customerResult.customerId,
+        contactId: contactResult.contactId,
         externalMessageId: normalizeExternalMessageId(email.messageId),
         subject: email.subject || '(no subject)',
         status: params.status ?? 'open',

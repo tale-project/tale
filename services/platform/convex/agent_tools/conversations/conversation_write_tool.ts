@@ -1,9 +1,9 @@
 /**
  * Convex Tool: Conversation Write
  *
- * Lets an agent reply into a customer conversation and update its status /
+ * Lets an agent reply into a contact conversation and update its status /
  * priority. Recording an outbound reply stores the message on the conversation;
- * actually transmitting it to the customer is a separate, approval-gated
+ * actually transmitting it to the contact is a separate, approval-gated
  * integration send — so this tool never sends email/SMS on its own.
  */
 
@@ -43,10 +43,10 @@ export const conversationWriteTool: ToolDefinition = {
   name: 'conversation_write',
   availability: 'any',
   tool: createTool({
-    description: `Reply into a customer conversation and update its status/priority.
+    description: `Reply into a contact conversation and update its status/priority.
 
 OPERATIONS:
-• 'reply': Record an outbound reply message on the conversation. (It is NOT transmitted to the customer here — sending is an approval-gated integration step.)
+• 'reply': Record an outbound reply message on the conversation. (It is NOT transmitted to the contact here — sending is an approval-gated integration step.)
 • 'update': Change a conversation's status (open/closed/archived/spam), priority, or subject.
 
 Use conversation_read first to read the thread and find the conversation id.`,

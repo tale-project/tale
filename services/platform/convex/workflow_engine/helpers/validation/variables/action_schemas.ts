@@ -43,12 +43,12 @@ type TypeSafeDocFields<T extends TableNames> = {
  * TypeScript will error if you try to define a field that doesn't exist on Doc<T>.
  *
  * @example
- * // This will type-check that 'name', 'email' are valid fields on Doc<'customers'>
- * const customerFields = createDocFields('customers', {
- *   _id: idField('customers'),
+ * // This will type-check that 'name', 'email' are valid fields on Doc<'contacts'>
+ * const contactFields = createDocFields('contacts', {
+ *   _id: idField('contacts'),
  *   name: { type: 'string', optional: true },
  *   email: { type: 'string', optional: true },
- *   invalidField: { type: 'string' }, // TS Error: 'invalidField' doesn't exist on Doc<'customers'>
+ *   invalidField: { type: 'string' }, // TS Error: 'invalidField' doesn't exist on Doc<'contacts'>
  * });
  */
 function createDocFields<T extends TableNames>(
@@ -209,40 +209,41 @@ const approvalSchemas: Record<string, OutputSchema> = {
 };
 
 // =============================================================================
-// CUSTOMER ACTION SCHEMAS (Constrained by Doc<'customers'>)
+// CONTACT ACTION SCHEMAS (Constrained by Doc<'contacts'>)
 // =============================================================================
 
 /**
- * Customer fields - type-checked against Doc<'customers'> schema.
+ * Contact fields - type-checked against Doc<'contacts'> schema.
  */
-const customerFields = createDocFields('customers', {
-  _id: idField('customers'),
+const contactFields = createDocFields('contacts', {
+  _id: idField('contacts'),
   _creationTime: { type: 'number' },
   organizationId: { type: 'string' },
   name: { type: 'string', optional: true },
   email: { type: 'string', optional: true },
+  phone: { type: 'string', optional: true },
   externalId: { type: 'string', optional: true },
-  status: { type: 'string', optional: true },
   source: { type: 'string' },
   locale: { type: 'string', optional: true },
-  address: { type: 'object', optional: true, description: 'Customer address' },
+  address: { type: 'object', optional: true, description: 'Contact address' },
   metadata: { type: 'any', optional: true },
+  notes: { type: 'string', optional: true },
 });
 
-const customerSchemas: Record<string, OutputSchema> = {
+const contactSchemas: Record<string, OutputSchema> = {
   create: {
-    description: 'Created customer document',
-    fields: customerFields,
+    description: 'Created contact document',
+    fields: contactFields,
   },
   filter: {
-    description: 'Array of filtered customers',
+    description: 'Array of filtered contacts',
     isArray: true,
-    items: { type: 'object', fields: customerFields },
+    items: { type: 'object', fields: contactFields },
   },
-  query: paginatedResultSchema('customers'),
+  query: paginatedResultSchema('contacts'),
   update: {
-    description: 'Updated customer document',
-    fields: customerFields,
+    description: 'Updated contact document',
+    fields: contactFields,
   },
 };
 
@@ -349,7 +350,7 @@ const conversationFields = createDocFields('conversations', {
   _id: idField('conversations'),
   _creationTime: { type: 'number' },
   organizationId: { type: 'string' },
-  customerId: { type: 'id', table: 'customers', optional: true },
+  contactId: { type: 'id', table: 'contacts', optional: true },
   externalMessageId: { type: 'string', optional: true },
   subject: { type: 'string', optional: true },
   status: {
@@ -632,7 +633,7 @@ const websiteSchemas: Record<string, OutputSchema> = {
  * Registry of output schemas for all action types
  *
  * Complete list of supported actions:
- * - customer: Customer CRUD operations
+ * - contact: Contact CRUD operations
  * - conversation: Conversation management
  * - product: Product operations and hydration
  * - document: Document management
@@ -649,7 +650,7 @@ const websiteSchemas: Record<string, OutputSchema> = {
 export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   product: productSchemas,
   approval: approvalSchemas,
-  customer: customerSchemas,
+  contact: contactSchemas,
   workflow_processing_records: workflowProcessingRecordsSchemas,
   integration_processing_records: integrationProcessingRecordsSchemas,
   set_variables: setVariablesSchemas,

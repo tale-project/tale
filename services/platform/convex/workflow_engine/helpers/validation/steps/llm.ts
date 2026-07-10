@@ -217,7 +217,7 @@ export function validateLlmStep(
     const tools = llmConfig.tools;
     if (!Array.isArray(tools)) {
       errors.push(
-        'LLM step "tools" must be an array of tool names. FIX: Use tools: ["customer_read", "product_read", ...]',
+        'LLM step "tools" must be an array of tool names. FIX: Use tools: ["contact_read", "product_read", ...]',
       );
     } else {
       const validToolNames = new Set<string>(TOOL_NAMES);

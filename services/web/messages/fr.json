@@ -45,9 +45,9 @@
       "title": "Qu’est-ce que la gouvernance dans Tale ?",
       "description": "Tale Governance retient les actions des agents sur des cartes d’approbation, écrit chaque décision au journal d’audit et filtre PII et contenus à risque dans les deux sens."
     },
-    "platformConversations": {
-      "title": "Que sont les Conversations dans Tale ?",
-      "description": "Tale Conversations garde fils partagés, historique et transferts au même endroit pour que les équipes reprennent le travail sans perdre le contexte."
+    "platformProjects": {
+      "title": "Que sont les Projets dans Tale ?",
+      "description": "Les Projets Tale réunissent chats, fichiers, instructions et tableau de tâches dans un espace de travail partagé — assigne une tâche à un agent et relis le résultat avant qu’il parte."
     },
     "changelog": {
       "title": "Quoi de neuf dans Tale ? — Changelog",
@@ -80,6 +80,10 @@
         "label": "Chat",
         "description": "IA du quotidien avec citations, outils et Arena."
       },
+      "projects": {
+        "label": "Projets",
+        "description": "Des espaces de travail partagés où les agents prennent des tâches."
+      },
       "automations": {
         "label": "Automations",
         "description": "Workflows typés avec déclencheurs et approbations."
@@ -91,10 +95,6 @@
       "governance": {
         "label": "Gouvernance",
         "description": "Approbations, journal d’audit et contrôle des dépenses."
-      },
-      "conversations": {
-        "label": "Conversations",
-        "description": "Fils partagés que ton équipe peut reprendre."
       }
     },
     "resource": {
@@ -736,6 +736,7 @@
     "errors": {
       "generic": "Quelque chose s’est mal passé. Réessaie.",
       "rateLimited": "Trop d’envois. Patiente un instant et réessaie.",
+      "notConfigured": "Cette installation n’a pas encore configuré l’envoi de formulaires — ton message n’a pas été envoyé. Contacte l’équipe par un autre canal.",
       "serverUnavailable": "Nous n’avons pas pu envoyer ton message pour le moment. Réessaie dans quelques minutes.",
       "tooFast": "Un instant — vérifie tes informations avant d’envoyer."
     },
@@ -1285,179 +1286,6 @@
       }
     }
   },
-  "platformConversations": {
-    "eyebrow": "Conversations",
-    "title": "Que sont les Conversations dans Tale ?",
-    "description": "Les Conversations sont les fils partagés que ton équipe reprend — historique, transferts et contexte qui survivent à une session pour que le travail ne reparte pas d’un composer vide.",
-    "capabilities": {
-      "heading": "Pourquoi les fils partagés comptent",
-      "description": "Des fils que toute ton équipe peut reprendre — avec historique, transferts et gouvernance qui suivent la conversation.",
-      "items": [
-        {
-          "title": "Reprendre où l’équipe s’est arrêtée",
-          "body": "Les fils partagés gardent la transcription disponible pour ceux qui ont besoin du contexte.",
-          "docsLabel": "Fils partagés"
-        },
-        {
-          "title": "Transferts sans copier-coller",
-          "body": "Passe un fil à un agent spécialiste ou un collègue sans perdre citations et historique d’outils.",
-          "docsLabel": "Agents dans Chat"
-        },
-        {
-          "title": "Historique consultable",
-          "body": "Ouvre Afficher l'historique pour lister chaque fil que tu peux reprendre — et cherche dans l’historique.",
-          "docsLabel": "Vue d’ensemble Chat"
-        },
-        {
-          "title": "La gouvernance reste attachée",
-          "body": "Les cartes d’approbation et leur état résolu restent dans la transcription comme trace de ce qui a été autorisé.",
-          "docsLabel": "Concepts approbation"
-        },
-        {
-          "title": "Projects quand le travail grandit",
-          "body": "Quand un fil devient un corps de travail suivi, Projects portent fichiers, agents et backlog à côté de la conversation.",
-          "docsLabel": "Vue d’ensemble Projects"
-        }
-      ]
-    },
-    "faq": {
-      "heading": "FAQ Conversations",
-      "items": [
-        {
-          "q": "Que sont les Conversations dans Tale ?",
-          "a": "Les Conversations Tale sont des fils de chat partagés que ton équipe peut reprendre, avec historique, transferts et traces d’approbation attachées."
-        },
-        {
-          "q": "En quoi est-ce différent de Chat ?",
-          "a": "Chat est la surface composer quotidienne. Conversations nomme la couche de fil durable partagé que les équipes transfèrent et reprennent."
-        },
-        {
-          "q": "Puis-je passer une conversation à un coéquipier ou à un autre agent ?",
-          "a": "Oui. Un fil partagé garde tout son historique, donc une personne ou un agent spécialiste peut le reprendre sans perdre le contexte — et la gouvernance reste attachée à chaque action."
-        },
-        {
-          "q": "Toute l’équipe voit-elle chaque conversation ?",
-          "a": "Non — les projets cloisonnent qui voit quoi. Un fil vit dans son espace de travail, et seuls les membres de cet espace peuvent le lire ou le reprendre."
-        }
-      ]
-    },
-    "docs": [
-      {
-        "label": "Fils partagés",
-        "path": "/platform/chat/shared-threads"
-      },
-      {
-        "label": "Vue d’ensemble Chat",
-        "path": "/platform/chat/overview"
-      },
-      {
-        "label": "Bases du Chat",
-        "path": "/platform/chat/basics"
-      },
-      {
-        "label": "Agents dans Chat",
-        "path": "/platform/chat/agents-in-chat"
-      },
-      {
-        "label": "Vue d’ensemble Projects",
-        "path": "/platform/projects/overview"
-      }
-    ],
-    "tour": {
-      "heading": "Comment fonctionnent les conversations partagées",
-      "description": "Compare les modèles, reprends des fils fondés, isole par projet et approuve les actions qui quittent le chat.",
-      "stages": [
-        {
-          "id": "arena",
-          "eyebrow": "Arena",
-          "title": "Compare les brouillons\navant de passer le relais",
-          "description": "Les fils partagés peuvent lancer le même prompt sur deux modèles — le prochain propriétaire choisit la meilleure réponse sans quitter la conversation."
-        },
-        {
-          "id": "projects",
-          "eyebrow": "Projets",
-          "title": "Les fils appartiennent\naux espaces de travail",
-          "description": "Les projets décident qui voit quels fils — les escalades support restent hors ingénierie."
-        },
-        {
-          "id": "govern",
-          "eyebrow": "Approbations",
-          "title": "Approuve depuis\nle fil",
-          "description": "Quand une conversation enverrait un mail ou changerait un système, la carte d’approbation arrive là où le travail est déjà."
-        },
-        {
-          "id": "knowledge",
-          "eyebrow": "Connaissances",
-          "title": "Ancre les réponses partagées\ndans les mêmes bibliothèques",
-          "description": "Tout le monde dans le fil voit les mêmes citations — pas de contexte privé que le prochain lecteur ne peut pas vérifier."
-        }
-      ]
-    },
-    "demos": {
-      "hero": {
-        "label": "Démo animée : un coéquipier rejoint un fil de pilote partagé et demande ce que le client a déjà validé ; l’agent récapitule les engagements avec les citations d’origine.",
-        "prompt": "J’arrive en cours de pilote — qu’est-ce qu’Acme a déjà approuvé dans ce fil ?",
-        "routedTitle": "Fil de pilote partagé repris",
-        "routedDetail": "L’agent Pilote a gardé l’historique, les sources et les outils.",
-        "reply1": "Acme a signé le scope Basel 40 sièges et le chemin d’install air-gap.",
-        "reply2": "Le dimensionnement hardware de l’image appliance est encore ouvert chez leur IT.",
-        "reply3": "Le deck QBR est dû jeudi ; Legal a validé les redlines MSA hier,",
-        "reply4": "donc le seul bloqueur restant est leur allow-list VPN pour le registry.",
-        "citation1": "acme-pilot-msa.pdf",
-        "citation2": "Fiche de scope Basel",
-        "composerAgentRouted": "Agent Pilote",
-        "composerModel": "Claude Opus"
-      },
-      "govern": {
-        "label": "Démo animée : dans le fil de pilote partagé, l’envoi du deck QBR à Acme s’arrête sur une carte d’approbation jusqu’à la décision du nouveau propriétaire.",
-        "approvalTitle": "Envoyer le deck QBR à la liste de pilotage Acme ?",
-        "requester": "Pilote partagé · Agent Pilote",
-        "audit1": "Approuvé par jordan@nordwind.eu",
-        "audit2": "Deck envoyé via Outlook",
-        "audit3": "Décision enregistrée dans le journal du pilote",
-        "budgetValue": "CHF 90 / 400"
-      },
-      "projects": {
-        "label": "Démo animée : projets qui décident quels membres voient quels fils de pilote et de passation partagés.",
-        "project1": "Pilote Acme Basel",
-        "agents1": "3 agents",
-        "members1": "6",
-        "project2": "Passations partenaires",
-        "agents2": "2 agents",
-        "members2": "5",
-        "project3": "Salle QBR",
-        "agents3": "2 agents",
-        "members3": "4",
-        "project4": "Redlines Legal",
-        "agents4": "1 agent",
-        "members4": "3"
-      },
-      "knowledge": {
-        "label": "Démo animée : bibliothèques de pilote partagées que tout le monde dans le fil peut ouvrir — MSA, fiche de scope, runbook VPN et modèle QBR.",
-        "source1": "acme-pilot-msa.pdf",
-        "sourceType1": "pdf",
-        "source2": "Fiche de scope Basel",
-        "sourceType2": "entry",
-        "source3": "vpn-allowlist-runbook.pdf",
-        "sourceType3": "pdf",
-        "source4": "Modèle QBR",
-        "sourceType4": "entry"
-      },
-      "arena": {
-        "label": "Démo animée : dans le fil de pilote partagé, Arena rédige deux fois la même mise à jour QBR pour que le nouveau propriétaire choisisse la version la plus claire.",
-        "prompt": "Rédige la mise à jour QBR de demain pour le comité de pilotage Acme.",
-        "agent": "Agent Pilote",
-        "modelA": "Claude Opus",
-        "modelB": "GPT-5.5",
-        "replyA1": "Ouvre avec le scope signé et les redlines MSA validées.",
-        "replyA2": "Signale l’allow-list VPN comme seul bloqueur ouvert.",
-        "replyA3": "Ferme avec le propriétaire du deck jeudi et la demande à l’IT.",
-        "replyB1": "Ouvre avec le progrès depuis la semaine dernière, puis le bloqueur.",
-        "replyB2": "Garde la date du jeudi et nomme le propriétaire de l’allow-list.",
-        "replyB3": "Propose une session IT de 15 minutes si la liste glisse."
-      }
-    }
-  },
   "platformGovernance": {
     "eyebrow": "Gouvernance",
     "title": "Qu’est-ce que la gouvernance dans Tale ?",
@@ -1698,7 +1526,7 @@
         },
         {
           "q": "Quels modules Tale inclut-il ?",
-          "a": "Chat, Agents, Knowledge, Automations, Conversations et Governance — plus les Projets qui isolent le travail par équipe."
+          "a": "Chat, Projets, Knowledge, Agents, Automations et Governance — les Projets isolent le travail, les fichiers et les agents par équipe."
         },
         {
           "q": "Tale est-il open source ?",
@@ -1980,6 +1808,188 @@
         "project4": "Wiki ingénierie",
         "agents4": "4 agents",
         "members4": "12"
+      }
+    }
+  },
+  "platformProjects": {
+    "eyebrow": "Projets",
+    "title": "Que sont les Projets dans Tale ?",
+    "description": "Les projets sont des espaces de travail partagés qui réunissent les chats, les fichiers, les instructions et le tableau de tâches d’un même travail — le contexte suit le travail, et les agents reprennent les tâches là où ton équipe les laisse.",
+    "capabilities": {
+      "heading": "Un espace de travail par sujet",
+      "description": "Un projet garde tout ce qu’un client, un lancement ou une enquête demande au même endroit — et y met les agents au travail.",
+      "items": [
+        {
+          "title": "Un contexte qui suit le travail",
+          "body": "Chats, fichiers, instructions et discussions vivent dans les onglets du projet — personne ne recolle le contexte dans un composer vide.",
+          "docsLabel": "Vue d’ensemble des projets"
+        },
+        {
+          "title": "Un tableau d’où les agents travaillent",
+          "body": "Assigne une carte à un agent et le pack task-ops l’exécute — triage, exécution, revue et escalade compris.",
+          "docsLabel": "Automatisation des tâches"
+        },
+        {
+          "title": "Un backlog trié par des humains",
+          "body": "Les automatisations proposent du travail ; quelqu’un lance ce qui en vaut la peine et ferme le reste. Rien ne tourne sans validation.",
+          "docsLabel": "Backlog du projet"
+        },
+        {
+          "title": "Des fichiers qui restent dans le projet",
+          "body": "L’onglet Connaissances tient l’arborescence du projet — indexée pour la recherche dans le projet, invisible en dehors.",
+          "docsLabel": "Gérer les fichiers"
+        },
+        {
+          "title": "Les bons agents sous la main",
+          "body": "Choisis quels agents et modèles les membres voient dans le projet — le spécialiste recommandé est à un clic.",
+          "docsLabel": "Agents et modèles"
+        }
+      ]
+    },
+    "faq": {
+      "heading": "FAQ Projets",
+      "items": [
+        {
+          "q": "Qu’est-ce qu’un projet dans Tale ?",
+          "a": "Un espace de travail partagé qui réunit chats, fichiers, instructions, tâches et discussions autour d’un même travail — un client, un lancement, une enquête — pour que le contexte reste avec le travail."
+        },
+        {
+          "q": "Comment les agents traitent-ils les tâches d’un projet ?",
+          "a": "Assigner une tâche du tableau à un agent lance la boucle task-ops : l’agent exécute, une revue humaine contrôle le résultat, et budgets, limites de simultanéité et arrêt d’urgence gardent les exécutions dans les garde-fous."
+        },
+        {
+          "q": "Qui voit les chats et fichiers d’un projet ?",
+          "a": "Seulement les membres du projet. Chats, fichiers et fils restent dans leur espace de travail — les escalades support ne débordent pas sur l’ingénierie."
+        },
+        {
+          "q": "Quelle différence entre un projet et un chat ?",
+          "a": "Un chat répond à une question puis s’arrête. Un projet porte un travail qui dure : historique partagé, tableau de tâches, instructions valables pour chaque chat, et fichiers que les agents peuvent citer."
+        }
+      ]
+    },
+    "docs": [
+      {
+        "label": "Vue d’ensemble des projets",
+        "path": "/platform/projects/overview"
+      },
+      {
+        "label": "Concepts des projets",
+        "path": "/platform/projects/concepts"
+      },
+      {
+        "label": "Automatisation des tâches",
+        "path": "/platform/projects/task-automation"
+      },
+      {
+        "label": "Backlog du projet",
+        "path": "/platform/projects/backlog"
+      },
+      {
+        "label": "Gérer les fichiers",
+        "path": "/platform/projects/manage-files"
+      },
+      {
+        "label": "Agents et modèles",
+        "path": "/platform/projects/project-agents"
+      }
+    ],
+    "tour": {
+      "heading": "Comment un projet fait avancer le travail",
+      "description": "Assigne une tâche à un agent, reprends le chat du projet avec son contexte, appuie les réponses sur les fichiers du projet — et garde ce qui sort derrière une revue.",
+      "stages": [
+        {
+          "id": "tasks",
+          "eyebrow": "Tâches",
+          "title": "Assigne une carte,\nun agent la prend",
+          "description": "Assigner une tâche du tableau à un agent lance la boucle task-ops — exécution, contrôles et escalade tournent sur des workflows que ton organisation possède et règle."
+        },
+        {
+          "id": "chat",
+          "eyebrow": "Chats",
+          "title": "Chaque chat démarre\navec le contexte",
+          "description": "Les instructions et fichiers du projet accompagnent chaque fil — un nouveau chat reprend la refonte là où le précédent s’est arrêté."
+        },
+        {
+          "id": "knowledge",
+          "eyebrow": "Connaissances",
+          "title": "Des fichiers qui restent\ndans le projet",
+          "description": "L’onglet Connaissances garde l’arborescence du projet indexée pour la recherche — citée dans les chats du projet, invisible en dehors."
+        },
+        {
+          "id": "govern",
+          "eyebrow": "Revue",
+          "title": "Rien ne part\nsans décision",
+          "description": "Quand une tâche publierait ou enverrait quelque chose, la carte d’approbation arrive chez le responsable du projet — et la décision reste dans la piste d’audit."
+        }
+      ]
+    },
+    "demos": {
+      "projects": {
+        "label": "Démo animée : la liste des projets — chaque espace de travail partagé avec ses agents et ses membres.",
+        "project1": "Refonte du site web",
+        "agents1": "3 agents",
+        "members1": "7",
+        "project2": "Onboarding Acme",
+        "agents2": "2 agents",
+        "members2": "5",
+        "project3": "Refonte des prix",
+        "agents3": "2 agents",
+        "members3": "4",
+        "project4": "Escalades support",
+        "agents4": "1 agent",
+        "members4": "6"
+      },
+      "automation": {
+        "label": "Démo animée : une tâche du tableau assignée à un agent traverse la boucle task-ops et se termine par une demande de revue.",
+        "trigger": "Tâche assignée à l’agent",
+        "llm": "Rédiger le guide de migration",
+        "condition": "Checklist validée ?",
+        "branchYes": "Oui",
+        "action": "Demander une revue",
+        "actionAlt": "Escalader au responsable",
+        "run1": "#214",
+        "runTone1": "done",
+        "duration1": "48s",
+        "run2": "#215",
+        "runTone2": "pending",
+        "duration2": "—",
+        "run3": "#216",
+        "runTone3": "running",
+        "duration3": "12s"
+      },
+      "hero": {
+        "label": "Démo animée : un chat de projet reprend la refonte du site avec les instructions et fichiers du projet en contexte ; l’agent répond avec des citations.",
+        "prompt": "Que reste-t-il avant la mise en ligne de la refonte ?",
+        "routedTitle": "Refonte du site · chat de projet",
+        "routedDetail": "L’Agent Refonte charge les instructions et fichiers du projet.",
+        "reply1": "Deux tâches du tableau sont ouvertes : la revue du plan de redirections et le texte de la page tarifs.",
+        "reply2": "La checklist de lancement demande une passe de staging quand les deux seront fermées.",
+        "reply3": "La bascule DNS est calée avec l’IT jeudi à 06h00,",
+        "reply4": "le seul risque ouvert est donc la redirection /docs non testée.",
+        "citation1": "checklist-lancement.pdf",
+        "citation2": "Plan de redirections",
+        "composerAgentRouted": "Agent Refonte",
+        "composerModel": "Claude Opus"
+      },
+      "knowledge": {
+        "label": "Démo animée : l’onglet Connaissances du projet — charte graphique, crawl du site actuel, plan de redirections et checklist de lancement.",
+        "source1": "charte-graphique.pdf",
+        "sourceType1": "pdf",
+        "source2": "Crawl du site actuel",
+        "sourceType2": "website",
+        "source3": "Plan de redirections",
+        "sourceType3": "entry",
+        "source4": "checklist-lancement.pdf",
+        "sourceType4": "pdf"
+      },
+      "govern": {
+        "label": "Démo animée : publier la nouvelle page tarifs s’arrête sur une carte d’approbation jusqu’à la décision du responsable du projet.",
+        "approvalTitle": "Publier la nouvelle page tarifs en production ?",
+        "requester": "Refonte du site · Agent Refonte",
+        "audit1": "Approuvé par mira@nordwind.eu",
+        "audit2": "Page tarifs publiée",
+        "audit3": "Tâche #212 fermée sur le tableau",
+        "budgetValue": "CHF 120 / 400"
       }
     }
   },

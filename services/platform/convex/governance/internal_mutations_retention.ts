@@ -563,9 +563,9 @@ export const deleteExpiredTwoFactorAttempt = internalMutation({
   },
 });
 
-export const deleteExpiredCustomer = internalMutation({
+export const deleteExpiredContact = internalMutation({
   args: {
-    rowId: v.id('customers'),
+    rowId: v.id('contacts'),
     organizationId: v.string(),
     cutoffMs: v.optional(v.number()),
   },
@@ -581,7 +581,7 @@ export const deleteExpiredCustomer = internalMutation({
     });
     if (!guard.proceed) {
       console.info(
-        `[RetentionCleanup] skipping deleteExpiredCustomer(${String(args.rowId)}): ${guard.reason}`,
+        `[RetentionCleanup] skipping deleteExpiredContact(${String(args.rowId)}): ${guard.reason}`,
       );
       return null;
     }
@@ -591,48 +591,9 @@ export const deleteExpiredCustomer = internalMutation({
       actorId: 'system',
       actorEmail: 'system@tale.so',
       actorType: 'system',
-      action: 'customer.retention_deleted',
+      action: 'contact.retention_deleted',
       category: 'data',
-      resourceType: 'customer',
-      resourceId: String(args.rowId),
-      resourceName: row.name ?? row.email ?? 'Untitled',
-      status: 'success',
-    });
-    return null;
-  },
-});
-
-export const deleteExpiredVendor = internalMutation({
-  args: {
-    rowId: v.id('vendors'),
-    organizationId: v.string(),
-    cutoffMs: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.rowId);
-    if (!row) return null;
-    const guard = await assertSafeRetentionDelete(ctx, {
-      rowOrganizationId: row.organizationId,
-      expectedOrganizationId: args.organizationId,
-      rowEffectiveMs: row._creationTime,
-      cutoffMs: args.cutoffMs,
-    });
-    if (!guard.proceed) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredVendor(${String(args.rowId)}): ${guard.reason}`,
-      );
-      return null;
-    }
-    await ctx.db.delete(args.rowId);
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: 'system',
-      actorEmail: 'system@tale.so',
-      actorType: 'system',
-      action: 'vendor.retention_deleted',
-      category: 'data',
-      resourceType: 'vendor',
+      resourceType: 'contact',
       resourceId: String(args.rowId),
       resourceName: row.name ?? row.email ?? 'Untitled',
       status: 'success',

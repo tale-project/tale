@@ -173,10 +173,10 @@ const ConversationRow = memo(function ConversationRow({
 }: ConversationRowProps) {
   const { t: tCommon } = useT('common');
 
-  // Localized fallback for a name-less customer. The backend now returns an
-  // undefined name (instead of a hardcoded "Unknown Customer"), so the label is
+  // Localized fallback for a name-less contact. The backend now returns an
+  // undefined name (instead of a hardcoded "Unknown Contact"), so the label is
   // translated here per locale.
-  const unknownCustomer = t ? t('unknownCustomer') : '';
+  const unknownContact = t ? t('unknownContact') : '';
 
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     if (typeof checked === 'boolean' && conversation) {
@@ -209,12 +209,10 @@ const ConversationRow = memo(function ConversationRow({
         aria-pressed={isSelected}
         // Derive the accessible name from the conversation subject first so
         // rows stay distinguishable to screen readers even when several share
-        // the same (or no) customer name.
+        // the same (or no) contact name.
         aria-label={
           conversation
-            ? conversation.title ||
-              conversation.customer?.name ||
-              unknownCustomer
+            ? conversation.title || conversation.contact?.name || unknownContact
             : undefined
         }
         className="absolute inset-0 z-0"
@@ -243,9 +241,9 @@ const ConversationRow = memo(function ConversationRow({
               >
                 <SkeletonBox>
                   {conversation
-                    ? conversation.customer?.name ||
+                    ? conversation.contact?.name ||
                       conversation?.title ||
-                      unknownCustomer
+                      unknownContact
                     : 'Conversation name'}
                 </SkeletonBox>
               </Heading>

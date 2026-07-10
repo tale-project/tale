@@ -15,7 +15,7 @@ import {
 export const createConversation = internalMutation({
   args: {
     organizationId: v.string(),
-    customerId: v.optional(v.id('customers')),
+    contactId: v.optional(v.id('contacts')),
     externalMessageId: v.optional(v.string()),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
@@ -37,7 +37,7 @@ export const createConversation = internalMutation({
 export const createConversationWithMessage = internalMutation({
   args: {
     organizationId: v.string(),
-    customerId: v.optional(v.id('customers')),
+    contactId: v.optional(v.id('contacts')),
     externalMessageId: v.optional(v.string()),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
@@ -80,7 +80,7 @@ export const updateConversations = internalMutation({
     priority: v.optional(conversationPriorityValidator),
 
     updates: v.object({
-      customerId: v.optional(v.id('customers')),
+      contactId: v.optional(v.id('contacts')),
       subject: v.optional(v.string()),
       status: v.optional(conversationStatusValidator),
       priority: v.optional(conversationPriorityValidator),

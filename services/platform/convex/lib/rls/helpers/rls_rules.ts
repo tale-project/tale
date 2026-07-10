@@ -193,59 +193,31 @@ export async function rlsRules(
       },
     },
 
-    // Customers - organization-scoped
-    customers: {
-      read: async (_, customer) => {
+    // Contacts - organization-scoped
+    contacts: {
+      read: async (_, contact) => {
         if (!user) return false;
-        if (!userOrgIds.has(customer.organizationId)) return false;
+        if (!userOrgIds.has(contact.organizationId)) return false;
         const membership = userOrganizations.find(
-          (m) => m.organizationId === customer.organizationId,
+          (m) => m.organizationId === contact.organizationId,
         );
-        return authorizeRls(membership?.role, 'customers', 'read');
+        return authorizeRls(membership?.role, 'contacts', 'read');
       },
-      modify: async (_, customer) => {
+      modify: async (_, contact) => {
         if (!user) return false;
-        if (!userOrgIds.has(customer.organizationId)) return false;
+        if (!userOrgIds.has(contact.organizationId)) return false;
         const membership = userOrganizations.find(
-          (m) => m.organizationId === customer.organizationId,
+          (m) => m.organizationId === contact.organizationId,
         );
-        return authorizeRls(membership?.role, 'customers', 'write');
+        return authorizeRls(membership?.role, 'contacts', 'write');
       },
-      insert: async ({ user: ruleUser }, customer) => {
+      insert: async ({ user: ruleUser }, contact) => {
         if (!ruleUser) return false;
-        if (!userOrgIds.has(customer.organizationId)) return false;
+        if (!userOrgIds.has(contact.organizationId)) return false;
         const membership = userOrganizations.find(
-          (m) => m.organizationId === customer.organizationId,
+          (m) => m.organizationId === contact.organizationId,
         );
-        return authorizeRls(membership?.role, 'customers', 'write');
-      },
-    },
-
-    // Vendors - organization-scoped
-    vendors: {
-      read: async (_, vendor) => {
-        if (!user) return false;
-        if (!userOrgIds.has(vendor.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === vendor.organizationId,
-        );
-        return authorizeRls(membership?.role, 'vendors', 'read');
-      },
-      modify: async (_, vendor) => {
-        if (!user) return false;
-        if (!userOrgIds.has(vendor.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === vendor.organizationId,
-        );
-        return authorizeRls(membership?.role, 'vendors', 'write');
-      },
-      insert: async ({ user: ruleUser }, vendor) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(vendor.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === vendor.organizationId,
-        );
-        return authorizeRls(membership?.role, 'vendors', 'write');
+        return authorizeRls(membership?.role, 'contacts', 'write');
       },
     },
 

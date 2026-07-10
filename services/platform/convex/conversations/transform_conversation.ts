@@ -7,7 +7,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { getPendingApprovalForResource } from '../approvals/helpers';
 import { createDebugLog } from '../lib/debug_log';
-import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
+import type { ConversationItem, ContactInfo, MessageInfo } from './types';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 
@@ -21,32 +21,31 @@ export async function transformConversation(
   conversation: Doc<'conversations'>,
   options?: {
     includeAllMessages?: boolean;
-    // When a caller has batch-fetched customers for a page (see
-    // get_customers_by_ids), it passes the resolved customer (or null) here to
+    // When a caller has batch-fetched contacts for a page (see
+    // get_contacts_by_ids), it passes the resolved contact (or null) here to
     // avoid a per-conversation `ctx.db.get` N+1. Absent → self-fetch (default
     // for single-conversation callers).
-    customer?: Doc<'customers'> | null;
+    contact?: Doc<'contacts'> | null;
   },
 ): Promise<ConversationItem> {
   const includeAllMessages = options?.includeAllMessages ?? false;
-  const customerPrefetched = options !== undefined && 'customer' in options;
-  // Only trust a prefetched customer that actually belongs to this conversation
-  // (guards against a caller mapping the wrong customer); a prefetched `null` is
-  // trusted as "no customer". Anything else falls back to a direct fetch.
-  const prefetched = customerPrefetched
-    ? (options.customer ?? null)
-    : undefined;
+  const contactPrefetched = options !== undefined && 'contact' in options;
+  // Only trust a prefetched contact that actually belongs to this conversation
+  // (guards against a caller mapping the wrong contact); a prefetched `null` is
+  // trusted as "no contact". Anything else falls back to a direct fetch.
+  const prefetched = contactPrefetched ? (options.contact ?? null) : undefined;
   const prefetchUsable =
     prefetched === undefined ||
     prefetched === null ||
-    prefetched._id === conversation.customerId;
+    prefetched._id === conversation.contactId;
 
-  // Load customer and messages in parallel
-  const [customerDoc, messageDocs] = await Promise.all([
-    customerPrefetched && prefetchUsable
+  // Load contact and messages in parallel. The contact (issue #2618) is the
+  // sole link to the person on the conversation.
+  const [contactDoc, messageDocs] = await Promise.all([
+    contactPrefetched && prefetchUsable
       ? Promise.resolve(prefetched ?? null)
-      : conversation.customerId
-        ? ctx.db.get(conversation.customerId)
+      : conversation.contactId
+        ? ctx.db.get(conversation.contactId)
         : Promise.resolve(null),
     (async () => {
       if (includeAllMessages) {
@@ -73,28 +72,25 @@ export async function transformConversation(
     })(),
   ]);
 
-  // Build customer info from fetched data. A missing name is left undefined so
-  // the client can render a localized fallback (e.g. conversations.unknownCustomer)
+  // Build contact info from fetched data. A missing name is left undefined so
+  // the client can render a localized fallback (e.g. conversations.unknownContact)
   // instead of a hardcoded, untranslatable English string.
-  let customer: CustomerInfo = {
-    id: conversation.customerId || 'unknown',
+  let contact: ContactInfo = {
+    id: conversation.contactId ?? 'unknown',
     email: 'unknown@example.com',
     locale: 'en',
-    status: 'active',
     source: 'unknown',
     created_at: new Date(conversation._creationTime).toISOString(),
   };
 
-  if (customerDoc) {
-    const custMeta = customerDoc.metadata ?? {};
-    customer = {
-      id: customerDoc._id,
-      name: customerDoc.name || undefined,
-      email: customerDoc.email || 'unknown@example.com',
-      locale: typeof custMeta.locale === 'string' ? custMeta.locale : 'en',
-      status: typeof custMeta.status === 'string' ? custMeta.status : 'active',
-      source: typeof custMeta.source === 'string' ? custMeta.source : 'unknown',
-      created_at: new Date(customerDoc._creationTime).toISOString(),
+  if (contactDoc) {
+    contact = {
+      id: contactDoc._id,
+      name: contactDoc.name || undefined,
+      email: contactDoc.email || 'unknown@example.com',
+      locale: contactDoc.locale || 'en',
+      source: contactDoc.source || 'unknown',
+      created_at: new Date(contactDoc._creationTime).toISOString(),
     };
   }
 
@@ -181,9 +177,15 @@ export async function transformConversation(
   });
 
   // Base result conforming to ConversationItem type
-  // Cast needed: Doc<'conversations'> has branded Id<> types while ConversationItem expects plain strings
+  // Cast needed: Doc<'conversations'> has branded Id<> types while ConversationItem expects plain strings.
+  // `customerId` is a deprecated, storage-only field (issue #2618,
+  // expand-contract) retained so existing rows validate on read — strip it here
+  // so it never leaks into the ConversationItem API shape, which is keyed on
+  // `contactId` (the returns validator has no `customerId`).
+  const { customerId: _deprecatedCustomerId, ...conversationFields } =
+    conversation;
   const result = {
-    ...conversation,
+    ...conversationFields,
     id: conversation._id,
     title: conversation.subject || 'Untitled Conversation',
     description:
@@ -195,7 +197,7 @@ export async function transformConversation(
       (typeof metadata.channel === 'string' ? metadata.channel : undefined) ||
       'Email',
     type: conversation.type || 'General',
-    customer_id: conversation.customerId || 'unknown',
+    contact_id: conversation.contactId ?? 'unknown',
     business_id: conversation.organizationId,
     message_count: messages.length,
     unread_count:
@@ -219,17 +221,17 @@ export async function transformConversation(
         : undefined,
     created_at: new Date(conversation._creationTime).toISOString(),
     updated_at: new Date(conversation._creationTime).toISOString(),
-    customer,
+    contact,
     messages,
     pendingApproval: pendingApproval || undefined,
     // Flat single-level fields for the ConversationList block's item map —
-    // it reads row fields one level deep, so the nested customer/message
+    // it reads row fields one level deep, so the nested contact/message
     // data is surfaced here. `senderName` mirrors the old inbox row's
-    // heading source (the customer's name; the block falls back to the
+    // heading source (the contact's name; the block falls back to the
     // title client-side). `lastMessagePreview` is the latest message's RAW
     // content — the block strips HTML client-side — capped so rows stay
     // light. Both derive from data already loaded above: no extra reads.
-    senderName: customer.name,
+    senderName: contact.name,
     lastMessagePreview:
       messages.length > 0
         ? messages[messages.length - 1].content.slice(

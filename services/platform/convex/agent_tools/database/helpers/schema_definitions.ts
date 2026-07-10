@@ -14,7 +14,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
   conversations: {
     tableName: 'conversations',
     description:
-      'Customer conversations from various channels (email, chat, etc.)',
+      'Contact conversations from various channels (email, chat, etc.)',
     filterableFields: [
       {
         field: 'status',
@@ -63,15 +63,11 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
     ],
   },
 
-  customers: {
-    tableName: 'customers',
-    description: 'Customer profiles with contact info and status',
+  contacts: {
+    tableName: 'contacts',
+    description:
+      'Contact profiles (customers, leads, vendors/suppliers) with contact info',
     filterableFields: [
-      {
-        field: 'status',
-        type: 'enum',
-        values: ['active', 'churned', 'potential'],
-      },
       {
         field: 'source',
         type: 'string',
@@ -80,19 +76,32 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       {
         field: 'locale',
         type: 'string',
-        note: 'Customer locale/language (e.g., "en", "de", "fr")',
+        note: 'Contact locale/language (e.g., "en", "de", "fr")',
+      },
+      {
+        field: 'phone',
+        type: 'string',
+        note: 'Contact phone number',
+      },
+      {
+        field: 'tags',
+        type: 'array',
+        note: 'Free-form labels. Use contains() to match a single tag.',
+      },
+      {
+        field: 'notes',
+        type: 'string',
+        note: 'Free-form notes about the contact',
       },
       {
         field: '_creationTime',
         type: 'datetime',
-        note: 'When the customer was created. Use with daysAgo() transform.',
+        note: 'When the contact was created. Use with daysAgo() transform.',
       },
     ],
     examples: [
-      'status == "active"',
-      'status == "churned"',
-      'status == "potential"',
       'source == "shopify"',
+      'locale == "en"',
       'daysAgo(_creationTime) < 30',
     ],
   },

@@ -934,7 +934,7 @@
       }
     },
     "tools": {
-      "customerRead": "Données client",
+      "contactRead": "Données de contact",
       "productRead": "Catalogue produits",
       "ragSearch": "Base de connaissances",
       "knowledgeWrite": "Entrée de connaissances",
@@ -948,12 +948,10 @@
       "saveWorkflowDefinition": "Enregistrer le workflow",
       "validateWorkflowDefinition": "Valider le workflow",
       "excel": "Fichier Excel",
-      "customerWrite": "Modifier le client",
+      "contactWrite": "Modifier le contact",
       "productWrite": "Modifier le produit",
       "websiteRead": "Lire le site",
       "websiteWrite": "Modifier le site",
-      "vendorRead": "Lire le fournisseur",
-      "vendorWrite": "Modifier le fournisseur",
       "conversationRead": "Lire la conversation",
       "conversationWrite": "Répondre à la conversation",
       "discussionRead": "Lire la discussion",
@@ -1731,9 +1729,6 @@
       "statusSkipped": "Ignorée"
     },
     "labels": {
-      "name": "Nom",
-      "email": "Courriel",
-      "status": "Statut",
       "phone": "Téléphone",
       "source": "Source",
       "locale": "Langue",
@@ -1933,7 +1928,7 @@
   },
   "conversations": {
     "title": "Boîte de réception",
-    "unknownCustomer": "Client inconnu",
+    "unknownContact": "Contact inconnu",
     "messagePlaceholder": "Saisis un message",
     "searchPlaceholder": "Rechercher dans les conversations",
     "suggestEditsPlaceholder": "Suggère des modifications au texte (optionnel)",
@@ -1990,7 +1985,7 @@
     },
     "header": {
       "moreActions": "Plus d'actions",
-      "customerInfo": "Informations client",
+      "contactInfo": "Informations contact",
       "closeConversation": "Fermer la conversation",
       "closing": "Fermeture...",
       "reopenConversation": "Rouvrir la conversation",
@@ -2032,7 +2027,7 @@
       "noMessages": "Aucun message pour l'instant",
       "invalidFileAttachment": "Pièce jointe de fichier invalide",
       "defaultSubject": "Re : Conversation",
-      "customerEmailNotFound": "Impossible d'envoyer l'email : adresse email du client introuvable",
+      "contactEmailNotFound": "Impossible d'envoyer l'email : adresse email du contact introuvable",
       "replySubjectPrefix": "Re : {subject}",
       "loadFailed": "Échec du chargement de la conversation",
       "loadFailedDescription": "Une erreur s'est produite lors du chargement de cette conversation.",
@@ -2078,64 +2073,58 @@
       "medium": "Moyenne"
     }
   },
-  "customers": {
-    "title": "Clients",
-    "searchPlaceholder": "Rechercher des clients",
+  "contacts": {
+    "title": "Contacts",
+    "searchPlaceholder": "Rechercher des contacts",
     "filter": {
       "source": {
         "manual": "Manuel",
         "upload": "Téléversement"
-      },
-      "status": {
-        "active": "Actif",
-        "potential": "Potentiel",
-        "churned": "Résilié"
       }
     },
     "importForm": {
       "manualEntry": "Saisie manuelle",
       "upload": "Téléversement",
-      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un client par ligne.",
+      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un contact par ligne.",
       "localeHint": "La locale peut être n'importe quelle balise BCP 47 valide (ex. en, en-US, de-DE, zh-Hans).",
-      "statusNote": "Les clients importés sont marqués comme (Actif)",
       "expectedColumns": "Colonnes attendues : email, name, locale"
     },
-    "editCustomer": "Modifier le client",
-    "deleteCustomer": "Supprimer le client",
+    "editContact": "Modifier le contact",
+    "deleteContact": "Supprimer le contact",
     "importMenu": {
-      "importCustomers": "Importer des clients",
+      "importContacts": "Importer des contacts",
       "fromDevice": "Depuis ton appareil",
       "manualEntry": "Saisie manuelle"
     },
-    "thisCustomer": "ce client",
-    "updateSuccess": "Client mis à jour avec succès",
-    "updateError": "Échec de la mise à jour du client",
+    "thisContact": "ce contact",
+    "updateSuccess": "Contact mis à jour avec succès",
+    "updateError": "Échec de la mise à jour du contact",
     "name": "Nom",
-    "namePlaceholder": "Saisir le nom du client",
+    "namePlaceholder": "Saisir le nom du contact",
     "email": "Courriel",
     "emailPlaceholder": "Saisir l'adresse email",
     "locale": "Langue",
     "localePlaceholder": "ex. en-US",
-    "status": "Statut",
+    "phone": "Téléphone",
     "import": {
       "selectDataSource": "Sélectionne une source de données",
       "provideData": "Fournis des données",
-      "noValidData": "Aucune donnée client valide trouvée",
+      "noValidData": "Aucune donnée de contact valide trouvée",
       "success": "Importation réussie",
-      "successDescription": "Importation réussie de {success} clients{failed, select, 0 {} other {, {failed} échoué(s)}}",
-      "noneImported": "Aucun client n'a été importé",
+      "successDescription": "Importation réussie de {success} contacts{failed, select, 0 {} other {, {failed} échoué(s)}}",
+      "noneImported": "Aucun contact n'a été importé",
       "error": "Erreur d'importation",
-      "addCustomers": "Ajouter des clients",
-      "uploadCustomers": "Téléverser des clients",
+      "addContacts": "Ajouter des contacts",
+      "uploadContacts": "Téléverser des contacts",
       "import": "Importer",
       "errorCodes": {
-        "duplicate_email": "Un client avec cette adresse email existe déjà",
-        "duplicate_external_id": "Un client avec cet identifiant externe existe déjà",
+        "duplicate_email": "Un contact avec cette adresse email existe déjà",
+        "duplicate_external_id": "Un contact avec cet identifiant externe existe déjà",
         "unknown": "Une erreur inattendue s'est produite"
       }
     },
     "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
-    "deleteError": "Échec de la suppression du client",
+    "deleteError": "Échec de la suppression du contact",
     "deleteWarning": "Cette action est irréversible."
   },
   "dataNotice": {
@@ -2164,11 +2153,8 @@
     "thisMember": "ce membre",
     "confirmRemoveMember": "Es-tu sûr de vouloir retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.",
     "toSend": "pour envoyer",
-    "vendorInfo": {
-      "title": "Informations sur le fournisseur"
-    },
-    "customerInfo": {
-      "title": "Détails du client"
+    "contactInfo": {
+      "title": "Détails du contact"
     }
   },
   "documentWriteApproval": {
@@ -2522,17 +2508,13 @@
       "title": "Aucun fournisseur configuré",
       "description": "Ajoute un fournisseur LLM pour commencer à utiliser les fonctionnalités IA"
     },
-    "customers": {
-      "title": "Aucun client pour l'instant",
-      "description": "Téléverse ton premier client pour commencer"
+    "contacts": {
+      "title": "Aucun contact pour l'instant",
+      "description": "Téléverse ton premier contact pour commencer"
     },
     "products": {
       "title": "Aucun produit pour l'instant",
       "description": "Importe tes produits pour aider ton IA à comprendre le contexte"
-    },
-    "vendors": {
-      "title": "Aucun fournisseur pour l'instant",
-      "description": "Téléverse ton premier fournisseur pour commencer"
     },
     "websites": {
       "title": "Aucun site web pour l'instant",
@@ -2773,13 +2755,9 @@
         "title": "Journal d'audit des mémoires",
         "description": "Journal des modifications des mémoires de personnalisation (proposées, approuvées, modifiées, ignorées, supprimées)."
       },
-      "customers": {
-        "title": "Clients",
+      "contacts": {
+        "title": "Contacts",
         "description": "Fiches CRM par organisation : nom, email, adresse, locale, métadonnées."
-      },
-      "vendors": {
-        "title": "Fournisseurs",
-        "description": "Fiches fournisseurs par organisation : nom, email, téléphone, adresse, notes en texte libre."
       },
       "externalConversations": {
         "title": "Conversations externes",
@@ -3329,6 +3307,7 @@
         "promptTemplate": "Modèles de prompt",
         "messageFeedback": "Retours sur messages",
         "customer": "Clients",
+        "contact": "Contacts",
         "vendor": "Fournisseurs",
         "externalConversation": "Conversations externes",
         "messageMetadata": "Métadonnées de message",
@@ -3881,8 +3860,7 @@
     "knowledgeEntries": "Entrées de connaissances",
     "websites": "Sites web",
     "products": "Produits",
-    "customers": "Clients",
-    "vendors": "Fournisseurs"
+    "contacts": "Contacts"
   },
   "knowledgeEntries": {
     "title": "Entrées de connaissances",
@@ -4073,13 +4051,9 @@
       "title": "Produits",
       "description": "Gère ton catalogue de produits."
     },
-    "customers": {
-      "title": "Clients",
-      "description": "Gère ta base de données clients."
-    },
-    "vendors": {
-      "title": "Fournisseurs",
-      "description": "Gère tes relations fournisseurs."
+    "contacts": {
+      "title": "Contacts",
+      "description": "Gère ta base de données de contacts."
     },
     "projects": {
       "title": "Projets",
@@ -5415,9 +5389,8 @@
         "enabledCount": "{enabled}/{total}",
         "enabledCountLabel": "Outils activés : {enabled} sur {total}",
         "categories": {
-          "customers": "Clients",
+          "contacts": "Contacts",
           "products": "Produits",
-          "vendors": "Fournisseurs",
           "websites": "Sites web",
           "conversations": "Conversations",
           "discussions": "Discussions",
@@ -5438,7 +5411,7 @@
           "file_list": "Parcourir les fichiers de l'espace de travail",
           "file_delete": "Supprimer des fichiers de l'espace de travail",
           "run_code": "Exécuter du code dans une sandbox pour les calculs et le traitement de données",
-          "customer_read": "Consulter et lister les fiches clients",
+          "contact_read": "Consulter et lister les fiches contacts",
           "product_read": "Parcourir le catalogue produits",
           "rag_search": "Rechercher dans la base de connaissances de l'organisation",
           "knowledge_write": "Ajouter de nouvelles entrées à la base de connaissances",
@@ -5462,12 +5435,10 @@
           "request_user_location": "Demander la localisation actuelle dans le chat",
           "conversation_read": "Lire les conversations clients",
           "conversation_write": "Rédiger et envoyer des réponses dans les conversations",
-          "customer_write": "Créer et mettre à jour les fiches clients",
+          "contact_write": "Créer et mettre à jour les fiches contacts",
           "product_write": "Créer et mettre à jour les produits",
           "website_read": "Lire les sites web de l'organisation",
           "website_write": "Ajouter et mettre à jour les sites web",
-          "vendor_read": "Consulter les fiches fournisseurs",
-          "vendor_write": "Créer et mettre à jour les fiches fournisseurs",
           "discussion_read": "Lire les discussions internes",
           "discussion_write": "Publier dans les discussions internes",
           "agent_read": "Consulter la configuration des autres agents",
@@ -6514,6 +6485,7 @@
           "chat_history.retention_expired": "Rétention de l'historique de chat expirée",
           "document.retention_deleted": "Document supprimé (rétention)",
           "customer.retention_deleted": "Client supprimé (rétention)",
+          "contact.retention_deleted": "Contact supprimé (rétention)",
           "vendor.retention_deleted": "Fournisseur supprimé (rétention)",
           "prompt_template.retention_deleted": "Modèle de prompt supprimé (rétention)",
           "usage_ledger.retention_deleted": "Registre d'usage supprimé (rétention)",
@@ -6605,6 +6577,9 @@
           "customer.retention_expired": "Client expiré par rétention",
           "customer.retention_override_restore": "Client restauré (dérogation de rétention)",
           "customer.restored_by_admin": "Client restauré par l'administrateur",
+          "contact.retention_expired": "Contact expiré par rétention",
+          "contact.retention_override_restore": "Contact restauré (dérogation de rétention)",
+          "contact.restored_by_admin": "Contact restauré par l'administrateur",
           "vendor.retention_expired": "Fournisseur expiré par rétention",
           "vendor.retention_override_restore": "Fournisseur restauré (dérogation de rétention)",
           "vendor.restored_by_admin": "Fournisseur restauré par l'administrateur",
@@ -6637,6 +6612,7 @@
           "workflow_creation": "Création de workflow",
           "workflow_update": "Mise à jour de workflow",
           "customer": "Client",
+          "contact": "Contact",
           "vendor": "Fournisseur",
           "product": "Produit",
           "organization": "Organisation",
@@ -7326,57 +7302,6 @@
       "regenerateFailed": "Échec de la génération de nouveaux codes de secours.",
       "invalidCode": "Code invalide ou expiré. Merci de réessayer."
     }
-  },
-  "vendors": {
-    "title": "Fournisseurs",
-    "searchPlaceholder": "Rechercher des fournisseurs",
-    "addVendors": "Ajouter des fournisseurs",
-    "uploadVendors": "Téléverser des fournisseurs",
-    "importForm": {
-      "manualEntry": "Saisie manuelle",
-      "upload": "Téléversement",
-      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un fournisseur par ligne.",
-      "localeHint": "La locale peut être n'importe quelle balise BCP 47 valide (ex. en, en-US, de-DE, zh-Hans).",
-      "expectedColumns": "Colonnes attendues : email, name, locale"
-    },
-    "editVendor": "Modifier le fournisseur",
-    "deleteVendor": "Supprimer le fournisseur",
-    "importMenu": {
-      "importVendors": "Importer des fournisseurs",
-      "fromDevice": "Depuis ton appareil",
-      "manualEntry": "Saisie manuelle"
-    },
-    "noValidData": "Aucune donnée fournisseur valide trouvée",
-    "noneImported": "Aucun fournisseur n'a été importé",
-    "name": "Nom",
-    "thisVendor": "ce fournisseur",
-    "updateSuccess": "Fournisseur mis à jour avec succès",
-    "updateError": "Échec de la mise à jour du fournisseur",
-    "namePlaceholder": "Saisir le nom du fournisseur",
-    "email": "Courriel",
-    "emailPlaceholder": "Saisir l'adresse email",
-    "locale": "Langue",
-    "localePlaceholder": "ex. en-US",
-    "filter": {
-      "source": {
-        "manual": "Importation manuelle",
-        "upload": "Téléversement de fichier"
-      }
-    },
-    "import": {
-      "selectDataSource": "Sélectionne une source de données",
-      "provideData": "Fournis les données du fournisseur",
-      "success": "Importation réussie",
-      "successDescription": "Importation réussie de {success} fournisseurs{failed, select, 0 {} other {, {failed} échoué(s)}}",
-      "error": "Échec de l'importation des fournisseurs",
-      "errorCodes": {
-        "duplicate_email": "Un fournisseur avec cette adresse email existe déjà",
-        "duplicate_external_id": "Un fournisseur avec cet identifiant externe existe déjà",
-        "unknown": "Une erreur inattendue s'est produite"
-      }
-    },
-    "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
-    "deleteError": "Échec de la suppression du fournisseur"
   },
   "websites": {
     "title": "Sites web",

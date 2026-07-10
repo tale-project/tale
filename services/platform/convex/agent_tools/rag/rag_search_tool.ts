@@ -224,9 +224,9 @@ WHEN TO USE 'list_indexed':
 • NOTE: This only lists Document Hub files. Files uploaded in chat are NOT included — their file IDs are already in the conversation context.
 
 WHEN NOT TO USE:
-• "How many customers?" → Use customer_read with operation='list'
+• "How many contacts?" → Use contact_read with operation='count'
 • "List all products" → Use product_read with operation='list'
-• "Show customers with status=churned" → Use customer_read with filtering
+• "Look up a contact by email" → Use contact_read with operation='get_by_email'
 • For counting/listing/filtering structured data, use database tools instead
 • Browsing all documents (not just indexed) → Use document_find instead
 

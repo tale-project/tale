@@ -93,7 +93,11 @@ export function PlatformHubPage() {
       moduleTo: '/platform/chat',
       moduleNavKey: 'chat',
     },
-    projects: { demo: <HubTourProjectsDemo /> },
+    projects: {
+      demo: <HubTourProjectsDemo />,
+      moduleTo: '/platform/projects',
+      moduleNavKey: 'projects',
+    },
   };
 
   const tourStages = Array.isArray(tourStagesRaw)

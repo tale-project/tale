@@ -5,7 +5,7 @@ import { api } from '@/convex/_generated/api';
 
 import { primeCachedPaginatedQuery } from './use-cached-paginated-query';
 
-const LIST = api.customers.queries.listCustomersPaginated;
+const LIST = api.contacts.queries.listContactsPaginated;
 
 // Expose the mock fn separately so assertions don't reference an unbound method.
 function makeClient(query: ReturnType<typeof vi.fn>): ConvexReactClient {

@@ -64,7 +64,7 @@
       "name": "Query Existing Customer",
       "stepType": "action",
       "config": {
-        "type": "customer",
+        "type": "contact",
         "parameters": {
           "operation": "query",
           "externalId": "{{loop.item.id}}",
@@ -96,10 +96,10 @@
       "name": "Update Existing Customer",
       "stepType": "action",
       "config": {
-        "type": "customer",
+        "type": "contact",
         "parameters": {
           "operation": "update",
-          "customerId": "{{steps.query_existing_customer.output.data.items[0]._id}}",
+          "contactId": "{{steps.query_existing_customer.output.data.items[0]._id}}",
           "updates": {
             "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
             "email": "{{loop.item.email}}",
@@ -119,7 +119,7 @@
       "name": "Insert New Customer",
       "stepType": "action",
       "config": {
-        "type": "customer",
+        "type": "contact",
         "parameters": {
           "operation": "create",
           "name": "{{loop.item.first_name}} {{loop.item.last_name}}",

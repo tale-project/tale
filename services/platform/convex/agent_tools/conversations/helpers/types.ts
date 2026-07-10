@@ -30,7 +30,7 @@ export const defaultConversationGetFields: string[] = [
   'priority',
   'channel',
   'direction',
-  'customerId',
+  'contactId',
   'lastMessageAt',
 ];
 
@@ -41,7 +41,7 @@ export const defaultConversationListFields: string[] = [
   'priority',
   'channel',
   'direction',
-  'customerId',
+  'contactId',
   'lastMessageAt',
 ];
 

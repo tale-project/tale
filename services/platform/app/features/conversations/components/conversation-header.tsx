@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { CustomerInfoPopover } from '@/app/features/customers/components/customer-info-popover';
+import { ContactInfoPopover } from '@/app/features/contacts/components/contact-info-popover';
 import {
-  useCustomerById,
-  useCustomers,
-} from '@/app/features/customers/hooks/queries';
+  useContactById,
+  useContacts,
+} from '@/app/features/contacts/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -49,9 +49,9 @@ export function ConversationHeader({
 }: ConversationHeaderProps) {
   const { t } = useT('conversations');
   const { t: tCommon } = useT('common');
-  const { customer } = conversation;
-  const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
-  const pendingCustomerInfo = useRef(false);
+  const { contact } = conversation;
+  const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
+  const pendingContactInfo = useRef(false);
   const { formatRelative } = useFormatDate();
 
   const { mutate: closeConversation, isPending: isClosing } =
@@ -62,8 +62,8 @@ export function ConversationHeader({
     useMarkAsSpam();
   const isLoading = isClosing || isReopening || isMarkingSpam;
 
-  const { customers } = useCustomers(organizationId);
-  const customerDoc = useCustomerById(customers, conversation.customerId);
+  const { contacts } = useContacts(organizationId);
+  const contactDoc = useContactById(contacts, conversation.contactId);
 
   const handleResolveConversation = useCallback(() => {
     closeConversation(
@@ -131,16 +131,16 @@ export function ConversationHeader({
     );
   }, [markAsSpamMutation, conversation.id, t, onResolve]);
 
-  const customerData = customerDoc ?? conversation.customer;
+  const contactData = contactDoc ?? conversation.contact;
 
   const moreMenuItems = useMemo<DropdownMenuItem[]>(() => {
     const items: DropdownMenuItem[] = [
       {
         type: 'item',
-        label: t('header.customerInfo'),
+        label: t('header.contactInfo'),
         icon: UserIcon,
         onClick: () => {
-          pendingCustomerInfo.current = true;
+          pendingContactInfo.current = true;
         },
         disabled: isLoading,
       },
@@ -194,13 +194,13 @@ export function ConversationHeader({
   ]);
 
   const handleDropdownOpenChange = useCallback((open: boolean) => {
-    if (!open && pendingCustomerInfo.current) {
-      pendingCustomerInfo.current = false;
-      setTimeout(() => setIsCustomerInfoOpen(true), 0);
+    if (!open && pendingContactInfo.current) {
+      pendingContactInfo.current = false;
+      setTimeout(() => setIsContactInfoOpen(true), 0);
     }
   }, []);
 
-  const initial = (customer.name ?? customer.email ?? '?')
+  const initial = (contact.name ?? contact.email ?? '?')
     .charAt(0)
     .toUpperCase();
 
@@ -249,15 +249,15 @@ export function ConversationHeader({
 
       {/* Sender Row */}
       <div className="flex items-center gap-2.5">
-        <CustomerInfoPopover
-          customer={customerData}
-          open={isCustomerInfoOpen}
-          onOpenChange={setIsCustomerInfoOpen}
+        <ContactInfoPopover
+          contact={contactData}
+          open={isContactInfoOpen}
+          onOpenChange={setIsContactInfoOpen}
           trigger={
             <button
               type="button"
               className="bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full"
-              aria-label={t('header.customerInfo')}
+              aria-label={t('header.contactInfo')}
             >
               <span className="text-muted-foreground text-[13px] font-semibold">
                 {initial}
@@ -269,17 +269,17 @@ export function ConversationHeader({
           <button
             type="button"
             className="cursor-pointer text-left text-[13px] font-semibold tracking-tight hover:underline"
-            onClick={() => setIsCustomerInfoOpen(true)}
+            onClick={() => setIsContactInfoOpen(true)}
           >
-            {customer.name || customer.email}
+            {contact.name || contact.email}
           </button>
           <Row gap={0} className="text-muted-foreground text-xs tracking-tight">
             <button
               type="button"
               className="cursor-pointer hover:underline"
-              onClick={() => setIsCustomerInfoOpen(true)}
+              onClick={() => setIsContactInfoOpen(true)}
             >
-              {customer.email}
+              {contact.email}
             </button>
             {lastMessageTime && (
               <>

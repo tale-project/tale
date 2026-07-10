@@ -1,0 +1,240 @@
+'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useCallback, useEffect, useMemo } from 'react';
+import { FormProvider } from 'react-hook-form';
+import { z } from 'zod';
+
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { useForm } from '@/app/components/ui/forms/use-form';
+import {
+  CONTACT_REQUIRED_COLUMNS,
+  useFileImport,
+  vendorMappers,
+} from '@/app/hooks/use-file-import';
+import { toast } from '@/app/hooks/use-toast';
+import type { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+
+import { useBulkCreateContacts } from '../hooks/mutations';
+import { ContactImportForm } from './contact-import-form';
+
+export interface ParsedContact {
+  email: string;
+  name?: string;
+  locale: string;
+  source: Doc<'contacts'>['source'];
+}
+
+// Type for the form data
+type FormValues = {
+  dataSource: 'manual_import' | 'file_upload';
+  contacts?: string;
+  file?: File;
+  syncSource?: string;
+};
+
+interface ImportContactsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  organizationId: string;
+  onSuccess?: () => void;
+  mode?: 'manual' | 'upload';
+}
+
+export function ImportContactsDialog({
+  isOpen,
+  onClose,
+  organizationId,
+  onSuccess,
+  mode = 'manual',
+}: ImportContactsDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tContacts } = useT('contacts');
+
+  // Reuse the shared status-less contact mapper (email/name/locale/source);
+  // contacts have no status column, so the customer mapper (which injects
+  // `status: 'active'`) would produce a payload the mutation rejects.
+  const { parseFile, parseCSV } = useFileImport<ParsedContact>({
+    csvMapper: vendorMappers.csv,
+    excelMapper: vendorMappers.excel,
+    requiredColumns: CONTACT_REQUIRED_COLUMNS,
+  });
+
+  // Create Zod schema with translated validation messages
+  const formSchema = useMemo(
+    () =>
+      z
+        .object({
+          dataSource: z.enum(['manual_import', 'file_upload'], {
+            message: tContacts('import.selectDataSource'),
+          }),
+          contacts: z.string().optional(),
+          file: z.instanceof(File).optional(),
+          syncSource: z.string().optional(),
+        })
+        .refine(
+          (data) => {
+            if (data.dataSource === 'manual_import') {
+              return !!data.contacts;
+            }
+            return true;
+          },
+          {
+            message: tContacts('import.provideData'),
+            path: ['contacts'],
+          },
+        )
+        .refine(
+          (data) => {
+            if (data.dataSource === 'file_upload') {
+              return !!data.file;
+            }
+            return true;
+          },
+          {
+            message: tCommon('validation.uploadFile'),
+            path: ['file'],
+          },
+        ),
+    [tContacts, tCommon],
+  );
+
+  const formMethods = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
+    },
+  });
+
+  const {
+    handleSubmit,
+    formState: { isSubmitting },
+  } = formMethods;
+
+  const { mutateAsync: bulkCreateContacts } = useBulkCreateContacts();
+
+  useEffect(() => {
+    formMethods.reset({
+      dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
+    });
+  }, [mode, formMethods]);
+
+  const handleClose = useCallback(() => {
+    formMethods.reset();
+    onClose();
+  }, [formMethods, onClose]);
+
+  const onSubmit = useCallback(
+    async (values: FormValues) => {
+      try {
+        let contacts: ParsedContact[] = [];
+        let parseErrors: string[] = [];
+
+        // Handle different data sources
+        if (values.dataSource === 'manual_import' && values.contacts) {
+          const result = parseCSV(values.contacts);
+          contacts = result.data;
+          parseErrors = result.errors;
+        } else if (values.dataSource === 'file_upload' && values.file) {
+          const result = await parseFile(values.file);
+          contacts = result.data;
+          parseErrors = result.errors;
+        } else {
+          toast({
+            title: tContacts('import.provideData'),
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (contacts.length === 0) {
+          toast({
+            title: tContacts('import.noValidData'),
+            // Surface the specific parse failure (e.g. a missing required
+            // column) instead of a generic message, so the user can fix it.
+            description: parseErrors[0],
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Import contacts using Convex
+        const result = await bulkCreateContacts({
+          organizationId,
+          contacts,
+        });
+
+        // Show results
+        if (result.success > 0) {
+          toast({
+            title: tContacts('import.success'),
+            description: tContacts('import.successDescription', {
+              success: result.success,
+              failed: result.failed,
+            }),
+            variant: 'success',
+          });
+
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors);
+          }
+
+          onSuccess?.();
+          handleClose();
+        } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys: Record<string, string> = {
+            duplicate_email: 'import.errorCodes.duplicate_email',
+            duplicate_external_id: 'import.errorCodes.duplicate_external_id',
+            unknown: 'import.errorCodes.unknown',
+          };
+          const errorKey = firstError
+            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
+            : undefined;
+          toast({
+            title: tContacts('import.noneImported'),
+            description: errorKey ? tContacts(errorKey) : undefined,
+            variant: 'destructive',
+          });
+        }
+      } catch (err) {
+        console.error('Error importing contacts:', err);
+        toast({
+          title: tContacts('import.error'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      parseCSV,
+      parseFile,
+      bulkCreateContacts,
+      organizationId,
+      tContacts,
+      onSuccess,
+      handleClose,
+    ],
+  );
+
+  const dialogTitle =
+    mode === 'manual'
+      ? tContacts('import.addContacts')
+      : tContacts('import.uploadContacts');
+
+  return (
+    <FormDialog
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={dialogTitle}
+      submitText={tContacts('import.import')}
+      submittingText={tCommon('actions.importing')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      <FormProvider {...formMethods}>
+        <ContactImportForm organizationId={organizationId} mode={mode} />
+      </FormProvider>
+    </FormDialog>
+  );
+}

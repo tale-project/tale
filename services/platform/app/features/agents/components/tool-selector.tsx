@@ -21,7 +21,6 @@ import {
   Package,
   Plug,
   SearchX,
-  Truck,
   Users,
   Workflow,
   Wrench,
@@ -76,9 +75,8 @@ interface ToolSelectorProps {
 // shared `toolDisplayName` map; the one-line descriptions live under
 // `settings.agents.tools.descriptions.*`.
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
-  customers: ['customer_read', 'customer_write'],
+  contacts: ['contact_read', 'contact_write'],
   products: ['product_read', 'product_write'],
-  vendors: ['vendor_read', 'vendor_write'],
   websites: ['website_read', 'website_write'],
   conversations: ['conversation_read', 'conversation_write'],
   discussions: ['discussion_read', 'discussion_write'],
@@ -134,9 +132,8 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
 // One Lucide glyph per category so a group reads at a glance (app design rule:
 // Lucide only). Uncategorized runtime tools land in "system" → Wrench.
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  customers: Users,
+  contacts: Users,
   products: Package,
-  vendors: Truck,
   websites: Globe,
   conversations: Inbox,
   discussions: MessageCircle,
@@ -287,7 +284,7 @@ export function ToolSelector({
   // under `<Skeletonize loading>`. Static category labels stay real text.
   const displayCategories: Array<[string, string[]]> = isLoading
     ? [
-        ['customers', ['__p_customers_0', '__p_customers_1']],
+        ['contacts', ['__p_contacts_0', '__p_contacts_1']],
         ['knowledge', ['__p_knowledge_0', '__p_knowledge_1']],
         ['workflows', ['__p_workflows_0', '__p_workflows_1']],
       ]

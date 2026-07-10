@@ -9,7 +9,7 @@ export async function readConversationList(
     cursor?: string | null;
     numItems?: number;
     status?: 'open' | 'closed' | 'spam' | 'archived';
-    customerId?: string;
+    contactId?: string;
   },
 ): Promise<ConversationReadListResult> {
   const { organizationId } = ctx;
@@ -28,8 +28,8 @@ export async function readConversationList(
     {
       organizationId,
       status: args.status,
-      // @ts-expect-error -- Convex Id<"customers"> branded type from plain string
-      customerId: args.customerId ?? undefined,
+      // @ts-expect-error -- Convex Id<"contacts"> branded type from plain string
+      contactId: args.contactId ?? undefined,
       paginationOpts: {
         numItems,
         cursor,

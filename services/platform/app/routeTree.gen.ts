@@ -67,11 +67,10 @@ import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/
 import { Route as DashboardIdAutomationsAutomationSlugRouteImport } from './routes/dashboard/$id/automations/$automationSlug';
 import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard/$id/agents/$agentId';
 import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites';
-import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors';
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products';
 import { Route as DashboardIdKnowledgeKnowledgeEntriesRouteImport } from './routes/dashboard/$id/_knowledge/knowledge-entries';
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents';
-import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers';
+import { Route as DashboardIdKnowledgeContactsRouteImport } from './routes/dashboard/$id/_knowledge/contacts';
 import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route';
 import { Route as DashboardIdSettingsApiRouteRouteImport } from './routes/dashboard/$id/settings/api/route';
 import { Route as DashboardIdSettingsSkillsIndexRouteImport } from './routes/dashboard/$id/settings/skills/index';
@@ -446,12 +445,6 @@ const DashboardIdKnowledgeWebsitesRoute =
     path: '/websites',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any);
-const DashboardIdKnowledgeVendorsRoute =
-  DashboardIdKnowledgeVendorsRouteImport.update({
-    id: '/vendors',
-    path: '/vendors',
-    getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any);
 const DashboardIdKnowledgeProductsRoute =
   DashboardIdKnowledgeProductsRouteImport.update({
     id: '/products',
@@ -470,10 +463,10 @@ const DashboardIdKnowledgeDocumentsRoute =
     path: '/documents',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any);
-const DashboardIdKnowledgeCustomersRoute =
-  DashboardIdKnowledgeCustomersRouteImport.update({
-    id: '/customers',
-    path: '/customers',
+const DashboardIdKnowledgeContactsRoute =
+  DashboardIdKnowledgeContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any);
 const DashboardIdSettingsGovernanceRouteRoute =
@@ -831,11 +824,10 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/api': typeof DashboardIdSettingsApiRouteRouteWithChildren;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
-  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/contacts': typeof DashboardIdKnowledgeContactsRoute;
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
   '/dashboard/$id/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
-  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug': typeof DashboardIdAutomationsAutomationSlugRouteWithChildren;
@@ -940,11 +932,10 @@ export interface FileRoutesByTo {
   '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id': typeof DashboardIdIndexRoute;
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
-  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/contacts': typeof DashboardIdKnowledgeContactsRoute;
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
   '/dashboard/$id/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
-  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
@@ -1054,11 +1045,10 @@ export interface FileRoutesById {
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/api': typeof DashboardIdSettingsApiRouteRouteWithChildren;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
-  '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/_knowledge/contacts': typeof DashboardIdKnowledgeContactsRoute;
   '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute;
   '/dashboard/$id/_knowledge/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute;
-  '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute;
   '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug': typeof DashboardIdAutomationsAutomationSlugRouteWithChildren;
@@ -1173,11 +1163,10 @@ export interface FileRouteTypes {
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/api'
     | '/dashboard/$id/settings/governance'
-    | '/dashboard/$id/customers'
+    | '/dashboard/$id/contacts'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/knowledge-entries'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/automations/$automationSlug'
@@ -1282,11 +1271,10 @@ export interface FileRouteTypes {
     | '/dashboard/$id/$'
     | '/dashboard/$id'
     | '/dashboard/$id/conversations'
-    | '/dashboard/$id/customers'
+    | '/dashboard/$id/contacts'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/knowledge-entries'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -1395,11 +1383,10 @@ export interface FileRouteTypes {
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/api'
     | '/dashboard/$id/settings/governance'
-    | '/dashboard/$id/_knowledge/customers'
+    | '/dashboard/$id/_knowledge/contacts'
     | '/dashboard/$id/_knowledge/documents'
     | '/dashboard/$id/_knowledge/knowledge-entries'
     | '/dashboard/$id/_knowledge/products'
-    | '/dashboard/$id/_knowledge/vendors'
     | '/dashboard/$id/_knowledge/websites'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/automations/$automationSlug'
@@ -1907,13 +1894,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeWebsitesRouteImport;
       parentRoute: typeof DashboardIdKnowledgeRoute;
     };
-    '/dashboard/$id/_knowledge/vendors': {
-      id: '/dashboard/$id/_knowledge/vendors';
-      path: '/vendors';
-      fullPath: '/dashboard/$id/vendors';
-      preLoaderRoute: typeof DashboardIdKnowledgeVendorsRouteImport;
-      parentRoute: typeof DashboardIdKnowledgeRoute;
-    };
     '/dashboard/$id/_knowledge/products': {
       id: '/dashboard/$id/_knowledge/products';
       path: '/products';
@@ -1935,11 +1915,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeDocumentsRouteImport;
       parentRoute: typeof DashboardIdKnowledgeRoute;
     };
-    '/dashboard/$id/_knowledge/customers': {
-      id: '/dashboard/$id/_knowledge/customers';
-      path: '/customers';
-      fullPath: '/dashboard/$id/customers';
-      preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport;
+    '/dashboard/$id/_knowledge/contacts': {
+      id: '/dashboard/$id/_knowledge/contacts';
+      path: '/contacts';
+      fullPath: '/dashboard/$id/contacts';
+      preLoaderRoute: typeof DashboardIdKnowledgeContactsRouteImport;
       parentRoute: typeof DashboardIdKnowledgeRoute;
     };
     '/dashboard/$id/settings/governance': {
@@ -2338,21 +2318,19 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
 
 interface DashboardIdKnowledgeRouteChildren {
-  DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute;
+  DashboardIdKnowledgeContactsRoute: typeof DashboardIdKnowledgeContactsRoute;
   DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute;
   DashboardIdKnowledgeKnowledgeEntriesRoute: typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
   DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute;
-  DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute;
   DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute;
 }
 
 const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
-  DashboardIdKnowledgeCustomersRoute: DashboardIdKnowledgeCustomersRoute,
+  DashboardIdKnowledgeContactsRoute: DashboardIdKnowledgeContactsRoute,
   DashboardIdKnowledgeDocumentsRoute: DashboardIdKnowledgeDocumentsRoute,
   DashboardIdKnowledgeKnowledgeEntriesRoute:
     DashboardIdKnowledgeKnowledgeEntriesRoute,
   DashboardIdKnowledgeProductsRoute: DashboardIdKnowledgeProductsRoute,
-  DashboardIdKnowledgeVendorsRoute: DashboardIdKnowledgeVendorsRoute,
   DashboardIdKnowledgeWebsitesRoute: DashboardIdKnowledgeWebsitesRoute,
 };
 

@@ -8,10 +8,10 @@
 import { agentReadTool } from './agents/agent_read_tool';
 import { agentWriteTool } from './agents/agent_write_tool';
 import { automationSearchTool } from './automations/automation_search_tool';
+import { contactReadTool } from './contacts/contact_read_tool';
+import { contactWriteTool } from './contacts/contact_write_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { conversationWriteTool } from './conversations/conversation_write_tool';
-import { customerReadTool } from './customers/customer_read_tool';
-import { customerWriteTool } from './customers/customer_write_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { discussionReadTool } from './discussions/discussion_read_tool';
 import { discussionWriteTool } from './discussions/discussion_write_tool';
@@ -45,8 +45,6 @@ import { taskWriteTool } from './tasks/task_write_tool';
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
 import { updateTodosTool } from './update_todos/update_todos_tool';
-import { vendorReadTool } from './vendors/vendor_read_tool';
-import { vendorWriteTool } from './vendors/vendor_write_tool';
 import { webTool } from './web/web_tool';
 import { websiteReadTool } from './websites/website_read_tool';
 import { websiteWriteTool } from './websites/website_write_tool';
@@ -70,7 +68,7 @@ export const TOOL_REGISTRY = [
   fileListTool,
   fileDeleteTool,
   runCodeTool,
-  customerReadTool,
+  contactReadTool,
   productReadTool,
   ragSearchTool,
   knowledgeWriteTool,
@@ -94,12 +92,10 @@ export const TOOL_REGISTRY = [
   requestUserLocationTool,
   conversationReadTool,
   conversationWriteTool,
-  customerWriteTool,
+  contactWriteTool,
   productWriteTool,
   websiteReadTool,
   websiteWriteTool,
-  vendorReadTool,
-  vendorWriteTool,
   discussionReadTool,
   discussionWriteTool,
   agentReadTool,

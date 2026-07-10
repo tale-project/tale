@@ -47,7 +47,7 @@ function createMockCtx() {
     runMutation: vi.fn(async (_ref, args: Record<string, unknown>) => {
       if ('source' in args && args.source === 'manual_import') {
         return {
-          customerId: 'cust_1' as Id<'customers'>,
+          contactId: 'cont_1' as Id<'contacts'>,
           created: true,
         };
       }

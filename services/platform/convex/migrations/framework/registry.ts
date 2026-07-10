@@ -100,6 +100,10 @@ import { migration as backfillConversationContactId } from '../versions/v0_3_4/0
 import { meta as backfillConversationContactIdMeta } from '../versions/v0_3_4/04_backfill_conversation_contact_id/meta';
 import { migration as backfillSupportCaseContactId } from '../versions/v0_3_4/05_backfill_support_case_contact_id';
 import { meta as backfillSupportCaseContactIdMeta } from '../versions/v0_3_4/05_backfill_support_case_contact_id/meta';
+// Reference-only (kind:'reference'): documents the customers/vendors table +
+// customerId field drops that land with the contacts merge (#2618); Convex
+// validates rows at push time so the removal can't be deferred. Meta only.
+import { meta as customersVendorsToContactsTeardownMeta } from '../versions/v0_3_4/06_customers_vendors_to_contacts_teardown/meta';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 
 /**
@@ -139,6 +143,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   backfillContactsFromCustomersMeta,
   backfillConversationContactIdMeta,
   backfillSupportCaseContactIdMeta,
+  customersVendorsToContactsTeardownMeta,
   threadMetadataAppDiscussionMeta,
   backfillConversationIntegrationNameMeta,
   installEmailAppsMeta,
