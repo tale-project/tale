@@ -73,13 +73,14 @@ Agents → Projects → Automations → Integrations → Governance — one lap 
 ## What's in the box
 
 - **[Chat](https://tale.dev/docs/platform/chat/overview)** — the everyday entry point: agents, attachments, citations, voice — and Arena, which runs one prompt through two models side by side.
-- **[Agents](https://tale.dev/docs/platform/agents/concepts)** — instructions, knowledge, tools, and a model as one unit; run them on the platform, or dock Claude Code, Codex, and Cursor in isolated sandboxes.
-- **[Projects](https://tale.dev/docs/platform/projects/overview)** — shared workspaces with files, task boards, and project-scoped agents that pick up the work.
-- **[Automations](https://tale.dev/docs/platform/automations/concepts)** — typed workflows (LLM, Action, Condition, Loop, and Sandbox steps) on schedules, webhooks, and events — with human approval gates.
+- **[Projects](https://tale.dev/docs/platform/projects/overview)** — shared workspaces that bundle the chats, files, instructions, and discussions around one piece of work — with project-scoped agents.
+- **[Tasks](https://tale.dev/docs/platform/projects/task-automation)** — kanban boards where assigning a card to an agent puts it to work — triage, execution, human review gates, budgets, and a kill switch.
 - **[Knowledge](https://tale.dev/docs/platform/knowledge/overview)** — documents, crawled websites, and typed records that agents retrieve and cite, so answers reflect your reality.
-- **[Governance](https://tale.dev/docs/platform/approvals/concepts)** — approvals before actions ship, a full audit trail, guardrails, PII filters, and spend limits — plus SSO via [Microsoft Entra ID or trusted headers](https://tale.dev/docs/platform/admin/enterprise-sso).
+- **[Agents](https://tale.dev/docs/platform/agents/concepts)** — instructions, knowledge, tools, and a model as one unit; run them on the platform, or dock Claude Code, Codex, and Cursor in isolated sandboxes.
+- **[Automations](https://tale.dev/docs/platform/automations/concepts)** — typed workflows (LLM, Action, Condition, Loop, and Sandbox steps) on schedules, webhooks, and events — with human approval gates.
 - **[Integrations](https://tale.dev/docs/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify, and MCP servers.
 - **[Unified inbox](https://tale.dev/docs/platform/automations/builtin)** — turn a shared mailbox (Gmail, Outlook, IMAP/SMTP) into a team inbox with AI-assisted replies.
+- **[Governance](https://tale.dev/docs/platform/approvals/concepts)** — approvals before actions ship, a full audit trail, guardrails, PII filters, and spend limits — plus SSO via [Microsoft Entra ID or trusted headers](https://tale.dev/docs/platform/admin/enterprise-sso).
 
 ## Documentation
 

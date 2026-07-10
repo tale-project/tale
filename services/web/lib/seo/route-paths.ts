@@ -21,6 +21,10 @@ export const ROUTE_PATHS = {
     en: '/platform/chat',
     prefixed: '/$lang/platform/chat',
   },
+  '/platform/projects': {
+    en: '/platform/projects',
+    prefixed: '/$lang/platform/projects',
+  },
   '/platform/automations': {
     en: '/platform/automations',
     prefixed: '/$lang/platform/automations',
@@ -32,10 +36,6 @@ export const ROUTE_PATHS = {
   '/platform/governance': {
     en: '/platform/governance',
     prefixed: '/$lang/platform/governance',
-  },
-  '/platform/conversations': {
-    en: '/platform/conversations',
-    prefixed: '/$lang/platform/conversations',
   },
   '/changelog': { en: '/changelog', prefixed: '/$lang/changelog' },
 } as const;

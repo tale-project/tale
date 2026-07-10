@@ -13,14 +13,14 @@ import {
   AutomationsTourProjectsDemo,
   ChatTourKnowledgeDemo,
   ChatTourProjectsDemo,
-  ConversationsTourArenaDemo,
-  ConversationsTourKnowledgeDemo,
-  ConversationsTourProjectsDemo,
   GovernanceTourAgentsDemo,
   HubHeroDemo,
   HubTourAgentsDemo,
   HubTourProjectsDemo,
   KnowledgeTourProjectsDemo,
+  ProjectsHeroDemo,
+  ProjectsTourGovernDemo,
+  ProjectsTourTasksDemo,
 } from './content';
 import {
   useArenaScenario,
@@ -81,7 +81,7 @@ function PageScenarioShowcase() {
   const orgLibrary = useKnowledgeScenario('platformKnowledge');
   const publishEntries = useGovernScenario('platformGovernance');
   const announcementDuel = useArenaScenario('platformChat');
-  const resumedThread = useChatScenario('platformConversations');
+  const resumedThread = useChatScenario('platformProjects');
   return (
     <div className="flex flex-col gap-8">
       <DemoStage>
@@ -136,13 +136,13 @@ function PageScenarioShowcase() {
         <GovernanceTourAgentsDemo />
       </DemoStage>
       <DemoStage>
-        <ConversationsTourArenaDemo />
+        <ProjectsHeroDemo />
       </DemoStage>
       <DemoStage>
-        <ConversationsTourProjectsDemo />
+        <ProjectsTourTasksDemo />
       </DemoStage>
       <DemoStage>
-        <ConversationsTourKnowledgeDemo />
+        <ProjectsTourGovernDemo />
       </DemoStage>
     </div>
   );

@@ -12,7 +12,7 @@
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Home             | `/` (also `/{lang}`)                                                                                                       |
 | Platform hub     | `/platform`                                                                                                                |
-| Platform modules | `/platform/{chat\|knowledge\|agents\|automations\|conversations\|governance}`                                              |
+| Platform modules | `/platform/{chat\|projects\|knowledge\|agents\|automations\|governance}`                                                   |
 | Pricing          | `/pricing`                                                                                                                 |
 | Hardware pricing | `/hardware-pricing`                                                                                                        |
 | Changelog        | `/changelog`                                                                                                               |

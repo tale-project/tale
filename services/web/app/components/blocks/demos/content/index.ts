@@ -20,13 +20,6 @@ export {
   ChatTourProjectsDemo,
 } from './chat-demos';
 export {
-  ConversationsHeroDemo,
-  ConversationsTourArenaDemo,
-  ConversationsTourGovernDemo,
-  ConversationsTourKnowledgeDemo,
-  ConversationsTourProjectsDemo,
-} from './conversations-demos';
-export {
   GovernanceHeroDemo,
   GovernanceTourAgentsDemo,
   GovernanceTourArenaDemo,
@@ -58,3 +51,10 @@ export {
   KnowledgeTourChatDemo,
   KnowledgeTourProjectsDemo,
 } from './knowledge-demos';
+export {
+  ProjectsHeroDemo,
+  ProjectsTourChatDemo,
+  ProjectsTourGovernDemo,
+  ProjectsTourKnowledgeDemo,
+  ProjectsTourTasksDemo,
+} from './projects-demos';

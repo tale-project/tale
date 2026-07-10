@@ -86,7 +86,7 @@ export function FormCard<T extends BasePayload>({
     } as SubmitRequest);
 
     if (!result.ok) {
-      setServerError(formSubmitErrorMessage(result.status, t));
+      setServerError(formSubmitErrorMessage(result.status, t, result.code));
       return;
     }
     setSubmitted(true);
