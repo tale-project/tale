@@ -1,23 +1,32 @@
 /**
  * Version-placement audit: does every migration live in the version folder
- * whose RELEASE actually shipped its schema change?
+ * whose RELEASE actually shipped its change?
  *
- * Method: the per-version checkpoint fixtures (scripts/dump-version-schemas.ts)
- * give the real schema at every released tag. Diffing consecutive fingerprints
- * yields the authoritative per-release change inventory; each migration's
- * declared tables are then matched against the inventory to find the
- * release(s) that actually touched them.
+ * Two independent evidence sources:
+ *  1. Schema diffs — the per-version checkpoint fixtures
+ *     (scripts/dump-version-schemas.ts) give the real schema at every
+ *     released tag; diffing consecutive fingerprints yields the per-release
+ *     change inventory, matched against each migration's declared tables.
+ *  2. Ship tags — the first released tag whose tree contains the migration
+ *     folder (via git; a re-homed folder is looked up under its former ids'
+ *     paths). A migration that first shipped in vX ran on vX deployments —
+ *     that IS its home. Config/behavioral migrations with no schema footprint
+ *     are judged by this signal alone.
  *
  * Verdicts per migration:
- *   OK        — its version's release diff touches its tables
- *   MISMATCH  — its tables changed in a DIFFERENT release (candidates listed)
- *   NO-SIGNAL — its tables never appear in any DB schema diff (node/config
- *               migrations whose change lives in org-config files, or purely
- *               behavioral backfills; needs config-side or manual evidence)
+ *   OK        — declared version matches a release whose diff touches its
+ *               tables, OR the release that first shipped it, OR (never
+ *               released) the in-development version
+ *   MISMATCH  — both signals point elsewhere (candidates listed)
+ *   NO-SIGNAL — no schema diff AND no ship-tag evidence
  *
  * Read-only reporting tool — run with `bun scripts/audit-migration-versions.ts`.
  * `--json` emits the machine-readable inventory.
  */
+
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   diffFingerprints,
@@ -28,6 +37,53 @@ import {
   loadDbCheckpoint,
 } from '../convex/migrations/testing/checkpoints.testkit';
 import { discoverMigrations, validateSet } from './migrations-codegen';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.join(here, '../../..');
+const RELEASE_TAG_RE = /^v0\.(2|3)\.\d+$/;
+
+function git(args: string[]): string {
+  return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf-8' });
+}
+
+/** `0.2.88/01_app_config_to_bindings` → its repo-relative folder path. */
+function idToFolder(id: string): string {
+  const [semver, folder] = id.split('/');
+  return `services/platform/convex/migrations/versions/v${semver.replaceAll('.', '_')}/${folder}`;
+}
+
+/**
+ * The release that FIRST shipped the migration folder, or null when no
+ * released tag contains it (dev-cycle work). Former-id paths are checked
+ * first — a re-homed folder's history lives where it originally shipped.
+ */
+function firstShippedRelease(
+  rel: string,
+  formerIds: readonly string[],
+): string | null {
+  const folders = [
+    ...formerIds.map(idToFolder),
+    `services/platform/convex/migrations/versions/${rel}`,
+  ];
+  for (const folder of folders) {
+    const commit = git([
+      'log',
+      '--diff-filter=A',
+      '--format=%H',
+      '--reverse',
+      '--',
+      folder,
+    ])
+      .split('\n')
+      .find((line) => line.length > 0);
+    if (!commit) continue;
+    const tag = git(['tag', '--contains', commit, '--sort=v:refname'])
+      .split('\n')
+      .find((t) => RELEASE_TAG_RE.test(t));
+    return tag ? tag.slice(1) : null;
+  }
+  return null;
+}
 
 interface ReleaseChange {
   readonly version: string;
@@ -137,6 +193,8 @@ async function main(): Promise<void> {
     candidates: string[];
   }> = [];
 
+  const devVersion = checkpoints.at(-1)?.version;
+
   for (const m of migrations) {
     const tables = [
       ...new Set(
@@ -148,11 +206,33 @@ async function main(): Promise<void> {
     ];
     const touching = tables.flatMap((t) => releasesByTable.get(t) ?? []);
     const releases = [...new Set(touching.map((c) => c.version))];
+    // Ship-tag evidence applies to RUNNABLE kinds only: a reference migration
+    // documents a change that shipped inside a release's own code — its
+    // folder appears in git whenever the documentation was written.
+    const shipped =
+      m.kind === 'reference'
+        ? null
+        : firstShippedRelease(m.rel, m.meta.formerIds ?? []);
+
+    const evidence = touching
+      .filter((c) => c.version === m.semver)
+      .map((c) => `${c.table}.${c.field} ${c.kind}`);
 
     let verdict: 'OK' | 'MISMATCH' | 'NO-SIGNAL';
     if (releases.includes(m.semver)) {
       verdict = 'OK';
-    } else if (releases.length > 0) {
+    } else if (shipped === m.semver) {
+      verdict = 'OK';
+      evidence.push(`first shipped in v${m.semver}`);
+    } else if (
+      m.semver === devVersion &&
+      (m.kind === 'reference'
+        ? releases.includes(devVersion)
+        : shipped === null)
+    ) {
+      verdict = 'OK';
+      evidence.push('never released — in-development version');
+    } else if (releases.length > 0 || shipped !== null) {
       verdict = 'MISMATCH';
     } else {
       verdict = 'NO-SIGNAL';
@@ -162,10 +242,11 @@ async function main(): Promise<void> {
       kind: m.kind,
       verdict,
       declared: m.semver,
-      evidence: touching
-        .filter((c) => c.version === m.semver)
-        .map((c) => `${c.table}.${c.field} ${c.kind}`),
-      candidates: releases.filter((r) => r !== m.semver),
+      evidence,
+      candidates: [
+        ...releases.filter((r) => r !== m.semver),
+        ...(shipped && shipped !== m.semver ? [`shipped:v${shipped}`] : []),
+      ],
     });
   }
 
