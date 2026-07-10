@@ -82,6 +82,39 @@ vi.mock('../registry/connected/agent-chat', () => ({
   },
 }));
 
+// The comments section resolves the task itself (user-level read) and mounts
+// the shared TaskComments surface — both stubbed: this suite asserts the
+// composition, not the tasks feature.
+const taskCommentsCalls: Record<string, unknown>[] = [];
+vi.mock('../../tasks/components/task-comments', () => ({
+  TaskComments: (props: Record<string, unknown>) => {
+    taskCommentsCalls.push(props);
+    return <div data-testid="task-comments" />;
+  },
+}));
+const useTaskCalls: unknown[] = [];
+vi.mock('../../tasks/hooks/queries', () => ({
+  useTask: (taskId: unknown) => {
+    useTaskCalls.push(taskId);
+    return {
+      task: {
+        _id: taskId,
+        organizationId: 'org_1',
+        projectId: 'proj_1',
+      },
+      canEdit: true,
+      canClaim: false,
+      canComment: true,
+      isLoading: false,
+    };
+  },
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({
+    data: { userId: 'user_1', isAdmin: false },
+  }),
+}));
+
 // Frame chrome → title marker + children; states → children (happy path).
 vi.mock('../registry/block-frame', () => ({
   BlockFrame: ({
@@ -143,6 +176,8 @@ afterEach(() => {
   subjectRunCalls.length = 0;
   agentChatCalls.length = 0;
   boundQueryCalls.length = 0;
+  taskCommentsCalls.length = 0;
+  useTaskCalls.length = 0;
 });
 
 describe('ResourceDetail — task subject composition', () => {
@@ -179,6 +214,19 @@ describe('ResourceDetail — task subject composition', () => {
         args: { taskId: 'task123', organizationId: '$orgId' },
       },
     ]);
+
+    // The comments section mounts the shared task_discussion surface with the
+    // resolved task's own org/project and user-level permissions — the same
+    // thread workflow `task.list_comments` reads for desk feedback loops.
+    expect(useTaskCalls).toEqual(['task123']);
+    expect(taskCommentsCalls).toHaveLength(1);
+    expect(taskCommentsCalls[0]).toMatchObject({
+      taskId: 'task123',
+      organizationId: 'org_1',
+      projectId: 'proj_1',
+      canComment: true,
+      currentUserId: 'user_1',
+    });
 
     // The chat rides the automation's implementer role on the shared task thread.
     expect(agentChatCalls).toHaveLength(1);
