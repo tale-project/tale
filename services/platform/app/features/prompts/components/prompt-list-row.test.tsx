@@ -102,7 +102,7 @@ describe('PromptListRow', () => {
     expect(onUse).toHaveBeenCalledWith(prompt);
   });
 
-  it('exposes the more-actions button with translated aria-label', () => {
+  it('exposes a dense more-actions icon button with translated aria-label', () => {
     render(
       <PromptListRow
         prompt={prompt}
@@ -113,9 +113,13 @@ describe('PromptListRow', () => {
         isLast={false}
       />,
     );
-    expect(
-      screen.getByRole('button', { name: 'prompts.actions.more' }),
-    ).toBeInTheDocument();
+    const more = screen.getByRole('button', {
+      name: 'prompts.actions.more',
+    });
+    expect(more).toBeInTheDocument();
+    // icon-sm (size-8) — not the old size-11 touch override that dominated the row
+    expect(more.className).toMatch(/\bsize-8\b/);
+    expect(more.className).not.toMatch(/\bsize-11\b/);
   });
 
   // Regression test for #1475: tags and the assigned team must be shown.
