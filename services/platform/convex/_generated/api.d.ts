@@ -959,6 +959,7 @@ import type * as migrations_framework_snapshot_helpers from "../migrations/frame
 import type * as migrations_framework_snapshot_store from "../migrations/framework/snapshot_store.js";
 import type * as migrations_framework_test_helpers from "../migrations/framework/test_helpers.js";
 import type * as migrations_framework_types from "../migrations/framework/types.js";
+import type * as migrations_testing_support from "../migrations/testing/support.js";
 import type * as migrations_versions_v0_2_1_01_agent_bindings_agent_slug_index from "../migrations/versions/v0_2_1/01_agent_bindings_agent_slug/index.js";
 import type * as migrations_versions_v0_2_1_01_agent_bindings_agent_slug_meta from "../migrations/versions/v0_2_1/01_agent_bindings_agent_slug/meta.js";
 import type * as migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_index from "../migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/index.js";
@@ -2725,6 +2726,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/framework/snapshot_store": typeof migrations_framework_snapshot_store;
   "migrations/framework/test_helpers": typeof migrations_framework_test_helpers;
   "migrations/framework/types": typeof migrations_framework_types;
+  "migrations/testing/support": typeof migrations_testing_support;
   "migrations/versions/v0_2_1/01_agent_bindings_agent_slug/index": typeof migrations_versions_v0_2_1_01_agent_bindings_agent_slug_index;
   "migrations/versions/v0_2_1/01_agent_bindings_agent_slug/meta": typeof migrations_versions_v0_2_1_01_agent_bindings_agent_slug_meta;
   "migrations/versions/v0_2_1/02_agent_webhooks_agent_slug/index": typeof migrations_versions_v0_2_1_02_agent_webhooks_agent_slug_index;
