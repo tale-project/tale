@@ -1,0 +1,527 @@
+{
+  "0.2.0": {
+    "dbSchema": "3e7be126965b265b060d7927",
+    "configSchema": "6be73fbf45b06a24f6549982",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.1": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "a0fb9c3f52449be08f8e9a6d",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.2": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "a0fb9c3f52449be08f8e9a6d",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.3": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "493323b11f41bd536eae3e05",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.4": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "493323b11f41bd536eae3e05",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.5": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "493323b11f41bd536eae3e05",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.6": {
+    "dbSchema": "16fc30ef3e678ea39f792f76",
+    "configSchema": "493323b11f41bd536eae3e05",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.7": {
+    "dbSchema": "1d961c7660071ab8fec40e68",
+    "configSchema": "1dac85c0899f38d984cfc375",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.8": {
+    "dbSchema": "2a7f553d032c0d08acce684b",
+    "configSchema": "ca62b04b2c6b19187bce7254",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.9": {
+    "dbSchema": "1b181565340abaf81b9ac3f9",
+    "configSchema": "ca62b04b2c6b19187bce7254",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.10": {
+    "dbSchema": "b3ce6394cc6dba420840b0d8",
+    "configSchema": "dac6b825018583f2a70baeca",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.11": {
+    "dbSchema": "9f558f743a1736b4bfd927a0",
+    "configSchema": "dac6b825018583f2a70baeca",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.12": {
+    "dbSchema": "9f558f743a1736b4bfd927a0",
+    "configSchema": "dac6b825018583f2a70baeca",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.13": {
+    "dbSchema": "9f558f743a1736b4bfd927a0",
+    "configSchema": "dac6b825018583f2a70baeca",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.14": {
+    "dbSchema": "9f3b84c34c315b8796a34340",
+    "configSchema": "68e5e1eef2ddc4e95294880c",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.15": {
+    "dbSchema": "9f3b84c34c315b8796a34340",
+    "configSchema": "68e5e1eef2ddc4e95294880c",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.16": {
+    "dbSchema": "9f3b84c34c315b8796a34340",
+    "configSchema": "68e5e1eef2ddc4e95294880c",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.17": {
+    "dbSchema": "1bcd5605a16e116169c97723",
+    "configSchema": "ea7293efa7be89f72303937d",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.18": {
+    "dbSchema": "1bcd5605a16e116169c97723",
+    "configSchema": "1778dfda17d638492d627f34",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.19": {
+    "dbSchema": "7f760aa6ac3d0ccd6b291afc",
+    "configSchema": "68679d3f8dd013915babe9e0",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.20": {
+    "dbSchema": "aab67b77ec9383c8aabeccc9",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.21": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.22": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.23": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.24": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.25": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.26": {
+    "dbSchema": "c12031b2566b9daa490f4630",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.27": {
+    "dbSchema": "07a179b7cf4b30c56b2f9bce",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.28": {
+    "dbSchema": "07a179b7cf4b30c56b2f9bce",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.29": {
+    "dbSchema": "07a179b7cf4b30c56b2f9bce",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.30": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.31": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.32": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.33": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.34": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.35": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.36": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.37": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.38": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.39": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.40": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.41": {
+    "dbSchema": "51ad12570ca806bb9efb1c9a",
+    "configSchema": "aaaa413a4a897e3894445789",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.42": {
+    "dbSchema": "1996b482d8ae19729592b537",
+    "configSchema": "e59dbf4bb3005d6ca4a4bc3e",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.43": {
+    "dbSchema": "f50ac12231abe6c7b5e559f2",
+    "configSchema": "9af4b3c415a33bf8eca9a4d7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.44": {
+    "dbSchema": "f50ac12231abe6c7b5e559f2",
+    "configSchema": "9af4b3c415a33bf8eca9a4d7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.45": {
+    "dbSchema": "f50ac12231abe6c7b5e559f2",
+    "configSchema": "9af4b3c415a33bf8eca9a4d7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.46": {
+    "dbSchema": "f50ac12231abe6c7b5e559f2",
+    "configSchema": "9af4b3c415a33bf8eca9a4d7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.47": {
+    "dbSchema": "f50ac12231abe6c7b5e559f2",
+    "configSchema": "9af4b3c415a33bf8eca9a4d7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.48": {
+    "dbSchema": "a6f50c5c1369ee61cd6eabdd",
+    "configSchema": "af1c3ff4d8d00bc140faf710",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.49": {
+    "dbSchema": "a6f50c5c1369ee61cd6eabdd",
+    "configSchema": "af1c3ff4d8d00bc140faf710",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.50": {
+    "dbSchema": "a6f50c5c1369ee61cd6eabdd",
+    "configSchema": "af1c3ff4d8d00bc140faf710",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.51": {
+    "dbSchema": "f9e06954126e4bf0e1b59889",
+    "configSchema": "a06c2a48ba9ac041326efeb7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.52": {
+    "dbSchema": "f9e06954126e4bf0e1b59889",
+    "configSchema": "a06c2a48ba9ac041326efeb7",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.53": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "169f937a84fe45302f610533",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.54": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "169f937a84fe45302f610533",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.55": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "169f937a84fe45302f610533",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.56": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "49945a8f54334491893995a8",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.57": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "49945a8f54334491893995a8",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.58": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.59": {
+    "dbSchema": "d3c58173f018d0a0d72954e8",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.60": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.61": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.62": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.63": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.64": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.65": {
+    "dbSchema": "02439175dfa42e08d9f1970c",
+    "configSchema": "2c901afdb370a10e31a9d4fb",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.66": {
+    "dbSchema": "ddf31e3a111073bd75b07262",
+    "configSchema": "499d1f9518d1eaadbe73045a",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.67": {
+    "dbSchema": "ddf31e3a111073bd75b07262",
+    "configSchema": "499d1f9518d1eaadbe73045a",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.68": {
+    "dbSchema": "eed09240fbcb2cb4a46ada4f",
+    "configSchema": "5681107f58ae169ba7567d9f",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.69": {
+    "dbSchema": "eed09240fbcb2cb4a46ada4f",
+    "configSchema": "5681107f58ae169ba7567d9f",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.70": {
+    "dbSchema": "5ece9f4e776aac50c222338f",
+    "configSchema": "e0fecf1038310dd83cce2b08",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.71": {
+    "dbSchema": "5ece9f4e776aac50c222338f",
+    "configSchema": "e0fecf1038310dd83cce2b08",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.72": {
+    "dbSchema": "5ece9f4e776aac50c222338f",
+    "configSchema": "e0fecf1038310dd83cce2b08",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.73": {
+    "dbSchema": "95b11a466ccb5ed4e04ae19b",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.74": {
+    "dbSchema": "95b11a466ccb5ed4e04ae19b",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.75": {
+    "dbSchema": "95b11a466ccb5ed4e04ae19b",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.76": {
+    "dbSchema": "9daf65c795c305c2b98e49fb",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.77": {
+    "dbSchema": "9daf65c795c305c2b98e49fb",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.78": {
+    "dbSchema": "9daf65c795c305c2b98e49fb",
+    "configSchema": "6b713d17978ed74c41f6e7ba",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.79": {
+    "dbSchema": "5367d8efd5573a73d5f153c4",
+    "configSchema": "1d9dd8979658827abfda580f",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.80": {
+    "dbSchema": "5367d8efd5573a73d5f153c4",
+    "configSchema": "1d9dd8979658827abfda580f",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.81": {
+    "dbSchema": "85d68bd9a7272b9cf4290a42",
+    "configSchema": "1d9dd8979658827abfda580f",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.82": {
+    "dbSchema": "ccdcf11eac84e9346706ab5a",
+    "configSchema": "cbbcb21155629d7e4b8bd83a",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.83": {
+    "dbSchema": "dae1add2cfceb082e3111cd5",
+    "configSchema": "cbbcb21155629d7e4b8bd83a",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.84": {
+    "dbSchema": "0d498e86480d9f0431954c82",
+    "configSchema": "db1d98d0d74170e0d1e88fdf",
+    "scaffold": "62b405d88881f963e77d8b94"
+  },
+  "0.2.85": {
+    "dbSchema": "c1faa6348acb4d3e699ebb48",
+    "configSchema": "31dc3b98d707f3d75f3bd779",
+    "scaffold": "b20964902d0a07ee4d181285"
+  },
+  "0.2.86": {
+    "dbSchema": "c1faa6348acb4d3e699ebb48",
+    "configSchema": "31dc3b98d707f3d75f3bd779",
+    "scaffold": "b20964902d0a07ee4d181285"
+  },
+  "0.2.87": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "7cbecba5008fe5d6e0eddd08"
+  },
+  "0.2.88": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "7cbecba5008fe5d6e0eddd08"
+  },
+  "0.2.89": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "90ed4b47ce43921bdb719698"
+  },
+  "0.2.90": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "7c7f153291afa4a0e911dbbe"
+  },
+  "0.2.91": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "7c7f153291afa4a0e911dbbe"
+  },
+  "0.2.92": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "1aa2ebff58dcb8b74339ddb9"
+  },
+  "0.2.93": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "1aa2ebff58dcb8b74339ddb9"
+  },
+  "0.2.94": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "dd262d58e861be9be291e401"
+  },
+  "0.2.95": {
+    "dbSchema": "3872293fd5c3d29acef5c917",
+    "configSchema": "621cfb8bf6a2d69d290b0143",
+    "scaffold": "dd262d58e861be9be291e401"
+  },
+  "0.2.96": {
+    "dbSchema": "151f185545acd4767c528076",
+    "configSchema": "801d1cd70d90a40ccfadef5c",
+    "scaffold": "ea62a999e2a7df3f146389ec"
+  },
+  "0.2.97": {
+    "dbSchema": "151f185545acd4767c528076",
+    "configSchema": "801d1cd70d90a40ccfadef5c",
+    "scaffold": "ea62a999e2a7df3f146389ec"
+  },
+  "0.2.98": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "29b083c0e18172b39bb87105"
+  },
+  "0.2.99": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "0c4d5317aab97f533348ec7e"
+  },
+  "0.3.0": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "0c4d5317aab97f533348ec7e"
+  },
+  "0.3.1": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "0c4d5317aab97f533348ec7e"
+  },
+  "0.3.2": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "0c4d5317aab97f533348ec7e"
+  },
+  "0.3.3": {
+    "dbSchema": "b4ede200918e45632348746c",
+    "configSchema": "57392ad64cfc611cecb1d10b",
+    "scaffold": "1ac5939757fb34cb6404dbd4"
+  },
+  "0.3.4": {
+    "dbSchema": "6e1e5b9989df42c4cdd2c02e",
+    "configSchema": "b30af54c72c1964be1a7b173",
+    "scaffold": "f044334fe197005dc4bae734"
+  }
+}

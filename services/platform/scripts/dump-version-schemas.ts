@@ -1,25 +1,34 @@
 /**
- * Per-version schema checkpoint generator: one fingerprint fixture per
- * released version (every `v0.2.x` / `v0.3.x` git tag) plus the in-development
- * HEAD, under `convex/migrations/testing/versions/`. These are the ground
- * truth the version-checkpoint tests validate against — "after all migrations
- * ≤ X, the world must satisfy the schema release X actually shipped" — which
- * is exactly what catches a migration homed in the wrong version folder.
+ * Per-version checkpoint generator: for every released version (each
+ * `v0.2.x` / `v0.3.x` git tag) plus the in-development HEAD, produce THREE
+ * ground-truth fixtures under `convex/migrations/testing/versions/`:
  *
- * Two extraction paths per tag:
- *   fast  — the tag committed `convex/migrations/schema.snapshot.json`
- *           (already the serialized fingerprint format): `git show` it.
+ *   v<X_Y_Z>.db.schema.json     — the Convex DB schema fingerprint the release shipped
+ *   v<X_Y_Z>.config.schema.json — the org-config (Zod → JSON Schema) fingerprint
+ *   v<X_Y_Z>.scaffold.json      — what an INITIALIZED project of that era contains:
+ *                                 the builtin-configs catalog as path → content-hash
+ *                                 (unique contents once under versions/blobs/),
+ *                                 reference code/docs/images excluded
+ *
+ * These are what the version-checkpoint tests validate against — "after all
+ * migrations ≤ X, the world (rows AND config files) must satisfy what release
+ * X actually shipped" — which is exactly what catches a migration homed in
+ * the wrong version folder.
+ *
+ * Extraction paths per tag:
+ *   fast  — the tag committed its own snapshot
+ *           (`convex/migrations/{schema,config}.snapshot.json`): `git show`.
  *   slow  — older tags: a BARE git worktree of the tag (no install) with the
  *           main repo's node_modules symlinked in, then evaluate that tag's
- *           `convex/schema.ts` and fingerprint `schema.export()`. Old schema
- *           modules only need the stable defineSchema/defineTable surface, so
- *           today's convex package evaluates them fine (verified back to
- *           v0.2.1).
+ *           `convex/schema.ts` / `lib/shared/schemas/*.ts` in a subprocess.
+ *           Old modules only need the stable defineSchema/zod construction
+ *           surface, so today's deps evaluate them (verified to v0.2.1; a tag
+ *           without `lib/shared/schemas/` predates file-config → empty map).
  *
  * Fixtures are HISTORICAL FACTS: once generated for a released tag they never
  * change. The generator is idempotent (existing fixtures are skipped unless
- * `--force`), reports per-tag failures without aborting the run, and always
- * refreshes the HEAD (`-dev`) checkpoint.
+ * `--force`), reports per-tag failures without aborting, and always refreshes
+ * the HEAD (in-development) checkpoint set.
  *
  *   bun scripts/dump-version-schemas.ts             # fill missing + refresh dev
  *   bun scripts/dump-version-schemas.ts --force     # regenerate everything
@@ -27,9 +36,11 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
   rmSync,
   symlinkSync,
@@ -38,11 +49,17 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 import {
   computeFingerprint,
   serializeFingerprint,
 } from '../convex/migrations/framework/schema_fingerprint';
+import {
+  computeConfigFingerprint,
+  serializeConfigFingerprint,
+  type JsonSchema,
+} from '../lib/shared/config/config_fingerprint';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PLATFORM_ROOT = path.join(here, '..');
@@ -52,7 +69,11 @@ const FIXTURES_DIR = path.join(
   'convex/migrations/testing/versions',
 );
 const VERSIONS_DIR = path.join(PLATFORM_ROOT, 'convex/migrations/versions');
-const SNAPSHOT_REL = 'services/platform/convex/migrations/schema.snapshot.json';
+const BLOBS_DIR = path.join(FIXTURES_DIR, 'blobs');
+const SCHEMA_SNAPSHOT_REL =
+  'services/platform/convex/migrations/schema.snapshot.json';
+const CONFIG_SNAPSHOT_REL =
+  'services/platform/convex/migrations/config.snapshot.json';
 const TAG_RE = /^v0\.(2|3)\.\d+$/;
 
 function git(args: string[]): string {
@@ -65,11 +86,44 @@ function tagList(): string[] {
     .filter((t) => TAG_RE.test(t));
 }
 
-function fixturePath(version: string): string {
-  return path.join(
-    FIXTURES_DIR,
-    `v${version.replaceAll('.', '_')}.schema.json`,
+const INDEX_PATH = path.join(FIXTURES_DIR, 'index.json');
+
+type CheckpointKind = 'dbSchema' | 'configSchema' | 'scaffold';
+type CheckpointIndex = Record<string, Partial<Record<CheckpointKind, string>>>;
+
+function loadIndex(): CheckpointIndex {
+  return existsSync(INDEX_PATH)
+    ? (JSON.parse(readFileSync(INDEX_PATH, 'utf-8')) as CheckpointIndex)
+    : {};
+}
+
+function saveIndex(index: CheckpointIndex): void {
+  const sorted = Object.fromEntries(
+    Object.entries(index).sort(([a], [b]) =>
+      a
+        .split('.')
+        .map((p) => p.padStart(6, '0'))
+        .join('.')
+        .localeCompare(
+          b
+            .split('.')
+            .map((p) => p.padStart(6, '0'))
+            .join('.'),
+        ),
+    ),
   );
+  writeFileSync(INDEX_PATH, `${JSON.stringify(sorted, null, 2)}\n`);
+}
+
+/** Store content once, gzipped, keyed by its sha; returns the blob key. */
+function putBlob(content: string): string {
+  const sha = createHash('sha256').update(content).digest('hex').slice(0, 24);
+  const blobPath = path.join(BLOBS_DIR, `${sha}.json.gz`);
+  if (!existsSync(blobPath)) {
+    mkdirSync(BLOBS_DIR, { recursive: true });
+    writeFileSync(blobPath, gzipSync(Buffer.from(content)));
+  }
+  return sha;
 }
 
 /** The in-development version = the highest migration version folder. */
@@ -87,14 +141,18 @@ function devVersion(): string {
   return last.semver;
 }
 
+// ---------------------------------------------------------------------------
+// DB schema fingerprints
+// ---------------------------------------------------------------------------
+
 /** Fast path: the fingerprint the tag itself committed. */
-function fromCommittedSnapshot(tag: string): string | null {
+function schemaFromCommittedSnapshot(tag: string): string | null {
   try {
-    const raw = git(['show', `${tag}:${SNAPSHOT_REL}`]);
+    const raw = git(['show', `${tag}:${SCHEMA_SNAPSHOT_REL}`]);
     // Round-trip through the fingerprint types so every fixture is in the
     // same canonical serialization regardless of era.
     return serializeFingerprint(
-      computeFingerprint(fingerprintToExportShape(raw)),
+      computeFingerprint(JSON.stringify(fingerprintToExportShape(raw))),
     );
   } catch {
     return null;
@@ -136,8 +194,176 @@ function fingerprintToExportShape(raw: string): {
   };
 }
 
-/** Slow path: bare worktree + evaluate the tag's schema.ts with today's deps. */
-function fromWorktreeEval(tag: string): string {
+function schemaFromWorktree(worktree: string): string {
+  const schemaPath = path.join(worktree, 'services/platform/convex/schema.ts');
+  if (!existsSync(schemaPath)) {
+    throw new Error('no services/platform/convex/schema.ts at this tag');
+  }
+  // Evaluate in a subprocess so one incompatible tag can't poison this
+  // process's module cache (and a crash is contained + reported).
+  const dumper = `
+    const mod = await import(${JSON.stringify(schemaPath)});
+    const schema = mod.default;
+    const exportFn = Reflect.get(schema, 'export');
+    if (typeof exportFn !== 'function') throw new Error('schema has no export()');
+    process.stdout.write(String(exportFn.call(schema)));
+  `;
+  const exported = execFileSync('bun', ['-e', dumper], {
+    cwd: REPO_ROOT,
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return serializeFingerprint(computeFingerprint(exported));
+}
+
+// ---------------------------------------------------------------------------
+// Org-config (Zod) fingerprints
+// ---------------------------------------------------------------------------
+
+/** Fast path: normalize the tag's committed config snapshot. */
+function configFromCommittedSnapshot(tag: string): string | null {
+  try {
+    const raw = git(['show', `${tag}:${CONFIG_SNAPSHOT_REL}`]);
+    const parsed = JSON.parse(raw) as {
+      schemas?: Record<string, JsonSchema>;
+    };
+    return serializeConfigFingerprint(
+      computeConfigFingerprint(parsed.schemas ?? {}),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enumerate `<root>/lib/shared/schemas/*.ts`, import each module, render
+ * every exported Zod schema to JSON Schema — the exact discovery
+ * `check-config-snapshot.ts` performs, run inside a subprocess so a
+ * tag-incompatible module is contained. A tag without the schemas dir
+ * predates file-based config → empty map (a correct historical fact).
+ */
+function configFromTree(platformRoot: string): string {
+  const schemasDir = path.join(platformRoot, 'lib/shared/schemas');
+  if (!existsSync(schemasDir)) {
+    return serializeConfigFingerprint(computeConfigFingerprint({}));
+  }
+  const dumper = `
+    import { readdirSync } from 'node:fs';
+    import path from 'node:path';
+    import { pathToFileURL } from 'node:url';
+    import { z } from 'zod/v4';
+    const dir = ${JSON.stringify(schemasDir)};
+    const out = {};
+    const skipped = [];
+    for (const f of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).sort()) {
+      let mod;
+      try {
+        mod = await import(pathToFileURL(path.join(dir, f)).href);
+      } catch (err) {
+        skipped.push(f + ': ' + String(err).slice(0, 120));
+        continue;
+      }
+      for (const name of Object.keys(mod).sort()) {
+        const value = mod[name];
+        if (!value || typeof value !== 'object' || !('_zod' in value)) continue;
+        try {
+          out[f.replace(/\\.ts$/, '') + '.' + name] = z.toJSONSchema(value, { unrepresentable: 'any' });
+        } catch (err) {
+          skipped.push(f + '.' + name + ': ' + String(err).slice(0, 120));
+        }
+      }
+    }
+    process.stdout.write(JSON.stringify({ out, skipped }));
+  `;
+  const result = execFileSync('bun', ['-e', dumper], {
+    cwd: REPO_ROOT,
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const { out, skipped } = JSON.parse(result) as {
+    out: Record<string, JsonSchema>;
+    skipped: string[];
+  };
+  if (skipped.length > 0) {
+    console.warn(`    (config: ${skipped.length} module(s)/schema(s) skipped)`);
+  }
+  return serializeConfigFingerprint(computeConfigFingerprint(out));
+}
+
+// ---------------------------------------------------------------------------
+// Builtin scaffold trees — what an INITIALIZED project of that era contains
+// ---------------------------------------------------------------------------
+
+/**
+ * Reference-code and non-data content excluded from scaffold manifests: a
+ * fresh org's DATA files are the JSON configs; skill bundles, docs, scripts,
+ * and images are reference material, not migratable data shapes.
+ */
+const SCAFFOLD_EXCLUDES: readonly RegExp[] = [
+  /^builtin-configs\/skills\//,
+  /\.(md|mdx)$/i,
+  /\.(png|jpe?g|webp|gif|ico|svg)$/i,
+  /\.(py|sh|ts|js)$/i,
+];
+
+interface ScaffoldManifest {
+  /** repo-relative builtin path → sha256 of the file content. */
+  readonly files: Record<string, string>;
+}
+
+/**
+ * The tag's `builtin-configs/` catalog (the source a fresh org is scaffolded
+ * from), as a content-addressed manifest: file paths + content hashes, with
+ * each unique content stored ONCE under `versions/blobs/<sha>.blob` so 100+
+ * versions of a slowly-changing catalog stay compact. Pre-file-config tags
+ * have no catalog → empty manifest (a correct historical fact).
+ */
+function scaffoldFromTag(tag: string): ScaffoldManifest {
+  let listing = '';
+  try {
+    listing = git([
+      'ls-tree',
+      '-r',
+      '--name-only',
+      tag,
+      '--',
+      'builtin-configs',
+    ]);
+  } catch {
+    return { files: {} };
+  }
+  const files: Record<string, string> = {};
+  for (const rel of listing.split('\n').filter(Boolean).sort()) {
+    if (SCAFFOLD_EXCLUDES.some((re) => re.test(rel))) continue;
+    const content = git(['show', `${tag}:${rel}`]);
+    files[rel] = putBlob(content);
+  }
+  return { files };
+}
+
+/** HEAD variant: read the live builtin-configs tree from the filesystem. */
+function scaffoldFromHead(): ScaffoldManifest {
+  const listing = git(['ls-files', '--', 'builtin-configs']);
+  const files: Record<string, string> = {};
+  for (const rel of listing.split('\n').filter(Boolean).sort()) {
+    if (SCAFFOLD_EXCLUDES.some((re) => re.test(rel))) continue;
+    files[rel] = putBlob(readFileSync(path.join(REPO_ROOT, rel), 'utf-8'));
+  }
+  return { files };
+}
+
+function serializeScaffold(manifest: ScaffoldManifest): string {
+  const sorted = Object.fromEntries(
+    Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  return `${JSON.stringify({ files: sorted }, null, 2)}\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration
+// ---------------------------------------------------------------------------
+
+function withWorktree<T>(tag: string, fn: (worktree: string) => T): T {
   const worktree = path.join(tmpdir(), `tale-version-dump-${process.pid}`);
   rmSync(worktree, { recursive: true, force: true });
   git(['worktree', 'add', '--force', '--detach', worktree, tag]);
@@ -147,28 +373,7 @@ function fromWorktreeEval(tag: string): string {
       path.join(worktree, 'node_modules'),
       'dir',
     );
-    const schemaPath = path.join(
-      worktree,
-      'services/platform/convex/schema.ts',
-    );
-    if (!existsSync(schemaPath)) {
-      throw new Error('no services/platform/convex/schema.ts at this tag');
-    }
-    // Evaluate in a subprocess so one incompatible tag can't poison this
-    // process's module cache (and a crash is contained + reported).
-    const dumper = `
-      const mod = await import(${JSON.stringify(schemaPath)});
-      const schema = mod.default;
-      const exportFn = Reflect.get(schema, 'export');
-      if (typeof exportFn !== 'function') throw new Error('schema has no export()');
-      process.stdout.write(String(exportFn.call(schema)));
-    `;
-    const exported = execFileSync('bun', ['-e', dumper], {
-      cwd: REPO_ROOT,
-      encoding: 'utf-8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    return serializeFingerprint(computeFingerprint(exported));
+    return fn(worktree);
   } finally {
     try {
       git(['worktree', 'remove', '--force', worktree]);
@@ -182,24 +387,13 @@ function fromWorktreeEval(tag: string): string {
   }
 }
 
-/** HEAD checkpoint: fingerprint the CURRENT schema module directly. */
-async function fromHead(): Promise<string> {
-  const mod = (await import('../convex/schema')) as { default: unknown };
-  const exportFn = Reflect.get(mod.default as object, 'export');
-  if (typeof exportFn !== 'function') {
-    throw new Error('current schema has no export()');
-  }
-  return serializeFingerprint(
-    computeFingerprint(String(exportFn.call(mod.default))),
-  );
-}
-
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
   const onlyTagIdx = process.argv.indexOf('--tag');
   const onlyTag = onlyTagIdx >= 0 ? process.argv[onlyTagIdx + 1] : null;
 
   mkdirSync(FIXTURES_DIR, { recursive: true });
+  const index = force && !onlyTag ? {} : loadIndex();
   const tags = onlyTag ? [onlyTag] : tagList();
   const failures: string[] = [];
   let written = 0;
@@ -207,15 +401,38 @@ async function main(): Promise<void> {
 
   for (const tag of tags) {
     const version = tag.slice(1);
-    const target = fixturePath(version);
-    if (!force && existsSync(target)) {
+    const entry = index[version] ?? {};
+    const needSchema = force || !entry.dbSchema;
+    const needConfig = force || !entry.configSchema;
+    const needScaffold = force || !entry.scaffold;
+    if (!needSchema && !needConfig && !needScaffold) {
       skipped++;
       continue;
     }
     try {
-      const fingerprint = fromCommittedSnapshot(tag) ?? fromWorktreeEval(tag);
-      writeFileSync(target, fingerprint);
-      written++;
+      let schemaFp = needSchema ? schemaFromCommittedSnapshot(tag) : null;
+      let configFp = needConfig ? configFromCommittedSnapshot(tag) : null;
+      if ((needSchema && !schemaFp) || (needConfig && !configFp)) {
+        withWorktree(tag, (worktree) => {
+          if (needSchema && !schemaFp) schemaFp = schemaFromWorktree(worktree);
+          if (needConfig && !configFp) {
+            configFp = configFromTree(path.join(worktree, 'services/platform'));
+          }
+        });
+      }
+      if (needSchema && schemaFp) {
+        entry.dbSchema = putBlob(schemaFp);
+        written++;
+      }
+      if (needConfig && configFp) {
+        entry.configSchema = putBlob(configFp);
+        written++;
+      }
+      if (needScaffold) {
+        entry.scaffold = putBlob(serializeScaffold(scaffoldFromTag(tag)));
+        written++;
+      }
+      index[version] = entry;
       console.log(`  ✓ ${tag}`);
     } catch (err) {
       failures.push(
@@ -225,16 +442,30 @@ async function main(): Promise<void> {
     }
   }
 
-  // The in-development checkpoint is always refreshed: it tracks HEAD.
+  // The in-development checkpoint set is always refreshed: it tracks HEAD.
   if (!onlyTag) {
     const dev = devVersion();
-    writeFileSync(fixturePath(dev), await fromHead());
+    const mod = (await import('../convex/schema')) as { default: unknown };
+    const exportFn = Reflect.get(mod.default as object, 'export');
+    if (typeof exportFn !== 'function') {
+      throw new Error('current schema has no export()');
+    }
+    index[dev] = {
+      dbSchema: putBlob(
+        serializeFingerprint(
+          computeFingerprint(String(exportFn.call(mod.default))),
+        ),
+      ),
+      configSchema: putBlob(configFromTree(PLATFORM_ROOT)),
+      scaffold: putBlob(serializeScaffold(scaffoldFromHead())),
+    };
     console.log(`  ✓ ${dev} (in-development HEAD)`);
-    written++;
+    written += 3;
   }
 
+  saveIndex(index);
   console.log(
-    `[dump-version-schemas] ${written} written, ${skipped} already present${
+    `[dump-version-schemas] ${written} fixture(s) written, ${skipped} tag(s) already complete${
       failures.length > 0 ? `, ${failures.length} FAILED` : ''
     }.`,
   );

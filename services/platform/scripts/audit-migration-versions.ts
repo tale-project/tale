@@ -19,18 +19,15 @@
  * `--json` emits the machine-readable inventory.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
   diffFingerprints,
   type SchemaFingerprint,
 } from '../convex/migrations/framework/schema_fingerprint';
+import {
+  checkpointVersions,
+  loadDbCheckpoint,
+} from '../convex/migrations/testing/checkpoints.testkit';
 import { discoverMigrations, validateSet } from './migrations-codegen';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURES_DIR = path.join(here, '../convex/migrations/testing/versions');
 
 interface ReleaseChange {
   readonly version: string;
@@ -41,25 +38,10 @@ interface ReleaseChange {
 }
 
 function loadCheckpoints(): Array<{ version: string; fp: SchemaFingerprint }> {
-  if (!existsSync(FIXTURES_DIR)) {
-    throw new Error(
-      'no version fixtures — run `bun scripts/dump-version-schemas.ts` first',
-    );
-  }
-  return readdirSync(FIXTURES_DIR)
-    .filter((f) => f.endsWith('.schema.json'))
-    .map((f) => {
-      const version = f
-        .replace(/^v/, '')
-        .replace('.schema.json', '')
-        .replaceAll('_', '.');
-      const fp = JSON.parse(
-        readFileSync(path.join(FIXTURES_DIR, f), 'utf-8'),
-      ) as SchemaFingerprint;
-      return { version, fp, key: orderKeyOf(version) };
-    })
+  return checkpointVersions()
+    .map((version) => ({ version, key: orderKeyOf(version) }))
     .sort((a, b) => a.key.localeCompare(b.key))
-    .map(({ version, fp }) => ({ version, fp }));
+    .map(({ version }) => ({ version, fp: loadDbCheckpoint(version) }));
 }
 
 function orderKeyOf(version: string): string {
@@ -116,7 +98,7 @@ function releaseInventory(
       out.push({
         version: curr.version,
         table: change.table,
-        field: change.field,
+        field: change.field ?? '*',
         kind: change.kind,
         detail: change.detail,
       });
