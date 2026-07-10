@@ -15,7 +15,7 @@ import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
 import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussions';
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
@@ -1552,5 +1552,34 @@ export const agentArchiveTask = internalMutation({
       resourceName: task.title,
     });
     return { ok: true };
+  },
+});
+
+/**
+ * Queue a subject-linked workflow start for a newly created task without
+ * blocking the create action. `createTaskFromExternalIssue` returns as soon as
+ * the task row exists so the desk can latch Created; the engine runs on the
+ * next scheduler tick.
+ */
+export const scheduleTaskWorkflowStart = internalMutation({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    workflowSlug: v.string(),
+    userId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.tasks.internal_actions.startWorkflowOnTask,
+      {
+        organizationId: args.organizationId,
+        taskId: args.taskId,
+        workflowSlug: args.workflowSlug,
+        userId: args.userId,
+      },
+    );
+    return null;
   },
 });

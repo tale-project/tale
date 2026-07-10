@@ -68,10 +68,12 @@ async function startWorkflowForTask(
  * same scope updates rather than duplicates. The created task is reactive, so
  * the rest of the view (the tasks Collection) reflects it live.
  *
- * When `runWorkflowSlug` is set, a NEWLY created task also kicks off that workflow
- * on itself (subject-linked) — the app-scoped create→run: only THIS app's create
- * runs THIS workflow, never an org-global task event (which would mis-fire on
- * tasks from other apps/channels). Skipped on idempotent re-pick (created=false).
+ * When `runWorkflowSlug` is set, a NEWLY created task also schedules that
+ * workflow on itself (subject-linked) — the app-scoped create→run: only THIS
+ * app's create runs THIS workflow, never an org-global task event (which would
+ * mis-fire on tasks from other apps/channels). Skipped on idempotent re-pick
+ * (created=false). Start is scheduled (not awaited) so the create action
+ * returns as soon as the task exists and the desk can latch Created.
  */
 export const createTaskFromExternalIssue = action({
   args: {
@@ -167,27 +169,20 @@ export const createTaskFromExternalIssue = action({
 
     let executionId: string | null | undefined;
     if (args.runWorkflowSlug && result.created) {
-      // The workflow reads the full task doc (input.task.{_id,title,externalUrl,
-      // description,...}); fetch it rather than re-deriving the shape here.
-      const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
-        taskId,
-        organizationId: args.organizationId,
-      });
-      if (!loaded?.task) {
-        // Just-created task isn't readable back (e.g. raced delete): don't start
-        // a run doomed to fail on a null input.task — surface no run instead.
-        console.error(
-          '[create-task] created task not readable; skipping workflow start',
-          taskId,
-        );
-        executionId = null;
-      } else {
-        executionId = await startWorkflowForTask(ctx, {
+      // Schedule — do not await startWorkflowFromFile here. Nested action depth
+      // from create→start blocked the client for tens of seconds in CI (desk
+      // Start never latched Created). The task row is already committed; Jobs
+      // Start remains the recovery path if the scheduled kick fails.
+      await ctx.runMutation(
+        internal.tasks.internal_mutations.scheduleTaskWorkflowStart,
+        {
           organizationId: args.organizationId,
-          task: loaded.task,
+          taskId,
           workflowSlug: args.runWorkflowSlug,
-        });
-      }
+          userId,
+        },
+      );
+      executionId = null;
     }
 
     return { taskId, created: result.created, executionId };

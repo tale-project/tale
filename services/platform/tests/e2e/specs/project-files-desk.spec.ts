@@ -357,21 +357,22 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
   await betaRow
     .getByRole('button', { name: t('automations.list.start') })
     .click();
-  // doneLabelKey flips the Start button to "Created" once the task exists.
-  await expect(
-    betaRow.getByRole('button', { name: t('automations.list.created') }),
-  ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
-
-  // Desk view tabs are role=tab (not the automation section links).
+  // Create returns as soon as the task row exists (workflow start is
+  // scheduled). Assert the Jobs row — not the Start→Created latch — so a
+  // slow/failed engine kick cannot strand the proof that create worked.
   await page.getByRole('tab', { name: 'Jobs', exact: true }).click();
   await expect(
     page.getByText(`Period job — ${betaPeriod}`, { exact: true }),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
 
-  // Jobs Mark done (review confirm) — stub parks at in_review.
+  // Jobs Mark done (review confirm) — stub parks at in_review after the
+  // scheduled workflow runs.
   const betaJobRow = page
     .getByRole('row')
     .filter({ hasText: `Period job — ${betaPeriod}` });
+  await expect(
+    betaJobRow.getByRole('button', { name: t('automations.list.markDone') }),
+  ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
   await betaJobRow
     .getByRole('button', { name: t('automations.list.markDone') })
     .click();
