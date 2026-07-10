@@ -9,8 +9,10 @@
  * Composition per subject:
  * - `task` — the full desk detail: a `DetailPanel` (fields via
  *   `tasks/queries:getTask`), the subject's workflow run (`SubjectRun`), the
- *   task's activity timeline (`tasks/queries:listTaskActivity`), and an
- *   `AgentChat` with the automation's `implementer` role on the shared
+ *   task's activity timeline (`tasks/queries:listTaskActivity`), the task's
+ *   comment thread (`TaskComments` on the `task_discussion` surface — the one
+ *   workflow `task.list_comments` reads, so desk feedback loops close here),
+ *   and an `AgentChat` with the automation's `implementer` role on the shared
  *   `('task', id)` thread. The two task queries run through `useBoundQuery`,
  *   so they must be in the hosting automation's `capabilities.functions` allowlist
  *   (a task-based automation's manifest carries them); a non-allowlisting automation degrades to
@@ -43,10 +45,14 @@ import {
   useState,
 } from 'react';
 
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { TaskComments } from '../../tasks/components/task-comments';
+import { useTask } from '../../tasks/hooks/queries';
 import { isTaskStatus, TASK_ACTIVITY_LABEL_KEY } from '../../tasks/lib/display';
 import { useBoundQuery } from '../hooks/use-bound-query';
 import { BindingStates, BlockFrame } from '../registry/block-frame';
@@ -151,6 +157,31 @@ function TaskActivitySection({ taskId }: { taskId: string }) {
   );
 }
 
+/**
+ * The task's comment thread — the SAME `task_discussion` surface the Tasks
+ * board panel shows and the one workflow `task.list_comments` reads, so a
+ * desk operator can leave feedback without leaving the automation view.
+ * Access is user-level (RLS re-enforces server-side), mirroring `AgentChat`'s
+ * direct-API precedent rather than the bundle capability allowlist.
+ */
+function TaskCommentsSection({ taskId }: { taskId: string }) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a task subject's target.id is a tasks Convex id (openDetail contract)
+  const id = taskId as Id<'tasks'>;
+  const { task, canComment } = useTask(id);
+  const { data: me } = useCurrentMemberContext(task?.organizationId);
+  if (!task) return null;
+  return (
+    <TaskComments
+      taskId={task._id}
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      canComment={canComment}
+      currentUserId={me?.userId}
+      isAdmin={me?.isAdmin}
+    />
+  );
+}
+
 /** The composed task detail (see the file header for the section contract). */
 function TaskDetailSections({ target }: { target: ResourceDetailTarget }) {
   const { t } = useT('automations');
@@ -188,6 +219,7 @@ function TaskDetailSections({ target }: { target: ResourceDetailTarget }) {
         <SubjectRun subjectType={target.subjectType} subjectId={target.id} />
       </BlockFrame>
       <TaskActivitySection taskId={target.id} />
+      <TaskCommentsSection taskId={target.id} />
       <AgentChat
         title={t('detail.discuss')}
         roleToken="implementer"
