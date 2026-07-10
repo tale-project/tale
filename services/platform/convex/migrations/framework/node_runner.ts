@@ -14,7 +14,7 @@ import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
 import { legacyNodeHelpers as helpers } from './node_helpers';
-import { NODE_MIGRATIONS } from './registry.node';
+import { NODE_MIGRATIONS } from './registry.node.gen';
 
 /** Apply one `node` migration to one org, forward or inverse. */
 export const applyNodeForOrg = internalAction({

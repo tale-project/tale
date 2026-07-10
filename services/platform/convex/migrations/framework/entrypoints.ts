@@ -34,7 +34,7 @@ import {
   type LedgerState,
   type PlanStep,
 } from './planner';
-import { ALL_META } from './registry';
+import { ALL_META } from './registry.gen';
 import { buildOrderKey } from './semver';
 import {
   isRunnableKind,

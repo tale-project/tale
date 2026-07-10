@@ -1,122 +1,60 @@
 /**
  * CI guard for the versioned data-migration framework. Fails the build when a
- * migration on disk is misconfigured, so a half-wired migration can never merge.
+ * migration on disk is misconfigured, so a half-wired migration can never
+ * merge. Run via `bun run migrations:check`.
  *
- * Checks, for every `convex/migrations/versions/<semver>/<NN_slug>/` folder:
- *   1. Registration — its `meta.id` appears in the framework registry's
- *      `ALL_META` (else the runner/status never sees it).
- *   2. Test presence — a sibling `migration.test.ts` exists (so up/down are
- *      round-trip tested).
- *   3. Shape — `reversible === true`; a destructive RUNNABLE migration declares
- *      a non-`none` snapshot strategy (else `down` can't rebuild).
- *   4. Wiring — every runnable `db` migration is in `DB_MIGRATIONS`.
+ * The heavy lifting lives in ./migrations-codegen.ts, which derives every
+ * migration's identity from its folder path and regenerates the registries.
+ * Check mode verifies, for every `convex/migrations/versions/<vX_Y_Z>/<NN_slug>/`:
  *
- * Pure static check — no Convex backend required (the registry is plain data).
- * Run via `bun run migrations:check`.
+ *   1. Folder shape — name formats, exactly one of meta.ts+index.ts (legacy)
+ *      or migration.ts (define shape), a sibling migration.test.ts.
+ *   2. Identity — legacy meta agrees with the folder-derived id/semver/
+ *      numericId/slug; reversible:true; destructive runnable ⇒ snapshot.
+ *   3. Uniqueness/ordering — global id + orderKey uniqueness, NN contiguity
+ *      per version folder, 'use node' directive ⟺ node kind.
+ *   4. Registry drift — registry.gen.ts / registry.node.gen.ts byte-match a
+ *      fresh regeneration (`bun run migrations:sync` refreshes them).
+ *   5. Meta parity — during the define-API port, ALL_META must stay
+ *      byte-identical to convex/migrations/meta.parity.json.
+ *   6. _id-FK safety — a runnable db migration with snapshot 'table-rows'
+ *      must not target a table referenced by `v.id(...)` anywhere in the
+ *      schema (restore mints fresh _ids; references would dangle).
+ *
+ * Pure static check — no Convex backend required.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+import schema from '../convex/schema';
 import {
-  ALL_META,
-  COMPONENT_MIGRATIONS,
-  DB_MIGRATIONS,
-} from '../convex/migrations/framework/registry';
-import { isRunnableKind } from '../convex/migrations/framework/types';
+  checkTableRowsFkSafety,
+  runMigrationsCodegen,
+} from './migrations-codegen';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const VERSIONS_DIR = path.join(here, '../convex/migrations/versions');
-
-const errors: string[] = [];
-const seenIds = new Set(ALL_META.map((m) => m.id));
-
-interface FolderMigration {
-  folder: string;
-  metaPath: string;
-}
-
-function discoverFolders(): FolderMigration[] {
-  const out: FolderMigration[] = [];
-  if (!existsSync(VERSIONS_DIR)) return out;
-  for (const semver of readdirSync(VERSIONS_DIR)) {
-    const semverDir = path.join(VERSIONS_DIR, semver);
-    if (!statSync(semverDir).isDirectory()) continue;
-    for (const slug of readdirSync(semverDir)) {
-      const folder = path.join(semverDir, slug);
-      if (!statSync(folder).isDirectory()) continue;
-      const metaPath = path.join(folder, 'meta.ts');
-      if (existsSync(metaPath)) out.push({ folder, metaPath });
-    }
+function liveSchemaExportJson(): string {
+  // `SchemaDefinition.export()` is Convex's canonical JSON of every table. It
+  // is a runtime method not surfaced in the public type, so reach it via
+  // Reflect (same access as check-schema-snapshot.ts).
+  const exportFn = Reflect.get(schema, 'export');
+  if (typeof exportFn !== 'function') {
+    throw new Error(
+      'convex schema has no export() method — convex API changed?',
+    );
   }
-  return out;
+  const exported: unknown = exportFn.call(schema);
+  if (typeof exported !== 'string') {
+    throw new Error('schema.export() did not return a JSON string.');
+  }
+  return exported;
 }
 
 async function main(): Promise<void> {
-  const folders = discoverFolders();
-  if (folders.length === 0) {
-    console.warn('[check-migrations] no migration folders found.');
-  }
+  const result = await runMigrationsCodegen({ write: false });
+  const errors = [...result.errors];
 
-  for (const { folder, metaPath } of folders) {
-    const rel = path.relative(VERSIONS_DIR, folder);
-    const mod: { meta?: unknown } = await import(metaPath);
-    const meta = mod.meta as
-      | {
-          id: string;
-          kind: string;
-          reversible: boolean;
-          destructive: boolean;
-          snapshot: string;
-        }
-      | undefined;
-
-    if (!meta || typeof meta.id !== 'string') {
-      errors.push(`${rel}/meta.ts does not export a valid \`meta\`.`);
-      continue;
-    }
-
-    // 1. Registration.
-    if (!seenIds.has(meta.id)) {
-      errors.push(
-        `${rel} (id="${meta.id}") is not registered in framework/registry.ts ALL_META.`,
-      );
-    }
-
-    // 2. Test presence.
-    if (!existsSync(path.join(folder, 'migration.test.ts'))) {
-      errors.push(
-        `${rel} has no sibling migration.test.ts (up/down round-trip).`,
-      );
-    }
-
-    // 3. Shape.
-    if (!meta.reversible) {
-      errors.push(`${rel} must be reversible:true (framework invariant).`);
-    }
-    if (
-      meta.destructive &&
-      isRunnableKind(meta.kind as never) &&
-      meta.snapshot === 'none'
-    ) {
-      errors.push(
-        `${rel} is destructive + runnable but declares snapshot:'none' — ` +
-          `down could not rebuild the data.`,
-      );
-    }
-
-    // 4. Wiring.
-    if (meta.kind === 'db' && !(meta.id in DB_MIGRATIONS)) {
-      errors.push(
-        `${rel} is a runnable db migration but is missing from DB_MIGRATIONS.`,
-      );
-    }
-    if (meta.kind === 'component' && !(meta.id in COMPONENT_MIGRATIONS)) {
-      errors.push(
-        `${rel} is a runnable component migration but is missing from COMPONENT_MIGRATIONS.`,
-      );
-    }
+  if (result.migrations.length > 0) {
+    errors.push(
+      ...checkTableRowsFkSafety(result.migrations, liveSchemaExportJson()),
+    );
   }
 
   if (errors.length > 0) {
@@ -124,8 +62,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   console.log(
-    `[check-migrations] OK — ${folders.length} migration folder(s), ` +
-      `${ALL_META.length} registered.`,
+    `[check-migrations] OK — ${result.migrations.length} migration folder(s), registries current.`,
   );
 }
 

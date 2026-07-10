@@ -12,7 +12,7 @@ import { v } from 'convex/values';
 
 import { components } from '../../_generated/api';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
-import { COMPONENT_MIGRATIONS, DB_MIGRATIONS } from './registry';
+import { COMPONENT_MIGRATIONS, DB_MIGRATIONS } from './registry.gen';
 import type { MigrationDoc } from './types';
 
 /** Default rows processed per batch transaction. */

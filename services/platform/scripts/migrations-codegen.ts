@@ -1,0 +1,777 @@
+/**
+ * Registry codegen + structural validation for the versioned data-migration
+ * framework. The folder tree under `convex/migrations/versions/` is the source
+ * of truth; this tool derives every migration's identity from its path and
+ * regenerates the two registries the runner consumes:
+ *
+ *   framework/registry.gen.ts       (V8)         ALL_META + requireMeta +
+ *                                                DB_MIGRATIONS + COMPONENT_MIGRATIONS
+ *   framework/registry.node.gen.ts  ('use node') NODE_MIGRATIONS
+ *
+ * Meta is emitted as inline literals — the V8 registry never imports a
+ * `'use node'` handler module. Drift is impossible to ship: check mode
+ * (`bun run migrations:check`, via check-migrations.ts) regenerates both files
+ * in memory and byte-compares against the committed copies, exactly like
+ * `bun run skills:check`. The `.gen.ts` (two-dot) basenames keep the files out
+ * of the Convex function address space — the same bundler rule that excludes
+ * `migration.test.ts` from the push (registry.node.ts relied on it already).
+ *
+ * Dual-mode during the define-API port: a folder holding `meta.ts` + `index.ts`
+ * is legacy-shape (registered through the compose*Legacy passthroughs); a
+ * folder holding `migration.ts` is new-shape (`define<Kind>Migration`, meta
+ * derived from the folder name). A folder holding both — or neither — fails.
+ *
+ * Modes:
+ *   bun scripts/migrations-codegen.ts --write      # regenerate (migrations:sync)
+ *   bun scripts/migrations-codegen.ts              # check: report drift
+ *   bun scripts/migrations-codegen.ts --dump-meta  # canonical ALL_META JSON
+ *
+ * Import-time note: this tool imports every migration module under bun
+ * (serially, with the folder named on failure), so module scope must stay
+ * side-effect-free — the same constraint vitest already imposes on them.
+ */
+
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import type {
+  AnyMigrationModule,
+  MigrationSubjects,
+} from '../convex/migrations/framework/define';
+import {
+  buildOrderKey,
+  parseSemver,
+} from '../convex/migrations/framework/semver';
+import {
+  isRunnableKind,
+  type MigrationKind,
+  type MigrationMeta,
+} from '../convex/migrations/framework/types';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const MIGRATIONS_ROOT = path.join(here, '../convex/migrations');
+const VERSIONS_DIR = path.join(MIGRATIONS_ROOT, 'versions');
+
+export const REGISTRY_GEN_PATH = path.join(
+  MIGRATIONS_ROOT,
+  'framework/registry.gen.ts',
+);
+export const NODE_REGISTRY_GEN_PATH = path.join(
+  MIGRATIONS_ROOT,
+  'framework/registry.node.gen.ts',
+);
+export const META_PARITY_PATH = path.join(MIGRATIONS_ROOT, 'meta.parity.json');
+
+const VERSION_DIR_RE = /^v(\d+)_(\d+)_(\d+)$/;
+const FOLDER_RE = /^(\d{2})_([a-z0-9_]+)$/;
+const KINDS: ReadonlySet<MigrationKind> = new Set([
+  'db',
+  'node',
+  'component',
+  'reference',
+]);
+
+export interface DiscoveredMigration {
+  /** `v0_2_85/01_governance_db_to_json` — folder path relative to versions/. */
+  readonly rel: string;
+  readonly dir: string;
+  readonly semver: string;
+  readonly numericId: number;
+  readonly slug: string;
+  readonly id: string;
+  readonly orderKey: string;
+  readonly kind: MigrationKind;
+  /** `meta.ts` + `index.ts` shape (true) vs `migration.ts` define shape. */
+  readonly legacy: boolean;
+  readonly meta: MigrationMeta;
+  /** Declared by the define shape only; consumed by the corpus guard. */
+  readonly subjects?: MigrationSubjects;
+  /** The paginated table (db/reference kinds); drives the _id-FK guard. */
+  readonly table?: string;
+}
+
+export interface CodegenFile {
+  readonly path: string;
+  readonly content: string;
+  readonly upToDate: boolean;
+}
+
+export interface CodegenResult {
+  readonly errors: string[];
+  /** Ordered by orderKey. Empty when discovery-level errors occurred. */
+  readonly migrations: DiscoveredMigration[];
+  readonly files: CodegenFile[];
+}
+
+// ---------------------------------------------------------------------------
+// Discovery + module loading
+// ---------------------------------------------------------------------------
+
+function hasUseNodeDirective(source: string): boolean {
+  const withoutLeadingComments = source.replace(
+    /^(\s*(\/\/[^\n]*\n|\/\*[\s\S]*?\*\/))*\s*/,
+    '',
+  );
+  return /^['"]use node['"];?/.test(withoutLeadingComments);
+}
+
+function isMeta(value: unknown): value is MigrationMeta {
+  if (typeof value !== 'object' || value === null) return false;
+  const m = value as Record<string, unknown>;
+  return (
+    typeof m.id === 'string' &&
+    typeof m.semver === 'string' &&
+    typeof m.numericId === 'number' &&
+    typeof m.slug === 'string' &&
+    typeof m.title === 'string' &&
+    typeof m.description === 'string' &&
+    KINDS.has(m.kind as MigrationKind) &&
+    typeof m.reversible === 'boolean' &&
+    typeof m.destructive === 'boolean' &&
+    (m.snapshot === 'none' ||
+      m.snapshot === 'table-rows' ||
+      m.snapshot === 'fs-tree')
+  );
+}
+
+function isMigrationModule(value: unknown): value is AnyMigrationModule {
+  if (typeof value !== 'object' || value === null) return false;
+  const m = value as Record<string, unknown>;
+  return (
+    KINDS.has(m.kind as MigrationKind) &&
+    typeof m.spec === 'object' &&
+    m.spec !== null
+  );
+}
+
+async function loadFolder(
+  versionDir: string,
+  folderName: string,
+  semver: string,
+  errors: string[],
+): Promise<DiscoveredMigration | null> {
+  const rel = `${path.basename(versionDir)}/${folderName}`;
+  const dir = path.join(versionDir, folderName);
+
+  const folderMatch = FOLDER_RE.exec(folderName);
+  if (!folderMatch) {
+    errors.push(
+      `${rel}: folder name must match NN_snake_slug (two digits, lowercase).`,
+    );
+    return null;
+  }
+  const numericId = Number.parseInt(folderMatch[1], 10);
+  const slug = folderMatch[2];
+  const id = `${semver}/${folderName}`;
+
+  const legacyMetaPath = path.join(dir, 'meta.ts');
+  const definePath = path.join(dir, 'migration.ts');
+  const hasLegacy = existsSync(legacyMetaPath);
+  const hasDefine = existsSync(definePath);
+  if (hasLegacy && hasDefine) {
+    errors.push(`${rel}: has BOTH meta.ts and migration.ts — pick one shape.`);
+    return null;
+  }
+  if (!hasLegacy && !hasDefine) {
+    errors.push(
+      `${rel}: has neither meta.ts (legacy shape) nor migration.ts (define shape).`,
+    );
+    return null;
+  }
+
+  if (!existsSync(path.join(dir, 'migration.test.ts'))) {
+    errors.push(`${rel}: no sibling migration.test.ts (up/down round-trip).`);
+  }
+
+  if (hasDefine) {
+    let mod: Record<string, unknown>;
+    try {
+      mod = (await import(definePath)) as Record<string, unknown>;
+    } catch (err) {
+      errors.push(
+        `${rel}/migration.ts failed to import: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+    const migration = mod.migration;
+    if (!isMigrationModule(migration)) {
+      errors.push(
+        `${rel}/migration.ts must \`export const migration = define<Kind>Migration({ … })\`.`,
+      );
+      return null;
+    }
+    const useNode = hasUseNodeDirective(readFileSync(definePath, 'utf-8'));
+    if (migration.kind === 'node' && !useNode) {
+      errors.push(
+        `${rel}/migration.ts defines a node migration but is missing the leading 'use node' directive.`,
+      );
+    }
+    if (migration.kind !== 'node' && useNode) {
+      errors.push(
+        `${rel}/migration.ts declares 'use node' but defines a ${migration.kind} migration — the V8 registry could not import it.`,
+      );
+    }
+    const spec = migration.spec as {
+      title: string;
+      description: string;
+      destructive: boolean;
+      snapshot: MigrationMeta['snapshot'];
+      subjects?: MigrationSubjects;
+      table?: string;
+    };
+    const meta: MigrationMeta = {
+      id,
+      semver,
+      numericId,
+      slug,
+      title: spec.title,
+      description: spec.description,
+      kind: migration.kind,
+      reversible: true,
+      destructive: spec.destructive,
+      snapshot: spec.snapshot,
+    };
+    return {
+      rel,
+      dir,
+      semver,
+      numericId,
+      slug,
+      id,
+      orderKey: buildOrderKey(semver, numericId),
+      kind: migration.kind,
+      legacy: false,
+      meta,
+      subjects: spec.subjects,
+      table: spec.table,
+    };
+  }
+
+  // Legacy shape: meta.ts + index.ts.
+  const indexPath = path.join(dir, 'index.ts');
+  if (!existsSync(indexPath)) {
+    errors.push(`${rel}: legacy shape requires an index.ts handler module.`);
+    return null;
+  }
+  let mod: Record<string, unknown>;
+  try {
+    mod = (await import(legacyMetaPath)) as Record<string, unknown>;
+  } catch (err) {
+    errors.push(
+      `${rel}/meta.ts failed to import: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+  const meta = mod.meta;
+  if (!isMeta(meta)) {
+    errors.push(`${rel}/meta.ts does not export a valid \`meta\`.`);
+    return null;
+  }
+
+  // The folder name is the identity; a legacy meta that disagrees is a defect.
+  if (meta.id !== id) {
+    errors.push(`${rel}: meta.id "${meta.id}" must equal "${id}".`);
+  }
+  if (meta.semver !== semver) {
+    errors.push(`${rel}: meta.semver "${meta.semver}" must equal "${semver}".`);
+  }
+  if (meta.numericId !== numericId) {
+    errors.push(
+      `${rel}: meta.numericId ${meta.numericId} must equal ${numericId} (the NN prefix).`,
+    );
+  }
+  if (meta.slug !== slug) {
+    errors.push(`${rel}: meta.slug "${meta.slug}" must equal "${slug}".`);
+  }
+  if (!meta.reversible) {
+    errors.push(`${rel}: must be reversible:true (framework invariant).`);
+  }
+  if (
+    meta.destructive &&
+    isRunnableKind(meta.kind) &&
+    meta.snapshot === 'none'
+  ) {
+    errors.push(
+      `${rel}: destructive + runnable but snapshot:'none' — down could not rebuild the data.`,
+    );
+  }
+  const useNode = hasUseNodeDirective(readFileSync(indexPath, 'utf-8'));
+  if (meta.kind === 'node' && !useNode) {
+    errors.push(
+      `${rel}/index.ts must start with 'use node' for a node migration.`,
+    );
+  }
+  if (meta.kind !== 'node' && useNode) {
+    errors.push(
+      `${rel}/index.ts declares 'use node' but meta.kind is ${meta.kind} — the V8 registry could not import it.`,
+    );
+  }
+
+  // db/reference handlers are V8 modules — import them to prove they load and
+  // to capture the paginated `table` for the _id-FK guard. Node handlers are
+  // deliberately not imported here (the vitest suite already loads them).
+  let table: string | undefined;
+  if (meta.kind === 'db' || meta.kind === 'reference') {
+    try {
+      const handlerMod = (await import(indexPath)) as {
+        migration?: { table?: unknown };
+      };
+      table =
+        typeof handlerMod.migration?.table === 'string'
+          ? handlerMod.migration.table
+          : undefined;
+      if (!table) {
+        errors.push(`${rel}/index.ts migration must declare its table.`);
+      }
+    } catch (err) {
+      errors.push(
+        `${rel}/index.ts failed to import: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  return {
+    rel,
+    dir,
+    semver,
+    numericId,
+    slug,
+    id,
+    orderKey: buildOrderKey(semver, numericId),
+    kind: meta.kind,
+    legacy: true,
+    meta,
+    table,
+  };
+}
+
+export async function discoverMigrations(
+  errors: string[],
+): Promise<DiscoveredMigration[]> {
+  const out: DiscoveredMigration[] = [];
+  if (!existsSync(VERSIONS_DIR)) {
+    errors.push(`versions directory missing: ${VERSIONS_DIR}`);
+    return out;
+  }
+  for (const versionName of readdirSync(VERSIONS_DIR).sort()) {
+    const versionDir = path.join(VERSIONS_DIR, versionName);
+    if (!statSync(versionDir).isDirectory()) continue;
+    const match = VERSION_DIR_RE.exec(versionName);
+    if (!match) {
+      errors.push(
+        `versions/${versionName}: version folder must match v<major>_<minor>_<patch>.`,
+      );
+      continue;
+    }
+    const semver = `${match[1]}.${match[2]}.${match[3]}`;
+    try {
+      parseSemver(semver);
+    } catch (err) {
+      errors.push(
+        `versions/${versionName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      continue;
+    }
+    for (const entry of readdirSync(versionDir).sort()) {
+      const folder = path.join(versionDir, entry);
+      if (!statSync(folder).isDirectory()) continue;
+      const loaded = await loadFolder(versionDir, entry, semver, errors);
+      if (loaded) out.push(loaded);
+    }
+  }
+  out.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Cross-migration validation
+// ---------------------------------------------------------------------------
+
+export function validateSet(
+  migrations: DiscoveredMigration[],
+  errors: string[],
+): void {
+  const byId = new Map<string, DiscoveredMigration>();
+  for (const m of migrations) {
+    const dup = byId.get(m.id);
+    if (dup) {
+      errors.push(
+        `duplicate migration id "${m.id}" (${dup.rel} and ${m.rel}).`,
+      );
+    }
+    byId.set(m.id, m);
+  }
+
+  // orderKey uniqueness — the defect class behind the v0_2_90 collision.
+  const byOrderKey = new Map<string, DiscoveredMigration>();
+  for (const m of migrations) {
+    const dup = byOrderKey.get(m.orderKey);
+    if (dup && dup.id !== m.id) {
+      errors.push(
+        `orderKey collision between ${dup.rel} and ${m.rel} — numericId must be unique per version.`,
+      );
+    }
+    byOrderKey.set(m.orderKey, m);
+  }
+
+  // NN contiguity per version folder: 01..N with no gaps.
+  const byVersion = new Map<string, number[]>();
+  for (const m of migrations) {
+    const list = byVersion.get(m.semver) ?? [];
+    list.push(m.numericId);
+    byVersion.set(m.semver, list);
+  }
+  for (const [semver, ids] of byVersion) {
+    const sorted = [...ids].sort((a, b) => a - b);
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i] !== i + 1) {
+        errors.push(
+          `version ${semver}: numericIds must run 01..${String(sorted.length).padStart(2, '0')} contiguously (found ${sorted
+            .map((n) => String(n).padStart(2, '0'))
+            .join(', ')}).`,
+        );
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * `table-rows` restore re-inserts rows with FRESH `_id`s
+ * (runner.restoreSnapshotBatch), so a rolled-back table whose `_id` is a
+ * foreign key elsewhere would leave dangling references. Fail any runnable db
+ * migration that snapshots a `v.id(...)`-referenced table.
+ *
+ * Limitation: Better Auth component rows reference each other via plain
+ * string fields, invisible to this walk — component `table-rows` migrations
+ * stay on author judgment.
+ */
+export function checkTableRowsFkSafety(
+  migrations: DiscoveredMigration[],
+  schemaExportJson: string,
+): string[] {
+  const errors: string[] = [];
+  const parsed = JSON.parse(schemaExportJson) as {
+    tables?: Array<{ tableName: string; documentType?: unknown }>;
+  };
+
+  // tableName -> the "refTable.path" sites that v.id() it.
+  const referencedBy = new Map<string, string[]>();
+  const walk = (node: unknown, refTable: string, trail: string): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, refTable, trail);
+      return;
+    }
+    if (typeof node !== 'object' || node === null) return;
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'id' && typeof rec.tableName === 'string') {
+      const sites = referencedBy.get(rec.tableName) ?? [];
+      sites.push(`${refTable}${trail ? `.${trail}` : ''}`);
+      referencedBy.set(rec.tableName, sites);
+      return;
+    }
+    for (const [key, value] of Object.entries(rec)) {
+      const nextTrail =
+        key === 'value' || key === 'fieldType' || key === 'keys'
+          ? trail
+          : trail
+            ? `${trail}.${key}`
+            : key;
+      walk(value, refTable, nextTrail);
+    }
+  };
+  for (const table of parsed.tables ?? []) {
+    walk(table.documentType, table.tableName, '');
+  }
+
+  for (const m of migrations) {
+    if (m.kind !== 'db' || m.meta.snapshot !== 'table-rows') continue;
+    if (!m.table) continue; // load error already reported by discovery
+    const sites = referencedBy.get(m.table);
+    if (sites && sites.length > 0) {
+      errors.push(
+        `${m.rel}: snapshot 'table-rows' on "${m.table}", but its _id is referenced by v.id() at ${sites.join(', ')} — restore mints fresh _ids and would dangle these references. Use a non-destructive expand/contract instead.`,
+      );
+    }
+  }
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// Generation
+// ---------------------------------------------------------------------------
+
+function varName(m: DiscoveredMigration): string {
+  const v = m.semver.replace(/\./g, '_');
+  const nn = String(m.numericId).padStart(2, '0');
+  return `${m.kind === 'node' ? 'n' : 'm'}${v}_${nn}`;
+}
+
+function importPath(m: DiscoveredMigration): string {
+  return m.legacy ? `../versions/${m.rel}` : `../versions/${m.rel}/migration`;
+}
+
+function metaLiteral(meta: MigrationMeta, indent: string): string {
+  const lines = [
+    `id: ${JSON.stringify(meta.id)},`,
+    `semver: ${JSON.stringify(meta.semver)},`,
+    `numericId: ${meta.numericId},`,
+    `slug: ${JSON.stringify(meta.slug)},`,
+    `title: ${JSON.stringify(meta.title)},`,
+    `description: ${JSON.stringify(meta.description)},`,
+    `kind: '${meta.kind}',`,
+    `reversible: true,`,
+    `destructive: ${meta.destructive},`,
+    `snapshot: '${meta.snapshot}',`,
+  ];
+  return `{\n${lines.map((l) => `${indent}  ${l}`).join('\n')}\n${indent}}`;
+}
+
+const GEN_HEADER = `// GENERATED by \`bun run migrations:sync\` — DO NOT EDIT.
+// Derived from the folder tree under convex/migrations/versions/;
+// \`bun run migrations:check\` regenerates this file in memory and fails on
+// any byte drift. The two-dot basename keeps it out of the Convex function
+// address space (same bundler rule that excludes migration.test.ts).`;
+
+export function generateRegistry(migrations: DiscoveredMigration[]): string {
+  const db = migrations.filter((m) => m.kind === 'db');
+  const component = migrations.filter((m) => m.kind === 'component');
+
+  const composeImports = new Set<string>();
+  for (const m of db) {
+    composeImports.add(m.legacy ? 'composeLegacyDb' : 'composeDb');
+  }
+  for (const m of component) {
+    composeImports.add(
+      m.legacy ? 'composeLegacyComponent' : 'composeComponent',
+    );
+  }
+
+  const lines: string[] = [GEN_HEADER];
+  lines.push(
+    '//',
+    '// V8-safe: node/reference migrations contribute inline meta literals only —',
+    "// their handler modules ('use node' / test-only) are never imported here.",
+    '',
+  );
+  if (composeImports.size > 0) {
+    lines.push(
+      `import { ${[...composeImports].sort().join(', ')} } from './compose';`,
+    );
+  }
+  lines.push(
+    "import type { ComponentMigration, DbMigration, MigrationMeta } from './types';",
+  );
+  for (const m of [...db, ...component]) {
+    lines.push(
+      `import { migration as ${varName(m)} } from '${importPath(m)}';`,
+    );
+  }
+
+  lines.push(
+    '',
+    '/** Every migration’s metadata, ordered by (semver, numericId). */',
+    'export const ALL_META: readonly MigrationMeta[] = [',
+  );
+  for (const m of migrations) {
+    lines.push(`  ${metaLiteral(m.meta, '  ')},`);
+  }
+  lines.push(
+    '];',
+    '',
+    'const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(',
+    '  ALL_META.map((m) => [m.id, m]),',
+    ');',
+    '',
+    "/** Look up a migration's meta by its stable id; throws on an unknown id. */",
+    'export function requireMeta(id: string): MigrationMeta {',
+    '  const meta = BY_ID.get(id);',
+    '  if (!meta) throw new Error(`Unknown migration id: ${id}`);',
+    '  return meta;',
+    '}',
+    '',
+    '/** Runnable `db` migrations, keyed by meta.id. */',
+    'export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {',
+  );
+  for (const m of db) {
+    lines.push(
+      m.legacy
+        ? `  ${JSON.stringify(m.id)}: composeLegacyDb(${varName(m)}),`
+        : `  ${JSON.stringify(m.id)}: composeDb(requireMeta(${JSON.stringify(m.id)}), ${varName(m)}),`,
+    );
+  }
+  lines.push(
+    '};',
+    '',
+    '/** Runnable `component` migrations, keyed by meta.id. */',
+    'export const COMPONENT_MIGRATIONS: Readonly<',
+    '  Record<string, ComponentMigration>',
+    '> = {',
+  );
+  for (const m of component) {
+    lines.push(
+      m.legacy
+        ? `  ${JSON.stringify(m.id)}: composeLegacyComponent(${varName(m)}),`
+        : `  ${JSON.stringify(m.id)}: composeComponent(requireMeta(${JSON.stringify(m.id)}), ${varName(m)}),`,
+    );
+  }
+  lines.push('};', '');
+  return lines.join('\n');
+}
+
+export function generateNodeRegistry(
+  migrations: DiscoveredMigration[],
+): string {
+  const node = migrations.filter((m) => m.kind === 'node');
+
+  const helperImports = new Set<string>();
+  for (const m of node) {
+    helperImports.add(m.legacy ? 'composeLegacyNode' : 'composeNode');
+  }
+
+  const lines: string[] = [
+    "'use node';",
+    '',
+    GEN_HEADER,
+    '//',
+    "// Node-migration handler registry: 'use node' handler modules composed",
+    '// with their derived meta. Only the node runner imports this.',
+    '',
+  ];
+  if (helperImports.size > 0) {
+    lines.push(
+      `import { ${[...helperImports].sort().join(', ')} } from './node_helpers';`,
+    );
+  }
+  if (node.some((m) => !m.legacy)) {
+    lines.push("import { requireMeta } from './registry.gen';");
+  }
+  lines.push("import type { NodeMigration } from './types';");
+  for (const m of node) {
+    lines.push(
+      `import { migration as ${varName(m)} } from '${importPath(m)}';`,
+    );
+  }
+  lines.push(
+    '',
+    '/** Runnable `node` migrations, keyed by meta.id. */',
+    'export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {',
+  );
+  for (const m of node) {
+    lines.push(
+      m.legacy
+        ? `  ${JSON.stringify(m.id)}: composeLegacyNode(${varName(m)}),`
+        : `  ${JSON.stringify(m.id)}: composeNode(requireMeta(${JSON.stringify(m.id)}), ${varName(m)}),`,
+    );
+  }
+  lines.push('};', '');
+  return lines.join('\n');
+}
+
+/** Canonical ALL_META JSON for the port-window parity fixture. */
+export function dumpMeta(migrations: DiscoveredMigration[]): string {
+  return `${JSON.stringify(
+    migrations.map((m) => m.meta),
+    null,
+    2,
+  )}\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Entry
+// ---------------------------------------------------------------------------
+
+export interface CodegenOptions {
+  readonly write: boolean;
+}
+
+export async function runMigrationsCodegen(
+  opts: CodegenOptions,
+): Promise<CodegenResult> {
+  const errors: string[] = [];
+  const migrations = await discoverMigrations(errors);
+  validateSet(migrations, errors);
+
+  const files: CodegenFile[] = [];
+  if (errors.length === 0) {
+    const targets: Array<[string, string]> = [
+      [REGISTRY_GEN_PATH, generateRegistry(migrations)],
+      [NODE_REGISTRY_GEN_PATH, generateNodeRegistry(migrations)],
+    ];
+    for (const [filePath, content] of targets) {
+      const existing = existsSync(filePath)
+        ? readFileSync(filePath, 'utf-8')
+        : null;
+      const upToDate = existing === content;
+      if (!upToDate) {
+        if (opts.write) {
+          writeFileSync(filePath, content);
+        } else {
+          errors.push(
+            `${path.relative(path.join(here, '..'), filePath)} is out of date — run \`bun run --filter @tale/platform migrations:sync\`.`,
+          );
+        }
+      }
+      files.push({ path: filePath, content, upToDate });
+    }
+
+    // Port-window parity fixture: ported metas must stay byte-identical.
+    if (existsSync(META_PARITY_PATH)) {
+      const expected = readFileSync(META_PARITY_PATH, 'utf-8');
+      const actual = dumpMeta(migrations);
+      if (expected !== actual) {
+        errors.push(
+          'convex/migrations/meta.parity.json no longer matches ALL_META — ' +
+            'a port changed meta content (id/title/description/flags must move verbatim). ' +
+            'If the change is intentional, regenerate: bun scripts/migrations-codegen.ts --dump-meta > convex/migrations/meta.parity.json',
+        );
+      }
+    }
+  }
+
+  return { errors, migrations, files };
+}
+
+async function main(): Promise<void> {
+  const write = process.argv.includes('--write');
+  const dump = process.argv.includes('--dump-meta');
+
+  if (dump) {
+    const errors: string[] = [];
+    const migrations = await discoverMigrations(errors);
+    validateSet(migrations, errors);
+    if (errors.length > 0) {
+      console.error(
+        '[migrations-codegen] FAILED:\n  - ' + errors.join('\n  - '),
+      );
+      process.exit(1);
+    }
+    process.stdout.write(dumpMeta(migrations));
+    return;
+  }
+
+  const result = await runMigrationsCodegen({ write });
+  if (result.errors.length > 0) {
+    console.error(
+      '[migrations-codegen] FAILED:\n  - ' + result.errors.join('\n  - '),
+    );
+    process.exit(1);
+  }
+  const changed = result.files.filter((f) => !f.upToDate).length;
+  console.log(
+    write
+      ? `[migrations-codegen] OK — ${result.migrations.length} migration(s), ${changed} file(s) ${changed > 0 ? 'regenerated' : 'already current'}.`
+      : `[migrations-codegen] OK — ${result.migrations.length} migration(s), registries current.`,
+  );
+}
+
+if (import.meta.main) {
+  void main();
+}

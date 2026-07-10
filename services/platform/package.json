@@ -18,6 +18,7 @@
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "migrations:check": "bun scripts/check-migrations.ts && bun scripts/check-schema-snapshot.ts && bun scripts/check-config-snapshot.ts",
     "migrations:snapshot": "bun scripts/check-schema-snapshot.ts --write && bun scripts/check-config-snapshot.ts --write",
+    "migrations:sync": "bun scripts/migrations-codegen.ts --write",
     "configs:validate": "bun scripts/validate-builtin-configs.ts",
     "admin:generate-password": "bun scripts/generate-admin-password.ts",
     "fixtures:gen": "bun scripts/pii-fixtures/gen/index.ts",
