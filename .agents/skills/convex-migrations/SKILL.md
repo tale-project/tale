@@ -1,6 +1,6 @@
 ---
 name: convex-migrations
-description: Use this skill whenever you add, change, test, or operate a versioned data migration — a Convex table reshape, an org-config file cutover, a Better Auth component transform, or a red migrations:check / check-migration-corpus gate. It owns the authoring contract (scaffold with gen:migration, define<Kind>Migration in one migration.ts, derived identity, declared subjects), the reversibility doctrine (idempotent up AND down, snapshot strategies, downTable for table moves), the test contract (defineMigrationTest + the chain suite + the world corpus duty), and the operator surface (tale migrate status/up/down, the deploy hook, failure surfacing). Load it before touching anything under convex/migrations/; never hand-edit a registry.gen file or ship a migration the chain cannot cover.
+description: Use this skill whenever you add, change, move, test, or operate a versioned data migration — a Convex table reshape, an org-config file cutover, a Better Auth component transform, or a red migrations:check / check-migration-corpus gate. It owns the authoring contract (scaffold with gen:migration, define<Kind>Migration in one migration.ts, derived identity, declared subjects), the reversibility doctrine (idempotent up AND down, snapshot strategies, downTable for table moves), version truth (the per-release checkpoint store, the versions suite, re-homing with formerIds ledger aliases), the test contract (defineMigrationTest + the chain suite + the world corpus duty incl. version-boundary injections), and the operator surface (tale migrate status/up/down, the deploy hook, failure surfacing). Load it before touching anything under convex/migrations/; never hand-edit a registry.gen file or ship a migration the chain cannot cover.
 ---
 
 # Convex migrations
@@ -40,7 +40,26 @@ Identity is **derived from the folder path** (`id`, `semver`, `numericId`, `slug
 Rules the factories and `migrations:check` enforce (so you don't have to remember them):
 unique ids/orderKeys, contiguous `NN`, `'use node'` ⟺ node kind, destructive ⇒ snapshot,
 `table-rows` never on a `v.id()`-referenced table, a sibling `migration.test.ts` that uses
-`defineMigrationTest` for db/node kinds.
+`defineMigrationTest` for db/node kinds, and a version checkpoint fixture for every version
+folder (see "Version truth" below).
+
+### Re-homing a migration — `formerIds`
+
+A migration lives in the version folder whose **release actually shipped its change** (the
+versions suite proves this against real per-release schemas). If a shipped migration turns out to
+be mis-homed, move the folder AND declare its shipped id:
+
+```ts
+formerIds: ['0.2.89/02_thread_files_absolute_paths'],
+```
+
+Deployments that applied it under the old id never re-run it: the apply actions adopt former-id
+ledger rows before planning, status/plan queries fold them read-only, and snapshot restores
+(table-rows pages, fs-tree sidecars) fall back to former-id captures. The codegen rejects
+formerIds that collide with a live id. Two things NEVER change on a re-home: `formerIds` values
+(they are live ledger keys) and any **persisted marker** the handlers write (e.g. an
+`installedBy: 'migration:v0_2_90_…'` stamp or a sidecar filename) — those are frozen at the
+original name even though the folder moved.
 
 ### Reversibility doctrine
 
@@ -53,9 +72,14 @@ unique ids/orderKeys, contiguous `NN`, `'use node'` ⟺ node kind, destructive �
   populated target; the legacy table is empty after `up` and a down over it silently restores
   nothing (a real bug the chain suite caught on its first run).
 - `subjects` declares every table/domain the handlers touch. The corpus guard
-  (`check-migration-corpus`) fails when the chain world cannot exercise a subject — extend the
-  baseline corpus (`convex/migrations/testing/world/`) or declare the producing migration in the
-  manifest.
+  (`check-migration-corpus`) fails when the world cannot exercise a subject — a subject is covered
+  when it is seeded at baseline, produced by an earlier migration (manifest `produces`), or
+  injected at a version boundary (`world/injections.testkit.ts`).
+- **Corpus rows live at their true version.** The baseline world must be a valid v0.2.84
+  deployment (the versions suite validates it against the real 0.2.84 schema). A row whose table
+  or shape was born later goes into `WORLD_INJECTIONS` keyed by the release that introduced it —
+  the versions suite seeds it when its walk crosses that boundary; chains A/B/C run
+  injection-free by design.
 - Module scope must stay side-effect-free — the codegen imports every migration module.
 
 ## The test contract
@@ -74,6 +98,25 @@ The chain suite (`convex/migrations/testing/chain.test.ts`) then runs EVERY runn
 real-stack twin (`bun run docker:test:migrations`, CI `migrations-e2e.yml`) replays the operator
 surface against the live compose stack — never run it beside a running dev stack (it pins the
 `tale-*` container names).
+
+## Version truth: the checkpoint store + versions suite
+
+`testing/versions/` holds the **ground truth of every released version**, extracted from git tags
+into a content-addressed store: the Convex schema fingerprint, the org-config Zod schemas (as
+JSON Schema), and the initialized-project scaffold of that era. The versions suite
+(`testing/versions.test.ts`) holds the chain against it on every PR:
+
+- the seed corpus must be a valid **v0.2.84** deployment;
+- after the last migration of each version X, the world must be a valid **release-X** deployment
+  (no rows in tables X does not declare, every row valid under X's real schema) — a mis-homed
+  migration fails here with the release and table named;
+- for each version X: a fresh project migrated `up --to X` validates as X, continues to newest,
+  and `down --to X` restores the at-X world byte-identically.
+
+**Cutting a release / creating a new version folder?** Run
+`bun services/platform/scripts/dump-version-schemas.ts` once — the corpus guard fails any
+migration version without a checkpoint fixture. `scripts/audit-migration-versions.ts` is the
+read-only placement report (schema-diff + first-shipping-tag evidence).
 
 ## Schema changes: the snapshot ritual
 
@@ -96,7 +139,9 @@ reshapes existing data FIRST, then refresh. Details in
 
 ## Definition of done
 
-- [ ] `bun run --filter @tale/platform migrations:check` green (registries, guards, corpus, snapshots)
-- [ ] `bunx vitest --run --project server convex/migrations` green — including the chain suite
+- [ ] `bun run --filter @tale/platform migrations:check` green (registries, guards, corpus, snapshots, checkpoints)
+- [ ] `bunx vitest --run --project server convex/migrations` green — including the chain AND versions suites
 - [ ] Schema change ⇒ snapshot ritual completed (safe refresh, or migration-first)
-- [ ] New subject ⇒ corpus extended (seed rows/files + manifest entry)
+- [ ] New subject ⇒ corpus extended at its TRUE version (baseline seed, `produces`, or injection)
+- [ ] New version folder ⇒ checkpoint fixtures dumped (`dump-version-schemas.ts`)
+- [ ] Re-homed migration ⇒ `formerIds` declared; persisted markers untouched
