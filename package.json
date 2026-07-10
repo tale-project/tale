@@ -59,6 +59,7 @@
     "gen:service": "bun run gen service",
     "gen:tool": "bun run gen tool",
     "gen:skill": "bun run gen skill",
+    "gen:migration": "bun run gen migration",
     "generate:icons": "bun scripts/generate-integration-icons.ts",
     "prepare": "bunx husky"
   },

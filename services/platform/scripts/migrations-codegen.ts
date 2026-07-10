@@ -812,16 +812,24 @@ export async function runMigrationsCodegen(
       files.push({ path: filePath, content, upToDate });
     }
 
-    // Port-window parity fixture: ported metas must stay byte-identical.
+    // Port-window parity fixture: every meta PRESENT IN THE FIXTURE must stay
+    // byte-identical through its port (id/title/description/flags move
+    // verbatim). Brand-new migrations are not pinned — the fixture freezes
+    // the pre-port corpus, not the set.
     if (existsSync(META_PARITY_PATH)) {
-      const expected = readFileSync(META_PARITY_PATH, 'utf-8');
-      const actual = dumpMeta(migrations);
-      if (expected !== actual) {
-        errors.push(
-          'convex/migrations/meta.parity.json no longer matches ALL_META — ' +
-            'a port changed meta content (id/title/description/flags must move verbatim). ' +
-            'If the change is intentional, regenerate: bun scripts/migrations-codegen.ts --dump-meta > convex/migrations/meta.parity.json',
-        );
+      const expectedById = new Map(
+        (
+          JSON.parse(readFileSync(META_PARITY_PATH, 'utf-8')) as MigrationMeta[]
+        ).map((m) => [m.id, JSON.stringify(m)]),
+      );
+      for (const m of migrations) {
+        const expected = expectedById.get(m.id);
+        if (expected !== undefined && expected !== JSON.stringify(m.meta)) {
+          errors.push(
+            `${m.rel}: meta drifted from convex/migrations/meta.parity.json — ports must move id/title/description/flags verbatim. ` +
+              'If the change is intentional, regenerate: bun scripts/migrations-codegen.ts --dump-meta > convex/migrations/meta.parity.json',
+          );
+        }
       }
     }
   }
