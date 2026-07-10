@@ -46,9 +46,10 @@ const stepTypeSchema = z.enum([
  * Optional, declarative UI annotation on a step. Holds KEYS only (no literal
  * text — i18n labels resolve from platform/pack catalogs). `render`/`params`
  * are kept as lenient strings here so a workflow file always parses and
- * round-trips as the closed render-kind vocabulary evolves; known-ness is
- * enforced by `validateWorkflowDefinition` (publish-time) and the renderer
- * (graceful degradation at runtime). See lib/shared/platform/render_kinds.
+ * round-trips as the closed render-kind vocabulary evolves; known-ness of
+ * `render` / `params` is enforced by `validateStepAnnotations` (publish-time
+ * warnings/errors) and the renderer (graceful degradation at runtime). See
+ * lib/shared/platform/render_kinds.
  */
 const workflowStepUiSchema = z.object({
   stage: z.string().optional(),
@@ -61,6 +62,8 @@ const workflowStepUiSchema = z.object({
       entryKind: z.string().optional(),
       mode: z.string().optional(),
       cardinality: z.string().optional(),
+      /** Operator surface: `outcome` | `process` (see SURFACES). */
+      surface: z.string().optional(),
       fields: z
         .array(
           z.object({

@@ -1,8 +1,9 @@
 'use client';
 
-/** Shared graceful fallback: show the raw step output (when present) so a panel
- * whose pack output doesn't match the expected shape still surfaces something
- * rather than rendering blank. */
+/** Shared graceful fallback: show a muted placeholder, with raw step output
+ * behind a disclosure so operators never face a wall of ids by default. */
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
@@ -15,5 +16,19 @@ export function OutputFallback({ part }: { part: RenderPart }) {
   if (part.data === undefined || part.data === null) {
     return <Text variant="muted">{t('body.noDetails')}</Text>;
   }
-  return <JsonViewer data={part.data} collapsed={1} />;
+  return (
+    <VStack gap={2}>
+      <Text variant="muted">{t('body.noDetails')}</Text>
+      <CollapsibleDetails
+        variant="compact"
+        summary={t('action.technicalDetails', {
+          defaultValue: 'Technical details',
+        })}
+      >
+        <div className="mt-2">
+          <JsonViewer data={part.data} collapsed={1} />
+        </div>
+      </CollapsibleDetails>
+    </VStack>
+  );
 }

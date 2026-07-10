@@ -39,9 +39,23 @@
       "approved": "Approved",
       "changesRequested": "Changes requested"
     },
+    "section": {
+      "outcome": "Outcome",
+      "runDetails": "Run details"
+    },
+    "outcome": {
+      "inProgress": "Working — results will appear here.",
+      "failed": "This step failed."
+    },
+    "artifact": {
+      "filed": "Filed {title}",
+      "updated": "Updated {title}",
+      "unchanged": "{title} already up to date"
+    },
     "action": {
       "open": "Open",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "technicalDetails": "Technical details"
     },
     "verdict": {
       "yes": "Yes",
@@ -727,10 +741,24 @@
     "detail": {
       "title": "Details",
       "activity": "Activity",
+      "input": "Input",
+      "more": "Details",
       "run": "Workflow run",
       "discuss": "Discussion",
       "externalRef": "External reference",
-      "chatPlaceholder": "Ask about this item…"
+      "subjectFolder": "Folder",
+      "relatedFolder": "Related folder",
+      "chatPlaceholder": "Ask about this item…",
+      "awaitingHuman": "Waiting on you. Open the Outcome files to check the result, then Mark done — or Request changes if something is wrong.",
+      "markDoneConfirmTitle": "Mark done?",
+      "markDoneConfirmDescription": "Confirm only after you finished the human follow-up for this item. To change the result instead, use Request changes.",
+      "requestChangesTitle": "Request changes",
+      "requestChangesDescription": "Write what is wrong. Your comment goes to the next run before it starts — without feedback the pipeline would only re-run unchanged.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "What should change?",
+      "requestChangesSubmit": "Send and re-run",
+      "requestChangesEmpty": "Write what should change before re-running.",
+      "requestChangesStarted": "Changes requested — the run is starting"
     },
     "review": {
       "none": "No pending reviews.",
@@ -748,6 +776,7 @@
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
+      "requestChanges": "Request changes",
       "merge": "Merge pull request",
       "cancel": "Cancel",
       "all": "All"

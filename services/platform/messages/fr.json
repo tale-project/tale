@@ -41,7 +41,21 @@
     },
     "action": {
       "open": "Ouvrir",
-      "openFile": "Ouvrir {name}"
+      "openFile": "Ouvrir {name}",
+      "technicalDetails": "Détails techniques"
+    },
+    "section": {
+      "outcome": "Résultat",
+      "runDetails": "Détails de l'exécution"
+    },
+    "outcome": {
+      "inProgress": "En cours — les résultats apparaîtront ici.",
+      "failed": "Cette étape a échoué."
+    },
+    "artifact": {
+      "filed": "{title} déposé",
+      "updated": "{title} mis à jour",
+      "unchanged": "{title} déjà à jour"
     },
     "verdict": {
       "yes": "Oui",
@@ -728,10 +742,24 @@
     "detail": {
       "title": "Détails",
       "activity": "Activité",
+      "input": "Entrée",
+      "more": "Détails",
       "run": "Exécution du workflow",
       "discuss": "Discussion",
       "externalRef": "Référence externe",
-      "chatPlaceholder": "Pose une question sur cet élément…"
+      "subjectFolder": "Dossier",
+      "relatedFolder": "Dossier associé",
+      "chatPlaceholder": "Pose une question sur cet élément…",
+      "awaitingHuman": "En attente de toi. Ouvre les fichiers Outcome pour vérifier le résultat, puis Marquer comme terminé — ou Demander des modifications si quelque chose ne va pas.",
+      "markDoneConfirmTitle": "Marquer comme terminé ?",
+      "markDoneConfirmDescription": "Confirme seulement après avoir terminé le suivi humain pour cet élément. Pour changer le résultat, utilise Demander des modifications.",
+      "requestChangesTitle": "Demander des modifications",
+      "requestChangesDescription": "Écris ce qui ne va pas. Ton commentaire part dans la prochaine exécution avant qu'elle démarre — sans feedback, le pipeline ne ferait que relancer à l'identique.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "Que faut-il changer ?",
+      "requestChangesSubmit": "Envoyer et relancer",
+      "requestChangesEmpty": "Écris ce qui doit changer avant de relancer.",
+      "requestChangesStarted": "Modifications demandées — l'exécution démarre"
     },
     "review": {
       "none": "Aucune révision en attente.",
@@ -749,6 +777,7 @@
       "created": "Créé",
       "start": "Démarrer",
       "markDone": "Marquer comme terminé",
+      "requestChanges": "Demander des modifications",
       "merge": "Merger la pull request",
       "cancel": "Annuler",
       "all": "Tous"
