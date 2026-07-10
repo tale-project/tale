@@ -13,9 +13,24 @@
  * `incompatible`, so the guard can fail the build on the changes that need a
  * migration and wave through the ones that don't.
  *
+ * The classification itself is the shared shape-drift core in
+ * `lib/shared/fingerprint/` (one classifier, per-language rule tables); this
+ * facade owns the Convex storage format — parsing `schema.export()`, the
+ * snapshot serialization, and the diff report — which stays byte-compatible
+ * with the committed `schema.snapshot.json`.
+ *
  * Pure + V8-safe: no `node:*`, no Convex runtime — imported by both the CLI
  * guard and its unit test.
  */
+
+import { classifyShapes } from '../../../lib/shared/fingerprint/classify';
+import {
+  convexShape,
+  convexValidatorRules,
+} from '../../../lib/shared/fingerprint/convex_validator';
+import { sortKeys, type Verdict } from '../../../lib/shared/fingerprint/ir';
+
+export { canonical } from '../../../lib/shared/fingerprint/ir';
 
 /** A Convex `Validator.json` node from `schema.export()` (recursive, untyped). */
 export type FieldType = Record<string, unknown>;
@@ -43,31 +58,6 @@ interface ExportedField {
   optional: boolean;
 }
 
-/** Stable JSON (recursively key-sorted) — for structural equality + set membership. */
-export function canonical(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    const entries = Object.entries(value).sort(([a], [b]) =>
-      a < b ? -1 : a > b ? 1 : 0,
-    );
-    for (const [key, val] of entries) out[key] = sortKeys(val);
-    return out;
-  }
-  return value;
-}
-
-/** Coerce an untyped JSON node to a keyed object (guarded, never throws). */
-function asFt(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : {};
-}
-
 /** Build a fingerprint from `schema.export()` output (JSON string or parsed). */
 export function computeFingerprint(
   exported: string | { tables?: ExportedTable[]; schemaValidation?: boolean },
@@ -90,37 +80,12 @@ export function computeFingerprint(
 /** How a field type changed between baseline and current. */
 export type TypeVerdict = 'same' | 'widen' | 'incompatible';
 
-function isType(ft: FieldType, type: string): boolean {
-  return ft?.type === type;
-}
-
-/** Literal value set if `ft` is a single literal or a union of only literals; else null. */
-function literalSet(ft: FieldType): Set<string> | null {
-  if (isType(ft, 'literal')) return new Set([canonical(ft.value)]);
-  if (isType(ft, 'union') && Array.isArray(ft.value)) {
-    const out = new Set<string>();
-    for (const m of ft.value) {
-      const mf = asFt(m);
-      if (!isType(mf, 'literal')) return null;
-      out.add(canonical(mf.value));
-    }
-    return out;
-  }
-  return null;
-}
-
-/** Canonical signatures of a union's members (single type → one-element list). */
-function unionMembers(ft: FieldType): string[] {
-  if (isType(ft, 'union') && Array.isArray(ft.value)) {
-    return ft.value.map((m) => canonical(m));
-  }
-  return [canonical(ft)];
-}
-
-function isSubset(a: Set<string>, b: Set<string>): boolean {
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
-}
+/** Shared-core verdicts in this module's historical vocabulary. */
+const TYPE_VERDICTS: Record<Verdict, TypeVerdict> = {
+  same: 'same',
+  safe: 'widen',
+  breaking: 'incompatible',
+};
 
 /**
  * Classify a field's type change. `widen` = every value valid under the old
@@ -128,79 +93,9 @@ function isSubset(a: Set<string>, b: Set<string>): boolean {
  * = some old value would now fail validation (needs a migration).
  */
 export function classifyType(a: FieldType, b: FieldType): TypeVerdict {
-  if (canonical(a) === canonical(b)) return 'same';
-
-  // `any` accepts everything: narrowing TO any is safe, FROM any is not.
-  if (isType(b, 'any')) return 'widen';
-  if (isType(a, 'any')) return 'incompatible';
-
-  const la = literalSet(a);
-  const lb = literalSet(b);
-  if (la && lb) {
-    if (isSubset(la, lb)) return la.size === lb.size ? 'same' : 'widen';
-    return 'incompatible'; // a literal the old set allowed was removed
-  }
-  // literal(s) → open string is a widen; the reverse narrows.
-  if (la && isType(b, 'string')) return 'widen';
-  if (isType(a, 'string') && lb) return 'incompatible';
-
-  // Unions of non-literals (e.g. union of objects): a grew member set is a widen.
-  if (isType(a, 'union') || isType(b, 'union')) {
-    const ma = new Set(unionMembers(a));
-    const mb = new Set(unionMembers(b));
-    return isSubset(ma, mb) ? 'widen' : 'incompatible';
-  }
-
-  if (isType(a, 'array') && isType(b, 'array')) {
-    return classifyType(asFt(a.value), asFt(b.value));
-  }
-  if (isType(a, 'object') && isType(b, 'object')) {
-    return classifyObject(asFt(a.value), asFt(b.value));
-  }
-  if (isType(a, 'id') && isType(b, 'id')) {
-    return a.tableName === b.tableName ? 'same' : 'incompatible';
-  }
-
-  // Same primitive but not canonically equal, or a different `type` entirely
-  // (string→number, id→string, …): a stored value may no longer validate.
-  return 'incompatible';
-}
-
-function worst(a: TypeVerdict, b: TypeVerdict): TypeVerdict {
-  if (a === 'incompatible' || b === 'incompatible') return 'incompatible';
-  if (a === 'widen' || b === 'widen') return 'widen';
-  return 'same';
-}
-
-/** `fieldType` of an `{ fieldType, optional }` field entry (guarded). */
-function fieldTypeOf(field: unknown): FieldType {
-  return asFt(asFt(field).fieldType);
-}
-/** `optional` flag of an `{ fieldType, optional }` field entry (guarded). */
-function optionalOf(field: unknown): boolean {
-  return Boolean(asFt(field).optional);
-}
-
-/** `a`/`b` are object field-maps: `{ fieldName: { fieldType, optional } }`. */
-function classifyObject(a: FieldType, b: FieldType): TypeVerdict {
-  let verdict: TypeVerdict = 'same';
-  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    const af = a[key];
-    const bf = b[key];
-    if (af === undefined) {
-      // Added nested field: required → breaks old rows; optional → safe growth.
-      verdict = worst(verdict, optionalOf(bf) ? 'widen' : 'incompatible');
-    } else if (bf === undefined) {
-      verdict = 'incompatible'; // nested field dropped
-    } else {
-      if (optionalOf(af) && !optionalOf(bf))
-        verdict = 'incompatible'; // tightened
-      else if (!optionalOf(af) && optionalOf(bf))
-        verdict = worst(verdict, 'widen');
-      verdict = worst(verdict, classifyType(fieldTypeOf(af), fieldTypeOf(bf)));
-    }
-  }
-  return verdict;
+  return TYPE_VERDICTS[
+    classifyShapes(convexShape(a), convexShape(b), convexValidatorRules)
+  ];
 }
 
 // --- fingerprint diff -------------------------------------------------------
