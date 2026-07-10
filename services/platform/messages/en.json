@@ -729,7 +729,6 @@
       "activity": "Activity",
       "run": "Workflow run",
       "discuss": "Discussion",
-      "openLink": "Open link",
       "externalRef": "External reference",
       "chatPlaceholder": "Ask about this item…"
     },
