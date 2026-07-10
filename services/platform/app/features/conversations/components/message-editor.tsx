@@ -28,7 +28,11 @@ import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
 import { FileAttachmentsList } from './message-editor/file-attachments-list';
 import { ImproveMode } from './message-editor/improve-mode';
-import type { AttachedFile, MessageEditorProps } from './message-editor/types';
+import {
+  type AttachedFile,
+  type MessageEditorProps,
+  messageDraftKeys,
+} from './message-editor/types';
 import { MessageImprovementDialog } from './message-improvement-dialog';
 
 function markdownToHtml(md: string): string {
@@ -72,20 +76,13 @@ function MilkdownEditorInner({
   const { mutateAsync: improveMessage } = useImproveMessage();
 
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
-  const draftPrefix = user?.userId
-    ? `conversation-${user.userId}`
-    : 'conversation';
+  const draftKeys = messageDraftKeys(user?.userId, messageId);
   const [message, setMessage, clearMessage] = usePersistedState(
-    messageId ? `${draftPrefix}-${messageId}` : `${draftPrefix}-new`,
+    draftKeys.body,
     pendingMessage?.content || '',
   );
   const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
-    usePersistedState(
-      messageId
-        ? `${draftPrefix}-${messageId}-improve-instruction`
-        : `${draftPrefix}-new-improve-instruction`,
-      '',
-    );
+    usePersistedState(draftKeys.improveInstruction, '');
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isImproveMode, setIsImproveMode] = useState(false);

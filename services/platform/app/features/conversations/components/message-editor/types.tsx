@@ -24,6 +24,22 @@ export interface MessageEditorProps {
   organizationId: string;
 }
 
+/**
+ * localStorage keys the `MessageEditor` persists its draft under, per user +
+ * `messageId` (falling back to a shared `new` slot). Exported as the single
+ * source of truth so a caller that owns the composer's lifecycle (e.g. the
+ * compose pane) can clear the same body/instruction drafts it can't reach
+ * through the editor's internal state.
+ */
+export function messageDraftKeys(
+  userId: string | undefined,
+  messageId: string | undefined,
+): { body: string; improveInstruction: string } {
+  const prefix = userId ? `conversation-${userId}` : 'conversation';
+  const base = `${prefix}-${messageId ?? 'new'}`;
+  return { body: base, improveInstruction: `${base}-improve-instruction` };
+}
+
 const FILE_TYPE_ICONS = {
   image: { Icon: ImageIcon, colorClass: 'text-blue-500' },
   video: { Icon: VideoIcon, colorClass: 'text-purple-500' },
