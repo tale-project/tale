@@ -4,10 +4,12 @@ import { v } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
 import { buildModules } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { migration as module } from './migration';
+
+const migration = module.spec;
 
 const DIR =
-  'migrations/versions/v0_3_4/06_customers_vendors_to_contacts_teardown';
+  'migrations/versions/v0_3_4/29_customers_vendors_to_contacts_teardown';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
 
 // Local fixture with the pre-teardown conversations shape (customerId present
@@ -20,7 +22,7 @@ const fixtureSchema = defineSchema({
   }).index('by_organizationId', ['organizationId']),
 });
 
-describe('0.3.4/06 customers_vendors_to_contacts_teardown (reference)', () => {
+describe('0.3.4/29 customers_vendors_to_contacts_teardown (reference)', () => {
   it('up drops customerId; down structurally restores it; idempotent', async () => {
     const t = convexTest(fixtureSchema, modules);
 

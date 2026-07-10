@@ -205,15 +205,51 @@ export function validateConfigTreeAtVersion(
 }
 
 /**
+ * Table names declared by ANY checkpoint up to and including `version` —
+ * distinguishes a table a release DROPPED (orphan rows are legitimate
+ * residue: Convex keeps undeclared tables' data) from one no release had
+ * ever declared (rows there prove a migration belongs to a later version).
+ * Cached per call site: the full scan gunzips every checkpoint once.
+ */
+export function tablesEverDeclaredThrough(version: string): Set<string> {
+  const ordered = checkpointVersions()
+    .map((v) => ({
+      v,
+      key: v
+        .split('.')
+        .map((p) => p.padStart(6, '0'))
+        .join('.'),
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const targetKey = version
+    .split('.')
+    .map((p) => p.padStart(6, '0'))
+    .join('.');
+  const seen = new Set<string>();
+  for (const { v, key } of ordered) {
+    if (key.localeCompare(targetKey) > 0) break;
+    for (const table of Object.keys(loadDbCheckpoint(v).tables)) {
+      seen.add(table);
+    }
+  }
+  return seen;
+}
+
+/**
  * Validate a migrated world against the DB schema release `version` actually
  * shipped. `collect` reads all rows of a table (the chain's world collector).
  * Returns human-readable violations; empty = the world is a valid deployment
  * of that release.
+ *
+ * `everDeclared` (when provided) marks tables some release ≤ `version` once
+ * declared: rows in an undeclared-but-once-declared table are DROP RESIDUE,
+ * not mis-homing evidence, and are skipped.
  */
 export async function validateWorldAtVersion(
   version: string,
   worldTables: readonly string[],
   collect: (table: string) => Promise<Array<Record<string, unknown>>>,
+  everDeclared?: ReadonlySet<string>,
 ): Promise<string[]> {
   const checkpoint = loadDbCheckpoint(version);
   const errors: string[] = [];
@@ -225,6 +261,7 @@ export async function validateWorldAtVersion(
 
     const shape = checkpoint.tables[table];
     if (!shape) {
+      if (everDeclared?.has(table)) continue; // dropped table — orphan rows
       errors.push(
         `release ${version} does not declare table "${table}", but the migrations left ${rows.length} row(s) in it — ` +
           'the migration that created them belongs to a later version.',

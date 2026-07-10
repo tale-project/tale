@@ -33,6 +33,8 @@ import { migration as m0_3_4_22 } from '../versions/v0_3_4/22_backfill_contacts_
 import { migration as m0_3_4_23 } from '../versions/v0_3_4/23_backfill_contacts_from_customers/migration';
 import { migration as m0_3_4_24 } from '../versions/v0_3_4/24_backfill_conversation_contact_id/migration';
 import { migration as m0_3_4_25 } from '../versions/v0_3_4/25_backfill_support_case_contact_id/migration';
+import { migration as m0_3_4_27 } from '../versions/v0_3_4/27_clear_conversation_customer_id/migration';
+import { migration as m0_3_4_28 } from '../versions/v0_3_4/28_clear_support_case_customer_id/migration';
 import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
@@ -653,6 +655,42 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.3.4/27_clear_conversation_customer_id",
+    semver: "0.3.4",
+    numericId: 27,
+    slug: "clear_conversation_customer_id",
+    title: "Clear conversations.customerId (repointed to contactId)",
+    description: "Unsets conversations.customerId on rows whose link 0.3.4/24 repointed to contactId, so existing rows satisfy the schema that drops the field. down restores the original customerId from the contact metadata.__migratedFrom stamp; rows without a contactId are never touched. Both directions idempotent.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/28_clear_support_case_customer_id",
+    semver: "0.3.4",
+    numericId: 28,
+    slug: "clear_support_case_customer_id",
+    title: "Clear supportCases.customerId (repointed to contactId)",
+    description: "Unsets supportCases.customerId on rows whose link 0.3.4/25 repointed to contactId, so existing rows satisfy the schema that drops the field. down restores the original customerId from the contact metadata.__migratedFrom stamp; rows without a contactId are never touched. Both directions idempotent.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/29_customers_vendors_to_contacts_teardown",
+    semver: "0.3.4",
+    numericId: 29,
+    slug: "customers_vendors_to_contacts_teardown",
+    title: "Drop customers + vendors tables and conversation/support-case customerId",
+    description: "Teardown of the customers+vendors → contacts merge (#2618): drops the customers and vendors tables (rows copied to contacts by 22/23) and the customerId link on conversations/supportCases (repointed to contactId by 24/25, cleared from rows by 27/28); the customer-only status field goes with the customers table. The documented up unsets customerId; down structurally restores a placeholder (the runnable 27/28 restore the real value via the contact __migratedFrom stamp).",
+    kind: 'reference',
+    reversible: true,
+    destructive: true,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -692,6 +730,8 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.3.4/23_backfill_contacts_from_customers": composeDb(requireMeta("0.3.4/23_backfill_contacts_from_customers"), m0_3_4_23),
   "0.3.4/24_backfill_conversation_contact_id": composeDb(requireMeta("0.3.4/24_backfill_conversation_contact_id"), m0_3_4_24),
   "0.3.4/25_backfill_support_case_contact_id": composeDb(requireMeta("0.3.4/25_backfill_support_case_contact_id"), m0_3_4_25),
+  "0.3.4/27_clear_conversation_customer_id": composeDb(requireMeta("0.3.4/27_clear_conversation_customer_id"), m0_3_4_27),
+  "0.3.4/28_clear_support_case_customer_id": composeDb(requireMeta("0.3.4/28_clear_support_case_customer_id"), m0_3_4_28),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

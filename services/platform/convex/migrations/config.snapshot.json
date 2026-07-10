@@ -43852,10 +43852,10 @@
           "minimum": 0,
           "type": "integer"
         },
-        "customersEnabled": {
+        "contactsEnabled": {
           "type": "boolean"
         },
-        "customersRetentionDays": {
+        "contactsRetentionDays": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
@@ -43941,14 +43941,6 @@
           "type": "boolean"
         },
         "userTempRetentionHours": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "vendorsEnabled": {
-          "type": "boolean"
-        },
-        "vendorsRetentionDays": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
@@ -45530,7 +45522,7 @@
           "required": ["min", "max", "default", "unit"],
           "type": "object"
         },
-        "customers": {
+        "contacts": {
           "additionalProperties": false,
           "properties": {
             "default": {
@@ -45791,32 +45783,6 @@
           "type": "object"
         },
         "userTempHours": {
-          "additionalProperties": false,
-          "properties": {
-            "default": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "max": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "min": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "unit": {
-              "enum": ["days", "hours"],
-              "type": "string"
-            }
-          },
-          "required": ["min", "max", "default", "unit"],
-          "type": "object"
-        },
-        "vendors": {
           "additionalProperties": false,
           "properties": {
             "default": {

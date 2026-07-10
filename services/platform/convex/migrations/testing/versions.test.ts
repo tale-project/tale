@@ -31,6 +31,7 @@ import { isRunnableKind } from '../framework/types';
 import {
   checkpointVersions,
   hasCheckpoint,
+  tablesEverDeclaredThrough,
   loadScaffold,
   materializeScaffold,
   readBlob,
@@ -92,6 +93,17 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/** Cumulative declared-table sets (dropped-table residue tolerance). */
+const everDeclaredCache = new Map<string, ReadonlySet<string>>();
+function everDeclaredAt(version: string): ReadonlySet<string> {
+  let cached = everDeclaredCache.get(version);
+  if (!cached) {
+    cached = tablesEverDeclaredThrough(version);
+    everDeclaredCache.set(version, cached);
+  }
+  return cached;
+}
+
 const seedWorld = (): Promise<SeededWorld> =>
   buildSeededWorld(root, modules, authModules);
 
@@ -118,7 +130,12 @@ describe('version checkpoints (real per-release schemas)', () => {
       // Config files count too: every file the fixtures lay down must match
       // the shape the baseline release's Zod schemas declared.
       const baselineErrors = [
-        ...(await validateWorldAtVersion(BASELINE, worldTables(), collect)),
+        ...(await validateWorldAtVersion(
+          BASELINE,
+          worldTables(),
+          collect,
+          everDeclaredAt(BASELINE),
+        )),
         ...validateConfigTreeAtVersion(BASELINE, root),
       ];
       violations.push(...baselineErrors.map((e) => `  at baseline: ${e}`));
@@ -129,7 +146,12 @@ describe('version checkpoints (real per-release schemas)', () => {
           { to: version, allowDestructive: true },
         );
         const errors = [
-          ...(await validateWorldAtVersion(version, worldTables(), collect)),
+          ...(await validateWorldAtVersion(
+            version,
+            worldTables(),
+            collect,
+            everDeclaredAt(version),
+          )),
           ...validateConfigTreeAtVersion(version, root),
         ];
         violations.push(...errors.map((e) => `  after ≤${version}: ${e}`));
@@ -189,7 +211,12 @@ describe('version checkpoints (real per-release schemas)', () => {
             versionRoot,
           );
           expect(
-            await validateWorldAtVersion(version, worldTables(), collect),
+            await validateWorldAtVersion(
+              version,
+              worldTables(),
+              collect,
+              everDeclaredAt(version),
+            ),
             `fresh project at ${version} is not a valid ${version} deployment`,
           ).toEqual([]);
 
@@ -213,7 +240,12 @@ describe('version checkpoints (real per-release schemas)', () => {
             `down --to ${version} did not restore the at-${version} world:\n${diff.join('\n')}`,
           ).toEqual([]);
           expect(
-            await validateWorldAtVersion(version, worldTables(), collect),
+            await validateWorldAtVersion(
+              version,
+              worldTables(),
+              collect,
+              everDeclaredAt(version),
+            ),
             `world after down --to ${version} is not a valid ${version} deployment`,
           ).toEqual([]);
         } finally {

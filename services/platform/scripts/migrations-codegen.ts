@@ -603,12 +603,13 @@ export function dumpMeta(migrations: DiscoveredMigration[]): string {
 const API_DTS_PATH = path.join(here, '../convex/_generated/api.d.ts');
 
 /**
- * Every single-dot .ts module under versions/ — folder handlers/metas plus
- * the version-shared helper modules (legacy_governance.ts, …). Mirrors what
- * `convex codegen` lists; two-dot files (tests, testkits) are bundler-skipped
- * and never appear.
+ * Every single-dot .ts module under convex/migrations/ — framework, testing,
+ * and versions alike. Mirrors what `convex codegen` lists; two-dot files
+ * (tests, testkits, .gen registries) are bundler-skipped and never appear.
+ * Owning the WHOLE subtree makes api.d.ts self-healing after a merge/rebase
+ * mangles the generated file's migrations sections.
  */
-function versionsModuleRels(): string[] {
+function migrationsModuleRels(): string[] {
   const out: string[] = [];
   const walk = (dir: string, rel: string): void => {
     for (const entry of readdirSync(dir).sort()) {
@@ -620,11 +621,12 @@ function versionsModuleRels(): string[] {
         entry.endsWith('.ts') &&
         entry.split('.').length === 2 // single-dot: a pushed Convex module
       ) {
-        out.push(`migrations/versions/${childRel.slice(0, -3)}`);
+        out.push(`migrations/${childRel.slice(0, -3)}`);
       }
     }
   };
-  if (existsSync(VERSIONS_DIR)) walk(VERSIONS_DIR, '');
+  const migrationsDir = path.dirname(VERSIONS_DIR);
+  if (existsSync(migrationsDir)) walk(migrationsDir, '');
   return out.sort();
 }
 
@@ -641,7 +643,7 @@ function apiAliasOf(moduleRel: string): string {
  * needs a running backend; this keeps the committed file true without one.
  */
 export function rewriteApiDts(content: string): string {
-  const moduleRels = versionsModuleRels();
+  const moduleRels = migrationsModuleRels();
 
   const importLine = (rel: string): string =>
     `import type * as ${apiAliasOf(rel)} from "../${rel}.js";`;
@@ -649,10 +651,13 @@ export function rewriteApiDts(content: string): string {
     `  "${rel}": typeof ${apiAliasOf(rel)};`;
 
   const lines = content.split('\n');
+  // `migrations_`-prefixed aliases / `"migrations/"` map keys cover the whole
+  // subtree; convex/migrations.ts itself aliases to bare `migrations` (no
+  // underscore, key without slash) and is left alone.
   const isVersionsImport = (l: string): boolean =>
-    l.startsWith('import type * as migrations_versions_');
+    l.startsWith('import type * as migrations_');
   const isVersionsMapEntry = (l: string): boolean =>
-    l.startsWith('  "migrations/versions/');
+    l.startsWith('  "migrations/');
 
   const firstImport = lines.findIndex(isVersionsImport);
   const firstMap = lines.findIndex(isVersionsMapEntry);
