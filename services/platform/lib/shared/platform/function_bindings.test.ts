@@ -133,6 +133,17 @@ describe('resolveBindingArgs', () => {
       'acme/widgets#42',
     );
   });
+  it('$tpl: includes projectId and form input for Form submits', () => {
+    const ctx = {
+      organizationId: 'org_1',
+      projectId: 'proj_9',
+      input: { vatNumber: 'CHE-1' },
+    };
+    expect(
+      resolveBindingArgs('$tpl:vatplus:{projectId}:profile.yaml', ctx),
+    ).toBe('vatplus:proj_9:profile.yaml');
+    expect(resolveBindingArgs('$tpl:uid={vatNumber}', ctx)).toBe('uid=CHE-1');
+  });
   it('leaves a bare $label: string verbatim — the retired sentinel is no longer recognized', () => {
     // Display strings are literals now (UI translations are platform-owned);
     // `resolveBindingArgs` has no special case for this prefix any more, so a
@@ -575,6 +586,13 @@ describe('collector covers every binding-bearing schema prop', () => {
                     addAction: { path: 'd/f:addM', mode: 'mutation' },
                   },
                 },
+                {
+                  type: 'Form',
+                  props: {
+                    whenQuery: { path: 'd/f:gateQ' },
+                    submit: { path: 'd/f:submitM', mode: 'mutation' },
+                  },
+                },
               ],
             },
           ],
@@ -600,6 +618,8 @@ describe('collector covers every binding-bearing schema prop', () => {
         'd/f:sourceA',
         'd/f:excludeQ',
         'd/f:addM',
+        'd/f:gateQ',
+        'd/f:submitM',
       ].sort(),
     );
   });

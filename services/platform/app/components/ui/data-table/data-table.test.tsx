@@ -59,9 +59,9 @@ const sampleRows: TestRow[] = [
 // ---------------------------------------------------------------------------
 
 function getTbody() {
-  // Both <thead> and <tbody> have role="rowgroup"; tbody is the second one
   const rowgroups = screen.getAllByRole('rowgroup');
-  const tbody = rowgroups[1];
+  // With a header: [thead, tbody]. Initial empty hides thead → [tbody] only.
+  const tbody = rowgroups.length > 1 ? rowgroups[1] : rowgroups[0];
   if (!tbody) throw new Error('Could not find tbody rowgroup');
   return tbody;
 }
@@ -243,7 +243,7 @@ describe('DataTable loading states', () => {
       expect(screen.getByText('Status')).toBeInTheDocument();
     });
 
-    it('renders column headers with empty state', () => {
+    it('hides column headers on the initial empty state', () => {
       render(
         <DataTable
           columns={columns}
@@ -253,8 +253,13 @@ describe('DataTable loading states', () => {
         />,
       );
 
-      expect(screen.getByText('Name')).toBeInTheDocument();
-      expect(screen.getByText('Status')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('columnheader', { name: 'Name' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('columnheader', { name: 'Status' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('Empty')).toBeInTheDocument();
     });
 
     it('renders search input during loading', () => {
@@ -357,7 +362,30 @@ describe('DataTable addAction contract', () => {
     expect(btn).not.toHaveClass('text-xs');
   });
 
-  it('keeps the empty state button-less when toolbar chrome carries the create action', () => {
+  it('moves addAction into the empty state when there is no toolbar chrome', () => {
+    const onClick = vi.fn();
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={0}
+        emptyState={{ title: 'No customers' }}
+        addAction={{ label: 'New customer', onClick }}
+      />,
+    );
+
+    // No column header row on the initial empty surface.
+    expect(
+      screen.queryByRole('columnheader', { name: 'Name' }),
+    ).not.toBeInTheDocument();
+    // Create lives with the empty copy — not a lone toolbar button.
+    expect(
+      screen.getAllByRole('button', { name: 'New customer' }),
+    ).toHaveLength(1);
+    expect(screen.getByText('No customers')).toBeInTheDocument();
+  });
+
+  it('keeps addAction in the header when search chrome is present', () => {
     render(
       <DataTable
         columns={columns}
@@ -373,7 +401,6 @@ describe('DataTable addAction contract', () => {
       />,
     );
 
-    // The create affordance lives ONLY in the header; the empty body has no CTA.
     expect(
       screen.getAllByRole('button', { name: 'New customer' }),
     ).toHaveLength(1);

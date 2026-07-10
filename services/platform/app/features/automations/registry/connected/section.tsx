@@ -28,36 +28,39 @@ export function Section({
   children: React.ReactNode;
   className?: string;
 }) {
+  const hasHeader = Boolean(title || description || Icon || action);
   return (
     <Card asChild padding="none" shadow="sm" className={className}>
       <section>
-        <Row gap={3} align="start" justify="between" className="p-5 pb-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {Icon && (
-              <Row
-                gap={0}
-                justify="center"
-                className="bg-muted text-muted-foreground size-8 shrink-0 rounded-md"
-              >
-                <Icon className="size-4" />
-              </Row>
-            )}
-            <div className="min-w-0">
-              {title && (
-                <Text as="span" className="font-semibold">
-                  {title}
-                </Text>
+        {hasHeader ? (
+          <Row gap={3} align="start" justify="between" className="p-5 pb-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {Icon && (
+                <Row
+                  gap={0}
+                  justify="center"
+                  className="bg-muted text-muted-foreground size-8 shrink-0 rounded-md"
+                >
+                  <Icon className="size-4" />
+                </Row>
               )}
-              {description && (
-                <Text variant="muted" className="block text-sm">
-                  {description}
-                </Text>
-              )}
+              <div className="min-w-0">
+                {title && (
+                  <Text as="span" className="font-semibold">
+                    {title}
+                  </Text>
+                )}
+                {description && (
+                  <Text variant="muted" className="block text-sm">
+                    {description}
+                  </Text>
+                )}
+              </div>
             </div>
-          </div>
-          {action && <div className="shrink-0">{action}</div>}
-        </Row>
-        <div className="px-5 pb-5">{children}</div>
+            {action && <div className="shrink-0">{action}</div>}
+          </Row>
+        ) : null}
+        <div className={hasHeader ? 'px-5 pb-5' : 'p-5'}>{children}</div>
       </section>
     </Card>
   );

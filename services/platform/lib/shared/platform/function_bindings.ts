@@ -95,6 +95,11 @@ function collectFromNode(node: unknown, out: CollectedBinding[]): void {
   if (isRec(props.query) && typeof props.query.path === 'string') {
     out.push({ path: props.query.path, mode: 'query' });
   }
+  // Optional visibility gate (`Form` / `Text` / `Alert` `whenQuery`) — a
+  // reactive read like `props.query`, collected so publish allowlists it.
+  if (isRec(props.whenQuery) && typeof props.whenQuery.path === 'string') {
+    out.push({ path: props.whenQuery.path, mode: 'query' });
+  }
   // A list block may cross-reference a second reactive query under `excludeBy`
   // (hide rows already materialized elsewhere); collect it so the cross-ref
   // query is allowlist-checked like any other binding.
@@ -214,11 +219,13 @@ export function validateViewBindings(
  *    (state key unset, nothing selected, …) — the `$config:` posture — so
  *    `bindingArgsResolved` gates the call and the block shows its awaiting
  *    placeholder instead of firing a malformed request.
- * Prefix templates (interpolated over the row MERGED WITH config, `{field}`
- * syntax; row fields win a name clash):
+ * Prefix templates (interpolated over the row MERGED WITH config, form input,
+ * and bound ids — `{field}` syntax; later layers win a name clash):
  *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over
- *    `{...config, ...selected}`, so one arg can mix config + row fields (e.g.
- *    `"$tpl:{owner}/{repo}#{number}"` — owner/repo from config, number from the row).
+ *    `{...config, ...selected, ...input, projectId, orgId}`, so one arg can
+ *    mix config + row + form fields (e.g. `"$tpl:{owner}/{repo}#{number}"` —
+ *    owner/repo from config, number from the row; or
+ *    `"$tpl:vatplus:{projectId}:profile.yaml"` from a Form submit).
  */
 export function resolveBindingArgs(
   args: unknown,
@@ -240,9 +247,16 @@ export function resolveBindingArgs(
     lane?: string;
   },
 ): unknown {
-  // Templates can reference both per-install config and the selected row; row
-  // fields win a name clash (they're the more specific, per-item value).
-  const templateScope = { ...ctx.config, ...ctx.selected };
+  // Templates can reference config, the selected row, form input, and the
+  // bound project/org ids. Later layers win a name clash (input is the most
+  // specific per-submit value).
+  const templateScope = {
+    ...ctx.config,
+    ...ctx.selected,
+    ...ctx.input,
+    ...(ctx.projectId !== undefined ? { projectId: ctx.projectId } : {}),
+    orgId: ctx.organizationId,
+  };
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
     // Unbound `$projectId` resolves to `undefined` (the `$config:` / `$state.`

@@ -113,12 +113,13 @@ vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
 
 const PROJECT_ID = 'proj-1' as Id<'projects'>;
 
-function renderTab(initialFolderId?: string) {
+function renderTab(initialFolderId?: string, openCreateFolder?: boolean) {
   return render(
     <ProjectFilesTab
       organizationId="org-1"
       projectId={PROJECT_ID}
       initialFolderId={initialFolderId}
+      openCreateFolder={openCreateFolder}
     />,
   );
 }
@@ -266,6 +267,22 @@ describe('ProjectFilesTab', () => {
       name: 'Create folder',
     });
     expect(within(dialog).getByLabelText(/folder name/i)).toBeInTheDocument();
+  });
+
+  it('opens the create-folder dialog from openCreateFolder deep-link', async () => {
+    renderTab(undefined, true);
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create folder',
+    });
+    expect(within(dialog).getByLabelText(/folder name/i)).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/$id/projects/$projectId/files',
+        search: {},
+        replace: true,
+      }),
+    );
   });
 
   it('creates the folder scoped to the project', async () => {

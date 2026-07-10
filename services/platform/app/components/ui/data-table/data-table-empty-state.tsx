@@ -9,6 +9,12 @@ export interface DataTableEmptyStateProps {
   /** Description text or rich content */
   description?: ReactNode;
   /**
+   * Optional primary action (e.g. create). When the table is empty and has no
+   * search/filter chrome, DataTable moves `addAction` here so the CTA sits
+   * with the empty copy instead of a lone toolbar button above an empty grid.
+   */
+  action?: ReactNode;
+  /**
    * Heading level for the empty-state title. Defaults (via `EmptyState`) to
    * `3`, which is correct for the common case of a table inside a settings
    * section (under an `h2`). A table rendered directly under a page `h1` with
@@ -23,14 +29,16 @@ export interface DataTableEmptyStateProps {
  * primitive so every table's empty state looks exactly like the empty states
  * used everywhere else.
  *
- * Deliberately button-less: a table's empty state shows only icon + title +
- * description. The create/add affordance lives in the table header, not in the
- * empty body — so the empty state never competes with (or duplicates) it.
+ * When the table has toolbar chrome (search/filters), the create affordance
+ * stays in the header. When the only chrome would be a lone `addAction`,
+ * DataTable passes that button here so empty lists don't show a header button
+ * floating above an empty grid.
  */
 export function DataTableEmptyState({
   icon,
   title,
   description,
+  action,
   headingLevel,
 }: DataTableEmptyStateProps) {
   return (
@@ -38,6 +46,7 @@ export function DataTableEmptyState({
       icon={icon}
       title={title}
       description={description}
+      action={action}
       headingLevel={headingLevel}
     />
   );

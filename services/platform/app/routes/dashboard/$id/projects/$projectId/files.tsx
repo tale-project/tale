@@ -10,6 +10,16 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const searchSchema = z.object({
   folderId: z.string().optional(),
+  /**
+   * Deep-link from automation navigate / shareable URL — open the create-
+   * folder dialog once (`?createFolder=1` or `true`).
+   */
+  createFolder: z
+    .union([z.string(), z.boolean(), z.number()])
+    .optional()
+    .transform((v) =>
+      v === true || v === 1 || v === '1' || v === 'true' ? true : undefined,
+    ),
 });
 
 // Skeletonized layout frame shown while the tab's JS chunk loads — the real
@@ -53,12 +63,13 @@ export const Route = createFileRoute(
 
 function ProjectFilesPage() {
   const { id: organizationId, projectId } = Route.useParams();
-  const { folderId } = Route.useSearch();
+  const { folderId, createFolder } = Route.useSearch();
   return (
     <ProjectFilesTab
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
       initialFolderId={folderId}
+      openCreateFolder={createFolder === true}
     />
   );
 }

@@ -29,6 +29,7 @@
  */
 import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row } from '@tale/ui/layout';
 import { ChevronDown, ListChecks } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -43,6 +44,7 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -54,7 +56,7 @@ import {
   type ActionEffect,
 } from '../../runtime/action-effects';
 import { BindingStates, BlockFrame } from '../block-frame';
-import { type BoundActionSpec, type RowActionSpec } from './bound-button';
+import { isEffectAction, type RowActionSpec } from './bound-button';
 import {
   buildBoundColumns,
   useBoundRowIds,
@@ -111,9 +113,9 @@ export interface CollectionProps {
   filters?: CollectionFilterSpec[];
   /** Empty-state copy override (title/description literals). */
   emptyState?: CollectionEmptyStateSpec;
-  /** The single primary create affordance — a bound action rendered in the
-   *  table header (the standard add-button placement). */
-  addAction?: BoundActionSpec;
+  /** The single primary create affordance — a bound action OR effect-only
+   *  (e.g. navigate), rendered in the table header. */
+  addAction?: RowActionSpec;
   /** Managed client-side search over the given row fields. */
   search?: CollectionSearchSpec;
   /** Effect applied when a row is clicked (`$selected.*` binds the row). */
@@ -217,34 +219,55 @@ function CollectionFilterBar({
 }
 
 /**
- * Map the view's `addAction` (a bound action) onto the DataTable's standard
- * add-button contract: label via the same rule as `BoundButton`, dispatch +
- * `onSuccess` effect on click. Hook-shaped so it runs unconditionally (the
- * bound hooks are instantiated even when no addAction is declared — same
- * posture as the `excludeBy` query in `ExternalList`). Row-scoped fields
- * (`when`/`doneWhen`/`confirm`) don't apply to a collection-level create.
+ * Map the view's `addAction` (bound call OR effect-only) onto the DataTable's
+ * standard add-button contract: label via the same rule as `BoundButton`,
+ * dispatch + `onSuccess` (bound) or `applyEffect` (effect-only) on click.
+ * Hook-shaped so it runs unconditionally (the bound hooks are instantiated
+ * even when no addAction is declared — same posture as the `excludeBy` query
+ * in `ExternalList`). Row-scoped fields (`when`/`doneWhen`/`confirm`) don't
+ * apply to a collection-level create.
  */
 function useBoundAddAction(
-  spec: BoundActionSpec | undefined,
+  spec: RowActionSpec | undefined,
 ): DataTableAddAction | undefined {
   const { t } = useT('automations');
-  const { dispatch, isPending } = useBoundAction(
-    spec?.path ?? '',
-    spec?.mode ?? 'mutation',
-  );
+  const { locale } = useLocale();
+  const boundPath = spec && !isEffectAction(spec) ? (spec.path ?? '') : '';
+  const boundMode =
+    spec && !isEffectAction(spec) ? (spec.mode ?? 'mutation') : 'mutation';
+  const { dispatch, isPending } = useBoundAction(boundPath, boundMode);
   const applyEffect = useActionEffect();
   if (!spec) return undefined;
-  const label = spec.labelKey
-    ? t(spec.labelKey, { defaultValue: spec.label ?? spec.path })
+  const i18n =
+    'i18n' in spec
+      ? (spec.i18n as Record<string, Record<string, string>> | undefined)
+      : undefined;
+  const fallbackLabel = isEffectAction(spec)
+    ? (spec.label ?? spec.labelKey ?? 'Add')
     : (spec.label ?? spec.path);
+  const baseLabel = spec.labelKey
+    ? t(spec.labelKey, { defaultValue: fallbackLabel })
+    : fallbackLabel;
+  const label =
+    resolveLocalizedProp(baseLabel, i18n, 'label', locale) ?? baseLabel;
+  const variant =
+    spec.variant === 'ghost'
+      ? 'ghost'
+      : spec.variant === 'secondary'
+        ? 'secondary'
+        : 'primary';
+  if (isEffectAction(spec)) {
+    return {
+      label,
+      variant,
+      onClick: () => {
+        applyEffect(spec.effect);
+      },
+    };
+  }
   return {
     label,
-    variant:
-      spec.variant === 'ghost'
-        ? 'ghost'
-        : spec.variant === 'secondary'
-          ? 'secondary'
-          : 'primary',
+    variant,
     disabled: isPending,
     onClick: () => {
       dispatch(spec.args)
@@ -275,8 +298,8 @@ type CollectionDataSource =
 
 /**
  * The shared body: `useListPage` over the normalized data source → the rich
- * `DataTable`, framed by `BlockFrame` + `BindingStates` so the header chrome
- * (title, arg-filter bar) persists across every body state.
+ * `DataTable`, framed by `BlockFrame` + `BindingStates` so the card chrome
+ * (and optional title / arg-filter bar) wraps every body state.
  */
 function CollectionBody({
   title,
@@ -390,7 +413,7 @@ function CollectionBody({
   return (
     <BlockFrame
       title={title}
-      icon={ListChecks}
+      icon={title ? ListChecks : undefined}
       actions={blocked || needsConfig ? undefined : filterBar}
     >
       <BindingStates

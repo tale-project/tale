@@ -360,6 +360,12 @@ const textPropsSchema = z
       'error',
       'success',
     ]),
+    /**
+     * Hide when this predicate is false. Evaluated against the `whenQuery`
+     * record (or `{}` when that query returns null) — same as Form.
+     */
+    when: z.string().optional(),
+    whenQuery: queryBindingSchema.optional(),
   })
   .passthrough();
 
@@ -383,6 +389,12 @@ const alertPropsSchema = z
     variant: z.enum(['default', 'destructive', 'warning', 'info']),
     title: labelStringSchema,
     description: labelStringSchema,
+    /**
+     * Hide when this predicate is false. Evaluated against the `whenQuery`
+     * record (or `{}` when that query returns null) — same as Form.
+     */
+    when: z.string().optional(),
+    whenQuery: queryBindingSchema.optional(),
   })
   .passthrough();
 
@@ -415,8 +427,11 @@ const collectionPropsSchema = z
       })
       .passthrough()
       .optional(),
-    /** The single primary create affordance, rendered in the table header. */
-    addAction: boundActionSchema.optional(),
+    /**
+     * The single primary create affordance, rendered in the table header —
+     * a bound Convex call OR an effect-only action (e.g. navigate).
+     */
+    addAction: rowActionSchema.optional(),
     /** Managed client-side search over the given row fields. */
     search: z
       .object({
