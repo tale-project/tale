@@ -29,7 +29,6 @@ import {
   isFunctionAllowed,
   resolveBindingArgs,
 } from '@/lib/shared/platform/function_bindings';
-import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import type { AutomationConfigField } from '@/lib/shared/schemas/automation_views';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -40,8 +39,8 @@ import {
   initFieldValues,
 } from '../../components/config-field-inputs';
 import { useConfigFieldText } from '../../hooks/use-automation-text';
+import { useBlockWhenGate } from '../../hooks/use-block-when-gate';
 import { useBoundAction } from '../../hooks/use-bound-action';
-import { useBoundQuery } from '../../hooks/use-bound-query';
 import {
   useActionEffect,
   type ActionEffect,
@@ -106,7 +105,7 @@ export function Form({
   const { dispatch, isPending } = useBoundAction(submit.path, submit.mode);
   const applyEffect = useActionEffect();
   const baseId = useId();
-  const gateQuery = useBoundQuery(whenQuery?.path ?? '', whenQuery?.args ?? {});
+  const whenGate = useBlockWhenGate(when, whenQuery);
 
   const blocked = !isFunctionAllowed(
     submit.path,
@@ -173,27 +172,21 @@ export function Form({
     }
   };
 
-  if (when !== undefined) {
-    if (whenQuery && (gateQuery.isLoading || gateQuery.blocked)) {
-      return null;
+  if (whenGate.decision === 'pending' || whenGate.decision === 'hide') {
+    return null;
+  }
+  // Unresolved `$projectId` (or other config) on the gate query — show the
+  // project empty state when that's why, otherwise stay hidden rather than
+  // evaluating `when` against `{}`.
+  if (whenGate.decision === 'needsConfig') {
+    if (needsProject || whenGate.needsProject) {
+      return (
+        <BlockFrame title={resolvedTitle} icon={SquarePen}>
+          <BindingStates needsProject>{null}</BindingStates>
+        </BlockFrame>
+      );
     }
-    // Unresolved `$projectId` (or other config) on the gate query — show the
-    // project empty state when that's why, otherwise stay hidden rather than
-    // evaluating `when` against `{}`.
-    if (whenQuery && gateQuery.needsConfig) {
-      if (needsProject) {
-        return (
-          <BlockFrame title={resolvedTitle} icon={SquarePen}>
-            <BindingStates needsProject>{null}</BindingStates>
-          </BlockFrame>
-        );
-      }
-      return null;
-    }
-    const whenItem: Record<string, unknown> = isRecord(gateQuery.data)
-      ? gateQuery.data
-      : {};
-    if (!evaluateWhen(when, whenItem)) return null;
+    return null;
   }
 
   return (

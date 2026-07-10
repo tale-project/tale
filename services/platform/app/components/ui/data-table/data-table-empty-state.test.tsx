@@ -27,8 +27,8 @@ describe('DataTableEmptyState', () => {
     });
   });
 
-  describe('button-less', () => {
-    it('never renders a button — table empty states carry no CTA', () => {
+  describe('optional action', () => {
+    it('renders without a button when no action is passed', () => {
       render(
         <DataTableEmptyState
           icon={Inbox}
@@ -37,6 +37,18 @@ describe('DataTableEmptyState', () => {
         />,
       );
       expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('renders an action when provided', () => {
+      render(
+        <DataTableEmptyState
+          title="No agents yet"
+          action={<button type="button">New agent</button>}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'New agent' }),
+      ).toBeInTheDocument();
     });
   });
 });

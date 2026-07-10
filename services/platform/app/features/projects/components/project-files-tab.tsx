@@ -59,6 +59,8 @@ interface ProjectFilesTabProps {
   projectId: Id<'projects'>;
   /** Deep-link from automation navigate / shareable URL (`?folderId=`). */
   initialFolderId?: string;
+  /** Deep-link to open the create-folder dialog once (`?createFolder=1`). */
+  openCreateFolder?: boolean;
 }
 
 type ProjectDocumentRow = ReturnType<
@@ -92,6 +94,7 @@ export function ProjectFilesTab({
   organizationId,
   projectId,
   initialFolderId,
+  openCreateFolder,
 }: ProjectFilesTabProps) {
   const { t } = useT('projects');
   const { t: tDocuments } = useT('documents');
@@ -130,6 +133,7 @@ export function ProjectFilesTab({
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
   const hydratedFolderIdRef = useRef<string | null>(null);
+  const hydratedCreateFolderRef = useRef(false);
 
   const syncFolderSearch = useCallback(
     (folderId: Id<'folders'> | null) => {
@@ -173,6 +177,20 @@ export function ProjectFilesTab({
       return next;
     });
   }, [folders, initialFolderId]);
+
+  // One-shot deep-link: open the create-folder dialog at project root, then
+  // strip `createFolder` from the URL so refresh does not re-open it.
+  useEffect(() => {
+    if (!openCreateFolder || hydratedCreateFolderRef.current) return;
+    hydratedCreateFolderRef.current = true;
+    setCreateFolderParent({});
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: organizationId, projectId: String(projectId) },
+      search: initialFolderId ? { folderId: initialFolderId } : {},
+      replace: true,
+    });
+  }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
 
   const { childFolders, filesByFolder } = useMemo(
     () => buildTree(folders, documents),

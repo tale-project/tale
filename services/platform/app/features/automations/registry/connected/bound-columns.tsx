@@ -55,10 +55,11 @@ const HIDDEN = new Set([
 /**
  * Width for the bound actions column. Wider than `ACTIONS_COLUMN_SIZE` (the
  * icon-only 3-dot trigger) because bound blocks render an in-line labelled
- * `BoundButton` cluster (e.g. "Create task"); a second visible button wraps
- * within the pinned box rather than widening it.
+ * `BoundButton` cluster (e.g. "Start" + "Open Knowledge"). Sized for two `sm`
+ * labelled buttons on one row — wrapping inside the pinned box overflows the
+ * row border and clips into the header divider.
  */
-export const BOUND_ACTIONS_COLUMN_SIZE = 176;
+export const BOUND_ACTIONS_COLUMN_SIZE = 260;
 
 /**
  * Stable `getRowId` for bound rows: `_id`/`id` when present (Convex rows,
@@ -228,9 +229,8 @@ export function buildBoundColumns(
           // Stop row-click expansion / onRowClick when interacting with actions.
           <Row
             gap={2}
-            align="stretch"
+            align="center"
             justify="end"
-            wrap
             onClick={(e) => e.stopPropagation()}
           >
             {actions.map((a, ai) =>

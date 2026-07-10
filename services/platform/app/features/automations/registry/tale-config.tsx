@@ -38,7 +38,8 @@ import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 
-import { BlockFrame } from './block-frame';
+import { useBlockWhenGate } from '../hooks/use-block-when-gate';
+import { BindingStates, BlockFrame } from './block-frame';
 import {
   agentChatBlock,
   type AgentChatBlockProps,
@@ -92,13 +93,21 @@ interface TaleComponents {
     level: 1 | 2 | 3 | 4 | 5 | 6;
     i18n?: BlockI18n;
   };
-  Text: { text: string; variant: TextVariant; i18n?: BlockI18n };
+  Text: {
+    text: string;
+    variant: TextVariant;
+    i18n?: BlockI18n;
+    when?: string;
+    whenQuery?: { path: string; args?: unknown };
+  };
   Badge: { text: string; variant: BadgeVariant; i18n?: BlockI18n };
   Alert: {
     variant: AlertVariant;
     title: string;
     description: string;
     i18n?: BlockI18n;
+    when?: string;
+    whenQuery?: { path: string; args?: unknown };
   };
   Card: {
     title: string;
@@ -135,6 +144,27 @@ function useLocalizedProp(
   return resolveLocalizedProp(base, i18n, prop, locale);
 }
 
+/** Apply optional `when`/`whenQuery` — hide, show needs-project, or render. */
+function WhenGated({
+  when,
+  whenQuery,
+  children,
+}: {
+  when?: string;
+  whenQuery?: { path: string; args?: unknown };
+  children: ReactElement;
+}): ReactElement | null {
+  const gate = useBlockWhenGate(when, whenQuery);
+  if (gate.decision === 'pending' || gate.decision === 'hide') return null;
+  if (gate.decision === 'needsConfig') {
+    if (gate.needsProject) {
+      return <BindingStates needsProject>{null}</BindingStates>;
+    }
+    return null;
+  }
+  return children;
+}
+
 function LocalizedHeading({
   text,
   level,
@@ -148,9 +178,15 @@ function LocalizedText({
   text,
   variant,
   i18n,
-}: TaleComponents['Text']): ReactElement {
+  when,
+  whenQuery,
+}: TaleComponents['Text']): ReactElement | null {
   const resolved = useLocalizedProp(text, i18n, 'text') ?? text;
-  return <Text variant={variant}>{resolved}</Text>;
+  return (
+    <WhenGated when={when} whenQuery={whenQuery}>
+      <Text variant={variant}>{resolved}</Text>
+    </WhenGated>
+  );
 }
 
 function LocalizedBadge({
@@ -167,16 +203,20 @@ function LocalizedAlert({
   title,
   description,
   i18n,
-}: TaleComponents['Alert']): ReactElement {
+  when,
+  whenQuery,
+}: TaleComponents['Alert']): ReactElement | null {
   const resolvedTitle = useLocalizedProp(title, i18n, 'title') ?? title;
   const resolvedDescription =
     useLocalizedProp(description, i18n, 'description') ?? description;
   return (
-    <Alert
-      variant={variant}
-      title={resolvedTitle}
-      description={resolvedDescription}
-    />
+    <WhenGated when={when} whenQuery={whenQuery}>
+      <Alert
+        variant={variant}
+        title={resolvedTitle}
+        description={resolvedDescription}
+      />
+    </WhenGated>
   );
 }
 
