@@ -1,18 +1,23 @@
 /**
- * DB migration over `appProjectBindings`: copy the owning app's org-level
- * `appInstallations.config` onto each binding's `config` so a `scope: 'project'`
- * app holds its config per-project. Both `up` and `down` are idempotent.
+ * 0.2.88 / 01 — copy an app's ORG-LEVEL config (`appInstallations.config`) onto
+ * each of its project bindings (`appProjectBindings.config`).
  *
- * `config` was dropped from both tables' live schema by the 0.2.91
- * app-config-to-schedule-variables cutover — this migration predates that and
- * still needs to read/write it, so every access below is untyped (`as any`),
- * matching the framework's convention for a field absent from the current
- * schema (see e.g. `v0_2_14/01_usage_ledger_drop_cost_fields`).
+ * Per-project config is now authoritative for a `scope: 'project'` app, so an
+ * existing single-config install is folded down to per-binding config (the org
+ * row keeps its copy as the legacy fallback). Idempotent — skips a binding that
+ * already has config. `down` clears only the bindings whose config still equals
+ * the org copy, leaving any post-migration per-project edit intact.
+ *
+ * The runner paginates `appProjectBindings`. `config` was dropped from both
+ * tables' live schema by the 0.2.91 app-config-to-schedule-variables cutover —
+ * this migration predates that and still needs to read/write it, so every
+ * access below is untyped (`as any`), matching the framework's convention for
+ * a field absent from the current schema (see e.g.
+ * `v0_2_14/01_usage_ledger_drop_cost_fields`).
  */
 
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -37,11 +42,19 @@ async function installConfig(
   return record(install?.config);
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Copy org-level app config onto each project binding',
+  description:
+    "Copies each installed app's appInstallations.config onto its " +
+    'appProjectBindings rows so a scope:project app holds config per-project. ' +
+    'Idempotent — skips a binding that already has config. down clears only the ' +
+    'bindings whose config still equals the org copy.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['appProjectBindings', 'appInstallations'] },
   table: 'appProjectBindings',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     // Already has its own per-project config — leave it (idempotent).
     if (doc.config !== undefined) return;
     const organizationId = str(doc.organizationId);
@@ -53,7 +66,7 @@ export const migration: DbMigration = {
     await (ctx.db as any).patch(doc._id, { config: cfg });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     const current = record(doc.config);
     if (!current) return;
     const organizationId = str(doc.organizationId);
@@ -68,4 +81,4 @@ export const migration: DbMigration = {
       });
     }
   },
-};
+});

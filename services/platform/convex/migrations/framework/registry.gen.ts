@@ -9,16 +9,16 @@
 
 import { composeDb, composeLegacyComponent, composeLegacyDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
-import { migration as m0_2_85_02 } from '../versions/v0_2_85/02_dsar_pending_table_split';
-import { migration as m0_2_85_03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables';
-import { migration as m0_2_87_04 } from '../versions/v0_2_87/04_drop_org_package_policy';
-import { migration as m0_2_87_05 } from '../versions/v0_2_87/05_drop_model_sync_settings';
-import { migration as m0_2_88_01 } from '../versions/v0_2_88/01_app_config_to_bindings';
-import { migration as m0_2_88_02 } from '../versions/v0_2_88/02_app_schedules_per_project';
-import { migration as m0_2_89_02 } from '../versions/v0_2_89/02_thread_files_absolute_paths';
-import { migration as m0_2_90_02 } from '../versions/v0_2_90/02_backfill_conversation_integration_name';
-import { migration as m0_2_90_06 } from '../versions/v0_2_90/06_drop_workforce_agent_installations';
-import { migration as m0_2_90_08 } from '../versions/v0_2_90/08_delete_workforce_digest_notifications';
+import { migration as m0_2_85_02 } from '../versions/v0_2_85/02_dsar_pending_table_split/migration';
+import { migration as m0_2_85_03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables/migration';
+import { migration as m0_2_87_04 } from '../versions/v0_2_87/04_drop_org_package_policy/migration';
+import { migration as m0_2_87_05 } from '../versions/v0_2_87/05_drop_model_sync_settings/migration';
+import { migration as m0_2_88_01 } from '../versions/v0_2_88/01_app_config_to_bindings/migration';
+import { migration as m0_2_88_02 } from '../versions/v0_2_88/02_app_schedules_per_project/migration';
+import { migration as m0_2_89_02 } from '../versions/v0_2_89/02_thread_files_absolute_paths/migration';
+import { migration as m0_2_90_02 } from '../versions/v0_2_90/02_backfill_conversation_integration_name/migration';
+import { migration as m0_2_90_06 } from '../versions/v0_2_90/06_drop_workforce_agent_installations/migration';
+import { migration as m0_2_90_08 } from '../versions/v0_2_90/08_delete_workforce_digest_notifications/migration';
 import { migration as m0_2_91_01 } from '../versions/v0_2_91/01_app_config_to_schedule_variables';
 import { migration as m0_2_92_02 } from '../versions/v0_2_92/02_triage_backlog_start_trigger';
 import { migration as m0_2_93_01 } from '../versions/v0_2_93/01_automation_slug_fields';
@@ -640,16 +640,16 @@ export function requireMeta(id: string): MigrationMeta {
 
 /** Runnable `db` migrations, keyed by meta.id. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
-  "0.2.85/02_dsar_pending_table_split": composeLegacyDb(m0_2_85_02),
-  "0.2.85/03_drop_legacy_governance_tables": composeLegacyDb(m0_2_85_03),
-  "0.2.87/04_drop_org_package_policy": composeLegacyDb(m0_2_87_04),
-  "0.2.87/05_drop_model_sync_settings": composeLegacyDb(m0_2_87_05),
-  "0.2.88/01_app_config_to_bindings": composeLegacyDb(m0_2_88_01),
-  "0.2.88/02_app_schedules_per_project": composeLegacyDb(m0_2_88_02),
-  "0.2.89/02_thread_files_absolute_paths": composeLegacyDb(m0_2_89_02),
-  "0.2.90/02_backfill_conversation_integration_name": composeLegacyDb(m0_2_90_02),
-  "0.2.90/06_drop_workforce_agent_installations": composeLegacyDb(m0_2_90_06),
-  "0.2.90/08_delete_workforce_digest_notifications": composeLegacyDb(m0_2_90_08),
+  "0.2.85/02_dsar_pending_table_split": composeDb(requireMeta("0.2.85/02_dsar_pending_table_split"), m0_2_85_02),
+  "0.2.85/03_drop_legacy_governance_tables": composeDb(requireMeta("0.2.85/03_drop_legacy_governance_tables"), m0_2_85_03),
+  "0.2.87/04_drop_org_package_policy": composeDb(requireMeta("0.2.87/04_drop_org_package_policy"), m0_2_87_04),
+  "0.2.87/05_drop_model_sync_settings": composeDb(requireMeta("0.2.87/05_drop_model_sync_settings"), m0_2_87_05),
+  "0.2.88/01_app_config_to_bindings": composeDb(requireMeta("0.2.88/01_app_config_to_bindings"), m0_2_88_01),
+  "0.2.88/02_app_schedules_per_project": composeDb(requireMeta("0.2.88/02_app_schedules_per_project"), m0_2_88_02),
+  "0.2.89/02_thread_files_absolute_paths": composeDb(requireMeta("0.2.89/02_thread_files_absolute_paths"), m0_2_89_02),
+  "0.2.90/02_backfill_conversation_integration_name": composeDb(requireMeta("0.2.90/02_backfill_conversation_integration_name"), m0_2_90_02),
+  "0.2.90/06_drop_workforce_agent_installations": composeDb(requireMeta("0.2.90/06_drop_workforce_agent_installations"), m0_2_90_06),
+  "0.2.90/08_delete_workforce_digest_notifications": composeDb(requireMeta("0.2.90/08_delete_workforce_digest_notifications"), m0_2_90_08),
   "0.2.91/01_app_config_to_schedule_variables": composeLegacyDb(m0_2_91_01),
   "0.2.92/02_triage_backlog_start_trigger": composeLegacyDb(m0_2_92_02),
   "0.2.93/01_automation_slug_fields": composeLegacyDb(m0_2_93_01),

@@ -1,5 +1,3 @@
-import type { MigrationMeta } from '../../../framework/types';
-
 /**
  * 0.2.90 / 08 — drain the retired `workforce_digest` notification rows.
  *
@@ -13,19 +11,32 @@ import type { MigrationMeta } from '../../../framework/types';
  * step (DESTRUCTIVE): each row is snapshotted into `migrationSnapshots`
  * before deletion, so `down` (the generic snapshot-restore) rebuilds it.
  */
-export const meta: MigrationMeta = {
-  id: '0.2.90/08_delete_workforce_digest_notifications',
-  semver: '0.2.90',
-  numericId: 8,
-  slug: 'delete_workforce_digest_notifications',
+
+import type { Id } from '../../../../_generated/dataModel';
+import { defineDbMigration } from '../../../framework/define';
+
+export const migration = defineDbMigration({
   title: 'Delete stored workforce_digest inbox notifications',
   description:
     'Deletes every userNotifications row with type workforce_digest (the ' +
     'digest automation and its i18n keys were removed; stale rows would ' +
     'render raw keys), after snapshotting each row. down restores the rows ' +
     'from the snapshot.',
-  kind: 'db',
-  reversible: true,
   destructive: true,
   snapshot: 'table-rows',
-};
+  subjects: { tables: ['userNotifications'] },
+  table: 'userNotifications',
+
+  async up(ctx, doc, run) {
+    if (doc.type !== 'workforce_digest') return;
+    await run.snapshotRow('table:userNotifications', doc);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MigrationDoc ids are untyped by design
+    await ctx.db.delete(doc._id as Id<'userNotifications'>);
+  },
+
+  // Unused: `table-rows` rollback is the generic snapshot-restore in the
+  // runner. Kept to satisfy the DbMigration contract.
+  async down() {
+    /* no-op — see restoreSnapshotBatch */
+  },
+});

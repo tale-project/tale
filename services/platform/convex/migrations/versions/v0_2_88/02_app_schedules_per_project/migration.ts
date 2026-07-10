@@ -1,14 +1,23 @@
 /**
- * DB migration over `wfSchedules`: assign each org-level schedule owned by a
- * `scope: 'project'` app to that app's (first) project binding, so per-project
- * config can sync into it. Both `up` and `down` are idempotent; non-destructive
- * (only sets/clears the optional `projectId`).
+ * 0.2.88 / 02 — give a `scope: 'project'` app's reconcile SCHEDULE a project.
+ *
+ * Per-project config means one schedule per bound project; existing installs
+ * have a single org-level schedule (`projectId` unset). This assigns each
+ * org-level, app-owned schedule to its app's binding so `setAutomationConfig(projectId)`
+ * can sync it and lifecycle (create-on-bind / delete-on-unbind) is keyed right.
+ * Idempotent — skips a schedule that already has a `projectId`. `down` unsets
+ * `projectId` on app-owned schedules.
+ *
+ * Non-destructive: only sets the new optional `projectId`, never deletes a row.
+ * For the rare case of an app bound to several projects, the schedule is assigned
+ * to the FIRST binding; the reconcile run itself updates tasks across projects by
+ * their external ref, and a per-project schedule for the others materializes on
+ * the next (re)bind via `syncAutomationSchedules`.
  */
 
 import type { Id } from '../../../../_generated/dataModel';
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -35,11 +44,21 @@ async function appInstalled(
   return row !== null;
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Assign org-level app schedules to their project binding',
+  description:
+    'Sets wfSchedules.projectId on each org-level schedule owned by a ' +
+    "scope:project app to that app's (first) project binding, so per-project " +
+    'config syncs to it. Idempotent — skips a schedule that already has a ' +
+    'projectId. Non-destructive. down unsets projectId on app-owned schedules.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: {
+    tables: ['wfSchedules', 'appInstallations', 'appProjectBindings'],
+  },
   table: 'wfSchedules',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     if (doc.projectId !== undefined) return; // already per-project
     const organizationId = str(doc.organizationId);
     const appSlug = appSlugOf(str(doc.workflowSlug));
@@ -57,7 +76,7 @@ export const migration: DbMigration = {
     });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     if (doc.projectId === undefined) return;
     const organizationId = str(doc.organizationId);
     const appSlug = appSlugOf(str(doc.workflowSlug));
@@ -65,4 +84,4 @@ export const migration: DbMigration = {
     if (!(await appInstalled(ctx, organizationId, appSlug))) return;
     await ctx.db.patch(doc._id as Id<'wfSchedules'>, { projectId: undefined });
   },
-};
+});

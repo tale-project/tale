@@ -1,72 +1,55 @@
-import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
 
-import { internal } from '../../../../_generated/api';
-import {
-  buildModules,
-  historicalSchema,
-} from '../../../framework/test_helpers';
-import { meta } from './meta';
+import { expect } from 'vitest';
+
+import { buildModules } from '../../../framework/test_helpers';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_87/05_drop_model_sync_settings';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
 
-async function seedRows(t: ReturnType<typeof convexTest>, n: number) {
-  await t.run(async (ctx) => {
-    for (let i = 0; i < n; i++) {
+// The harness runs the standard ritual automatically: the destructive gate
+// (refused without allowDestructive), up through the real runner, snapshot
+// hygiene (rows snapshotted after up, snapshots consumed by down), handler
+// idempotency, and down restoring the seed digest byte-for-byte.
+defineMigrationTest({
+  id: '0.2.87/05_drop_model_sync_settings',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+
+  async seed(ctx) {
+    for (let i = 0; i < 3; i++) {
       await ctx.db.insert('modelSyncSettings', {
         organizationId: `org_${i}`,
         autoSyncEnabled: i % 2 === 0,
       });
     }
-  });
-}
+  },
 
-const legacyRows = (
-  t: ReturnType<typeof convexTest>,
-): Promise<Array<Record<string, unknown>>> =>
-  t.run((ctx) =>
-    // oxlint-disable-next-line typescript/no-explicit-any -- legacy table
-    (ctx.db.query('modelSyncSettings' as any) as any).collect(),
-  ) as Promise<Array<Record<string, unknown>>>;
-
-describe('0.2.87/05 drop_model_sync_settings', () => {
-  it('is skipped by applyUp unless destructive is accepted', async () => {
-    const t = convexTest(historicalSchema, modules);
-    await seedRows(t, 2);
-
-    const res = await t.action(
-      internal.migrations.framework.entrypoints.applyUp,
-      { only: [meta.id] },
+  async expectUp(world) {
+    const legacy = await world.run((ctx) =>
+      ctx.db.query('modelSyncSettings').collect(),
     );
-    expect(res.completed).toEqual([]);
-    expect(res.skipped.map((m) => m.id)).toContain(meta.id);
-    expect(await legacyRows(t)).toHaveLength(2);
-  });
+    expect(legacy).toHaveLength(0);
 
-  it('up snapshots then deletes; down restores from the snapshot', async () => {
-    const t = convexTest(historicalSchema, modules);
-    await seedRows(t, 3);
-
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
-      allowDestructive: true,
-    });
-    expect(await legacyRows(t)).toHaveLength(0);
-
-    const snaps = await t.run((ctx) =>
-      ctx.db
-        .query('migrationSnapshots')
-        .withIndex('by_migration', (q) => q.eq('migrationId', meta.id))
-        .collect(),
+    // One snapshot per deleted row, carrying the full legacy payload.
+    const snaps = await world.run(
+      async (ctx) =>
+        (await ctx.db
+          .query('migrationSnapshots')
+          .withIndex(
+            'by_migration',
+            (q: { eq: (f: string, v: string) => unknown }) =>
+              q.eq('migrationId', world.meta.id),
+          )
+          .collect()) as Array<Record<string, unknown>>,
     );
     expect(snaps).toHaveLength(3);
-
-    await t.action(internal.migrations.framework.entrypoints.applyDown, {
-      to: '0.2.86',
-      only: [meta.id],
-    });
-
-    expect(await legacyRows(t)).toHaveLength(3);
-  });
+    expect(
+      snaps
+        .map(
+          (s: Record<string, unknown>) =>
+            (s.payload as { organizationId: string }).organizationId,
+        )
+        .sort(),
+    ).toEqual(['org_0', 'org_1', 'org_2']);
+  },
 });

@@ -1,122 +1,120 @@
-import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
 
-import { internal } from '../../../../_generated/api';
-import type { Id } from '../../../../_generated/dataModel';
-import schema from '../../../../schema';
+import { expect } from 'vitest';
+
 import { buildModules } from '../../../framework/test_helpers';
-import { meta } from './meta';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
+import type { WorldSeedCtx } from '../../../testing/harness.testkit';
 
 const DIR =
   'migrations/versions/v0_2_90/02_backfill_conversation_integration_name';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
-
 const ORG = 'org_conv_backfill';
 
-type Test = ReturnType<typeof convexTest>;
-
 async function seedConversation(
-  t: Test,
+  ctx: WorldSeedCtx,
+  subject: string,
   integrationName?: string,
-): Promise<Id<'conversations'>> {
-  return await t.run((ctx) =>
-    ctx.db.insert('conversations', {
-      organizationId: ORG,
-      subject: 'Hello',
-      status: 'open',
-      ...(integrationName === undefined ? {} : { integrationName }),
-    }),
-  );
+): Promise<unknown> {
+  return await ctx.db.insert('conversations', {
+    organizationId: ORG,
+    subject,
+    status: 'open',
+    ...(integrationName === undefined ? {} : { integrationName }),
+  });
 }
 
 async function seedMessage(
-  t: Test,
-  conversationId: Id<'conversations'>,
+  ctx: WorldSeedCtx,
+  conversationId: unknown,
   fields: { integrationName?: string; deliveredAt?: number },
 ): Promise<void> {
-  await t.run(async (ctx) => {
-    await ctx.db.insert('conversationMessages', {
-      organizationId: ORG,
-      conversationId,
-      channel: 'email',
-      direction: 'inbound',
-      deliveryState: 'delivered',
-      content: 'hi',
-      ...fields,
+  await ctx.db.insert('conversationMessages', {
+    organizationId: ORG,
+    conversationId,
+    channel: 'email',
+    direction: 'inbound',
+    deliveryState: 'delivered',
+    content: 'hi',
+    ...fields,
+  });
+}
+
+async function integrationNameBySubject(world: {
+  run<T>(fn: (ctx: WorldSeedCtx) => Promise<T>): Promise<T>;
+}): Promise<Record<string, string | undefined>> {
+  const rows = await world.run((ctx) =>
+    ctx.db.query('conversations').collect(),
+  );
+  const out: Record<string, string | undefined> = {};
+  for (const row of rows as Array<Record<string, unknown>>) {
+    out[String(row.subject)] = row.integrationName as string | undefined;
+  }
+  return out;
+}
+
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state, down restoring the
+// seed digest byte-for-byte (the stamp cleared; the operator-pinned value
+// preserved because it differs from the derived one), and the ledger
+// transitions. The empty-string edge cannot round-trip ('' would come back
+// unset), so it lives in the case below.
+defineMigrationTest({
+  id: '0.2.90/02_backfill_conversation_integration_name',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
+
+  async seed(ctx) {
+    // Latest message names 'gmail'; the newest row names none and must be
+    // skipped over.
+    const stamped = await seedConversation(ctx, 'Stamped');
+    await seedMessage(ctx, stamped, {
+      integrationName: 'outlook',
+      deliveredAt: 100,
     });
-  });
-}
+    await seedMessage(ctx, stamped, {
+      integrationName: 'gmail',
+      deliveredAt: 200,
+    });
+    await seedMessage(ctx, stamped, { deliveredAt: 300 });
 
-async function readIntegrationName(
-  t: Test,
-  id: Id<'conversations'>,
-): Promise<string | undefined> {
-  const row = await t.run((ctx) => ctx.db.get(id));
-  return row?.integrationName;
-}
+    // Underivable: no messages at all / messages naming no integration.
+    await seedConversation(ctx, 'No messages');
+    const unnamed = await seedConversation(ctx, 'Unnamed messages');
+    await seedMessage(ctx, unnamed, { deliveredAt: 100 });
 
-function applyUp(t: Test) {
-  return t.action(internal.migrations.framework.entrypoints.applyUp, {
-    only: [meta.id],
-  });
-}
+    // Operator pinned 'outlook' although the latest message says 'gmail' —
+    // up must leave it and down must preserve it.
+    const pinned = await seedConversation(ctx, 'Pinned', 'outlook');
+    await seedMessage(ctx, pinned, {
+      integrationName: 'gmail',
+      deliveredAt: 100,
+    });
+  },
 
-function applyDown(t: Test) {
-  return t.action(internal.migrations.framework.entrypoints.applyDown, {
-    to: '0.2.89',
-    only: [meta.id],
-  });
-}
+  async expectUp(world) {
+    expect(await integrationNameBySubject(world)).toEqual({
+      Stamped: 'gmail',
+      'No messages': undefined,
+      'Unnamed messages': undefined,
+      Pinned: 'outlook',
+    });
+  },
 
-describe('0.2.90/02 backfill_conversation_integration_name', () => {
-  it('up stamps the LATEST message integration; down clears the stamp; up re-stamps (round trip)', async () => {
-    const t = convexTest(schema, modules);
-    const id = await seedConversation(t);
-    await seedMessage(t, id, { integrationName: 'outlook', deliveredAt: 100 });
-    await seedMessage(t, id, { integrationName: 'gmail', deliveredAt: 200 });
-    // Newest by deliveredAt but names no integration — must be skipped over.
-    await seedMessage(t, id, { deliveredAt: 300 });
+  cases: {
+    'up treats an empty-string integrationName as unset and stamps it': async (
+      world,
+    ) => {
+      await world.run(async (ctx) => {
+        const id = await seedConversation(ctx, 'Empty string', '');
+        await seedMessage(ctx, id, {
+          integrationName: 'imap_smtp',
+          deliveredAt: 50,
+        });
+      });
 
-    await applyUp(t);
-    expect(await readIntegrationName(t, id)).toBe('gmail');
+      await world.applyUpOnly();
 
-    await applyDown(t);
-    expect(await readIntegrationName(t, id)).toBeUndefined();
-
-    await applyUp(t);
-    expect(await readIntegrationName(t, id)).toBe('gmail');
-  });
-
-  it('up leaves an underivable conversation unset', async () => {
-    const t = convexTest(schema, modules);
-    const noMessages = await seedConversation(t);
-    const unnamedMessages = await seedConversation(t);
-    await seedMessage(t, unnamedMessages, { deliveredAt: 100 });
-
-    await applyUp(t);
-    expect(await readIntegrationName(t, noMessages)).toBeUndefined();
-    expect(await readIntegrationName(t, unnamedMessages)).toBeUndefined();
-  });
-
-  it('up treats an empty-string integrationName as unset and stamps it', async () => {
-    const t = convexTest(schema, modules);
-    const id = await seedConversation(t, '');
-    await seedMessage(t, id, { integrationName: 'imap_smtp', deliveredAt: 50 });
-
-    await applyUp(t);
-    expect(await readIntegrationName(t, id)).toBe('imap_smtp');
-  });
-
-  it('up leaves an already-set value untouched; down preserves a value up would not derive', async () => {
-    const t = convexTest(schema, modules);
-    // Operator pinned 'outlook' although the latest message says 'gmail'.
-    const id = await seedConversation(t, 'outlook');
-    await seedMessage(t, id, { integrationName: 'gmail', deliveredAt: 100 });
-
-    await applyUp(t);
-    expect(await readIntegrationName(t, id)).toBe('outlook');
-
-    await applyDown(t);
-    expect(await readIntegrationName(t, id)).toBe('outlook');
-  });
+      const bySubject = await integrationNameBySubject(world);
+      expect(bySubject['Empty string']).toBe('imap_smtp');
+    },
+  },
 });

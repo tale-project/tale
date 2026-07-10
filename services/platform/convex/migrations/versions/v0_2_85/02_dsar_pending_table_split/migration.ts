@@ -1,14 +1,18 @@
 /**
- * DB migration over the legacy `governancePolicies` table: split each row's
- * staged DSAR change (`pending*` fields) into a `dsarPolicyPendingChanges` row.
+ * 0.2.85 / 02 — move staged DSAR "loosen-grace" changes off the legacy
+ * `governancePolicies` row's `pending*` fields into the dedicated
+ * `dsarPolicyPendingChanges` table.
+ *
+ * Expand step: reads the legacy `pending*` fields and materialises a pending
+ * row; leaves the legacy row intact (dropped by 03). Reversible — `down` folds
+ * the pending row back onto the legacy row and deletes it.
  *
  * The runner paginates `governancePolicies` (a table absent from the current
  * schema; read/written untyped). Both `up` and `down` are idempotent.
  */
 
 import type { MutationCtx } from '../../../../_generated/server';
-import type { DbMigration, MigrationDoc } from '../../../framework/types';
-import { meta } from './meta';
+import { defineDbMigration } from '../../../framework/define';
 
 function num(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined;
@@ -31,11 +35,19 @@ async function pendingRowForOrg(ctx: MutationCtx, organizationId: string) {
     .first();
 }
 
-export const migration: DbMigration = {
-  meta,
+export const migration = defineDbMigration({
+  title: 'Move staged DSAR policy changes into dsarPolicyPendingChanges',
+  description:
+    'For each legacy governancePolicies row carrying staged (pending*) DSAR ' +
+    'changes, inserts an equivalent dsarPolicyPendingChanges row. Idempotent ' +
+    '(skips orgs that already have a pending row). down folds the pending row ' +
+    'back onto the legacy row.',
+  destructive: false,
+  snapshot: 'none',
+  subjects: { tables: ['governancePolicies', 'dsarPolicyPendingChanges'] },
   table: 'governancePolicies',
 
-  async up(ctx: MutationCtx, doc: MigrationDoc) {
+  async up(ctx, doc) {
     const organizationId = str(doc.organizationId);
     const pendingConfig = record(doc.pendingConfig);
     const effectiveAt = num(doc.pendingEffectiveAt);
@@ -54,7 +66,7 @@ export const migration: DbMigration = {
     });
   },
 
-  async down(ctx: MutationCtx, doc: MigrationDoc) {
+  async down(ctx, doc) {
     // Fold ONLY onto the DSAR row — the runner feeds down every
     // governancePolicies row for the org, and folding onto the first one
     // seen (e.g. password_policy) would corrupt both rows.
@@ -76,4 +88,4 @@ export const migration: DbMigration = {
     });
     await ctx.db.delete(pending._id);
   },
-};
+});

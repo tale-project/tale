@@ -1,98 +1,92 @@
-import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment node
 
-import { internal } from '../../../../_generated/api';
-import {
-  buildModules,
-  historicalSchema,
-} from '../../../framework/test_helpers';
-import { meta } from './meta';
+import { expect } from 'vitest';
+
+import { buildModules } from '../../../framework/test_helpers';
+import { defineMigrationTest } from '../../../testing/harness.testkit';
 
 const DIR = 'migrations/versions/v0_2_88/02_app_schedules_per_project';
-const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
-
 const ORG = 'org_sched';
 const APP = 'issue-desk';
 const SLUG = 'issue-desk/reconcile';
 
-describe('0.2.88/02 app_schedules_per_project', () => {
-  it('up assigns an org-level app schedule to its binding; down unsets it', async () => {
-    const t = convexTest(historicalSchema, modules);
-    const projectId = await t.run(async (ctx) => {
-      await ctx.db.insert('appInstallations', {
-        organizationId: ORG,
-        appSlug: APP,
-        installedAt: 0,
-        installedBy: 'tester',
-        status: 'active',
-        requiredIntegrations: [],
-        resources: [
-          {
-            domain: 'workflows',
-            path: 'issue-desk/reconcile.json',
-            contentHash: 'x',
-          },
-        ],
-      });
-      const pid = await ctx.db.insert('projects', {
-        organizationId: ORG,
-        name: 'Alpha',
-        createdBy: 'tester',
-        createdAt: 0,
-        updatedAt: 0,
-      });
-      await ctx.db.insert('appProjectBindings', {
-        organizationId: ORG,
-        appSlug: APP,
-        projectId: pid,
-        boundAt: 0,
-        boundBy: 'tester',
-      });
-      await ctx.db.insert('wfSchedules', {
-        organizationId: ORG,
-        workflowSlug: SLUG,
-        cronExpression: '*/15 * * * *',
-        timezone: 'UTC',
-        isActive: true,
-        createdAt: 0,
-        createdBy: 'system',
-        variables: { state: 'all', owner: 'acme', repo: 'widgets' },
-      });
-      return pid;
-    });
+// The harness runs the standard ritual automatically: up through the real
+// runner, true handler idempotency over migrated state, down restoring the
+// seed digest byte-for-byte (projectId unset again), and the ledger
+// transitions.
+defineMigrationTest({
+  id: '0.2.88/02_app_schedules_per_project',
+  modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
+  async seed(ctx) {
+    await ctx.db.insert('appInstallations', {
+      organizationId: ORG,
+      appSlug: APP,
+      installedAt: 0,
+      installedBy: 'tester',
+      status: 'active',
+      requiredIntegrations: [],
+      resources: [
+        {
+          domain: 'workflows',
+          path: 'issue-desk/reconcile.json',
+          contentHash: 'x',
+        },
+      ],
     });
-    const afterUp = await t.run((ctx) => ctx.db.query('wfSchedules').first());
-    expect(afterUp?.projectId).toBe(projectId);
+    const projectId = await ctx.db.insert('projects', {
+      organizationId: ORG,
+      name: 'Alpha',
+      createdBy: 'tester',
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    await ctx.db.insert('appProjectBindings', {
+      organizationId: ORG,
+      appSlug: APP,
+      projectId,
+      boundAt: 0,
+      boundBy: 'tester',
+    });
+    // Org-level schedule owned by the app — up assigns it to the binding.
+    await ctx.db.insert('wfSchedules', {
+      organizationId: ORG,
+      workflowSlug: SLUG,
+      cronExpression: '*/15 * * * *',
+      timezone: 'UTC',
+      isActive: true,
+      createdAt: 0,
+      createdBy: 'system',
+      variables: { state: 'all', owner: 'acme', repo: 'widgets' },
+    });
+    // Non-app schedule (no `<app>/` prefix) — must stay org-level.
+    await ctx.db.insert('wfSchedules', {
+      organizationId: ORG,
+      workflowSlug: 'plain-workflow',
+      cronExpression: '0 0 * * *',
+      timezone: 'UTC',
+      isActive: true,
+      createdAt: 0,
+      createdBy: 'system',
+    });
+  },
 
-    await t.action(internal.migrations.framework.entrypoints.applyDown, {
-      to: '0.2.87',
-      only: [meta.id],
-    });
-    const afterDown = await t.run((ctx) => ctx.db.query('wfSchedules').first());
-    expect(afterDown?.projectId).toBeUndefined();
-  });
+  async expectUp(world) {
+    const { binding, schedules } = await world.run(async (ctx) => ({
+      binding: (await ctx.db.query('appProjectBindings').first()) as Record<
+        string,
+        unknown
+      >,
+      schedules: (await ctx.db.query('wfSchedules').collect()) as Array<
+        Record<string, unknown>
+      >,
+    }));
 
-  it('leaves a non-app schedule untouched', async () => {
-    const t = convexTest(historicalSchema, modules);
-    await t.run(async (ctx) => {
-      await ctx.db.insert('wfSchedules', {
-        organizationId: ORG,
-        workflowSlug: 'plain-workflow',
-        cronExpression: '0 0 * * *',
-        timezone: 'UTC',
-        isActive: true,
-        createdAt: 0,
-        createdBy: 'system',
-      });
-    });
+    const appSchedule = schedules.find((s) => s.workflowSlug === SLUG);
+    expect(appSchedule?.projectId).toBe(binding.projectId);
 
-    await t.action(internal.migrations.framework.entrypoints.applyUp, {
-      only: [meta.id],
-    });
-    const sched = await t.run((ctx) => ctx.db.query('wfSchedules').first());
-    expect(sched?.projectId).toBeUndefined();
-  });
+    // The non-app schedule stays org-level.
+    const plain = schedules.find((s) => s.workflowSlug === 'plain-workflow');
+    expect(plain?.projectId).toBeUndefined();
+  },
 });
