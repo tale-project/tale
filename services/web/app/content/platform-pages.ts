@@ -10,11 +10,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Bot,
+  Folder,
   FolderOpen,
   LayoutGrid,
   MessagesSquare,
   ShieldCheck,
-  Sparkles,
   Workflow,
 } from 'lucide-react';
 
@@ -22,10 +22,10 @@ export type PlatformPageId =
   | 'hub'
   | 'agents'
   | 'chat'
+  | 'projects'
   | 'automations'
   | 'knowledge'
-  | 'governance'
-  | 'conversations';
+  | 'governance';
 
 export interface PlatformPageDef {
   id: PlatformPageId;
@@ -34,28 +34,28 @@ export interface PlatformPageDef {
     | '/platform'
     | '/platform/agents'
     | '/platform/chat'
+    | '/platform/projects'
     | '/platform/automations'
     | '/platform/knowledge'
-    | '/platform/governance'
-    | '/platform/conversations';
+    | '/platform/governance';
   /** Key under `seo.*` for title/description. */
   seoKey:
     | 'platform'
     | 'platformAgents'
     | 'platformChat'
+    | 'platformProjects'
     | 'platformAutomations'
     | 'platformKnowledge'
-    | 'platformGovernance'
-    | 'platformConversations';
+    | 'platformGovernance';
   /** Key under `nav.product.*` for the dropdown label. */
   navKey:
     | 'hub'
     | 'agents'
     | 'chat'
+    | 'projects'
     | 'automations'
     | 'knowledge'
-    | 'governance'
-    | 'conversations';
+    | 'governance';
   /** Short blurb key under `nav.product.*.description` (dropdown subtitle). */
   descriptionKey: 'description';
   /** Docs deep-link path (appended to DOCS_URL). */
@@ -70,8 +70,8 @@ export interface PlatformPageDef {
 
 /**
  * Module order (nav dropdown, footer Platform column, hub grid):
- * Chat → Knowledge → Agents → Automations → Conversations → Governance.
- * (Product also has Projects between Chat and Knowledge; no marketing page yet.)
+ * Chat → Projects → Knowledge → Agents → Automations → Governance —
+ * mirroring the product sidebar.
  */
 export const PLATFORM_PAGES: readonly PlatformPageDef[] = [
   {
@@ -83,10 +83,10 @@ export const PLATFORM_PAGES: readonly PlatformPageDef[] = [
     docsPath: '/platform/chat/overview',
     related: [
       'chat',
+      'projects',
       'knowledge',
       'agents',
       'automations',
-      'conversations',
       'governance',
     ],
     inNavDropdown: false,
@@ -99,7 +99,18 @@ export const PLATFORM_PAGES: readonly PlatformPageDef[] = [
     navKey: 'chat',
     descriptionKey: 'description',
     docsPath: '/platform/chat/overview',
-    related: ['knowledge', 'agents', 'conversations', 'governance'],
+    related: ['projects', 'knowledge', 'agents', 'governance'],
+    inNavDropdown: true,
+    inFooter: true,
+  },
+  {
+    id: 'projects',
+    path: '/platform/projects',
+    seoKey: 'platformProjects',
+    navKey: 'projects',
+    descriptionKey: 'description',
+    docsPath: '/platform/projects/overview',
+    related: ['chat', 'agents', 'automations', 'knowledge'],
     inNavDropdown: true,
     inFooter: true,
   },
@@ -137,24 +148,13 @@ export const PLATFORM_PAGES: readonly PlatformPageDef[] = [
     inFooter: true,
   },
   {
-    id: 'conversations',
-    path: '/platform/conversations',
-    seoKey: 'platformConversations',
-    navKey: 'conversations',
-    descriptionKey: 'description',
-    docsPath: '/platform/chat/shared-threads',
-    related: ['chat', 'agents', 'knowledge', 'governance'],
-    inNavDropdown: true,
-    inFooter: true,
-  },
-  {
     id: 'governance',
     path: '/platform/governance',
     seoKey: 'platformGovernance',
     navKey: 'governance',
     descriptionKey: 'description',
     docsPath: '/platform/approvals/concepts',
-    related: ['automations', 'conversations', 'agents', 'chat'],
+    related: ['automations', 'projects', 'agents', 'chat'],
     inNavDropdown: true,
     inFooter: true,
   },
@@ -171,10 +171,10 @@ const PLATFORM_ICONS: Record<PlatformPageId, LucideIcon> = {
   hub: LayoutGrid,
   agents: Bot,
   chat: MessagesSquare,
+  projects: Folder,
   automations: Workflow,
   knowledge: FolderOpen,
   governance: ShieldCheck,
-  conversations: Sparkles,
 };
 
 export function getPlatformIcon(id: PlatformPageId): LucideIcon {

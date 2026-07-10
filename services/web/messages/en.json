@@ -45,9 +45,9 @@
       "title": "What is Governance in Tale?",
       "description": "Tale Governance holds agent actions behind approval cards, writes every decision to the audit log, and filters PII and unsafe content in both directions."
     },
-    "platformConversations": {
-      "title": "What are Conversations in Tale?",
-      "description": "Tale Conversations keep shared threads, history, and handoffs in one place so teams resume work without losing context or control."
+    "platformProjects": {
+      "title": "What are Projects in Tale?",
+      "description": "Tale Projects bundle chats, files, instructions, and a task board into one shared workspace — assign a task to an agent and review the result before it ships."
     },
     "changelog": {
       "title": "What's new in Tale? — Changelog",
@@ -80,6 +80,10 @@
         "label": "Chat",
         "description": "Everyday AI with citations, tools, and Arena."
       },
+      "projects": {
+        "label": "Projects",
+        "description": "Shared workspaces where agents pick up tasks."
+      },
       "automations": {
         "label": "Automations",
         "description": "Typed workflows with triggers and approvals."
@@ -91,10 +95,6 @@
       "governance": {
         "label": "Governance",
         "description": "Approvals, audit trail, and spend controls."
-      },
-      "conversations": {
-        "label": "Conversations",
-        "description": "Shared threads your team can resume."
       }
     },
     "resource": {
@@ -736,6 +736,7 @@
     "errors": {
       "generic": "Something went wrong. Try again.",
       "rateLimited": "Too many submissions. Wait a moment, then try again.",
+      "notConfigured": "This deployment has no form delivery configured yet, so your message was not sent. Please use another channel to reach the team.",
       "serverUnavailable": "We couldn't send your message right now. Please try again in a few minutes.",
       "tooFast": "Hold on — review your details before submitting."
     },
@@ -758,7 +759,7 @@
     "title": "How does the Tale platform work?",
     "description": "Tale is the orchestrator for AI agents: one place where your agents share knowledge, run automations, and answer to the same approvals — self-hosted, on your terms.",
     "modulesHeading": "Platform modules",
-    "modulesDescription": "Chat, Agents, Knowledge, Automations, Conversations, and Governance — each is useful alone; together they make one governed system. Open a module for its own tour.",
+    "modulesDescription": "Chat, Projects, Knowledge, Agents, Automations, and Governance — each is useful alone; together they make one governed system. Open a module for its own tour.",
     "tour": {
       "heading": "How the platform fits together",
       "description": "Every window below is one module telling its own story — ground it in Knowledge, run it through Automations, hold it at Governance, compare it in Arena. Open any module for the full tour.",
@@ -810,7 +811,7 @@
         },
         {
           "q": "Which modules does Tale include?",
-          "a": "Chat, Agents, Knowledge, Automations, Conversations, and Governance — plus Projects that scope work by team."
+          "a": "Chat, Projects, Knowledge, Agents, Automations, and Governance — with Projects scoping work, files, and agents by team."
         },
         {
           "q": "Is Tale open source?",
@@ -1626,6 +1627,188 @@
       }
     }
   },
+  "platformProjects": {
+    "eyebrow": "Projects",
+    "title": "What are Projects in Tale?",
+    "description": "Projects are shared workspaces that bundle the chats, files, instructions, and task board for one piece of work — so context follows the work and agents pick tasks up where your team leaves them.",
+    "capabilities": {
+      "heading": "One workspace per piece of work",
+      "description": "A project keeps everything a customer, a launch, or an investigation needs in one place — and puts agents to work inside it.",
+      "items": [
+        {
+          "title": "Context that follows the work",
+          "body": "Chats, files, instructions, and discussions live on the project's tabs, so nobody re-pastes background into a fresh composer.",
+          "docsLabel": "Projects overview"
+        },
+        {
+          "title": "A board agents work from",
+          "body": "Assign a task card to an agent and the task-ops pack runs it — triage, execution, review, and escalation included.",
+          "docsLabel": "Task automation"
+        },
+        {
+          "title": "A backlog with human triage",
+          "body": "Automations propose work; a teammate starts what is worth doing and closes what is not. Nothing runs unvetted.",
+          "docsLabel": "Project backlog"
+        },
+        {
+          "title": "Files scoped to the project",
+          "body": "The Knowledge tab holds the project's folder tree — indexed for retrieval inside the project, invisible outside it.",
+          "docsLabel": "Manage files"
+        },
+        {
+          "title": "The right agents on call",
+          "body": "Curate which agents and models members see in the project, so the recommended specialist is one click away.",
+          "docsLabel": "Agents and models"
+        }
+      ]
+    },
+    "faq": {
+      "heading": "Projects FAQ",
+      "items": [
+        {
+          "q": "What is a project in Tale?",
+          "a": "A shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work — a customer, a launch, an investigation — so the context stays with the work."
+        },
+        {
+          "q": "How do agents work on project tasks?",
+          "a": "Assigning a board task to an agent starts the task-ops loop: the agent executes, a human review gate checks the result, and budgets, concurrency limits, and a kill switch keep runs inside guardrails."
+        },
+        {
+          "q": "Who sees a project's chats and files?",
+          "a": "Only the project's members. Chats, files, and threads stay scoped to the workspace they live in — support escalations stay out of engineering."
+        },
+        {
+          "q": "How is a project different from a chat?",
+          "a": "A chat answers one question and moves on. A project carries ongoing work: shared history, a task board, instructions that apply to every chat, and files agents can cite."
+        }
+      ]
+    },
+    "docs": [
+      {
+        "label": "Projects overview",
+        "path": "/platform/projects/overview"
+      },
+      {
+        "label": "Project concepts",
+        "path": "/platform/projects/concepts"
+      },
+      {
+        "label": "Task automation",
+        "path": "/platform/projects/task-automation"
+      },
+      {
+        "label": "Project backlog",
+        "path": "/platform/projects/backlog"
+      },
+      {
+        "label": "Manage files",
+        "path": "/platform/projects/manage-files"
+      },
+      {
+        "label": "Agents and models",
+        "path": "/platform/projects/project-agents"
+      }
+    ],
+    "tour": {
+      "heading": "How projects run work",
+      "description": "Assign a task to an agent, resume the project chat with its context, ground replies in project files, and keep outbound steps behind review.",
+      "stages": [
+        {
+          "id": "tasks",
+          "eyebrow": "Tasks",
+          "title": "Assign a card,\nan agent takes it",
+          "description": "Assigning a board task to an agent starts the task-ops loop — execution, checks, and escalation run on workflows your organization owns and can tune."
+        },
+        {
+          "id": "chat",
+          "eyebrow": "Chats",
+          "title": "Every chat starts\nwith the context",
+          "description": "Project instructions and files ride along in every thread, so a new chat picks up the relaunch where the last one stopped."
+        },
+        {
+          "id": "knowledge",
+          "eyebrow": "Knowledge",
+          "title": "Files that stay\ninside the project",
+          "description": "The Knowledge tab keeps the project's folder tree indexed for retrieval — cited in project chats, invisible outside the project."
+        },
+        {
+          "id": "govern",
+          "eyebrow": "Review",
+          "title": "Nothing ships\nwithout a decision",
+          "description": "When a task would publish or send, the approval card lands with the project's owner — and the decision stays in the audit trail."
+        }
+      ]
+    },
+    "demos": {
+      "projects": {
+        "label": "Animated demo: the Projects list — each shared workspace with its agents and members.",
+        "project1": "Website relaunch",
+        "agents1": "3 agents",
+        "members1": "7",
+        "project2": "Acme onboarding",
+        "agents2": "2 agents",
+        "members2": "5",
+        "project3": "Pricing revamp",
+        "agents3": "2 agents",
+        "members3": "4",
+        "project4": "Support escalations",
+        "agents4": "1 agent",
+        "members4": "6"
+      },
+      "automation": {
+        "label": "Animated demo: a board task assigned to an agent runs the task-ops loop and ends in a review request.",
+        "trigger": "Task assigned to agent",
+        "llm": "Draft migration guide",
+        "condition": "Checklist passed?",
+        "branchYes": "Yes",
+        "action": "Request review",
+        "actionAlt": "Escalate to owner",
+        "run1": "#214",
+        "runTone1": "done",
+        "duration1": "48s",
+        "run2": "#215",
+        "runTone2": "pending",
+        "duration2": "—",
+        "run3": "#216",
+        "runTone3": "running",
+        "duration3": "12s"
+      },
+      "hero": {
+        "label": "Animated demo: a project chat resumes the website relaunch with the project's instructions and files as context; the agent answers with citations.",
+        "prompt": "What's left before the relaunch goes live?",
+        "routedTitle": "Website relaunch · project chat",
+        "routedDetail": "Relaunch Agent loads the project instructions and files.",
+        "reply1": "Two board tasks are open: the redirect-map review and the pricing page copy.",
+        "reply2": "The launch checklist calls for a staging pass once both close.",
+        "reply3": "DNS cutover is booked with IT for Thursday 06:00,",
+        "reply4": "so the only open risk is the untested /docs redirect.",
+        "citation1": "launch-checklist.pdf",
+        "citation2": "Redirect map",
+        "composerAgentRouted": "Relaunch Agent",
+        "composerModel": "Claude Opus"
+      },
+      "knowledge": {
+        "label": "Animated demo: the project's Knowledge tab — brand guidelines, the current site crawl, the redirect map, and the launch checklist.",
+        "source1": "brand-guidelines.pdf",
+        "sourceType1": "pdf",
+        "source2": "Current site crawl",
+        "sourceType2": "website",
+        "source3": "Redirect map",
+        "sourceType3": "entry",
+        "source4": "launch-checklist.pdf",
+        "sourceType4": "pdf"
+      },
+      "govern": {
+        "label": "Animated demo: publishing the relaunched pricing page pauses on an approval card until the project owner decides.",
+        "approvalTitle": "Publish the new pricing page to production?",
+        "requester": "Website relaunch · Relaunch Agent",
+        "audit1": "Approved by mira@nordwind.eu",
+        "audit2": "Pricing page published",
+        "audit3": "Task #212 closed on the board",
+        "budgetValue": "CHF 120 / 400"
+      }
+    }
+  },
   "platformGovernance": {
     "eyebrow": "Governance",
     "title": "What is Governance in Tale?",
@@ -1807,179 +1990,6 @@
         "model4": "Claude Sonnet",
         "agent5": "Exceptions Agent",
         "model5": "Claude Opus"
-      }
-    }
-  },
-  "platformConversations": {
-    "eyebrow": "Conversations",
-    "title": "What are Conversations in Tale?",
-    "description": "Conversations are the shared threads your team resumes — history, handoffs, and context that outlive a single session so work does not restart from a blank composer.",
-    "capabilities": {
-      "heading": "Why shared threads matter",
-      "description": "Threads your whole team can pick up — with history, handoffs, and governance that travel with the conversation.",
-      "items": [
-        {
-          "title": "Resume where the team left off",
-          "body": "Shared threads keep the transcript available to people who need the context.",
-          "docsLabel": "Shared threads"
-        },
-        {
-          "title": "Handoffs without copy-paste",
-          "body": "Pass a thread to a specialist agent or teammate without losing citations and tool history.",
-          "docsLabel": "Agents in chat"
-        },
-        {
-          "title": "History you can search",
-          "body": "Open Show chats to list every thread you can resume — and search across the history.",
-          "docsLabel": "Chat overview"
-        },
-        {
-          "title": "Governance stays attached",
-          "body": "Approval cards and their resolved state remain in the transcript as a record of what was allowed.",
-          "docsLabel": "Approval concepts"
-        },
-        {
-          "title": "Projects when work grows",
-          "body": "When a thread becomes a tracked body of work, Projects carry files, agents, and backlog beside the conversation.",
-          "docsLabel": "Projects overview"
-        }
-      ]
-    },
-    "faq": {
-      "heading": "Conversations FAQ",
-      "items": [
-        {
-          "q": "What are Conversations in Tale?",
-          "a": "Tale Conversations are shared chat threads your team can resume, with history, handoffs, and attached approval records."
-        },
-        {
-          "q": "How is this different from Chat?",
-          "a": "Chat is the everyday composer surface. Conversations names the shared, durable thread layer teams hand off and resume."
-        },
-        {
-          "q": "Can I hand a conversation to a teammate or another agent?",
-          "a": "Yes. A shared thread keeps its full history, so a person or a specialist agent can pick it up without losing context — and governance stays attached to every action."
-        },
-        {
-          "q": "Does the whole team see every conversation?",
-          "a": "No — projects scope who sees what. A thread lives in its workspace, and only that workspace's members can read or resume it."
-        }
-      ]
-    },
-    "docs": [
-      {
-        "label": "Shared threads",
-        "path": "/platform/chat/shared-threads"
-      },
-      {
-        "label": "Chat overview",
-        "path": "/platform/chat/overview"
-      },
-      {
-        "label": "Chat basics",
-        "path": "/platform/chat/basics"
-      },
-      {
-        "label": "Agents in chat",
-        "path": "/platform/chat/agents-in-chat"
-      },
-      {
-        "label": "Projects overview",
-        "path": "/platform/projects/overview"
-      }
-    ],
-    "tour": {
-      "heading": "How shared conversations work",
-      "description": "Compare models, resume grounded threads, scope by project, and approve actions that leave the chat.",
-      "stages": [
-        {
-          "id": "arena",
-          "eyebrow": "Arena",
-          "title": "Compare drafts\nbefore you hand off",
-          "description": "Shared threads can run the same prompt through two models so the next owner picks the stronger reply — without leaving the conversation."
-        },
-        {
-          "id": "projects",
-          "eyebrow": "Projects",
-          "title": "Threads belong\nto workspaces",
-          "description": "Projects decide which members see which threads — support escalations stay out of engineering."
-        },
-        {
-          "id": "govern",
-          "eyebrow": "Approvals",
-          "title": "Approve from\ninside the thread",
-          "description": "When a conversation would send mail or change a system, the approval card lands where the work already is."
-        },
-        {
-          "id": "knowledge",
-          "eyebrow": "Knowledge",
-          "title": "Ground shared replies\nin the same libraries",
-          "description": "Everyone in the thread sees the same citations — no private context that the next reader cannot check."
-        }
-      ]
-    },
-    "demos": {
-      "hero": {
-        "label": "Animated demo: a teammate joins a shared pilot thread and asks what the customer already signed off; the agent recaps the commitments with the original citations intact.",
-        "prompt": "Joining mid-pilot — what did Acme already approve in this thread?",
-        "routedTitle": "Shared pilot thread resumed",
-        "routedDetail": "Pilot Agent kept the history, sources, and tools.",
-        "reply1": "Acme signed the 40-seat Basel scope and the air-gap install path.",
-        "reply2": "Hardware sizing for the appliance image is still open with their IT.",
-        "reply3": "The QBR deck is due Thursday; Legal cleared the MSA redlines yesterday,",
-        "reply4": "so the only blocker left is their VPN allow-list for the registry.",
-        "citation1": "acme-pilot-msa.pdf",
-        "citation2": "Basel scope sheet",
-        "composerAgentRouted": "Pilot Agent",
-        "composerModel": "Claude Opus"
-      },
-      "govern": {
-        "label": "Animated demo: inside the shared pilot thread, sending the QBR deck to Acme pauses on an approval card until the new owner decides.",
-        "approvalTitle": "Send the QBR deck to Acme’s steering list?",
-        "requester": "Shared pilot · Pilot Agent",
-        "audit1": "Approved by jordan@nordwind.eu",
-        "audit2": "Deck sent via Outlook",
-        "audit3": "Decision recorded in the pilot journal",
-        "budgetValue": "CHF 90 / 400"
-      },
-      "projects": {
-        "label": "Animated demo: Projects that decide which members see which shared pilot and handoff threads.",
-        "project1": "Acme Basel pilot",
-        "agents1": "3 agents",
-        "members1": "6",
-        "project2": "Partner handoffs",
-        "agents2": "2 agents",
-        "members2": "5",
-        "project3": "QBR war-room",
-        "agents3": "2 agents",
-        "members3": "4",
-        "project4": "Legal redlines",
-        "agents4": "1 agent",
-        "members4": "3"
-      },
-      "knowledge": {
-        "label": "Animated demo: shared pilot libraries everyone in the thread can open — MSA, scope sheet, VPN runbook, and the QBR template.",
-        "source1": "acme-pilot-msa.pdf",
-        "sourceType1": "pdf",
-        "source2": "Basel scope sheet",
-        "sourceType2": "entry",
-        "source3": "vpn-allowlist-runbook.pdf",
-        "sourceType3": "pdf",
-        "source4": "QBR template",
-        "sourceType4": "entry"
-      },
-      "arena": {
-        "label": "Animated demo: inside the shared pilot thread, Arena drafts the same QBR update twice so the new owner picks the clearer version.",
-        "prompt": "Draft tomorrow’s QBR update for Acme’s steering committee.",
-        "agent": "Pilot Agent",
-        "modelA": "Claude Opus",
-        "modelB": "GPT-5.5",
-        "replyA1": "Lead with signed scope and the cleared MSA redlines.",
-        "replyA2": "Call out the VPN allow-list as the single open blocker.",
-        "replyA3": "Close with the Thursday deck owner and the ask for IT.",
-        "replyB1": "Open with progress since last week, then the remaining blocker.",
-        "replyB2": "Keep the Thursday date and name who owns the allow-list.",
-        "replyB3": "Offer a 15-minute IT working session if the list slips."
       }
     }
   },

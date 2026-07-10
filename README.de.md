@@ -73,13 +73,14 @@ Agents → Projekte → Automatisierungen → Integrationen → Governance — e
 ## Was steckt drin
 
 - **[Chat](https://tale.dev/docs/de/platform/chat/overview)** — der tägliche Einstieg: Agents, Anhänge, Zitate, Voice — und Arena, das einen Prompt durch zwei Modelle nebeneinander laufen lässt.
-- **[Agents](https://tale.dev/docs/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools und Modell als eine Einheit; lass sie auf der Plattform laufen oder dock Claude Code, Codex und Cursor in isolierten Sandboxes an.
-- **[Projekte](https://tale.dev/docs/de/platform/projects/overview)** — geteilte Arbeitsbereiche mit Dateien, Task-Boards und Projekt-Agents, die die Arbeit übernehmen.
-- **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts)** — typisierte Workflows (LLM-, Action-, Condition-, Loop- und Sandbox-Schritte) auf Zeitplänen, Webhooks und Events — mit Genehmigungstoren für Menschen.
+- **[Projekte](https://tale.dev/docs/de/platform/projects/overview)** — geteilte Arbeitsbereiche, die Chats, Dateien, Anweisungen und Diskussionen rund um ein Vorhaben bündeln — mit projekteigenen Agents.
+- **[Aufgaben](https://tale.dev/docs/de/platform/projects/task-automation)** — Kanban-Boards, auf denen eine Aufgabe losläuft, sobald du sie einem Agent zuweist — mit Triage, menschlichem Review-Gate, Budgets und Notausschalter.
 - **[Wissen](https://tale.dev/docs/de/platform/knowledge/overview)** — Dokumente, gecrawlte Websites und typisierte Datensätze, die Agents abrufen und zitieren, damit Antworten deine Realität spiegeln.
-- **[Governance](https://tale.dev/docs/de/platform/approvals/concepts)** — Genehmigungen, bevor Aktionen rausgehen, ein lückenloser Audit-Trail, Guardrails, PII-Filter und Ausgabenlimits — plus SSO über [Microsoft Entra ID oder Trusted Headers](https://tale.dev/docs/de/platform/admin/enterprise-sso).
+- **[Agents](https://tale.dev/docs/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools und Modell als eine Einheit; lass sie auf der Plattform laufen oder dock Claude Code, Codex und Cursor in isolierten Sandboxes an.
+- **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts)** — typisierte Workflows (LLM-, Action-, Condition-, Loop- und Sandbox-Schritte) auf Zeitplänen, Webhooks und Events — mit Genehmigungstoren für Menschen.
 - **[Integrationen](https://tale.dev/docs/de/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify und MCP-Server.
 - **[Gemeinsamer Posteingang](https://tale.dev/docs/de/platform/automations/builtin)** — mach aus einem geteilten Postfach (Gmail, Outlook, IMAP/SMTP) einen Team-Posteingang mit KI-gestützten Antworten.
+- **[Governance](https://tale.dev/docs/de/platform/approvals/concepts)** — Genehmigungen, bevor Aktionen rausgehen, ein lückenloser Audit-Trail, Guardrails, PII-Filter und Ausgabenlimits — plus SSO über [Microsoft Entra ID oder Trusted Headers](https://tale.dev/docs/de/platform/admin/enterprise-sso).
 
 ## Dokumentation
 

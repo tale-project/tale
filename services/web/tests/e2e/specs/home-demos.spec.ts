@@ -347,46 +347,40 @@ test.describe('feature page demo scenarios', () => {
     ).toBeVisible();
   });
 
-  test('conversations page resumes a shared pilot thread', async ({ page }) => {
-    await page.goto('/platform/conversations');
+  test('projects page runs the relaunch workspace story', async ({ page }) => {
+    await page.goto('/platform/projects');
 
     const hero = page.getByRole('img', {
-      name: t('platformConversations.demos.hero.label'),
+      name: t('platformProjects.demos.projects.label'),
     });
     await expect(hero).toBeVisible();
     await expect(hero).toContainText(
-      t('platformConversations.demos.hero.prompt'),
+      t('platformProjects.demos.projects.project1'),
     );
-    await expect(hero).toContainText(
-      t('platformConversations.demos.hero.reply4'),
-    );
-    await expect(hero).not.toContainText(t('home.demos.hero.prompt'));
-    await expect(hero).not.toContainText(t('home.demos.hero.citation1'));
+    await expect(hero).not.toContainText(t('home.demos.projects.project1'));
 
-    const arena = page.getByRole('img', {
-      name: t('platformConversations.demos.arena.label'),
+    const tasks = page.getByRole('img', {
+      name: t('platformProjects.demos.automation.label'),
     });
-    await arena.scrollIntoViewIfNeeded();
-    await expect(arena).toContainText(
-      t('platformConversations.demos.arena.prompt'),
+    await tasks.scrollIntoViewIfNeeded();
+    await expect(tasks).toContainText(
+      t('platformProjects.demos.automation.trigger'),
     );
-    await expect(arena).not.toContainText(t('home.demos.arena.prompt'));
+    await expect(tasks).not.toContainText(t('home.demos.automation.trigger'));
 
-    const projects = page.getByRole('img', {
-      name: t('platformConversations.demos.projects.label'),
+    const chat = page.getByRole('img', {
+      name: t('platformProjects.demos.hero.label'),
     });
-    await projects.scrollIntoViewIfNeeded();
-    await expect(projects).toContainText(
-      t('platformConversations.demos.projects.project1'),
-    );
-    await expect(projects).not.toContainText(t('home.demos.projects.project1'));
+    await chat.scrollIntoViewIfNeeded();
+    await expect(chat).toContainText(t('platformProjects.demos.hero.prompt'));
+    await expect(chat).not.toContainText(t('home.demos.hero.prompt'));
 
     const knowledge = page.getByRole('img', {
-      name: t('platformConversations.demos.knowledge.label'),
+      name: t('platformProjects.demos.knowledge.label'),
     });
     await knowledge.scrollIntoViewIfNeeded();
     await expect(knowledge).toContainText(
-      t('platformConversations.demos.knowledge.source1'),
+      t('platformProjects.demos.knowledge.source1'),
     );
     await expect(knowledge).not.toContainText(
       t('home.demos.knowledge.source1'),

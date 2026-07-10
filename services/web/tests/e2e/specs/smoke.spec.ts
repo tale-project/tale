@@ -20,10 +20,10 @@ const MARKETING_PATHS = [
   '/platform',
   '/platform/agents',
   '/platform/chat',
+  '/platform/projects',
   '/platform/automations',
   '/platform/knowledge',
   '/platform/governance',
-  '/platform/conversations',
   '/changelog',
 ] as const;
 
