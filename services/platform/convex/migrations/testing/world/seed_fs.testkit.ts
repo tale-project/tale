@@ -4,7 +4,7 @@
  * (temp) `TALE_CONFIG_DIR` root. The trees are plain checked-in fixtures — see
  * `manifest.testkit.ts#baselineDomains` for what each org carries and why.
  *
- * CANONICALIZATION: 0.2.89/03 rewrites two alpha files IN PLACE with
+ * CANONICALIZATION: 0.2.98/01 rewrites two alpha files IN PLACE with
  * `snapshot: 'none'` (exact in-place inverse), so after the chain's up+down
  * they hold `serialize(parse(original))` bytes. The checked-in fixtures are
  * repo-formatter-styled (the format hook collapses short arrays), which is NOT
@@ -38,7 +38,7 @@ export const WORLD_CONFIG_FIXTURE_DIR = fileURLToPath(
 );
 
 /**
- * The rewrite-in-place targets of 0.2.89/03 (claude_code_fable_default):
+ * The rewrite-in-place targets of 0.2.98/01 (claude_code_fable_default):
  * the org's claude-code agent pin and the openrouter provider catalog.
  * Everything else the chain touches on disk is fs-tree snapshot/restored
  * (byte-exact regardless of formatting), so only these two need the

@@ -28,7 +28,7 @@ const modules = buildModules(
 );
 const authModules = import.meta.glob('../../betterAuth/**/*.*s');
 
-const BRANDING_ID = '0.3.4/01_branding_single_accent_color';
+const BRANDING_ID = '0.3.4/21_branding_single_accent_color';
 
 function newWorld() {
   const t = convexTest(worldSchema, modules);

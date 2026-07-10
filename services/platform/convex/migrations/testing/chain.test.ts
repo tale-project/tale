@@ -46,7 +46,7 @@ import {
 import { WORLD_ORGS } from './world/manifest.testkit';
 import { WORLD_ENCRYPTION_SECRET_HEX } from './world/seed_db.testkit';
 
-/** Fixture workflow files 0.2.90/07 removes / keeps (see manifest profile). */
+/** Fixture workflow files 0.3.4/06 removes / keeps (see manifest profile). */
 const WORLD_RETIRED_WORKFLOW_FILE =
   'workflows/projects/tasks/send-daily-digest.json';
 const WORLD_SURVIVOR_WORKFLOW_FILE =
@@ -170,7 +170,7 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
   expect(branding.brandColor).toBeUndefined();
   expect(branding.accentColor).toBeDefined();
 
-  // 0.2.90/01 rewrote every opencode agent; 0.2.90/05 removed the personas.
+  // 0.2.98/02 rewrote every opencode agent; 0.3.4/04 removed the personas.
   for (const org of [alpha, WORLD_ORGS.beta.slug]) {
     const chatDir = path.join(root, org, 'agents', 'chat');
     if (!(await exists(chatDir))) continue;
@@ -188,7 +188,7 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
     false,
   );
 
-  // 0.2.90/04 dropped the workforce policy file; 0.2.85/01 exported the DB
+  // 0.3.4/03 dropped the workforce policy file; 0.2.85/01 exported the DB
   // policies into governance/; 0.2.87/01 wrote the unified SSO connection.
   expect(
     await exists(path.join(root, alpha, 'governance', 'agent-workforce.json')),
@@ -201,7 +201,7 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
     ),
   ).toBe(true);
 
-  // 0.2.90/07 removed the retired workflow file and kept the survivor.
+  // 0.3.4/06 removed the retired workflow file and kept the survivor.
   expect(
     await exists(path.join(root, alpha, WORLD_RETIRED_WORKFLOW_FILE)),
   ).toBe(false);
@@ -313,9 +313,9 @@ describe('migration chain (0.2.84 → 0.3.4 → 0.2.84)', () => {
 
       // Values a re-run REMINTS by design — each justified, nothing else:
       //  - contacts get fresh _ids on the second up (down deleted the
-      //    backfilled rows), so the contactId FKs embedded by 0.3.4/04+05
+      //    backfilled rows), so the contactId FKs embedded by 0.3.4/24+25
       //    differ per cycle. Resolution is asserted separately below.
-      //  - 0.2.92/02 stamps Date.now() on the subscription row it creates.
+      //  - 0.3.4/12 stamps Date.now() on the subscription row it creates.
       const remintExemptions = {
         conversations: ['contactId'],
         supportCases: ['contactId'],

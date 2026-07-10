@@ -16,14 +16,14 @@ import { migration as n0_2_85_01 } from '../versions/v0_2_85/01_governance_db_to
 import { migration as n0_2_87_01 } from '../versions/v0_2_87/01_enterprise_sso_unify/migration';
 import { migration as n0_2_87_02 } from '../versions/v0_2_87/02_run_code_policy_db_to_json/migration';
 import { migration as n0_2_87_03 } from '../versions/v0_2_87/03_model_sync_db_to_json/migration';
-import { migration as n0_2_89_03 } from '../versions/v0_2_89/03_claude_code_fable_default/migration';
-import { migration as n0_2_90_01 } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/migration';
-import { migration as n0_2_90_03 } from '../versions/v0_2_90/03_install_email_apps/migration';
-import { migration as n0_2_90_04 } from '../versions/v0_2_90/04_drop_agent_workforce_policy/migration';
-import { migration as n0_2_90_05 } from '../versions/v0_2_90/05_remove_workforce_agents/migration';
-import { migration as n0_2_90_07 } from '../versions/v0_2_90/07_remove_retired_task_workflows/migration';
-import { migration as n0_2_92_01 } from '../versions/v0_2_92/01_retire_issue_desk/migration';
-import { migration as n0_3_4_01 } from '../versions/v0_3_4/01_branding_single_accent_color/migration';
+import { migration as n0_2_98_01 } from '../versions/v0_2_98/01_claude_code_fable_default/migration';
+import { migration as n0_2_98_02 } from '../versions/v0_2_98/02_agent_kind_opencode_to_claude_code/migration';
+import { migration as n0_3_4_02 } from '../versions/v0_3_4/02_install_email_apps/migration';
+import { migration as n0_3_4_03 } from '../versions/v0_3_4/03_drop_agent_workforce_policy/migration';
+import { migration as n0_3_4_04 } from '../versions/v0_3_4/04_remove_workforce_agents/migration';
+import { migration as n0_3_4_06 } from '../versions/v0_3_4/06_remove_retired_task_workflows/migration';
+import { migration as n0_3_4_11 } from '../versions/v0_3_4/11_retire_issue_desk/migration';
+import { migration as n0_3_4_21 } from '../versions/v0_3_4/21_branding_single_accent_color/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
@@ -31,12 +31,12 @@ export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
   "0.2.87/01_enterprise_sso_unify": composeNode(requireMeta("0.2.87/01_enterprise_sso_unify"), n0_2_87_01),
   "0.2.87/02_run_code_policy_db_to_json": composeNode(requireMeta("0.2.87/02_run_code_policy_db_to_json"), n0_2_87_02),
   "0.2.87/03_model_sync_db_to_json": composeNode(requireMeta("0.2.87/03_model_sync_db_to_json"), n0_2_87_03),
-  "0.2.89/03_claude_code_fable_default": composeNode(requireMeta("0.2.89/03_claude_code_fable_default"), n0_2_89_03),
-  "0.2.90/01_agent_kind_opencode_to_claude_code": composeNode(requireMeta("0.2.90/01_agent_kind_opencode_to_claude_code"), n0_2_90_01),
-  "0.2.90/03_install_email_apps": composeNode(requireMeta("0.2.90/03_install_email_apps"), n0_2_90_03),
-  "0.2.90/04_drop_agent_workforce_policy": composeNode(requireMeta("0.2.90/04_drop_agent_workforce_policy"), n0_2_90_04),
-  "0.2.90/05_remove_workforce_agents": composeNode(requireMeta("0.2.90/05_remove_workforce_agents"), n0_2_90_05),
-  "0.2.90/07_remove_retired_task_workflows": composeNode(requireMeta("0.2.90/07_remove_retired_task_workflows"), n0_2_90_07),
-  "0.2.92/01_retire_issue_desk": composeNode(requireMeta("0.2.92/01_retire_issue_desk"), n0_2_92_01),
-  "0.3.4/01_branding_single_accent_color": composeNode(requireMeta("0.3.4/01_branding_single_accent_color"), n0_3_4_01),
+  "0.2.98/01_claude_code_fable_default": composeNode(requireMeta("0.2.98/01_claude_code_fable_default"), n0_2_98_01),
+  "0.2.98/02_agent_kind_opencode_to_claude_code": composeNode(requireMeta("0.2.98/02_agent_kind_opencode_to_claude_code"), n0_2_98_02),
+  "0.3.4/02_install_email_apps": composeNode(requireMeta("0.3.4/02_install_email_apps"), n0_3_4_02),
+  "0.3.4/03_drop_agent_workforce_policy": composeNode(requireMeta("0.3.4/03_drop_agent_workforce_policy"), n0_3_4_03),
+  "0.3.4/04_remove_workforce_agents": composeNode(requireMeta("0.3.4/04_remove_workforce_agents"), n0_3_4_04),
+  "0.3.4/06_remove_retired_task_workflows": composeNode(requireMeta("0.3.4/06_remove_retired_task_workflows"), n0_3_4_06),
+  "0.3.4/11_retire_issue_desk": composeNode(requireMeta("0.3.4/11_retire_issue_desk"), n0_3_4_11),
+  "0.3.4/21_branding_single_accent_color": composeNode(requireMeta("0.3.4/21_branding_single_accent_color"), n0_3_4_21),
 };

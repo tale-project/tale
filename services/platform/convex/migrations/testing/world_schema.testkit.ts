@@ -9,24 +9,24 @@
  *    `test_helpers` where its shape survives the whole chain, and re-declared
  *    here as wider unions where it does not (a field the chain renames must be
  *    optional in BOTH spellings — e.g. `appInstallations.appSlug` becomes
- *    `automationSlug` mid-chain via 0.2.93/01, so both are optional here).
+ *    `automationSlug` mid-chain via 0.3.4/13, so both are optional here).
  *
  * INDEX RENAME RULE — convex-test enforces index name AND field list, and two
  * points in history used the SAME index name with DIFFERENT fields:
  *
  *  - `appInstallations.by_org_slug` was ['organizationId','appSlug'] at 0.2.88
- *    (used by 0.2.88/01, 0.2.88/02, 0.2.91/01), but 0.2.93/04's `down` queries
+ *    (used by 0.2.96/01, 0.2.96/02, 0.3.4/09), but 0.3.4/16's `down` queries
  *    the same name as ['organizationId','automationSlug']. Declared here as
  *    `by_org_slug` (0.2.88 shape) plus `by_org_automation_slug` (93/04 shape);
- *    0.2.93/04's `down` must be ported to `by_org_automation_slug` when run
+ *    0.3.4/16's `down` must be ported to `by_org_automation_slug` when run
  *    against this schema (see `world/manifest.testkit.ts#indexPortNotes`).
  *  - `appProjectBindings.by_org_slug_project` has the same conflict between
- *    0.2.88/02 (['organizationId','appSlug','projectId']) and 0.2.93/05's
+ *    0.2.96/02 (['organizationId','appSlug','projectId']) and 0.3.4/17's
  *    `down` (['organizationId','automationSlug','projectId']) → declared as
  *    `by_org_slug_project` plus `by_org_automation_slug_project`.
- *  - Checked, NOT conflicted: 0.2.93/06 (`appUploadClaims.by_org_slug` is
+ *  - Checked, NOT conflicted: 0.3.4/18 (`appUploadClaims.by_org_slug` is
  *    ['organizationId','slug'] on both sides — the field kept its name) and
- *    0.2.93/07 (`appUploadIntents.by_storageId`).
+ *    0.3.4/19 (`appUploadIntents.by_storageId`).
  *
  * Two-dot basename (`world_schema.testkit.ts`) keeps this module out of the
  * Convex push bundle; it must still never import vitest/convex-test — only
@@ -86,20 +86,20 @@ import {
 } from '../framework/test_helpers';
 
 /**
- * Legacy `appInstallations` as a CHAIN union (0.2.84 → 0.2.93/04). Diverges
+ * Legacy `appInstallations` as a CHAIN union (0.2.84 → 0.3.4/16). Diverges
  * from `test_helpers.legacyAppInstallationsWithConfigTable` on purpose: there
- * `appSlug` is required, which rejects the mid-chain state after 0.2.93/01
+ * `appSlug` is required, which rejects the mid-chain state after 0.3.4/13
  * patches rows to `automationSlug: …, appSlug: undefined` while they still
  * live in this table. Both spellings are optional here, and the renamed
- * `by_org_automation_slug` index carries 0.2.93/04's `down` lookup (see the
+ * `by_org_automation_slug` index carries 0.3.4/16's `down` lookup (see the
  * header's index rename rule).
  */
 export const worldAppInstallationsTable = defineTable({
   organizationId: v.string(),
-  /** Pre-0.2.93/01 spelling; unset after the rename migration's `up`. */
+  /** Pre-0.3.4/13 spelling; unset after the rename migration's `up`. */
   appSlug: v.optional(v.string()),
   appName: v.optional(v.string()),
-  /** Post-0.2.93/01 spelling; unset at baseline. */
+  /** Post-0.3.4/13 spelling; unset at baseline. */
   automationSlug: v.optional(v.string()),
   automationName: v.optional(v.string()),
   installedAt: v.number(),
@@ -115,37 +115,37 @@ export const worldAppInstallationsTable = defineTable({
       adopted: v.optional(v.boolean()),
     }),
   ),
-  /** Retired org-level `requires.config` values (cleared by 0.2.91/01). */
+  /** Retired org-level `requires.config` values (cleared by 0.3.4/09). */
   config: v.optional(jsonRecordValidator),
 })
   .index('by_org', ['organizationId'])
-  // 0.2.88-era shape — used by 0.2.88/01, 0.2.88/02, 0.2.91/01 `up`.
+  // 0.2.88-era shape — used by 0.2.96/01, 0.2.96/02, 0.3.4/09 `up`.
   .index('by_org_slug', ['organizationId', 'appSlug'])
-  // 0.2.93/04 `down` shape under a NEW name (rename rule; see header).
+  // 0.3.4/16 `down` shape under a NEW name (rename rule; see header).
   .index('by_org_automation_slug', ['organizationId', 'automationSlug']);
 
 /**
- * Legacy `appProjectBindings` as a CHAIN union (0.2.84 → 0.2.93/05). Same
- * divergence rationale as {@link worldAppInstallationsTable}: 0.2.93/02
- * renames `appSlug` → `automationSlug` in place, and 0.2.93/05's `down` needs
+ * Legacy `appProjectBindings` as a CHAIN union (0.2.84 → 0.3.4/17). Same
+ * divergence rationale as {@link worldAppInstallationsTable}: 0.3.4/14
+ * renames `appSlug` → `automationSlug` in place, and 0.3.4/17's `down` needs
  * the automation-slug index spelling under a new name.
  */
 export const worldAppProjectBindingsTable = defineTable({
   organizationId: v.string(),
-  /** Pre-0.2.93/02 spelling; unset after the rename migration's `up`. */
+  /** Pre-0.3.4/14 spelling; unset after the rename migration's `up`. */
   appSlug: v.optional(v.string()),
-  /** Post-0.2.93/02 spelling; unset at baseline. */
+  /** Post-0.3.4/14 spelling; unset at baseline. */
   automationSlug: v.optional(v.string()),
   projectId: v.id('projects'),
   boundAt: v.number(),
   boundBy: v.string(),
-  /** Retired per-project config (copied by 0.2.88/01, cleared by 0.2.91/01). */
+  /** Retired per-project config (copied by 0.2.96/01, cleared by 0.3.4/09). */
   config: v.optional(jsonRecordValidator),
 })
   .index('by_project', ['projectId'])
-  // 0.2.88-era shape — prefix-queried by 0.2.88/02 `up`.
+  // 0.2.88-era shape — prefix-queried by 0.2.96/02 `up`.
   .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId'])
-  // 0.2.93/05 `down` shape under a NEW name (rename rule; see header).
+  // 0.3.4/17 `down` shape under a NEW name (rename rule; see header).
   .index('by_org_automation_slug_project', [
     'organizationId',
     'automationSlug',
@@ -153,9 +153,9 @@ export const worldAppProjectBindingsTable = defineTable({
   ]);
 
 /**
- * Legacy `appUploadClaims` (renamed to `automationUploadClaims` by 0.2.93/06).
+ * Legacy `appUploadClaims` (renamed to `automationUploadClaims` by 0.3.4/18).
  * Field names never changed, so the single `by_org_slug` index serves both the
- * 0.2.93/06 `up` duplicate-check and its `down` re-insert lookup.
+ * 0.3.4/18 `up` duplicate-check and its `down` re-insert lookup.
  */
 export const legacyAppUploadClaimsTable = defineTable({
   organizationId: v.string(),
@@ -166,7 +166,7 @@ export const legacyAppUploadClaimsTable = defineTable({
 
 /**
  * Legacy `appUploadIntents` (renamed to `automationUploadIntents` by
- * 0.2.93/07). Field names never changed; `by_storageId` serves both sides.
+ * 0.3.4/19). Field names never changed; `by_storageId` serves both sides.
  */
 export const legacyAppUploadIntentsTable = defineTable({
   storageId: v.id('_storage'),
@@ -178,8 +178,8 @@ export const legacyAppUploadIntentsTable = defineTable({
 /**
  * `threadMetadata` as a CHAIN union. The production table
  * (`threads/schema.ts`) no longer admits the pre-0.2.93 discussion spelling —
- * `kind: 'app_discussion'` and the `appSlug` column — which 0.2.93/03 and
- * 0.2.93/08 rewrite. Declared locally with only the columns the corpus seeds
+ * `kind: 'app_discussion'` and the `appSlug` column — which 0.3.4/15 and
+ * 0.3.4/20 rewrite. Declared locally with only the columns the corpus seeds
  * and the two migrations touch (plus the org column the smoke test filters
  * on); the old and new spellings are both optional, `historicalSchema` style.
  */
@@ -192,7 +192,7 @@ export const worldThreadMetadataTable = defineTable({
   organizationId: v.optional(v.string()),
   title: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
-  /** Union of the current kinds plus the legacy `app_discussion` (0.2.93/08). */
+  /** Union of the current kinds plus the legacy `app_discussion` (0.3.4/20). */
   kind: v.optional(
     v.union(
       v.literal('chat'),
@@ -202,11 +202,11 @@ export const worldThreadMetadataTable = defineTable({
       v.literal('app_discussion'),
     ),
   ),
-  /** Pre-0.2.93/03 spelling; unset after the rename migration's `up`. */
+  /** Pre-0.3.4/15 spelling; unset after the rename migration's `up`. */
   appSlug: v.optional(v.string()),
-  /** Post-0.2.93/03 spelling; unset at baseline. */
+  /** Post-0.3.4/15 spelling; unset at baseline. */
   automationSlug: v.optional(v.string()),
-  /** `'app'` at baseline; rewritten to `'automation'` by 0.2.93/03. */
+  /** `'app'` at baseline; rewritten to `'automation'` by 0.3.4/15. */
   subjectType: v.optional(v.string()),
   subjectId: v.optional(v.string()),
 })
@@ -249,8 +249,8 @@ export const worldSchema = defineSchema({
   automationUploadClaims: automationUploadClaimTable,
   automationUploadIntents: automationUploadIntentTable,
 
-  // --- workflow triggers + default-pack provisioning (0.2.88/02, 0.2.90/07,
-  // --- 0.2.92/02) -----------------------------------------------------------
+  // --- workflow triggers + default-pack provisioning (0.2.96/02, 0.3.4/06,
+  // --- 0.3.4/12) -----------------------------------------------------------
   wfSchedules: wfSchedulesTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfInstallations: wfInstallationsTable,
@@ -265,7 +265,7 @@ export const worldSchema = defineSchema({
   integrationCredentials: integrationCredentialsTable,
   agentInstallations: agentInstallationsTable,
   // Empty at baseline; agent deletion paths sweep it (agentEnv.by_org_agent)
-  // when 0.2.90/05 re-removes restored workforce personas on a re-up.
+  // when 0.3.4/04 re-removes restored workforce personas on a re-up.
   agentEnv: agentEnvTable,
   userNotifications: userNotificationsTable,
 
