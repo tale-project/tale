@@ -494,14 +494,29 @@ export function convexLocalPaths(platformRoot: string) {
 }
 
 /**
+ * Basename (no `.blob`) from a package document's `storageKey`.
+ * Convex local stores bare UUIDs or `modules/<uuid>.blob` — both normalize here.
+ */
+function packageStorageBlobName(storageKey: string): string {
+  const name = storageKey.split('/').pop() ?? storageKey;
+  return name.replace(/\.blob$/, '');
+}
+
+/**
  * Blob basenames the current deployment still references, read from the local
  * backend's SQLite (read-only; callers only prune while the backend is down).
  *
- * The join mirrors how the backend loads code: the latest live revision of
- * every `_modules` row names its `sourcePackageId`; the latest live revision
- * of each of those source packages carries the `storageKey` whose blob file
- * must exist on disk. Everything else in `modules/` is history from
- * superseded pushes and safe to prune.
+ * The join mirrors how the backend loads code:
+ * 1. Latest live `_modules` rows name a `sourcePackageId`.
+ * 2. That package's `storageKey` blob must exist on disk.
+ * 3. Node action packages also set `externalPackageId` on the source package,
+ *    pointing at a shared deps parent (postgres/jsdom/mcp bundles, etc.). The
+ *    parent's `storageKey` must be kept too — pruning it yields InvalidModules
+ *    ENOENT on `start_push` / node actions even when every module child blob
+ *    is still present (July 2026 recurrence after the mtime-only fix).
+ *
+ * Everything else in `modules/` is history from superseded pushes and safe to
+ * prune.
  *
  * Returns `null` when the references can't be established (unreadable DB,
  * missing driver, unexpected shape) — callers must then skip pruning. A
@@ -573,16 +588,30 @@ export function readReferencedModuleBlobNames(
         }
       }
 
-      const referenced = new Set<string>();
+      const packagesById = new Map<string, Record<string, unknown>>();
       for (const doc of latestLive(
         "json_value LIKE '%storageKey%' AND json_value LIKE '%packageSize%'",
       ).values()) {
-        if (typeof doc._id !== 'string' || !currentPackageIds.has(doc._id)) {
-          continue;
+        if (typeof doc._id === 'string') {
+          packagesById.set(doc._id, doc);
         }
-        if (typeof doc.storageKey !== 'string') continue;
-        const name = doc.storageKey.split('/').pop() ?? doc.storageKey;
-        referenced.add(name.replace(/\.blob$/, ''));
+      }
+
+      const referenced = new Set<string>();
+      const addPackageBlob = (packageId: string): void => {
+        const doc = packagesById.get(packageId);
+        if (!doc || typeof doc.storageKey !== 'string') return;
+        referenced.add(packageStorageBlobName(doc.storageKey));
+      };
+
+      for (const packageId of currentPackageIds) {
+        addPackageBlob(packageId);
+        const doc = packagesById.get(packageId);
+        // Node external-deps parent — required at runtime even though no
+        // module lists it as sourcePackageId directly.
+        if (typeof doc?.externalPackageId === 'string') {
+          addPackageBlob(doc.externalPackageId);
+        }
       }
       return referenced;
     } finally {
