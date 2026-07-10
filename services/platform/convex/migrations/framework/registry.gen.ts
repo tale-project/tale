@@ -7,7 +7,7 @@
 // V8-safe: node/reference migrations contribute inline meta literals only —
 // their handler modules ('use node' / test-only) are never imported here.
 
-import { composeLegacyComponent, composeLegacyDb } from './compose';
+import { composeDb, composeLegacyComponent, composeLegacyDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 import { migration as m0_2_85_02 } from '../versions/v0_2_85/02_dsar_pending_table_split';
 import { migration as m0_2_85_03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables';
@@ -29,7 +29,7 @@ import { migration as m0_2_93_05 } from '../versions/v0_2_93/05_app_project_bind
 import { migration as m0_2_93_06 } from '../versions/v0_2_93/06_app_upload_claims_table';
 import { migration as m0_2_93_07 } from '../versions/v0_2_93/07_app_upload_intents_table';
 import { migration as m0_2_93_08 } from '../versions/v0_2_93/08_thread_metadata_automation_discussion';
-import { migration as m0_3_4_02 } from '../versions/v0_3_4/02_backfill_contacts_from_vendors';
+import { migration as m0_3_4_02 } from '../versions/v0_3_4/02_backfill_contacts_from_vendors/migration';
 import { migration as m0_3_4_03 } from '../versions/v0_3_4/03_backfill_contacts_from_customers';
 import { migration as m0_3_4_04 } from '../versions/v0_3_4/04_backfill_conversation_contact_id';
 import { migration as m0_3_4_05 } from '../versions/v0_3_4/05_backfill_support_case_contact_id';
@@ -660,7 +660,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.2.93/06_app_upload_claims_table": composeLegacyDb(m0_2_93_06),
   "0.2.93/07_app_upload_intents_table": composeLegacyDb(m0_2_93_07),
   "0.2.93/08_thread_metadata_automation_discussion": composeLegacyDb(m0_2_93_08),
-  "0.3.4/02_backfill_contacts_from_vendors": composeLegacyDb(m0_3_4_02),
+  "0.3.4/02_backfill_contacts_from_vendors": composeDb(requireMeta("0.3.4/02_backfill_contacts_from_vendors"), m0_3_4_02),
   "0.3.4/03_backfill_contacts_from_customers": composeLegacyDb(m0_3_4_03),
   "0.3.4/04_backfill_conversation_contact_id": composeLegacyDb(m0_3_4_04),
   "0.3.4/05_backfill_support_case_contact_id": composeLegacyDb(m0_3_4_05),
