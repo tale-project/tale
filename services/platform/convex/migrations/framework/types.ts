@@ -66,6 +66,16 @@ export interface MigrationMeta {
   /** `true` when `up` removes/overwrites data; gates accept-all + deploy auto-run. */
   readonly destructive: boolean;
   readonly snapshot: SnapshotStrategy;
+  /**
+   * Ids this migration previously shipped under (a re-homed folder). Ledger
+   * rows and snapshots recorded under a former id keep counting: the apply
+   * actions adopt ledger rows to the current id before planning, and snapshot
+   * restores fall back to former ids. Without this, renaming a shipped
+   * migration would re-run it on every deployment that already applied it.
+   * Mutable element type: the wire meta validator (`v.array`) infers a
+   * mutable array, and `readonly string[]` would not satisfy it.
+   */
+  readonly formerIds?: string[];
 }
 
 /** Direction a migration is being applied. */

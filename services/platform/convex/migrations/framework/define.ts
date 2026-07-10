@@ -50,6 +50,13 @@ export interface MigrationInfo {
   readonly destructive: boolean;
   /** Tables/domains the handlers touch. Required for runnable kinds. */
   readonly subjects?: MigrationSubjects;
+  /**
+   * Ids this migration previously shipped under, when its folder was re-homed
+   * to the version whose release actually carried the change. Deployments
+   * that applied it under a former id are not re-run: ledger rows are adopted
+   * and snapshot restores fall back to the former ids.
+   */
+  readonly formerIds?: readonly string[];
 }
 
 /**
@@ -199,9 +206,20 @@ function fail(kind: MigrationKind, spec: MigrationInfo, why: string): never {
   throw new Error(`define ${kind} migration ${label}: ${why}`);
 }
 
+const MIGRATION_ID_RE = /^\d+\.\d+\.\d+\/\d{2}_[a-z0-9_]+$/;
+
 function validateInfo(kind: MigrationKind, spec: MigrationInfo): void {
   if (!spec.title || spec.title.length > TITLE_MAX) {
     fail(kind, spec, `title must be 1..${TITLE_MAX} chars`);
+  }
+  for (const formerId of spec.formerIds ?? []) {
+    if (!MIGRATION_ID_RE.test(formerId)) {
+      fail(
+        kind,
+        spec,
+        `formerIds entry "${formerId}" is not a migration id ("<semver>/<NN>_<slug>")`,
+      );
+    }
   }
   if (!spec.description || spec.description.length < DESCRIPTION_MIN) {
     fail(

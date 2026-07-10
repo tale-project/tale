@@ -12,7 +12,11 @@ import { v } from 'convex/values';
 
 import { components } from '../../_generated/api';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
-import { COMPONENT_MIGRATIONS, DB_MIGRATIONS } from './registry.gen';
+import {
+  COMPONENT_MIGRATIONS,
+  DB_MIGRATIONS,
+  requireMeta,
+} from './registry.gen';
 import type { MigrationDoc } from './types';
 
 /** Default rows processed per batch transaction. */
@@ -37,6 +41,47 @@ function ledgerRowQuery(ctx: MutationCtx, migrationId: string) {
     .query('migrationLedger')
     .withIndex('by_migrationId', (q) => q.eq('migrationId', migrationId))
     .unique();
+}
+
+interface SnapshotPage {
+  // oxlint-disable-next-line typescript/no-explicit-any -- Convex paginate page of snapshot docs
+  page: any[];
+  isDone: boolean;
+  continueCursor: string;
+  /** True when the rows came from a FORMER id (cursor must not be persisted —
+   *  it belongs to a different index stream; restores consume their rows, so
+   *  each fallback batch restarts from the head of what remains). */
+  fromFormerId: boolean;
+}
+
+/**
+ * One page of a migration's snapshot rows. A re-homed migration's snapshots
+ * may sit under one of its FORMER ids (captured before the rename); when the
+ * current id has none, the first former id with rows is drained instead.
+ */
+async function snapshotPageFor(
+  ctx: MutationCtx,
+  migrationId: string,
+  cursor: string | null,
+  numItems: number,
+): Promise<SnapshotPage> {
+  const page = await ctx.db
+    .query('migrationSnapshots')
+    .withIndex('by_migration', (q) => q.eq('migrationId', migrationId))
+    .paginate({ cursor, numItems });
+  if (page.page.length > 0 || !page.isDone) {
+    return { ...page, fromFormerId: false };
+  }
+  for (const formerId of requireMeta(migrationId).formerIds ?? []) {
+    const fallback = await ctx.db
+      .query('migrationSnapshots')
+      .withIndex('by_migration', (q) => q.eq('migrationId', formerId))
+      .paginate({ cursor: null, numItems });
+    if (fallback.page.length > 0) {
+      return { ...fallback, fromFormerId: true };
+    }
+  }
+  return { ...page, fromFormerId: false };
 }
 
 /**
@@ -148,10 +193,12 @@ export const restoreComponentSnapshotBatch = internalMutation({
       );
     }
 
-    const page = await ctx.db
-      .query('migrationSnapshots')
-      .withIndex('by_migration', (q) => q.eq('migrationId', args.migrationId))
-      .paginate({ cursor: row.cursor ?? null, numItems: 50 });
+    const page = await snapshotPageFor(
+      ctx,
+      args.migrationId,
+      row.cursor ?? null,
+      50,
+    );
 
     for (const snap of page.page) {
       if (!snap.scope.startsWith('component:betterAuth:')) continue;
@@ -173,9 +220,12 @@ export const restoreComponentSnapshotBatch = internalMutation({
     }
 
     await ctx.db.patch(row._id, {
-      cursor: page.isDone ? null : page.continueCursor,
+      cursor: page.isDone || page.fromFormerId ? null : page.continueCursor,
     });
-    return { isDone: page.isDone, processed: page.page.length };
+    return {
+      isDone: page.isDone && !page.fromFormerId,
+      processed: page.page.length,
+    };
   },
 });
 
@@ -205,10 +255,12 @@ export const restoreSnapshotBatch = internalMutation({
     }
 
     const batchSize = migration.batchSize ?? DEFAULT_BATCH_SIZE;
-    const page = await ctx.db
-      .query('migrationSnapshots')
-      .withIndex('by_migration', (q) => q.eq('migrationId', args.migrationId))
-      .paginate({ cursor: row.cursor ?? null, numItems: batchSize });
+    const page = await snapshotPageFor(
+      ctx,
+      args.migrationId,
+      row.cursor ?? null,
+      batchSize,
+    );
 
     for (const snap of page.page) {
       const payload = snap.payload as Record<string, unknown> | undefined;
@@ -220,8 +272,11 @@ export const restoreSnapshotBatch = internalMutation({
     }
 
     await ctx.db.patch(row._id, {
-      cursor: page.isDone ? null : page.continueCursor,
+      cursor: page.isDone || page.fromFormerId ? null : page.continueCursor,
     });
-    return { isDone: page.isDone, processed: page.page.length };
+    return {
+      isDone: page.isDone && !page.fromFormerId,
+      processed: page.page.length,
+    };
   },
 });

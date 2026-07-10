@@ -43,10 +43,13 @@ export const legacyNodeHelpers: NodeMigrationHelpers = {
   restoreFsTree,
 };
 
-/** Build the helper surface pre-bound to one migration × one org. */
+/** Build the helper surface pre-bound to one migration × one org. Snapshots
+ *  are always captured under the CURRENT id; restores fall back to the
+ *  `formerIds` sidecars a pre-rename deployment may have captured. */
 export function makeNodeHelpers(
   migrationId: string,
   orgSlug: string,
+  formerIds: readonly string[] = [],
 ): BoundNodeHelpers {
   return {
     migrationId,
@@ -56,7 +59,8 @@ export function makeNodeHelpers(
     removeFileSafe,
     removeDirSafe,
     snapshotFsTree: (dir: string) => snapshotFsTree(migrationId, orgSlug, dir),
-    restoreFsTree: (dir: string) => restoreFsTree(migrationId, orgSlug, dir),
+    restoreFsTree: (dir: string) =>
+      restoreFsTree(migrationId, orgSlug, dir, formerIds),
   };
 }
 
@@ -66,11 +70,11 @@ export function composeNode(
   module: MigrationModule<'node', NodeMigrationSpec>,
 ): NodeMigration {
   const { spec } = module;
+  const helpersFor = (org: { slug: string }): BoundNodeHelpers =>
+    makeNodeHelpers(meta.id, org.slug, meta.formerIds ?? []);
   return {
     meta,
-    up: (ctx, org, _helpers) =>
-      spec.up(ctx, org, makeNodeHelpers(meta.id, org.slug)),
-    down: (ctx, org, _helpers) =>
-      spec.down(ctx, org, makeNodeHelpers(meta.id, org.slug)),
+    up: (ctx, org, _helpers) => spec.up(ctx, org, helpersFor(org)),
+    down: (ctx, org, _helpers) => spec.down(ctx, org, helpersFor(org)),
   };
 }

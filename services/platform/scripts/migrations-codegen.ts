@@ -202,6 +202,7 @@ async function loadFolder(
       snapshot: MigrationMeta['snapshot'];
       subjects?: MigrationSubjects;
       table?: string;
+      formerIds?: readonly string[];
     };
     // Runnable db/node tests must ride the declarative harness (component
     // tests are hand-written until a sanctioned user-seeding support fn
@@ -226,6 +227,9 @@ async function loadFolder(
       reversible: true,
       destructive: spec.destructive,
       snapshot: spec.snapshot,
+      ...(spec.formerIds && spec.formerIds.length > 0
+        ? { formerIds: [...spec.formerIds] }
+        : {}),
     };
     return {
       rel,
@@ -310,6 +314,32 @@ export function validateSet(
       );
     }
     byOrderKey.set(m.orderKey, m);
+  }
+
+  // formerIds (re-homed folders): each former id must be globally unique and
+  // must never collide with a live id — a collision would make ledger
+  // adoption ambiguous.
+  const formerOwner = new Map<string, DiscoveredMigration>();
+  for (const m of migrations) {
+    for (const formerId of m.meta.formerIds ?? []) {
+      if (byId.has(formerId)) {
+        errors.push(
+          `${m.rel}: formerIds entry "${formerId}" collides with a live migration id.`,
+        );
+      }
+      const owner = formerOwner.get(formerId);
+      if (owner && owner.id !== m.id) {
+        errors.push(
+          `formerIds entry "${formerId}" claimed by both ${owner.rel} and ${m.rel}.`,
+        );
+      }
+      formerOwner.set(formerId, m);
+      if (formerId === m.id) {
+        errors.push(
+          `${m.rel}: formerIds must not contain the migration's own id.`,
+        );
+      }
+    }
   }
 
   // NN contiguity per version folder: 01..N with no gaps.
@@ -422,6 +452,11 @@ function metaLiteral(meta: MigrationMeta, indent: string): string {
     `destructive: ${meta.destructive},`,
     `snapshot: '${meta.snapshot}',`,
   ];
+  if (meta.formerIds && meta.formerIds.length > 0) {
+    lines.push(
+      `formerIds: [${meta.formerIds.map((f) => JSON.stringify(f)).join(', ')}],`,
+    );
+  }
   return `{\n${lines.map((l) => `${indent}  ${l}`).join('\n')}\n${indent}}`;
 }
 

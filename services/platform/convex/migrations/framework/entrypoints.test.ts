@@ -43,7 +43,11 @@ const h = vi.hoisted(() => {
   const mkMeta = (
     id: string,
     kind: MigrationKind,
-    opts: { destructive?: boolean } = {},
+    opts: {
+      destructive?: boolean;
+      snapshot?: MigrationMeta['snapshot'];
+      formerIds?: string[];
+    } = {},
   ): MigrationMeta => {
     const [semver, rest] = id.split('/');
     return {
@@ -57,7 +61,8 @@ const h = vi.hoisted(() => {
       kind,
       reversible: true,
       destructive: opts.destructive ?? false,
-      snapshot: 'none',
+      snapshot: opts.snapshot ?? 'none',
+      ...(opts.formerIds ? { formerIds: opts.formerIds } : {}),
     };
   };
 
@@ -71,6 +76,9 @@ const h = vi.hoisted(() => {
   const FLEET_ID = '9.9.9/03_fleet';
   const STUCK_ID = '9.9.9/04_stuck';
   const PAGES_ID = '9.9.9/05_pages';
+  /** Re-homed migration: shipped as FORMER_ID, now lives at RENAMED_ID. */
+  const RENAMED_ID = '9.9.9/06_renamed';
+  const FORMER_ID = '9.9.6/01_original';
 
   const noopDb = (
     id: string,
@@ -109,6 +117,15 @@ const h = vi.hoisted(() => {
     [CAPPED_ID]: {
       ...noopDb(CAPPED_ID),
       batchSize: 1,
+    },
+    [RENAMED_ID]: {
+      meta: mkMeta(RENAMED_ID, 'db', {
+        snapshot: 'table-rows',
+        formerIds: [FORMER_ID],
+      }),
+      table: 'items',
+      up: async (): Promise<void> => {},
+      down: async (): Promise<void> => {},
     },
   };
 
@@ -168,6 +185,8 @@ const h = vi.hoisted(() => {
       FLEET_ID,
       STUCK_ID,
       PAGES_ID,
+      RENAMED_ID,
+      FORMER_ID,
     },
   };
 });
@@ -281,6 +300,7 @@ describe('entrypoints.planUp', () => {
       h.ids.FLEET_ID,
       h.ids.STUCK_ID,
       h.ids.PAGES_ID,
+      h.ids.RENAMED_ID,
     ]);
 
     // `to` is inclusive: migrations AT 9.9.8 stay in the plan; 9.9.9 drops out.
@@ -567,5 +587,125 @@ describe('entrypoints node fleet', () => {
       }),
     ).rejects.toThrow(/org pagination did not terminate/);
     expect(advancingCalls).toBe(2);
+  });
+});
+
+describe('entrypoints formerIds (re-homed migrations)', () => {
+  async function insertFormerRow(
+    t: ReturnType<typeof newWorld>,
+    status: 'applied' | 'running',
+    direction: 'up' | 'down' = 'up',
+    cursor: string | null = null,
+  ) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('migrationLedger', {
+        migrationId: h.ids.FORMER_ID,
+        semver: '9.9.6',
+        numericId: 1,
+        orderKey: buildOrderKey('9.9.6', 1),
+        direction,
+        status,
+        cursor,
+        orgCursor: null,
+        processedOrgs: [],
+      });
+    });
+  }
+
+  it('adopts an applied ledger row under a former id instead of re-running', async () => {
+    const t = newWorld();
+    await insertFormerRow(t, 'applied');
+
+    const result = await t.action(
+      internal.migrations.framework.entrypoints.applyUp,
+      { only: [h.ids.RENAMED_ID], allowDestructive: true },
+    );
+    expect(result.completed).toEqual([]);
+
+    const adopted = await ledgerRow(t, h.ids.RENAMED_ID);
+    expect(adopted?.status).toBe('applied');
+    expect(adopted?.semver).toBe('9.9.9');
+    expect(adopted?.orderKey).toBe(buildOrderKey('9.9.9', 6));
+    expect(await ledgerRow(t, h.ids.FORMER_ID)).toBeNull();
+  });
+
+  it('status and planUp fold former-id rows read-only (no adoption write)', async () => {
+    const t = newWorld();
+    await insertFormerRow(t, 'applied');
+
+    const status = await t.query(
+      internal.migrations.framework.entrypoints.status,
+      {},
+    );
+    expect(status.applied.map((m) => m.id)).toContain(h.ids.RENAMED_ID);
+
+    const plan = await t.query(
+      internal.migrations.framework.entrypoints.planUp,
+      {},
+    );
+    expect(plan.map((m) => m.id)).not.toContain(h.ids.RENAMED_ID);
+
+    // Queries cannot write: the row still sits under the former id.
+    expect(await ledgerRow(t, h.ids.FORMER_ID)).not.toBeNull();
+    expect(await ledgerRow(t, h.ids.RENAMED_ID)).toBeNull();
+  });
+
+  it('down restores table-rows snapshots captured under the former id', async () => {
+    const t = newWorld();
+    await insertFormerRow(t, 'applied');
+    await t.run(async (ctx) => {
+      await ctx.db.insert('migrationSnapshots', {
+        migrationId: h.ids.FORMER_ID,
+        scope: 'table-rows:items:row1',
+        payload: { n: 777 },
+        createdAt: 1,
+      });
+    });
+
+    const result = await t.action(
+      internal.migrations.framework.entrypoints.applyDown,
+      { to: '9.9.6', only: [h.ids.RENAMED_ID] },
+    );
+    expect(result.completed).toEqual([h.ids.RENAMED_ID]);
+
+    const items = await t.run(async (ctx) => ctx.db.query('items').collect());
+    expect(items.map((i) => i.n)).toContain(777);
+    const snaps = await t.run(async (ctx) =>
+      ctx.db.query('migrationSnapshots').collect(),
+    );
+    expect(snaps).toEqual([]);
+    expect((await ledgerRow(t, h.ids.RENAMED_ID))?.status).toBe('rolledBack');
+  });
+
+  it('adoption is idempotent and resets a down-running restore cursor', async () => {
+    const t = newWorld();
+    await insertFormerRow(t, 'running', 'down', 'mid-stream-cursor');
+
+    const aliases = [
+      {
+        migrationId: h.ids.RENAMED_ID,
+        semver: '9.9.9',
+        numericId: 6,
+        orderKey: buildOrderKey('9.9.9', 6),
+        formerIds: [h.ids.FORMER_ID],
+      },
+    ];
+    const first = await t.mutation(
+      internal.migrations.framework.ledger.reconcileAliases,
+      { aliases },
+    );
+    expect(first).toBe(1);
+
+    const adopted = await ledgerRow(t, h.ids.RENAMED_ID);
+    // The old cursor paginated the FORMER id's snapshot stream — useless to
+    // the new id's restore query, so adoption resets it (restores re-drain).
+    expect(adopted?.cursor).toBeNull();
+    expect(adopted?.status).toBe('running');
+
+    const second = await t.mutation(
+      internal.migrations.framework.ledger.reconcileAliases,
+      { aliases },
+    );
+    expect(second).toBe(0);
   });
 });

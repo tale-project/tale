@@ -27,6 +27,7 @@ import {
   appliedFrontier,
   computePendingUp,
   computeRollback,
+  foldLedgerAliases,
   indexLedger,
   isApplied,
   orderMigrations,
@@ -62,7 +63,30 @@ const metaValidator = v.object({
     v.literal('table-rows'),
     v.literal('fs-tree'),
   ),
+  formerIds: v.optional(v.array(v.string())),
 });
+
+/**
+ * Re-homed migrations whose ledger rows may still sit under a former id.
+ * The apply actions adopt those rows before planning (`ledger.reconcileAliases`);
+ * the read-only queries fold them at read time instead (they cannot write).
+ */
+const LEDGER_ALIASES = ALL_META.filter(
+  (m) => (m.formerIds?.length ?? 0) > 0,
+).map((m) => ({
+  migrationId: m.id,
+  semver: m.semver,
+  numericId: m.numericId,
+  orderKey: buildOrderKey(m.semver, m.numericId),
+  formerIds: [...(m.formerIds ?? [])],
+}));
+
+async function adoptFormerLedgerRows(ctx: ActionCtx): Promise<void> {
+  if (LEDGER_ALIASES.length === 0) return;
+  await ctx.runMutation(internal.migrations.framework.ledger.reconcileAliases, {
+    aliases: LEDGER_ALIASES,
+  });
+}
 
 // --------------------------------------------------------------------------
 // Reads (queries)
@@ -106,7 +130,7 @@ export const status = internalQuery({
     failedErrors: v.record(v.string(), v.string()),
   }),
   handler: async (ctx) => {
-    const ledgerRows = await readLedgerRows(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     const ledger = indexLedger(ledgerRows);
     const steps = orderMigrations(ALL_META);
 
@@ -145,7 +169,7 @@ export const planUp = internalQuery({
   args: { to: v.optional(v.string()) },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerRows(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     return computePendingUp(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
@@ -154,7 +178,7 @@ export const planDown = internalQuery({
   args: { to: v.string() },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerRows(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     return computeRollback(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
@@ -180,6 +204,7 @@ export const applyUp = internalAction({
   },
   returns: applyResultValidator,
   handler: async (ctx, args) => {
+    await adoptFormerLedgerRows(ctx);
     const ledgerRows = await ctx.runQuery(
       internal.migrations.framework.ledger.getLedgerState,
       {},
@@ -216,6 +241,7 @@ export const applyDown = internalAction({
   },
   returns: applyResultValidator,
   handler: async (ctx, args) => {
+    await adoptFormerLedgerRows(ctx);
     const ledgerRows = await ctx.runQuery(
       internal.migrations.framework.ledger.getLedgerState,
       {},

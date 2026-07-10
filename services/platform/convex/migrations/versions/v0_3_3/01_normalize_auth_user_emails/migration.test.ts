@@ -11,20 +11,12 @@
  */
 
 import { convexTest } from 'convex-test';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { internal } from '../../../../_generated/api';
 import schema from '../../../../schema';
 import { requireMeta } from '../../../framework/registry.gen';
 import { buildModules } from '../../../framework/test_helpers';
-
-vi.mock('../../../../_generated/server', async (importOriginal) => {
-  const mod = await importOriginal<Record<string, unknown>>();
-  return {
-    ...mod,
-    internalMutation: (config: Record<string, unknown>) => config,
-  };
-});
 
 const DIR = 'migrations/versions/v0_3_3/01_normalize_auth_user_emails';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
@@ -116,14 +108,16 @@ describe('0.3.3/01_normalize_auth_user_emails', () => {
 
     const { restoreComponentSnapshotBatch } =
       await import('../../../framework/runner');
+    // Registered Convex functions expose the raw handler as `_handler` —
+    // the same seam convex-test resolves through.
     const handler = (
       restoreComponentSnapshotBatch as unknown as {
-        handler: (
+        _handler: (
           innerCtx: typeof ctx,
           args: { migrationId: string },
         ) => Promise<{ isDone: boolean; processed: number }>;
       }
-    ).handler;
+    )._handler;
 
     const result = await handler(ctx, { migrationId: meta.id });
 

@@ -71,16 +71,27 @@ export async function snapshotFsTree(
  * Restore a previously-captured snapshot back onto `dir`, replacing whatever is
  * there now. No-op-safe if the snapshot is missing (logs and leaves `dir`
  * untouched rather than wiping live data on a bad ref).
+ *
+ * A re-homed migration's sidecar may live under one of its FORMER ids (the
+ * deployment applied it before the rename); the first existing candidate wins.
  */
 export async function restoreFsTree(
   migrationId: string,
   orgSlug: string,
   dir: string,
+  formerIds: readonly string[] = [],
 ): Promise<void> {
-  const ref = snapshotDir(migrationId, orgSlug);
-  if (!(await exists(ref))) {
+  let ref: string | null = null;
+  for (const id of [migrationId, ...formerIds]) {
+    const candidate = snapshotDir(id, orgSlug);
+    if (await exists(candidate)) {
+      ref = candidate;
+      break;
+    }
+  }
+  if (ref === null) {
     console.warn(
-      `[snapshot_store] snapshot ref not found, skipping restore: ${ref}`,
+      `[snapshot_store] snapshot ref not found, skipping restore: ${snapshotDir(migrationId, orgSlug)}`,
     );
     return;
   }
