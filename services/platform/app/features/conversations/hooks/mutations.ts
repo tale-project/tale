@@ -35,6 +35,12 @@ export function useSendMessageViaIntegration() {
   );
 }
 
+export function useComposeEmailConversation() {
+  return useConvexMutation(
+    api.conversations.mutations.composeEmailConversation,
+  );
+}
+
 export function useCloseConversation() {
   return useConvexMutation(api.conversations.mutations.closeConversation);
 }

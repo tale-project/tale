@@ -6,8 +6,10 @@ import {
   Link,
   Outlet,
   redirect,
+  useNavigate,
+  useParams,
 } from '@tanstack/react-router';
-import { Inbox } from 'lucide-react';
+import { Inbox, SquarePen } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
@@ -58,6 +60,12 @@ function ConversationsLayout() {
   // link into an org without one lands on a friendly pointer to the
   // Automations catalog instead of an inbox that can never fill.
   const { isLoading, hasInbox } = useInboxAvailability(organizationId);
+  const navigate = useNavigate();
+  // The active status tab lives on the child route; read it (strict: false) so
+  // Compose opens the pane on whichever tab the user is viewing.
+  const params = useParams({ strict: false });
+  const currentStatus =
+    typeof params.status === 'string' ? params.status : 'open';
 
   if (isLoading || !hasInbox) {
     return (
@@ -109,7 +117,30 @@ function ConversationsLayout() {
           <AdaptiveHeaderRoot standalone={false}>
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
-          <ConversationsNavigation organizationId={organizationId} />
+          <ConversationsNavigation
+            organizationId={organizationId}
+            action={
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={SquarePen}
+                onClick={() =>
+                  void navigate({
+                    to: '/dashboard/$id/conversations/$status',
+                    params: { id: organizationId, status: currentStatus },
+                    search: (prev) => ({
+                      ...prev,
+                      compose: 'new',
+                      composeContact: undefined,
+                      conversation: undefined,
+                    }),
+                  })
+                }
+              >
+                {t('compose.compose')}
+              </Button>
+            }
+          />
         </>
       }
     >
