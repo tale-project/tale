@@ -334,6 +334,7 @@ function CollectionBody({
   });
 
   const rows = tableProps.data;
+  const hasDeclaredColumns = Boolean(columns && columns.length > 0);
   const columnDefs = useMemo(
     () =>
       buildBoundColumns(columns, {
@@ -363,7 +364,11 @@ function CollectionBody({
             }
           : undefined,
       }),
-    [columns, actions, subjectType, subjectIdField, rows],
+    // When columns are declared, row data churn must not rebuild column defs —
+    // that remounts BoundButton cells and drops in-flight latch state.
+    hasDeclaredColumns
+      ? [columns, actions, subjectType, subjectIdField]
+      : [columns, actions, subjectType, subjectIdField, rows],
   );
 
   // A `$state.` / `$projectId` reference the args carry specializes the

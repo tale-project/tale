@@ -102,6 +102,26 @@ export function clearSessionDoneLatches(): void {
   sessionDoneLatches.clear();
 }
 
+/** Record a row+path as done for this tab session (before onSuccess side effects). */
+export function markSessionDoneLatched(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): boolean {
+  const key = sessionLatchKey(path, item);
+  if (key === undefined) return false;
+  sessionDoneLatches.add(key);
+  return true;
+}
+
+/** Whether this row+path was latched done this session (survives remount). */
+export function isSessionDoneLatched(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): boolean {
+  const key = sessionLatchKey(path, item);
+  return key !== undefined && sessionDoneLatches.has(key);
+}
+
 export function BoundButton({
   action,
   item,
@@ -116,12 +136,12 @@ export function BoundButton({
   const applyEffect = useActionEffect();
   // Consume-once feedback: a successful run leaves the row "done" for the session,
   // even when the row carries no persistent signal (e.g. a GitHub issue → task).
-  // Seed from the module latch so a Collection remount after create still shows
-  // the done label.
-  const latchKey = sessionLatchKey(action.path, item);
-  const [justRan, setJustRan] = useState(
-    () => latchKey !== undefined && sessionDoneLatches.has(latchKey),
-  );
+  const sessionDone = isSessionDoneLatched(action.path, item);
+  // Local bump so this instance re-renders when it sets the latch; sessionDone
+  // is also read every render so a remount after latch (before local state) still
+  // shows the done label.
+  const [localDone, setLocalDone] = useState(false);
+  const justRan = sessionDone || localDone;
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (item && action.when && !evaluateWhen(action.when, item)) return null;
@@ -167,13 +187,14 @@ export function BoundButton({
         alreadyExists && action.onAlreadyExists
           ? action.onAlreadyExists
           : action.onSuccess;
-      applyEffect(effect, result, item);
-      // Only consume-once actions (those declaring a done label) latch to done.
-      // Idempotent re-clicks (`created: false`) must not latch "Created".
+      // Latch before onSuccess — toast/openDetail/setState can synchronously
+      // re-render Collection and remount this button; session memory must be
+      // set first so the new instance reads "Created".
       if (latchesOnRun && !alreadyExists) {
-        if (latchKey !== undefined) sessionDoneLatches.add(latchKey);
-        setJustRan(true);
+        markSessionDoneLatched(action.path, item);
+        setLocalDone(true);
       }
+      applyEffect(effect, result, item);
     } catch (err) {
       // The mutation/action layer (useConvexMutation) already toasts + logs the
       // failure; surface it here too rather than swallowing the rejection.
