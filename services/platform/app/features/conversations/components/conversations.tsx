@@ -30,6 +30,7 @@ import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
 import type { Conversation } from '../types';
 import { BulkSendDialog } from './bulk-send-dialog';
+import { ComposeEmailPane } from './compose-email-pane';
 import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
@@ -63,6 +64,10 @@ interface ConversationsProps {
   /** Server-side provider filter (the route owns the URL state). The control
    *  renders only when at least one option exists. */
   channelFilter?: ChannelFilter;
+  /** Compose mode — render the compose pane in the reading pane (URL: `?compose`). */
+  composing?: boolean;
+  /** Contact to seed the composer with (URL: `?composeContact`). */
+  composeContact?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +116,8 @@ export function Conversations({
   conversationCount,
   totalConversationCount,
   channelFilter,
+  composing = false,
+  composeContact,
 }: ConversationsProps) {
   const navigate = useNavigate();
 
@@ -242,12 +249,43 @@ export function Conversations({
     setSelectedConversationId(conversation.id);
   };
 
+  const closeCompose = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/conversations/$status',
+      params: { id: organizationId, status: status ?? 'open' },
+      search: (prev) => ({
+        ...prev,
+        compose: undefined,
+        composeContact: undefined,
+      }),
+      replace: true,
+    });
+  }, [navigate, organizationId, status]);
+
+  const handleComposeSent = useCallback(
+    (conversationId: string) => {
+      setSelectedConversationId(conversationId);
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status: status ?? 'open' },
+        search: (prev) => ({
+          ...prev,
+          conversation: conversationId,
+          compose: undefined,
+          composeContact: undefined,
+        }),
+      });
+    },
+    [navigate, organizationId, status],
+  );
+
   return (
     <>
       <ConversationListPanel
-        // On mobile the activate CTA owns the screen (reading pane below), so
-        // hide the empty list there; on desktop it sits beside the CTA.
-        hidden={!!selectedConversationId || isActivateEmpty}
+        // On mobile the activate CTA / a selected thread / compose owns the
+        // screen (reading pane below), so hide the empty list there; on desktop
+        // it sits beside them.
+        hidden={!!selectedConversationId || isActivateEmpty || composing}
         overlay={
           isBulkProcessing ? (
             <LoadingOverlay message={tConversations('updating')} />
@@ -493,12 +531,22 @@ export function Conversations({
       <div
         className={cn(
           'flex-1 min-w-0',
-          // Show the reading pane on mobile when there's a selection OR when
-          // it's hosting the activate CTA (the empty list is hidden there).
-          selectedConversationId || isActivateEmpty ? 'flex' : 'hidden md:flex',
+          // Show the reading pane on mobile when composing, when there's a
+          // selection, OR when it's hosting the activate CTA (the empty list is
+          // hidden there).
+          selectedConversationId || isActivateEmpty || composing
+            ? 'flex'
+            : 'hidden md:flex',
         )}
       >
-        {isActivateEmpty ? (
+        {composing ? (
+          <ComposeEmailPane
+            organizationId={organizationId}
+            initialContactId={composeContact}
+            onSent={handleComposeSent}
+            onClose={closeCompose}
+          />
+        ) : isActivateEmpty ? (
           <ConversationsEmptyState />
         ) : (
           <ConversationPanel

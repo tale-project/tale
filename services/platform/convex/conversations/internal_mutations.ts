@@ -23,6 +23,7 @@ export const createConversation = internalMutation({
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
+    integrationName: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({

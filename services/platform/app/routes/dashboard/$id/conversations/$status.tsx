@@ -37,6 +37,10 @@ const searchSchema = z.object({
   conversation: z.string().optional(),
   /** Channel filter: an inbox provider's integration slug (e.g. `gmail`). */
   channel: z.string().optional(),
+  /** Compose mode: any value opens the compose pane in the reading pane. */
+  compose: z.string().optional(),
+  /** Contact id to seed the composer with (from a contact-row "Email" action). */
+  composeContact: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
@@ -112,7 +116,8 @@ function useChannelOptions(
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { search, conversation, channel } = Route.useSearch();
+  const { search, conversation, channel, compose, composeContact } =
+    Route.useSearch();
   const navigate = useNavigate();
 
   const mappedStatus =
@@ -171,6 +176,8 @@ function ConversationsStatusPage() {
         value: channel,
         onChange: handleChannelChange,
       }}
+      composing={compose !== undefined}
+      composeContact={composeContact}
     />
   );
 }
