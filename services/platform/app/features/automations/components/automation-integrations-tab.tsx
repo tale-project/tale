@@ -5,15 +5,17 @@
  * integration dependencies as a card grid (the same `IntegrationCard` the
  * settings catalog renders, connection badge included). A not-yet-connected
  * card opens the connect-only install wizard for exactly that integration; a
- * connected one links through to its management surface in Settings.
+ * connected one opens the same `IntegrationPanel` side sheet the settings
+ * catalog uses, without leaving the automation page.
  */
 import { EmptyState } from '@tale/ui/empty-state';
-import { useNavigate } from '@tanstack/react-router';
 import { Plug } from 'lucide-react';
 import { useState } from 'react';
 
 import { CatalogGrid } from '@/app/components/catalog/catalog-grid';
 import { IntegrationCard } from '@/app/features/settings/integrations/components/integration-card';
+import { IntegrationPanel } from '@/app/features/settings/integrations/components/integration-panel';
+import type { Integration } from '@/app/features/settings/integrations/hooks/use-integration-manage';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationDisplay } from '../hooks/use-automation-text';
@@ -34,12 +36,13 @@ export function AutomationIntegrationsTab({
 }) {
   const { t } = useT('automations');
   const display = useAutomationDisplay()(automation);
-  const navigate = useNavigate();
   const { required } = useRequiredIntegrations(
     organizationId,
     automation.requiredIntegrations,
   );
   const [connectSlug, setConnectSlug] = useState<string | null>(null);
+  const [managingIntegration, setManagingIntegration] =
+    useState<Integration | null>(null);
 
   if (required.length === 0) {
     return (
@@ -63,11 +66,7 @@ export function AutomationIntegrationsTab({
             iconUrl={item.integration.iconUrl ?? undefined}
             onClick={() => {
               if (item.connected) {
-                void navigate({
-                  to: '/dashboard/$id/settings/integrations',
-                  params: { id: organizationId },
-                  search: { slug: item.slug },
-                });
+                setManagingIntegration(item.integration);
                 return;
               }
               setConnectSlug(item.slug);
@@ -89,6 +88,16 @@ export function AutomationIntegrationsTab({
           requiredIntegrations={automation.requiredIntegrations}
           mode="connect-only"
           initialSlugs={[connectSlug]}
+        />
+      )}
+      {managingIntegration && (
+        <IntegrationPanel
+          open
+          onOpenChange={(open) => {
+            if (!open) setManagingIntegration(null);
+          }}
+          integration={managingIntegration}
+          organizationId={organizationId}
         />
       )}
     </>

@@ -9,7 +9,7 @@ import { ChevronRight } from 'lucide-react';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { useT } from '@/lib/i18n/client';
 
-import { TRIAGED_TASK_STATUSES } from '../lib/display';
+import { BOARD_TASK_STATUSES } from '../lib/display';
 import type { TaskView } from '../lib/view';
 import { TaskStatusBadge } from './task-status-badge';
 
@@ -57,7 +57,7 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
           align="stretch"
           className="min-h-0 flex-1 overflow-hidden px-0.5 pb-4"
         >
-          {TRIAGED_TASK_STATUSES.map((status, col) => (
+          {BOARD_TASK_STATUSES.map((status, col) => (
             <Stack
               key={status}
               as="section"
@@ -84,48 +84,10 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
       </Skeletonize>
     );
   }
-  if (view === 'backlog') {
-    // Mirrors the DataTable frame the backlog triage tab renders (rounded
-    // border, header row, h-12 body rows) so the reveal is an in-place swap.
-    return (
-      <Skeletonize loading>
-        <div className="border-border min-h-0 flex-1 overflow-hidden rounded-lg border">
-          <div className="bg-muted border-border border-b px-3 py-2.5">
-            <SkeletonBox>
-              <div className="h-3.5 w-24" />
-            </SkeletonBox>
-          </div>
-          {Array.from({ length: 6 }).map((_, row) => (
-            <div
-              key={row}
-              className="border-border flex h-12 items-center gap-6 border-b px-3 last:border-b-0"
-            >
-              <div style={{ width: `${22 + ((row * 19) % 17)}%` }}>
-                <SkeletonBox fullWidth>
-                  <div className="h-3.5" />
-                </SkeletonBox>
-              </div>
-              <div
-                className="flex-1"
-                style={{ maxWidth: `${34 + ((row * 23) % 29)}%` }}
-              >
-                <SkeletonBox fullWidth>
-                  <div className="h-3.5" />
-                </SkeletonBox>
-              </div>
-              <SkeletonBox>
-                <div className="ml-auto h-3.5 w-16" />
-              </SkeletonBox>
-            </div>
-          ))}
-        </div>
-      </Skeletonize>
-    );
-  }
   return (
     <Skeletonize loading>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {TRIAGED_TASK_STATUSES.map((status, section) => (
+        {BOARD_TASK_STATUSES.map((status, section) => (
           <section key={status}>
             <Row gap={2} className="bg-background px-3 py-1.5">
               <span className="text-muted-foreground -ml-1 flex items-center gap-2 p-1">
@@ -193,7 +155,6 @@ export function TasksPageSkeleton({ view }: { view: TaskView }) {
           items={[
             { value: 'board', label: t('views.board') },
             { value: 'list', label: t('views.list') },
-            { value: 'backlog', label: t('views.backlog') },
           ]}
         />
         <Skeletonize loading>

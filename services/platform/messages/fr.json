@@ -6895,8 +6895,7 @@
       "board": "Tableau",
       "list": "Liste",
       "table": "Table",
-      "timeline": "Chronologie",
-      "backlog": "Backlog"
+      "timeline": "Chronologie"
     },
     "board": {
       "noTasks": "Aucune tâche"
@@ -7057,16 +7056,6 @@
       "humanLabel": "Humains",
       "costTrend": "Dépenses quotidiennes",
       "costLabel": "Dépenses"
-    },
-    "backlog": {
-      "caption": "Tâches du backlog à trier",
-      "actions": "Actions",
-      "start": "Démarrer",
-      "close": "Fermer",
-      "empty": {
-        "title": "Aucune tâche à trier",
-        "description": "Les tâches proposées — par des automatisations ou par l'équipe — arrivent ici, prêtes à être démarrées ou fermées."
-      }
     }
   },
   "tables": {

@@ -204,9 +204,7 @@ describe('listTasksByProject canEdit', () => {
   });
 });
 
-// The per-view server-side scope: the Board/List pass the triaged statuses
-// (everything but `backlog`), the Backlog triage tab passes `['backlog']` —
-// proposed tasks never reach the board payload and vice versa.
+// The board/list query passes every lane status (including `backlog`).
 describe('listTasksByProject statuses filter', () => {
   async function seedStatusMix(t: T): Promise<Id<'projects'>> {
     const projectId = await seedProject(t, 'A');
@@ -231,7 +229,7 @@ describe('listTasksByProject statuses filter', () => {
     return projectId;
   }
 
-  it('excludes backlog when scoped to the triaged statuses (board/list)', async () => {
+  it('includes backlog when scoped to board lane statuses', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seedStatusMix(t);
 
@@ -240,15 +238,23 @@ describe('listTasksByProject statuses filter', () => {
       .query(api.tasks.queries.listTasksByProject, {
         projectId,
         organizationId: ORG,
-        statuses: ['todo', 'in_progress', 'in_review', 'done', 'cancelled'],
+        statuses: [
+          'backlog',
+          'todo',
+          'in_progress',
+          'in_review',
+          'done',
+          'cancelled',
+        ],
       });
     expect(result.tasks.map((task) => task.status).sort()).toEqual([
+      'backlog',
       'done',
       'todo',
     ]);
   });
 
-  it('returns only backlog tasks when scoped to backlog (triage tab)', async () => {
+  it('can still scope to backlog only when callers need it', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seedStatusMix(t);
 

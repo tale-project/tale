@@ -1,68 +1,27 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
 import {
   persistTaskView,
-  TASK_VIEW_ROUTES,
-  type TaskView,
   validateTaskSearch,
 } from '@/app/features/tasks/lib/view';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
-const TasksWorkspace = lazyComponent(
-  () =>
-    import('@/app/features/tasks/components/tasks-workspace').then((mod) => ({
-      default: mod.TasksWorkspace,
-    })),
-  // The chunk fallback IS the backlog-table skeleton — the same one the
-  // workspace shows while task data loads, so navigation → chunk → data is one
-  // continuous skeleton with no layout shift.
-  { loading: () => <TasksPageSkeleton view="backlog" /> },
-);
-
+/**
+ * The backlog tab was retired — backlog is a board/list status lane again.
+ * Forward bookmarked `/tasks/backlog` URLs to the board (preserving `?task=`).
+ */
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/tasks/backlog',
 )({
-  // `?task=<id>` deep-links straight into a task's detail sheet — shareable
-  // task URLs, and the target of inbox/notification links (review requests).
   validateSearch: validateTaskSearch,
-  // Warm the TasksWorkspace chunk during the loader so it's cached by render
-  // time — removes the Suspense fallback flash on first nav. The project tab
-  // links preload on render, so this typically fires before the user clicks.
-  loader: () => {
-    void import('@/app/features/tasks/components/tasks-workspace');
+  beforeLoad: ({ params, search }) => {
+    // Migrate any stored "last view = backlog" preference so `/tasks` reopens
+    // the board after this redirect (SPA — localStorage is available here).
+    persistTaskView(params.projectId, 'board');
+    throw redirect({
+      to: '/dashboard/$id/projects/$projectId/tasks/board',
+      params,
+      search,
+      replace: true,
+    });
   },
-  component: TasksBacklogPage,
 });
-
-function TasksBacklogPage() {
-  const { id: organizationId, projectId } = Route.useParams();
-  const { task } = Route.useSearch();
-  const navigate = Route.useNavigate();
-
-  // Remember the last-visited view so the bare `/tasks` alias reopens it.
-  useEffect(() => persistTaskView(projectId, 'backlog'), [projectId]);
-
-  return (
-    <TasksWorkspace
-      organizationId={organizationId}
-      projectId={projectId}
-      view="backlog"
-      onViewChange={(next: TaskView) => {
-        void navigate({
-          to: TASK_VIEW_ROUTES[next],
-          params: { id: organizationId, projectId },
-          search: (prev) => prev,
-        });
-      }}
-      openTaskParam={task}
-      onOpenTaskParamChange={(taskId: string | null) => {
-        void navigate({
-          search: taskId ? { task: taskId } : {},
-          replace: true,
-        });
-      }}
-    />
-  );
-}

@@ -7175,8 +7175,7 @@
       "board": "Board",
       "list": "List",
       "table": "Table",
-      "timeline": "Timeline",
-      "backlog": "Backlog"
+      "timeline": "Timeline"
     },
     "board": {
       "noTasks": "No tasks"
@@ -7337,16 +7336,6 @@
       "humanLabel": "Humans",
       "costTrend": "Daily spend",
       "costLabel": "Spend"
-    },
-    "backlog": {
-      "caption": "Backlog tasks awaiting triage",
-      "actions": "Actions",
-      "start": "Start",
-      "close": "Close",
-      "empty": {
-        "title": "No tasks to triage",
-        "description": "Tasks proposed by automations or teammates land here until you start or close them."
-      }
     }
   },
   "tables": {

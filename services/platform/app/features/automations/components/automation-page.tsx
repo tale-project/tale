@@ -652,20 +652,19 @@ function InstalledAutomationBody({
               <div className="flex min-h-0 flex-1 flex-col">
                 {activeContent}
               </div>
-            ) : activeTab === TRIGGERS_TAB ? (
-              /* Triggers renders bare sections (a full-width operational view),
-                 so this supplies the 16px top padding, no max-w cap. */
+            ) : activeTab === TRIGGERS_TAB || activeTab === INTEGRATIONS_TAB ? (
+              /* Triggers and Integrations are full-width operational/catalog
+                 views — the integrations grid mirrors the settings catalog
+                 layout, so no max-w cap. */
               <ContentArea gap={6} className="px-4 py-4">
+                {activeTab === INTEGRATIONS_TAB &&
+                  readinessBanner('integrations')}
                 {activeContent}
               </ContentArea>
             ) : (
               /* Every other non-editor tab is capped to the same reading width
                  as the Agent settings pages (max-w-3xl) with 16px top padding. */
               <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-                {/* The finish-setup banner is contextual: integration blockers
-                    on Integrations, agent blockers on Configuration. */}
-                {activeTab === INTEGRATIONS_TAB &&
-                  readinessBanner('integrations')}
                 {activeTab === CONFIGURATION_TAB && readinessBanner('agents')}
                 {activeContent}
               </ContentArea>
