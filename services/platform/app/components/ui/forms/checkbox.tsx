@@ -87,7 +87,7 @@ const CheckboxBase = React.forwardRef<
       return (
         <div className="flex items-start gap-2">
           <div className="mt-0.5">{checkbox}</div>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-1">
             {label && (
               <Label
                 htmlFor={id}
