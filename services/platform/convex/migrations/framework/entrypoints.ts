@@ -16,14 +16,13 @@
 
 import { v } from 'convex/values';
 
-import { isValidOrgSlug } from '../../../lib/shared/constants/org-slug';
-import { getString, isRecord } from '../../../lib/utils/type-utils';
-import { components, internal } from '../../_generated/api';
+import { internal } from '../../_generated/api';
 import {
   internalAction,
   internalQuery,
   type ActionCtx,
 } from '../../_generated/server';
+import { getLimits } from './limits';
 import {
   appliedFrontier,
   computePendingUp,
@@ -42,10 +41,6 @@ import {
   type MigrationDirection,
   type MigrationMeta,
 } from './types';
-
-// Hard stops so a logic bug can never spin forever.
-const MAX_BATCHES = 100_000;
-const MAX_ORG_PAGES = 10_000;
 
 const metaValidator = v.object({
   id: v.string(),
@@ -284,8 +279,9 @@ async function runDbMigration(
   meta: MigrationMeta,
   direction: MigrationDirection,
 ): Promise<void> {
+  const { maxBatches } = getLimits();
   const useRestore = direction === 'down' && meta.snapshot === 'table-rows';
-  for (let i = 0; i < MAX_BATCHES; i++) {
+  for (let i = 0; i < maxBatches; i++) {
     const result = useRestore
       ? await ctx.runMutation(
           internal.migrations.framework.runner.restoreSnapshotBatch,
@@ -297,7 +293,7 @@ async function runDbMigration(
         );
     if (result.isDone) return;
   }
-  throw new Error(`Migration ${meta.id} exceeded ${MAX_BATCHES} batches`);
+  throw new Error(`Migration ${meta.id} exceeded ${maxBatches} batches`);
 }
 
 async function runComponentMigration(
@@ -305,8 +301,9 @@ async function runComponentMigration(
   meta: MigrationMeta,
   direction: MigrationDirection,
 ): Promise<void> {
+  const { maxBatches } = getLimits();
   const useRestore = direction === 'down' && meta.snapshot === 'table-rows';
-  for (let i = 0; i < MAX_BATCHES; i++) {
+  for (let i = 0; i < maxBatches; i++) {
     const result = useRestore
       ? await ctx.runMutation(
           internal.migrations.framework.runner.restoreComponentSnapshotBatch,
@@ -318,7 +315,7 @@ async function runComponentMigration(
         );
     if (result.isDone) return;
   }
-  throw new Error(`Migration ${meta.id} exceeded ${MAX_BATCHES} batches`);
+  throw new Error(`Migration ${meta.id} exceeded ${maxBatches} batches`);
 }
 
 async function runNodeMigration(
@@ -330,6 +327,7 @@ async function runNodeMigration(
     processedOrgs: string[];
   },
 ): Promise<void> {
+  const { maxOrgPages } = getLimits();
   const processed = new Set(resume.processedOrgs);
   let cursor: string | null = resume.orgCursor;
   let prevCursor: string | null | undefined;
@@ -337,7 +335,7 @@ async function runNodeMigration(
   let pages = 0;
 
   while (!isDone) {
-    if (pages++ >= MAX_ORG_PAGES) {
+    if (pages++ >= maxOrgPages) {
       throw new Error(`Migration ${meta.id}: org pagination did not terminate`);
     }
     if (prevCursor !== undefined && cursor === prevCursor) {
@@ -347,40 +345,31 @@ async function runNodeMigration(
     }
     prevCursor = cursor;
 
-    const res: unknown = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
-        model: 'organization',
-        paginationOpts: { cursor, numItems: 200 },
-        where: [],
-      },
+    const res = await ctx.runQuery(
+      internal.migrations.framework.org_source.listOrgsPage,
+      { cursor, numItems: 200 },
     );
-    const page = isRecord(res) && Array.isArray(res.page) ? res.page : [];
-    const pageCursor =
-      isRecord(res) && typeof res.continueCursor === 'string'
-        ? res.continueCursor
-        : null;
 
-    for (const raw of page) {
-      if (!isRecord(raw)) continue;
-      const id = getString(raw, '_id') ?? getString(raw, 'id');
-      const slug = getString(raw, 'slug');
-      if (!id || !slug || !isValidOrgSlug(slug)) continue;
-      if (processed.has(id)) continue;
+    for (const org of res.page) {
+      if (processed.has(org.id)) continue;
 
       await ctx.runAction(
         internal.migrations.framework.node_runner.applyNodeForOrg,
-        { migrationId: meta.id, orgId: id, orgSlug: slug, direction },
+        {
+          migrationId: meta.id,
+          orgId: org.id,
+          orgSlug: org.slug,
+          direction,
+        },
       );
-      processed.add(id);
+      processed.add(org.id);
       await ctx.runMutation(
         internal.migrations.framework.ledger.recordOrgProgress,
-        { migrationId: meta.id, orgId: id, orgCursor: pageCursor },
+        { migrationId: meta.id, orgId: org.id, orgCursor: res.continueCursor },
       );
     }
 
-    cursor = pageCursor;
-    isDone =
-      isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
+    cursor = res.continueCursor;
+    isDone = res.isDone;
   }
 }
