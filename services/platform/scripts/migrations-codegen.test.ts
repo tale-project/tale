@@ -19,7 +19,6 @@ function fixture(
   slug: string,
   over: Partial<{
     kind: MigrationKind;
-    legacy: boolean;
     destructive: boolean;
     snapshot: MigrationMeta['snapshot'];
     table: string;
@@ -51,7 +50,6 @@ function fixture(
     id,
     orderKey: buildOrderKey(semver, numericId),
     kind,
-    legacy: over.legacy ?? true,
     meta,
     table: over.table,
   };
@@ -171,9 +169,9 @@ describe('checkTableRowsFkSafety', () => {
 describe('generation', () => {
   const set = [
     fixture('0.2.85', 1, 'export_files', { kind: 'node' }),
-    fixture('0.2.85', 2, 'split_rows', { legacy: true, table: 'rows' }),
-    fixture('0.4.0', 1, 'new_shape', { legacy: false, table: 'rows' }),
-    fixture('0.4.0', 2, 'new_node', { kind: 'node', legacy: false }),
+    fixture('0.2.85', 2, 'split_rows', { table: 'rows' }),
+    fixture('0.4.0', 1, 'new_shape', { table: 'rows' }),
+    fixture('0.4.0', 2, 'new_node', { kind: 'node' }),
     fixture('0.4.0', 3, 'documented', { kind: 'reference' }),
   ];
 
@@ -181,7 +179,9 @@ describe('generation', () => {
     const a = generateRegistry(set);
     expect(generateRegistry(set)).toBe(a);
 
-    expect(a).toContain('"0.2.85/02_split_rows": composeLegacyDb(m0_2_85_02),');
+    expect(a).toContain(
+      '"0.2.85/02_split_rows": composeDb(requireMeta("0.2.85/02_split_rows"), m0_2_85_02),',
+    );
     expect(a).toContain(
       '"0.4.0/01_new_shape": composeDb(requireMeta("0.4.0/01_new_shape"), m0_4_0_01),',
     );
@@ -192,7 +192,7 @@ describe('generation', () => {
     const node = generateNodeRegistry(set);
     expect(node.startsWith("'use node';")).toBe(true);
     expect(node).toContain(
-      '"0.2.85/01_export_files": composeLegacyNode(n0_2_85_01),',
+      '"0.2.85/01_export_files": composeNode(requireMeta("0.2.85/01_export_files"), n0_2_85_01),',
     );
     expect(node).toContain(
       '"0.4.0/02_new_node": composeNode(requireMeta("0.4.0/02_new_node"), n0_4_0_02),',

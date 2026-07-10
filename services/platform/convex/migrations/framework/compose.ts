@@ -65,19 +65,3 @@ export function composeComponent(
     down: (ctx, cursor) => spec.down(ctx, cursor, makeDbRun(ctx, meta.id)),
   };
 }
-
-/**
- * Dual-mode bridge for the port window: legacy folders still export the
- * runtime shape (`meta.ts` + `index.ts`) directly. The generated registry
- * routes them through these identity wrappers so its emitted code is uniform;
- * both are deleted with the legacy shape once every folder is ported.
- */
-export function composeLegacyDb(migration: DbMigration): DbMigration {
-  return migration;
-}
-
-export function composeLegacyComponent(
-  migration: ComponentMigration,
-): ComponentMigration {
-  return migration;
-}

@@ -19,7 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../../_generated/api';
 import betterAuthSchema from '../../betterAuth/schema';
-import { buildModules, historicalSchema } from '../framework/test_helpers';
+import { buildModules } from '../framework/test_helpers';
+import { worldSchema } from './world_schema.testkit';
 
 const modules = buildModules(
   import.meta.glob('../../**/*.*s'),
@@ -30,7 +31,7 @@ const authModules = import.meta.glob('../../betterAuth/**/*.*s');
 const BRANDING_ID = '0.3.4/01_branding_single_accent_color';
 
 function newWorld() {
-  const t = convexTest(historicalSchema, modules);
+  const t = convexTest(worldSchema, modules);
   t.registerComponent('betterAuth', betterAuthSchema, authModules);
   return t;
 }

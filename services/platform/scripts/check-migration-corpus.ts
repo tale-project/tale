@@ -4,9 +4,7 @@
  * integrity suite (convex/migrations/testing/chain.test.ts) silently stops
  * covering it and "chain green" overstates what was proven.
  *
- * For every define-shape runnable migration (legacy meta.ts folders predate
- * the `subjects` declaration and are covered by the hand-built corpus — the
- * port to `define<Kind>Migration` brings each under this guard):
+ * For every runnable migration:
  *   - every `subjects.tables` entry must be declared in the world schema AND
  *     be seeded at baseline, produced by an earlier migration, or a
  *     framework table;
@@ -78,7 +76,7 @@ async function main(): Promise<void> {
 
   let guarded = 0;
   for (const m of migrations) {
-    if (m.legacy || !isRunnableKind(m.kind)) continue;
+    if (!isRunnableKind(m.kind)) continue;
     guarded++;
     for (const table of m.subjects?.tables ?? []) {
       if (COMPONENT_SUBJECT_RE.test(table)) continue;
@@ -109,7 +107,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   console.log(
-    `[check-migration-corpus] OK — ${guarded} define-shape migration(s) covered by the corpus (${migrations.length - guarded} legacy-shape pending port).`,
+    `[check-migration-corpus] OK — every subject of ${guarded} runnable migration(s) is corpus-covered.`,
   );
 }
 

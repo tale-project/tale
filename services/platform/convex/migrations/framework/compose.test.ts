@@ -3,12 +3,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import {
-  composeComponent,
-  composeDb,
-  composeLegacyDb,
-  makeDbRun,
-} from './compose';
+import { composeComponent, composeDb, makeDbRun } from './compose';
 import {
   defineComponentMigration,
   defineDbMigration,
@@ -16,7 +11,7 @@ import {
 } from './define';
 import { migrationLedgerTable, migrationSnapshotsTable } from './schema';
 import { buildModules } from './test_helpers';
-import type { DbMigration, MigrationDoc, MigrationMeta } from './types';
+import type { MigrationDoc, MigrationMeta } from './types';
 
 const modules = buildModules(
   import.meta.glob('../../**/*.*s'),
@@ -168,17 +163,5 @@ describe('composeComponent', () => {
       { cursor: 'cur_1', batchSize: 5, runId: meta.id },
       { cursor: null, batchSize: -1, runId: meta.id },
     ]);
-  });
-});
-
-describe('legacy passthroughs', () => {
-  it('return the runtime object unchanged during the port window', () => {
-    const legacy: DbMigration = {
-      meta: metaOf('9.9.9/04_legacy'),
-      table: 'widgets',
-      async up() {},
-      async down() {},
-    };
-    expect(composeLegacyDb(legacy)).toBe(legacy);
   });
 });

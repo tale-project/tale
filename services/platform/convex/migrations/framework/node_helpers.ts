@@ -74,8 +74,3 @@ export function composeNode(
       spec.down(ctx, org, makeNodeHelpers(meta.id, org.slug)),
   };
 }
-
-/** Dual-mode bridge for the port window; deleted with the legacy shape. */
-export function composeLegacyNode(migration: NodeMigration): NodeMigration {
-  return migration;
-}
