@@ -12,7 +12,7 @@ import { usePlatformTour } from '@/app/pages/platform/use-platform-tour';
 export function AgentsPage() {
   const content = useFeaturePageContent('agents', 'platformAgents');
   // Agent-flavored scenes: a library scoped to one agent, a workflow that
-  // calls an agent as its LLM step, and a delegation moment in chat.
+  // calls an agent as its LLM step, and a sandbox Files / Live browser pane.
   const tour = usePlatformTour('platformAgents', [
     { id: 'projects', demo: <AgentsTourProjectsDemo /> },
     { id: 'knowledge', demo: <AgentsTourKnowledgeDemo /> },

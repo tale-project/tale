@@ -62,7 +62,7 @@ export const Cards: Story = {
             <MarketingCard
               to="/platform/agents"
               title="Agents"
-              description="Orchestrate Claude Code, Codex, Cursor, and Gemini."
+              description="Orchestrate Claude Code, Codex, Hermes, and OpenClaw."
             />
           </li>
           <li className="bg-surface-site-raised">

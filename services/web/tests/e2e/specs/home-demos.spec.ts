@@ -184,7 +184,7 @@ test.describe('feature page demo scenarios', () => {
     );
   });
 
-  test('agents page shows its own roster and delegates a thread', async ({
+  test('agents page shows its own roster and a sandbox Files/Live pane', async ({
     page,
   }) => {
     await page.goto('/platform/agents');
@@ -204,14 +204,17 @@ test.describe('feature page demo scenarios', () => {
       t('platformAgents.demos.projects.project1'),
     );
 
-    const chat = page.getByRole('img', {
-      name: t('platformAgents.demos.hero.label'),
+    const sandbox = page.getByRole('img', {
+      name: t('platformAgents.demos.sandbox.label'),
     });
-    await chat.scrollIntoViewIfNeeded();
-    await expect(chat).toContainText(
-      t('platformAgents.demos.hero.routedTitle'),
+    await sandbox.scrollIntoViewIfNeeded();
+    await expect(sandbox).toContainText(
+      t('platformAgents.demos.sandbox.browserTitle'),
     );
-    await expect(chat).toContainText(t('platformAgents.demos.hero.citation2'));
+    await expect(sandbox).toContainText(
+      t('platformAgents.demos.sandbox.activeFile'),
+    );
+    await expect(sandbox).not.toContainText(t('home.demos.sandbox.prompt'));
   });
 
   test('governance page holds a knowledge write for approval', async ({
@@ -360,13 +363,12 @@ test.describe('feature page demo scenarios', () => {
     await expect(hero).not.toContainText(t('home.demos.projects.project1'));
 
     const tasks = page.getByRole('img', {
-      name: t('platformProjects.demos.automation.label'),
+      name: t('platformProjects.demos.tasks.label'),
     });
     await tasks.scrollIntoViewIfNeeded();
-    await expect(tasks).toContainText(
-      t('platformProjects.demos.automation.trigger'),
-    );
-    await expect(tasks).not.toContainText(t('home.demos.automation.trigger'));
+    await expect(tasks).toContainText(t('platformProjects.demos.tasks.id3'));
+    await expect(tasks).toContainText(t('platformProjects.demos.tasks.title3'));
+    await expect(tasks).not.toContainText(t('home.demos.tasks.title3'));
 
     const chat = page.getByRole('img', {
       name: t('platformProjects.demos.hero.label'),

@@ -34,6 +34,8 @@ import { GovernGate } from './govern-gate';
 import { HeroOrchestration } from './hero-orchestration';
 import { KnowledgePool } from './knowledge-pool';
 import { ProjectsBoard } from './projects-board';
+import { SandboxWorkspace } from './sandbox-workspace';
+import { TaskBoard } from './task-board';
 
 const meta = {
   title: 'Blocks/Demos/TourDemos',
@@ -61,6 +63,8 @@ export const Automation: Story = { render: () => <AutomationRun /> };
 export const Govern: Story = { render: () => <GovernGate /> };
 export const Arena: Story = { render: () => <ChatArena /> };
 export const Projects: Story = { render: () => <ProjectsBoard /> };
+export const Tasks: Story = { render: () => <TaskBoard /> };
+export const Sandbox: Story = { render: () => <SandboxWorkspace /> };
 
 export const ConnectOnStage: Story = {
   name: 'Connect (on DemoStage)',
@@ -180,6 +184,12 @@ export const ReducedMotionEndState: Story = {
       </DemoStage>
       <DemoStage>
         <ProjectsBoard />
+      </DemoStage>
+      <DemoStage>
+        <TaskBoard />
+      </DemoStage>
+      <DemoStage>
+        <SandboxWorkspace />
       </DemoStage>
     </div>
   ),

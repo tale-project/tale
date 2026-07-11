@@ -63,7 +63,7 @@ export const WEB_SITE_DESCRIPTION =
  * aligned with visible homepage / pricing / security copy — no ratings.
  */
 export const WEB_LLMS_PAGES_INTRO = [
-  'Tale is a self-hosted orchestrator for AI agents. Connect Claude Code, Codex, Cursor, Gemini, and in-product agents; pool org knowledge with citations; run automations with approvals; govern spend and audit every action.',
+  'Tale is a self-hosted orchestrator for AI agents. Connect Claude Code, Codex, Hermes, OpenClaw, and in-product agents; pool org knowledge with citations; run automations with approvals; govern spend and audit every action.',
   'Publisher: Ruler GmbH, Seestrasse 4, 3700 Spiez, Switzerland (VAT CHE-186.532.610). License: MIT (Community free to self-host). Enterprise: CHF 12 / EUR 14 per user/month (two months free on yearly billing). Certifications: ISO 27001, SOC 2 Type II.',
   'Deploy on your infrastructure (Docker/Linux), including air-gapped environments. Documentation: https://tale.dev/docs/llms.txt — source: https://github.com/tale-project/tale',
 ].join('\n\n');

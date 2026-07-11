@@ -3,13 +3,13 @@ import { ConnectAgents } from '@/app/components/blocks/demos/connect-agents';
 import {
   useAgentsScenario,
   useAutomationScenario,
-  useChatScenario,
   useKnowledgeScenario,
   useProjectsScenario,
+  useSandboxScenario,
 } from '@/app/components/blocks/demos/demo-scenarios';
-import { HeroOrchestration } from '@/app/components/blocks/demos/hero-orchestration';
 import { KnowledgePool } from '@/app/components/blocks/demos/knowledge-pool';
 import { ProjectsBoard } from '@/app/components/blocks/demos/projects-board';
+import { SandboxWorkspace } from '@/app/components/blocks/demos/sandbox-workspace';
 
 export function AgentsHeroDemo() {
   const scenario = useAgentsScenario('platformAgents');
@@ -32,6 +32,6 @@ export function AgentsTourAutomationsDemo() {
 }
 
 export function AgentsTourChatDemo() {
-  const scenario = useChatScenario('platformAgents');
-  return <HeroOrchestration scenario={scenario} elevation="default" />;
+  const scenario = useSandboxScenario('platformAgents');
+  return <SandboxWorkspace scenario={scenario} />;
 }
