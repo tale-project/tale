@@ -161,6 +161,11 @@ async function captureWorldDigest(copyTo: string): Promise<WorldDigest> {
   if (cp.exitCode !== 0) {
     throw new Error(`docker cp out failed: ${cp.stderr}`);
   }
+  // The backend keeps its own operational files (backend.log, SQLite) in a
+  // `convex/` dir beside the org config trees; its log grows between the
+  // before/after captures and is not world state — drop it from the copy.
+  // Every org tree (incl. the provisioned default org) stays in the digest.
+  await rm(path.join(copyTo, 'convex'), { recursive: true, force: true });
   return {
     db: await digestDb(worldTableSet(), wireCollector()),
     fs: await digestFs(copyTo),
