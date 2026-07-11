@@ -128,6 +128,40 @@ export async function handleWorkflowComplete(
       executionId: String(exec._id),
     },
   );
+  // Drop any admission tickets this execution still holds. A step parked on
+  // `awaitEvent` for capacity that is CANCELLED never runs its own per-step
+  // ticket cleanup, so without this its ticket wedges the org's FIFO head until
+  // the staleness-gated reaper culls it (a stale window + cron tick later). This
+  // is the terminal-edge twin of the slot-release wake; also outside the
+  // wasTerminal gate and idempotent (no matching tickets → no-op).
+  await ctx.scheduler.runAfter(
+    0,
+    internal.sandbox.admission.dropAdmissionTicketsForExecution,
+    {
+      organizationId: exec.organizationId,
+      wfExecutionId: String(exec._id),
+    },
+  );
+  // Drain any still-`running` taskAgentRuns this execution left behind — on an
+  // ABNORMAL terminal only. A cancelled/failed workflow tears down without
+  // running each agent run's own finalize, orphaning the `running` rows so
+  // their `agentRunCounters` decrement never fires; the stuck-run sweep only
+  // reclaims them an hour later, so the org concurrency cap wedges every run in
+  // the meantime. `startTaskAgentRun`'s dedup keeps this to one row per step.
+  // Gated to failed/canceled: on `success` each run finalized itself with its
+  // true status, and draining would race that to a wrong `timed_out`.
+  if (kind === 'canceled' || kind === 'failed') {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.task_metrics.internal_mutations.finalizeRunsForExecution,
+      {
+        wfExecutionId: toId<'wfExecutions'>(exec._id),
+        status: 'timed_out',
+        outcome: 'error',
+        error: kind === 'canceled' ? 'workflow canceled' : 'workflow failed',
+      },
+    );
+  }
 }
 
 async function updateTriggeringApprovalStatus(

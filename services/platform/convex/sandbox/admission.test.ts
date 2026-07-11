@@ -419,3 +419,68 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
     expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
   });
 });
+
+describe('dropAdmissionTicketsForExecution (terminal-edge ticket drop)', () => {
+  // A step parked on awaitEvent that is CANCELLED never runs its own per-step
+  // deleteAdmissionTicket, so handleWorkflowComplete clears the execution's
+  // tickets on the terminal edge — WITHOUT waiting for the staleness reaper,
+  // which would SPARE these fresh tickets (cancel → status 'failed', but the
+  // reaper only scans lastSeenAt < cutoff). This is what stops a cancelled
+  // parked run from wedging the org's FIFO head for a whole stale window.
+  it('drops a FRESH ticket for the terminal execution and wakes the queue', async () => {
+    const t = convexTest(schema, modules);
+    const cancelled = await seedOwnerExec(t, 'failed'); // cancel → status failed
+    const stillRunning = await seedOwnerExec(t, 'running');
+    // Both tickets are FRESH (lastSeenAt = now) — the staleness reaper would not
+    // even scan them; only the terminal-edge drop reaches the dead one.
+    await seedWaitingTicket(
+      t,
+      'wf_cancelled',
+      1_000,
+      Date.now(),
+      'workflow',
+      cancelled,
+    );
+    await seedWaitingTicket(
+      t,
+      'wf_behind',
+      2_000,
+      Date.now(),
+      'workflow',
+      stillRunning,
+    );
+
+    await t.mutation(
+      internal.sandbox.admission.dropAdmissionTicketsForExecution,
+      { organizationId: ORG, wfExecutionId: cancelled },
+    );
+
+    expect(await ticketsForOwner(t, 'wf_cancelled')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'wf_behind')).toHaveLength(1);
+    // Deleting the dead FIFO head must wake the live waiter behind it.
+    const wakes = await scheduledWakes(t);
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
+  });
+
+  it('is a no-op when the execution holds no tickets (no delete, no wake)', async () => {
+    const t = convexTest(schema, modules);
+    const other = await seedOwnerExec(t, 'running');
+    await seedWaitingTicket(
+      t,
+      'wf_other',
+      1_000,
+      Date.now(),
+      'workflow',
+      other,
+    );
+
+    await t.mutation(
+      internal.sandbox.admission.dropAdmissionTicketsForExecution,
+      { organizationId: ORG, wfExecutionId: 'exec_with_no_tickets' },
+    );
+
+    expect(await ticketsForOwner(t, 'wf_other')).toHaveLength(1);
+    expect(await scheduledWakes(t)).toHaveLength(0);
+  });
+});

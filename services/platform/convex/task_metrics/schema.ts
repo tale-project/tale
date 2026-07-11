@@ -53,6 +53,14 @@ export const taskAgentRunsTable = defineTable({
   // automations execution view without a join.
   wfExecutionId: v.optional(v.id('wfExecutions')),
   workflowSlug: v.optional(v.string()),
+  // The workflow STEP slug that dispatched this run. Together with
+  // wfExecutionId it identifies one logical sandbox-step run: a step that
+  // parks on capacity and re-enters (or a durable run that hands off across
+  // the action ceiling) must REUSE this row via `startTaskAgentRun`'s dedup
+  // rather than minting a duplicate `running` row each wake — which would leak
+  // the concurrency counters until the org cap wedges every run. Absent for
+  // non-workflow runs (internal LLM loop, external daemon).
+  stepSlug: v.optional(v.string()),
   // Thread the agent worked in (per-task agent thread). Used by the cost
   // reconciliation safety net (messageMetadata by_threadId).
   threadId: v.optional(v.string()),

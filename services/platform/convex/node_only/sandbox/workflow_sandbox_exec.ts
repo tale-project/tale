@@ -1161,6 +1161,10 @@ export const runSandboxAgent = internalAction({
               ...(args.workflowSlug !== undefined && {
                 workflowSlug: args.workflowSlug,
               }),
+              // Dedup key: a capacity re-entry (or durable hand-off) for the
+              // same step re-acquires the SAME run row instead of leaking a
+              // duplicate + counter increment each wake.
+              stepSlug: args.stepSlug,
               guardContext: 'task_run',
               ...(agentConfig.budget !== undefined && {
                 budget: agentConfig.budget,

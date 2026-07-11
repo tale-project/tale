@@ -441,14 +441,19 @@ function skipUnprovisionable(p: ProviderProvision): boolean {
 }
 
 /** The gateway's OpenAI handler always appends `/v1/chat/completions` to a custom
- * provider's base_url, but Tale provider configs store the base URL WITH a
- * `/v1` (the chat path appends only `/chat/completions`). Strip a trailing
- * `/v1` (or `/v1/`) before pushing so the gateway builds `<base>/v1/chat/
- * completions`, not `<base>/v1/v1/chat/completions` (maximhq/bifrost issue #2356).
- * Assumes the upstream exposes chat at `<base>/v1/chat/completions` — the
- * DeepSeek/Together/standard OpenAI-compatible convention. */
-function stripTrailingV1(url: string): string {
-  return url.replace(/\/v1\/?$/, '');
+ * The upstream base URL Bifrost appends the completions PATH to. We pin that
+ * path to `/chat/completions` via `request_path_overrides` (see
+ * ensureProviderConfig), so the gateway builds `<base>/chat/completions` —
+ * EXACTLY the chat path's createOpenAICompatible contract. The base therefore
+ * carries the provider's OWN API version in its path (`/v1`, `/api/paas/v4`, …)
+ * and must NOT end in a slash (which would double the join to
+ * `<base>//chat/completions`). So we strip only a trailing slash and PRESERVE
+ * the version segment. (The old approach stripped a trailing `/v1` and relied on
+ * Bifrost's default `/v1/chat/completions`; that broke any provider whose version
+ * is not `/v1` — e.g. BigModel `.../api/paas/v4` → `.../paas/v4/v1/chat/completions`
+ * 404, while chat worked. maximhq/bifrost issue #2356.) */
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
 }
 
 /**
@@ -545,12 +550,16 @@ async function deleteGatewayProvider(name: string): Promise<void> {
  * as the in-platform chat path.
  *
  * A CUSTOM (non-standard) provider is provisioned as an OpenAI-compatible
- * upstream: `network_config.base_url` (its own, with a trailing `/v1` stripped —
- * see stripTrailingV1) + `custom_provider_config` declaring base_provider_type
- * "openai" and the request types the agent path uses. This makes the gateway
- * contract identical to the chat path's createOpenAICompatible contract, so any
- * provider that works in chat works for external agents (incl. the /anthropic
- * route, which translates Anthropic↔OpenAI for any non-Claude model). */
+ * upstream: `network_config.base_url` (its own, trailing slash stripped — see
+ * stripTrailingSlash) + `custom_provider_config` declaring base_provider_type
+ * "openai", the request types the agent path uses, and `request_path_overrides`
+ * pinning the completions path to `/chat/completions`. Bifrost's default is
+ * `/v1/chat/completions`, which DOUBLES the version for a base that already
+ * carries one in its path (BigModel `.../api/paas/v4` → `.../paas/v4/v1/...` 404);
+ * pinning `/chat/completions` makes the gateway contract identical to the chat
+ * path's createOpenAICompatible (`<base>/chat/completions`), so any provider that
+ * works in chat works for external agents (incl. the /anthropic route, which
+ * translates Anthropic↔OpenAI for any non-Claude model). */
 async function ensureProviderConfig(
   p: ProviderProvision,
 ): Promise<{ recreated: boolean }> {
@@ -561,13 +570,14 @@ async function ensureProviderConfig(
   const custom = !isStandardProvider(p);
   const anthropic = custom && p.apiFormat === 'anthropic';
   // Anthropic base_url is the `/anthropic` endpoint verbatim — the native
-  // Anthropic provider appends `/v1/messages` itself (NO /v1 strip, unlike the
-  // openai handler which appends /v1/chat/completions, see stripTrailingV1).
+  // Anthropic provider appends `/v1/messages` itself. The openai base keeps its
+  // version segment and drops only a trailing slash; the completions path is
+  // pinned to `/chat/completions` below (see stripTrailingSlash).
   const baseUrl =
     custom && p.baseUrl
       ? anthropic
         ? p.baseUrl
-        : stripTrailingV1(p.baseUrl)
+        : stripTrailingSlash(p.baseUrl)
       : undefined;
   const body = {
     network_config: {
@@ -590,12 +600,20 @@ async function ensureProviderConfig(
               { base_provider_type: 'anthropic' }
             : {
                 base_provider_type: 'openai',
-                // Restrict to chat so the OpenAI handler forces the
-                // /v1/chat/completions path (most custom openai upstreams have
-                // no /v1/responses).
+                // Restrict to chat so the OpenAI handler never tries
+                // /v1/responses (most custom openai upstreams have none).
                 allowed_requests: {
                   chat_completion: true,
                   chat_completion_stream: true,
+                },
+                // Pin the completions path to `/chat/completions` so it is
+                // appended to the base AS-IS — matching the chat path's
+                // createOpenAICompatible. Bifrost's default `/v1/chat/completions`
+                // double-versions a base that already carries its version in the
+                // path (e.g. BigModel `.../api/paas/v4`), 404-ing the upstream.
+                request_path_overrides: {
+                  chat_completion: '/chat/completions',
+                  chat_completion_stream: '/chat/completions',
                 },
               },
         }
