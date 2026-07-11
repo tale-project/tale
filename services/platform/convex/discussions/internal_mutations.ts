@@ -9,9 +9,10 @@
  *
  * Posting a reply that @mentions another agent emits `discussion.mentioned`,
  * which the `react-to-discussion-mention` workflow turns into that agent's
- * reply — the same event-driven routing task comments use. The `agentReplyDepth`
- * loop guard bounds runaway agent→agent chatter (reset by any human reply in
- * the user-facing `postReply`).
+ * reply — the same event-driven routing task comments use — with a direct
+ * fallback dispatch when no such automation is live (`mention_dispatch.ts`,
+ * #2637). The `agentReplyDepth` loop guard bounds runaway agent→agent chatter
+ * (reset by any human reply in the user-facing `postReply`).
  */
 
 import { createThread, saveMessage } from '@convex-dev/agent';
@@ -32,6 +33,7 @@ import { notifyDiscussionMentions } from '../collab/notify';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions, type ResolvedMention } from '../tasks/mentions';
 import { emitEvent } from '../workflows/triggers/emit_event';
+import { dispatchAgentMentionRuns } from './mention_dispatch';
 
 /** Actor attribution for emitted events (agent slug, or the `workflow` sentinel). */
 function eventActor(actorId: string): {
@@ -113,6 +115,7 @@ async function emitMentionedEvent(
   },
 ): Promise<void> {
   if (args.mentions.length === 0) return;
+  const actor = eventActor(args.actorId);
   await emitEvent(ctx, {
     organizationId: args.organizationId,
     eventType: 'discussion.mentioned',
@@ -120,8 +123,18 @@ async function emitMentionedEvent(
       threadId: args.threadId,
       projectId: args.projectId ? String(args.projectId) : undefined,
       mentions: args.mentions,
-      ...eventActor(args.actorId),
+      ...actor,
     },
+  });
+  // Core fallback: when no discussion-mention automation is live (fresh org
+  // mid-provision — the SEEDED starter discussion posts seconds after org
+  // creation — or a pack-less catalog), schedule the runs directly (#2637).
+  await dispatchAgentMentionRuns(ctx, {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    mentions: args.mentions,
+    actorType: actor.actorType,
+    actorId: actor.actorId,
   });
 }
 
@@ -367,6 +380,57 @@ export const agentSpawnTaskFromDiscussion = internalMutation({
     });
     return { taskId };
   },
+});
+
+/**
+ * Post a SYSTEM-authored notice into a discussion — the visible trace of an
+ * agent run that could not produce a reply (provider error, budget pause,
+ * disabled agent …), so a @mention never fails silently (#2637). A notice is
+ * NOT an agent turn: no mention parsing, no notifications, no events, and no
+ * `agentReplyDepth` advance — it can never trigger or budget-charge anything.
+ * Best-effort by design: returns `{posted:false, reason}` instead of throwing
+ * so the caller's original failure result is never masked.
+ */
+export async function postDiscussionSystemNotice(
+  ctx: MutationCtx,
+  args: { organizationId: string; threadId: string; message: string },
+): Promise<{ posted: boolean; reason?: string }> {
+  const meta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+    .first();
+  if (
+    !meta ||
+    meta.organizationId !== args.organizationId ||
+    !isDiscussionKind(meta.kind)
+  ) {
+    return { posted: false, reason: 'discussion_not_found' };
+  }
+  if (meta.discussionStatus === 'locked') {
+    return { posted: false, reason: 'discussion_locked' };
+  }
+  const body = assertValidBody(args.message);
+  const now = Date.now();
+  await saveMessage(ctx, components.agent, {
+    threadId: args.threadId,
+    message: { role: 'assistant', content: body },
+    // 'system' renders left-aligned with the "System" author label — the same
+    // attribution the seeded opener uses.
+    userId: 'system',
+  });
+  await ctx.db.patch(meta._id, { updatedAt: now, lastReplyAt: now });
+  return { posted: true };
+}
+
+export const systemPostDiscussionNotice = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    message: v.string(),
+  },
+  returns: v.object({ posted: v.boolean(), reason: v.optional(v.string()) }),
+  handler: (ctx, args): Promise<{ posted: boolean; reason?: string }> =>
+    postDiscussionSystemNotice(ctx, args),
 });
 
 /**

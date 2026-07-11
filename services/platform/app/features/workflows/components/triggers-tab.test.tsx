@@ -82,6 +82,13 @@ vi.mock('@/lib/site-url-context', () => ({
   useSiteUrl: () => 'https://example.com',
 }));
 
+// SchedulesSection reads the org's projects for the bound-project column
+// (#2613) — stub it so the Convex-backed hook doesn't need a real auth
+// provider in this render-only test shell.
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjects: () => ({ projects: [] }),
+}));
+
 function renderTriggers() {
   return render(
     <Triggers

@@ -25,6 +25,12 @@ import { useSiteUrl } from '@/lib/site-url-context';
 
 import { SecretRevealDialog } from '../../workflows/triggers/components/secret-reveal-dialog';
 import {
+  WEBHOOK_ACTIVE_COLUMN_SIZE,
+  WEBHOOK_LAST_TRIGGERED_COLUMN_SIZE,
+  WEBHOOK_URL_COLUMN_SIZE,
+  WEBHOOK_URL_TEXT_MAX_WIDTH,
+} from '../../workflows/triggers/components/webhook-table-columns';
+import {
   useCreateAgentWebhook,
   useDeleteAgentWebhook,
   useToggleAgentWebhook,
@@ -164,7 +170,8 @@ export function AgentWebhookSection({
           return (
             <Row gap={2} className="min-w-0">
               <code
-                className="max-w-[300px] truncate font-mono text-sm"
+                className="truncate font-mono text-sm"
+                style={{ maxWidth: WEBHOOK_URL_TEXT_MAX_WIDTH }}
                 title={url}
               >
                 {url}
@@ -184,7 +191,7 @@ export function AgentWebhookSection({
             </Row>
           );
         },
-        size: 400,
+        size: WEBHOOK_URL_COLUMN_SIZE,
       },
       {
         id: 'active',
@@ -198,7 +205,7 @@ export function AgentWebhookSection({
             aria-label={t('agents.webhook.columns.active')}
           />
         ),
-        size: 80,
+        size: WEBHOOK_ACTIVE_COLUMN_SIZE,
       },
       {
         id: 'lastTriggered',
@@ -208,7 +215,7 @@ export function AgentWebhookSection({
             {formatTimestamp(row.original.lastTriggeredAt)}
           </Text>
         ),
-        size: 180,
+        size: WEBHOOK_LAST_TRIGGERED_COLUMN_SIZE,
       },
       {
         id: 'actions',
@@ -290,10 +297,12 @@ export function AgentWebhookSection({
   }, [usageUrl, t]);
 
   return (
-    // Full content width (not the 544px `narrow` column the other agent tabs
-    // use): this tab's webhook table shows long URLs that are unreadable when
-    // squeezed into a narrow column inside the ~1220px main area (#2378).
-    <ContentArea variant="page" gap={6}>
+    // Same `max-w-3xl` width as every other settings surface (#2567) — no
+    // longer the full-page-width exception #2378 introduced. The webhook
+    // table's own `url` column now carries the budget reclaimed from the
+    // tightened `active` / `lastTriggered` columns (#2568) so URLs stay
+    // readable at this width.
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.webhook.title')}
         description={t('agents.webhook.description')}

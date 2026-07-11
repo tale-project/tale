@@ -13,7 +13,7 @@
  * choice on which one is present.
  */
 import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -97,38 +97,6 @@ export function resolveCatalogAutomationDir(slug: string): string {
   return path.join(resolveCatalogAutomationsDir(), slug);
 }
 
-/**
- * Slugs of the automations installed in this org, by scanning the org's automations
- * dir subdirectories (`resolveAutomationsDir`). The on-disk bundle is the
- * source of truth for which automation owns a
- * resource, so the global agent/workflow lists use this to know which automation
- * dirs to also scan and tag. A missing dir means no installed automations.
- */
-export async function listInstalledAutomationSlugsFromDisk(
-  orgSlug: string,
-): Promise<string[]> {
-  try {
-    const entries = await readdir(resolveAutomationsDir(orgSlug), {
-      withFileTypes: true,
-    });
-    return entries
-      .filter((e) => e.isDirectory() && isValidAutomationSlug(e.name))
-      .map((e) => e.name);
-  } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return [];
-    }
-    throw err;
-  }
-}
-
-/**
- * Display folder per installed automation (automationSlug → folder), read from each automation's
- * ORG-DIR manifest (the authoritative copy after install). Tolerant by design
- * — a missing or malformed manifest falls back to the automation slug, exactly the
- * grouping the lists rendered before manifests declared folders — so a broken
- * manifest can never break the global agent/workflow lists.
- */
 export async function readInstalledAutomationFolders(
   orgSlug: string,
   automationSlugs: readonly string[],

@@ -205,7 +205,7 @@ describe('ProviderEditPanel', () => {
   it('persists apiFormat as undefined by default (clean for standard providers)', async () => {
     configMock.mockReturnValue({ ...baseConfig });
     const { user } = renderPanel();
-    await user.type(getBaseUrlInput(), '2'); // dirty so submit is enabled
+    await user.type(getDisplayNameInput(), ' 2'); // dirty so submit is enabled
     const payload = await clickSubmit(user);
     expect(payload.apiFormat).toBeUndefined();
   });
@@ -213,9 +213,27 @@ describe('ProviderEditPanel', () => {
   it('carries an existing anthropic apiFormat through save', async () => {
     configMock.mockReturnValue({ ...baseConfig, apiFormat: 'anthropic' });
     const { user } = renderPanel();
-    await user.type(getBaseUrlInput(), '2');
+    await user.type(getDisplayNameInput(), ' 2');
     const payload = await clickSubmit(user);
     expect(payload.apiFormat).toBe('anthropic');
+  });
+
+  // #2653 — apiFormat only matters for exotic self-hosted setups, so it lives
+  // inside a closed Advanced disclosure; the default stays OpenAI-compatible.
+  it('renders apiFormat inside a closed Advanced disclosure, default unchanged', () => {
+    configMock.mockReturnValue({ ...baseConfig });
+    renderPanel();
+
+    const apiFormat = screen.getByRole('combobox', {
+      name: /^settings\.providers\.apiFormat\b/i,
+    });
+    const details = apiFormat.closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent(/settings\.providers\.advanced/i);
+    expect(apiFormat).toHaveTextContent(
+      /settings\.providers\.apiFormatOpenai/i,
+    );
   });
 
   it('lets the user switch the apiFormat to Anthropic', async () => {
@@ -233,5 +251,48 @@ describe('ProviderEditPanel', () => {
     );
     const payload = await clickSubmit(user);
     expect(payload.apiFormat).toBe('anthropic');
+  });
+
+  // #2653 — a known catalog provider's endpoint is a published fact: the field
+  // is locked (readOnly, still focusable/readable) behind an explicit override.
+  it('locks the base URL for a known catalog provider until Override is clicked', async () => {
+    configMock.mockReturnValue({ ...baseConfig });
+    const { user } = renderPanel();
+
+    const baseUrl = getBaseUrlInput();
+    expect(baseUrl).toHaveAttribute('readonly');
+    // Typing into the locked field must not change it.
+    await user.type(baseUrl, '2');
+    expect(baseUrl).toHaveValue('https://openrouter.ai/api/v1');
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /settings\.providers\.baseUrlOverride/i,
+      }),
+    );
+    expect(getBaseUrlInput()).not.toHaveAttribute('readonly');
+    await user.type(getBaseUrlInput(), '2');
+
+    const payload = await clickSubmit(user);
+    expect(payload.baseUrl).toBe('https://openrouter.ai/api/v12');
+  });
+
+  it('renders a stored custom base URL editable — existing configs unchanged (#2653)', async () => {
+    configMock.mockReturnValue({
+      ...baseConfig,
+      baseUrl: 'https://proxy.example.com/v1',
+    });
+    const { user } = renderPanel();
+
+    expect(getBaseUrlInput()).not.toHaveAttribute('readonly');
+    expect(
+      screen.queryByRole('button', {
+        name: /settings\.providers\.baseUrlOverride/i,
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.type(getBaseUrlInput(), '2');
+    const payload = await clickSubmit(user);
+    expect(payload.baseUrl).toBe('https://proxy.example.com/v12');
   });
 });

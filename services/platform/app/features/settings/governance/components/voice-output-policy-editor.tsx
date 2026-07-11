@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import { voiceOutputConfigSchema } from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
@@ -67,7 +68,11 @@ export function VoiceOutputPolicyEditor({
         onError: (error) =>
           toast({
             title: t('toastSaveFailedTitle'),
-            description: error instanceof Error ? error.message : undefined,
+            description: mapGovernanceSaveError(
+              error,
+              t,
+              t('voiceOutput.saveFailed'),
+            ),
             variant: 'destructive',
           }),
       },

@@ -49,6 +49,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useBulkCreateContacts: () => ({ mutateAsync: vi.fn() }),
+  useCreateContact: () => ({ mutateAsync: vi.fn() }),
   useDeleteContact: () => ({ mutateAsync: vi.fn() }),
   useUpdateContact: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -227,6 +228,26 @@ describe('ContactsTable', () => {
       await user.click(prev());
       expect(tokenRowCount()).toBe(PAGE_SIZE);
       expect(prev()).toBeDisabled();
+    });
+  });
+
+  // #2646: the pagination footer must read the correct singular noun
+  // ("contact", not "contacts") when exactly one row is shown.
+  describe('entity count footer (#2646)', () => {
+    it('reads the singular noun for exactly one contact', () => {
+      mockContacts = [makeContact('Solo Contact', 'solo@example.test')];
+      render(<ContactsTable organizationId="test-org-id" />);
+      expect(screen.getByText('Showing 1-1 of 1 contact')).toBeInTheDocument();
+    });
+
+    it('reads the plural noun for more than one contact', () => {
+      mockContacts = [
+        makeContact('Alpha', 'alpha@example.test'),
+        makeContact('Beta', 'beta@example.test'),
+        makeContact('Gamma', 'gamma@example.test'),
+      ];
+      render(<ContactsTable organizationId="test-org-id" />);
+      expect(screen.getByText('Showing 1-3 of 3 contacts')).toBeInTheDocument();
     });
   });
 });

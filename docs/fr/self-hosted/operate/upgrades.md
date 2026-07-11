@@ -123,9 +123,9 @@ Pour descendre _délibérément_ d'une version — disons qu'une release minor s
 
 ## Monter depuis la 0.3.1 ou antérieure
 
-Les instances en version 0.3.1 ou antérieure gardent les données du backend Convex dans le volume Docker `platform-data`. Les versions plus récentes font tourner Convex comme service à part entière avec son propre volume `convex-data` — et la copie automatique que les premières releases embarquaient pour ce déménagement n'est plus dans la CLI. Franchis cette frontière d'un coup et `tale deploy` pré-crée un volume `convex-data` **vide** : l'instance démarre vierge alors que chaque octet de tes données reste, intact, dans l'ancien volume `platform-data`. Rien n'est supprimé — mais les données ne bougent pas toutes seules, et `tale update` avertit quand il détecte cette situation.
+Les instances en version 0.3.1 ou antérieure gardent les données du backend Convex dans le volume Docker `platform-data`. Les versions plus récentes font tourner Convex comme service à part entière avec son propre volume `convex-data` — et rien ne déplace les données automatiquement au déploiement. Franchis cette frontière d'un coup et `tale deploy` pré-crée un volume `convex-data` **vide** : l'instance démarre vierge alors que chaque octet de tes données reste, intact, dans l'ancien volume `platform-data`. Rien n'est supprimé — mais les données ne bougent pas toutes seules, et `tale update` avertit quand il détecte cette situation et te propose de lancer la copie sur-le-champ.
 
-Docker n'a pas de renommage natif de volume ; le déménagement passe donc par une copie via un conteneur intermédiaire. Exécute-la avant `tale deploy`, stack arrêtée, pour que rien ne garde le volume ouvert :
+Docker n'a pas de renommage natif de volume ; le déménagement passe donc par une copie via un conteneur intermédiaire — exactement ce que `tale update` exécute pour toi quand tu acceptes son invite (l'ancien volume est préservé dans tous les cas). Pour le faire à la main — invite refusée, ou copie automatique en échec — exécute-la avant `tale deploy`, stack arrêtée, pour que rien ne garde le volume ouvert :
 
 ```bash
 # 1. Repérer le volume legacy — <project> est l'`id` de tale.json.

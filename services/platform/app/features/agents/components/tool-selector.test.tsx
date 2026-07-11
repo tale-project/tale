@@ -15,6 +15,10 @@ const mockAvailableWorkflows = vi.fn(() => ({
   workflows: [] as unknown[],
   isLoading: false,
 }));
+const mockAvailableIntegrations = vi.fn(() => ({
+  integrations: [] as unknown[],
+  isLoading: false,
+}));
 vi.mock('../hooks/queries', () => ({
   useAvailableTools: () => ({
     tools: [
@@ -23,10 +27,11 @@ vi.mock('../hooks/queries', () => ({
       { name: 'product_read', available: true },
       { name: 'product_write', available: true },
       { name: 'run_code', available: true },
+      { name: 'automation_search', available: true },
     ],
     isLoading: false,
   }),
-  useAvailableIntegrations: () => ({ integrations: [], isLoading: false }),
+  useAvailableIntegrations: () => mockAvailableIntegrations(),
   useAvailableWorkflows: () => mockAvailableWorkflows(),
 }));
 
@@ -184,6 +189,33 @@ describe('ToolSelector', () => {
     ).toBeInTheDocument();
   });
 
+  // #2645: "Automation Search" (Title Case, no description) was the one
+  // conventions-breaking tool row; it must render sentence case with a
+  // description like its siblings, land in the System group, and the group
+  // counter's aria label must use a real ICU plural ("1 tool" vs "N tools").
+  it('renders automation_search sentence-cased with a description and a correctly pluralized group counter', () => {
+    renderSelector({
+      hiddenTools: new Set([
+        'contact_read',
+        'contact_write',
+        'product_read',
+        'product_write',
+        'run_code',
+      ]),
+    });
+
+    expect(
+      screen.getByRole('checkbox', { name: 'Automation search' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Look up existing automations and bundles before creating a new one',
+      ),
+    ).toBeInTheDocument();
+    // System group now holds exactly automation_search — singular ICU plural.
+    expect(screen.getByLabelText('0 of 1 tool enabled')).toBeInTheDocument();
+  });
+
   it('hides the platform-tool catalog for external agents', () => {
     renderSelector({ showPlatformTools: false, showWorkflows: false });
 
@@ -195,6 +227,34 @@ describe('ToolSelector', () => {
     ).not.toBeInTheDocument();
     // Integration bindings (the external agent's MCP grant set) stay.
     expect(screen.getByText('Bound integrations')).toBeInTheDocument();
+  });
+
+  it('shows the integration catalog description in the Bound integrations picker', async () => {
+    mockAvailableIntegrations.mockReturnValueOnce({
+      integrations: [
+        {
+          name: 'tavily',
+          title: 'tavily',
+          type: 'rest_api',
+          description: 'Web search for research agents.',
+        },
+        // No catalog description on disk — label-only, no broken layout.
+        { name: 'no-desc', title: 'no-desc', type: 'rest_api' },
+      ],
+      isLoading: false,
+    });
+
+    const { user } = renderSelector();
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'Bound integrations' }),
+    );
+
+    expect(screen.getByRole('option', { name: /tavily/ })).toBeInTheDocument();
+    expect(
+      screen.getByText('Web search for research agents.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'no-desc' })).toBeInTheDocument();
   });
 
   it('labels the workflow-bindings section "Bound automations" and shows the owning automation\'s title/description', async () => {

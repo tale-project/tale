@@ -4,6 +4,8 @@ export type RagStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  // Terminal, non-retryable: no text extractor exists for this format.
+  | 'unsupported'
   | 'not_indexed'
   | 'stale';
 

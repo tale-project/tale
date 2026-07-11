@@ -193,7 +193,8 @@ function SkillCatalogMenu({
  * skill bundle (broken bundles badge as read failures instead of vanishing),
  * the shared toolbar search, and a whole-card click into the full-management
  * `SkillDetailPanel` (Replace / Duplicate / Delete live there). Agent-side
- * skill BINDING keeps the checkbox table (`SkillsTable`), not this catalog.
+ * skill BINDING uses the `MultiSelect` chip picker (`SkillBindingsSelect`),
+ * not this catalog.
  */
 export function SkillsCatalog({
   organizationId,

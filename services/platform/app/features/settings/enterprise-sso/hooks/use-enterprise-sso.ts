@@ -31,6 +31,11 @@ export function useTestSsoConnection() {
   return useConvexAction(api.enterprise_sso.config.actions.testConnection);
 }
 
+/** Parse IdP federation metadata (URL or uploaded XML) into the SAML fields. */
+export function useParseSamlMetadata() {
+  return useConvexAction(api.enterprise_sso.config.actions.parseIdpMetadata);
+}
+
 export function useRevealOidcClientId() {
   return useConvexAction(api.enterprise_sso.config.actions.revealOidcClientId);
 }

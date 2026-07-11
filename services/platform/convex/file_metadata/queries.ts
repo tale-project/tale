@@ -82,6 +82,7 @@ export const getByStorageIds = query({
           v.literal('running'),
           v.literal('completed'),
           v.literal('failed'),
+          v.literal('unsupported'),
         ),
       ),
       ragError: v.optional(v.string()),

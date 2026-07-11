@@ -10,7 +10,6 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  ArrowRight,
   Bug,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -33,7 +32,6 @@ import {
   getMissingRequiredFields,
   type InputSchema,
 } from '../utils/input-schema-template';
-import { getStepTypeColor } from '../utils/step-icons';
 import { WORKFLOW_EXECUTION_URL_DEFINITIONS } from './execution-status-context';
 import { WorkflowDebugControls } from './workflow-debug-controls';
 import { WORKFLOW_PANEL_URL_DEFINITIONS } from './workflow-steps';
@@ -54,25 +52,6 @@ interface WorkflowTesterProps {
   organizationId: string;
   workflowSlug: string;
   onTestComplete?: () => void;
-}
-
-interface DryRunStepResult {
-  stepSlug: string;
-  stepType: string;
-  name: string;
-  mocked: boolean;
-  wouldExecute: boolean;
-  simulatedOutput: unknown;
-  nextStep: string | null;
-  branch?: string;
-}
-
-interface DryRunResult {
-  success: boolean;
-  executionPath: string[];
-  stepResults: DryRunStepResult[];
-  errors: string[];
-  warnings: string[];
 }
 
 export function WorkflowTester({
@@ -119,9 +98,6 @@ export function WorkflowTester({
     if (window.localStorage.getItem(storageKey) !== null) return;
     setTestInput(inputTemplate);
   }, [inputTemplate, storageKey, setTestInput]);
-
-  const [isDryRunning, setIsDryRunning] = useState(false);
-  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
   // The just-started execution, subscribed reactively so the panel shows the
   // run progress to completed/failed (with the failing step + error) instead
@@ -213,29 +189,6 @@ export function WorkflowTester({
   );
   const canRun = isJsonValid && missingRequiredFields.length === 0;
 
-  // TODO: Migrate dry run to file-based workflow system
-  const handleDryRun = async () => {
-    if (!parsedInput) {
-      toast({
-        title: t('tester.toast.invalidJson'),
-        description: t('tester.toast.invalidJsonDescription'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsDryRunning(true);
-    setDryRunResult(null);
-    setActiveExecutionId(null);
-
-    toast({
-      title: t('tester.dryRun.button'),
-      description: t('tester.dryRun.fileBasedUnsupported'),
-      variant: 'destructive',
-    });
-    setIsDryRunning(false);
-  };
-
   const handleExecute = async (debugMode: boolean) => {
     setActiveExecutionId(null);
     let input = {};
@@ -280,7 +233,6 @@ export function WorkflowTester({
         description: t('tester.toast.executionId', { id: executionId }),
       });
 
-      setDryRunResult(null);
       setActiveExecutionId(executionId);
       setExecutionUrlState('execution', executionId);
       onTestComplete?.();
@@ -305,7 +257,6 @@ export function WorkflowTester({
           value={testInput}
           onChange={(value) => {
             setTestInput(value);
-            setDryRunResult(null);
             setActiveExecutionId(null);
             // Guard: writing URL state navigates — only clear when a run is
             // actually being viewed, not on every keystroke.
@@ -315,82 +266,9 @@ export function WorkflowTester({
           }}
           label={t('tester.inputLabel')}
           description={t('tester.inputDescription')}
-          disabled={isExecuting || isDryRunning}
+          disabled={isExecuting}
           rows={8}
         />
-
-        {dryRunResult && (
-          <BorderedSection
-            className={cn(
-              'p-3',
-              dryRunResult.success
-                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
-                : 'bg-destructive/10 border-destructive/50',
-            )}
-          >
-            <HStack gap={2} className="mb-2">
-              {dryRunResult.success ? (
-                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <AlertCircle className="text-destructive size-4" />
-              )}
-              <Text as="span" variant="label">
-                {dryRunResult.success
-                  ? t('tester.dryRun.success')
-                  : t('tester.dryRun.failed')}
-              </Text>
-            </HStack>
-
-            {dryRunResult.errors.length > 0 && (
-              <div className="mb-2">
-                <Text variant="error-sm" className="mb-1">
-                  {t('tester.dryRun.errors')}:
-                </Text>
-                <ul className="text-destructive space-y-0.5 text-xs">
-                  {dryRunResult.errors.map((err, index) => (
-                    <li key={`${err}-${index}`}>• {err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {dryRunResult.warnings.length > 0 && (
-              <div className="mb-2">
-                <Text className="mb-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-                  {t('tester.dryRun.warnings')}:
-                </Text>
-                <ul className="space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
-                  {dryRunResult.warnings.map((warn, index) => (
-                    <li key={`${warn}-${index}`}>• {warn}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div>
-              <Text variant="label-sm" className="mb-2">
-                {t('tester.dryRun.executionPath')}:
-              </Text>
-              <HStack gap={1} wrap>
-                {dryRunResult.stepResults.map((step, i) => (
-                  <HStack key={step.stepSlug} gap={1}>
-                    <span
-                      className={cn(
-                        'text-xs px-2 py-0.5 rounded',
-                        getStepTypeColor(step.stepType),
-                      )}
-                    >
-                      {step.name}
-                    </span>
-                    {i < dryRunResult.stepResults.length - 1 && (
-                      <ArrowRight className="text-muted-foreground size-3" />
-                    )}
-                  </HStack>
-                ))}
-              </HStack>
-            </div>
-          </BorderedSection>
-        )}
 
         {activeExecutionId && (
           <BorderedSection
@@ -555,28 +433,28 @@ export function WorkflowTester({
           </Text>
         )}
         <HStack gap={2}>
+          {/* Dry run isn't implemented for file-based workflows yet (#2659) —
+              every standalone workflow is file-based, so this would always
+              fail. Keep the affordance visible but disabled, with a tooltip
+              explaining why, instead of a button that fires a toast on every
+              click (the canvas "Add step" button follows the same principle
+              in workflow-steps.tsx, though as a hard-disabled icon button;
+              this one carries a visible label, so `disabledReason` — which
+              keeps it focusable and surfaces the reason on hover AND focus —
+              fits better than a plain `disabled` + `title`). */}
           <Button
             variant="secondary"
-            onClick={handleDryRun}
-            disabled={isExecuting || isDryRunning || !canRun}
+            disabled
+            disabledReason={t('tester.dryRun.fileBasedUnsupported')}
             className="flex-1"
           >
-            {isDryRunning ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                {t('tester.dryRunning')}
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 size-4" />
-                {t('tester.dryRun.button')}
-              </>
-            )}
+            <Search className="mr-2 size-4" />
+            {t('tester.dryRun.button')}
           </Button>
           <Button
             variant="secondary"
             onClick={() => handleExecute(true)}
-            disabled={isExecuting || isDryRunning || !canRun}
+            disabled={isExecuting || !canRun}
             className="flex-1"
           >
             {isDebugStarting ? (
@@ -593,7 +471,7 @@ export function WorkflowTester({
           </Button>
           <Button
             onClick={() => handleExecute(false)}
-            disabled={isExecuting || isDryRunning || !canRun}
+            disabled={isExecuting || !canRun}
             className="flex-1"
           >
             {isExecuteStarting ? (

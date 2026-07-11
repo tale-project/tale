@@ -8,6 +8,8 @@ import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { entityLabelForms, type EntityLabel } from './data-table-types';
+
 export interface DataTablePaginationProps {
   /** Current page number (1-based) */
   currentPage: number;
@@ -33,8 +35,8 @@ export interface DataTablePaginationProps {
   pageSizeOptions?: number[];
   /** Callback when page size changes */
   onPageSizeChange?: (pageSize: number) => void;
-  /** Lowercase plural entity label (e.g., "agents"). Enables noun-rich copy like "Showing 1-25 of 100 agents". */
-  entityLabel?: string;
+  /** Entity noun. Enables noun-rich copy like "Showing 1-25 of 100 agents" — pass `{ one, other }` so a single-item total reads correctly too. */
+  entityLabel?: EntityLabel;
 }
 
 /**
@@ -182,7 +184,7 @@ export function DataTablePagination({
                 start: startIdx,
                 end: endIdx,
                 total,
-                entity: entityLabel,
+                ...entityLabelForms(entityLabel),
               })
             : t('pagination.showing', {
                 start: startIdx,

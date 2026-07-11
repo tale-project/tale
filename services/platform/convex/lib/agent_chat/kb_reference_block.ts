@@ -28,6 +28,10 @@ export interface KbReferencedFolder {
   folderId: string;
   name: string;
   fileCount: number;
+  /** Files considered but not RAG-indexed — see `ResolvedKbFolder.skippedCount`
+   *  (resolve_referenced_folders.ts). Surfaced on the folder chip so an
+   *  all-unindexed folder never silently reads "0 files" (issue #2598). */
+  skippedCount: number;
 }
 
 export function buildKbReferenceBlock(
@@ -53,7 +57,7 @@ export function buildKbFolderBlock(
   return folders
     .map(
       (folder) =>
-        `📁 Referenced folder from the knowledge base: ${folder.name}\n*(kbFolderId: ${folder.folderId} | folderName: ${folder.name} | folderFileCount: ${folder.fileCount})*`,
+        `📁 Referenced folder from the knowledge base: ${folder.name}\n*(kbFolderId: ${folder.folderId} | folderName: ${folder.name} | folderFileCount: ${folder.fileCount} | folderSkippedCount: ${folder.skippedCount})*`,
     )
     .join('\n\n');
 }

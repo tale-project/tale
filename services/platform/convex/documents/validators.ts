@@ -30,6 +30,8 @@ export const ragStatusValidator = v.union(
   v.literal('running'),
   v.literal('completed'),
   v.literal('failed'),
+  // Terminal, non-retryable: no text extractor exists for this format.
+  v.literal('unsupported'),
   v.literal('not_indexed'),
   v.literal('stale'),
 );

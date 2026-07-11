@@ -550,6 +550,44 @@ describe('reconcileAutomationSchedules', () => {
     expect(row?.timezone).toBe('America/New_York');
   });
 
+  it('converges a blank placeholder toward the seeded default, keeping filled values (#2607)', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    const p = await seedProject(t, 'Placeholder');
+    // The schedule dialog's skeleton left `""` placeholders; the operator only
+    // filled `owner`. The install seeds `projectId` from the binding — the
+    // blank placeholder must NOT shadow it, while `owner` stays the operator's.
+    const sched = await mkSched(t, {
+      projectId: p,
+      variables: { owner: 'acme', repo: '', projectId: '' },
+    });
+
+    await t.mutation(
+      internal.automations.install_mutations.reconcileAutomationSchedules,
+      {
+        organizationId: ORG,
+        automationSlug: AUTOMATION_SLUG,
+        desired: [
+          {
+            workflowSlug: SLUG,
+            cronExpression: CRON,
+            timezone: 'UTC',
+            projectId: p,
+            variables: { owner: 'file-owner', projectId: p },
+          },
+        ],
+      },
+    );
+
+    const row = await t.run((ctx) => ctx.db.get(sched));
+    expect(row?.variables).toEqual({
+      owner: 'acme',
+      repo: '',
+      projectId: p,
+    });
+  });
+
   it('never touches a schedule this automation does not own', async () => {
     const t = convexTest(schema, modules);
     await seedOrgInstall(t);
@@ -606,5 +644,30 @@ describe('reconcileAutomationSchedules', () => {
       owner: 'acme',
       repo: 'dup',
     });
+  });
+});
+
+describe('listAutomationInstallationsInternal (#2564)', () => {
+  it('returns only automation slugs with an automationInstallations row', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationInstallations', {
+        organizationId: ORG,
+        automationSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: 'tester',
+        status: 'active',
+        requiredIntegrations: [],
+        resources: [],
+      });
+    });
+
+    const slugs = await t.query(
+      internal.automations.install_mutations
+        .listAutomationInstallationsInternal,
+      { organizationId: ORG },
+    );
+
+    expect(slugs).toEqual(['issue-desk']);
   });
 });

@@ -25,6 +25,19 @@ describe('SettingsPage', () => {
       const { container } = render(<SettingsPage fitToContainer />);
       expect(container.firstChild).toHaveClass('min-h-0', 'flex-1');
     });
+
+    // #2567: every settings page shares the agent editor's Tools/Starters
+    // `max-w-3xl` width by default, so none regress to a narrower or
+    // inconsistent container.
+    it('caps content at max-w-3xl by default', () => {
+      const { container } = render(<SettingsPage />);
+      expect(container.firstChild).toHaveClass('mx-auto', 'max-w-3xl');
+    });
+
+    it('drops the max-w-3xl cap when fullWidth', () => {
+      const { container } = render(<SettingsPage fullWidth />);
+      expect(container.firstChild).not.toHaveClass('mx-auto', 'max-w-3xl');
+    });
   });
 
   describe('accessibility', () => {

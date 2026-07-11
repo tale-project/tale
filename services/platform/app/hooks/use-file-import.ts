@@ -230,9 +230,12 @@ export const customerMappers = {
 };
 
 /**
- * Vendor import mapper utilities.
+ * Contact import mapper utilities — shared by the contacts manual-entry
+ * (paste) and file-upload paths. Locale is left `undefined` when the file
+ * doesn't provide one; the server stores no locale rather than fabricating
+ * `'en'` for a value nobody chose (#2642).
  */
-export const vendorMappers = {
+export const contactMappers = {
   csv: (row: string[], _index: number) => {
     const email = row[0]?.trim();
     if (!email) return null;
@@ -249,7 +252,7 @@ export const vendorMappers = {
         : isLocale(second)
           ? undefined
           : second || undefined,
-      locale: third || (isLocale(second) ? second : undefined) || 'en',
+      locale: third || (isLocale(second) ? second : undefined),
       source: 'manual_import' as const,
     };
   },
@@ -260,7 +263,7 @@ export const vendorMappers = {
     return {
       email,
       name: pickField(record, NAME_HEADER_ALIASES),
-      locale: pickField(record, LOCALE_HEADER_ALIASES) || 'en',
+      locale: pickField(record, LOCALE_HEADER_ALIASES),
       source: 'file_upload' as const,
     };
   },

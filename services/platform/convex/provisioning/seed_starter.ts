@@ -18,17 +18,21 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 
+// Seeded copy must not tokenize as a real mention: `@mention` parses as the
+// (nonexistent) agent handle "mention" under the permissive 'all' agent mode
+// and fires phantom `task.mentioned` events on every fresh org — write "@"
+// followed by a space instead (see MENTION_RE in `tasks/mentions.ts`).
 const EXAMPLE_TASKS = [
   {
     title: 'Welcome — meet your assistant',
     description:
-      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog and install the agents you want. Then @mention any installed agent in a task or discussion to put them to work.',
+      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog and install the agents you want. Then mention any installed agent with @ in a task or discussion to put them to work.',
     priority: 'p2' as const,
   },
   {
     title: 'Draft a one-page company overview',
     description:
-      'A good first task to delegate: @mention your Assistant to draft a concise overview you can edit — or install the Content Writer agent from the Agents page and assign it there.',
+      'A good first task to delegate: mention your Assistant with @ and ask it to draft a concise overview you can edit — or install the Content Writer agent from the Agents page and assign it there.',
     priority: 'p3' as const,
   },
   {

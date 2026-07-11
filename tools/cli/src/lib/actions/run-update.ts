@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import pkg from '../../../package.json';
 import { compareVersions } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
-import { warnOnOrphanedConvexData } from '../docker/detect-legacy-convex-data';
+import {
+  type LegacyMigrationOutcome,
+  offerLegacyConvexDataMigration,
+} from '../docker/migrate-legacy-convex-data';
 import { requireProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
 import { writeProject } from '../project/write-project';
@@ -59,11 +62,15 @@ export interface RunUpdateDeps {
   /** Run the file-sync phase in-process (no binary change). */
   syncProjectFiles: (opts: RunUpdateOptions) => Promise<void>;
   /**
-   * Best-effort pre-0.3.2 volume-layout warning (P1-8, #1755): flags
-   * orphaned `platform-data` volumes before the operator deploys onto a
-   * fresh empty `convex-data` volume. Never throws.
+   * Best-effort pre-0.3.2 volume-layout pass (P1-8, #1755): warns loudly
+   * about an orphaned `platform-data` volume and offers to copy it into
+   * the `convex-data` volume before the operator deploys onto a fresh
+   * empty one. Never throws.
    */
-  warnOnOrphanedConvexData: (projectDir: string) => Promise<void>;
+  offerLegacyConvexDataMigration: (
+    projectDir: string,
+    opts: { dryRun?: boolean },
+  ) => Promise<LegacyMigrationOutcome>;
 }
 
 const defaultDeps: RunUpdateDeps = {
@@ -97,7 +104,7 @@ const defaultDeps: RunUpdateDeps = {
     return result.exitCode ?? 1;
   },
   syncProjectFiles,
-  warnOnOrphanedConvexData,
+  offerLegacyConvexDataMigration,
 };
 
 /** Sync the project files to the running binary's embedded templates. */
@@ -152,9 +159,12 @@ export async function runUpdate(
   logger.info(`Target version:    ${target}`);
 
   // Surface an orphaned pre-0.3.2 data volume BEFORE the operator moves on
-  // to `tale deploy` — deploying without the manual copy brings the
-  // instance up empty (P1-8, #1755). Best-effort; never blocks the update.
-  await deps.warnOnOrphanedConvexData(projectDir);
+  // to `tale deploy` — deploying without the copy brings the instance up
+  // empty (P1-8, #1755). Warns loudly and offers to run the copy right
+  // here; best-effort, never blocks the update.
+  await deps.offerLegacyConvexDataMigration(projectDir, {
+    dryRun: opts.dryRun,
+  });
 
   if (!opts.version && skipped.length > 0) {
     logger.warn(

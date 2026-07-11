@@ -21,7 +21,11 @@ function LegalHoldRoute() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <SettingsPage>
+    // `fullWidth`: these four sections' `DataTable`s declare explicit
+    // column-size floors from ~940px up to ~1440px (release requests) —
+    // wider than the `max-w-3xl` other settings pages standardized on
+    // (#2567).
+    <SettingsPage fullWidth>
       <div id="active-holds">
         <ActiveHoldsSection organizationId={organizationId} />
       </div>

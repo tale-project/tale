@@ -18,6 +18,7 @@ import {
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { readConvexErrorData } from '../convex-error-data';
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertRetentionPolicy } from '../hooks/mutations';
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
 import { type CategoryWireMapping, WIRE_MAPPING } from './retention-categories';
@@ -166,11 +167,13 @@ function RetentionEditFormBody({
           setConfirmOpen(false);
           return;
         }
-        const message =
-          error instanceof Error ? error.message : 'Failed to save';
         toast({
           title: t('toastSaveFailedTitle'),
-          description: message,
+          description: mapGovernanceSaveError(
+            error,
+            t,
+            t('retentionPolicy.saveFailed'),
+          ),
           variant: 'destructive',
         });
       }

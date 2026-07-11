@@ -6,7 +6,7 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Info, RefreshCw, Sparkles } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { useRegisterActiveEditor } from '@/app/components/ui/editor';
 import { toast } from '@/app/hooks/use-toast';
@@ -20,6 +20,7 @@ import {
   useGenerateGraphFromSpecification,
   useGenerateSpecificationFromGraph,
 } from '../hooks/specification-actions';
+import { useWorkflowSpecificationValidation } from '../hooks/use-workflow-specification-validation';
 import { ValidationMessages } from './validation-messages';
 import { WorkflowDiffDialog } from './workflow-diff-dialog';
 
@@ -128,6 +129,22 @@ export function WorkflowSpecification({
 
   const isDirty = draft !== (config?.specification ?? '');
 
+  // The exact value `handleSave` would persist (see its `trimmed ? liveDraft
+  // : undefined`) — mirrored here so a would-be-invalid draft that trims down
+  // to something valid never false-positives the gate below.
+  const trimmedDraft = draft.trim();
+  const specificationCandidate: WorkflowJsonConfig | undefined = config
+    ? { ...config, specification: trimmedDraft ? draft : undefined }
+    : undefined;
+  // Real client-side validity — the same `workflowJsonSchema` the server's
+  // `saveWorkflow` enforces, so Save disables instead of round-tripping to a
+  // guaranteed VALIDATION_ERROR once the draft exceeds the 20,000-character
+  // ceiling (#2665).
+  const specificationValidation = useWorkflowSpecificationValidation(
+    specificationCandidate,
+  );
+  const specificationErrorId = useId();
+
   // The registered controller re-registers only on STATE flips (isDirty …),
   // not per keystroke — so `save`/`reset` must read the live values through a
   // ref rather than their closures (the same reason `useFormEditor` reads
@@ -187,7 +204,7 @@ export function WorkflowSpecification({
     () => ({
       isDirty,
       isSaving: saveWorkflow.isPending,
-      isValid: true,
+      isValid: specificationValidation.isValid,
       isLoading,
       dirtyKeys: isDirty
         ? new Set<string>(['specification'])
@@ -195,7 +212,14 @@ export function WorkflowSpecification({
       save: handleSave,
       reset: handleDiscard,
     }),
-    [isDirty, saveWorkflow.isPending, isLoading, handleSave, handleDiscard],
+    [
+      isDirty,
+      saveWorkflow.isPending,
+      specificationValidation.isValid,
+      isLoading,
+      handleSave,
+      handleDiscard,
+    ],
   );
   useRegisterActiveEditor(controller);
 
@@ -331,6 +355,12 @@ export function WorkflowSpecification({
           bottom-center, so the bottom padding keeps text clear of it. */}
       <textarea
         aria-label={t('editorView.specification')}
+        aria-invalid={!specificationValidation.isValid || undefined}
+        aria-describedby={
+          specificationValidation.fieldErrors.specification
+            ? specificationErrorId
+            : undefined
+        }
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={t('editorView.placeholder')}
@@ -339,8 +369,22 @@ export function WorkflowSpecification({
           'border-input bg-background text-foreground placeholder:text-muted-foreground',
           'focus-visible:ring-ring min-h-64 w-full flex-1 resize-none rounded-lg border',
           'p-4 pb-16 font-mono text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none',
+          !specificationValidation.isValid &&
+            'border-destructive focus-visible:ring-destructive',
         )}
       />
+
+      {specificationValidation.fieldErrors.specification && (
+        <p
+          id={specificationErrorId}
+          role="alert"
+          aria-live="polite"
+          className="text-destructive flex items-center gap-1.5 text-sm"
+        >
+          <Info className="size-4 shrink-0" aria-hidden="true" />
+          {specificationValidation.fieldErrors.specification}
+        </p>
+      )}
 
       {!draft.trim() && (
         <div className="flex items-center justify-between gap-3">

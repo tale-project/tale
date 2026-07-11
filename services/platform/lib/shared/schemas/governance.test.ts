@@ -5,6 +5,7 @@ import {
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   mergeStrictestPasswordPolicy,
+  moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
 } from './governance';
 
@@ -92,6 +93,72 @@ describe('featureFlagsConfigSchema', () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+// #2657: disabling the moderation provider must not re-validate the
+// endpoint/template/custom-jsonpath fields it is turning off.
+describe('moderationProviderConfigSchema — validate-on-disable (#2657)', () => {
+  const unconfiguredEndpoint = {
+    url: '',
+    method: 'POST',
+    headers: {},
+    requestTemplate: '',
+    timeoutMs: 3000,
+    maxResponseBytes: 262_144,
+    bufferPolicy: {
+      minFlushChars: 120,
+      maxBufferChars: 800,
+      idleFlushMs: 400,
+      perStreamMaxConcurrent: 2,
+    },
+  };
+  const baseConfig = {
+    enabled: false,
+    appliesTo: ['input'],
+    endpoint: unconfiguredEndpoint,
+    responseShape: { type: 'openai_moderation' },
+    categoryMappings: [],
+    failBehavior: { input: 'open', output: 'closed' },
+    configVersion: 1,
+  };
+
+  it('accepts enabled:false with a blank/unconfigured endpoint', () => {
+    const result = moderationProviderConfigSchema.safeParse(baseConfig);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts enabled:false with a custom_jsonpath draft missing categoriesPath', () => {
+    const result = moderationProviderConfigSchema.safeParse({
+      ...baseConfig,
+      responseShape: {
+        type: 'custom_jsonpath',
+        categoriesPath: '',
+        categoryShape: 'record_of_bool',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects enabled:true with a blank endpoint URL', () => {
+    const result = moderationProviderConfigSchema.safeParse({
+      ...baseConfig,
+      enabled: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts enabled:true with a valid endpoint + request template', () => {
+    const result = moderationProviderConfigSchema.safeParse({
+      ...baseConfig,
+      enabled: true,
+      endpoint: {
+        ...unconfiguredEndpoint,
+        url: 'https://moderation.example.com/check',
+        requestTemplate: '{"text": {{text}}}',
+      },
+    });
+    expect(result.success).toBe(true);
   });
 });
 

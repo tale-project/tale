@@ -110,7 +110,7 @@ function AgentDetailLayout() {
   if (!isLoading && (loadFailed || !agentConfig)) {
     return (
       <PageLayout>
-        <ContentArea variant="narrow" className="py-6">
+        <ContentArea className="mx-auto max-w-3xl px-4 py-6">
           <Text variant="muted">{t('agents.agentNotFound')}</Text>
         </ContentArea>
       </PageLayout>
@@ -253,7 +253,8 @@ function AgentDetailLayout() {
         }
       >
         <Skeletonize loading label={t('agents.title')}>
-          <ContentArea variant="narrow" className="py-4">
+          {/* Same width as the loaded tabs (#2567) so the swap doesn't jump. */}
+          <ContentArea className="mx-auto max-w-3xl px-4 py-4">
             <Stack gap={6}>
               <Stack gap={1}>
                 <SkeletonText lines={1} />

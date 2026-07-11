@@ -20,8 +20,12 @@ vi.mock('../_generated/server', () => ({
   internalAction: vi.fn((config) => config),
 }));
 
-const { scaffoldNewOrganization, cleanupOrgFilesystem } =
-  await import('./scaffold');
+const {
+  scaffoldNewOrganization,
+  cleanupOrgFilesystem,
+  listMissingScaffoldDomains,
+  scaffoldOrgFromCatalog,
+} = await import('./scaffold');
 
 type ActionConfig = {
   handler: (
@@ -740,5 +744,123 @@ describe('cleanupOrgFilesystem (symlink + traversal defense)', () => {
       await rm(orgDst('acme'), { force: true });
       await rm(outside, { recursive: true, force: true });
     }
+  });
+});
+
+describe('provisioning status + repair (#2636)', () => {
+  const RETENTION_JSON =
+    '{"documents":{"min":1,"max":365,"default":30,"unit":"days"}}';
+
+  // A real builtin catalog ships a dir for every scaffolded domain. The
+  // sparse fixtures above deliberately omit most; without the full dir set a
+  // domain with no source dir reports the deploy-misconfig error and taints
+  // `ok` for what this suite wants to prove (fixture artifact, not behaviour).
+  async function ensureCatalogDomainDirs(): Promise<void> {
+    const { CONFIG_DOMAINS } = await import('../../lib/shared/config/registry');
+    for (const domain of CONFIG_DOMAINS) {
+      if (domain.scaffoldKind) {
+        await mkdir(catSrc(domain.name), { recursive: true });
+      }
+    }
+  }
+
+  it('a failed create-time scaffold is detectable, and one idempotent retry provisions EVERY domain (providers + governance included)', async () => {
+    // Catalog ships content for four scaffolded domains — deliberately
+    // including providers and governance, the two the per-domain catalog
+    // sync (CatalogSyncDomain) cannot repair from the UI.
+    await ensureCatalogDomainDirs();
+    await writeText(
+      catSrc('providers', 'openrouter.json'),
+      VALID_PROVIDER_JSON,
+    );
+    await writeText(catSrc('governance', 'retention.json'), RETENTION_JSON);
+    await writeText(catSrc('agents', 'helper.json'), VALID_AGENT_JSON);
+    await writeText(
+      catSrc('workflows', 'shopify', 'sync.json'),
+      '{"name":"sync"}',
+    );
+
+    // Simulate the org-create failure mode (#2631): `org.create` succeeded
+    // but the scheduled scaffold could not run — nothing lands on disk.
+    // (beforeEach leaves TALE_CONFIG_BUILTIN_DIR unset.)
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failed = await scaffoldHandler({} as never, {
+      orgSlug: 'acme',
+      cleanFirst: true,
+    });
+    errSpy.mockRestore();
+    expect(failed.ok).toBe(false);
+    expect(failed.skipped).toBe(true);
+    expect(existsSync(orgDst('acme'))).toBe(false);
+
+    // The derived status names exactly the un-seeded domains, in registry
+    // order — no persisted marker required, so it can't drift.
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    expect(await listMissingScaffoldDomains('acme')).toEqual([
+      'agents',
+      'providers',
+      'workflows',
+      'governance',
+    ]);
+
+    // One retry with the repair action's exact semantics (override:false,
+    // NO cleanFirst) restores every domain from the catalog...
+    const retry = await scaffoldOrgFromCatalog({
+      orgSlug: 'acme',
+      override: false,
+      cleanFirst: false,
+    });
+    expect(retry.ok).toBe(true);
+    expect(existsSync(orgDst('acme', 'providers', 'openrouter.json'))).toBe(
+      true,
+    );
+    expect(existsSync(orgDst('acme', 'governance', 'retention.json'))).toBe(
+      true,
+    );
+    expect(existsSync(orgDst('acme', 'agents', 'helper.json'))).toBe(true);
+    expect(
+      existsSync(orgDst('acme', 'workflows', 'shopify', 'sync.json')),
+    ).toBe(true);
+
+    // ...and the status self-clears: fully provisioned.
+    expect(await listMissingScaffoldDomains('acme')).toEqual([]);
+  });
+
+  it('a partial scaffold: only the empty domains are missing, and the retry fills them WITHOUT touching user-authored files', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await ensureCatalogDomainDirs();
+    await writeText(
+      catSrc('providers', 'openrouter.json'),
+      VALID_PROVIDER_JSON,
+    );
+    await writeText(catSrc('agents', 'helper.json'), VALID_AGENT_JSON);
+    // The crash happened after providers seeded; the user has since edited it.
+    const userEdit =
+      '{"displayName":"Mine","baseUrl":"https://me","models":[]}';
+    await writeText(orgDst('acme', 'providers', 'openrouter.json'), userEdit);
+
+    expect(await listMissingScaffoldDomains('acme')).toEqual(['agents']);
+
+    const retry = await scaffoldOrgFromCatalog({
+      orgSlug: 'acme',
+      override: false,
+      cleanFirst: false,
+    });
+    expect(retry.ok).toBe(true);
+    // The occupied domain is untouched — repair must never clobber user work.
+    expect(
+      await readFile(orgDst('acme', 'providers', 'openrouter.json'), 'utf-8'),
+    ).toBe(userEdit);
+    expect(existsSync(orgDst('acme', 'agents', 'helper.json'))).toBe(true);
+    expect(await listMissingScaffoldDomains('acme')).toEqual([]);
+  });
+
+  it('returns null (unknown, never "unprovisioned") when the probe cannot run', async () => {
+    // TALE_CONFIG_BUILTIN_DIR unset (beforeEach): a misconfigured deploy must
+    // not flag every org as broken with an unrepairable banner.
+    expect(await listMissingScaffoldDomains('acme')).toBeNull();
+    // Invalid slug: refuse to probe rather than path-join it.
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    expect(await listMissingScaffoldDomains('../escape')).toBeNull();
   });
 });

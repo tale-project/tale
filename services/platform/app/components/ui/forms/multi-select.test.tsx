@@ -63,6 +63,30 @@ describe('MultiSelect', () => {
       expect(screen.getByText('A red fruit')).toBeInTheDocument();
     });
 
+    // #2571: a long catalog/workflow/skill description must not blow out the
+    // popover row — clamped to two lines, with the full text one hover away
+    // via `title` (an accessible affordance since `line-clamp` only affects
+    // paint, never the a11y tree — the full text stays in the DOM).
+    it('clamps a long option description to two lines and keeps the full text via title', async () => {
+      const longDescription =
+        'A '.repeat(80) +
+        'very long catalog description that would otherwise blow out the row.';
+      const { user } = renderSelect({
+        options: [
+          {
+            value: 'long',
+            label: 'Long option',
+            description: longDescription,
+          },
+        ],
+      });
+      await user.click(screen.getByText('Open select'));
+
+      const description = screen.getByText(longDescription);
+      expect(description).toHaveClass('line-clamp-2');
+      expect(description).toHaveAttribute('title', longDescription);
+    });
+
     it('marks selected options with aria-selected', async () => {
       const { user } = renderSelect({ value: ['apple'] });
       await user.click(screen.getByText('Open select'));

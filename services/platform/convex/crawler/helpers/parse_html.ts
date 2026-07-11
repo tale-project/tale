@@ -1,41 +1,42 @@
 'use node';
 
 /**
- * Shared JSDOM entry point for the crawler — every wild-page HTML parse in
+ * Shared linkedom entry point for the crawler — every wild-page HTML parse in
  * this subsystem goes through here (content pruning, structured data, title,
  * BFS link discovery).
  *
- * Two things make a bare `new JSDOM(html)` expensive at crawl volume, and
- * neither buys the crawler anything (no consumer reads styles):
- *
- *  - jsdom eagerly parses every inline `<style>` block into a CSSOM; real
- *    pages ship large, often non-standard stylesheets, so this is pure CPU +
- *    heap burn. Blocks are stripped BEFORE construction. (External
- *    stylesheets are never fetched — no `resources` loader — and `style=""`
- *    attributes parse lazily, so those cost nothing here.)
- *  - each failed sheet logs "Could not parse CSS stylesheet" through the
- *    default virtual console; at pages/second that floods the backend log
- *    pipeline. A shared listener-less VirtualConsole drops the residue.
- *
- * This matters doubly because crawler actions run INSIDE the shared Convex
- * backend process — cycles and log lines here are taken directly from
+ * linkedom never wires a CSS engine into HTML parsing: a `<style>` element's
+ * `.sheet` is parsed lazily on first read (see linkedom's `HTMLStyleElement`),
+ * and no consumer here ever reads it — so, unlike the jsdom this replaces,
+ * broken inline stylesheets cost nothing and never spam a virtual console.
+ * Blocks are still stripped BEFORE parsing anyway, purely to cut the amount
+ * of markup the parser has to walk at crawl volume (real pages ship large,
+ * often non-standard stylesheets that are pure overhead for a DOM nobody
+ * reads styles from). This matters doubly because crawler actions run INSIDE
+ * the shared Convex backend process — cycles here are taken directly from
  * interactive traffic (see scan_scheduler.ts's pacing notes).
  */
-import { JSDOM, VirtualConsole } from 'jsdom';
+import { NodeFilter, parseHTML } from 'linkedom';
 
 const STYLE_BLOCK_RE = /<style\b[^>]*>[\s\S]*?<\/style\s*>/gi;
 
-// Listener-less: jsdomError events (CSS parse failures & friends) are
-// silently dropped. Scripts never run (no `runScripts`), so nothing a page
-// could log is lost either.
-const quietConsole = new VirtualConsole();
-
-/** Drop inline `<style>…</style>` blocks (the eager-CSSOM cost) from raw HTML. */
+/** Drop inline `<style>…</style>` blocks (pure parse-time cost) from raw HTML. */
 export function stripStyleBlocks(html: string): string {
   return html.replace(STYLE_BLOCK_RE, '');
 }
 
-/** Parse crawled HTML into a JSDOM without CSS work or jsdomError log spam. */
-export function parseHtml(html: string): JSDOM {
-  return new JSDOM(stripStyleBlocks(html), { virtualConsole: quietConsole });
+/** A parsed page, mirroring the `{ window }` shape every call site already uses. */
+export interface ParsedHtml {
+  window: ReturnType<typeof parseHTML>;
 }
+
+/** Parse crawled HTML into a lightweight linkedom document. */
+export function parseHtml(html: string): ParsedHtml {
+  return { window: parseHTML(stripStyleBlocks(html)) };
+}
+
+// Re-exported so consumers that need `NodeFilter` (e.g. `createTreeWalker`)
+// get it from this same boundary instead of reaching into `linkedom`
+// directly — linkedom's `window` proxy, unlike jsdom's, does not expose
+// `NodeFilter` as a global, so it must come from the module import.
+export { NodeFilter };

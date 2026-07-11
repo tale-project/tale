@@ -59,7 +59,7 @@ services/platform/.env*.local
 # Integration/container test suites + AI-QA playbooks (live in @tale/platform,
 # never shipped in the image).
 services/platform/tests/
-designs/
+design/sources/
 scripts/
 knip-results.json
 .playwright-mcp/

@@ -123,9 +123,9 @@ Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger
 
 ## Upgrade von 0.3.1 oder älter
 
-Instanzen auf Version 0.3.1 oder älter halten die Daten des Convex-Backends im Docker-Volume `platform-data`. Neuere Versionen betreiben Convex als eigenen Service mit eigenem `convex-data`-Volume — und die automatische Kopie, die frühe Releases für diesen Umzug mitbrachten, ist nicht mehr im CLI. Springst du direkt über diese Grenze, legt `tale deploy` ein **leeres** `convex-data`-Volume an: Die Instanz kommt leer hoch, während jedes Byte deiner Daten unangetastet im alten `platform-data`-Volume liegt. Gelöscht wird nichts — aber die Daten ziehen nicht von selbst um, und `tale update` warnt, wenn es diese Konstellation erkennt.
+Instanzen auf Version 0.3.1 oder älter halten die Daten des Convex-Backends im Docker-Volume `platform-data`. Neuere Versionen betreiben Convex als eigenen Service mit eigenem `convex-data`-Volume — und beim Deploy zieht nichts die Daten automatisch um. Springst du direkt über diese Grenze, legt `tale deploy` ein **leeres** `convex-data`-Volume an: Die Instanz kommt leer hoch, während jedes Byte deiner Daten unangetastet im alten `platform-data`-Volume liegt. Gelöscht wird nichts — aber die Daten ziehen nicht von selbst um, und `tale update` warnt, wenn es diese Konstellation erkennt, und bietet dir an, die Kopie direkt auszuführen.
 
-Docker kennt kein natives Volume-Rename, der Umzug ist also eine Kopie durch einen Helfer-Container. Führ ihn vor `tale deploy` aus — mit gestopptem Stack, damit nichts das Volume offen hält:
+Docker kennt kein natives Volume-Rename, der Umzug ist also eine Kopie durch einen Helfer-Container — genau die Schritte, die `tale update` für dich ausführt, wenn du den Prompt bestätigst (das alte Volume bleibt in jedem Fall erhalten). Von Hand — weil du den Prompt abgelehnt hast oder die automatische Kopie fehlgeschlagen ist — führst du ihn vor `tale deploy` aus, mit gestopptem Stack, damit nichts das Volume offen hält:
 
 ```bash
 # 1. Das Legacy-Volume finden — <project> ist die `id` in tale.json.

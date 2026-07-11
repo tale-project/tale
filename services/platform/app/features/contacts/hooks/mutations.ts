@@ -14,6 +14,14 @@ export function useBulkCreateContacts() {
   return useConvexMutation(api.contacts.mutations.bulkCreateContacts);
 }
 
+export function useCreateContact() {
+  return useConvexMutation(api.contacts.mutations.createContact, {
+    // The create dialog shows its own specific error toast (duplicate-email
+    // vs generic) — see `useCreateProduct` for the same pattern.
+    errorToast: false,
+  });
+}
+
 export function useDeleteContact() {
   return useConvexMutation(api.contacts.mutations.deleteContact, {
     // EntityDeleteDialog shows its own specific error toast.

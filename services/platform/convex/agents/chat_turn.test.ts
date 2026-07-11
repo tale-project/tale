@@ -67,6 +67,12 @@ interface TurnArgs {
   threadId: string;
   organizationId: string;
   message: string;
+  attachments?: Array<{
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }>;
 }
 
 const turnHandler = (
@@ -274,5 +280,114 @@ describe('chatWithAgentTurn — thread-access gate', () => {
       'user_owner',
       't_app',
     );
+  });
+});
+
+/**
+ * #2661 — `chatWithAgentTurn` re-enforces the composer's attachment caps
+ * server-side (count / per-file size / total size / MIME allowlist),
+ * mirroring `validateTaskAttachments` (convex/tasks/attachments.ts). Before
+ * this, a scripted client bypassing `useConvexFileUpload`'s client-side
+ * gates could attach an unbounded `attachments[]` — none of these four caps
+ * were re-checked here.
+ */
+describe('chatWithAgentTurn — attachment caps (#2661)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthUserIdentity.mockResolvedValue({
+      userId: 'user_owner',
+      email: 'owner@example.com',
+      name: 'Owner',
+    });
+    mockCreateStream.mockResolvedValue('stream_1');
+  });
+
+  function pdfAttachment(fileSize: number, i: number) {
+    return {
+      fileId: `file_${i}`,
+      fileName: `doc-${i}.pdf`,
+      fileType: 'application/pdf',
+      fileSize,
+    };
+  }
+
+  function ownerCtx() {
+    const tables: Record<string, Row[]> = {
+      threadMetadata: [appThreadMeta({ kind: undefined })],
+      memberMirror: [],
+    };
+    return { tables, ctx: makeCtx(tables) };
+  }
+
+  it('rejects an over-count attachment set (the bypass: 11 files)', async () => {
+    const { tables, ctx } = ownerCtx();
+    const attachments = Array.from({ length: 11 }, (_, i) =>
+      pdfAttachment(1024, i),
+    );
+
+    await expect(
+      turnHandler(ctx, { ...baseArgs, attachments }),
+    ).rejects.toMatchObject({ data: { code: 'CHAT_ATTACHMENTS_TOO_MANY' } });
+    expect(tables.threadMetadata?.[0]?.generationStatus).toBeUndefined();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('rejects a single oversized file (the bypass: 5e8 bytes)', async () => {
+    const { tables, ctx } = ownerCtx();
+    const attachments = [pdfAttachment(5e8, 0)];
+
+    await expect(
+      turnHandler(ctx, { ...baseArgs, attachments }),
+    ).rejects.toMatchObject({ data: { code: 'CHAT_ATTACHMENT_TOO_LARGE' } });
+    expect(tables.threadMetadata?.[0]?.generationStatus).toBeUndefined();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('rejects a total size over the combined cap even with each file individually under the per-file cap', async () => {
+    const { tables, ctx } = ownerCtx();
+    // 3 files x 90 MB = 270 MB > the 200 MB total cap, each under the 100 MB
+    // per-file cap on its own.
+    const ninetyMb = 90 * 1024 * 1024;
+    const attachments = [
+      pdfAttachment(ninetyMb, 0),
+      pdfAttachment(ninetyMb, 1),
+      pdfAttachment(ninetyMb, 2),
+    ];
+
+    await expect(
+      turnHandler(ctx, { ...baseArgs, attachments }),
+    ).rejects.toMatchObject({
+      data: { code: 'CHAT_ATTACHMENTS_TOTAL_SIZE_EXCEEDED' },
+    });
+    expect(tables.threadMetadata?.[0]?.generationStatus).toBeUndefined();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('rejects a disallowed MIME type', async () => {
+    const { tables, ctx } = ownerCtx();
+    const attachments = [
+      {
+        fileId: 'file_0',
+        fileName: 'payload.exe',
+        fileType: 'application/x-msdownload',
+        fileSize: 1024,
+      },
+    ];
+
+    await expect(
+      turnHandler(ctx, { ...baseArgs, attachments }),
+    ).rejects.toMatchObject({ data: { code: 'CHAT_ATTACHMENT_TYPE_INVALID' } });
+    expect(tables.threadMetadata?.[0]?.generationStatus).toBeUndefined();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('accepts an attachment set within every cap', async () => {
+    const { tables, ctx } = ownerCtx();
+    const attachments = [pdfAttachment(1024, 0), pdfAttachment(2048, 1)];
+
+    const result = await turnHandler(ctx, { ...baseArgs, attachments });
+
+    expect(result.streamId).toBe('stream_1');
+    expect(tables.threadMetadata?.[0]?.generationStatus).toBe('generating');
   });
 });

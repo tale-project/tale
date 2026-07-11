@@ -19,6 +19,7 @@ const t = ((key: string, params?: Record<string, string | number>) => {
     'tools.ragSearch': 'Knowledge Base Search',
     'tools.web': 'Web',
     'tools.excel': 'Excel',
+    'tools.automationSearch': 'Automation search',
   };
   return translations[key] ?? key;
 }) as unknown as TFunction;
@@ -74,6 +75,15 @@ describe('formatToolDetail', () => {
       'Contact Read',
     );
     expect(formatToolDetail(t, 'excel').displayText).toBe('Excel');
+  });
+
+  // #2645: without a `TOOL_LABEL_KEYS` entry, `automation_search` fell back to
+  // the Title-Case slug humanizer ("Automation Search"), the one tool
+  // breaking the sentence-case convention every other tool follows.
+  it('sentence-cases automation_search via the explicit display-name map', () => {
+    expect(formatToolDetail(t, 'automation_search').displayText).toBe(
+      'Automation search',
+    );
   });
 
   it('Title-Cases unknown snake_case tool names', () => {

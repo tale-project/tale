@@ -1,7 +1,7 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { ContactInformation } from './contact-information';
 
@@ -31,6 +31,22 @@ function makeContactInfo(overrides = {}) {
 }
 
 describe('ContactInformation', () => {
+  it('localizes the raw source enum instead of printing it verbatim (#2643)', () => {
+    render(<ContactInformation contact={makeContactDoc()} />);
+
+    expect(screen.getByText('Manual Import')).toBeInTheDocument();
+    expect(screen.queryByText('manual_import')).not.toBeInTheDocument();
+  });
+
+  it('renders an em-dash instead of fabricating a locale when unset (#2642)', () => {
+    render(
+      <ContactInformation contact={makeContactDoc({ locale: undefined })} />,
+    );
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText('en')).not.toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with full contact document', async () => {
       const { container } = render(

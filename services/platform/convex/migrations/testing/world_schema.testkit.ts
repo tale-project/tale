@@ -45,21 +45,23 @@ import {
 } from '../../automations/schema';
 import { userNotificationsTable } from '../../collab/schema';
 import { contactsTable } from '../../contacts/schema';
-import {
-  conversationMessagesTable,
-  conversationsTable,
-} from '../../conversations/schema';
+import { conversationMessagesTable } from '../../conversations/schema';
 import {
   ssoConnectionsTable,
   ssoProvisioningLinksTable,
 } from '../../enterprise_sso/schema';
 import { dsarPolicyPendingChangesTable } from '../../governance/schema';
+import { lifecycleStatusValidator } from '../../governance/soft_delete_validators';
 import { integrationCredentialsTable } from '../../integrations/credentials_schema';
 import { configCacheTable } from '../../lib/config_cache/schema';
 import { jsonRecordValidator } from '../../lib/validators/json';
 import { projectsTable } from '../../projects/schema';
 import { ssoProvidersTable } from '../../sso_providers/schema';
-import { supportCasesTable } from '../../support_cases/schema';
+import {
+  supportCaseActorTypeValidator,
+  supportCasePriorityValidator,
+  supportCaseStatusValidator,
+} from '../../support_cases/schema';
 import { threadFilesTable } from '../../thread_files/schema';
 import {
   chatTypeValidator,
@@ -214,6 +216,124 @@ export const worldThreadMetadataTable = defineTable({
   .index('by_organizationId', ['organizationId']);
 
 /**
+ * `conversations` as a CHAIN union (0.2.90 → 0.3.4/31). Otherwise identical
+ * to the current production table (`conversations/schema.ts`), with the
+ * legacy `customerId` FK restored: the Customers + Vendors → Contacts merge
+ * (issue #2618) drops it from the live schema at 0.3.4/31, but 0.3.4/22-28
+ * still read/write it while repointing conversations onto `contacts`, and
+ * the corpus seeds rows carrying it at earlier eras (`world/seed_db.testkit`,
+ * `world/injections.testkit`). Keep every field/index in lockstep with
+ * `conversationsTable` — only the extra `customerId` diverges.
+ */
+export const worldConversationsTable = defineTable({
+  organizationId: v.string(),
+  /**
+   * Legacy FK, dropped from the live schema by 0.3.4/31 (issue #2618). A
+   * bare string, not `v.id('customers')` — the `customers` table itself is
+   * already gone by the time this field is cleared (see the production
+   * field's pre-drop comment, preserved in `git show` history).
+   */
+  customerId: v.optional(v.string()),
+  contactId: v.optional(v.id('contacts')),
+  externalMessageId: v.optional(v.string()),
+  subject: v.optional(v.string()),
+  status: v.optional(
+    v.union(
+      v.literal('open'),
+      v.literal('closed'),
+      v.literal('spam'),
+      v.literal('archived'),
+    ),
+  ),
+  priority: v.optional(v.string()),
+  type: v.optional(v.string()),
+  channel: v.optional(v.string()),
+  direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
+  integrationName: v.optional(v.string()),
+  lastMessageAt: v.optional(v.number()),
+  metadata: v.optional(jsonRecordValidator),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
+  .index('by_organizationId_and_status', ['organizationId', 'status'])
+  .index('by_organizationId_and_priority', ['organizationId', 'priority'])
+  .index('by_organizationId_and_contactId', ['organizationId', 'contactId'])
+  .index('by_organizationId_and_direction', ['organizationId', 'direction'])
+  .index('by_organizationId_and_channel', ['organizationId', 'channel'])
+  .index('by_organizationId_and_type', ['organizationId', 'type'])
+  .index('by_organizationId_and_externalMessageId', [
+    'organizationId',
+    'externalMessageId',
+  ])
+  .index('by_org_lastMessageAt', ['organizationId', 'lastMessageAt'])
+  .index('by_org_status_lastMessageAt', [
+    'organizationId',
+    'status',
+    'lastMessageAt',
+  ])
+  .index('by_org_integration_status_lastMessageAt', [
+    'organizationId',
+    'integrationName',
+    'status',
+    'lastMessageAt',
+  ])
+  .index('by_org_integration_channel', [
+    'organizationId',
+    'integrationName',
+    'channel',
+  ]);
+
+/**
+ * `supportCases` as a CHAIN union. Sibling of {@link worldConversationsTable}
+ * for the same reason: identical to the current production table
+ * (`support_cases/schema.ts`) with the legacy `customerId` FK restored for
+ * 0.3.4/25 + 0.3.4/28 and the corpus seeds that still carry it.
+ */
+export const worldSupportCasesTable = defineTable({
+  organizationId: v.string(),
+  subject: v.string(),
+  description: v.optional(v.string()),
+  status: supportCaseStatusValidator,
+  priority: v.optional(supportCasePriorityValidator),
+  escalationLevel: v.optional(v.number()),
+  escalatedAt: v.optional(v.number()),
+  assigneeType: v.optional(supportCaseActorTypeValidator),
+  assigneeId: v.optional(v.string()),
+  /**
+   * Legacy FK, dropped from the live schema by 0.3.4/32 (issue #2618). A
+   * bare string, not `v.id('customers')` — see
+   * {@link worldConversationsTable}'s `customerId`.
+   */
+  customerId: v.optional(v.string()),
+  contactId: v.optional(v.id('contacts')),
+  requesterEmail: v.optional(v.string()),
+  requesterName: v.optional(v.string()),
+  slaDueAt: v.optional(v.number()),
+  firstRespondedAt: v.optional(v.number()),
+  resolvedAt: v.optional(v.number()),
+  closedAt: v.optional(v.number()),
+  commentCount: v.optional(v.number()),
+  statusChangedAt: v.optional(v.number()),
+  createdBy: v.string(),
+  createdByType: supportCaseActorTypeValidator,
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  archivedAt: v.optional(v.number()),
+})
+  .index('by_organization', ['organizationId'])
+  .index('by_org_status', ['organizationId', 'status'])
+  .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
+  .index('by_org_escalation', ['organizationId', 'escalationLevel'])
+  .index('by_assignee', ['organizationId', 'assigneeType', 'assigneeId'])
+  .index('by_contact', ['contactId'])
+  .index('by_org_sla', ['organizationId', 'slaDueAt']);
+
+/**
  * Every table any runnable migration (or an internal function a node
  * migration calls) reads or writes across the 0.2.85 → 0.3.4 chain, plus the
  * framework's own tables. Current shapes are imported from the per-feature
@@ -260,7 +380,7 @@ export const worldSchema = defineSchema({
   threadFiles: threadFilesTable,
 
   // --- 0.2.90 ---------------------------------------------------------------
-  conversations: conversationsTable,
+  conversations: worldConversationsTable,
   conversationMessages: conversationMessagesTable,
   integrationCredentials: integrationCredentialsTable,
   agentInstallations: agentInstallationsTable,
@@ -276,5 +396,5 @@ export const worldSchema = defineSchema({
   contacts: contactsTable,
   customers: legacyCustomersTable,
   vendors: legacyVendorsTable,
-  supportCases: supportCasesTable,
+  supportCases: worldSupportCasesTable,
 });

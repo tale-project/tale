@@ -328,6 +328,7 @@ export function useDocumentsTableConfig({
               teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
+              ragStatus={row.original.ragStatus}
             />
           </HStack>
         ),

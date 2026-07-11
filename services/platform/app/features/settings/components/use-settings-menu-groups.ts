@@ -2,6 +2,7 @@ import {
   Box,
   Building2,
   Bell,
+  ChartColumn,
   Globe,
   IdCard,
   KeyRound,
@@ -122,6 +123,12 @@ export function useSettingsMenuGroups(
         key: 'governance',
         icon: Shield,
         path: 'governance',
+        can: ['read', 'orgSettings'],
+      },
+      {
+        key: 'metrics',
+        icon: ChartColumn,
+        path: 'metrics',
         can: ['read', 'orgSettings'],
       },
       {

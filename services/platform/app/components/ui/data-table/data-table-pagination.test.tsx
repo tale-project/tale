@@ -1,4 +1,4 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -55,6 +55,36 @@ describe('DataTablePagination', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  describe('entity noun pluralization (#2646)', () => {
+    it('uses the singular noun for a single-item total', () => {
+      const { getByText } = render(
+        <DataTablePagination
+          currentPage={1}
+          total={1}
+          pageSize={10}
+          onPageChange={vi.fn()}
+          entityLabel={{ one: 'member', other: 'members' }}
+        />,
+      );
+
+      expect(getByText('Showing 1-1 of 1 member')).toBeInTheDocument();
+    });
+
+    it('uses the plural noun for more than one item', () => {
+      const { getByText } = render(
+        <DataTablePagination
+          currentPage={1}
+          total={5}
+          pageSize={10}
+          onPageChange={vi.fn()}
+          entityLabel={{ one: 'member', other: 'members' }}
+        />,
+      );
+
+      expect(getByText('Showing 1-5 of 5 members')).toBeInTheDocument();
     });
   });
 });

@@ -9,7 +9,12 @@ import { useMemo } from 'react';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
-import { type ContactData, isContactDoc } from '../lib/contact-data';
+import {
+  type ContactData,
+  getContactLocaleLabel,
+  getContactSourceLabel,
+  isContactDoc,
+} from '../lib/contact-data';
 
 interface InfoRowProps {
   label: string;
@@ -62,14 +67,14 @@ export function ContactInfoCard({ contact }: { contact: ContactData }) {
           </Text>
         </InfoRow>
         <InfoRow label={t('labels.locale')}>
-          <Text className="text-[13px]">{contact.locale || 'en'}</Text>
+          <Text className="text-[13px]">
+            {getContactLocaleLabel(contact.locale)}
+          </Text>
         </InfoRow>
         <InfoRow label={t('labels.source')}>
           {contact.source ? (
             <Badge variant="outline">
-              {contact.source
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, (c) => c.toUpperCase())}
+              {getContactSourceLabel(contact.source, t('labels.notAvailable'))}
             </Badge>
           ) : (
             <Text className="text-[13px]">{t('labels.notAvailable')}</Text>

@@ -763,6 +763,133 @@ export const cleanupOrgFilesystem = internalAction({
   },
 });
 
+export interface ScaffoldRunResult {
+  ok: boolean;
+  skipped: boolean;
+  results: DomainResult[];
+}
+
+/**
+ * The scaffold core, callable as a plain function so the provisioning-repair
+ * action (`organizations/actions.ts:retryProvisioning`) can re-run the exact
+ * org-create seeding in-process instead of paying an action→action hop.
+ * Semantics are documented on {@link scaffoldNewOrganization}, whose handler
+ * delegates here.
+ */
+export async function scaffoldOrgFromCatalog(args: {
+  orgSlug: string;
+  override?: boolean;
+  strict?: boolean;
+  cleanFirst?: boolean;
+}): Promise<ScaffoldRunResult> {
+  if (!validateOrgSlug(args.orgSlug)) {
+    console.warn(
+      `[scaffoldNewOrganization] refusing invalid slug "${args.orgSlug}"`,
+    );
+    return { ok: false, skipped: true, results: [] };
+  }
+
+  // Symmetric guard to cleanupOrgFilesystem: refuse to operate on a
+  // non-absolute or unset config root rather than writing relative
+  // paths into the action's CWD.
+  const configRoot = process.env.TALE_CONFIG_DIR;
+  if (!configRoot || !path.isAbsolute(configRoot)) {
+    const msg =
+      '[scaffoldNewOrganization] TALE_CONFIG_DIR is unset or not absolute; refusing to proceed';
+    console.error(msg);
+    if (args.strict) {
+      throw new Error(msg);
+    }
+    return { ok: false, skipped: true, results: [] };
+  }
+
+  // Opportunistic janitor: sweep root-level `.deleted-*` AND nested
+  // `<org>/<domain>/<bundle>.staging-*` orphans older than 24h before
+  // any per-domain work. Without this, a bundle staging dir orphaned
+  // by a prior crash would make `dirHasFiles` return true and the
+  // domain's non-override seed would skip indefinitely (round-2 P1-14).
+  // Best-effort: errors only log.
+  await sweepStaleCondemnedDirs(configRoot).catch((err) => {
+    console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
+  });
+
+  // The built-in catalog is required — there is no fallback to any org's live
+  // dir. Dev (dev-engine), prod (Dockerfile), and E2E (playwright) all set it.
+  const catalogRoot = process.env[BUILTIN_ENV];
+  if (!catalogRoot || !path.isAbsolute(catalogRoot)) {
+    const msg = `[scaffoldNewOrganization] ${BUILTIN_ENV} is unset or not absolute; refusing to proceed`;
+    console.error(msg);
+    if (args.strict) {
+      throw new Error(msg);
+    }
+    return { ok: false, skipped: true, results: [] };
+  }
+  const override = args.override ?? false;
+
+  // Exact-mirror org-create: purge any leftover subtree for this (new) slug
+  // before seeding, so renamed/removed catalog files don't survive as
+  // orphans and the per-domain `override:false` skip can't strand a domain a
+  // prior org left files in. Guarded + idempotent (a no-op when absent).
+  if (args.cleanFirst) {
+    await removeOrgSubtree(configRoot, args.orgSlug);
+  }
+
+  const results: DomainResult[] = [];
+  for (const domain of CONFIG_DOMAINS) {
+    results.push(await seedDomain(domain, catalogRoot, args.orgSlug, override));
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0 && args.strict) {
+    const detail = failed
+      .map((r) => `${r.domain}: ${r.error ?? 'unknown error'}`)
+      .join('; ');
+    throw new Error(
+      `scaffold "${args.orgSlug}": ${failed.length}/${results.length} domains failed — ${detail}`,
+    );
+  }
+
+  return {
+    ok: failed.length === 0,
+    skipped: false,
+    results,
+  };
+}
+
+/**
+ * Derived provisioning status for one org: the scaffold-covered domains whose
+ * builtin catalog dir HAS files while the org's dir has none — i.e. the
+ * org-create seed would have copied something but demonstrably didn't (the
+ * failure mode a crashed/skipped `scaffoldNewOrganization` leaves behind).
+ * Deliberately file-derived rather than persisted: no schema change, and the
+ * signal self-heals the moment a retry (or any reseed) lands the files.
+ *
+ * Returns `null` when the probe cannot run (config root or builtin catalog
+ * env unset) — callers must treat that as "unknown", not "unprovisioned",
+ * so a misconfigured deploy doesn't nag every org with an unrepairable
+ * banner. A partially-copied single domain (dir exists but incomplete) is
+ * out of scope: the per-domain catalog sync covers that repair.
+ */
+export async function listMissingScaffoldDomains(
+  orgSlug: string,
+): Promise<string[] | null> {
+  if (!validateOrgSlug(orgSlug)) return null;
+  const configRoot = process.env.TALE_CONFIG_DIR;
+  const catalogRoot = process.env[BUILTIN_ENV];
+  if (!configRoot || !path.isAbsolute(configRoot)) return null;
+  if (!catalogRoot || !path.isAbsolute(catalogRoot)) return null;
+
+  const missing: string[] = [];
+  for (const domain of CONFIG_DOMAINS) {
+    if (!domain.scaffoldKind) continue; // not catalog-scaffolded (e.g. sso)
+    const sourceDir = path.join(catalogRoot, domain.name);
+    if (!(await dirHasFiles(sourceDir))) continue; // nothing to seed from
+    const targetDir = resolveDomainDir(domain.name, orgSlug);
+    if (!(await dirHasFiles(targetDir))) missing.push(domain.name);
+  }
+  return missing;
+}
+
 export const scaffoldNewOrganization = internalAction({
   args: {
     orgSlug: v.string(),
@@ -810,79 +937,6 @@ export const scaffoldNewOrganization = internalAction({
     ),
   }),
   handler: async (_ctx, args) => {
-    if (!validateOrgSlug(args.orgSlug)) {
-      console.warn(
-        `[scaffoldNewOrganization] refusing invalid slug "${args.orgSlug}"`,
-      );
-      return { ok: false, skipped: true, results: [] };
-    }
-
-    // Symmetric guard to cleanupOrgFilesystem: refuse to operate on a
-    // non-absolute or unset config root rather than writing relative
-    // paths into the action's CWD.
-    const configRoot = process.env.TALE_CONFIG_DIR;
-    if (!configRoot || !path.isAbsolute(configRoot)) {
-      const msg =
-        '[scaffoldNewOrganization] TALE_CONFIG_DIR is unset or not absolute; refusing to proceed';
-      console.error(msg);
-      if (args.strict) {
-        throw new Error(msg);
-      }
-      return { ok: false, skipped: true, results: [] };
-    }
-
-    // Opportunistic janitor: sweep root-level `.deleted-*` AND nested
-    // `<org>/<domain>/<bundle>.staging-*` orphans older than 24h before
-    // any per-domain work. Without this, a bundle staging dir orphaned
-    // by a prior crash would make `dirHasFiles` return true and the
-    // domain's non-override seed would skip indefinitely (round-2 P1-14).
-    // Best-effort: errors only log.
-    await sweepStaleCondemnedDirs(configRoot).catch((err) => {
-      console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
-    });
-
-    // The built-in catalog is required — there is no fallback to any org's live
-    // dir. Dev (dev-engine), prod (Dockerfile), and E2E (playwright) all set it.
-    const catalogRoot = process.env[BUILTIN_ENV];
-    if (!catalogRoot || !path.isAbsolute(catalogRoot)) {
-      const msg = `[scaffoldNewOrganization] ${BUILTIN_ENV} is unset or not absolute; refusing to proceed`;
-      console.error(msg);
-      if (args.strict) {
-        throw new Error(msg);
-      }
-      return { ok: false, skipped: true, results: [] };
-    }
-    const override = args.override ?? false;
-
-    // Exact-mirror org-create: purge any leftover subtree for this (new) slug
-    // before seeding, so renamed/removed catalog files don't survive as
-    // orphans and the per-domain `override:false` skip can't strand a domain a
-    // prior org left files in. Guarded + idempotent (a no-op when absent).
-    if (args.cleanFirst) {
-      await removeOrgSubtree(configRoot, args.orgSlug);
-    }
-
-    const results: DomainResult[] = [];
-    for (const domain of CONFIG_DOMAINS) {
-      results.push(
-        await seedDomain(domain, catalogRoot, args.orgSlug, override),
-      );
-    }
-
-    const failed = results.filter((r) => !r.ok);
-    if (failed.length > 0 && args.strict) {
-      const detail = failed
-        .map((r) => `${r.domain}: ${r.error ?? 'unknown error'}`)
-        .join('; ');
-      throw new Error(
-        `scaffold "${args.orgSlug}": ${failed.length}/${results.length} domains failed — ${detail}`,
-      );
-    }
-
-    return {
-      ok: failed.length === 0,
-      skipped: false,
-      results,
-    };
+    return await scaffoldOrgFromCatalog(args);
   },
 });

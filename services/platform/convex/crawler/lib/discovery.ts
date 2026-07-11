@@ -19,7 +19,7 @@
  *   - BFS FALLBACK REPLACES crawl4ai's `BFSDeepCrawlStrategy`: when the sitemap
  *     yields fewer than `_BFS_FALLBACK_THRESHOLD` (10) URLs, it BFS-crawls from
  *     the homepage up to `max_depth=2`, extracting same-registrable-domain
- *     `<a href>` links via jsdom and normalizing them to absolute URLs.
+ *     `<a href>` links via linkedom and normalizing them to absolute URLs.
  *
  * Page fetch + JS rendering is delegated to `fetchRenderedHtml` (the documented
  * sandbox-runtime seam). By DEFAULT that is a plain HTTP GET — correct for
@@ -252,6 +252,44 @@ function normalizeHost(host: string): string {
 }
 
 /**
+ * Extract absolute, same-host `http(s)` links from a page's `<a href>` tags.
+ * Resolves relative hrefs against `baseUrl`, drops fragments (so `#`-anchors
+ * don't explode the BFS frontier), and skips anything off-host or off-scheme.
+ * Exported for direct fixture testing of the querySelector/getAttribute-level
+ * DOM work (the linkedom parser boundary).
+ */
+export function extractSameDomainLinks(
+  html: string,
+  baseUrl: string,
+  targetHost: string,
+): string[] {
+  const { document } = parseHtml(html).window;
+  const anchors = Array.from(document.querySelectorAll('a[href]'));
+  const links: string[] = [];
+  for (const a of anchors) {
+    const href = a.getAttribute('href');
+    if (!href) {
+      continue;
+    }
+    let absolute: URL;
+    try {
+      absolute = new URL(href, baseUrl);
+    } catch {
+      continue;
+    }
+    if (absolute.protocol !== 'http:' && absolute.protocol !== 'https:') {
+      continue;
+    }
+    if (normalizeHost(absolute.hostname) !== targetHost) {
+      continue;
+    }
+    absolute.hash = '';
+    links.push(absolute.toString());
+  }
+  return links;
+}
+
+/**
  * BFS link-crawl fallback. Replaces crawl4ai's BFSDeepCrawlStrategy: starts at
  * the homepage, follows same-registrable-domain `<a href>` links breadth-first
  * up to `max_depth=2` and `maxPages`, deduping.
@@ -312,29 +350,7 @@ async function discoverUrlsBfs(
       // Extract same-domain links.
       let links: string[] = [];
       try {
-        const { document } = parseHtml(html).window;
-        const anchors = Array.from(document.querySelectorAll('a[href]'));
-        for (const a of anchors) {
-          const href = a.getAttribute('href');
-          if (!href) {
-            continue;
-          }
-          let absolute: URL;
-          try {
-            absolute = new URL(href, url);
-          } catch {
-            continue;
-          }
-          if (absolute.protocol !== 'http:' && absolute.protocol !== 'https:') {
-            continue;
-          }
-          if (normalizeHost(absolute.hostname) !== targetHost) {
-            continue;
-          }
-          // Drop fragments so #-anchors don't explode the frontier.
-          absolute.hash = '';
-          links.push(absolute.toString());
-        }
+        links = extractSameDomainLinks(html, url, targetHost);
       } catch (err) {
         logger.debug(
           `BFS link extraction failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,

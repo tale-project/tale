@@ -1,55 +1,128 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
+import type { Column } from '@tanstack/react-table';
+import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ContactRowActions } from '../components/contact-row-actions';
+
+type Contact = Doc<'contacts'>;
+
+interface SortLabels {
+  ascending: string;
+  descending: string;
+  available: string;
+}
+
+/**
+ * Clickable column header that toggles TanStack Table's built-in sorting —
+ * "just enable sorting via the existing column config API" (#2639): no new
+ * table-level affordance, the column's own `header` render does the work.
+ * The visible label carries the sort icon; the current state is announced
+ * to assistive tech via a trailing `sr-only` suffix rather than relying on
+ * icon shape alone.
+ */
+function sortableHeader<TData>(
+  label: string,
+  sortLabels: SortLabels,
+  // The "Added" column right-aligns its (date) cells — the header must match
+  // or the column reads misaligned against its own data.
+  align: 'start' | 'end' = 'start',
+) {
+  return ({ column }: { column: Column<TData> }) => {
+    const sorted = column.getIsSorted();
+    const Icon =
+      sorted === 'asc'
+        ? ArrowUp
+        : sorted === 'desc'
+          ? ArrowDown
+          : ChevronsUpDown;
+    const stateLabel =
+      sorted === 'asc'
+        ? sortLabels.ascending
+        : sorted === 'desc'
+          ? sortLabels.descending
+          : sortLabels.available;
+
+    return (
+      <button
+        type="button"
+        className={`text-fg-base hover:text-fg-base focus-visible:ring-ring inline-flex w-full items-center gap-1 rounded px-2 py-1 font-medium focus-visible:ring-1 focus-visible:outline-none ${
+          align === 'end' ? '-mr-2 justify-end' : '-ml-2 justify-start'
+        }`}
+        onClick={column.getToggleSortingHandler()}
+      >
+        <span>{label}</span>
+        <Icon className="text-muted-foreground size-3.5" aria-hidden="true" />
+        <span className="sr-only">, {stateLabel}</span>
+      </button>
+    );
+  };
+}
 
 export const useContactsTableConfig = createTableConfigHook<'contacts'>(
   {
     entityNamespace: 'contacts',
     defaultSort: '_creationTime',
+    additionalNamespaces: ['common'],
   },
-  ({ tTables, tEntity, builders }) => [
-    builders.createSelectColumn(),
-    {
-      accessorKey: 'name',
-      header: tTables('headers.name'),
-      size: 200,
-      cell: ({ row }) => (
-        <Text as="span" variant="label">
-          {row.original.name || ''}
-        </Text>
-      ),
-    },
-    {
-      accessorKey: 'email',
-      header: tTables('headers.email'),
-      size: 240,
-      cell: ({ row }) => (
-        <Text as="span" variant="body">
-          {row.original.email || tTables('cells.noEmail')}
-        </Text>
-      ),
-    },
-    {
-      // `tables` has no phone header; the contacts namespace owns the label.
-      accessorKey: 'phone',
-      header: tEntity('phone'),
-      size: 160,
-      cell: ({ row }) => (
-        <Text as="span" variant="body">
-          {row.original.phone || ''}
-        </Text>
-      ),
-    },
-    builders.createSourceColumn(tTables),
-    builders.createLocaleColumn(),
-    builders.createCreationTimeColumn(tTables),
-    builders.createActionsColumn(ContactRowActions, 'contact', {
-      size: 56,
-      headerLabel: tTables('headers.actions'),
-    }),
-  ],
+  ({ tTables, tEntity, t, builders }) => {
+    const sortLabels: SortLabels = {
+      ascending: t.common('aria.sortAscending'),
+      descending: t.common('aria.sortDescending'),
+      available: t.common('aria.sortAvailable'),
+    };
+
+    return [
+      builders.createSelectColumn(),
+      {
+        accessorKey: 'name',
+        header: sortableHeader<Contact>(tTables('headers.name'), sortLabels),
+        size: 200,
+        cell: ({ row }) => (
+          <Text as="span" variant="label">
+            {row.original.name || ''}
+          </Text>
+        ),
+      },
+      {
+        accessorKey: 'email',
+        header: sortableHeader<Contact>(tTables('headers.email'), sortLabels),
+        size: 240,
+        cell: ({ row }) => (
+          <Text as="span" variant="body">
+            {row.original.email || tTables('cells.noEmail')}
+          </Text>
+        ),
+      },
+      {
+        // `tables` has no phone header; the contacts namespace owns the label.
+        accessorKey: 'phone',
+        header: tEntity('phone'),
+        size: 160,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Text as="span" variant="body">
+            {row.original.phone || ''}
+          </Text>
+        ),
+      },
+      { ...builders.createSourceColumn(tTables), enableSorting: false },
+      { ...builders.createLocaleColumn(), enableSorting: false },
+      builders.createCreationTimeColumn(tTables, {
+        header: sortableHeader<Contact>(
+          tTables('headers.created'),
+          sortLabels,
+          'end',
+        ),
+      }),
+      builders.createActionsColumn(ContactRowActions, 'contact', {
+        size: 56,
+        headerLabel: tTables('headers.actions'),
+      }),
+    ];
+  },
 );

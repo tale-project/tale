@@ -67,9 +67,11 @@ import {
   DataTablePagination,
   type DataTablePaginationProps,
 } from './data-table-pagination';
-import type {
-  DataTableSearchConfig,
-  DataTableSortingConfig,
+import {
+  entityLabelForms,
+  type DataTableSearchConfig,
+  type DataTableSortingConfig,
+  type EntityLabel,
 } from './data-table-types';
 
 /** Skeleton rows rendered when the row count is unknown (consistent default). */
@@ -163,8 +165,8 @@ export interface DataTableProps<TData, TValue = unknown> {
     autoLoad?: boolean;
     /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
-    /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
-    entityLabel?: string;
+    /** Entity noun. Enables the "Showing all X {entity}" footer — pass `{ one, other }` so a single-row table reads correctly too. */
+    entityLabel?: EntityLabel;
     /** Unfiltered total count. When different from the shown count, shows "Showing X of Y {entity}". */
     totalCount?: number;
     /**
@@ -1164,11 +1166,11 @@ export function DataTable<TData, TValue = unknown>({
           ? t('pagination.showingFiltered', {
               filtered: shownEntityCount,
               total: infiniteScroll.totalCount,
-              entity: infiniteScroll.entityLabel,
+              ...entityLabelForms(infiniteScroll.entityLabel),
             })
           : t('pagination.showingAll', {
               count: shownEntityCount,
-              entity: infiniteScroll.entityLabel,
+              ...entityLabelForms(infiniteScroll.entityLabel),
             })}
       </output>
     );

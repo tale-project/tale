@@ -142,11 +142,27 @@ export function AgentKnowledge({
 
   const isEnabled = knowledgeMode !== 'off';
 
-  // Only the org-knowledge branch consumes these, so don't pull the whole
-  // document collection unless that branch is actually active.
+  const { data: binding } = useAgentBinding(organizationId, agentId);
+
+  // The agent's effective team set — owning team + shared teams — mirroring
+  // the runtime's `getAgentTeamIds` (config.ts → get_agent_scoped_file_ids),
+  // so the preview below reflects what the agent actually retrieves (#2666).
+  const agentTeamIds = useMemo(() => {
+    const teams = new Set<string>();
+    if (binding?.teamId) teams.add(binding.teamId);
+    for (const id of binding?.sharedWithTeamIds ?? []) teams.add(id);
+    return teams;
+  }, [binding?.teamId, binding?.sharedWithTeamIds]);
+
+  // Only the team-/org-knowledge preview branches consume these, so don't
+  // pull the whole document collection unless one of them is active. (An
+  // agent with no teams gets no team docs at runtime either.)
   const { documents: allDocuments, isLoading: isDocumentsLoading } =
     useDocuments(organizationId, {
-      enabled: isEnabled && includeOrgKnowledge,
+      enabled:
+        isEnabled &&
+        (includeOrgKnowledge ||
+          (includeTeamKnowledge && agentTeamIds.size > 0)),
     });
 
   const documents = useMemo(
@@ -155,14 +171,22 @@ export function AgentKnowledge({
     [allDocuments],
   );
 
-  const teamDocuments = useMemo((): DocumentEntry[] => [], []);
+  // Runtime semantics (`get_agent_scoped_file_ids`): a team doc counts when
+  // its teamId is in the agent's team set. `listDocuments` never returns
+  // project docs, so no projectId exclusion is needed here.
+  const teamDocuments = useMemo(() => {
+    if (!isEnabled || !includeTeamKnowledge || agentTeamIds.size === 0) {
+      return [];
+    }
+    return documents.filter(
+      (doc) => doc.teamId && agentTeamIds.has(doc.teamId),
+    );
+  }, [documents, isEnabled, includeTeamKnowledge, agentTeamIds]);
 
   const orgDocuments = useMemo(() => {
     if (!isEnabled || !includeOrgKnowledge) return [];
     return documents.filter((doc) => !doc.teamId);
   }, [documents, isEnabled, includeOrgKnowledge]);
-
-  const { data: binding } = useAgentBinding(organizationId, agentId);
   const knowledgeFiles = (binding?.knowledgeFiles ??
     []) satisfies KnowledgeFile[];
 
@@ -212,7 +236,7 @@ export function AgentKnowledge({
   );
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.form.sectionKnowledge')}
         description={

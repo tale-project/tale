@@ -1051,11 +1051,21 @@ function MessageBubbleComponent({
                     variant="caption"
                     className="text-muted-foreground/50"
                   >
-                    {tChat('kbFolderChipFiles', {
-                      defaultValue:
-                        '{count, plural, one {# file} other {# files}}',
-                      count: folder.fileCount,
-                    })}
+                    {/* A folder that filtered out unindexed files must say so
+                        — never collapse to a silent "0 files" (#2598). */}
+                    {folder.skippedCount > 0
+                      ? tChat('kbFolderChipFilesSkipped', {
+                          defaultValue:
+                            '{resolved}/{count, plural, one {# file} other {# files}} — {skipped, plural, one {# not indexed} other {# not indexed}}',
+                          resolved: folder.fileCount,
+                          count: folder.fileCount + folder.skippedCount,
+                          skipped: folder.skippedCount,
+                        })
+                      : tChat('kbFolderChipFiles', {
+                          defaultValue:
+                            '{count, plural, one {# file} other {# files}}',
+                          count: folder.fileCount,
+                        })}
                   </Text>
                 </Stack>
               </Row>

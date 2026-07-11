@@ -179,7 +179,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
               isAgent: true,
             };
           }
-          const agent = agentMap.get(id);
+          // `agentMap` only holds LIVE (assignable) agents; a run-admission
+          // refusal activity (#2609) names the agent that was asked to run,
+          // which is by definition often not live (disabled/uninstalled). Fall
+          // back to the unfiltered catalog so the timeline still shows a
+          // friendly name instead of the raw slug for that common case.
+          const agent = agentMap.get(id) ?? agentCatalog.get(id);
           return { type, id, name: agent?.name ?? id, isAgent: true };
         }
         const member = memberMap.get(id);
@@ -191,7 +196,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           email: member?.email,
         };
       },
-    [memberMap, agentMap, t],
+    [memberMap, agentMap, agentCatalog, t],
   );
 
   const resolveActorPreview = useMemo(

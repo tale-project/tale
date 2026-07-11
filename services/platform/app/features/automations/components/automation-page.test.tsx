@@ -19,10 +19,12 @@ const {
   useAutomationsMock,
   useAutomationCatalogMock,
   useAutomationInstallStatesMock,
+  useAutomationScheduleReadinessMock,
 } = vi.hoisted(() => ({
   useAutomationsMock: vi.fn(),
   useAutomationCatalogMock: vi.fn(),
   useAutomationInstallStatesMock: vi.fn(),
+  useAutomationScheduleReadinessMock: vi.fn(),
 }));
 
 vi.mock('../hooks/use-automations', async (importOriginal) => ({
@@ -64,6 +66,9 @@ vi.mock('./install-wizard/automation-install-wizard', () => ({
 // disappearing on the old code) rather than a Convex-provider crash.
 vi.mock('../hooks/use-automation-agent-readiness', () => ({
   useAutomationAgentReadiness: () => ({ agents: [], refetch: vi.fn() }),
+}));
+vi.mock('../hooks/use-automation-schedule-readiness', () => ({
+  useAutomationScheduleReadiness: useAutomationScheduleReadinessMock,
 }));
 vi.mock('../hooks/use-required-integrations', () => ({
   useRequiredIntegrations: () => ({
@@ -224,6 +229,14 @@ beforeEach(() => {
   useAutomationInstallStatesMock.mockReturnValue({
     bySlug: new Map(),
     isLoading: false,
+  });
+  // Default: no schedule-variable gaps, so existing tests see the readiness
+  // banner behave as before (#2606's coverage overrides this per-test).
+  useAutomationScheduleReadinessMock.mockReturnValue({
+    readiness: { required: [], schedules: [] },
+    missingFields: [],
+    isLoading: false,
+    refetch: vi.fn(),
   });
 });
 
@@ -657,5 +670,104 @@ describe('AutomationPage keeps the install wizard mounted across install (#2341)
     );
 
     expect(screen.getByText('wizard step probe')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Regression net for #2606: readiness previously covered broken install /
+ * integrations / agents only, so a schedule missing a required start-schema
+ * field (e.g. GitHub `owner`/`repo`) left the checklist green while cron runs
+ * would fail. The banner must name the gap and deep-link to Triggers.
+ */
+describe('AutomationPage readiness banner names schedule-variable gaps (#2606)', () => {
+  it('shows the missing fields on the Integrations tab with a Triggers deep link', () => {
+    abilityMock.can.mockReturnValue(true);
+    urlStateMock.tab = 'integrations';
+    try {
+      installSampleAutomation({ workflows: ['sample-automation/main'] });
+      useAutomationScheduleReadinessMock.mockReturnValue({
+        readiness: { required: ['owner', 'repo'], schedules: [] },
+        missingFields: ['owner', 'repo'],
+        isLoading: false,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <AutomationPage
+          organizationId="org_1"
+          automationSlug="sample-automation"
+        />,
+      );
+
+      expect(
+        screen.getByText('Missing schedule variables: owner, repo'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: 'Open Triggers' }),
+      ).toHaveAttribute(
+        'href',
+        '/dashboard/org_1/automations/sample-automation',
+      );
+    } finally {
+      urlStateMock.tab = null;
+    }
+  });
+
+  it('never shows the schedule gap on the Configuration tab (only integration/agent gaps ride there)', () => {
+    abilityMock.can.mockReturnValue(true);
+    urlStateMock.tab = 'configuration';
+    try {
+      installSampleAutomation({ workflows: ['sample-automation/main'] });
+      useAutomationScheduleReadinessMock.mockReturnValue({
+        readiness: { required: ['owner', 'repo'], schedules: [] },
+        missingFields: ['owner', 'repo'],
+        isLoading: false,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <AutomationPage
+          organizationId="org_1"
+          automationSlug="sample-automation"
+        />,
+      );
+
+      expect(
+        screen.queryByText(/Missing schedule variables/),
+      ).not.toBeInTheDocument();
+    } finally {
+      urlStateMock.tab = null;
+    }
+  });
+
+  it('names the gap without a Triggers deep link when no dev tabs are rendered', () => {
+    // A non-developer (or a developer viewing a no-workflow automation) has no
+    // Triggers tab to deep-link to — the summary still names the gap.
+    urlStateMock.tab = 'integrations';
+    try {
+      installSampleAutomation({ workflows: [] });
+      useAutomationScheduleReadinessMock.mockReturnValue({
+        readiness: { required: ['owner'], schedules: [] },
+        missingFields: ['owner'],
+        isLoading: false,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <AutomationPage
+          organizationId="org_1"
+          automationSlug="sample-automation"
+        />,
+      );
+
+      expect(
+        screen.getByText('Missing schedule variables: owner'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'Open Triggers' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      urlStateMock.tab = null;
+    }
   });
 });

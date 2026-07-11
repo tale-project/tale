@@ -279,6 +279,7 @@
       "recent": {
         "title": "Retours récents",
         "entityLabel": "retours",
+        "entityLabelOne": "retour",
         "emptyTitle": "Aucun retour sur cette période",
         "emptyDescription": "Ajuste la période ou les filtres pour en voir davantage.",
         "noComment": "(aucun commentaire)",
@@ -500,11 +501,14 @@
       "namePlaceholder": "Nom de l'automatisation",
       "descriptionPlaceholder": "Ce que fait cette automatisation",
       "runtimeTitle": "Paramètres du workflow",
+      "scheduleVarsHint": "Ce sont les valeurs par défaut du workflow. Les variables qu'une exécution planifiée envoie réellement se trouvent sur chaque planification, dans l'onglet Déclencheurs.",
+      "openTriggers": "Ouvrir les déclencheurs",
       "validation": {
         "nameRequired": "Le nom est requis"
       }
     },
     "triggers": {
+      "scheduleVarsLead": "Ce sont les variables que cette planification envoie à son déclenchement — distinctes des valeurs par défaut du workflow de l'onglet Configuration.",
       "errors": {
         "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
         "invalidSlug": "L'identifiant de cette automatisation est invalide.",
@@ -612,7 +616,8 @@
     },
     "bundle": {
       "memberCount": "Bundle · {count} automatisations",
-      "needsAttention": "Attention requise"
+      "needsAttention": "Attention requise",
+      "partOf": "Partie de {name}"
     },
     "install": {
       "install": "Installer",
@@ -660,6 +665,8 @@
       "summaryBroken": "Des fichiers installés sont manquants",
       "summaryIntegrations": "À connecter : {names}",
       "summaryAgents": "À configurer : {names}",
+      "summaryScheduleVars": "Variables de planification manquantes : {fields}",
+      "openTriggers": "Ouvrir les déclencheurs",
       "mismatch": {
         "cursorKeyOnClaudeRuntime": "{agent} tourne en Claude Code mais Environnement a {configuredKeys} — ce runtime attend {expectedKeys}. Ouvre l'agent → Général, passe Exécution externe sur Cursor et enregistre, ou renseigne le secret correspondant.",
         "claudeKeyOnCursorRuntime": "{agent} tourne en Cursor mais Environnement a {configuredKeys} — ce runtime attend {expectedKeys}. Ouvre l'agent → Général, passe Exécution externe sur Claude Code et enregistre, ou renseigne le secret correspondant."
@@ -695,9 +702,12 @@
       "doneStepLabel": "Terminé",
       "doneTitle": "{name} est prête",
       "doneNeedsSetupTitle": "Terminer la configuration de {name}",
-      "doneNeedsSetup": "Une intégration requise n'est pas encore connectée — connectez-la depuis l'onglet Intégrations de l'automatisation avant qu'elle puisse s'exécuter.",
+      "doneNeedsSetup": "Une intégration requise n'est pas encore connectée — connecte-la depuis l'onglet Intégrations de l'automatisation avant qu'elle puisse s'exécuter.",
       "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
-      "doneSomeSkipped": "Vous avez ignoré certaines étapes — terminez-les à tout moment depuis la liste de configuration de l'automatisation.",
+      "doneSomeSkipped": "Tu as ignoré certaines étapes — termine-les à tout moment depuis la liste de configuration de l'automatisation.",
+      "doneScheduleVars": "Des variables de planification requises ne sont pas encore définies : {fields}. Définis-les dans l'onglet Déclencheurs de l'automatisation avant qu'elle puisse s'exécuter.",
+      "doneBundleScheduleVars": "Ces membres ont encore besoin de variables de planification avant de pouvoir s'exécuter : {members}",
+      "openTriggers": "Ouvrir les déclencheurs",
       "finish": "Terminer",
       "skipForNow": "Je le ferai plus tard",
       "installFailed": "Impossible d'installer l'automatisation",
@@ -899,6 +909,8 @@
       "modelAccessDenied": "Modèle non disponible",
       "budgetExceeded": "Limite d'utilisation atteinte",
       "kbRefInvalid": "Un document référencé n’est plus disponible. Supprime-le et réessaie.",
+      "kbRefNotIndexed": "« {fileName} » n’est pas encore indexé. Supprime-le ou attends la fin de l’indexation, puis réessaie.",
+      "kbRefUnsupported": "« {fileName} » ne peut pas être indexé — ce type de fichier n’est pas pris en charge. Supprime-le pour envoyer ton message.",
       "backendRestarting": "Le serveur redémarre",
       "backendRestartingDescription": "Le serveur redémarre brièvement pour une mise à jour. Merci de renvoyer ton message dans un instant."
     },
@@ -985,7 +997,8 @@
       "requestUserLocation": "Demander la localisation",
       "updateTodos": "Liste de tâches",
       "proposeMemory": "Proposer un souvenir",
-      "secretRead": "Lire le secret"
+      "secretRead": "Lire le secret",
+      "automationSearch": "Recherche d'automatisations"
     },
     "agentSelector": {
       "label": "Sélectionner un agent",
@@ -1130,7 +1143,7 @@
     "budgetWarningTypeTokens": "token",
     "budgetWarningTypeCost": "coût",
     "budgetWarningTypeRequests": "requête",
-    "placeholder": "Pose une question sur les clients, produits ou documents…",
+    "placeholder": "Pose une question sur les contacts, produits ou documents…",
     "planMode": {
       "label": "Mode planification ou exécution",
       "plan": "Planifier",
@@ -1192,6 +1205,8 @@
     "indexing": "Indexation...",
     "indexingFailed": "Échec de l'indexation",
     "indexingFailedDescription": "{filename} n'a pas pu être indexé pour la recherche.",
+    "indexingUnsupported": "Format non pris en charge",
+    "indexingUnsupportedDescription": "{filename} ne peut pas être indexé — ce type de fichier n'a pas d'extracteur de texte.",
     "viewImage": "Voir l'image",
     "fileTypes": {
       "image": "IMG",
@@ -1620,6 +1635,7 @@
       "exitFullscreen": "Quitter le plein écran"
     },
     "kbFolderChipFiles": "{count, plural, one {# fichier} other {# fichiers}}",
+    "kbFolderChipFilesSkipped": "{resolved}/{count, plural, one {# fichier} other {# fichiers}} — {skipped, plural, one {# non indexé} other {# non indexés}}",
     "embedded": {
       "analyzeAttachments": "Merci d'analyser les fichiers joints."
     }
@@ -1808,7 +1824,11 @@
       "skipToContent": "Aller au contenu principal",
       "mainNavigation": "Navigation principale",
       "projectsNavigation": "Navigation des projets",
-      "workflowNavigation": "Navigation du workflow"
+      "workflowNavigation": "Navigation du workflow",
+      "sortAscending": "trié par ordre croissant",
+      "sortDescending": "trié par ordre décroissant",
+      "sortAvailable": "tri disponible",
+      "unsavedChanges": "Modifications non enregistrées"
     },
     "pagination": {
       "rowsPerPage": "Lignes par page",
@@ -1816,9 +1836,9 @@
       "loadMore": "Charger plus",
       "loading": "Chargement...",
       "noMore": "Plus d'éléments à charger",
-      "showingAll": "Affichage de {count} {entity} au total",
-      "showingFiltered": "Affichage de {filtered} sur {total} {entity}",
-      "showingRange": "Affichage de {start}-{end} sur {total} {entity}"
+      "showingAll": "{count, plural, one {Affichage de # {entityOne} au total} other {Affichage de # {entityOther} au total}}",
+      "showingFiltered": "{total, plural, one {Affichage de {filtered} sur # {entityOne}} other {Affichage de {filtered} sur # {entityOther}}}",
+      "showingRange": "{total, plural, one {Affichage de {start}-{end} sur # {entityOne}} other {Affichage de {start}-{end} sur # {entityOther}}}"
     },
     "search": {
       "noResults": "Aucun résultat trouvé",
@@ -1833,7 +1853,6 @@
       "generic": "Une erreur s'est produite. Merci de réessayer.",
       "failedToCopy": "Échec de la copie dans le presse-papiers",
       "somethingWentWrong": "Une erreur s'est produite",
-      "unexpectedError": "Une erreur inattendue s'est produite. Merci de réessayer.",
       "errorLoadingPage": "Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.",
       "persistsProblem": "Si ce problème persiste, merci de",
       "contactSupport": "contacter le support",
@@ -2081,6 +2100,7 @@
       "description": "Les conversations entrantes de vos canaux connectés apparaîtront ici.",
       "noAutomationTitle": "Configure ta boîte de réception",
       "noAutomationDescription": "Installe une automatisation e-mail (Gmail, Outlook ou IMAP) pour commencer à lire et à répondre aux conversations ici.",
+      "composeNotice": "Pour écrire à {name}, installe d'abord une automatisation e-mail.",
       "browseAutomations": "Parcourir les automatisations"
     },
     "filter": {
@@ -2104,6 +2124,7 @@
   },
   "contacts": {
     "title": "Contacts",
+    "entityLabelOne": "contact",
     "searchPlaceholder": "Rechercher des contacts",
     "filter": {
       "source": {
@@ -2114,16 +2135,23 @@
     "importForm": {
       "manualEntry": "Saisie manuelle",
       "upload": "Téléversement",
-      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un contact par ligne.",
+      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un contact par ligne.",
       "localeHint": "La locale peut être n'importe quelle balise BCP 47 valide (ex. en, en-US, de-DE, zh-Hans).",
-      "expectedColumns": "Colonnes attendues : email, name, locale"
+      "expectedColumns": "Colonnes attendues : email, name, locale"
     },
+    "addButton": "Ajouter un contact",
     "editContact": "Modifier le contact",
     "deleteContact": "Supprimer le contact",
     "importMenu": {
       "importContacts": "Importer des contacts",
       "fromDevice": "Depuis ton appareil",
-      "manualEntry": "Saisie manuelle"
+      "pasteContacts": "Coller des contacts"
+    },
+    "create": {
+      "title": "Ajouter un contact",
+      "success": "Contact créé avec succès",
+      "error": "Échec de la création du contact",
+      "duplicateEmail": "Un contact avec cette adresse email existe déjà"
     },
     "thisContact": "ce contact",
     "updateSuccess": "Contact mis à jour avec succès",
@@ -2143,7 +2171,7 @@
       "successDescription": "Importation réussie de {success} contacts{failed, select, 0 {} other {, {failed} échoué(s)}}",
       "noneImported": "Aucun contact n'a été importé",
       "error": "Erreur d'importation",
-      "addContacts": "Ajouter des contacts",
+      "pasteContacts": "Coller des contacts",
       "uploadContacts": "Téléverser des contacts",
       "import": "Importer",
       "errorCodes": {
@@ -2152,7 +2180,7 @@
         "unknown": "Une erreur inattendue s'est produite"
       }
     },
-    "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
+    "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
     "deleteError": "Échec de la suppression du contact",
     "deleteWarning": "Cette action est irréversible."
   },
@@ -2242,6 +2270,7 @@
   },
   "documents": {
     "entityLabel": "documents",
+    "entityLabelOne": "document",
     "tableCaption": "Documents et dossiers",
     "searchPlaceholder": "Rechercher des documents",
     "deleteFolder": {
@@ -2329,6 +2358,7 @@
         "notIndexed": "Non indexé",
         "indexing": "Indexation",
         "failed": "Échoué",
+        "unsupported": "Non pris en charge",
         "needsReindex": "Réindexation nécessaire"
       },
       "source": {
@@ -2452,6 +2482,7 @@
         "indexing": "Indexation",
         "indexed": "Indexé",
         "failed": "Échoué",
+        "unsupported": "Non pris en charge",
         "notIndexed": "Non indexé",
         "needsReindex": "Réindexation nécessaire",
         "unknown": "Inconnu"
@@ -2476,6 +2507,10 @@
           "description": "Le document n'a pas pu être indexé pour la recherche RAG.",
           "errorDetails": "Détails de l'erreur :",
           "unknownError": "Erreur inconnue survenue"
+        },
+        "unsupported": {
+          "title": "Format non pris en charge",
+          "description": "Ce type de fichier n'a pas d'extracteur de texte, il ne peut donc pas être indexé pour la recherche RAG. Convertis-le dans un format pris en charge (PDF, DOCX, TXT, …) puis retélécharge-le pour le rendre consultable."
         }
       }
     },
@@ -2506,6 +2541,10 @@
       "heading": "Crée ton compte propriétaire",
       "why": "C'est le premier compte de cette installation Tale ; il dispose donc de tous les droits d'administration. Tu ajouteras des coéquipiers plus tard."
     },
+    "workspace": {
+      "createError": "Impossible de créer ton espace de travail. Vérifie ta connexion et clique de nouveau sur « Suivant ».",
+      "nameTakenError": "Ce nom est déjà pris. Choisis-en un autre."
+    },
     "provider": {
       "heading": "Connecter OpenRouter",
       "connect": "Connecter",
@@ -2532,6 +2571,18 @@
       "goToDashboard": "Aller au tableau de bord"
     }
   },
+  "provisioning": {
+    "banner": {
+      "title": "La configuration de cet espace de travail n'est pas terminée",
+      "body": "Une partie de la configuration intégrée manque, donc les agents et le chat risquent de ne pas fonctionner.",
+      "retry": "Relancer la configuration",
+      "retrying": "Configuration en cours…"
+    },
+    "toast": {
+      "retrySucceeded": "Configuration de l'espace de travail terminée.",
+      "retryFailed": "La configuration a de nouveau échoué. Consulte les logs du serveur, puis réessaie."
+    }
+  },
   "emptyStates": {
     "providers": {
       "title": "Aucun fournisseur configuré",
@@ -2539,7 +2590,7 @@
     },
     "contacts": {
       "title": "Aucun contact pour l'instant",
-      "description": "Téléverse ton premier contact pour commencer"
+      "description": "Ajoute ton premier contact pour commencer"
     },
     "products": {
       "title": "Aucun produit pour l'instant",
@@ -2651,6 +2702,7 @@
       "title": "Modèles par défaut",
       "description": "Définis les modèles par défaut pour des groupes d'utilisateurs ou des rôles spécifiques.",
       "saved": "La configuration des modèles par défaut a été mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la configuration des modèles par défaut",
       "addRule": "Ajouter une règle",
       "addRuleTitle": "Ajouter une règle de modèle par défaut",
       "editRuleTitle": "Modifier la règle de modèle par défaut",
@@ -2704,6 +2756,7 @@
       "title": "Politique de rétention",
       "description": "Configure la durée de conservation de chaque type de données avant suppression.",
       "saved": "La politique de rétention a été mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la politique de rétention",
       "save": "Enregistrer les modifications",
       "reset": "Réinitialiser aux valeurs par défaut",
       "unsavedHint": "Tu as des modifications non enregistrées.",
@@ -2752,7 +2805,8 @@
       "pendingChange": {
         "title": "Une réduction de rétention est en attente.",
         "applyIn": "s'applique dans {days} jour(s).",
-        "cancel": "Annuler"
+        "cancel": "Annuler",
+        "cancelFailedToast": "Échec de l'annulation du changement de rétention en attente."
       },
       "boundsProposal": {
         "title": "L'opérateur a proposé des modifications des limites de rétention.",
@@ -2770,7 +2824,9 @@
         "diffRow": "{category} : {field} {from} → {to} ({direction})",
         "impactRow": "{category} : {current} sera limité à {clamped}",
         "appliedToast": "Proposition de limites appliquée. Le nettoyage utilisera les nouvelles limites à la prochaine exécution.",
-        "rejectedToast": "Proposition de limites refusée. Le nettoyage continue avec les limites précédentes."
+        "rejectedToast": "Proposition de limites refusée. Le nettoyage continue avec les limites précédentes.",
+        "applyFailedToast": "Échec de l'application de la proposition de limites.",
+        "rejectFailedToast": "Échec du refus de la proposition de limites."
       },
       "promptTemplates": {
         "title": "Modèles de prompt",
@@ -2930,6 +2986,7 @@
       "fileUpload": "Téléversement de fichiers",
       "maxContextTokens": "Tokens de contexte maximum",
       "maxContextTokensHint": "Nombre maximum de tokens de contexte pour les réponses IA. Laisse vide pour aucune limite.",
+      "invalidMaxContextTokens": "Les tokens de contexte maximum doivent être d'au moins {min}.",
       "scope": "Portée",
       "target": "Cible",
       "allUsers": "Tous les utilisateurs",
@@ -2968,7 +3025,8 @@
       "title": "Sortie vocale",
       "description": "Lorsqu'elle est désactivée, aucun membre de cette organisation ne peut utiliser la sortie vocale. La préférence personnelle et les remplacements par chat n'ont alors aucun effet.",
       "enabledLabel": "Sortie vocale activée pour cette organisation",
-      "saved": "Politique de sortie vocale mise à jour"
+      "saved": "Politique de sortie vocale mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la politique de sortie vocale"
     },
     "personalization": {
       "enabledLabel": "Activé pour cette organisation",
@@ -3261,8 +3319,6 @@
       "legalHold": "Conservation légale",
       "trash": "Corbeille",
       "guardrails": "Garde-fous",
-      "usage": "Utilisation",
-      "feedback": "Retours",
       "logs": "Journaux",
       "dataSubjectRequests": "Personnes concernées",
       "runCodePolicy": "Paquets run-code"
@@ -3335,9 +3391,7 @@
         "fileMetadata": "Fichiers temporaires",
         "promptTemplate": "Modèles de prompt",
         "messageFeedback": "Retours sur messages",
-        "customer": "Clients",
         "contact": "Contacts",
-        "vendor": "Fournisseurs",
         "externalConversation": "Conversations externes",
         "messageMetadata": "Métadonnées de message",
         "workflowExecution": "Exécutions de workflow",
@@ -3356,7 +3410,8 @@
         "expiredDescription": "Cet enregistrement a été supprimé par la politique de rétention. Le restaurer outrepasse cette politique et le réactive. Audité.",
         "expiredPhraseLabel": "Tape \"restore\" pour confirmer",
         "restoredToast": "Restauré.",
-        "failedToast": "Échec de la restauration"
+        "failedToast": "Échec de la restauration",
+        "failedDescription": "Échec de la restauration de cet enregistrement."
       }
     },
     "legalHold": {
@@ -3409,6 +3464,7 @@
         "history": {
           "title": "Historique des libérations",
           "entityLabel": "libérations",
+          "entityLabelOne": "libération",
           "description": "Audit en lecture seule des demandes effectives et rejetées.",
           "empty": {
             "title": "Aucune demande terminée",
@@ -3586,6 +3642,7 @@
     "dataSubjectRequests": {
       "title": "Demandes de personnes concernées",
       "entityLabel": "demandes",
+      "entityLabelOne": "demande",
       "description": "Reçus d'effacement RGPD art. 17. Dépose de nouvelles demandes, surveille les délais et accorde des prolongations art. 12(3) lorsque les dossiers complexes l'exigent.",
       "accessDenied": "Réservé aux administrateurs.",
       "filters": {
@@ -3833,6 +3890,21 @@
       "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
     }
   },
+  "metrics": {
+    "title": "Métriques",
+    "groups": {
+      "usage": "Utilisation",
+      "feedback": "Retours",
+      "automations": "Automatisations",
+      "projects": "Projets"
+    },
+    "projects": {
+      "selectLabel": "Projet",
+      "selectPlaceholder": "Sélectionner un projet…",
+      "emptyTitle": "Sélectionner un projet",
+      "emptyDescription": "Choisis un projet pour afficher ses métriques de tâches."
+    }
+  },
   "humanInputRequest": {
     "questionTitle": "Question",
     "submit": "Soumettre la réponse",
@@ -3893,6 +3965,7 @@
   },
   "knowledgeEntries": {
     "title": "Entrées de connaissances",
+    "entityLabelOne": "entrée de connaissance",
     "searchPlaceholder": "Rechercher des entrées de connaissances",
     "addButton": "Ajouter une entrée",
     "addEntry": "Ajouter une entrée de connaissances",
@@ -4088,9 +4161,9 @@
       "title": "Projets",
       "description": "Espaces de travail partagés pour fichiers, instructions et discussions."
     },
-    "apps": {
-      "title": "Applications",
-      "description": "Modules installés et les applications qu'ils ajoutent à ton organisation."
+    "project": {
+      "title": "Projet",
+      "description": "Un espace de travail partagé pour fichiers, instructions et discussions."
     },
     "websites": {
       "title": "Sites web",
@@ -4232,9 +4305,21 @@
       "title": "Clés API",
       "description": "Crée et gère les clés API pour les intégrations."
     },
+    "runtimes": {
+      "title": "Runtimes",
+      "description": "Exécute le travail des tâches sur tes propres machines, avec les CLI d'agents de code que tu utilises déjà (Claude Code, Codex, Cursor)."
+    },
+    "deployment": {
+      "title": "Résidence des données",
+      "description": "Où tes données sont stockées et traitées."
+    },
     "governance": {
       "title": "Gouvernance",
       "description": "Gère les politiques de gouvernance et les prompts système."
+    },
+    "metrics": {
+      "title": "Métriques",
+      "description": "KPIs organisationnels pour l'utilisation, les retours, les automatisations et les projets."
     },
     "shared-chat": {
       "title": "Chat partagé",
@@ -4288,6 +4373,7 @@
     "apiRest": "REST",
     "branding": "Branding",
     "governance": "Gouvernance",
+    "metrics": "Métriques",
     "personalization": "Personnalisation",
     "environment": "Environnement",
     "account": "Compte",
@@ -4338,7 +4424,8 @@
       },
       "taskReview": {
         "label": "Demandes de review",
-        "description": "Quand le travail d'un agent attend ta review."
+        "description": "Quand le travail d'un agent attend ta review.",
+        "lockedHint": "Toujours actif — c'est un signal de sécurité."
       },
       "escalation": {
         "label": "Escalades d'agent",
@@ -4608,6 +4695,7 @@
   },
   "products": {
     "title": "Produits",
+    "entityLabelOne": "produit",
     "searchPlaceholder": "Rechercher des produits",
     "addButton": "Ajouter un produit",
     "importMenu": {
@@ -4770,13 +4858,13 @@
       "tagsPlaceholder": "Étiquettes séparées par des virgules...",
       "save": "Enregistrer",
       "create": "Créer",
-      "bytesUsed": "{used} / {max}",
+      "charsUsed": "{used} caractères",
       "versionConflictTitle": "Nouvelle version disponible",
       "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant ton édition. Charge la dernière version avant d'enregistrer.",
       "versionConflictDirtyWarning": "Tes modifications non enregistrées seront perdues.",
       "versionConflictDiscardConfirm": "Charger la dernière version et abandonner tes modifications non enregistrées ?",
       "loadLatest": "Charger la dernière",
-      "bytesOverLimitAlert": "Le contenu dépasse la limite. Raccourcis le prompt pour pouvoir enregistrer."
+      "bytesOverLimitAlert": "Le contenu dépasse la limite de {limit}. Raccourcis le prompt pour pouvoir enregistrer."
     },
     "saveAs": {
       "title": "Enregistrer le prompt",
@@ -4944,6 +5032,9 @@
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
       },
+      "metrics": {
+        "description": "KPIs organisationnels pour l'utilisation, les retours, les automatisations et les projets."
+      },
       "sandboxes": {
         "description": "Gérer les sandboxes d’agent distant toujours actives."
       },
@@ -4989,7 +5080,8 @@
       "empty": "Aucune source de jetons pour l'instant. Ajoutes-en une pour donner aux agents un pool d'identifiants rotatif.",
       "edit": "Modifier",
       "delete": "Supprimer",
-      "entityLabel": "source de jetons",
+      "entityLabel": "sources de jetons",
+      "entityLabelOne": "source de jetons",
       "emptyTitle": "Aucune source de jetons pour l'instant",
       "actions": "Actions de la source de jetons",
       "deleteTitle": "Supprimer la source de jetons",
@@ -5058,6 +5150,7 @@
       "membersSectionTitle": "Membres",
       "membersDescription": "Personnes ayant accès à cette organisation.",
       "membersEntityLabel": "membres",
+      "memberEntityLabel": "membre",
       "defaultLocale": "Langue par défaut (pour les agents)",
       "searchMember": "Rechercher un membre",
       "addMember": "Ajouter un membre",
@@ -5102,6 +5195,7 @@
     "teams": {
       "title": "Équipes",
       "entityLabel": "équipes",
+      "entityLabelOne": "équipe",
       "createTeam": "Créer une équipe",
       "searchTeam": "Rechercher des équipes",
       "columns": {
@@ -5137,6 +5231,7 @@
     "agents": {
       "title": "Agents",
       "entityLabel": "agents",
+      "entityLabelOne": "agent",
       "tableCaption": "Agents installés",
       "createAgent": "Créer un agent",
       "createMenu": {
@@ -5163,6 +5258,11 @@
       "agentNotFound": "Agent introuvable ou tu n'as pas accès.",
       "agentSaved": "Agent enregistré",
       "agentSaveFailed": "Échec de l'enregistrement de l'agent",
+      "validation": {
+        "displayNameRequired": "Saisis un nom d'affichage.",
+        "systemInstructionsRequired": "Saisis des instructions système.",
+        "modelRequired": "Ajoute au moins un modèle."
+      },
       "historyLoadFailed": "Échec du chargement de l'historique",
       "historyRestored": "Agent restauré depuis l'historique",
       "historyRestoreFailed": "Échec de la restauration depuis l'historique",
@@ -5249,13 +5349,12 @@
         "noAutomationsAvailable": "Aucune automatisation active disponible.",
         "bindIntegrationsPlaceholder": "Lier des intégrations…",
         "bindAutomationsPlaceholder": "Lier des automatisations…",
+        "bindSkillsPlaceholder": "Lier des skills…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
         "sectionSkillBindingsExternalDescription": "Les disciplines workflow (fix-bug, write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici uniquement des skills org supplémentaires. Chaque skill lié est injecté dans la session à chaque tour.",
         "skillBindingsExternalNoCustomSkillsDescription": "Aucun skill org supplémentaire à lier pour l'instant — les disciplines workflow se chargent quand même automatiquement. Crée un skill personnalisé dans les paramètres Skills si cet agent en a besoin.",
         "skillBindingsCounter": "{count}/{max} liés",
-        "skillBindingsToggleAria": "Lier {slug}",
-        "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",
         "skillBindingsNoSkillsInOrgDescription": "Aucun skill n'existe encore dans cette organisation.",
         "skillBindingsNoSkillsInOrgCta": "En créer un dans les paramètres Skills",
         "sectionKnowledge": "Base de connaissances",
@@ -5416,7 +5515,7 @@
         "webSearchHintLink": "Gérer les sites web",
         "searchPlaceholder": "Rechercher des outils…",
         "enabledCount": "{enabled}/{total}",
-        "enabledCountLabel": "Outils activés : {enabled} sur {total}",
+        "enabledCountLabel": "Outils activés : {enabled} sur {total, plural, one {# outil} other {# outils}}",
         "categories": {
           "contacts": "Contacts",
           "products": "Produits",
@@ -5479,7 +5578,8 @@
           "task_write": "Créer et mettre à jour les tâches",
           "project_read": "Consulter les projets et leur contenu",
           "project_write": "Créer et mettre à jour les projets",
-          "secret_read": "Utiliser les secrets stockés pour appeler des services externes"
+          "secret_read": "Utiliser les secrets stockés pour appeler des services externes",
+          "automation_search": "Rechercher les automatisations et bundles existants avant d'en créer une nouvelle"
         }
       },
       "webhook": {
@@ -5549,8 +5649,6 @@
         "menuLabel": "Gérer {name}"
       },
       "columns": {
-        "name": "Skill",
-        "description": "Description",
         "loadError": "Impossible de lire SKILL.md"
       },
       "loadErrorDetail": {
@@ -5871,6 +5969,27 @@
         "scopesLabel": "Scopes",
         "pkceLabel": "Utiliser PKCE",
         "pkceDescription": "Envoie un code challenge PKCE à chaque requête d'autorisation — recommandé dès que l'IdP le prend en charge.",
+        "advanced": "Avancé",
+        "defaultDisplayName": {
+          "entra": "Microsoft Entra ID",
+          "oidc": "SSO OIDC",
+          "oauth2": "SSO OAuth2",
+          "saml": "SSO SAML"
+        },
+        "metadata": {
+          "title": "Importer les métadonnées de l'IdP",
+          "help": "Ton IdP publie l'ID d'entité, l'URL de connexion et le certificat de signature sous forme de métadonnées de fédération XML. Importe-les ici pour remplir les champs ci-dessous — tu peux encore vérifier et modifier chaque valeur avant d'enregistrer.",
+          "urlLabel": "URL des métadonnées",
+          "importUrl": "Importer",
+          "uploadXml": "Téléverser le XML",
+          "imported": "Métadonnées de l'IdP importées — vérifie les champs ci-dessous, puis enregistre.",
+          "importFailed": "Impossible d'importer les métadonnées de l'IdP.",
+          "errorTooLarge": "Le document de métadonnées est trop volumineux (1 Mo max).",
+          "errorInvalid": "Ceci ne ressemble pas à un XML de métadonnées de fédération valide.",
+          "errorNotIdp": "Les métadonnées ne décrivent aucun fournisseur d'identité — as-tu téléversé des métadonnées SP par erreur ?",
+          "errorIncomplete": "Il manque l'ID d'entité, l'URL de connexion ou le certificat de signature dans les métadonnées.",
+          "errorFetchFailed": "Impossible de récupérer l'URL des métadonnées. Vérifie l'adresse, ou télécharge le fichier et téléverse-le ici."
+        },
         "idpEntityIdLabel": "ID d'entité de l'IdP",
         "idpSsoUrlLabel": "URL de connexion de l'IdP",
         "idpCertLabel": "Certificat de signature de l'IdP (PEM)",
@@ -5995,6 +6114,7 @@
     "providers": {
       "title": "Fournisseurs",
       "entityLabel": "fournisseurs",
+      "entityLabelOne": "fournisseur",
       "modelCatalog": {
         "title": "Catalogue de modèles",
         "description": "Les capacités des modèles (tarifs, fenêtre de contexte, raisonnement, outils, vision) sont tenues à jour depuis le catalogue public d'OpenRouter et servent de valeurs par défaut sous ta configuration de fournisseur. Actualisé chaque jour.",
@@ -6083,6 +6203,16 @@
       "apiFormatHelp": "Le format d'API du point de terminaison de ce fournisseur. Laissez sur Compatible OpenAI, sauf si le fournisseur expose un point de terminaison Anthropic natif (par ex. .../anthropic). Les fournisseurs au format Anthropic fonctionnent avec les agents externes (Claude Code) ; le chat intégré utilise le client compatible OpenAI.",
       "apiFormatOpenai": "Compatible OpenAI (par défaut)",
       "apiFormatAnthropic": "Anthropic",
+      "advanced": "Avancé",
+      "baseUrlManagedHelp": "Le point de terminaison publié de ce fournisseur — déjà rempli.",
+      "baseUrlOverride": "Remplacer l'URL de base",
+      "presetLabel": "Partir d'un fournisseur connu",
+      "presetHelp": "La sélection remplit le nom du fournisseur et le point de terminaison — il ne reste que ta clé API.",
+      "presetCustom": "Personnalisé",
+      "catalogPickerLabel": "Choisir dans le catalogue de modèles",
+      "catalogPickerPlaceholder": "Sélectionner un modèle…",
+      "catalogPickerEmpty": "Aucun modèle du catalogue ne correspond.",
+      "catalogPickerHelp": "La sélection reprend l'ID du modèle et ses capacités depuis le catalogue synchronisé. Tu peux toujours saisir un ID personnalisé en dessous.",
       "secretsEnv": "Variable d'environnement de la clé API",
       "secretsEnvPlaceholder": "ex., TALE_PROVIDER_KEY_OPENROUTER",
       "secretsEnvHelp": "Lit la clé API depuis cette variable d'environnement au lieu du fichier de secrets. Modifier la valeur nécessite un redémarrage de la plateforme.",
@@ -6249,6 +6379,7 @@
     },
     "apiKeys": {
       "entityLabel": "clés",
+      "entityLabelOne": "clé",
       "createKey": "Créer une clé API",
       "createKeySubmit": "Créer la clé",
       "searchKeys": "Rechercher des clés API...",
@@ -6347,6 +6478,7 @@
       },
       "errors": {
         "entityLabel": "journaux d'erreurs",
+        "entityLabelOne": "journal d'erreur",
         "tableCaption": "Tableau des journaux d'erreurs",
         "emptyTitle": "Aucun journal d'erreurs",
         "emptyDescription": "Les actions échouées ou refusées apparaîtront ici."
@@ -6371,6 +6503,7 @@
       },
       "audit": {
         "entityLabel": "journaux d'audit",
+        "entityLabelOne": "journal d'audit",
         "tableCaption": "Tableau des journaux d'audit",
         "emptyTitle": "Aucun journal d'audit",
         "emptyDescription": "Les journaux d'audit apparaîtront ici à mesure que des actions sont effectuées dans ton organisation.",
@@ -6978,6 +7111,7 @@
       "unassign": "Désassigner",
       "you": "Vous",
       "search": "Rechercher des personnes…",
+      "liveAgentsOnly": "Seuls les agents installés et activés sont affichés — connecter une intégration n'active pas ses agents automatiquement.",
       "dispatchHints": {
         "agentPlatform": "Utilise les outils de la plateforme et publie un commentaire de tâche.",
         "codingDaemon": "S'exécute sur ta machine dans un workspace git.",
@@ -6997,7 +7131,8 @@
       "assigneeChanged": "Responsable modifié",
       "commentAdded": "Commentaire ajouté",
       "dependencyAdded": "Dépendance ajoutée",
-      "dependencyRemoved": "Dépendance supprimée"
+      "dependencyRemoved": "Dépendance supprimée",
+      "agentRunRefused": "Exécution refusée"
     },
     "review": {
       "needsReview": "Revue requise",
@@ -7009,6 +7144,11 @@
       "feedbackPlaceholder": "Que faut-il changer ? L'agent reçoit ce texte tel quel.",
       "approvedToast": "Tâche approuvée et terminée",
       "changesRequestedToast": "Modifications demandées — l'agent s'en occupe"
+    },
+    "runFailure": {
+      "title": "L'agent n'a pas pu démarrer",
+      "description": "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche reste inchangé.",
+      "viewAgents": "Gérer les agents"
     },
     "agentRuns": {
       "working": "L'agent travaille…",
@@ -7027,6 +7167,13 @@
         "unblock": "débloqué",
         "decomposition": "décomposition",
         "manual": "manuel"
+      },
+      "refused": {
+        "agent_disabled": "l'agent n'est pas installé ou est désactivé",
+        "agent_not_found": "agent introuvable ou mal configuré",
+        "automation_disabled": "l'automatisation des tâches est désactivée",
+        "budget_paused": "budget mensuel épuisé",
+        "task_circuit_breaker": "les exécutions d'agents sont en pause sur cette tâche"
       }
     },
     "timeline": {
@@ -7334,6 +7481,7 @@
   },
   "websites": {
     "title": "Sites web",
+    "entityLabelOne": "site web",
     "searchPlaceholder": "Rechercher des sites web…",
     "addButton": "Ajouter un site web",
     "addWebsite": "Ajouter un site web",
@@ -7483,6 +7631,7 @@
   "projects": {
     "title": "Projets",
     "entityLabel": "projets",
+    "entityLabelOne": "projet",
     "navigation": {
       "list": "Tous les projets",
       "overview": "Général",
@@ -7865,7 +8014,6 @@
       "agents": "Mettre à jour les agents livrés",
       "workflows": "Mettre à jour les automatisations livrées",
       "integrations": "Mettre à jour les intégrations livrées",
-      "apps": "Mettre à jour les applications livrées",
       "automations": "Mettre à jour les automatisations livrées",
       "skills": "Mettre à jour les skills livrés"
     },
@@ -8081,22 +8229,35 @@
         "emptyDescription": "Crée une planification pour déclencher automatiquement ce workflow de manière récurrente.",
         "columns": {
           "cronExpression": "Expression cron",
+          "project": "Projet",
           "active": "Actif",
           "lastTriggered": "Dernier déclenchement",
           "createdBy": "Créé par"
         },
+        "unboundProject": "Sans projet",
+        "needsConfiguration": "Configuration requise",
+        "needsConfigurationDetail": "Variables requises manquantes : {fields}",
         "form": {
           "title": "Créer une planification",
           "editTitle": "Modifier la planification",
           "cronExpression": "Expression cron",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Format cron standard à 5 champs : minute heure jour mois jour_semaine",
+          "timezoneLabel": "Fuseau horaire",
           "variablesLabel": "Variables du workflow",
           "variablesDescription": "Paramètres d'entrée transmis à chaque exécution planifiée. Pré-remplis depuis le schéma d'entrée du workflow.",
           "variablesInvalid": "Les variables doivent être un objet JSON valide",
+          "projectLabel": "Projet",
+          "projectPlaceholder": "Sélectionner un projet",
+          "repoLabel": "Repository GitHub",
+          "repoPlaceholder": "owner/repo ou https://github.com/owner/repo",
+          "repoInvalid": "Saisis-le au format owner/repo ou une URL GitHub",
+          "useFormToggle": "Utiliser le formulaire",
+          "editAsJsonToggle": "Modifier en JSON",
           "validation": {
             "cronRequired": "L'expression cron est requise",
-            "cronInvalid": "Doit être une expression cron valide à 5 champs"
+            "cronInvalid": "Doit être une expression cron valide à 5 champs",
+            "missingRequired": "Configure les champs requis avant d'enregistrer : {fields}"
           },
           "presets": {
             "every5Minutes": "Toutes les 5 minutes",
@@ -8193,12 +8354,14 @@
     "executions": {
       "title": "Exécutions",
       "entityLabel": "exécutions",
+      "entityLabelOne": "exécution",
       "searchPlaceholder": "Rechercher par ID d'exécution",
       "viewOnCanvas": "Voir sur le canevas"
     },
     "steps": {
       "banners": {
-        "hasActiveTriggers": "Ce workflow est actif — les modifications enregistrées s’appliquent aux nouvelles exécutions."
+        "hasActiveTriggers": "Ce workflow est actif — les modifications enregistrées s’appliquent aux nouvelles exécutions.",
+        "hasActiveTriggersScheduleGap": "Ce workflow est actif, mais une planification active n’a pas toutes ses variables requises ({fields}) — ces exécutions échoueront tant qu’elles ne sont pas définies."
       },
       "toolbar": {
         "testWorkflow": "Tester le workflow",
@@ -8281,17 +8444,11 @@
         "invalidJson": "Saisis un JSON valide pour exécuter ce workflow.",
         "missingRequired": "Configure les champs requis avant d'exécuter : {fields}"
       },
-      "tip": "L'exécution à blanc simule l'exécution sans effets secondaires. L'exécution crée de véritables exécutions visibles dans l'onglet Exécutions.",
+      "tip": "L'exécution crée de véritables exécutions visibles dans l'onglet Exécutions.",
       "execute": "Exécuter",
       "executing": "Exécution...",
-      "dryRunning": "Simulation...",
       "dryRun": {
         "button": "Exécution à blanc",
-        "success": "Exécution à blanc terminée avec succès",
-        "failed": "L'exécution à blanc a détecté des problèmes",
-        "errors": "Erreurs",
-        "warnings": "Avertissements",
-        "executionPath": "Chemin d'exécution",
         "fileBasedUnsupported": "L'exécution à blanc n'est pas encore disponible pour les workflows basés sur fichiers."
       },
       "toast": {

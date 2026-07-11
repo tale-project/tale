@@ -4,6 +4,7 @@ import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
 import { jsonRecordValidator } from '../lib/validators/json';
 import { automationWorkflowSlugs } from './automation_workflow_slugs';
+import { mergeScheduleVariables } from './schedule_variables';
 
 const resourceValidator = v.object({
   domain: v.string(),
@@ -391,7 +392,7 @@ export const reconcileAutomationSchedules = internalMutation({
       workflowSlug: string,
       cronExpression: string,
       projectId: string | undefined,
-    ): string => `${workflowSlug} ${cronExpression} ${projectId ?? ''}`;
+    ): string => `${workflowSlug}\x00${cronExpression}\x00${projectId ?? ''}`;
 
     const desiredByKey = new Map(
       args.desired.map((d) => [
@@ -424,14 +425,16 @@ export const reconcileAutomationSchedules = internalMutation({
         if (want && !seen.has(key)) {
           seen.add(key);
           await ctx.db.patch(sched._id, {
-            // Operator-set values win over the file's declared defaults, so a
-            // repo owner/name (or any variable, or the timezone) entered via
+            // Operator-FILLED values win over the file's declared defaults, so
+            // a repo owner/name (or any variable, or the timezone) entered via
             // the workflow's Triggers tab survives a reinstall/rebind — the
             // installed workflow and its schedule config are org-owned (the
             // workflow-update-exempt rule). A genuinely new file-declared
-            // default (a variable key the row lacks) still lands, so converge
-            // keeps applying net-new spec.
-            variables: { ...want.variables, ...sched.variables },
+            // default (a variable key the row lacks) still lands, and a BLANK
+            // placeholder (`""`/`null` from the schedule dialog's skeleton)
+            // never shadows a real default — that's how the install-seeded
+            // `projectId` reaches an already-created row (#2607).
+            variables: mergeScheduleVariables(want.variables, sched.variables),
             timezone: sched.timezone ?? want.timezone ?? 'UTC',
           });
           updated++;

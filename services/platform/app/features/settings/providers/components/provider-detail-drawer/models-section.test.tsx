@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import type userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,13 +25,26 @@ vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     model_catalog: {
-      queries: { getModelCapabilities: 'getModelCapabilities' },
+      queries: {
+        getModelCapabilities: 'getModelCapabilities',
+        listCatalogModels: 'listCatalogModels',
+      },
     },
   },
 }));
 
+// Synced-catalog rows the add-dialog picker offers (#2655); mutable so a test
+// can empty it and assert the picker hides on catalog-less orgs.
+let catalogRows: unknown[] = [];
 vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: [] }),
+  useConvexQuery: (fn: unknown, args: unknown) => ({
+    data:
+      args === 'skip'
+        ? undefined
+        : fn === 'listCatalogModels'
+          ? catalogRows
+          : [],
+  }),
 }));
 
 const saveConfigMock = vi.fn();
@@ -107,6 +120,7 @@ describe('ModelsSection sub-cent cost editing', () => {
   beforeEach(() => {
     saveConfigMock.mockReset();
     saveConfigMock.mockResolvedValue(undefined);
+    catalogRows = [];
     configMock.mockReturnValue({
       displayName: 'OpenRouter',
       models: [{ ...subCentModel }],
@@ -152,5 +166,104 @@ describe('ModelsSection sub-cent cost editing', () => {
     const payload = await submitEdit(user);
     // $0.005/1M → 0.5 cents; step=0.01 would have rejected it outright.
     expect(payload.models[0].cost.inputCentsPerMillion).toBe(0.5);
+  });
+});
+
+describe('ModelsSection add-model catalog picker (#2655)', () => {
+  const OPUS_ROW = {
+    modelId: 'anthropic/claude-opus-4',
+    source: 'openrouter',
+    contextWindow: 200_000,
+    maxOutputTokens: 32_000,
+    inputCentsPerMillion: 1500,
+    outputCentsPerMillion: 7500,
+    reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
+    promptCaching: { mode: 'explicit-breakpoints', maxBreakpoints: 4 },
+  };
+
+  beforeEach(() => {
+    saveConfigMock.mockReset();
+    saveConfigMock.mockResolvedValue(undefined);
+    catalogRows = [OPUS_ROW];
+    configMock.mockReturnValue({
+      displayName: 'OpenRouter',
+      models: [{ ...subCentModel }],
+    });
+  });
+
+  async function openAdd(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      screen.getByRole('button', {
+        name: /^settings\.providers\.addModelShort$/,
+      }),
+    );
+    return screen.findByRole('dialog');
+  }
+
+  it('fills ID, display name, and capabilities when a catalog model is picked', async () => {
+    const { user } = renderSection();
+    const dialog = await openAdd(user);
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: /providers\.catalogPickerLabel/,
+      }),
+    );
+    await user.click(
+      await screen.findByRole('option', { name: /anthropic\/claude-opus-4/ }),
+    );
+
+    expect(
+      within(dialog).getByRole('textbox', {
+        name: /^settings\.providers\.modelId\b/,
+      }),
+    ).toHaveValue('anthropic/claude-opus-4');
+    expect(
+      within(dialog).getByRole('textbox', {
+        name: /^settings\.providers\.displayName\b/,
+      }),
+    ).toHaveValue('anthropic/claude-opus-4');
+    // Cost arrives in the visible, editable field (1500 cents → $15/1M).
+    expect(getInputCostField()).toHaveValue(15);
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: /^settings\.providers\.addModel$/,
+      }),
+    );
+    await waitFor(() => expect(saveConfigMock).toHaveBeenCalledTimes(1));
+    const models = saveConfigMock.mock.calls[0][0].models;
+    expect(models).toHaveLength(2);
+    expect(models[1]).toMatchObject({
+      id: 'anthropic/claude-opus-4',
+      contextWindow: 200_000,
+      maxOutputTokens: 32_000,
+      cost: { inputCentsPerMillion: 1500, outputCentsPerMillion: 7500 },
+      reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
+      promptCaching: { mode: 'explicit-breakpoints', maxBreakpoints: 4 },
+    });
+  });
+
+  it('hides the picker with no synced catalog and when editing an existing model', async () => {
+    catalogRows = [];
+    const { user } = renderSection();
+    const addDialog = await openAdd(user);
+    expect(
+      within(addDialog).queryByRole('button', {
+        name: /providers\.catalogPickerLabel/,
+      }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(addDialog).getByRole('button', { name: /aria\.close/ }),
+    );
+
+    catalogRows = [OPUS_ROW];
+    await openEdit(user);
+    const editDialog = screen.getByRole('dialog');
+    expect(
+      within(editDialog).queryByRole('button', {
+        name: /providers\.catalogPickerLabel/,
+      }),
+    ).not.toBeInTheDocument();
   });
 });

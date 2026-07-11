@@ -94,15 +94,34 @@ function extractProjectErrorCode(error: unknown): ProjectErrorCode | null {
 /**
  * `@`-mention KB reference rejected by `chatWithAgentTurn` (document deleted,
  * moved out of the user's teams, or no longer RAG-indexed between pick and
- * send). One opaque code server-side; mapped to a localized toast here.
+ * send). One opaque code server-side for every access failure; when the
+ * document WAS accessible but simply isn't indexed, `resolveReferencedFiles`
+ * additionally names the file + a `reason` (issue #2598) so the toast can say
+ * something more useful than the generic opaque message — access failures
+ * never carry these extra fields, so opacity for those is preserved.
  */
-function isKbRefInvalidError(error: unknown): boolean {
-  if (!(error instanceof ConvexError)) return false;
+interface KbRefInvalidDetail {
+  reason?: 'not_indexed' | 'unsupported';
+  fileName?: string;
+}
+
+function extractKbRefInvalidDetail(error: unknown): KbRefInvalidDetail | null {
+  if (!(error instanceof ConvexError)) return null;
   const data: unknown = error.data;
   if (typeof data !== 'object' || data === null || !('code' in data)) {
-    return false;
+    return null;
   }
-  return data.code === 'KB_REF_INVALID';
+  if (data.code !== 'KB_REF_INVALID') return null;
+  const reason =
+    'reason' in data &&
+    (data.reason === 'not_indexed' || data.reason === 'unsupported')
+      ? data.reason
+      : undefined;
+  const fileName =
+    'fileName' in data && typeof data.fileName === 'string'
+      ? data.fileName
+      : undefined;
+  return { reason, fileName };
 }
 
 /**
@@ -1090,6 +1109,7 @@ export function useSendMessage({
         // fall back to the legacy substring for old server bundles.
         const blockedCode = extractGuardrailsBlockedCode(error);
         const projectCode = extractProjectErrorCode(error);
+        const kbRefDetail = extractKbRefInvalidDetail(error);
 
         let title = t('toast.sendFailed');
         let description = errorMessage;
@@ -1119,8 +1139,13 @@ export function useSendMessage({
           title = t('toast.modelAccessDenied');
         } else if (lower.includes('usage limit') || lower.includes('budget')) {
           title = t('toast.budgetExceeded');
-        } else if (isKbRefInvalidError(error)) {
-          description = t('toast.kbRefInvalid');
+        } else if (kbRefDetail) {
+          description =
+            kbRefDetail.reason === 'unsupported' && kbRefDetail.fileName
+              ? t('toast.kbRefUnsupported', { fileName: kbRefDetail.fileName })
+              : kbRefDetail.reason === 'not_indexed' && kbRefDetail.fileName
+                ? t('toast.kbRefNotIndexed', { fileName: kbRefDetail.fileName })
+                : t('toast.kbRefInvalid');
         } else if (projectCode) {
           // Surface the localized project-context message instead of the raw
           // ConvexError payload (which would otherwise show as the description).

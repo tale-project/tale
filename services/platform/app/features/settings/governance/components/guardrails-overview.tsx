@@ -541,11 +541,17 @@ function EventDetailSheet({
         variant: 'success',
       });
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : t('guardrailsOverview.eventDetails.copyFailed');
-      toast({ title: message, variant: 'destructive' });
+      // Browser clipboard permission/security errors are dev-facing (e.g.
+      // `NotAllowedError: Write permission denied.`) — log for debugging, but
+      // never surface the raw message in the toast (#2669 sibling: the same
+      // "raw thrown-error text reaches the user" defect class as the
+      // ConvexError save-error toasts this file's siblings route through
+      // `mapGovernanceSaveError`).
+      console.warn('[guardrails] clipboard write failed', err);
+      toast({
+        title: t('guardrailsOverview.eventDetails.copyFailed'),
+        variant: 'destructive',
+      });
     }
   };
 

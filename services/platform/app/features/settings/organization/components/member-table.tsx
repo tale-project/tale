@@ -182,7 +182,10 @@ export function MemberTable({
         pageSize: 10,
         total: members.length,
         showPageSizeSelector: true,
-        entityLabel: tSettings('organization.membersEntityLabel'),
+        entityLabel: {
+          one: tSettings('organization.memberEntityLabel'),
+          other: tSettings('organization.membersEntityLabel'),
+        },
       }}
       emptyState={{
         icon: Users,

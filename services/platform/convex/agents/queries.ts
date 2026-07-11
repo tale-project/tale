@@ -7,8 +7,10 @@
 
 import { v } from 'convex/values';
 
-import { query } from '../_generated/server';
+import { internal } from '../_generated/api';
+import { action, query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
 export const getBindingByAgent = query({
@@ -113,40 +115,62 @@ export const getAvailableTools = query({
   },
 });
 
-export const getAvailableIntegrations = query({
+/**
+ * Bindable integrations for the agent editor's "Bound integrations" picker.
+ * An `action` (not a `query`): the catalog `description` shown alongside the
+ * label lives in the org's `integration.json` files on disk, which only a
+ * Node action can read (`listIntegrationsInternal`) — the active/installed
+ * set itself still comes from the `integrationCredentials` table via an
+ * internal query, so no secret field ever leaves this function. Mirrors the
+ * same action-backed pattern as the sibling "Bound automations" picker
+ * (`workflows/file_actions.ts#listWorkflows`).
+ */
+export const getAvailableIntegrations = action({
   args: {
     organizationId: v.string(),
   },
   handler: async (
     ctx,
     args,
-  ): Promise<Array<{ name: string; title: string; type: string }>> => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) return [];
+  ): Promise<
+    Array<{
+      name: string;
+      title: string;
+      type: string;
+      description?: string;
+    }>
+  > => {
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: authUser.userId,
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const credentials = await ctx.runQuery(
+      internal.integrations.credential_queries.listInternal,
+      { organizationId: args.organizationId },
+    );
 
-    const integrations: Array<{ name: string; title: string; type: string }> =
-      [];
-    const credentialQuery = ctx.db
-      .query('integrationCredentials')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
+    const activeCredentials = credentials.filter(
+      (cred) => cred.status === 'active',
+    );
+    if (activeCredentials.length === 0) return [];
 
-    for await (const cred of credentialQuery) {
-      if (cred.status !== 'active') continue;
-      integrations.push({
-        name: cred.slug,
-        title: cred.slug,
-        type: cred.sqlConnectionConfig ? 'sql' : 'rest_api',
-      });
-    }
+    // Graceful when the catalog is empty or unreadable — `listIntegrationsInternal`
+    // already degrades a missing directory to `[]`, so a description just stays
+    // absent instead of failing the whole picker.
+    const catalog = await ctx.runAction(
+      internal.integrations.file_actions.listIntegrationsInternal,
+      { orgSlug },
+    );
+    const descriptionBySlug = new Map(
+      catalog.map((entry) => [entry.slug, entry.description]),
+    );
 
-    return integrations;
+    return activeCredentials.map((cred) => ({
+      name: cred.slug,
+      title: cred.slug,
+      type: cred.sqlConnectionConfig ? 'sql' : 'rest_api',
+      description: descriptionBySlug.get(cred.slug),
+    }));
   },
 });

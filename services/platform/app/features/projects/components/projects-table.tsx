@@ -192,7 +192,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       fields: ['name', 'description'],
       placeholder: t('list.searchPlaceholder'),
     },
-    entityLabel: t('entityLabel'),
+    entityLabel: { one: t('entityLabelOne'), other: t('entityLabel') },
   });
 
   return (

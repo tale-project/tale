@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Info, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -235,20 +236,32 @@ export function AssigneePicker({
             );
           }}
           footer={
-            assigneeId ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-start"
-                icon={UserX}
-                onClick={() => {
-                  onUnassign();
-                  setOpen(false);
-                }}
-              >
-                {t('assignee.unassign')}
-              </Button>
-            ) : undefined
+            <Stack gap={0}>
+              {/* #2610: only installed + enabled agents ever reach this list
+                  — a connected integration alone does not make its bundled
+                  agents assignable, so a familiar name (e.g. an
+                  integration's own agent) can be legitimately absent, up to
+                  and including the whole Agents section. Always shown (not
+                  gated on the section being non-empty) so that exact "why
+                  can't I find it" case still gets an answer. */}
+              <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
+                {t('assignee.liveAgentsOnly')}
+              </Text>
+              {assigneeId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-start"
+                  icon={UserX}
+                  onClick={() => {
+                    onUnassign();
+                    setOpen(false);
+                  }}
+                >
+                  {t('assignee.unassign')}
+                </Button>
+              )}
+            </Stack>
           }
         />
         {showNonCodeWarning && (

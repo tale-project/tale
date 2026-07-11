@@ -130,7 +130,7 @@ Legend: ✅ fully automated · 🔶 covered by a component test only (no e2e spe
 
 | ID  | Test                 | Prompt                                               | Expected                                                                                                                                 |
 | --- | -------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| TL1 | Knowledge read       | Ask about a seeded product/customer                  | A `product_read`/`customer_read` tool card shows the call; the answer uses the record                                                    |
+| TL1 | Knowledge read       | Ask about a seeded product/contact                   | A `product_read`/`contact_read` tool card shows the call; the answer uses the record                                                     |
 | TL2 | RAG                  | Ask about an uploaded document                       | A `rag_search` tool card runs; the answer cites the document                                                                             |
 | TL3 | Web scope            | Ask something only on a crawled org website          | `web_assistant` searches org sites, not the open web                                                                                     |
 | TL4 | Doc generation       | "Generate a one-page PDF of …"                       | A `pdf` tool returns a downloadable file part                                                                                            |

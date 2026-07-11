@@ -5,6 +5,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import { validateConversationAttachmentCaps } from './attachments';
 import { buildThreadingHeaders } from './build_threading_headers';
 import { inboundRecipientAddress } from './reply_from';
 
@@ -32,6 +33,12 @@ export async function sendMessageViaIntegration(
   ctx: MutationCtx,
   args: SendMessageViaIntegrationArgs,
 ): Promise<Id<'conversationMessages'>> {
+  // Server-side re-enforcement of the composer's attachment caps — the single
+  // choke point every write path funnels through (`replyToConversation` and
+  // `composeEmailConversation` both delegate here), so one check covers all
+  // of them. A denial throws synchronously before any read/write (#2661).
+  validateConversationAttachmentCaps(args.attachments);
+
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
     throw new ConvexError({

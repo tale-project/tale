@@ -9,8 +9,8 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import {
   CONTACT_REQUIRED_COLUMNS,
+  contactMappers,
   useFileImport,
-  vendorMappers,
 } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import type { Doc } from '@/convex/_generated/dataModel';
@@ -22,7 +22,9 @@ import { ContactImportForm } from './contact-import-form';
 export interface ParsedContact {
   email: string;
   name?: string;
-  locale: string;
+  // Omitted (not defaulted) when the file doesn't provide one — an explicit
+  // absence, not a fabricated 'en' nobody chose (#2642).
+  locale?: string;
   source: Doc<'contacts'>['source'];
 }
 
@@ -52,12 +54,9 @@ export function ImportContactsDialog({
   const { t: tCommon } = useT('common');
   const { t: tContacts } = useT('contacts');
 
-  // Reuse the shared status-less contact mapper (email/name/locale/source);
-  // contacts have no status column, so the customer mapper (which injects
-  // `status: 'active'`) would produce a payload the mutation rejects.
   const { parseFile, parseCSV } = useFileImport<ParsedContact>({
-    csvMapper: vendorMappers.csv,
-    excelMapper: vendorMappers.excel,
+    csvMapper: contactMappers.csv,
+    excelMapper: contactMappers.excel,
     requiredColumns: CONTACT_REQUIRED_COLUMNS,
   });
 
@@ -219,7 +218,7 @@ export function ImportContactsDialog({
 
   const dialogTitle =
     mode === 'manual'
-      ? tContacts('import.addContacts')
+      ? tContacts('import.pasteContacts')
       : tContacts('import.uploadContacts');
 
   return (

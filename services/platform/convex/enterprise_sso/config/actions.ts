@@ -161,6 +161,63 @@ export const upsertSaml = action({
   },
 });
 
+/**
+ * Parse IdP federation metadata (URL or uploaded XML) into the three SAML
+ * fields the form asks for, so admins never hand-copy a certificate (#2652).
+ * Parsing runs server-side behind the admin gate: the metadata is untrusted
+ * input, so it crosses `safeFetch` (SSRF/size) + the parser's own byte cap in
+ * the `'use node'` SAML module. Returns the parsed values for the form to
+ * prefill — nothing is persisted here; saving stays an explicit review step.
+ */
+export const parseIdpMetadata = action({
+  args: {
+    organizationId: v.string(),
+    url: v.optional(v.string()),
+    xml: v.optional(v.string()),
+  },
+  returns: v.object({
+    idpEntityId: v.string(),
+    idpSsoUrl: v.string(),
+    idpCertificate: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.organizationId);
+    if ((args.url === undefined) === (args.xml === undefined)) {
+      throw new ConvexError({
+        code: 'sso_metadata_invalid',
+        message: 'Provide exactly one of url or xml',
+      });
+    }
+    const result: {
+      ok: boolean;
+      error?: string;
+      idpEntityId?: string;
+      idpSsoUrl?: string;
+      idpCertificate?: string;
+    } = await ctx.runAction(
+      internal.enterprise_sso.saml.parse_metadata.fetchAndParseIdpMetadata,
+      { url: args.url, xml: args.xml },
+    );
+    if (
+      !result.ok ||
+      result.idpEntityId === undefined ||
+      result.idpSsoUrl === undefined ||
+      result.idpCertificate === undefined
+    ) {
+      // Stable per-kind codes the form maps to localized messages.
+      throw new ConvexError({
+        code: `sso_metadata_${result.error ?? 'invalid'}`,
+        message: 'Could not read IdP metadata',
+      });
+    }
+    return {
+      idpEntityId: result.idpEntityId,
+      idpSsoUrl: result.idpSsoUrl,
+      idpCertificate: result.idpCertificate,
+    };
+  },
+});
+
 /** Update only the provisioning policy (role mapping, team sync, default role). */
 export const setProvisioning = action({
   args: { organizationId: v.string(), ...provisioningArgs },

@@ -219,7 +219,10 @@ export function RecentFeedbackTable({
           onLoadMore,
           isLoadingMore,
           isInitialLoading: isLoading,
-          entityLabel: tAnalytics('feedback.recent.entityLabel'),
+          entityLabel: {
+            one: tAnalytics('feedback.recent.entityLabelOne'),
+            other: tAnalytics('feedback.recent.entityLabel'),
+          },
         }}
         emptyState={{
           icon: MessageSquare,

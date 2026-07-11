@@ -69,7 +69,10 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
     pageSize,
     search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
-    entityLabel: tSettings('apiKeys.entityLabel'),
+    entityLabel: {
+      one: tSettings('apiKeys.entityLabelOne'),
+      other: tSettings('apiKeys.entityLabel'),
+    },
   });
 
   const hasKeys = apiKeys && apiKeys.length > 0;

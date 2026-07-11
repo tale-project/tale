@@ -15,6 +15,14 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
    * normal document flow so long forms scroll the outer container.
    */
   fitToContainer?: boolean;
+  /**
+   * Opts out of the standard `max-w-3xl` content cap (#2567) for a page
+   * whose content genuinely needs the full settings pane width — e.g. a
+   * `DataTable` with an explicit per-column size floor wider than ~736px
+   * (audit logs, legal hold, data-subject requests, usage). Document the
+   * reason at the call site; most settings pages should NOT set this.
+   */
+  fullWidth?: boolean;
   /** Section content — `<SettingsSection>` children separated by 32px gap. */
   children?: ReactNode;
 }
@@ -24,9 +32,15 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
  * title/description — the settings rail already names the page — so this is a
  * pure layout shell: a consistent stack between sections (gap-8 = 32px) so
  * the visual rhythm is the same on every page in the settings area.
+ *
+ * Content is capped at `max-w-3xl` and left-aligned by default — the same
+ * width as the agent editor's Tools/Starters tabs — so every settings
+ * surface shares one measure (#2567). Pass `fullWidth` for the documented
+ * exceptions that host a wider `DataTable`.
  */
 export function SettingsPage({
   fitToContainer,
+  fullWidth,
   children,
   className,
   ...props
@@ -35,6 +49,7 @@ export function SettingsPage({
     <div
       className={cn(
         'flex w-full flex-col gap-8',
+        !fullWidth && 'mx-auto max-w-3xl',
         // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
         // child of the scroll container, so its padding-bottom is clipped
         // at the scroll boundary; a `pb-6` on this content-sized wrapper

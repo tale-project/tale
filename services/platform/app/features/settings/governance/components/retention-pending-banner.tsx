@@ -12,6 +12,8 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
+
 interface Props {
   organizationId: string;
 }
@@ -85,7 +87,14 @@ export function RetentionPendingBanner({ organizationId }: Props) {
               } catch (err) {
                 toast({
                   title: t('toastSaveFailedTitle'),
-                  description: err instanceof Error ? err.message : String(err),
+                  description: mapGovernanceSaveError(
+                    err,
+                    t,
+                    t(
+                      'retentionPolicy.pendingChange.cancelFailedToast',
+                      'Failed to cancel the pending retention change.',
+                    ),
+                  ),
                   variant: 'destructive',
                 });
               }

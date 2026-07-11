@@ -9,10 +9,6 @@ export const conversationsTable = defineTable({
   // The contact this conversation is with (issue #2618) — the sole link to the
   // person on the conversation.
   contactId: v.optional(v.id('contacts')),
-  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
-  // the teardown migration unsets it (expand-contract; the `customers` table is
-  // gone so this is a bare string, not v.id). Drop in the contract phase.
-  customerId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(

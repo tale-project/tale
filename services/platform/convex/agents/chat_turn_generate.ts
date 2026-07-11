@@ -129,6 +129,7 @@ export const runChatTurnGeneration = internalAction({
           folderId: v.id('folders'),
           name: v.string(),
           fileCount: v.number(),
+          skippedCount: v.number(),
         }),
       ),
     ),

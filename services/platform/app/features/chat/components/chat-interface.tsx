@@ -95,10 +95,6 @@ import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import {
-  ProviderSettingsToastAction,
-  useCanManageProviders,
-} from './provider-settings-action';
-import {
   QueuedMessageTray,
   type PendingTrayEntry,
 } from './queued-message-tray';
@@ -143,6 +139,15 @@ interface ChatInterfaceProps {
    *  derive `isArchived`. `undefined` while loading / for new/just-created
    *  threads (treated as not-archived). */
   threadStatus?: string | null;
+  /**
+   * True only while `ThreadGate` is holding a neutral footer for a thread it
+   * hasn't classified yet AND can't seed an "archived" guess from the
+   * already-loaded archived-threads list either (this session's very first
+   * thread open — see `ThreadGate`). Guessing "not archived" in that narrow
+   * window is exactly the composer→archived-banner flash #2658 removes, so
+   * the footer renders neither state while this is true.
+   */
+  threadStatusPending?: boolean;
 }
 
 export function ChatInterface({
@@ -150,6 +155,7 @@ export function ChatInterface({
   threadId,
   readOnly = false,
   threadStatus,
+  threadStatusPending = false,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
   const chatRegionLabelId = useId();
@@ -456,24 +462,23 @@ export function ChatInterface({
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
 
-  // Send-block breakdown: the missing-API-key subcase is the only one with an
-  // actionable fix, so it — and only it — carries the "Open provider settings"
-  // deep link (or an "ask an admin" hint for members who can't manage
-  // providers). The image-edit block takes priority in the reason string, so
-  // exclude it here to keep the two blocked reasons in lockstep.
+  // Send-block breakdown: the image-edit block takes priority in the reason
+  // string, so exclude it from `missingKeyBlocked` to keep the two blocked
+  // reasons in lockstep.
+  //
+  // #2576: missing API key is a setup blocker, not a draft-revision case —
+  // unlike the other `sendBlocked` reasons below (budget, image-edit
+  // mismatch) it now hard-blocks the composer itself (`disabled`/
+  // `disabledReason="no-api-key"`), so the reason is visible on an empty
+  // composer and Enter can't silently no-op (a `disabled` textarea can't
+  // receive keyboard events at all). The actionable "Open provider settings"
+  // deep link (or "ask an admin" hint) renders inline via `ProviderKeyErrorAction`
+  // inside ChatInput's disabled-reason block, keyed off `organizationId` —
+  // no separate action/description plumbing needed here.
   const imageEditBlocked =
     isImageGenAgent && !!activeEditingImage && !currentModelSupportsEdit;
   const missingKeyBlocked =
     !imageEditBlocked && (activeModelMissingApiKey || noProviderHasApiKey);
-  const canManageProviders = useCanManageProviders();
-  const sendBlockedAction =
-    missingKeyBlocked && canManageProviders ? (
-      <ProviderSettingsToastAction organizationId={organizationId} />
-    ) : undefined;
-  const sendBlockedDescription =
-    missingKeyBlocked && !canManageProviders
-      ? t('askAdminProviderKey')
-      : undefined;
 
   // Thread status — disable input for archived threads. Status is derived from
   // the URL threadId (root thread), not dataThreadId (which may be a branch
@@ -1440,7 +1445,7 @@ export function ChatInterface({
               }
             }}
           />
-        ) : (
+        ) : threadStatusPending ? null : (
           <FileUpload.Root>
             <div className="px-3">
               {isExternalAgentThread && dataThreadId && (
@@ -1480,13 +1485,22 @@ export function ChatInterface({
                 }
                 isLoading={isLoading}
                 queueModeActive={queueModeActive}
-                disabled={hasNoAgents || hasActiveApproval}
+                disabled={hasNoAgents || hasActiveApproval || missingKeyBlocked}
                 disabledReason={
                   hasNoAgents
                     ? 'no-agents'
                     : hasActiveApproval
                       ? 'pending-approval'
-                      : undefined
+                      : missingKeyBlocked
+                        ? 'no-api-key'
+                        : undefined
+                }
+                disabledMessage={
+                  missingKeyBlocked
+                    ? activeModelMissingApiKey
+                      ? t('modelSelector.noApiKey')
+                      : t('modelSelector.noProviderKey')
+                    : undefined
                 }
                 organizationId={organizationId}
                 projectId={currentProjectId}
@@ -1511,25 +1525,14 @@ export function ChatInterface({
                 ingestVideoUrlsFromText={ingestVideoUrlsFromText}
                 cancelVideoJob={cancelVideoJob}
                 retryVideoJob={retryVideoJob}
-                sendBlocked={
-                  budgetExceeded ||
-                  imageEditBlocked ||
-                  activeModelMissingApiKey ||
-                  noProviderHasApiKey
-                }
+                sendBlocked={budgetExceeded || imageEditBlocked}
                 sendBlockedReason={
                   budgetExceeded
                     ? t('budgetExceededDefault')
                     : imageEditBlocked
                       ? t('imageEdit.modelCannotEdit')
-                      : activeModelMissingApiKey
-                        ? t('modelSelector.noApiKey')
-                        : noProviderHasApiKey
-                          ? t('modelSelector.noProviderKey')
-                          : undefined
+                      : undefined
                 }
-                sendBlockedAction={sendBlockedAction}
-                sendBlockedDescription={sendBlockedDescription}
                 onSavePrompt={(content) =>
                   setSavePromptData({ messageId: '', content })
                 }

@@ -123,9 +123,9 @@ To move _down_ a version deliberately — say a minor release misbehaves and you
 
 ## Upgrading from 0.3.1 or earlier
 
-Instances on version 0.3.1 or earlier keep the Convex backend's data in the `platform-data` Docker volume. Newer versions run Convex as its own service with its own `convex-data` volume — and the automated copy that early releases shipped for this move is no longer in the CLI. Upgrade straight across that boundary and `tale deploy` pre-creates an **empty** `convex-data` volume: the instance comes up blank while every byte of your data still sits, untouched, in the old `platform-data` volume. Nothing is deleted — but the data does not move by itself, and `tale update` warns when it detects this constellation.
+Instances on version 0.3.1 or earlier keep the Convex backend's data in the `platform-data` Docker volume. Newer versions run Convex as its own service with its own `convex-data` volume — and nothing moves the data across at deploy time. Upgrade straight across that boundary and `tale deploy` pre-creates an **empty** `convex-data` volume: the instance comes up blank while every byte of your data still sits, untouched, in the old `platform-data` volume. Nothing is deleted — but the data does not move by itself, and `tale update` warns when it detects this constellation and offers to run the copy for you on the spot.
 
-Docker has no native volume rename, so the move is a copy through a helper container. Run it before `tale deploy` — with the stack stopped, so nothing holds the volume open:
+Docker has no native volume rename, so the move is a copy through a helper container — the same steps `tale update` runs when you accept its prompt (the old volume stays preserved either way). To do it by hand — you declined the prompt, or the automatic copy failed — run it before `tale deploy`, with the stack stopped, so nothing holds the volume open:
 
 ```bash
 # 1. Find the legacy volume — <project> is the `id` in tale.json.

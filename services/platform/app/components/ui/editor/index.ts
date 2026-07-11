@@ -12,5 +12,7 @@ export {
 export { EditorActions } from './editor-actions';
 export type { EditorController, EditorTelemetryEvent } from './types';
 export { useRegisterDirtySource } from './use-dirty-source';
+export type { DirtySourceEntry, DirtySourceOptions } from './use-dirty-source';
 export { useFormEditor } from './use-form-editor';
 export { useJsonConfigEditor } from './use-json-config-editor';
+export type { JsonConfigSchema } from './use-json-config-editor';

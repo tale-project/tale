@@ -111,8 +111,8 @@ const ENTITIES: CrudEntity[] = [
     create: (page, name) =>
       createViaCsvImport(page, {
         menuTrigger: t('contacts.importMenu.importContacts'),
-        menuItem: t('contacts.importMenu.manualEntry'),
-        dialogTitle: t('contacts.import.addContacts'),
+        menuItem: t('contacts.importMenu.pasteContacts'),
+        dialogTitle: t('contacts.import.pasteContacts'),
         importLabel: t('common.actions.import'),
         email: `e2e-contact-${name.split(' ').pop() ?? ''}@example.test`,
         name,

@@ -20,6 +20,7 @@ import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useEffect, useRef, useState } from 'react';
 
+import { useRegisterDirtySource } from '@/app/components/ui/editor';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -118,6 +119,12 @@ export function AgentInstructionsDialog({
       ? config.systemInstructions
       : '';
   const isDirty = config !== null && value !== baselineInstructions;
+
+  // Pending inline edits join the page-level DirtyBlockerProvider so a
+  // navigation away from the automation page prompts instead of silently
+  // dropping them (#2572). Gated on the OPEN dialog — after save/close the
+  // stale local buffer must not keep the blocker armed.
+  useRegisterDirtySource(agentSlug !== null && isDirty);
 
   return (
     <ResponsiveDialog

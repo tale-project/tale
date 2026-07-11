@@ -46,9 +46,9 @@ Playwright MCP — proving behaviour by observing the real outcome, per the
 | [automations.md](automations.md)     | automations marketplace: catalog/empty, upload, install, run, per-project config     |
 | [projects.md](projects.md)           | projects, tasks (attachments, comments), files, secrets, instructions, threads       |
 | [discussions.md](discussions.md)     | project discussions: multi-party thread, author attribution, @-mentions              |
-| [knowledge.md](knowledge.md)         | documents, knowledge entries, products, customers, vendors, websites                 |
+| [knowledge.md](knowledge.md)         | documents, knowledge entries, products, contacts, websites                           |
 | [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
-| [workflows.md](workflows.md)         | editor, configuration, triggers, executions, legacy redirects                        |
+| [workflows.md](workflows.md)         | editor, configuration, triggers, executions, per-node run status                     |
 | [settings.md](settings.md)           | account, personalization, org, teams, branding, integrations, API, providers, skills |
 | [integrations.md](integrations.md)   | connect/disconnect integrations; mailbox (IMAP/SMTP), Slack config, package upload   |
 | [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
@@ -94,7 +94,7 @@ the manual guides.
 The enterprise & compliance-readiness features (per-API-key budgets, ODT
 ingestion, Entra ID SSO real-error surfacing + issuer hardening, and the
 Documentation menu link) are covered manually in the guides they belong to —
-[governance](governance.md) (F4b/B6), [knowledge](knowledge.md) (F9), [auth](auth.md)
+[governance](governance.md) (F4b/B6), [knowledge](knowledge.md) (F8), [auth](auth.md)
 (F15/F16/B7), [settings](settings.md) (B5), and [navigation](navigation.md) (F11) —
 and, where hermetically testable, by new e2e cases in `governance.spec.ts`,
 `knowledge.spec.ts`, `auth.spec.ts`, and `navigation.spec.ts`.

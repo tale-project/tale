@@ -36,6 +36,12 @@ vi.mock('../_generated/api', () => ({
       installations: { getInstallationInternal: 'getInstallationInternal' },
       audit_mutations: { logAgentAuditEvent: 'logAgentAuditEvent' },
     },
+    automations: {
+      install_mutations: {
+        listAutomationInstallationsInternal:
+          'listAutomationInstallationsInternal',
+      },
+    },
     organizations: {
       internal_queries: {
         getOrganizationDefaultLocale: 'getOrganizationDefaultLocale',
@@ -68,6 +74,7 @@ vi.mock('../lib/file_io', () => ({
   atomicWrite: (...args: unknown[]) => mockAtomicWrite(...args),
   readJsonFile: (...args: unknown[]) => mockReadJsonFile(...args),
   readFileSafe: (...args: unknown[]) => mockReadFileSafe(...args),
+  handleDirReadError: vi.fn(),
   sha256: () => 'mock-hash',
   generateHistoryTimestamp: () => '1234567890-abcdef01',
   pruneHistory: vi.fn(),
@@ -89,6 +96,8 @@ vi.mock('./file_utils', async () => {
       `/data/agents/${rel}`,
     resolveHistoryDir: (_orgSlug: string, agentName: string) =>
       `/data/agents/.history/${agentName}`,
+    resolveAutomationAgentsDir: (_orgSlug: string, app: string) =>
+      `/data/apps/${app}/agents`,
     walkAgentRelativePaths: async () => [],
   };
 });
@@ -118,12 +127,21 @@ vi.mock('../../lib/shared/schemas/agents', () => ({
   },
 }));
 
+vi.mock('../../lib/shared/schemas/apps', () => ({
+  isValidAppSlug: () => true,
+}));
+
 // ---------------------------------------------------------------------------
 // Import handlers
 // ---------------------------------------------------------------------------
 
-const { deleteAgent, duplicateAgent, restoreFromHistory, setAgentAuthMode } =
-  await import('./file_actions');
+const {
+  deleteAgent,
+  duplicateAgent,
+  restoreFromHistory,
+  setAgentAuthMode,
+  listAgents,
+} = await import('./file_actions');
 
 type ActionConfig = {
   handler: (ctx: never, args: never) => Promise<unknown>;
@@ -134,6 +152,7 @@ const duplicateHandler = (duplicateAgent as unknown as ActionConfig).handler;
 const restoreHandler = (restoreFromHistory as unknown as ActionConfig).handler;
 const setAuthModeHandler = (setAgentAuthMode as unknown as ActionConfig)
   .handler;
+const listAgentsHandler = (listAgents as unknown as ActionConfig).handler;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -684,5 +703,76 @@ describe('setAgentAuthMode', () => {
       ),
     ).rejects.toThrow('authMode only applies to an external-agent.');
     expect(mockAtomicWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('listAgents app scope (#2564)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireOrgMembershipById.mockResolvedValue({ orgSlug: 'default' });
+  });
+
+  it('lists app agents only for installed apps, not every on-disk bundle', async () => {
+    const ctx = {
+      runMutation: vi.fn().mockResolvedValue(undefined),
+      runQuery: vi.fn().mockResolvedValue(['issue-desk']),
+    };
+    // Both issue-desk (installed) and issue-desk-qa (uploaded, never installed)
+    // may exist on disk; only the installed slug should be scanned.
+    mockReaddir.mockImplementation(async (dir: string) => {
+      if (dir === '/data/apps/issue-desk/agents') {
+        return ['desk-implementer.json', 'desk-reviewer.json'];
+      }
+      if (dir === '/data/apps/issue-desk-qa/agents') {
+        return ['desk-implementer.json', 'desk-reviewer.json'];
+      }
+      throw new Error(`unexpected readdir: ${dir}`);
+    });
+    mockReadJsonFile.mockImplementation(async () => ({
+      ok: true,
+      data: {
+        displayName: 'Desk Agent',
+      },
+      hash: 'hash',
+    }));
+
+    const rows = (await listAgentsHandler(
+      ctx as never,
+      { organizationId: 'org-123' } as never,
+    )) as Array<{ slug: string; appSlug?: string }>;
+
+    expect(ctx.runQuery).toHaveBeenCalledWith(
+      'listAutomationInstallationsInternal',
+      {
+        organizationId: 'org-123',
+      },
+    );
+    expect(mockReaddir).toHaveBeenCalledTimes(1);
+    expect(mockReaddir).toHaveBeenCalledWith('/data/apps/issue-desk/agents');
+    expect(mockReaddir).not.toHaveBeenCalledWith(
+      '/data/apps/issue-desk-qa/agents',
+    );
+    expect(rows.some((row) => row.slug === 'issue-desk/desk-implementer')).toBe(
+      true,
+    );
+    expect(rows.some((row) => row.slug === 'issue-desk/desk-reviewer')).toBe(
+      true,
+    );
+    expect(rows.some((row) => row.slug.startsWith('issue-desk-qa/'))).toBe(
+      false,
+    );
+  });
+
+  it('returns no app agents when nothing is installed', async () => {
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue([]);
+
+    const rows = (await listAgentsHandler(
+      ctx as never,
+      { organizationId: 'org-123' } as never,
+    )) as Array<{ slug: string }>;
+
+    expect(mockReaddir).not.toHaveBeenCalled();
+    expect(rows).toEqual([]);
   });
 });

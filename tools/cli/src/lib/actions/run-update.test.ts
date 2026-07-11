@@ -29,7 +29,7 @@ function makeDeps(overrides: Partial<RunUpdateDeps> = {}): RunUpdateDeps {
     rollbackInstall: mock(async () => {}),
     spawnFileSync: mock((_args: string[]) => 0),
     syncProjectFiles: mock(async () => {}),
-    warnOnOrphanedConvexData: mock(async () => {}),
+    offerLegacyConvexDataMigration: mock(async () => 'none' as const),
     ...overrides,
   };
 }
@@ -90,10 +90,13 @@ describe('runUpdate', () => {
     expect(deps.installBinary).not.toHaveBeenCalled();
   });
 
-  test('checks for orphaned pre-0.3.2 data volumes before updating', async () => {
+  test('offers the pre-0.3.2 volume migration before updating', async () => {
     const deps = makeDeps();
     await runUpdate({}, deps);
-    expect(deps.warnOnOrphanedConvexData).toHaveBeenCalledWith('/project');
+    expect(deps.offerLegacyConvexDataMigration).toHaveBeenCalledWith(
+      '/project',
+      { dryRun: undefined },
+    );
   });
 
   test('pinned version: targets that release exactly', async () => {

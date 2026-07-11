@@ -209,23 +209,6 @@ describe('transformConversation contact name fallback', () => {
 
     expect('status' in result.contact).toBe(false);
   });
-
-  it('strips the deprecated customerId so it never leaks into the ConversationItem output', async () => {
-    const ctx = createMockCtx();
-    // A pre-#2618 row that still physically carries customerId (expand-contract
-    // keeps it optional in the schema so existing rows validate on read). It
-    // must NOT reach the transformed output — the returns validator has no
-    // customerId, so a leak throws ReturnsValidationError and breaks loading
-    // the conversation.
-    const conversation = makeConversation({ customerId: 'cust_legacy' });
-    const contact = makeContactDoc();
-
-    const result = await transformConversation(ctx, conversation, { contact });
-
-    expect('customerId' in result).toBe(false);
-    // contactId still flows through as the live link.
-    expect(result.contact_id).toBe('cont_1');
-  });
 });
 
 // The ConversationList block reads row fields single-level, so the transform

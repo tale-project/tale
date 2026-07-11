@@ -125,13 +125,19 @@ export function AuditLogTable({
   const copy =
     variant === 'errors'
       ? {
-          entityLabel: t('logs.errors.entityLabel'),
+          entityLabel: {
+            one: t('logs.errors.entityLabelOne'),
+            other: t('logs.errors.entityLabel'),
+          },
           tableCaption: t('logs.errors.tableCaption'),
           emptyTitle: t('logs.errors.emptyTitle'),
           emptyDescription: t('logs.errors.emptyDescription'),
         }
       : {
-          entityLabel: t('logs.audit.entityLabel'),
+          entityLabel: {
+            one: t('logs.audit.entityLabelOne'),
+            other: t('logs.audit.entityLabel'),
+          },
           tableCaption: t('logs.audit.tableCaption'),
           emptyTitle: t('logs.audit.emptyTitle'),
           emptyDescription: t('logs.audit.emptyDescription'),

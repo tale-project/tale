@@ -160,6 +160,13 @@ export function ProjectOverview({
   // Inline "stats" string (e.g. "12 files · 5 chats · Org-wide") for the
   // page header. Computed before the project null-guard so the hook order
   // stays stable; the empty-stats fallback returns undefined.
+  //
+  // The chat count is read off the same `threads` list the Recent-chats
+  // section below renders from (`listProjectThreads`, visible member-facing
+  // chats only) rather than `stats.threadCount` (`getProjectStats`, an
+  // unfiltered count of every threadMetadata row for the project — including
+  // hidden discussion-backing threads and other members' unshared chats) —
+  // otherwise the two disagree on the same page (#2648).
   const statsLine = useMemo(() => {
     if (!stats) return undefined;
     const parts: string[] = [];
@@ -167,17 +174,14 @@ export function ProjectOverview({
       t('overview.statsFiles', { count: stats.fileCount }) +
         (stats.truncated ? '+' : ''),
     );
-    parts.push(
-      t('overview.statsChats', { count: stats.threadCount }) +
-        (stats.truncated ? '+' : ''),
-    );
+    parts.push(t('overview.statsChats', { count: threads.length }));
     if (teamCount === 0) {
       parts.push(t('list.sharingOrgWide'));
     } else {
       parts.push(t('list.sharingMultipleTeams', { count: teamCount }));
     }
     return parts.join(' · ');
-  }, [stats, teamCount, t]);
+  }, [stats, teamCount, t, threads.length]);
 
   if (!project) return null;
 

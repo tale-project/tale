@@ -3,6 +3,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
 import { isLiveSessionStatus } from './sessions_schema';
 
 /**
@@ -488,6 +489,37 @@ export const getSessionBySessionId = internalQuery({
       };
     }
     return null;
+  },
+});
+
+/** The live session's owner resolved to a git-identity-shaped fact: the
+ * platform user's display name + email, from the row's `createdBy`. The
+ * credential broker injects this beside the credential helper so a fresh
+ * container's `git commit` has an author without any in-session `git
+ * config`. `createdBy` is a real Better Auth user id for chat/thread-owned
+ * sessions but a synthetic sentinel ('system', 'workflow', …) for
+ * automation-owned ones — those don't resolve to a user and return null so
+ * the caller skips injection instead of inventing an identity. Same for a
+ * resolved user with a blank name or email (git needs both). */
+export const getSessionOwnerIdentity = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.union(v.object({ name: v.string(), email: v.string() }), v.null()),
+  handler: async (ctx, args) => {
+    let createdBy: string | null = null;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (!isLiveSessionStatus(row.status)) continue;
+      createdBy = row.createdBy;
+      break;
+    }
+    if (!createdBy) return null;
+    const user = await getUserById(ctx, createdBy);
+    if (!user) return null;
+    const email = (user.email ?? '').trim();
+    const name = (user.name ?? '').trim() || email;
+    if (!name || !email) return null;
+    return { name, email };
   },
 });
 

@@ -101,7 +101,7 @@ storybook-static/
 .cache/
 .playwright-mcp/
 knip-results.json
-designs/
+design/sources/
 
 # =============================================================================
 # Docker files

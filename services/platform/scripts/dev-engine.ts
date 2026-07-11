@@ -71,6 +71,7 @@ import {
   warnLine,
 } from './dev-output';
 import { deriveDevSecrets } from './dev-secrets';
+import { probeNodeExecutor } from './node-executor-probe';
 
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
@@ -1199,6 +1200,28 @@ export async function runDevFleet() {
       `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
     process.env.CONVEX_URL = convexUrl;
     // CONVEX_URL set for the Vite proxy (routine, no log).
+
+    // #2631 mitigation: a rare local-backend boot race leaves the node action
+    // executor unable to resolve its own extracted module while the backend
+    // otherwise looks healthy (TCP up, auth OK) — nothing above this point
+    // catches it, so a broken boot used to only surface ~15 minutes later as
+    // opaque per-spec retries. Probe BEFORE Vite binds its port: Playwright's
+    // webServer only watches the port, so failing (and exiting) here — instead
+    // of after Vite is already reachable — is what turns this into an
+    // immediate boot failure rather than a race with the first spec. E2E-only
+    // (TALE_E2E, set by playwright.config.ts's webServer): `bun run dev`
+    // shouldn't pay this extra round-trip. Root cause is NOT this probe's
+    // job — see the issue for the boot-sequence investigation notes.
+    if (isTruthy(process.env.TALE_E2E)) {
+      await runStep(
+        { active: 'Probing node executor', done: 'Node executor healthy' },
+        () =>
+          probeNodeExecutor({
+            convexUrl,
+            timeoutMs: DEV_GATES.nodeExecutor.timeoutMs,
+          }),
+      );
+    }
 
     const port = String(appPort);
 

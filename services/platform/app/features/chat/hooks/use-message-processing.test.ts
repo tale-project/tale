@@ -1071,6 +1071,79 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('discussion openers (keepPreUserAssistantMessages)', () => {
+    // A discussion legitimately OPENS with an agent/system-authored message
+    // saved as role 'assistant' (order 0). Regression for #2638: the 1:1-chat
+    // orphan filter (assistant order < min user order) must not hide it once
+    // members reply.
+    function openerThread(replyCount: number): UIMessage[] {
+      const opener = createUIMessage({
+        id: 'opener',
+        order: 0,
+        role: 'assistant',
+        text: 'Welcome! @assistant, where do we start?',
+        status: 'success',
+        userId: 'system',
+      });
+      const replies = Array.from({ length: replyCount }, (_, i) =>
+        createUIMessage({
+          id: `reply-${i + 1}`,
+          order: i + 1,
+          role: 'user',
+          text: `Member reply ${i + 1}`,
+          status: 'success',
+        }),
+      );
+      return [opener, ...replies];
+    }
+
+    it('keeps the assistant-authored opener after N member replies', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: openerThread(3),
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() =>
+        useMessageProcessing('thread-1', {
+          keepPreUserAssistantMessages: true,
+        }),
+      );
+      const opener = result.current.messages.find((m) => m.id === 'opener');
+      expect(opener).toBeDefined();
+      expect(opener?.authorId).toBe('system');
+      expect(result.current.messages).toHaveLength(4);
+    });
+
+    it('still lists the opener when no member has replied yet', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: openerThread(0),
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() =>
+        useMessageProcessing('thread-1', {
+          keepPreUserAssistantMessages: true,
+        }),
+      );
+      expect(result.current.messages.map((m) => m.id)).toEqual(['opener']);
+    });
+
+    it('default (1:1 chat) keeps dropping pre-user assistant orphans', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: openerThread(1),
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.id === 'opener'),
+      ).toBeUndefined();
+    });
+  });
+
   describe('system messages', () => {
     it('includes system messages with info display for APPROVAL_REJECTED', () => {
       mockUseUIMessages.mockReturnValue({
@@ -1498,13 +1571,23 @@ describe('useMessageProcessing', () => {
     // body, and never be mistaken for a file marker (or vice versa).
     it('folder markers round-trip and stay disjoint from file markers', () => {
       const folders = [
-        { folderId: 'kfabc123', name: 'Contracts', fileCount: 3 },
+        {
+          folderId: 'kfabc123',
+          name: 'Contracts',
+          fileCount: 3,
+          skippedCount: 0,
+        },
       ];
       const userText = 'Check @Contracts';
       const message = appendKbReferenceBlock(userText, refs, folders);
 
       expect(extractKbFolderRefs(message)).toEqual([
-        { folderId: 'kfabc123', name: 'Contracts', fileCount: 3 },
+        {
+          folderId: 'kfabc123',
+          name: 'Contracts',
+          fileCount: 3,
+          skippedCount: 0,
+        },
       ]);
       // File extraction is unaffected by the folder block…
       expect(extractFileAttachments(message)).toHaveLength(refs.length);
@@ -1515,6 +1598,41 @@ describe('useMessageProcessing', () => {
       // Both blocks strip from the visible prose.
       expect(stripInternalFileReferences(message)).toBe(userText);
       expect(stripInternalFileReferences(folderOnly)).toBe(userText);
+    });
+
+    // A folder whose files are all unindexed (issue #2598) must surface the
+    // skip count on the round-trip — never collapse to a silent "0 files".
+    it('surfaces a non-zero skippedCount through the marker round-trip', () => {
+      const folders = [
+        { folderId: 'kfmeet', name: 'Meetings', fileCount: 0, skippedCount: 2 },
+      ];
+      const message = appendKbReferenceBlock(
+        'Summarize @Meetings',
+        [],
+        folders,
+      );
+
+      expect(extractKbFolderRefs(message)).toEqual([
+        { folderId: 'kfmeet', name: 'Meetings', fileCount: 0, skippedCount: 2 },
+      ]);
+    });
+
+    // A message sent before #2598 shipped was persisted without
+    // `folderSkippedCount` — it must still parse (defaulting to 0) and strip
+    // cleanly, not regress to showing the raw marker text.
+    it('parses a pre-#2598 folder marker with no folderSkippedCount group', () => {
+      const userText = 'Check @Contracts';
+      const legacyMessage = `${userText}\n\n📁 Referenced folder from the knowledge base: Contracts\n*(kbFolderId: kfabc123 | folderName: Contracts | folderFileCount: 3)*`;
+
+      expect(extractKbFolderRefs(legacyMessage)).toEqual([
+        {
+          folderId: 'kfabc123',
+          name: 'Contracts',
+          fileCount: 3,
+          skippedCount: 0,
+        },
+      ]);
+      expect(stripInternalFileReferences(legacyMessage)).toBe(userText);
     });
   });
 

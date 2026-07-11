@@ -41,6 +41,7 @@ import { useT } from '@/lib/i18n/client';
 
 import {
   type AvailableAutomation,
+  type AvailableIntegration,
   useAvailableIntegrations,
   useAvailableTools,
   useAvailableWorkflows,
@@ -127,6 +128,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
     'request_user_location',
     'propose_memory',
     'secret_read',
+    'automation_search',
   ],
 };
 
@@ -449,9 +451,7 @@ function IntegrationBindingsSection({
   emptyText,
   t,
 }: {
-  integrations:
-    | Array<{ name: string; title: string; type: string }>
-    | undefined;
+  integrations: Array<AvailableIntegration> | undefined;
   isLoading: boolean;
   value: string[];
   onChange: (next: string[]) => void;
@@ -465,6 +465,7 @@ function IntegrationBindingsSection({
       (integrations ?? []).map((integration) => ({
         value: integration.name,
         label: integration.title,
+        description: integration.description,
       })),
     [integrations],
   );

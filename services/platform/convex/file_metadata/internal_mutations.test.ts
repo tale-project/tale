@@ -151,7 +151,7 @@ describe('saveFileMetadata (internal)', () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
-  it('does not queue RAG for formats the RAG service cannot index', async () => {
+  it('marks formats the RAG service cannot index as terminal `unsupported` (#2598)', async () => {
     const { ctx } = createMockCtx(null);
     const handler = await getSaveHandler();
 
@@ -161,10 +161,13 @@ describe('saveFileMetadata (internal)', () => {
       contentType: 'application/vnd.ms-excel',
     });
 
+    // Terminal, non-retryable status — never left at `undefined` ("not
+    // indexed yet"), which would render as a forever-retryable "Not
+    // indexed" for a format that will never index.
     expect(ctx.db.insert).toHaveBeenCalledWith(
       'fileMetadata',
       expect.objectContaining({
-        ragStatus: undefined,
+        ragStatus: 'unsupported',
         ragQueuedAt: undefined,
       }),
     );

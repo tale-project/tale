@@ -11,6 +11,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { validateChatAttachmentCaps } from '../agents/chat_turn';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 
@@ -22,6 +23,23 @@ export const forkAndChat = action({
     organizationId: v.string(),
     modelId: v.optional(v.string()),
     userContext: v.optional(userContextValidator),
+    /**
+     * Attachments staged in the shared-view composer before the first send
+     * forks the thread. Validated with the same caps `chatWithAgentTurn`
+     * re-enforces (count/total-size/per-file-size/MIME allowlist) — this is
+     * a public action, so a scripted client could otherwise attach an
+     * unbounded array on the very first turn of a forked thread.
+     */
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
   },
   returns: v.object({
     threadId: v.string(),
@@ -31,6 +49,8 @@ export const forkAndChat = action({
     ctx,
     args,
   ): Promise<{ threadId: string; streamId: string }> => {
+    validateChatAttachmentCaps(args.attachments);
+
     // Fork the shared thread first. `forkThread` already verifies the
     // caller is a member of the source thread's org and writes the new
     // thread under that same org. We then derive `organizationId` from the
@@ -88,6 +108,7 @@ export const forkAndChat = action({
         userContext: args.userContext,
         agentConfig,
         agentSlug: args.agentSlug,
+        attachments: args.attachments,
       },
     );
 

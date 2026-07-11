@@ -10,6 +10,7 @@ import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-ac
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import type { SortingState } from '@/lib/pagination/types';
 
 import { useDeleteContact } from '../hooks/mutations';
 import {
@@ -129,6 +130,10 @@ export function ContactsTable({
   const [viewingContact, setViewingContact] = useState<Contact | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [createOpen, setCreateOpen] = useState(false);
+  // Client-side sort over the eagerly-loaded page buffer (pagination mode
+  // loads all backend pages up front — see useListPage) — Name/Email/Added
+  // are sortable (#2639), everything else keeps its fixed column order.
+  const [sorting, setSorting] = useState<SortingState>([]);
   const deleteContact = useDeleteContact();
 
   const handleRowClick = useCallback((row: Row<Contact>) => {
@@ -167,7 +172,10 @@ export function ContactsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
-    entityLabel: tContacts('title').toLowerCase(),
+    entityLabel: {
+      one: tContacts('entityLabelOne'),
+      other: tContacts('title').toLowerCase(),
+    },
   });
 
   return (
@@ -179,6 +187,7 @@ export function ContactsTable({
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
+        sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
         actionMenu={
           <ContactsActionMenu
             organizationId={organizationId}

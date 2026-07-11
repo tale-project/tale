@@ -3151,12 +3151,6 @@
         },
         "optional": true
       },
-      "customerId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
       "direction": {
         "ft": {
           "type": "union",
@@ -3971,6 +3965,10 @@
             {
               "type": "literal",
               "value": "failed"
+            },
+            {
+              "type": "literal",
+              "value": "unsupported"
             }
           ]
         },
@@ -9960,12 +9958,6 @@
           ]
         },
         "optional": false
-      },
-      "customerId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
       },
       "description": {
         "ft": {

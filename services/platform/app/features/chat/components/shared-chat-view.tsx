@@ -97,8 +97,15 @@ export function SharedChatView({
   }, [forkThread, shareToken, navigate, organizationId, toast, t]);
 
   const handleSendMessage = useCallback(
-    async (message: string, _attachments?: FileAttachment[]) => {
-      if (!message.trim() || isSending) return;
+    async (message: string, sentAttachments?: FileAttachment[]) => {
+      // Attachment-only send: `message` is empty but files are attached — the
+      // composer (ChatInput) already allows this (its own guard is
+      // `!value.trim() && attachments.length === 0`), so mirroring only the
+      // text half of that guard here silently dropped attachment-only sends
+      // (the chip disappears — ChatInput clears it on send — but nothing is
+      // forked or sent). #2663
+      const hasAttachments = !!sentAttachments && sentAttachments.length > 0;
+      if ((!message.trim() && !hasAttachments) || isSending) return;
 
       const agentSlug =
         sharedThread?.agentSlug ??
@@ -115,6 +122,15 @@ export function SharedChatView({
           message,
           agentSlug,
           organizationId,
+          attachments:
+            sentAttachments && sentAttachments.length > 0
+              ? sentAttachments.map((a) => ({
+                  fileId: a.fileId,
+                  fileName: a.fileName,
+                  fileType: a.fileType,
+                  fileSize: a.fileSize,
+                }))
+              : undefined,
         });
 
         void navigate({

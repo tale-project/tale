@@ -558,15 +558,25 @@ export function AutomationsGrid({
       <CatalogCard
         key={automation.slug}
         media={
-          // A bundle, and a custom (uploaded) automation, are marked on the icon
-          // tile with a corner glyph — never a title-row chip, so the badge slot
-          // stays reserved for INSTALL state alone.
+          // A bundle, a bundle MEMBER, and a custom (uploaded) automation are
+          // marked on the icon tile with a corner glyph — never a title-row
+          // chip, so the badge slot stays reserved for INSTALL state alone. A
+          // member (cards only on the Installed tab, where its bundle
+          // dissolves into per-member cards) keeps its parentage visible as
+          // "Part of <bundle>".
           isBundle ? (
             <AutomationMarker
               icon={Package}
               label={t('bundle.memberCount', {
                 count: (automation.members ?? []).length,
               })}
+            >
+              {icon}
+            </AutomationMarker>
+          ) : owningBundle ? (
+            <AutomationMarker
+              icon={Package}
+              label={t('bundle.partOf', { name: owningBundle.name })}
             >
               {icon}
             </AutomationMarker>

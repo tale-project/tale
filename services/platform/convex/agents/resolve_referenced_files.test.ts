@@ -21,7 +21,7 @@ interface FakeFileMeta {
   fileName: string;
   contentType: string;
   size: number;
-  ragStatus?: 'queued' | 'running' | 'completed' | 'failed';
+  ragStatus?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
 }
 
 /** `db.get` serves documents AND projects from one map (both are point reads
@@ -185,7 +185,7 @@ describe('resolveReferencedFiles', () => {
     ).rejects.toMatchObject({ data: { code: 'KB_REF_INVALID' } });
   });
 
-  it('rejects a document whose blob is not RAG-indexed', async () => {
+  it('rejects a document whose blob is not RAG-indexed, naming the file + a "not_indexed" reason', async () => {
     const ctx = createCtx(ROWS, {
       ...FILE_META,
       f_hub: { ...COMPLETED_META, ragStatus: 'queued' },
@@ -195,6 +195,31 @@ describe('resolveReferencedFiles', () => {
         ...BASE_ARGS,
         referencedDocumentIds: refs('d_hub'),
       }),
-    ).rejects.toMatchObject({ data: { code: 'KB_REF_INVALID' } });
+    ).rejects.toMatchObject({
+      data: {
+        code: 'KB_REF_INVALID',
+        reason: 'not_indexed',
+        fileName: 'Hub doc',
+      },
+    });
+  });
+
+  it('rejects a document whose format has no extractor with an "unsupported" reason (#2598)', async () => {
+    const ctx = createCtx(ROWS, {
+      ...FILE_META,
+      f_hub: { ...COMPLETED_META, ragStatus: 'unsupported' },
+    });
+    await expect(
+      resolveReferencedFiles(ctx, {
+        ...BASE_ARGS,
+        referencedDocumentIds: refs('d_hub'),
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: 'KB_REF_INVALID',
+        reason: 'unsupported',
+        fileName: 'Hub doc',
+      },
+    });
   });
 });

@@ -194,6 +194,10 @@ CMD ["/app/services/platform/docker-entrypoint.sh"]
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
+# bun resolves the whole workspace graph even for --production installs; every
+# manifest stage 1 copies must exist here too or install fails ("Workspace
+# dependency not found") before dev deps are even pruned.
+COPY --from=workspace-deps /app/packages/e2e/package.json /tmp/workspace/packages/e2e/
 COPY --from=workspace-deps /app/packages/shared/package.json /tmp/workspace/packages/shared/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/

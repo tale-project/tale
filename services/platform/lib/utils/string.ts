@@ -34,3 +34,17 @@ const LEADING_PUNCTUATION_RE = /^[\s:：;；,，.。!！?？…·\-—–]+/;
 export function stripLeadingPunctuation(text: string): string {
   return text.replace(LEADING_PUNCTUATION_RE, '');
 }
+
+/**
+ * Renders a raw backend enum (e.g. `manual_import`) as a Title Case UI label
+ * (`Manual Import`), falling back to `fallback` when unset — the one mapping
+ * every surface showing a snake_case enum value should call, so a table
+ * column and a detail view can't independently reimplement (and drift on)
+ * the same formatting (#2643).
+ */
+export function formatEnumLabel(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  return value ? startCase(value.toLowerCase()) : fallback;
+}

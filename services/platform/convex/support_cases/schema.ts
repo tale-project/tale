@@ -80,10 +80,6 @@ export const supportCasesTable = defineTable({
   // `requesterEmail` / `requesterName` capture the reporter when there is no
   // linked contact (e.g. inbound email from an unknown address).
   contactId: v.optional(v.id('contacts')),
-  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
-  // the teardown migration unsets it (expand-contract; the `customers` table is
-  // gone so this is a bare string, not v.id). Drop in the contract phase.
-  customerId: v.optional(v.string()),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
 

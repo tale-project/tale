@@ -3,7 +3,10 @@
 import { useState, useMemo, useCallback } from 'react';
 
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
-import type { DataTableSearchConfig } from '@/app/components/ui/data-table/data-table-types';
+import type {
+  DataTableSearchConfig,
+  EntityLabel,
+} from '@/app/components/ui/data-table/data-table-types';
 import { filterByTextSearch, filterByFields } from '@/lib/utils/filtering';
 
 // ---------------------------------------------------------------------------
@@ -76,8 +79,8 @@ interface UseListPageOptions<TData> {
   getRowId?: (row: TData) => string;
   /** Approximate item count for skeleton row count during initial loading */
   approxRowCount?: number;
-  /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
-  entityLabel?: string;
+  /** Entity noun. Enables the "Showing all X {entity}" footer — pass `{ one, other }` so a single-row table reads correctly too. */
+  entityLabel?: EntityLabel;
   /**
    * Entities a row represents in the footer count. A folder row aggregates
    * its members, so counting rows would count the folder as one entity
@@ -108,7 +111,7 @@ interface ListPageInfiniteScrollTableProps<TData> {
     onLoadMore: () => void;
     isLoadingMore: boolean;
     isInitialLoading: boolean;
-    entityLabel?: string;
+    entityLabel?: EntityLabel;
     /** Unfiltered total from rawData — differs from the shown count when filters are active */
     totalCount?: number;
     /** Entities the visible rows represent when rows aggregate (see `countRow`) */
@@ -128,7 +131,7 @@ interface ListPagePaginationTableProps<TData> {
     pageSize: number;
     total: number;
     showPageSizeSelector: boolean;
-    entityLabel?: string;
+    entityLabel?: EntityLabel;
   };
   isLoading: boolean;
   approxRowCount?: number;

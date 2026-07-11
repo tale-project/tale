@@ -24,6 +24,10 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
@@ -132,6 +136,72 @@ const EMPTY_MODEL_FORM: ModelFormState = {
  */
 function usdInputToCents(usd: string): number {
   return Math.round(Number(usd) * 1e5) / 1e3;
+}
+
+/** One capability row from the synced model catalog — structural subset of the
+ * `capabilityRow` both `model_catalog.queries` lookups return. */
+interface CatalogCapabilityRow {
+  modelId: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  inputCentsPerMillion?: number;
+  outputCentsPerMillion?: number;
+  reasoning?: {
+    knob: 'effort' | 'budgetTokens' | 'none';
+    supportsMinimal?: boolean;
+    minBudgetTokens?: number;
+    maxBudgetTokens?: number;
+  };
+  promptCaching?: {
+    mode: 'explicit-breakpoints' | 'auto-server' | 'none';
+    maxBreakpoints?: number;
+  };
+}
+
+/**
+ * Merge the catalog's capability facts (cost, context, reasoning, caching)
+ * into the model form, keeping any value the operator already set for a field
+ * the catalog doesn't carry. Operator judgment fields (tier, qualityScore)
+ * are never touched — the catalog doesn't carry them. Shared by the dialog's
+ * "Fill from catalog" button and the add-dialog catalog picker (#2655).
+ */
+function mergeCatalogCapIntoForm(
+  f: ModelFormState,
+  cap: CatalogCapabilityRow,
+): ModelFormState {
+  return {
+    ...f,
+    contextWindow:
+      cap.contextWindow != null ? String(cap.contextWindow) : f.contextWindow,
+    maxOutputTokens:
+      cap.maxOutputTokens != null
+        ? String(cap.maxOutputTokens)
+        : f.maxOutputTokens,
+    inputCostPerMillion:
+      cap.inputCentsPerMillion != null
+        ? String(cap.inputCentsPerMillion / 100)
+        : f.inputCostPerMillion,
+    outputCostPerMillion:
+      cap.outputCentsPerMillion != null
+        ? String(cap.outputCentsPerMillion / 100)
+        : f.outputCostPerMillion,
+    reasoningKnob: cap.reasoning?.knob ?? f.reasoningKnob,
+    reasoningSupportsMinimal:
+      cap.reasoning?.supportsMinimal ?? f.reasoningSupportsMinimal,
+    reasoningMinBudgetTokens:
+      cap.reasoning?.minBudgetTokens != null
+        ? String(cap.reasoning.minBudgetTokens)
+        : f.reasoningMinBudgetTokens,
+    reasoningMaxBudgetTokens:
+      cap.reasoning?.maxBudgetTokens != null
+        ? String(cap.reasoning.maxBudgetTokens)
+        : f.reasoningMaxBudgetTokens,
+    promptCachingMode: cap.promptCaching?.mode ?? f.promptCachingMode,
+    promptCachingMaxBreakpoints:
+      cap.promptCaching?.maxBreakpoints != null
+        ? String(cap.promptCaching.maxBreakpoints)
+        : f.promptCachingMaxBreakpoints,
+  };
 }
 
 export function ModelsSection({
@@ -267,49 +337,52 @@ export function ModelsSection({
 
   // Pull the live catalog facts (cost, context, reasoning, caching) for the
   // model open in the editor into the form so the operator can review + save.
-  // Operator judgment fields (tier, qualityScore) are left untouched — the
-  // catalog doesn't carry them.
   const fillFromCatalog = useCallback(() => {
     const cap = capsByModelId.get(form.id.trim());
     if (!cap) {
       toast({ title: t('providers.modelCapabilities.noCatalogData') });
       return;
     }
-    setForm((f) => ({
-      ...f,
-      contextWindow:
-        cap.contextWindow != null ? String(cap.contextWindow) : f.contextWindow,
-      maxOutputTokens:
-        cap.maxOutputTokens != null
-          ? String(cap.maxOutputTokens)
-          : f.maxOutputTokens,
-      inputCostPerMillion:
-        cap.inputCentsPerMillion != null
-          ? String(cap.inputCentsPerMillion / 100)
-          : f.inputCostPerMillion,
-      outputCostPerMillion:
-        cap.outputCentsPerMillion != null
-          ? String(cap.outputCentsPerMillion / 100)
-          : f.outputCostPerMillion,
-      reasoningKnob: cap.reasoning?.knob ?? f.reasoningKnob,
-      reasoningSupportsMinimal:
-        cap.reasoning?.supportsMinimal ?? f.reasoningSupportsMinimal,
-      reasoningMinBudgetTokens:
-        cap.reasoning?.minBudgetTokens != null
-          ? String(cap.reasoning.minBudgetTokens)
-          : f.reasoningMinBudgetTokens,
-      reasoningMaxBudgetTokens:
-        cap.reasoning?.maxBudgetTokens != null
-          ? String(cap.reasoning.maxBudgetTokens)
-          : f.reasoningMaxBudgetTokens,
-      promptCachingMode: cap.promptCaching?.mode ?? f.promptCachingMode,
-      promptCachingMaxBreakpoints:
-        cap.promptCaching?.maxBreakpoints != null
-          ? String(cap.promptCaching.maxBreakpoints)
-          : f.promptCachingMaxBreakpoints,
-    }));
+    setForm((f) => mergeCatalogCapIntoForm(f, cap));
     toast({ title: t('providers.modelCapabilities.filledFromCatalog') });
   }, [capsByModelId, form.id, t]);
+
+  // Full synced catalog for the add dialog's ID picker (#2655) — same
+  // autocomplete as the add-panel flow, loaded only while adding so opening
+  // the drawer alone never pulls the whole catalog.
+  const { data: catalogModels } = useConvexQuery(
+    api.model_catalog.queries.listCatalogModels,
+    dialogOpen && editingIndex === null ? { organizationId } : 'skip',
+  );
+  const catalogOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      (catalogModels ?? []).map((row) => ({
+        value: row.modelId,
+        label: row.modelId,
+      })),
+    [catalogModels],
+  );
+
+  // Selecting a catalog model fills the ID (and a display-name default) plus
+  // its capability facts; hand-editing the ID afterwards simply deselects the
+  // picker — the typed ID is a custom model the catalog knows nothing about.
+  const handleCatalogPick = useCallback(
+    (modelId: string) => {
+      const row = (catalogModels ?? []).find((m) => m.modelId === modelId);
+      if (!row) return;
+      setForm((f) =>
+        mergeCatalogCapIntoForm(
+          {
+            ...f,
+            id: modelId,
+            displayName: f.displayName.trim() ? f.displayName : modelId,
+          },
+          row,
+        ),
+      );
+    },
+    [catalogModels],
+  );
 
   // Bulk variant: merge cached catalog facts into every configured model,
   // filling ONLY fields the operator hasn't already set (config wins), then
@@ -1041,6 +1114,26 @@ export function ModelsSection({
         >
           <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:px-6 sm:py-5">
             <Stack gap={4}>
+              {/* Catalog-backed picker (#2655) — add mode only, hidden when
+                  the org has no synced catalog yet. The ID field below stays
+                  the custom-model escape hatch. */}
+              {editingIndex === null && catalogOptions.length > 0 && (
+                <SearchableSelect
+                  id="drawer-catalog-model-picker"
+                  label={t('providers.catalogPickerLabel')}
+                  placeholder={t('providers.catalogPickerPlaceholder')}
+                  searchPlaceholder={t('providers.searchModels')}
+                  emptyText={t('providers.catalogPickerEmpty')}
+                  description={t('providers.catalogPickerHelp')}
+                  value={
+                    catalogModels?.some((m) => m.modelId === form.id)
+                      ? form.id
+                      : null
+                  }
+                  onValueChange={handleCatalogPick}
+                  options={catalogOptions}
+                />
+              )}
               <Input
                 ref={modelIdInputRef}
                 label={t('providers.modelId')}

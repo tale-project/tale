@@ -13,8 +13,17 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
+// Hoisted so the save spy is inspectable across renders (each render must see
+// the SAME `mutateAsync`, not a fresh `vi.fn()`) — mirrors `pii-config.test.tsx`.
+const { saveMutateAsync } = vi.hoisted(() => ({
+  saveMutateAsync: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: saveMutateAsync,
+    isPending: false,
+  }),
 }));
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
@@ -94,6 +103,43 @@ describe('LoginPolicyEditor', () => {
       expect(
         screen.getByRole('heading', { name: /login attempt limits/i }),
       ).toBeInTheDocument();
+    });
+  });
+
+  // #2670: the batched form save built its payload from scratch
+  // (`{enabled, maxAttemptsBeforeLockout, backoffSchedule, trustedProxies}`),
+  // silently dropping any configured `perIpLimit` — while the header toggle's
+  // save path already spread the saved config and preserved it.
+  describe('form save preserves perIpLimit (#2670)', () => {
+    it('keeps a configured perIpLimit when editing and saving max attempts', async () => {
+      state.isLoading = false;
+      state.config = {
+        enabled: true,
+        maxAttemptsBeforeLockout: 5,
+        backoffSchedule: [1000, 10000, 60000, 600000],
+        trustedProxies: ['loopback', 'uniquelocal'],
+        perIpLimit: { rate: 10, periodSec: 60 },
+      };
+      saveMutateAsync.mockClear();
+
+      const { user } = render(<LoginPolicyEditor organizationId="org-1" />);
+
+      const maxAttempts = screen.getByRole('spinbutton');
+      await user.clear(maxAttempts);
+      await user.type(maxAttempts, '7');
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      await user.click(saveButton);
+
+      expect(saveMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policyType: 'login_policy',
+          config: expect.objectContaining({
+            maxAttemptsBeforeLockout: 7,
+            perIpLimit: { rate: 10, periodSec: 60 },
+          }),
+        }),
+      );
     });
   });
 });

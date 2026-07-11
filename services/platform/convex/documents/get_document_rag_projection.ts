@@ -16,7 +16,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
 export interface DocumentRagProjection {
-  status?: 'queued' | 'running' | 'completed' | 'failed';
+  status?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
   indexedAt?: number;
   error?: string;
   indexed: boolean;

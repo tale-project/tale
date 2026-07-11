@@ -70,8 +70,12 @@ export function DiscussionThreadView({
   const { data: discussion } = useDiscussion(organizationId, threadId);
   // Reuse the same streaming reader + processing pipeline chat uses, so agent
   // replies stream in live and render with full markdown. `messages` is already
-  // the ChatMessage shape MessageBubble consumes.
-  const { messages: allMessages } = useMessageProcessing(threadId);
+  // the ChatMessage shape MessageBubble consumes. Discussions are multi-party:
+  // an agent/system-authored OPENER (role 'assistant', order 0) must stay
+  // listed after members reply, so opt out of chat's orphan filter (#2638).
+  const { messages: allMessages } = useMessageProcessing(threadId, {
+    keepPreUserAssistantMessages: true,
+  });
   // MessageBubble renders user/assistant bubbles; drop system notices.
   const messages = allMessages.filter(
     (m): m is ChatMessage & { role: 'user' | 'assistant' } =>

@@ -329,7 +329,10 @@ export function TokenSourcesManager({
   const list = useListPage<TokenSourceRow>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },
     pageSize: 50,
-    entityLabel: t('tokenSources.entityLabel'),
+    entityLabel: {
+      one: t('tokenSources.entityLabelOne'),
+      other: t('tokenSources.entityLabel'),
+    },
   });
 
   return (

@@ -11,7 +11,12 @@ import { useT } from '@/lib/i18n/client';
 
 import type { FileAttachment } from './use-convex-file-upload';
 
-type RagStatus = 'queued' | 'running' | 'completed' | 'failed';
+// 'unsupported' is a terminal, non-retryable status: no text extractor exists
+// for the format at all, so the file will NEVER index — distinct from
+// 'failed', which may be transient. Mirrors the documents page's `RagStatus`
+// (`types/documents.ts`), minus the Hub-only `not_indexed`/`stale` states
+// that don't apply to a freshly-uploaded chat attachment.
+type RagStatus = 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
 
 interface FileIndexingInfo {
   status?: RagStatus;
@@ -91,6 +96,24 @@ export function useFileIndexingStatus(
           title: t('indexingFailed'),
           description: t('indexingFailedDescription', { filename: m.fileName }),
           variant: 'destructive',
+        });
+      } else if (current === 'unsupported') {
+        // Unlike `failed`, `unsupported` is set synchronously at upload time
+        // (see `saveFileMetadata`) — the client's first observation of the
+        // file is already `unsupported`, never `queued`/`running`, so it can
+        // never satisfy `wasPending`. Without this branch the file got zero
+        // feedback: the composer's immediate "uploaded successfully" toast
+        // already fired (non-indexable files skip the deferred-toast
+        // suppression), silently implying the file is fully usable when the
+        // assistant will never be able to search it. Non-destructive —
+        // mirrors the Documents page's honest-but-calm treatment (a `slate`
+        // informational badge, not the `failed` status's destructive one):
+        // this is a heads-up, not an error (#2598 class).
+        toast({
+          title: t('indexingUnsupported'),
+          description: t('indexingUnsupportedDescription', {
+            filename: m.fileName,
+          }),
         });
       }
       if (current === undefined) {

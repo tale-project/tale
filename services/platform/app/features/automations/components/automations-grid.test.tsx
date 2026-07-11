@@ -745,4 +745,32 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
     expect(screen.queryByText('Custom')).not.toBeInTheDocument();
   });
+
+  // The Installed tab dissolves a bundle into its member cards (#2611) — each
+  // member keeps its bundle parentage visible via a "Part of <bundle>" marker,
+  // the same corner-glyph slot a Custom/bundle card uses.
+  it('marks an installed bundle member "Part of <bundle>"', () => {
+    useAutomationsMock.mockReturnValue({
+      automations: [
+        automationSummary({
+          slug: 'reply-gmail-emails',
+          name: 'Reply to Gmail emails',
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [bundleAutomation()],
+      isLoading: false,
+      error: null,
+    });
+    mockInstallStates = new Map([
+      ['reply-gmail-emails', installState('reply-gmail-emails')],
+    ]);
+
+    render(<AutomationsGrid organizationId="org_1" />);
+
+    expect(screen.getByText('Part of Email')).toBeInTheDocument();
+  });
 });

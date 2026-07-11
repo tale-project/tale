@@ -16,7 +16,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { DirtySourceContext } from './use-dirty-source';
+import { DirtySourceContext, type DirtySourceEntry } from './use-dirty-source';
 
 interface DirtyBlockerControl {
   /**
@@ -42,6 +42,16 @@ export function useDirtyBlockerControl(): DirtyBlockerControl {
   return ctx;
 }
 
+/**
+ * Whether a navigation to `pathname` stays inside a source's scope — the
+ * route subtree in which the source's state survives (see
+ * `DirtySourceEntry.scopePath`). Boundary-aware so `/agents/foo` never
+ * claims `/agents/foobar`.
+ */
+function isWithinScope(scopePath: string, pathname: string): boolean {
+  return pathname === scopePath || pathname.startsWith(`${scopePath}/`);
+}
+
 interface DirtyBlockerProviderProps {
   children: ReactNode;
   /**
@@ -49,7 +59,8 @@ interface DirtyBlockerProviderProps {
    * button that awaits this callback before proceeding. A failed save
    * keeps the user on the page and surfaces a destructive toast.
    * Pages with section-scoped saves (e.g. governance) omit it so the
-   * dialog stays a two-button choice.
+   * dialog stays a two-button choice. Without it, "Save & Leave" is still
+   * offered whenever EVERY dirty source registered its own `save`.
    */
   onSaveAll?: () => Promise<void>;
 }
@@ -59,20 +70,30 @@ export function DirtyBlockerProvider({
   onSaveAll,
 }: DirtyBlockerProviderProps) {
   const { t } = useT('common');
-  const [sources, setSources] = useState<Map<string, boolean>>(() => new Map());
+  const [sources, setSources] = useState<Map<string, DirtySourceEntry>>(
+    () => new Map(),
+  );
   const bypassRef = useRef(false);
   const [isSavingLeave, setIsSavingLeave] = useState(false);
 
   const anyDirty = useMemo(
-    () => Array.from(sources.values()).some(Boolean),
+    () => Array.from(sources.values()).some((entry) => entry.dirty),
     [sources],
   );
 
-  const register = useCallback((id: string, dirty: boolean) => {
+  const register = useCallback((id: string, entry: DirtySourceEntry) => {
     setSources((prev) => {
-      if (prev.get(id) === dirty) return prev;
+      const existing = prev.get(id);
+      if (
+        existing &&
+        existing.dirty === entry.dirty &&
+        existing.scopePath === entry.scopePath &&
+        existing.save === entry.save
+      ) {
+        return prev;
+      }
       const next = new Map(prev);
-      next.set(id, dirty);
+      next.set(id, entry);
       return next;
     });
   }, []);
@@ -89,14 +110,28 @@ export function DirtyBlockerProvider({
     [register, unregister],
   );
 
+  // Read at shouldBlockFn time through a ref — the blocker's callback is
+  // registered once and must always see the current registry.
+  const sourcesRef = useRef(sources);
+  sourcesRef.current = sources;
+
   const blocker = useBlocker({
-    shouldBlockFn: () => {
+    shouldBlockFn: ({ next }) => {
       if (bypassRef.current) {
         bypassRef.current = false;
         return false;
       }
-      return anyDirty;
+      // A dirty source only blocks navigations that LEAVE its scope; a
+      // scoped source's state survives inside it (e.g. switching tabs of
+      // the same agent). Sources without a scope block every navigation.
+      return Array.from(sourcesRef.current.values()).some(
+        (entry) =>
+          entry.dirty &&
+          (entry.scopePath === undefined ||
+            !isWithinScope(entry.scopePath, next.pathname)),
+      );
     },
+    // A reload/close always drops in-memory state, scoped or not.
     enableBeforeUnload: () => anyDirty,
     withResolver: true,
   });
@@ -124,11 +159,34 @@ export function DirtyBlockerProvider({
     blocker.proceed?.();
   }, [blocker]);
 
+  // "Save & Leave" is available when the page supplied a save-all, or when
+  // every DIRTY source registered its own save path (an invalid draft
+  // deliberately registers none, so the dialog degrades to Stay/Discard).
+  const dirtyEntries = useMemo(
+    () => Array.from(sources.values()).filter((entry) => entry.dirty),
+    [sources],
+  );
+  const canSaveAndLeave =
+    onSaveAll !== undefined ||
+    (dirtyEntries.length > 0 &&
+      dirtyEntries.every((entry) => entry.save !== undefined));
+
   const handleSaveAndLeave = useCallback(async () => {
-    if (!onSaveAll) return;
     setIsSavingLeave(true);
     try {
-      await onSaveAll();
+      if (onSaveAll) {
+        await onSaveAll();
+      } else {
+        // Sequential (not parallel) so a failure stops before later saves
+        // commit — the surviving dirty flags keep the remaining edits armed.
+        for (const entry of sourcesRef.current.values()) {
+          if (entry.dirty && entry.save) await entry.save();
+        }
+      }
+      // Mirror discard: clear the registry so an in-flight re-evaluation of
+      // `shouldBlockFn` can't re-prompt while the saved sources' effects are
+      // still catching up.
+      setSources((prev) => (prev.size === 0 ? prev : new Map()));
       blocker.proceed?.();
     } catch (err) {
       blocker.reset?.();
@@ -142,7 +200,7 @@ export function DirtyBlockerProvider({
     }
   }, [blocker, onSaveAll, t]);
 
-  const description = onSaveAll
+  const description = canSaveAndLeave
     ? t('unsavedChanges.descriptionThreeButton')
     : t('unsavedChanges.descriptionTwoButton');
 
@@ -175,7 +233,7 @@ export function DirtyBlockerProvider({
               >
                 {t('unsavedChanges.discardAndLeave')}
               </Button>
-              {onSaveAll && (
+              {canSaveAndLeave && (
                 <Button
                   type="button"
                   variant="primary"

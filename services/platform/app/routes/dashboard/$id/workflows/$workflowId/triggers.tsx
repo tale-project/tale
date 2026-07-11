@@ -25,7 +25,7 @@ function TriggersPage() {
     // (`a/b` ⇄ URL `a__b`) matches itself and is excluded from its own
     // workflow.completed "Source workflow" dropdown. Mirrors the automation
     // Editor tab, which passes `workflowSlug` here.
-    <ContentArea gap={6} className="px-4 py-4">
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <Triggers
         workflowId={workflowSlug}
         organizationId={organizationId}

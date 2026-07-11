@@ -46,9 +46,10 @@ export const queryClient = new QueryClient({
 
 convexQueryClient.connect(queryClient);
 
-// Kick off the Better Auth session fetch at module load so the auth provider's
-// session (and the Convex token fetch it gates on, which authenticates the
-// websocket) resolves sooner — shrinking the cold-load auth handshake.
+// Kick off the Better Auth session fetch AND the Convex token mint at module
+// load, in parallel — the auth provider then resolves both against in-flight
+// requests instead of running them serially after mount, shrinking the
+// cold-load auth handshake that blocks every auth-gated query (epic #2386).
 warmSession();
 markColdLoad('module-load');
 

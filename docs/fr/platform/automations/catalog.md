@@ -1,6 +1,6 @@
 ---
 title: Parcourir et installer des automatisations
-description: Comment fonctionne le catalogue des automatisations — le panneau latéral qu’ouvre une carte, l’assistant d’installation et son contrôle préalable, réinstaller et désinstaller, et mettre à jour toutes les automatisations livrées en une fois.
+description: Comment fonctionne le catalogue des automatisations — Installées vs Toutes les automatisations, le panneau latéral qu’ouvre une carte, l’assistant d’installation et son contrôle préalable, réinstaller et désinstaller, et mettre à jour toutes les automatisations livrées en une fois.
 ---
 
 Le catalogue des automatisations (**Automatisations** dans la barre latérale) est l’endroit où les Propriétaires, Admins et Développeurs parcourent chaque automatisation disponible pour l’organisation et décident lesquelles installer. Cette page couvre le catalogue lui-même — le panneau latéral qu’ouvre une carte, l’assistant d’installation, et les actions de réinstallation, désinstallation et mise à jour qui suivent. Ce que fait chaque automatisation livrée vit sur [Automatisations livrées](/fr/platform/automations/builtin) ; le modèle mental des pièces qu’une automatisation empaquette vit sur [Concepts d’automatisation](/fr/platform/automations/concepts).
@@ -11,11 +11,17 @@ Le catalogue des automatisations (**Automatisations** dans la barre latérale) e
 
 </Frame>
 
+## Installées et Toutes les automatisations
+
+Le catalogue s’ouvre sur **Installées** — le choix par défaut de la barre d’onglets, et le seul onglet où un bundle se dissout en ses propres cartes membres au lieu d’apparaître une fois comme bundle. Chaque membre porte sur son icône un petit repère nommant son bundle — **Partie de Résoudre les issues GitHub**, par exemple — pour que leur appartenance reste visible même séparés, et chacun garde son propre **Réinstaller**/**Désinstaller** dans son menu **⋯** : un bundle n’a pas d’installation propre à gérer comme un tout (voir [Concepts d’automatisation](/fr/platform/automations/concepts) pour comprendre pourquoi). Passe à **Toutes les automatisations** pour parcourir tout le catalogue à la place — livrées et téléversées, installées ou non : ici, le bundle EST la carte, installée via un seul assistant, et ses membres cachés n’apparaissent jamais seuls. **Installées** sert à gérer ce qui tourne ; **Toutes les automatisations** à trouver du nouveau.
+
 ## Installer une automatisation
 
 Clique sur une carte et son panneau latéral s’ouvre — le même mode aperçu-au-clic que [Paramètres > Intégrations](/fr/platform/integrations/overview) utilise pour son propre catalogue. Le panneau liste ce que l’installation ajoute : ses pages, workflows, agents, compétences, et les intégrations qu’elle requiert, plus le projet qu’elle cible si elle est scopée à un projet. Clique sur **Installer** et l’assistant s’ouvre.
 
-L’assistant ne parcourt que les étapes dont cette automatisation a réellement besoin : une étape **Projet** si elle est scopée à un projet et que tu ne l’as pas ouverte depuis l’intérieur d’un projet ; une étape **Vérifier les changements** si l’installation écraserait des fichiers déjà sur le disque ; une étape **Installer** qui connecte toute intégration requise pas encore connectée ; une étape **Mode de l’agent** pour chaque agent qui peut tourner sur tes propres identifiants plutôt que sur ceux de la plateforme ; et une étape **Terminé**. Chaque étape de configuration est ignorable — termine-la plus tard depuis la checklist **Terminer la configuration** propre à l’automatisation.
+L’assistant ne parcourt que les étapes dont cette automatisation a réellement besoin : une étape **Projet** si elle est scopée à un projet et que tu ne l’as pas ouverte depuis l’intérieur d’un projet ; une étape **Vérifier les changements** si l’installation écraserait des fichiers déjà sur le disque ; une étape **Installer** qui connecte toute intégration requise pas encore connectée ; une étape **Mode de l’agent** pour chaque agent qui peut tourner sur tes propres identifiants plutôt que sur ceux de la plateforme ; et une étape **Terminé**. Le projet que tu choisis à l’étape **Projet** fait double usage : c’est aussi la source dont chaque planification installée par l’automatisation tire sa variable `projectId`, pour qu’un workflow qui lit `{{input.projectId}}` s’exécute contre le bon projet sans que tu aies à la retaper dans l’onglet [Déclencheurs](/fr/platform/automations/triggers).
+
+**Terminé** n’annonce « prête » que lorsque l’automatisation l’est vraiment. Si chaque intégration requise est connectée, c’est exactement ce qui s’affiche ; si une variable de planification requise est encore vide — ce qu’aucune étape de l’assistant ne demande, puisque cela dépend du schéma d’entrée propre au workflow —, Terminé la nomme à la place, avec un bouton **Ouvrir les déclencheurs** qui saute directement à la planification concernée (pour un bundle, l’étape Terminé fait la même chose par membre, en nommant ceux qui ont encore besoin d’une variable). Chaque étape de configuration reste rattrapable plus tard, quoi qu’il arrive : une connexion ignorée depuis la checklist **Terminer la configuration** propre à l’automatisation, une variable de planification depuis son onglet [Déclencheurs](/fr/platform/automations/triggers).
 
 ## Le contrôle préalable à l’installation
 

@@ -5,7 +5,9 @@
  * `task_review_requested` deliberately SKIPS the preference gate for the
  * designated reviewer: the review gate is a safety signal and must never
  * starve silently because someone muted a category. `task_review_resolved`
- * respects the tri-state `taskReview` preference like a normal notification.
+ * also ignores the stored `taskReview` preference (including a stale
+ * `false` persisted before the settings UI locked the toggle always-on,
+ * #2651) — see `prefAllows` below.
  */
 
 import type { Doc, Id } from '../_generated/dataModel';
@@ -22,6 +24,12 @@ async function prefAllows(
   organizationId: string,
   field: 'taskReview' | 'escalation',
 ): Promise<boolean> {
+  // Review requests are a safety signal — the settings UI locks the toggle
+  // always-on (#2651). Ignore any stored `taskReview` value, including a
+  // stale `false` persisted before that lock shipped: the server must not
+  // let an old row silently keep suppressing review notifications forever.
+  // No migration needed since the stored value is simply never read.
+  if (field === 'taskReview') return true;
   const prefs = await ctx.db
     .query('notificationPreferences')
     .withIndex('by_userId_organizationId', (q) =>

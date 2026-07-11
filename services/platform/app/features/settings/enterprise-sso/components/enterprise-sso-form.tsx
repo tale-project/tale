@@ -41,6 +41,7 @@ import { isHttpUrl } from '@/lib/utils/url';
 import {
   useDisableScim,
   useDisableSso,
+  useParseSamlMetadata,
   useRegenerateScimToken,
   useRemoveSso,
   useRevealOidcClientId,
@@ -163,6 +164,19 @@ const EMPTY_FORM_DATA: SsoFormData = {
 const isOidcProtocol = (p: UiProtocol): p is Exclude<UiProtocol, 'saml'> =>
   p !== 'saml';
 
+/**
+ * Client-side pre-check for an uploaded metadata file. Mirrors the server's
+ * authoritative `MAX_SAML_METADATA_BYTES` cap (convex/enterprise_sso/saml/
+ * parse_metadata.ts) so an oversized file fails fast without an upload —
+ * duplicated as a value because the parser module is `'use node'` and must not
+ * be pulled into the client bundle.
+ */
+const MAX_METADATA_UPLOAD_BYTES = 1_048_576;
+
+/** The legacy one-size-fits-all default, still stored on older connections —
+ * treated as "not customized" when the protocol switch re-derives the name. */
+const LEGACY_DEFAULT_DISPLAY_NAME = 'Enterprise SSO';
+
 function useCopy() {
   const { toast } = useToast();
   const { t } = useT('settings');
@@ -189,6 +203,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
   const upsertOidc = useUpsertOidc();
   const upsertSaml = useUpsertSaml();
+  const parseMetadata = useParseSamlMetadata();
   const testConn = useTestSsoConnection();
   const disableSso = useDisableSso();
   const removeSso = useRemoveSso();
@@ -310,6 +325,19 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       });
   }, [t, hasStoredOidcSecret]);
 
+  // Per-protocol default connection names (#2652) — a generic "Enterprise SSO"
+  // never told users which IdP the button leads to. Only a default: the field
+  // stays editable, and a stored custom name always wins.
+  const defaultDisplayNames = useMemo<Record<UiProtocol, string>>(
+    () => ({
+      'entra-id': t('integrations.enterpriseSso.defaultDisplayName.entra'),
+      'generic-oidc': t('integrations.enterpriseSso.defaultDisplayName.oidc'),
+      oauth2: t('integrations.enterpriseSso.defaultDisplayName.oauth2'),
+      saml: t('integrations.enterpriseSso.defaultDisplayName.saml'),
+    }),
+    [t],
+  );
+
   // -------------------------------------------------------------------------
   // Seed the form once the stored connection loads. `data` is `undefined`
   // while the parent is still loading (config is `null` only briefly during
@@ -355,7 +383,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
     return {
       protocol,
-      displayName: config.displayName ?? 'Enterprise SSO',
+      displayName: config.displayName ?? defaultDisplayNames[protocol],
       issuer,
       // clientId is no longer in the read view; revealed lazily (see effect
       // below) and seeded from state so a reset preserves it.
@@ -376,7 +404,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       autoTeam: config.provisioning.autoProvisionTeam,
       excludeGroups: config.provisioning.excludeGroups.join(', '),
     };
-  }, [config, revealedClientId]);
+  }, [config, defaultDisplayNames, revealedClientId]);
 
   const save = useCallback(
     async (values: SsoFormData) => {
@@ -580,6 +608,73 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // IdP metadata import (#2652). Every IdP publishes entity ID + SSO URL +
+  // signing certificate as federation-metadata XML; parsing it server-side
+  // (size/schema-validated, SSRF-guarded) fills the three SAML fields below.
+  // The fields stay visible and editable — importing is the draft, saving is
+  // the review step.
+  // -------------------------------------------------------------------------
+  const [metadataUrl, setMetadataUrl] = useState('');
+  const metadataFileRef = useRef<HTMLInputElement>(null);
+
+  async function importMetadata(input: { url?: string; xml?: string }) {
+    try {
+      const parsed = await parseMetadata.mutateAsync({
+        organizationId,
+        ...input,
+      });
+      for (const [field, value] of [
+        ['idpEntityId', parsed.idpEntityId],
+        ['idpSsoUrl', parsed.idpSsoUrl],
+        ['idpCertificate', parsed.idpCertificate],
+      ] as const) {
+        setValue(field, value, { shouldDirty: true, shouldValidate: true });
+      }
+      toast({
+        title: t('integrations.enterpriseSso.metadata.imported'),
+        variant: 'success',
+      });
+    } catch (error) {
+      const errorByCode: Record<string, string> = {
+        sso_metadata_too_large: t(
+          'integrations.enterpriseSso.metadata.errorTooLarge',
+        ),
+        sso_metadata_invalid: t(
+          'integrations.enterpriseSso.metadata.errorInvalid',
+        ),
+        sso_metadata_not_idp: t(
+          'integrations.enterpriseSso.metadata.errorNotIdp',
+        ),
+        sso_metadata_incomplete: t(
+          'integrations.enterpriseSso.metadata.errorIncomplete',
+        ),
+        sso_metadata_fetch_failed: t(
+          'integrations.enterpriseSso.metadata.errorFetchFailed',
+        ),
+      };
+      const code = convexErrorCode(error);
+      toast({
+        title:
+          (code !== undefined ? errorByCode[code] : undefined) ??
+          t('integrations.enterpriseSso.metadata.importFailed'),
+        variant: 'destructive',
+      });
+    }
+  }
+
+  async function handleMetadataFile(file: File) {
+    // Fast client-side cap; the server re-checks authoritatively.
+    if (file.size > MAX_METADATA_UPLOAD_BYTES) {
+      toast({
+        title: t('integrations.enterpriseSso.metadata.errorTooLarge'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    await importMetadata({ xml: await file.text() });
+  }
+
   async function handleGenerateScimToken() {
     try {
       const result = await regenScim.mutateAsync({ organizationId });
@@ -680,6 +775,23 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                         setValue('scopes', DEFAULT_SCOPES[next], {
                           shouldDirty: true,
                         });
+                        // Re-derive the display name unless the admin
+                        // customized it — a still-default (or legacy-default,
+                        // or empty) name follows the protocol choice (#2652).
+                        const currentName = editor.form
+                          .getValues('displayName')
+                          .trim();
+                        if (
+                          !currentName ||
+                          currentName === LEGACY_DEFAULT_DISPLAY_NAME ||
+                          Object.values(defaultDisplayNames).includes(
+                            currentName,
+                          )
+                        ) {
+                          setValue('displayName', defaultDisplayNames[next], {
+                            shouldDirty: true,
+                          });
+                        }
                       }
                     }}
                     options={[
@@ -787,25 +899,104 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     label={t('integrations.enterpriseSso.scopesLabel')}
                     {...register('scopes')}
                   />
-                  <Controller
-                    control={control}
-                    name="pkce"
-                    render={({ field }) => (
-                      <SettingsToggleRow
-                        label={t('integrations.enterpriseSso.pkceLabel')}
-                        description={t(
-                          'integrations.enterpriseSso.pkceDescription',
+                  {/* PKCE has one sensible value (on) — a top-level switch
+                      invited turning off a security feature, so it lives under
+                      Advanced now (#2653). Default unchanged. */}
+                  <CollapsibleDetails
+                    summary={t('integrations.enterpriseSso.advanced')}
+                  >
+                    <Stack gap={4} className="pt-3 pl-5">
+                      <Controller
+                        control={control}
+                        name="pkce"
+                        render={({ field }) => (
+                          <SettingsToggleRow
+                            label={t('integrations.enterpriseSso.pkceLabel')}
+                            description={t(
+                              'integrations.enterpriseSso.pkceDescription',
+                            )}
+                            // `false` until `data` loads so the Switch stays controlled
+                            // from the first render (no uncontrolled→controlled warning).
+                            checked={field.value ?? false}
+                            onCheckedChange={field.onChange}
+                          />
                         )}
-                        // `false` until `data` loads so the Switch stays controlled
-                        // from the first render (no uncontrolled→controlled warning).
-                        checked={field.value ?? false}
-                        onCheckedChange={field.onChange}
                       />
-                    )}
-                  />
+                    </Stack>
+                  </CollapsibleDetails>
                 </>
               ) : (
                 <>
+                  {/* Import IdP metadata (#2652): parse the federation-metadata
+                      XML (by URL or upload) server-side and prefill the three
+                      fields below — they stay editable as the review step. */}
+                  <Stack
+                    gap={3}
+                    className="border-border rounded-md border p-3"
+                  >
+                    <Stack gap={1}>
+                      <Text variant="label" className="text-sm">
+                        {t('integrations.enterpriseSso.metadata.title')}
+                      </Text>
+                      <Text variant="muted" className="text-xs">
+                        {t('integrations.enterpriseSso.metadata.help')}
+                      </Text>
+                    </Stack>
+                    <Row gap={2} align="end" wrap>
+                      <Input
+                        id="saml-metadata-url"
+                        label={t(
+                          'integrations.enterpriseSso.metadata.urlLabel',
+                        )}
+                        placeholder="https://idp.example.com/federationmetadata.xml"
+                        value={metadataUrl}
+                        onChange={(e) => setMetadataUrl(e.target.value)}
+                        wrapperClassName="min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={
+                          !isHttpUrl(metadataUrl.trim()) ||
+                          parseMetadata.isPending
+                        }
+                        onClick={() =>
+                          void importMetadata({ url: metadataUrl.trim() })
+                        }
+                      >
+                        {parseMetadata.isPending && (
+                          <Loader2 className="size-4 animate-spin" />
+                        )}
+                        {t('integrations.enterpriseSso.metadata.importUrl')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={parseMetadata.isPending}
+                        onClick={() => metadataFileRef.current?.click()}
+                      >
+                        {t('integrations.enterpriseSso.metadata.uploadXml')}
+                      </Button>
+                      {/* Hidden picker; the visible button above carries the
+                          accessible name. */}
+                      <input
+                        ref={metadataFileRef}
+                        type="file"
+                        accept=".xml,text/xml,application/samlmetadata+xml"
+                        className="hidden"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          // Allow re-selecting the same file after a fix.
+                          e.target.value = '';
+                          if (file) void handleMetadataFile(file);
+                        }}
+                      />
+                    </Row>
+                  </Stack>
                   <Input
                     id="saml-entity"
                     label={t('integrations.enterpriseSso.idpEntityIdLabel')}

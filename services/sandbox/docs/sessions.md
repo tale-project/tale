@@ -80,6 +80,16 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   git operation. True per-operation broker fetch (with immediate per-op
   revocation) is a planned follow-up.
 
+Beside the credential helper, the broker also provisions the session
+owner's git **author identity** (`user.name`/`user.email`, injected as
+`GIT_CONFIG_*` env — `session_credentials.ts`'s `buildGitConfigEnv`). It is
+non-secret metadata, not a Tier-2 grant, so — unlike the helper above — it
+is never gated on a git credential grant: it runs whenever the session
+resolves to a real platform user, so a fresh container's `git commit` has
+an author without any in-session `git config`. A synthetic/system-owned
+session (automation, workflow) or an owner with a blank name/email
+resolves to no injection rather than a placeholder identity.
+
 ## Resource profiles
 
 `default` mirrors the one-shot caps (uid 65534). `agent` (uid 10001 — a real

@@ -566,7 +566,16 @@ function MultiSelectOptionItem({
           {option.labelBadge}
         </div>
         {showDescription && (
-          <Text as="div" variant="caption">
+          // Clamped to two lines so a long catalog description can't blow out
+          // the popover row; `title` keeps the full text one hover away
+          // (screen readers still get the untruncated text — `line-clamp`
+          // only affects paint, not the accessibility tree).
+          <Text
+            as="div"
+            variant="caption"
+            className="line-clamp-2"
+            title={option.description}
+          >
             {option.description}
           </Text>
         )}

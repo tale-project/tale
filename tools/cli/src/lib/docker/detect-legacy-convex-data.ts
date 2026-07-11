@@ -1,5 +1,3 @@
-import * as logger from '../../utils/logger';
-import { readProject } from '../project/read-project';
 import { volumeExists } from './ensure-volumes';
 
 /**
@@ -14,12 +12,13 @@ import { volumeExists } from './ensure-volumes';
  * fresh empty `convex-data` volume on deploy while the original data sits
  * orphaned in `platform-data`: silent data loss from the user's view.
  *
- * This is the conservative detect+warn half of the fallback: flag every
- * legacy source volume whose destination volume does not exist yet and
- * point at the manual runbook in docs/self-hosted/operate/upgrades.md.
- * Detection is existence-only (no data inspection, no container runs) and
- * best-effort — an unreachable Docker daemon must never fail `tale update`.
- * Once the destination volume exists (modern deploys pre-create it), the
+ * This module is the detection half: flag every legacy source volume whose
+ * destination volume does not exist yet. The remedy — the loud warning and
+ * the offered copy in `tale update` — lives in
+ * migrate-legacy-convex-data.ts, and the manual fallback in
+ * docs/self-hosted/operate/upgrades.md. Detection is existence-only (no
+ * data inspection, no container runs). Once the destination volume exists
+ * (modern deploys pre-create it, and a completed copy creates it too), the
  * check stays silent: it cannot tell a migrated volume from a fresh one
  * without mounting it, and warning on every run would be noise.
  */
@@ -27,7 +26,7 @@ import { volumeExists } from './ensure-volumes';
 /** Pre-0.2.33 fixed compose project name (`docker compose -p tale`). */
 const LEGACY_PROJECT_NAME = 'tale';
 
-interface OrphanedDataVolume {
+export interface OrphanedDataVolume {
   /** The pre-0.3.2 volume that still holds the Convex data. */
   legacy: string;
   /** The volume the current compose files mount instead. */
@@ -73,36 +72,4 @@ export async function findOrphanedConvexDataVolumes(
     orphaned.push(pair);
   }
   return orphaned;
-}
-
-/**
- * Best-effort warning used by `tale update`: never throws. Reads the
- * project id from `tale.json` (a legacy project without one gets its id
- * assigned on the next deploy — nothing to check yet) and probes Docker;
- * any failure along the way is a debug line, not an error.
- */
-export async function warnOnOrphanedConvexData(
-  projectDir: string,
-): Promise<void> {
-  try {
-    const projectId = (await readProject(projectDir)).id;
-    if (typeof projectId !== 'string' || projectId.trim() === '') return;
-    const orphaned = await findOrphanedConvexDataVolumes(projectId);
-    if (orphaned.length === 0) return;
-    logger.warn(
-      `Pre-0.3.2 data layout detected: ` +
-        orphaned
-          .map((p) => `${p.legacy} exists but ${p.target} does not`)
-          .join('; ') +
-        `. Since 0.3.2 the Convex backend reads its data from ` +
-        `convex-data — deploying without copying the data across brings ` +
-        `the instance up EMPTY (the old volume is preserved but unused). ` +
-        `Copy the data first: see "Upgrading from 0.3.1 or earlier" in ` +
-        `docs/self-hosted/operate/upgrades.md.`,
-    );
-  } catch (err) {
-    // Docker unavailable, tale.json unreadable, … — the warning is
-    // best-effort and must never block an update.
-    logger.debug(`legacy volume detection skipped: ${String(err)}`);
-  }
 }

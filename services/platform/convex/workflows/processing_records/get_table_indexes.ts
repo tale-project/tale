@@ -61,8 +61,8 @@ export const TABLE_INDEXES: Record<TableName, IndexConfig[]> = {
       fields: ['organizationId', 'direction'],
     },
     {
-      name: 'by_organizationId_and_customerId',
-      fields: ['organizationId', 'customerId'],
+      name: 'by_organizationId_and_contactId',
+      fields: ['organizationId', 'contactId'],
     },
     { name: 'by_organizationId', fields: ['organizationId'] },
   ],

@@ -7,6 +7,17 @@ import { changedKeys, structuralEqual } from '@/lib/utils/structural-equal';
 import type { EditorController } from './types';
 import { useRegisterDirtySource } from './use-dirty-source';
 
+/**
+ * Minimal shape `useJsonConfigEditor` needs from a validator — any Zod
+ * schema satisfies this without importing `zod` into this generic UI
+ * primitive. Mirrors `useFormEditor`'s optional `schema`, generalized to
+ * `safeParse` since a JSON-config editor has no RHF form to bind a resolver
+ * to.
+ */
+export interface JsonConfigSchema<T> {
+  safeParse: (value: T) => { success: boolean };
+}
+
 interface UseJsonConfigEditorArgs<T> {
   /**
    * Server-authoritative initial value. `undefined` while loading; the
@@ -30,6 +41,14 @@ interface UseJsonConfigEditorArgs<T> {
    * the legacy agent flow where a failed save left a no-op snapshot.
    */
   snapshotPriorBaseline?: (priorBaseline: T) => Promise<void>;
+  /**
+   * Optional schema; when present, drives `isValid` (the same server-parity
+   * contract as `useFormEditor`'s `schema`) so Save can't submit a config the
+   * server would reject. Absent = always valid, the pre-existing behavior for
+   * callers with no schema-shaped invalidity (e.g. the project agents/models
+   * tab) (#2665).
+   */
+  schema?: JsonConfigSchema<T>;
 }
 
 interface JsonConfigEditor<T> extends EditorController {
@@ -52,6 +71,7 @@ export function useJsonConfigEditor<T>({
   normalize,
   equals = structuralEqual,
   snapshotPriorBaseline,
+  schema,
 }: UseJsonConfigEditorArgs<T>): JsonConfigEditor<T> {
   const [config, setConfig] = useState(initial);
   const [savedConfig, setSavedConfig] = useState(initial);
@@ -117,8 +137,6 @@ export function useJsonConfigEditor<T>({
     return changedKeys(cfgRec, savedRec);
   }, [config, savedConfig, isDirty]);
 
-  useRegisterDirtySource(isDirty);
-
   const updateConfig = useCallback((partial: Partial<T>) => {
     setConfig((prev) =>
       prev === undefined ? prev : ({ ...prev, ...partial } as T),
@@ -168,12 +186,29 @@ export function useJsonConfigEditor<T>({
     }
   }, []);
 
+  // No schema = always valid, the pre-existing behavior. With a schema, this
+  // mirrors `useFormEditor`'s `schema`-driven `isValid` — the config is still
+  // `undefined` while loading, which reads as valid (there is nothing to
+  // reject yet; `isLoading`/`isDirty` already gate Save in that window).
+  const isValid = useMemo(() => {
+    if (!schema) return true;
+    if (config === undefined) return true;
+    return schema.safeParse(config).success;
+  }, [schema, config]);
+
+  // Register with the page-level DirtyBlockerProvider, including the save
+  // path so the navigation dialog can offer "Save & Leave" (#2572). A valid
+  // draft registers `save`; an invalid one registers none — that save could
+  // only fail — and the dialog degrades to Stay/Discard, same as
+  // `useFormEditor`.
+  useRegisterDirtySource(isDirty, isValid ? { save: doSave } : undefined);
+
   return {
     config,
     savedConfig,
     isDirty,
     isSaving,
-    isValid: true,
+    isValid,
     isLoading: initial === undefined,
     dirtyKeys,
     save: doSave,

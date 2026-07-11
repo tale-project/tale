@@ -24,6 +24,7 @@ import { Text } from '@tale/ui/text';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useRegisterDirtySource } from '@/app/components/ui/editor';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -98,6 +99,12 @@ function EnvEditor({
   // current rows (a removed row is gone from `rows`, so it must be remembered
   // here to actually delete it on save).
   const loadedKeys = useRef(new Set<string>());
+
+  // Pending inline edits join the page-level DirtyBlockerProvider so a
+  // navigation away from the automation page prompts instead of silently
+  // dropping them (#2572). `EnvEditor` mounts only while the dialog is open,
+  // so unmount (close) unregisters the source.
+  useRegisterDirtySource(isDirty);
 
   // Snapshot the query into editable local state once (further reactive updates
   // must not clobber in-flight edits; the dialog closes on save).

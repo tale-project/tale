@@ -50,6 +50,12 @@ export const saveFileMetadata = internalMutation({
       resolvedContentType.startsWith('video/');
     const shouldIndex =
       !isAudio && isRagIndexableFile(args.fileName, resolvedContentType);
+    // No extractor exists for this format and it isn't routed through the
+    // audio/video transcription pipeline either — this file will NEVER
+    // index. Distinct from `shouldIndex === false && isAudio`, which is
+    // deliberately left `undefined` (indexed later via the transcript).
+    const isUnsupported =
+      !isAudio && !isRagIndexableFile(args.fileName, resolvedContentType);
 
     if (existing) {
       const now = Date.now();
@@ -88,6 +94,14 @@ export const saveFileMetadata = internalMutation({
         patchData.ragError = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
+      } else if (isUnsupported && existing.ragStatus !== 'unsupported') {
+        // Self-heals a row saved before this terminal state existed (it
+        // would otherwise sit at `undefined` — "Not indexed" with a retry
+        // button that can never succeed — forever).
+        patchData.ragStatus = 'unsupported';
+        patchData.ragError = undefined;
+        patchData.ragProgress = undefined;
+        patchData.ragQueuedAt = undefined;
       }
 
       if (needsTranscribeRetry) {
@@ -132,7 +146,11 @@ export const saveFileMetadata = internalMutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
-      ragStatus: shouldIndex ? 'queued' : undefined,
+      ragStatus: shouldIndex
+        ? 'queued'
+        : isUnsupported
+          ? 'unsupported'
+          : undefined,
       ragQueuedAt: shouldIndex ? Date.now() : undefined,
       transcriptionStatus: isAudio ? 'queued' : undefined,
       ...(args.documentId !== undefined && { documentId: args.documentId }),

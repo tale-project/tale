@@ -1,19 +1,121 @@
 'use node';
 
+/**
+ * Org provisioning status + repair.
+ *
+ * `org.create` succeeds first; the filesystem scaffold and the default
+ * provisioners run afterwards from `auth.afterCreateOrganization`. When those
+ * post-create steps die (node executor down, crash mid-copy), the org exists
+ * with a missing/partial `$TALE_CONFIG_DIR/<slug>/` tree and nothing records
+ * it. Rather than persisting a status row (schema change + migration), the
+ * status is DERIVED by probing the config dir against the builtin catalog
+ * (`listMissingScaffoldDomains`) — it can't drift and self-heals the moment
+ * the files land.
+ *
+ * `retryProvisioning` re-runs the full org-create pipeline idempotently:
+ * every scaffolded domain (providers + governance included — a superset of
+ * the per-domain catalog sync in `builtin_sync.ts`) plus the same
+ * post-scaffold provisioners `afterCreateOrganization` schedules. Gated on
+ * developer-settings access like the catalog sync, since it (re)writes
+ * capability-bearing config files.
+ */
+
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { requireDeveloperSettingsAccessById } from '../providers/auth';
+import { listMissingScaffoldDomains, scaffoldOrgFromCatalog } from './scaffold';
 
-export const initializeDefaultWorkflows = action({
+export const getProvisioningStatus = action({
   args: {
     organizationId: v.string(),
   },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.runMutation(
-      internal.agents.seed_system_defaults.seedSystemDefaultAgents,
+  returns: v.object({
+    provisioned: v.boolean(),
+    missingDomains: v.array(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ provisioned: boolean; missingDomains: string[] }> => {
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const missing = await listMissingScaffoldDomains(orgSlug);
+    // `null` = the probe can't run (config env unset). Report provisioned so
+    // a misconfigured deploy doesn't show an unrepairable banner on every org.
+    if (missing === null) return { provisioned: true, missingDomains: [] };
+    return { provisioned: missing.length === 0, missingDomains: missing };
+  },
+});
+
+export const retryProvisioning = action({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    failedDomains: v.array(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ ok: boolean; failedDomains: string[] }> => {
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+
+    // Idempotent fill: `override:false` seeds only domains that are still
+    // empty; NO `cleanFirst` — unlike org-create, the org may already carry
+    // user-authored config that must survive the repair.
+    const result = await scaffoldOrgFromCatalog({
+      orgSlug,
+      override: false,
+      cleanFirst: false,
+    });
+
+    // Re-run the same post-scaffold provisioning `afterCreateOrganization`
+    // schedules, so restored files become live (config caches for V8 readers,
+    // default workflow/prompt/agent installs, starter content). All are
+    // idempotent; the scaffold ran inline above, so no head-start delay is
+    // needed. `reinstallMissing` marks the agent pass as operator-consented —
+    // this is an explicit repair, same as the catalog-sync recovery path.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.lib.config_cache.sync_org.syncOrgConfigCaches,
       { organizationId: args.organizationId },
     );
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
+      { organizationId: args.organizationId, orgSlug },
+    );
+    // Locale intentionally omitted: the prompt provisioner resolves the org's
+    // `defaultLocale` metadata itself when the arg is absent.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.prompts.provision_defaults.syncDefaultPromptInstallations,
+      { organizationId: args.organizationId, orgSlug },
+    );
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agents.provision_defaults.syncDefaultAgentInstallations,
+      { organizationId: args.organizationId, orgSlug, reinstallMissing: true },
+    );
+    // After the agent installs so the @mentioned assistant exists; idempotent
+    // (skips when the org already has any project).
+    await ctx.scheduler.runAfter(
+      10_000,
+      internal.provisioning.seed_starter.seedStarterContent,
+      { organizationId: args.organizationId },
+    );
+
+    return {
+      ok: result.ok && !result.skipped,
+      failedDomains: result.results.filter((r) => !r.ok).map((r) => r.domain),
+    };
   },
 });

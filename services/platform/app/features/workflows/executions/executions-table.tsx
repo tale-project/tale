@@ -481,7 +481,10 @@ export function ExecutionsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
-    entityLabel: tWorkflows('executions.entityLabel'),
+    entityLabel: {
+      one: tWorkflows('executions.entityLabelOne'),
+      other: tWorkflows('executions.entityLabel'),
+    },
   });
 
   const renderExpandedRow = useCallback(

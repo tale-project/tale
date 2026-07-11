@@ -54,6 +54,26 @@ export const retryRagIndexing = action({
       }
       storageId = document.fileId;
 
+      // Terminal, non-retryable status guard: 'unsupported' means no text
+      // extractor exists for this format — a retry can only reproduce the
+      // same rejection. The two UI entry points already hide the "Reindex"
+      // affordance for it (`DocumentRowActions`, `RagStatusBadge`, #2598),
+      // but this is a public action with no client-side gate of its own, so a
+      // stale tab or a scripted caller could still reach it directly. Checked
+      // BEFORE `ensureFileMetadataForDocument`/`ragAction.execute` so a
+      // terminal file is never re-queued or bounced through 'failed'.
+      const fileMetadata = await ctx.runQuery(
+        internal.file_metadata.internal_queries.getByStorageId,
+        { storageId: document.fileId },
+      );
+      if (fileMetadata?.ragStatus === 'unsupported') {
+        return {
+          success: false,
+          error:
+            "This file type has no text extractor and can't be indexed for RAG search. Convert it to a supported format (PDF, DOCX, TXT, …) and re-upload.",
+        };
+      }
+
       // Self-heal the canonical RAG-status home before writing status:
       // updateFileRagStatus below no-ops when the blob has no fileMetadata row
       // (e.g. a UI upload without fileSize, or a legacy file-backed doc), which

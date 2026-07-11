@@ -7,7 +7,7 @@
  *
  * The Python crawler delegated this density-based main-content extraction to
  * crawl4ai's Rust/Python internals. crawl4ai has no npm package, so this
- * reproduces the same algorithm in TS over a jsdom DOM + turndown:
+ * reproduces the same algorithm in TS over a linkedom DOM + turndown:
  *
  *   1. Pre-remove structural / non-content nodes:
  *      nav, footer, header, aside, script, style, form, iframe, noscript,
@@ -35,7 +35,7 @@
 
 import TurndownService from 'turndown';
 
-import { parseHtml } from './parse_html';
+import { NodeFilter, parseHtml } from './parse_html';
 
 const THRESHOLD = 0.4;
 
@@ -168,7 +168,7 @@ export function pruneHtml(html: string): string {
   // 1b. Remove HTML comments.
   const walker = document.createTreeWalker(
     document.documentElement,
-    dom.window.NodeFilter.SHOW_COMMENT,
+    NodeFilter.SHOW_COMMENT,
   );
   const comments: Node[] = [];
   let current = walker.nextNode();
@@ -187,7 +187,7 @@ export function pruneHtml(html: string): string {
   // Deepest-first: sort by DOM depth descending.
   candidates.sort((a, b) => depth(b) - depth(a));
   for (const el of candidates) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsdom Element satisfies the structural DomNode contract used by scoreNode
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- linkedom Element satisfies the structural DomNode contract used by scoreNode
     if (scoreNode(el as unknown as DomNode) < THRESHOLD) {
       el.remove();
     }

@@ -19,9 +19,11 @@ Der Drawer ist der Ort, an dem die ganze Anbieter-Arbeit passiert. Die Listenans
 
 ## Einen Anbieter hinzufügen
 
-Klick **Anbieter hinzufügen**. Tales Anbieter sind OpenAI-kompatible Endpunkte, ein Anbieter ist also eine **Basis-URL** plus ein **API-Schlüssel** — OpenRouter (`https://openrouter.ai/api/v1`) für den breitesten Katalog, ein Direkt-Anbieter oder ein lokaler Ollama- oder vLLM-Server in deinem Netz. Der Schlüssel wird verschlüsselt gespeichert und nur genutzt, um diesen Anbieter aufzurufen.
+Klick **Anbieter hinzufügen**. **Mit einem bekannten Anbieter starten** wählt OpenAI, Anthropic oder OpenRouter und trägt Anbietername und Basis-URL ein — übrig bleibt nur noch dein API-Schlüssel. Änderst du Name oder Basis-URL von Hand, springt die Auswahl zurück auf **Benutzerdefiniert**, den manuellen Weg: Ein Anbieter ist eine **Basis-URL** plus ein **API-Schlüssel** — der eigene Endpunkt eines Direkt-Anbieters, OpenRouter (`https://openrouter.ai/api/v1`) für den breitesten Katalog, oder ein lokaler Ollama- oder vLLM-Server in deinem Netz. Der Schlüssel wird verschlüsselt gespeichert und nur genutzt, um diesen Anbieter aufzurufen.
 
-Sobald die Anmeldedaten sitzen, füll die Modell-Liste: **Modelle abrufen** zieht die Liste, die die API des Anbieters meldet, und **Modell hinzufügen** deklariert eines von Hand. Kein Modell ist aufrufbar, bevor es mit dem richtigen Fähigkeits-Tag in der Liste des Anbieters steht.
+Sobald die Anmeldedaten sitzen, füll die Modell-Liste: **Modelle abrufen** zieht die Liste, die die API des Anbieters meldet, **Modell hinzufügen** deklariert eines von Hand, und — sobald der Modellkatalog der Organisation synchronisiert ist — füllt die Auswahl eines Modells aus dem Katalog in diesem Dialog dessen ID und bekannte Fähigkeiten (Kontextfenster, Pricing, Reasoning), statt sie einzutippen. Kein Modell ist aufrufbar, bevor es mit dem richtigen Fähigkeits-Tag in der Liste des Anbieters steht.
+
+Bei OpenAI, Anthropic und OpenRouter bleibt die Basis-URL auch nach dem Anlegen des Anbieters auf den veröffentlichten Endpunkt gesperrt — öffne den Drawer der Zeile, klick auf **Details bearbeiten** unter **Allgemein**, und das Feld erscheint schreibgeschützt mit der Schaltfläche **Basis-URL überschreiben** daneben. Greif zur Überschreibung nur, wenn du den Slug dieses Anbieters auf einen kompatiblen Proxy oder einen anderen Endpunkt desselben Anbieters richten willst; die Basis-URL jedes anderen Anbieters bleibt direkt editierbar, ganz ohne Überschreibung.
 
 ## Die Modell-Liste und Fähigkeits-Tags
 

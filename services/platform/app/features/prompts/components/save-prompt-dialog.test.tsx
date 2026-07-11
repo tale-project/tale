@@ -5,17 +5,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
+// Spied stub — mirrors the previous inline stub's rendered text exactly, but
+// records call args too, so tests can assert on the exact `params` a
+// translation call was made with (the stub never resolves a real message
+// catalog, so it can't substitute a param into a translation VALUE).
+const mockT = vi.fn(
+  (ns: string, key: string, params?: Record<string, string | number>) => {
+    const base = `${ns}.${key}`;
+    if (!params) return base;
+    return Object.entries(params).reduce(
+      (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+      base,
+    );
+  },
+);
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
-    t: (key: string, params?: Record<string, string>) => {
-      if (params) {
-        return Object.entries(params).reduce(
-          (acc, [k, v]) => acc.replace(`{${k}}`, v),
-          `${ns}.${key}`,
-        );
-      }
-      return `${ns}.${key}`;
-    },
+    t: (key: string, params?: Record<string, string | number>) =>
+      mockT(ns, key, params),
   }),
 }));
 
@@ -62,6 +70,7 @@ import { SavePromptDialog } from './save-prompt-dialog';
 
 beforeEach(() => {
   mockToast.mockReset();
+  mockT.mockClear();
   mockMutateAsync = vi.fn().mockResolvedValue({ _id: 'prompt-1' });
 });
 
@@ -212,6 +221,125 @@ describe('SavePromptDialog', () => {
           }),
         ),
       );
+    });
+  });
+
+  // Regression for #2644: the dialog used to save with no Title field at
+  // all, so the AI-generated title was invisible and unfixable pre-save.
+  describe('title field (#2644)', () => {
+    it('exposes an editable Title field and forwards a typed title to the mutation', async () => {
+      const { user } = render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+        />,
+      );
+      const titleInput = screen.getByLabelText('prompts.form.titleLabel');
+      await user.type(titleInput, 'My saved title');
+      await user.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      expect(mockMutateAsync.mock.calls[0][0].title).toBe('My saved title');
+    });
+
+    it('forwards undefined when the title is left blank, so the server AI-generates one on demand', async () => {
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      expect(mockMutateAsync.mock.calls[0][0].title).toBeUndefined();
+    });
+  });
+
+  // Regression for #2644: selecting "Team" scope in a teamless org used to
+  // silently disable Save with no picker and no explanation.
+  describe('team scope in a teamless org (#2644)', () => {
+    it('explains the missing team instead of leaving Save silently disabled', () => {
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('radio', { name: 'prompts.scope.team' }),
+      );
+      expect(
+        screen.getByText('prompts.form.noTeamsAvailable'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      ).toBeDisabled();
+    });
+  });
+
+  // Regression for #2644: the size indicator used to read raw bytes/KB
+  // ("45 B / 16.0 KB") — a developer unit — instead of characters.
+  describe('size indicator (#2644)', () => {
+    it('uses the character-count key, not the byte-count one', () => {
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+        />,
+      );
+      expect(screen.getByText('prompts.form.charsUsed')).toBeInTheDocument();
+      expect(
+        screen.queryByText('prompts.form.bytesUsed'),
+      ).not.toBeInTheDocument();
+    });
+
+    // Regression: the #2644 fix compared `content.length` (characters)
+    // straight against `MAX_PROMPT_CONTENT_BYTES` (a UTF-8 byte cap), so
+    // multi-byte content read as "under limit" in the counter while Save
+    // was already byte-blocked — a contradiction. The counter must never
+    // pair a char count with that byte-cap number again.
+    it('never claims under-limit in the counter while Save is byte-blocked by multi-byte content', () => {
+      // 9,000 'é' chars = 9,000 JS string units but 18,000 UTF-8 bytes —
+      // comfortably under the 16,384 byte cap in *characters*, over it in
+      // *bytes*.
+      const content = 'é'.repeat(9_000);
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent={content}
+        />,
+      );
+
+      // The real, byte-based gate has tripped.
+      expect(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      ).toBeDisabled();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'prompts.form.bytesOverLimitAlert',
+      );
+
+      // The counter reports only the character count — no byte-cap number
+      // riding along that would misleadingly suggest headroom. Take the
+      // LAST call: earlier renders can reflect intermediate state.
+      const charsUsedCalls = mockT.mock.calls.filter(
+        ([, key]) => key === 'form.charsUsed',
+      );
+      expect(charsUsedCalls.at(-1)?.[2]).toEqual({ used: 9_000 });
+
+      // The real cap is instead surfaced, human-readable, in the alert that
+      // only appears once it's actually relevant.
+      const alertCalls = mockT.mock.calls.filter(
+        ([, key]) => key === 'form.bytesOverLimitAlert',
+      );
+      expect(alertCalls.at(-1)?.[2]).toEqual({ limit: '16 KB' });
     });
   });
 });

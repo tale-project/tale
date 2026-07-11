@@ -3,14 +3,19 @@
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Loader, Paperclip, X } from 'lucide-react';
-import { useId } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
+import {
+  ImagePreviewDialog,
+  type GalleryImage,
+} from '@/app/features/chat/components/message-bubble/image-preview-dialog';
+import { useFileUrls } from '@/app/features/chat/hooks/queries';
 import type { FileAttachment } from '@/app/features/chat/hooks/use-convex-file-upload';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { DOCUMENT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import { DOCUMENT_UPLOAD_ACCEPT, isImage } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -42,6 +47,47 @@ export function TaskAttachments({
   const inputId = useId();
 
   const hasContent = attachments.length > 0 || uploadingFiles.length > 0;
+
+  // Image lightbox — mirrors chat's own attachment gallery
+  // (`useMessageGallery` in message-bubble.tsx): resolve a URL per image
+  // attachment (client-side `previewUrl` first, else a batched server
+  // lookup), then let a click open the same `ImagePreviewDialog` chat uses.
+  // Before this, images had no `onImageClick` at all — the thumbnail button
+  // rendered but its click was a no-op (#2664). Non-image attachments
+  // already get an open-in-new-tab link from `FileAttachmentDisplay` itself.
+  const imageAttachments = useMemo(
+    () => attachments.filter((a) => isImage(a.fileType)),
+    [attachments],
+  );
+  const imageFileIdsToResolve = useMemo(
+    () => imageAttachments.filter((a) => !a.previewUrl).map((a) => a.fileId),
+    [imageAttachments],
+  );
+  const { data: resolvedUrls } = useFileUrls(imageFileIdsToResolve);
+  const galleryEntries = useMemo(() => {
+    const entries: Array<{ fileId: Id<'_storage'>; image: GalleryImage }> = [];
+    for (const attachment of imageAttachments) {
+      const url =
+        attachment.previewUrl ??
+        resolvedUrls?.find((r) => r.fileId === attachment.fileId)?.url ??
+        undefined;
+      if (url) {
+        entries.push({
+          fileId: attachment.fileId,
+          image: { src: url, alt: attachment.fileName },
+        });
+      }
+    }
+    return entries;
+  }, [imageAttachments, resolvedUrls]);
+  const galleryImages = useMemo(
+    () => galleryEntries.map((entry) => entry.image),
+    [galleryEntries],
+  );
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const activePreview =
+    previewIndex !== null ? galleryImages[previewIndex] : undefined;
+
   if (!canEdit && !hasContent) return null;
 
   return (
@@ -52,25 +98,37 @@ export function TaskAttachments({
 
       {hasContent && (
         <Row gap={2} wrap align="start">
-          {attachments.map((attachment) => (
-            <div key={attachment.fileId} className="group relative">
-              <FileAttachmentDisplay
-                attachment={attachment}
-                organizationId={organizationId}
-              />
-              {canEdit && (
-                <button
-                  type="button"
-                  aria-label={t('attachments.remove')}
-                  onClick={() => onRemove(attachment.fileId)}
-                  disabled={disabled}
-                  className="bg-background text-muted-foreground hover:text-foreground ring-border absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full opacity-0 ring-1 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed"
-                >
-                  <X className="size-3" />
-                </button>
-              )}
-            </div>
-          ))}
+          {attachments.map((attachment) => {
+            const galleryIdx = isImage(attachment.fileType)
+              ? galleryEntries.findIndex(
+                  (entry) => entry.fileId === attachment.fileId,
+                )
+              : -1;
+            return (
+              <div key={attachment.fileId} className="group relative">
+                <FileAttachmentDisplay
+                  attachment={attachment}
+                  organizationId={organizationId}
+                  onImageClick={
+                    galleryIdx >= 0
+                      ? () => setPreviewIndex(galleryIdx)
+                      : undefined
+                  }
+                />
+                {canEdit && (
+                  <button
+                    type="button"
+                    aria-label={t('attachments.remove')}
+                    onClick={() => onRemove(attachment.fileId)}
+                    disabled={disabled}
+                    className="bg-background text-muted-foreground hover:text-foreground ring-border absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full opacity-0 ring-1 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {uploadingFiles.map((name) => (
             <Row
               key={name}
@@ -111,6 +169,20 @@ export function TaskAttachments({
             <FileUpload.Overlay label={t('attachments.dropHint')} />
           </FileUpload.DropZone>
         </FileUpload.Root>
+      )}
+
+      {activePreview && (
+        <ImagePreviewDialog
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) setPreviewIndex(null);
+          }}
+          src={activePreview.src}
+          alt={activePreview.alt}
+          images={galleryImages}
+          activeIndex={previewIndex ?? 0}
+          onActiveIndexChange={setPreviewIndex}
+        />
       )}
     </Stack>
   );

@@ -19,9 +19,11 @@ Le tiroir est là où se passe tout le travail par fournisseur. La vue liste est
 
 ## Ajouter un fournisseur
 
-Clique **Ajouter un fournisseur**. Les fournisseurs de Tale sont des endpoints compatibles OpenAI, un fournisseur est donc une **URL de base** plus une **clé API** — OpenRouter (`https://openrouter.ai/api/v1`) pour le catalogue le plus large, un fournisseur direct, ou un serveur Ollama ou vLLM local sur ton réseau. La clé est stockée chiffrée et utilisée seulement pour appeler ce fournisseur.
+Clique **Ajouter un fournisseur**. **Partir d'un fournisseur connu** choisit OpenAI, Anthropic ou OpenRouter et remplit le nom du fournisseur et l’URL de base — il ne reste plus qu’à ajouter ta clé API. Modifier le nom ou l’URL de base à la main fait revenir le sélecteur sur **Personnalisé**, la voie manuelle : un fournisseur est une **URL de base** plus une **clé API** — l’endpoint propre à un fournisseur direct, OpenRouter (`https://openrouter.ai/api/v1`) pour le catalogue le plus large, ou un serveur Ollama ou vLLM local sur ton réseau. La clé est stockée chiffrée et utilisée seulement pour appeler ce fournisseur.
 
-Une fois l’identifiant posé, remplis la liste de modèles : **Récupérer les modèles** tire la liste que l’API du fournisseur rapporte, et **Ajouter un modèle** en déclare un à la main. Aucun modèle n’est appelable tant qu’il n’est pas dans la liste du fournisseur avec la bonne étiquette de capacité.
+Une fois l’identifiant posé, remplis la liste de modèles : **Récupérer les modèles** tire la liste que l’API du fournisseur rapporte, **Ajouter un modèle** en déclare un à la main, et — une fois le catalogue de modèles de l’organisation synchronisé — choisir un modèle dans le catalogue depuis cette boîte de dialogue remplit son ID et ses capacités connues (fenêtre de contexte, tarification, raisonnement) au lieu de les saisir. Aucun modèle n’est appelable tant qu’il n’est pas dans la liste du fournisseur avec la bonne étiquette de capacité.
+
+Pour OpenAI, Anthropic et OpenRouter, l’URL de base reste verrouillée sur l’endpoint publié même après la création du fournisseur — ouvre le tiroir de la ligne, clique sur **Modifier les détails** sous **Général**, et le champ apparaît en lecture seule avec un bouton **Remplacer l'URL de base** à côté. Ne recours au remplacement que pour pointer le slug de ce fournisseur vers un proxy compatible ou un autre endpoint du même fournisseur ; l’URL de base de tout autre fournisseur reste modifiable directement, sans remplacement.
 
 ## La liste de modèles et les étiquettes de capacité
 

@@ -39,6 +39,15 @@ export const DEV_GATES = {
   authOk: { name: '/api/auth/ok', severity: 'soft', timeoutMs: 90_000 },
   /** Vite bind announce — informational; the app is up regardless. */
   viteBind: { name: 'vite bind', severity: 'soft', timeoutMs: 180_000 },
+  /** Node action executor health (#2631) — HARD on purpose: a broken executor
+   *  otherwise looks like a healthy boot (TCP up, auth OK) and only surfaces
+   *  15 minutes later as opaque per-spec retries. E2E-only; see
+   *  `./node-executor-probe`. */
+  nodeExecutor: {
+    name: 'node executor probe',
+    severity: 'hard',
+    timeoutMs: 120_000,
+  },
 } as const satisfies Record<string, GateSpec>;
 
 /** A HARD gate failure fails the fleet; a SOFT one degrades (warn + continue). */

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -200,6 +200,43 @@ describe('PromptLibraryDialog', () => {
       // Skeleton rows use `animate-pulse`; Radix portals into document.body,
       // so query there rather than the render container.
       expect(document.body.querySelector('.animate-pulse')).not.toBeNull();
+    });
+  });
+
+  // Regression for #2644: a prompt quick-saved from a chat message
+  // (sourceMessageId set) used to be permanently un-editable — the row's
+  // menu skipped Edit entirely, which also meant its version could never
+  // bump past 1, leaving "Version history" stuck disabled.
+  describe('editing a chat-saved prompt (#2644)', () => {
+    it('exposes Edit for a prompt with a sourceMessageId and opens it prefilled', async () => {
+      mockUsePromptsResult = {
+        prompts: [{ ...defaultPrompt, sourceMessageId: 'msg-1' }],
+        isLoading: false,
+        canLoadMore: false,
+        isLoadingMore: false,
+        loadMore: mockLoadMore,
+      };
+      const { user } = render(
+        <PromptLibraryDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSelectPrompt={vi.fn()}
+        />,
+      );
+
+      await user.click(
+        screen.getByRole('button', { name: 'prompts.actions.more' }),
+      );
+      await user.click(
+        screen.getByRole('menuitem', { name: 'prompts.actions.edit' }),
+      );
+
+      const dialog = await screen.findByRole('dialog', {
+        name: 'prompts.form.editTitle',
+      });
+      expect(
+        within(dialog).getByLabelText('prompts.form.titleLabel'),
+      ).toHaveValue(defaultPrompt.title);
     });
   });
 });

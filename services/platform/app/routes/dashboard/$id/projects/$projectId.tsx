@@ -30,18 +30,36 @@ import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
-  loader: ({ context, params }) => {
+  loader: async ({
+    context,
+    params,
+  }): Promise<{ projectName: string | undefined }> => {
     // Warm the gating project query so the detail header/content paint without
-    // a skeleton — also runs on the projects list's row-hover preload.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.projects.queries.getProject, {
-        projectId: asProjectId(params.projectId),
-        organizationId: params.id,
-      }),
-    );
+    // a skeleton — also runs on the projects list's row-hover preload, so this
+    // resolves from cache (no added latency) on that common path. Awaited
+    // (rather than fire-and-forget) so the resolved name reaches `head()`
+    // below for the document title (#2647); a failed fetch falls back to the
+    // generic `metadata.project` title below — the component's own
+    // `useProject` call still surfaces the real not-found/error state.
+    const project = await context.queryClient
+      .ensureQueryData(
+        convexQuery(api.projects.queries.getProject, {
+          projectId: asProjectId(params.projectId),
+          organizationId: params.id,
+        }),
+      )
+      .catch((error: unknown) => {
+        console.warn('Failed to load project for document title', error);
+        return null;
+      });
+    return { projectName: project?.name };
   },
+  head: ({ loaderData }) => ({
+    meta: seo('project', loaderData?.projectName),
+  }),
   component: ProjectDetailLayout,
 });
 

@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -21,6 +24,7 @@ import {
   dispatchOrgAccessError,
   dispatchVersionConflict,
 } from '../utils/error-dispatch';
+import { knownProviderBaseUrl } from '../utils/known-providers';
 
 interface ProviderEditPanelProps {
   open: boolean;
@@ -81,6 +85,16 @@ export function ProviderEditPanel({
     perLocale: buildPerLocale(config, defaultLocale),
   });
 
+  // Known catalog providers have a fixed, published endpoint — show it locked
+  // with an explicit override affordance instead of a free-form field that
+  // invites typos (#2653). A stored custom URL counts as already overridden,
+  // so existing configs render exactly as before.
+  const catalogBaseUrl = knownProviderBaseUrl(providerName);
+  const [baseUrlOverride, setBaseUrlOverride] = useState(
+    () => config.baseUrl !== catalogBaseUrl,
+  );
+  const baseUrlLocked = catalogBaseUrl !== undefined && !baseUrlOverride;
+
   // Re-sync form state from the context only when the dialog isn't open.
   // While the user is typing we deliberately keep their unsaved edits even
   // if a sibling save invalidates the read query.
@@ -93,7 +107,8 @@ export function ProviderEditPanel({
       perLocale: buildPerLocale(config, defaultLocale),
     });
     setEditingLocale(defaultLocale);
-  }, [open, providerName, config, defaultLocale]);
+    setBaseUrlOverride(config.baseUrl !== catalogBaseUrl);
+  }, [open, providerName, config, defaultLocale, catalogBaseUrl]);
 
   // Org metadata loads async — if `defaultLocale` resolves *after* the panel
   // already mounted (initial render uses the app fallback 'en'), pivot the
@@ -253,23 +268,47 @@ export function ProviderEditPanel({
         value={form.baseUrl}
         onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
         placeholder={t('providers.baseUrlPlaceholder')}
+        // `readOnly` (not `disabled`) keeps the locked field focusable so
+        // keyboard/AT users can read the value; the button below unlocks it.
+        readOnly={baseUrlLocked}
+        variant={baseUrlLocked ? 'readOnly' : 'default'}
+        description={
+          baseUrlLocked ? t('providers.baseUrlManagedHelp') : undefined
+        }
       />
+      {baseUrlLocked && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-mt-2 self-start"
+          onClick={() => setBaseUrlOverride(true)}
+        >
+          {t('providers.baseUrlOverride')}
+        </Button>
+      )}
 
-      <Select
-        label={t('providers.apiFormat')}
-        description={t('providers.apiFormatHelp')}
-        value={form.apiFormat}
-        onValueChange={(v) => {
-          // Guard the spurious onValueChange('') Radix emits during async-load
-          // flux (would falsely set/dirty the field).
-          if (v !== 'openai' && v !== 'anthropic') return;
-          setForm((f) => ({ ...f, apiFormat: v }));
-        }}
-        options={[
-          { value: 'openai', label: t('providers.apiFormatOpenai') },
-          { value: 'anthropic', label: t('providers.apiFormatAnthropic') },
-        ]}
-      />
+      {/* API format only matters for exotic self-hosted setups — advanced-only
+          (#2653). The default (OpenAI-compatible) is unchanged. */}
+      <CollapsibleDetails summary={t('providers.advanced')}>
+        <Stack gap={4} className="pt-3 pl-5">
+          <Select
+            label={t('providers.apiFormat')}
+            description={t('providers.apiFormatHelp')}
+            value={form.apiFormat}
+            onValueChange={(v) => {
+              // Guard the spurious onValueChange('') Radix emits during async-load
+              // flux (would falsely set/dirty the field).
+              if (v !== 'openai' && v !== 'anthropic') return;
+              setForm((f) => ({ ...f, apiFormat: v }));
+            }}
+            options={[
+              { value: 'openai', label: t('providers.apiFormatOpenai') },
+              { value: 'anthropic', label: t('providers.apiFormatAnthropic') },
+            ]}
+          />
+        </Stack>
+      </CollapsibleDetails>
 
       <LocaleTabs
         defaultLocale={defaultLocale}

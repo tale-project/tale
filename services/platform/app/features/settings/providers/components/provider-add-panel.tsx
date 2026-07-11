@@ -17,12 +17,22 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { modelTagLiterals } from '@/lib/shared/schemas/providers';
+import {
+  type ModelDefinition,
+  modelTagLiterals,
+} from '@/lib/shared/schemas/providers';
 
 import {
   useFetchProviderModels,
@@ -33,12 +43,63 @@ import {
   dispatchOrgAccessError,
   readConvexErrorData,
 } from '../utils/error-dispatch';
+import { KNOWN_PROVIDERS } from '../utils/known-providers';
 import { modelTagLabel } from '../utils/model-tag-label';
+
+/**
+ * Capability facts copied from the synced model catalog when a model is picked
+ * from it (#2655) — persisted onto the created provider config so the org gets
+ * pricing/context/reasoning without the post-create "Fill from catalog" step.
+ */
+type CatalogCapabilities = Pick<
+  ModelDefinition,
+  'contextWindow' | 'maxOutputTokens' | 'reasoning' | 'promptCaching' | 'cost'
+>;
+
+/** One row of `model_catalog.queries.listCatalogModels` (structural subset). */
+interface CatalogModelRow {
+  modelId: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  reasoning?: CatalogCapabilities['reasoning'];
+  promptCaching?: CatalogCapabilities['promptCaching'];
+  inputCentsPerMillion?: number;
+  outputCentsPerMillion?: number;
+}
+
+/** Project a catalog row onto the `ModelDefinition` capability fields, keeping
+ * absent facts absent (an empty `cost: {}` would read as "known to be free"). */
+function toCatalogCapabilities(row: CatalogModelRow): CatalogCapabilities {
+  const cost: NonNullable<CatalogCapabilities['cost']> = {
+    ...(row.inputCentsPerMillion != null && {
+      inputCentsPerMillion: row.inputCentsPerMillion,
+    }),
+    ...(row.outputCentsPerMillion != null && {
+      outputCentsPerMillion: row.outputCentsPerMillion,
+    }),
+  };
+  return {
+    ...(row.contextWindow != null && { contextWindow: row.contextWindow }),
+    ...(row.maxOutputTokens != null && {
+      maxOutputTokens: row.maxOutputTokens,
+    }),
+    ...(row.reasoning != null && { reasoning: row.reasoning }),
+    ...(row.promptCaching != null && { promptCaching: row.promptCaching }),
+    ...(Object.keys(cost).length > 0 && { cost }),
+  };
+}
+
+/** RadioGroup value for the blank/manual path. The preset selection is DERIVED
+ * from the form values (name + baseUrl match a known provider), so there is no
+ * stored preset state to fall out of sync with hand edits. */
+const CUSTOM_PRESET = 'custom';
 
 type ModelEntry = {
   id: string;
   displayName: string;
   tags: Array<(typeof modelTagLiterals)[number]>;
+  /** Present only for catalog-picked models; manual entries carry none. */
+  catalog?: CatalogCapabilities;
 };
 
 type FormData = {
@@ -132,6 +193,9 @@ export function ProviderAddPanel({
               tags: z
                 .array(z.enum(modelTagLiterals))
                 .min(1, t('providers.tagsRequired')),
+              // Pass-through payload (zodResolver strips unknown keys, so the
+              // catalog facts must be declared to survive submit).
+              catalog: z.custom<CatalogCapabilities>().optional(),
             }),
           )
           .min(1, t('providers.modelsRequired'))
@@ -169,6 +233,7 @@ export function ProviderAddPanel({
     reset,
     watch,
     getValues,
+    setValue,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -186,8 +251,63 @@ export function ProviderAddPanel({
   });
 
   const watchedModels = watch('models');
+  const watchedName = watch('name');
   const fetchCredsBaseUrl = watch('baseUrl');
   const fetchCredsApiKey = watch('apiKey');
+
+  // ── Known-provider presets (#2655) ──────────────────────────────────
+  // The selection is derived from the form values, so hand-editing the name
+  // or base URL truthfully flips the radio back to "Custom".
+  const selectedPreset =
+    KNOWN_PROVIDERS.find(
+      (p) => p.name === watchedName && p.baseUrl === fetchCredsBaseUrl,
+    )?.name ?? CUSTOM_PRESET;
+
+  const applyPreset = useCallback(
+    (value: string) => {
+      const preset = KNOWN_PROVIDERS.find((p) => p.name === value);
+      if (preset) {
+        setValue('name', preset.name, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setValue('displayName', preset.displayName, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setValue('baseUrl', preset.baseUrl, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        return;
+      }
+      // Back to Custom: blank the fields the preset filled, but keep a
+      // customized display name — it is the user's own text.
+      const current = KNOWN_PROVIDERS.find((p) => p.name === selectedPreset);
+      if (!current) return;
+      setValue('name', '', { shouldDirty: true });
+      setValue('baseUrl', '', { shouldDirty: true });
+      if (getValues('displayName') === current.displayName) {
+        setValue('displayName', '', { shouldDirty: true });
+      }
+    },
+    [getValues, selectedPreset, setValue],
+  );
+
+  // ── Synced model catalog for the Add-model picker (#2655) ───────────
+  // Loaded only while the panel is open; the client filters as the user types.
+  const { data: catalogModels } = useConvexQuery(
+    api.model_catalog.queries.listCatalogModels,
+    open ? { organizationId } : 'skip',
+  );
+  const catalogOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      (catalogModels ?? []).map((row) => ({
+        value: row.modelId,
+        label: row.modelId,
+      })),
+    [catalogModels],
+  );
 
   // Snapshot of the (baseUrl, apiKey) the last fetch ran against — when the
   // current form values drift from this, the cached fetched list belongs to
@@ -246,21 +366,25 @@ export function ProviderAddPanel({
     }
   }, [fetchModels, getValues, organizationId, t]);
 
-  // A fetched model row's checkbox toggles its presence in the form.
+  // A fetched model row's checkbox toggles its presence in the form. When the
+  // synced catalog knows the id, its capability facts ride along (#2655) —
+  // same enrichment as the dialog's catalog picker.
   const handleToggleFetchedModel = useCallback(
     (modelId: string, checked: boolean) => {
       const idx = watchedModels.findIndex((m) => m.id === modelId);
       if (checked && idx === -1) {
+        const row = (catalogModels ?? []).find((m) => m.modelId === modelId);
         append({
           id: modelId,
           displayName: fetchedNames.get(modelId) ?? modelId,
           tags: ['chat'],
+          catalog: row ? toCatalogCapabilities(row) : undefined,
         });
       } else if (!checked && idx !== -1) {
         remove(idx);
       }
     },
-    [watchedModels, fetchedNames, append, remove],
+    [watchedModels, fetchedNames, catalogModels, append, remove],
   );
 
   // Unified row list: fetched models (in provider order) followed by any
@@ -354,11 +478,30 @@ export function ProviderAddPanel({
         id: model.id,
         displayName: model.displayName,
         tags: [...model.tags],
+        catalog: model.catalog,
       });
       setDialogErrors({});
       setDialogOpen(true);
     },
     [watchedModels],
+  );
+
+  // Selecting a catalog model fills the ID (and a display-name default) and
+  // carries the capability facts; typing in the ID field afterwards clears
+  // them again — a hand-edited ID is a custom model the catalog knows nothing
+  // about (#2655).
+  const handleCatalogPick = useCallback(
+    (modelId: string) => {
+      const row = (catalogModels ?? []).find((m) => m.modelId === modelId);
+      if (!row) return;
+      setDialogModel((prev) => ({
+        ...prev,
+        id: modelId,
+        displayName: prev.displayName.trim() ? prev.displayName : modelId,
+        catalog: toCatalogCapabilities(row),
+      }));
+    },
+    [catalogModels],
   );
 
   const validateDialog = useCallback((): boolean => {
@@ -391,6 +534,7 @@ export function ProviderAddPanel({
         id: dialogModel.id.trim(),
         displayName: dialogModel.displayName.trim(),
         tags: dialogModel.tags,
+        catalog: dialogModel.catalog,
       };
       if (editingIndex === null) {
         append(trimmed);
@@ -483,6 +627,8 @@ export function ProviderAddPanel({
               id: m.id,
               displayName: m.displayName,
               tags: m.tags,
+              // Catalog-picked capability facts ride along (#2655).
+              ...m.catalog,
             })),
           },
         });
@@ -604,6 +750,25 @@ export function ProviderAddPanel({
                 defaultOpen
               />
             )}
+
+            {/* Known-provider presets (#2655): endpoint + slug are published
+                facts — picking one leaves only the API key to type. The
+                fields below stay editable (Custom = the unchanged manual
+                path). */}
+            <RadioGroup
+              label={t('providers.presetLabel')}
+              description={t('providers.presetHelp')}
+              columns={2}
+              value={selectedPreset}
+              onValueChange={applyPreset}
+              options={[
+                ...KNOWN_PROVIDERS.map((p) => ({
+                  value: p.name,
+                  label: p.displayName,
+                })),
+                { value: CUSTOM_PRESET, label: t('providers.presetCustom') },
+              ]}
+            />
 
             <Input
               id="name"
@@ -898,11 +1063,32 @@ export function ProviderAddPanel({
         }
         isValid={dialogIsValid}
       >
+        {/* Catalog-backed picker (#2655) — hidden when the org has no synced
+            catalog yet, leaving the manual path exactly as before. */}
+        {catalogOptions.length > 0 && (
+          <SearchableSelect
+            id="catalog-model-picker"
+            label={t('providers.catalogPickerLabel')}
+            placeholder={t('providers.catalogPickerPlaceholder')}
+            searchPlaceholder={t('providers.searchModels')}
+            emptyText={t('providers.catalogPickerEmpty')}
+            description={t('providers.catalogPickerHelp')}
+            value={dialogModel.catalog ? dialogModel.id : null}
+            onValueChange={handleCatalogPick}
+            options={catalogOptions}
+          />
+        )}
+
         <Input
           label={t('providers.modelId')}
           value={dialogModel.id}
           onChange={(e) =>
-            setDialogModel((prev) => ({ ...prev, id: e.target.value }))
+            setDialogModel((prev) => ({
+              ...prev,
+              id: e.target.value,
+              // A hand-edited ID is a custom model — catalog facts no longer apply.
+              catalog: undefined,
+            }))
           }
           placeholder={t('providers.modelIdPlaceholder')}
           errorMessage={dialogErrors.id}

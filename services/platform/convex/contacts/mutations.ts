@@ -9,6 +9,28 @@ import {
   contactValidator,
 } from './validators';
 
+export const createContact = mutationWithRLS({
+  args: {
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    source: contactSourceValidator,
+    locale: v.optional(v.string()),
+    address: v.optional(contactAddressValidator),
+    tags: v.optional(v.array(v.string())),
+    metadata: v.optional(jsonRecordValidator),
+    notes: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    contactId: v.id('contacts'),
+  }),
+  handler: async (ctx, args) => {
+    return await ContactsHelpers.createContact(ctx, args);
+  },
+});
+
 export const updateContact = mutationWithRLS({
   args: {
     contactId: v.id('contacts'),

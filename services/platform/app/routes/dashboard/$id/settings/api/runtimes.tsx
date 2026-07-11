@@ -5,7 +5,7 @@ import { RuntimesSettings } from '@/app/features/settings/runtimes/runtimes-sett
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api/runtimes')({
-  head: () => ({ meta: seo('apiKeys') }),
+  head: () => ({ meta: seo('runtimes') }),
   component: ApiRuntimesPage,
 });
 

@@ -37,12 +37,16 @@ const mockAgents: AssignableAgent[] = [
   },
 ];
 
+let mockDirectoryAgents: AssignableAgent[] = mockAgents.filter(
+  (a) => a.displayCategory !== 'image-agent',
+);
+
 vi.mock('../hooks/use-actor-directory', () => ({
   useActorDirectory: () => ({
     members: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],
-    agents: mockAgents.filter((a) => a.displayCategory !== 'image-agent'),
+    agents: mockDirectoryAgents,
     currentUserId: 'user-1',
     resolveActor: () => ({
       type: 'user',
@@ -56,6 +60,9 @@ vi.mock('../hooks/use-actor-directory', () => ({
 describe('AssigneePicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDirectoryAgents = mockAgents.filter(
+      (a) => a.displayCategory !== 'image-agent',
+    );
   });
 
   it('groups platform agents and coding agents with section headers', async () => {
@@ -113,6 +120,47 @@ describe('AssigneePicker', () => {
 
     expect(
       screen.getByText('tasks.assignee.nonCodeWarning'),
+    ).toBeInTheDocument();
+  });
+
+  it('hints that only live agents are listed, when the Agents section is present (#2610)', async () => {
+    const { user } = render(
+      <AssigneePicker
+        organizationId="org-1"
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+
+    expect(
+      screen.getByText('tasks.assignee.liveAgentsOnly'),
+    ).toBeInTheDocument();
+  });
+
+  it('still hints that only live agents are listed when no agent is live at all (#2610)', async () => {
+    // The exact "connected GitHub, but Issue Triager still isn't assignable"
+    // repro: no agent clears the liveness filter, so the Agents section
+    // itself doesn't render — the hint is the only place left to explain why.
+    mockDirectoryAgents = [];
+    const { user } = render(
+      <AssigneePicker
+        organizationId="org-1"
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+
+    expect(screen.queryByText('tasks.assignee.agents')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.liveAgentsOnly'),
     ).toBeInTheDocument();
   });
 });

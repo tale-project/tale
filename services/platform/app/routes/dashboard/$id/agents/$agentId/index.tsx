@@ -23,6 +23,7 @@ import {
 } from '@/app/features/agents/hooks/mutations';
 import { useAgentBinding } from '@/app/features/agents/hooks/queries';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { useAgentValidation } from '@/app/features/agents/hooks/use-agent-validation';
 import {
   nextConfigForBehavior,
   type AgentPrimaryBehavior,
@@ -83,6 +84,9 @@ function GeneralTab() {
   const { t: tCommon } = useT('common');
   const { id: organizationId, agentId: agentSlug } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
+  // Inline error for the required display name — schema-level (any locale
+  // counts), so it only shows when NO locale carries a name (#2665).
+  const { fieldErrors } = useAgentValidation(config);
   const { teams } = useTeamFilter();
   const { data: binding } = useAgentBinding(organizationId, agentSlug);
   const { data: organization } = useOrganization(organizationId);
@@ -488,7 +492,7 @@ function GeneralTab() {
   }, [t, taskBoardHint]);
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.form.sectionGeneral')}
         description={t('agents.form.sectionGeneralDescription')}
@@ -549,6 +553,7 @@ function GeneralTab() {
           value={displayNameValue}
           onChange={(e) => writeFields({ displayName: e.target.value })}
           required
+          errorMessage={fieldErrors.displayName}
         />
         <Textarea
           id="description"

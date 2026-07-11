@@ -454,9 +454,7 @@ function PromptLibraryDialogContent({
                       prompt={prompt}
                       onUse={handleUsePrompt}
                       onEdit={
-                        canModify && !prompt.sourceMessageId
-                          ? (p) => setEditingPrompt(p)
-                          : undefined
+                        canModify ? (p) => setEditingPrompt(p) : undefined
                       }
                       onDelete={
                         canModify ? (p) => setDeletingPrompt(p) : undefined

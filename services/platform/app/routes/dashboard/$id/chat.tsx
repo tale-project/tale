@@ -2,7 +2,7 @@ import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
@@ -25,7 +25,10 @@ import {
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
 import { StreamingToolProvider } from '@/app/features/chat/context/streaming-tool-context';
-import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
+import {
+  THREADS_PAGE_SIZE,
+  useArchivedThreads,
+} from '@/app/features/chat/hooks/queries';
 import { useSandboxPanesAvailable } from '@/app/features/chat/hooks/use-sandbox-panes';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import { LiveBrowserProvider } from '@/app/features/workspace/components/live-browser-context';
@@ -36,6 +39,7 @@ import {
 import { WorkspaceFilesProvider } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -112,9 +116,54 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
       { organizationId: params.id },
       { initialNumItems: THREADS_PAGE_SIZE },
     );
+    // Also prime the archived list — `ThreadGate` seeds an early "archived"
+    // classification from it so opening an archived thread never paints the
+    // active composer before flipping to the archived footer (#2658). Same
+    // args/caveats as the `listThreads` prime above.
+    void primeCachedPaginatedQuery(
+      context.convexQueryClient.convexClient,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listArchivedThreads's `paginationOpts` is `v.optional`, so the generated type is missing the constraint primeCachedPaginatedQuery expects; same cast pattern as `useArchivedThreads` in features/chat/hooks/queries.ts
+      api.threads.queries.listArchivedThreads as unknown as Parameters<
+        typeof primeCachedPaginatedQuery
+      >[1],
+      { organizationId: params.id },
+      { initialNumItems: THREADS_PAGE_SIZE },
+    );
   },
   component: ChatLayout,
 });
+
+/**
+ * #2658: while `getThreadStatus` (the authoritative source) is still
+ * resolving for a thread, decide what `ChatInterface` should render using the
+ * already-loaded archived-threads list as an early "archived" seed (see the
+ * seeding comment in `ThreadGate`, which builds `archivedThreadIds`). Pulled
+ * out as a pure function — exported so this decision (seed match / neutral
+ * hold / fall through to the optimistic composer) has direct unit coverage
+ * without mounting `ThreadGate`, which pulls in Convex, the router, and every
+ * chat layout provider.
+ */
+export function resolvePendingThreadGateStatus({
+  threadId,
+  archivedThreadIds,
+}: {
+  threadId: string | undefined;
+  /** `undefined` while the archived-threads list hasn't resolved even once
+   *  this session; the set of archived thread ids once it has. */
+  archivedThreadIds: ReadonlySet<string> | undefined;
+}): { status: 'archived' | undefined; statusPending: boolean } {
+  if (
+    archivedThreadIds !== undefined &&
+    threadId !== undefined &&
+    archivedThreadIds.has(threadId)
+  ) {
+    return { status: 'archived', statusPending: false };
+  }
+  if (archivedThreadIds === undefined) {
+    return { status: undefined, statusPending: true };
+  }
+  return { status: undefined, statusPending: false };
+}
 
 /**
  * Gates ChatInterface behind a thread ownership check.
@@ -148,6 +197,37 @@ function ThreadGate({
     threadId && !isJustCreated ? { threadId, organizationId } : 'skip',
   );
 
+  // #2658 seed: the archived-threads list is ALREADY subscribed by the
+  // sidebar (always-on, not gated by the "Archived" accordion being expanded)
+  // with the same `{ teamId, organizationId }` args `useCachedPaginatedQuery`
+  // keys its cache on — so by the time a user opens an archived thread from
+  // the sidebar, this resolves from that shared cache instantly, well ahead
+  // of the per-thread `getThreadStatus` subscription above (which only
+  // starts subscribing at navigation). It's a live subscription, not a
+  // one-shot fetch, so once resolved it STAYS resolved for the rest of the
+  // session — `archivedThreadsLoading` below is therefore only ever true on
+  // this session's very first thread open (cold load / deep link).
+  //
+  // Gate on `isLoading`, not on `archivedThreads` itself being `undefined`:
+  // Convex's paginated-query `results` is always an array (`[]` while the
+  // first page is in flight, exactly like `useThreads` — see its
+  // `isLoadingFirstPage` comment), so an `=== undefined` check on the list
+  // never fires and would treat "not loaded yet" as "confirmed empty",
+  // reintroducing the active-composer flash on a cold deep link.
+  const teamFilter = useOptionalTeamFilter();
+  const { threads: archivedThreads, isLoading: archivedThreadsLoading } =
+    useArchivedThreads({
+      organizationId,
+      teamId: teamFilter?.selectedTeamId,
+    });
+  const archivedThreadIds = useMemo(
+    () =>
+      archivedThreadsLoading
+        ? undefined
+        : new Set((archivedThreads ?? []).map((thread) => thread._id)),
+    [archivedThreadsLoading, archivedThreads],
+  );
+
   // Once we've rendered ChatInterface for any thread this session, keep it
   // mounted across thread→thread switches instead of swapping to the loading
   // skeleton while getThreadStatus does its round-trip. That full-component
@@ -158,7 +238,11 @@ function ThreadGate({
   // skeleton. (Ref mutation during render is intentional and idempotent.)
   const hasRenderedInterfaceRef = useRef(false);
 
-  const renderInterface = (readOnly?: boolean, status?: string | null) => {
+  const renderInterface = (
+    readOnly?: boolean,
+    status?: string | null,
+    statusPending?: boolean,
+  ) => {
     hasRenderedInterfaceRef.current = true;
     return (
       <SuspenseBoundary
@@ -177,6 +261,7 @@ function ThreadGate({
           threadId={threadId}
           readOnly={readOnly}
           threadStatus={status}
+          threadStatusPending={statusPending}
         />
       </SuspenseBoundary>
     );
@@ -193,7 +278,17 @@ function ThreadGate({
   // queries are auth-checked server-side, so this is safe; an unauthorized
   // thread still resolves to the not-found branch below once status arrives.
   if (threadStatus === undefined) {
-    return renderInterface();
+    // Known-archived from the seed → paint the archived footer right away
+    // instead of the composer, so there is nothing to flip away from once
+    // `getThreadStatus` confirms it a moment later; neither seed nor real
+    // status resolved yet (this session's very first thread open) → hold a
+    // neutral footer instead of guessing "not archived" (#2658). The message
+    // body still renders optimistically below either way.
+    const seeded = resolvePendingThreadGateStatus({
+      threadId,
+      archivedThreadIds,
+    });
+    return renderInterface(false, seeded.status, seeded.statusPending);
   }
 
   // Loaded but thread not found / not authorized

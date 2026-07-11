@@ -48,6 +48,10 @@ import {
   readAgentsResult,
 } from '../../hooks/use-automation-agent-readiness';
 import {
+  missingScheduleFieldsOf,
+  readScheduleReadinessResult,
+} from '../../hooks/use-automation-schedule-readiness';
+import {
   type BundleMemberInstallPreview,
   isInstallOverridesError,
   useBundleInstallActions,
@@ -216,6 +220,9 @@ function BundleInstallWizardBody({
   const fetchAgentReadiness = useConvexAction(
     api.automations.agent_readiness.getAutomationAgentReadiness,
   );
+  const fetchScheduleReadiness = useConvexAction(
+    api.automations.schedule_readiness.getAutomationScheduleReadiness,
+  );
   const setAuthMode = useConvexAction(api.agents.file_actions.setAgentAuthMode);
 
   const requiredBySlug = useMemo(
@@ -235,6 +242,13 @@ function BundleInstallWizardBody({
   const [modeChoices, setModeChoices] = useState<Record<string, AgentAuthMode>>(
     {},
   );
+  // Members whose ACTIVE schedules still leave required variables blank (known
+  // once installed) — the Done step names them instead of claiming ready, and
+  // its Triggers link opens the first one (#2611). `null` = not loaded.
+  const [memberScheduleGaps, setMemberScheduleGaps] = useState<
+    | { automationSlug: string; automationName: string; fields: string[] }[]
+    | null
+  >(null);
   // Which required integrations the user actually connected DURING this wizard.
   // Each ConnectIntegrationStep reports up; this is the Done screen's source of
   // truth, since the reactive required-integrations query can lag an in-wizard
@@ -448,6 +462,33 @@ function BundleInstallWizardBody({
       ),
     );
     applyAgents(agentLists.flat());
+
+    // Each member's schedules now exist too — collect the required schedule
+    // variables still blank, so the Done step can name the members that need
+    // schedule config instead of claiming everything is ready (#2611).
+    const gapLists = await Promise.all(
+      preview.map((p) =>
+        fetchScheduleReadiness
+          .mutateAsync({ organizationId, automationSlug: p.automationSlug })
+          .then((r) => ({
+            automationSlug: p.automationSlug,
+            automationName: p.automationName,
+            fields: missingScheduleFieldsOf(readScheduleReadinessResult(r)),
+          }))
+          .catch((err) => {
+            console.warn(
+              `[BundleInstallWizard] schedule readiness load failed for "${p.automationSlug}":`,
+              err,
+            );
+            return {
+              automationSlug: p.automationSlug,
+              automationName: p.automationName,
+              fields: [] as string[],
+            };
+          }),
+      ),
+    );
+    setMemberScheduleGaps(gapLists.filter((m) => m.fields.length > 0));
     return true;
   };
 
@@ -462,10 +503,18 @@ function BundleInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // No single "bundle page" exists (each member is its own automation) — land
-    // on the first member's ORG-level detail page. The project-nested route
-    // wraps the detail in the project layout's own PageLayout + ContentArea,
-    // doubling the page padding.
+    // Land somewhere useful (#2611): a project-scoped bundle's members feed
+    // the bound project's Tasks page, so Finish opens that work surface —
+    // never a hidden member's Editor. Without a project (org-scoped bundle),
+    // fall back to the first member's ORG-level detail page (no single
+    // "bundle page" exists).
+    if (targetProjectId !== undefined) {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/tasks',
+        params: { id: organizationId, projectId: targetProjectId },
+      });
+      return;
+    }
     const first = preview[0];
     if (first) {
       void navigate({
@@ -478,12 +527,29 @@ function BundleInstallWizardBody({
     }
   };
 
+  // Deep link into the first gap member's Triggers tab (`?tab=triggers`),
+  // where its schedule variables are edited.
+  const openTriggers = () => {
+    const target = (memberScheduleGaps ?? [])[0];
+    if (!target) return;
+    onOpenChange(false);
+    void navigate({
+      to: '/dashboard/$id/automations/$automationSlug',
+      params: { id: organizationId, automationSlug: target.automationSlug },
+      search: { tab: 'triggers' },
+    });
+  };
+
   // Required integrations left unconnected at finish BLOCK the bundle from
   // running — the Done screen must not claim it's "ready" when any remain.
   const unconnectedRequired = stepSlugs.filter((slug) => !connectedSlugs[slug]);
   const hasRequiredSkips = unconnectedRequired.length > 0;
   const skippedCount =
     unconnectedRequired.length + providersToConnect.length + byoAgents.length;
+  // Members whose active schedules still miss required variables — cron runs
+  // fail on them, so Done must name each member and its gaps (#2611).
+  const membersNeedingTriggers = memberScheduleGaps ?? [];
+  const hasScheduleGaps = membersNeedingTriggers.length > 0;
 
   return (
     <Dialog
@@ -594,19 +660,49 @@ function BundleInstallWizardBody({
         })}
 
         <WizardStep id="done">
-          <VStack gap={1}>
+          <VStack gap={2}>
             <Text className="text-sm font-medium">
-              {hasRequiredSkips
+              {hasRequiredSkips || hasScheduleGaps
                 ? t('installWizard.doneNeedsSetupTitle', { name: bundleName })
                 : t('installWizard.doneTitle', { name: bundleName })}
             </Text>
-            <Text variant="muted" className="text-sm">
-              {hasRequiredSkips
-                ? t('installWizard.doneNeedsSetup')
-                : skippedCount > 0
-                  ? t('installWizard.doneSomeSkipped')
-                  : t('installWizard.doneAllConnected')}
-            </Text>
+            {/* "Everything connected" only when NOTHING remains — neither a
+                skipped required integration nor a blank schedule variable. */}
+            {hasRequiredSkips ? (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneNeedsSetup')}
+              </Text>
+            ) : skippedCount > 0 ? (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneSomeSkipped')}
+              </Text>
+            ) : hasScheduleGaps ? null : (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneAllConnected')}
+              </Text>
+            )}
+            {hasScheduleGaps && (
+              <>
+                <Text variant="muted" className="text-sm">
+                  {t('installWizard.doneBundleScheduleVars', {
+                    members: membersNeedingTriggers
+                      .map(
+                        (m) => `${m.automationName} (${m.fields.join(', ')})`,
+                      )
+                      .join(' · '),
+                  })}
+                </Text>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  onClick={openTriggers}
+                >
+                  {t('installWizard.openTriggers')}
+                </Button>
+              </>
+            )}
           </VStack>
         </WizardStep>
 

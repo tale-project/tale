@@ -388,3 +388,176 @@ describe('agentUpsertTaskByExternalRef — reopen policy', () => {
     expect(await taskStatus(t, created.taskId)).toBe('cancelled');
   });
 });
+
+describe('recordAgentRunRefused — admission refusals reach the activity feed', () => {
+  // #2609: a refused run never creates a `taskAgentRuns` row, so without an
+  // activity entry the failure is invisible on the task detail.
+  it('writes an agent_run.refused activity row with the reason and workflow context', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+    const taskId = await t.run(async (ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Needs an agent',
+        status: 'todo',
+        rank: 'a0',
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        statusChangedAt: 0,
+      }),
+    );
+
+    await t.mutation(internal.tasks.internal_mutations.recordAgentRunRefused, {
+      organizationId: ORG,
+      taskId,
+      agentSlug: 'issue-triager',
+      refusedReason: 'agent_disabled',
+      attribution: {
+        workflowSlug: 'projects/tasks/run-assigned-task',
+        wfExecutionId: undefined,
+      },
+    });
+
+    const activity = await t.run(async (ctx) =>
+      ctx.db
+        .query('taskActivity')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    expect(activity).toHaveLength(1);
+    expect(activity[0]).toMatchObject({
+      action: 'agent_run.refused',
+      actorType: 'agent',
+      actorId: 'issue-triager',
+      toValue: 'agent_disabled',
+      context: { workflowSlug: 'projects/tasks/run-assigned-task' },
+    });
+    // The refusal record must never move the task itself.
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('todo');
+  });
+
+  it('quietly no-ops when the task is gone or in another org', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+    const taskId = await t.run(async (ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Foreign org task',
+        status: 'todo',
+        rank: 'a0',
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        statusChangedAt: 0,
+      }),
+    );
+
+    await t.mutation(internal.tasks.internal_mutations.recordAgentRunRefused, {
+      organizationId: 'org_other',
+      taskId,
+      agentSlug: 'issue-triager',
+      refusedReason: 'agent_disabled',
+      attribution: undefined,
+    });
+
+    const activity = await t.run(async (ctx) =>
+      ctx.db
+        .query('taskActivity')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    expect(activity).toHaveLength(0);
+  });
+});
+
+// #2637 sibling: `task.mentioned` had no direct-dispatch fallback (unlike
+// `discussions/mention_dispatch.ts`), so an @mention in an agent-created
+// task's description was dropped forever on a fresh org (no
+// `react-to-task-mention` pack installed yet — the event is never replayed).
+describe('agentCreateTask — description mention fallback (#2637)', () => {
+  async function scheduledAgentRuns(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    return scheduled.filter((job) => job.name.includes('runAgentOnTask'));
+  }
+
+  it('schedules runAgentOnTask for an @mentioned agent on a fresh org (no pack installed)', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+
+    const { taskId } = await t.mutation(
+      internal.tasks.internal_mutations.agentCreateTask,
+      {
+        organizationId: ORG,
+        actorId: 'triager',
+        projectId,
+        title: 'Investigate outage',
+        description: 'Needs a look — @assistant can you help?',
+      },
+    );
+
+    const runs = await scheduledAgentRuns(t);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.args[0]).toMatchObject({
+      organizationId: ORG,
+      agentSlug: 'assistant',
+      taskId,
+      trigger: 'mention',
+    });
+  });
+
+  it('does not dispatch when the task.mentioned pack is installed and active — the automation stays the single owner', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+    const packSlug = 'projects/tasks/react-to-task-mention';
+    await t.run(async (ctx) => {
+      await ctx.db.insert('wfEventSubscriptions', {
+        organizationId: ORG,
+        workflowSlug: packSlug,
+        eventType: 'task.mentioned',
+        isActive: true,
+        createdAt: 0,
+        createdBy: 'system',
+      });
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: packSlug,
+        installedAt: 0,
+        installedBy: 'system',
+        contentHash: 'hash',
+      });
+    });
+
+    await t.mutation(internal.tasks.internal_mutations.agentCreateTask, {
+      organizationId: ORG,
+      actorId: 'triager',
+      projectId,
+      title: 'Investigate outage',
+      description: 'Needs a look — @assistant can you help?',
+    });
+
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+  });
+
+  it('never dispatches for a workflow-authored create (loop-safety invariant iii)', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Ops');
+
+    await t.mutation(internal.tasks.internal_mutations.agentCreateTask, {
+      organizationId: ORG,
+      actorId: 'workflow',
+      projectId,
+      title: 'Engine-authored task',
+      description: 'Auto-filed — @assistant fyi',
+    });
+
+    expect(await scheduledAgentRuns(t)).toHaveLength(0);
+  });
+});

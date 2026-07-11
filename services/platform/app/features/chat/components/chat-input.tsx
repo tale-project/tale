@@ -76,6 +76,7 @@ import {
 } from './mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
+import { ProviderKeyErrorAction } from './provider-settings-action';
 import { QuotedReferenceChip } from './quoted-reference-chip';
 import { SandboxChip } from './sandbox-chip';
 import { SavePromptMenu } from './save-prompt-menu';
@@ -102,7 +103,15 @@ interface ChatInputProps extends Omit<
    */
   queueModeActive?: boolean;
   disabled?: boolean;
-  disabledReason?: 'no-agents' | 'pending-approval' | 'archived';
+  disabledReason?: 'no-agents' | 'pending-approval' | 'archived' | 'no-api-key';
+  /**
+   * Reason text for `disabledReason === 'no-api-key'` — distinguishes the
+   * specific-model vs org-wide missing-key wording (`modelSelector.noApiKey`
+   * vs `modelSelector.noProviderKey`, chosen by the caller). The other
+   * `disabledReason`s carry a fixed, non-interpolated string, so they don't
+   * need this.
+   */
+  disabledMessage?: string;
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
@@ -253,6 +262,7 @@ export function ChatInput({
   queueModeActive = false,
   disabled = false,
   disabledReason,
+  disabledMessage,
   placeholder,
   organizationId,
   threadId,
@@ -1321,17 +1331,28 @@ export function ChatInput({
                 </Text>
               ))}
             {disabled && (
-              <Text
-                as="div"
-                variant="muted"
-                className="pointer-events-none absolute top-0 left-0"
-              >
-                {disabledReason === 'archived'
-                  ? tChat('archivedDisabled')
-                  : disabledReason === 'pending-approval'
-                    ? tChat('pendingApprovalDisabled')
-                    : tChat('noAgentsAvailable')}
-              </Text>
+              <div className="pointer-events-none absolute top-0 right-0 left-0 flex flex-col gap-1.5">
+                <Text as="div" variant="muted">
+                  {disabledReason === 'archived'
+                    ? tChat('archivedDisabled')
+                    : disabledReason === 'pending-approval'
+                      ? tChat('pendingApprovalDisabled')
+                      : disabledReason === 'no-api-key'
+                        ? (disabledMessage ?? tChat('modelSelector.noApiKey'))
+                        : tChat('noAgentsAvailable')}
+                </Text>
+                {/* Missing API key is a setup blocker with an actionable fix
+                    (unlike no-agents/pending-approval/archived, which are
+                    purely informational here) — the reason text alone would
+                    otherwise strand the user with no next step. Re-enable
+                    pointer events for just this affordance so admins can
+                    click through to Settings → AI providers (#2576). */}
+                {disabledReason === 'no-api-key' && (
+                  <div className="pointer-events-auto">
+                    <ProviderKeyErrorAction organizationId={organizationId} />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
