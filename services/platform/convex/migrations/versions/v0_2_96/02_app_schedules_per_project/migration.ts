@@ -35,10 +35,16 @@ async function appInstalled(
   organizationId: string,
   appSlug: string,
 ): Promise<boolean> {
+  // Filtered scans here and in up: appInstallations/appProjectBindings left
+  // the current schema (0.3.4/16-17), so the live backend serves no custom
+  // indexes on them (migrations:check).
   const row = await (ctx.db as any)
     .query('appInstallations')
-    .withIndex('by_org_slug', (q: any) =>
-      q.eq('organizationId', organizationId).eq('appSlug', appSlug),
+    .filter((q: any) =>
+      q.and(
+        q.eq(q.field('organizationId'), organizationId),
+        q.eq(q.field('appSlug'), appSlug),
+      ),
     )
     .first();
   return row !== null;
@@ -67,8 +73,11 @@ export const migration = defineDbMigration({
     if (!(await appInstalled(ctx, organizationId, appSlug))) return;
     const binding = await (ctx.db as any)
       .query('appProjectBindings')
-      .withIndex('by_org_slug_project', (q: any) =>
-        q.eq('organizationId', organizationId).eq('appSlug', appSlug),
+      .filter((q: any) =>
+        q.and(
+          q.eq(q.field('organizationId'), organizationId),
+          q.eq(q.field('appSlug'), appSlug),
+        ),
       )
       .first();
     if (!binding) return; // org-scoped app or unbound — leave org-level

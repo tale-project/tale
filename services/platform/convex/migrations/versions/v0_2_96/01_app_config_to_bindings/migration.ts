@@ -33,10 +33,15 @@ async function installConfig(
   organizationId: string,
   appSlug: string,
 ): Promise<Record<string, unknown> | undefined> {
+  // Filtered scan: appInstallations left the current schema (0.3.4/16), so
+  // the live backend serves no custom indexes on it (migrations:check).
   const install = await (ctx.db as any)
     .query('appInstallations')
-    .withIndex('by_org_slug', (q: any) =>
-      q.eq('organizationId', organizationId).eq('appSlug', appSlug),
+    .filter((q: any) =>
+      q.and(
+        q.eq(q.field('organizationId'), organizationId),
+        q.eq(q.field('appSlug'), appSlug),
+      ),
     )
     .first();
   return record(install?.config);

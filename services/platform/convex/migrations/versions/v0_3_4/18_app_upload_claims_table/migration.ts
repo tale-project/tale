@@ -68,10 +68,16 @@ export const migration = defineDbMigration({
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
+    // Filtered scan: this migration's up removes appUploadClaims from the
+    // live schema, so the backend serves no custom indexes on it
+    // (migrations:check).
     const existingLegacy = await db
       .query(LEGACY_TABLE)
-      .withIndex('by_org_slug', (q: any) =>
-        q.eq('organizationId', keys.org).eq('slug', keys.slug),
+      .filter((q: any) =>
+        q.and(
+          q.eq(q.field('organizationId'), keys.org),
+          q.eq(q.field('slug'), keys.slug),
+        ),
       )
       .first();
     if (existingLegacy) {

@@ -86,18 +86,17 @@ export const migration = defineDbMigration({
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
-    // `by_org_automation_slug_project` (not the historical
-    // `by_org_slug_project`): the world schema keeps that name at its
-    // 0.2.88-era field list ['organizationId','appSlug','projectId'], so the
-    // automationSlug lookup lives under its own name. Same fields, same
-    // semantics.
+    // Filtered scan on the normalized automationSlug spelling: this
+    // migration's up removes appProjectBindings from the live schema, so the
+    // backend serves no custom indexes on it (migrations:check).
     const existingLegacy = await db
       .query(LEGACY_TABLE)
-      .withIndex('by_org_automation_slug_project', (q: any) =>
-        q
-          .eq('organizationId', keys.org)
-          .eq('automationSlug', keys.slug)
-          .eq('projectId', keys.projectId),
+      .filter((q: any) =>
+        q.and(
+          q.eq(q.field('organizationId'), keys.org),
+          q.eq(q.field('automationSlug'), keys.slug),
+          q.eq(q.field('projectId'), keys.projectId),
+        ),
       )
       .first();
     if (existingLegacy) {

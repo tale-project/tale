@@ -55,9 +55,12 @@ export const migration = defineDbMigration({
 
     // oxlint-disable-next-line typescript/no-explicit-any -- legacy/target tables
     const db = ctx.db as any;
+    // Filtered scan: this migration's up removes appUploadIntents from the
+    // live schema, so the backend serves no custom indexes on it
+    // (migrations:check).
     const existingLegacy = await db
       .query(LEGACY_TABLE)
-      .withIndex('by_storageId', (q: any) => q.eq('storageId', storageId))
+      .filter((q: any) => q.eq(q.field('storageId'), storageId))
       .first();
     if (existingLegacy) {
       await db.delete(doc._id);

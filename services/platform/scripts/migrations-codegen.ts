@@ -425,6 +425,77 @@ export function checkTableRowsFkSafety(
   return errors;
 }
 
+/** Built-in indexes every table serves, schema-declared or not. */
+const BUILTIN_INDEXES = new Set(['by_creation_time', 'by_id']);
+
+/**
+ * Index truth: a runnable migration executes on the LIVE deployment, whose
+ * backend serves only the indexes the CURRENT schema declares — a table that
+ * has left the schema serves none. The vitest world schema deliberately keeps
+ * era-frozen indexes for shape validation, so it cannot catch a
+ * `withIndex` against an index the real backend no longer has (that failure
+ * mode surfaced as `Index appInstallations.by_org_slug not found` in the
+ * container e2e). Statically resolve every `query(<table>).withIndex(<name>)`
+ * in each runnable migration and require the pair to exist in the current
+ * schema; legacy-table reads must use a filtered scan instead.
+ */
+export function checkIndexTruth(
+  migrations: DiscoveredMigration[],
+  schemaExportJson: string,
+): string[] {
+  const errors: string[] = [];
+  const parsed = JSON.parse(schemaExportJson) as {
+    tables?: Array<{
+      tableName: string;
+      indexes?: Array<{ indexDescriptor: string }>;
+    }>;
+  };
+  const liveIndexes = new Map<string, Set<string>>();
+  for (const table of parsed.tables ?? []) {
+    liveIndexes.set(
+      table.tableName,
+      new Set((table.indexes ?? []).map((i) => i.indexDescriptor)),
+    );
+  }
+
+  const QUERY_WITH_INDEX_RE =
+    /\.query\(\s*(?:'(\w+)'|(\w+))\s*\)[\s\S]{0,80}?\.withIndex\(\s*'(\w+)'/g;
+  const CONST_RE = /const (\w+)\s*=\s*'(\w+)'/g;
+
+  for (const m of migrations) {
+    if (m.kind === 'reference') continue; // never executes
+    const file = path.join(m.dir, 'migration.ts');
+    if (!existsSync(file)) continue; // discovery already reported the shape
+    const src = readFileSync(file, 'utf8');
+    const consts = new Map<string, string>();
+    for (const c of src.matchAll(CONST_RE)) consts.set(c[1], c[2]);
+    for (const site of src.matchAll(QUERY_WITH_INDEX_RE)) {
+      const table = site[1] ?? consts.get(site[2] ?? '');
+      const index = site[3];
+      if (table === undefined) {
+        errors.push(
+          `${m.rel}: cannot statically resolve the table in a query(...).withIndex('${index}') — use a string literal or a same-file const so the index-truth guard can check it.`,
+        );
+        continue;
+      }
+      if (BUILTIN_INDEXES.has(index)) continue;
+      const live = liveIndexes.get(table);
+      if (live === undefined) {
+        errors.push(
+          `${m.rel}: withIndex('${index}') on "${table}", which is no longer in the current schema — the live backend serves NO custom indexes there. Use a filtered scan (.filter(...)) instead.`,
+        );
+        continue;
+      }
+      if (!live.has(index)) {
+        errors.push(
+          `${m.rel}: withIndex('${index}') on "${table}", but the current schema only defines [${[...live].join(', ')}] — the live backend cannot serve it. Use a current index or a filtered scan.`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // Generation
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@
 
 import schema from '../convex/schema';
 import {
+  checkIndexTruth,
   checkTableRowsFkSafety,
   runMigrationsCodegen,
 } from './migrations-codegen';
@@ -52,9 +53,9 @@ async function main(): Promise<void> {
   const errors = [...result.errors];
 
   if (result.migrations.length > 0) {
-    errors.push(
-      ...checkTableRowsFkSafety(result.migrations, liveSchemaExportJson()),
-    );
+    const schemaJson = liveSchemaExportJson();
+    errors.push(...checkTableRowsFkSafety(result.migrations, schemaJson));
+    errors.push(...checkIndexTruth(result.migrations, schemaJson));
   }
 
   if (errors.length > 0) {
