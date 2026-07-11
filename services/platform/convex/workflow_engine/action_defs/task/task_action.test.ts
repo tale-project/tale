@@ -254,3 +254,79 @@ describe('taskAction list_comments — timeline feedback read', () => {
     expect(result.count).toBe(0);
   });
 });
+
+describe('taskAction comment — bodyI18n snapshot', () => {
+  function recordingCtx() {
+    const calls: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
+    const ctx = {
+      runQuery: () => {
+        throw new Error('unexpected runQuery');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+      runMutation: (ref: unknown, args: Record<string, unknown>) => {
+        calls.push({ ref, args });
+        return Promise.resolve({ messageId: 'm1', threadId: 't1' });
+      },
+    } as unknown as ActionCtx;
+    return { ctx, calls };
+  }
+
+  it('stores en as body and passes bodyByLocale through', async () => {
+    const { ctx, calls } = recordingCtx();
+    const bodyI18n = {
+      en: '[automated] prepared',
+      de: '[automated] vorbereitet',
+      fr: '[automated] préparé',
+    };
+    await taskAction.execute(
+      ctx,
+      {
+        operation: 'comment',
+        taskId: 'task_1',
+        bodyI18n,
+      } as unknown as ExecParams,
+      { organizationId: 'org_1' },
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args.body).toBe('[automated] prepared');
+    expect(calls[0]?.args.bodyByLocale).toEqual(bodyI18n);
+  });
+
+  it('still accepts a legacy single body', async () => {
+    const { ctx, calls } = recordingCtx();
+    await taskAction.execute(
+      ctx,
+      {
+        operation: 'comment',
+        taskId: 'task_1',
+        body: '[automated] hello',
+      } as unknown as ExecParams,
+      { organizationId: 'org_1' },
+    );
+
+    expect(calls[0]?.args.body).toBe('[automated] hello');
+    expect(calls[0]?.args.bodyByLocale).toBeUndefined();
+  });
+
+  it('rejects bodyI18n missing a locale', async () => {
+    const { ctx } = recordingCtx();
+    await expect(
+      taskAction.execute(
+        ctx,
+        {
+          operation: 'comment',
+          taskId: 'task_1',
+          bodyI18n: {
+            en: '[automated] en',
+            de: '',
+            fr: '[automated] fr',
+          },
+        } as unknown as ExecParams,
+        { organizationId: 'org_1' },
+      ),
+    ).rejects.toThrow(/bodyI18n/);
+  });
+});

@@ -20,6 +20,11 @@ const searchSchema = z.object({
     .transform((v) =>
       v === true || v === 1 || v === '1' || v === 'true' ? true : undefined,
     ),
+  /**
+   * Deep-link to open version history for a document keyed by
+   * `externalItemId` (e.g. VAT `vatplus:{projectId}:transform.py`).
+   */
+  historyExternalItemId: z.string().optional(),
 });
 
 // Skeletonized layout frame shown while the tab's JS chunk loads — the real
@@ -63,13 +68,14 @@ export const Route = createFileRoute(
 
 function ProjectFilesPage() {
   const { id: organizationId, projectId } = Route.useParams();
-  const { folderId, createFolder } = Route.useSearch();
+  const { folderId, createFolder, historyExternalItemId } = Route.useSearch();
   return (
     <ProjectFilesTab
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
       initialFolderId={folderId}
       openCreateFolder={createFolder === true}
+      historyExternalItemId={historyExternalItemId}
     />
   );
 }

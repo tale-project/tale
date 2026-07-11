@@ -119,6 +119,10 @@
         "mode": "action"
       },
       {
+        "path": "tasks/public_actions:cancelTaskWorkflow",
+        "mode": "action"
+      },
+      {
         "path": "tasks/mutations:updateTaskStatus",
         "mode": "mutation"
       }

@@ -58,6 +58,17 @@ describe('resolveBindingArgs', () => {
     expect(resolveBindingArgs('$selected', ctx)).toEqual(ctx.selected);
     expect(resolveBindingArgs('$selected._id', ctx)).toBe('t1');
   });
+  it('substitutes $projectName for Form initial prefill', () => {
+    expect(
+      resolveBindingArgs('$projectName', {
+        organizationId: 'org_1',
+        projectName: 'SoftInstall Pro Ltd',
+      }),
+    ).toBe('SoftInstall Pro Ltd');
+    expect(
+      resolveBindingArgs('$projectName', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
   it('recurses through nested records + arrays, leaving literals', () => {
     expect(
       resolveBindingArgs(

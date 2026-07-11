@@ -141,6 +141,8 @@ export const actionEffectSchema = z.discriminatedUnion('kind', [
 /**
  * Confirm dialog for a bound action. `true` keeps the platform default
  * ("Are you sure?" + action label). An object supplies pack-authored copy.
+ * Optional `feedback` upgrades the confirm into a required-textarea form that
+ * posts a task comment before the bound function runs (Request changes).
  */
 const actionConfirmSchema = z.union([
   z.boolean(),
@@ -151,6 +153,13 @@ const actionConfirmSchema = z.union([
     })
     .passthrough(),
 ]);
+
+const actionFeedbackSchema = z
+  .object({
+    /** Post the textarea body as a task comment on `$selected._id` before dispatch. */
+    as: z.literal('taskComment'),
+  })
+  .strict();
 
 /**
  * One bound action — the full `BoundActionSpec` surface of
@@ -171,6 +180,12 @@ export const boundActionSchema = z
     mode: functionModeSchema,
     args: z.unknown().optional(),
     confirm: actionConfirmSchema.optional(),
+    /**
+     * Feedback-first gate: show a required textarea, post it as a task comment,
+     * then run the bound function. Packs declare this instead of a plain
+     * `confirm` when the workflow branches on new comments (Request changes).
+     */
+    feedback: actionFeedbackSchema.optional(),
     /** Availability predicate over the bound item (when_predicate grammar). */
     when: z.string().optional(),
     variant: z

@@ -84,7 +84,10 @@ type TaskActionParams =
   | {
       operation: 'comment';
       taskId: string;
-      body: string;
+      /** Legacy single-locale body (English / pack default). */
+      body?: string;
+      /** Write-time en/de/fr snapshot; `en` becomes the canonical `body`. */
+      bodyI18n?: { en: string; de: string; fr: string };
     }
   | {
       operation: 'list_comments';
@@ -184,7 +187,14 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
     v.object({
       operation: v.literal('comment'),
       taskId: v.id('tasks'),
-      body: v.string(),
+      body: v.optional(v.string()),
+      bodyI18n: v.optional(
+        v.object({
+          en: v.string(),
+          de: v.string(),
+          fr: v.string(),
+        }),
+      ),
     }),
     v.object({
       operation: v.literal('list_comments'),
@@ -465,13 +475,40 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       }
 
       case 'comment': {
+        const bodyI18n = params.bodyI18n;
+        const body =
+          bodyI18n?.en?.trim() ||
+          (typeof params.body === 'string' ? params.body.trim() : '');
+        if (!body) {
+          throw new Error(
+            'task.comment requires `body` or `bodyI18n.en` (non-empty)',
+          );
+        }
+        if (bodyI18n) {
+          const de = bodyI18n.de?.trim() ?? '';
+          const fr = bodyI18n.fr?.trim() ?? '';
+          if (!de || !fr) {
+            throw new Error(
+              'task.comment `bodyI18n` requires non-empty en, de, and fr',
+            );
+          }
+        }
         return await ctx.runMutation(
           internal.tasks.internal_mutations.agentAddComment,
           {
             organizationId,
             actorId: WORKFLOW_ACTOR_ID,
             taskId: toId<'tasks'>(params.taskId),
-            body: params.body,
+            body,
+            ...(bodyI18n
+              ? {
+                  bodyByLocale: {
+                    en: bodyI18n.en.trim(),
+                    de: bodyI18n.de.trim(),
+                    fr: bodyI18n.fr.trim(),
+                  },
+                }
+              : {}),
             attribution,
           },
         );

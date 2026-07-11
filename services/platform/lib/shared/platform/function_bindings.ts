@@ -202,6 +202,8 @@ export function validateViewBindings(
  * stay data; the binding hooks resolve them against the live context before the
  * call. Recurses through records + arrays. Whole-string sentinels:
  *  - `$orgId` → the current organization id;
+ *  - `$projectId` → the bound project id (undefined when unbound);
+ *  - `$projectName` → the bound project's display name (undefined until loaded);
  *  - `$selected` / `$selected.<key>` → the selected row, or one of its fields;
  *  - `$result` / `$result.<key>` → the just-resolved action result (used by
  *    `onSuccess` effects to read e.g. a created id).
@@ -233,6 +235,8 @@ export function resolveBindingArgs(
     organizationId: string;
     /** Bound project id for a project-scoped app; undefined for org-scoped apps. */
     projectId?: string;
+    /** Bound project display name (`$projectName`); undefined until loaded. */
+    projectName?: string;
     selected?: Record<string, unknown>;
     result?: Record<string, unknown>;
     /** The app's per-install config values (`$config:`/template `{key}`). */
@@ -255,6 +259,7 @@ export function resolveBindingArgs(
     ...ctx.selected,
     ...ctx.input,
     ...(ctx.projectId !== undefined ? { projectId: ctx.projectId } : {}),
+    ...(ctx.projectName !== undefined ? { projectName: ctx.projectName } : {}),
     orgId: ctx.organizationId,
   };
   if (typeof args === 'string') {
@@ -264,6 +269,7 @@ export function resolveBindingArgs(
     // an org-route visit to a project-scoped view shows an empty state instead
     // of firing Convex with the literal `"$projectId"`.
     if (args === '$projectId') return ctx.projectId;
+    if (args === '$projectName') return ctx.projectName;
     if (args === '$selected') return ctx.selected;
     if (args.startsWith('$selected.') && ctx.selected) {
       return ctx.selected[args.slice('$selected.'.length)];

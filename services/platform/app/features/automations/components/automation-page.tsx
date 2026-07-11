@@ -39,12 +39,14 @@ import {
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import type { TabNavigationItem } from '@/app/components/ui/navigation/tab-navigation';
+import { useProject } from '@/app/features/projects/hooks/queries';
 import { WorkflowEnvEditor } from '@/app/features/workflows/components/workflow-env-editor';
 import { ExecutionsTable } from '@/app/features/workflows/executions/executions-table';
 import { Triggers } from '@/app/features/workflows/triggers/triggers';
 import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
@@ -433,6 +435,10 @@ function InstalledAutomationBody({
   const { locale } = useLocale();
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- route project id
+  const { project } = useProject(
+    projectId !== undefined ? (projectId as Id<'projects'>) : undefined,
+  );
   useOpenTimeIntegrityCheck(organizationId, automationSlug);
   // Invalid-view repair reinstalls through the shared preflight flow.
   const {
@@ -728,6 +734,9 @@ function InstalledAutomationBody({
       value={{
         organizationId,
         ...(projectId !== undefined && { projectId }),
+        ...(typeof project?.name === 'string' && project.name !== ''
+          ? { projectName: project.name }
+          : {}),
         automationSlug,
         allowlist: automation.functions,
       }}

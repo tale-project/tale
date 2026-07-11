@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TaskComments } from './task-comments';
 
+const localeState = { locale: 'en' };
+
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => localeState,
+}));
+
 vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
 }));
@@ -14,7 +20,12 @@ vi.mock('../hooks/queries', () => ({
         messageId: 'msg_1',
         authorType: 'agent',
         authorId: 'assistant',
-        body: 'Hello from the agent.',
+        body: '[automated] Return prepared',
+        bodyByLocale: {
+          en: '[automated] Return prepared',
+          de: '[automated] Abrechnung vorbereitet',
+          fr: '[automated] Décompte préparé',
+        },
         createdAt: Date.now(),
       },
       {
@@ -70,6 +81,7 @@ vi.mock('@/lib/i18n/client', () => ({
 
 describe('TaskComments author previews', () => {
   it('shows a preview trigger for agent comment authors', () => {
+    localeState.locale = 'en';
     render(
       <TaskComments
         taskId={'task_1' as never}
@@ -84,5 +96,24 @@ describe('TaskComments author previews', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Israel')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Israel' })).toBeNull();
+  });
+});
+
+describe('TaskComments bodyByLocale', () => {
+  it('renders the body for the active UI locale', () => {
+    localeState.locale = 'de';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+
+    expect(
+      screen.getByText('[automated] Abrechnung vorbereitet'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('[automated] Return prepared')).toBeNull();
   });
 });

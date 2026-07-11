@@ -403,6 +403,7 @@ import type * as documents_helpers from "../documents/helpers.js";
 import type * as documents_internal_actions from "../documents/internal_actions.js";
 import type * as documents_internal_mutations from "../documents/internal_mutations.js";
 import type * as documents_internal_queries from "../documents/internal_queries.js";
+import type * as documents_list_document_versions from "../documents/list_document_versions.js";
 import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
 import type * as documents_list_files_by_folder from "../documents/list_files_by_folder.js";
@@ -2133,6 +2134,7 @@ declare const fullApi: ApiFromModules<{
   "documents/internal_actions": typeof documents_internal_actions;
   "documents/internal_mutations": typeof documents_internal_mutations;
   "documents/internal_queries": typeof documents_internal_queries;
+  "documents/list_document_versions": typeof documents_list_document_versions;
   "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
   "documents/list_files_by_folder": typeof documents_list_files_by_folder;

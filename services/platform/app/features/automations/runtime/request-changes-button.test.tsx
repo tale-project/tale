@@ -32,6 +32,10 @@ vi.mock('../hooks/use-bound-action', () => ({
   useBoundAction: () => ({ dispatch, isPending: false }),
 }));
 
+vi.mock('../runtime/action-effects', () => ({
+  useActionEffect: () => () => undefined,
+}));
+
 // FormDialog / Textarea — keep the submit path assertable without Radix.
 vi.mock('@/app/components/ui/dialog/form-dialog', () => ({
   FormDialog: ({
@@ -130,11 +134,14 @@ describe('RequestChangesButton', () => {
         body: 'Box 200 is too high',
       });
     });
-    expect(dispatch).toHaveBeenCalledWith({
-      organizationId: 'org_1',
-      taskId: 'task1',
-      workflowSlug: 'vat-return-desk',
-    });
+    expect(dispatch).toHaveBeenCalledWith(
+      {
+        organizationId: 'org_1',
+        taskId: 'task1',
+        workflowSlug: 'vat-return-desk',
+      },
+      { _id: 'task1' },
+    );
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'automations.detail.requestChangesStarted',

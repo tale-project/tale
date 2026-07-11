@@ -35,7 +35,8 @@
                 "args": {
                   "organizationId": "$orgId",
                   "projectId": "$projectId",
-                  "setupFolderName": "_setup"
+                  "setupFolderName": "_setup",
+                  "externalSystem": "desk-e2e"
                 }
               },
               "columns": [{ "field": "name", "labelKey": "Period folder" }],
@@ -46,7 +47,7 @@
                   "variant": "primary",
                   "path": "tasks/public_actions:createTaskFromExternalIssue",
                   "mode": "action",
-                  "when": "setupFolderId",
+                  "when": "setupFolderId && !hasTask",
                   "args": {
                     "organizationId": "$orgId",
                     "projectId": "$projectId",
@@ -93,7 +94,7 @@
           {
             "type": "Text",
             "props": {
-              "text": "Start re-runs from backlog, todo, or cancelled. Cancel stops a stuck in-progress job. Mark done when human review is finished.",
+              "text": "Start re-runs from backlog, todo, or cancelled. Cancel stops the in-flight job. Mark done when human review is finished.",
               "variant": "muted"
             }
           },
@@ -148,17 +149,17 @@
                 {
                   "labelKey": "list.cancel",
                   "label": "Cancel",
-                  "path": "tasks/mutations:updateTaskStatus",
-                  "mode": "mutation",
+                  "path": "tasks/public_actions:cancelTaskWorkflow",
+                  "mode": "action",
                   "variant": "destructive",
                   "confirm": {
                     "title": "Cancel this job?",
-                    "description": "Marks the job cancelled so you can Start again."
+                    "description": "Stops the in-flight run and marks the job cancelled so you can Start again."
                   },
                   "when": "status == in_progress",
                   "args": {
-                    "taskId": "$selected._id",
-                    "status": "cancelled"
+                    "organizationId": "$orgId",
+                    "taskId": "$selected._id"
                   }
                 },
                 {

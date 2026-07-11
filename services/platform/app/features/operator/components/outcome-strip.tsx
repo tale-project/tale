@@ -2,16 +2,19 @@
 
 /**
  * Outcome strip — promotes steps annotated `ui.params.surface: "outcome"` into
- * a first-class, always-expanded section (peer of Input). Only meaningful
- * content: openable files, errors, in-progress, optional summary. No status
- * badges or "Filed / Open" double-labels — the link is the artifact.
+ * a first-class, always-expanded section (peer of Input). Document artifacts
+ * open via `DocumentPreviewDialog` (preview first, download from the dialog) —
+ * same path as Documents / Project files. Non-document files with a resolved
+ * storage URL keep a direct link as a fallback.
  */
 import { Card } from '@tale/ui/card';
 import { Row, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { PackageCheck } from 'lucide-react';
+import { useState } from 'react';
 
 import { MarkdownContent } from '@/app/features/chat/components/message-bubble/markdown-renderer';
+import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useT } from '@/lib/i18n/client';
 import { resolveSurface } from '@/lib/shared/platform/render_kinds';
 
@@ -30,12 +33,67 @@ function stepTitle(step: StepProjection): string {
   return doc?.title ?? step.name;
 }
 
+type PreviewTarget = {
+  documentId?: string;
+  fileId?: string;
+  fileName: string;
+};
+
+type OutcomeEntry =
+  | {
+      kind: 'preview';
+      key: string;
+      name: string;
+      documentId: string;
+      fileId?: string;
+    }
+  | { kind: 'href'; key: string; name: string; url: string };
+
+function entriesForReadySteps(ready: StepProjection[]): {
+  entries: OutcomeEntry[];
+  textOnly: StepProjection[];
+} {
+  const entries: OutcomeEntry[] = [];
+  const covered = new Set<string>();
+
+  for (const step of ready) {
+    const doc = parseDocumentArtifact(step.output);
+    if (doc) {
+      covered.add(step.stepSlug);
+      entries.push({
+        kind: 'preview',
+        key: step.stepSlug,
+        name: doc.title,
+        documentId: doc.documentId,
+        fileId: doc.fileId,
+      });
+      continue;
+    }
+    for (const file of step.files ?? []) {
+      covered.add(step.stepSlug);
+      entries.push({
+        kind: 'href',
+        key: `${step.stepSlug}:${file.url}`,
+        name: file.name,
+        url: file.url,
+      });
+    }
+  }
+
+  const textOnly = ready.filter((step) => !covered.has(step.stepSlug));
+  return { entries, textOnly };
+}
+
+const openClassName =
+  'text-primary focus-visible:ring-primary rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none';
+
 export function OutcomeStrip({
   projection,
 }: {
   projection: OperatorProjection;
 }) {
   const { t } = useT('operator');
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const steps = outcomeSteps(projection);
   // No pack annotation → omit entirely (not an empty card).
   if (steps.length === 0) return null;
@@ -50,20 +108,22 @@ export function OutcomeStrip({
       s.partState === 'waiting_external' ||
       s.partState === 'waiting_human',
   );
+  // Publish steps often stay `upcoming` until late in the run — still reserve
+  // the Outcome lane while the execution is in flight so operators know where
+  // files will land.
+  const runInFlight =
+    projection.status === 'running' || projection.status === 'pending';
+  const awaitingFiles =
+    ready.length === 0 &&
+    errors.length === 0 &&
+    (pending.length > 0 || runInFlight);
 
-  // Outcome lanes exist but nothing has started or finished yet — stay quiet.
-  if (ready.length === 0 && errors.length === 0 && pending.length === 0) {
+  // Settled run with no outcome files/errors → omit (not an empty card).
+  if (ready.length === 0 && errors.length === 0 && !awaitingFiles) {
     return null;
   }
 
-  const openable = ready.flatMap((step) =>
-    (step.files ?? []).map((file) => ({
-      key: `${step.stepSlug}:${file.url}`,
-      name: file.name,
-      url: file.url,
-    })),
-  );
-  const textOnly = ready.filter((step) => (step.files?.length ?? 0) === 0);
+  const { entries, textOnly } = entriesForReadySteps(ready);
 
   return (
     // Same chrome as automation BlockFrame / Input — always expanded, never
@@ -85,7 +145,7 @@ export function OutcomeStrip({
           </div>
         </Row>
         <VStack gap={3} className="px-5 pb-5">
-          {ready.length === 0 && errors.length === 0 && pending.length > 0 && (
+          {awaitingFiles && (
             <Text variant="muted">
               {t('outcome.inProgress', {
                 defaultValue: 'Working — results will appear here.',
@@ -106,18 +166,34 @@ export function OutcomeStrip({
             </Text>
           ))}
 
-          {openable.length > 0 && (
+          {entries.length > 0 && (
             <ul className="flex flex-col gap-2">
-              {openable.map((file) => (
-                <li key={file.key}>
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary focus-visible:ring-primary rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    {file.name}
-                  </a>
+              {entries.map((entry) => (
+                <li key={entry.key}>
+                  {entry.kind === 'preview' ? (
+                    <button
+                      type="button"
+                      className={`${openClassName} border-none bg-transparent p-0 text-left`}
+                      onClick={() =>
+                        setPreview({
+                          documentId: entry.documentId,
+                          fileId: entry.fileId,
+                          fileName: entry.name,
+                        })
+                      }
+                    >
+                      {entry.name}
+                    </button>
+                  ) : (
+                    <a
+                      href={entry.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={openClassName}
+                    >
+                      {entry.name}
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>
@@ -135,6 +211,16 @@ export function OutcomeStrip({
             );
           })}
         </VStack>
+
+        <DocumentPreviewDialog
+          open={preview !== null}
+          onOpenChange={(open) => {
+            if (!open) setPreview(null);
+          }}
+          documentId={preview?.documentId}
+          fileId={preview?.fileId}
+          fileName={preview?.fileName}
+        />
       </section>
     </Card>
   );

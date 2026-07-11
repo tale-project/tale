@@ -869,6 +869,8 @@ export async function postTaskDiscussionMessage(
     actorType: 'user' | 'agent';
     actorId: string;
     body: string;
+    /** Optional write-time locale snapshot (workflow `bodyI18n`). */
+    bodyByLocale?: { en: string; de: string; fr: string };
   },
 ): Promise<{
   messageId: string;
@@ -906,9 +908,16 @@ export async function postTaskDiscussionMessage(
     authorId: args.actorId,
     mentions: mentions.length > 0 ? mentions : undefined,
     createdAt: Date.now(),
+    ...(args.bodyByLocale ? { bodyByLocale: args.bodyByLocale } : {}),
   });
   return { messageId, threadId, mentions };
 }
+
+const bodyByLocaleValidator = v.object({
+  en: v.string(),
+  de: v.string(),
+  fr: v.string(),
+});
 
 export const agentAddComment = internalMutation({
   args: {
@@ -916,6 +925,7 @@ export const agentAddComment = internalMutation({
     actorId: v.string(),
     taskId: v.id('tasks'),
     body: v.string(),
+    bodyByLocale: v.optional(bodyByLocaleValidator),
     attribution: optionalAttribution,
   },
   handler: async (
@@ -932,6 +942,25 @@ export const agentAddComment = internalMutation({
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
       throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
     }
+    let bodyByLocale = args.bodyByLocale;
+    if (bodyByLocale) {
+      const trimmed = {
+        en: bodyByLocale.en.trim(),
+        de: bodyByLocale.de.trim(),
+        fr: bodyByLocale.fr.trim(),
+      };
+      if (
+        trimmed.en.length === 0 ||
+        trimmed.de.length === 0 ||
+        trimmed.fr.length === 0 ||
+        trimmed.en.length > TASK_COMMENT_MAX ||
+        trimmed.de.length > TASK_COMMENT_MAX ||
+        trimmed.fr.length > TASK_COMMENT_MAX
+      ) {
+        throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+      }
+      bodyByLocale = trimmed;
+    }
 
     // Unified surface: the comment is a message in the task's discussion
     // thread, with its author/mentions in the lockstep meta row.
@@ -944,6 +973,7 @@ export const agentAddComment = internalMutation({
         actorType: 'agent',
         actorId: args.actorId,
         body,
+        bodyByLocale,
       },
     );
     // Denormalized count — CRITICAL for the board comment indicator.

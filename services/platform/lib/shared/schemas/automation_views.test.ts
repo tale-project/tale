@@ -378,6 +378,22 @@ describe('shared fragments', () => {
         confirm: true,
       }).success,
     ).toBe(true);
+    // Feedback-first Request changes gate.
+    expect(
+      boundActionSchema.safeParse({
+        path: 'tasks/public_actions:startTaskWorkflow',
+        mode: 'action',
+        feedback: { as: 'taskComment' },
+        args: { taskId: '$selected._id' },
+      }).success,
+    ).toBe(true);
+    expect(
+      boundActionSchema.safeParse({
+        path: 'tasks/public_actions:startTaskWorkflow',
+        mode: 'action',
+        feedback: { as: 'other' },
+      }).success,
+    ).toBe(false);
   });
 
   it('actionEffectSchema admits the v2 toast/setState kinds', () => {

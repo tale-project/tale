@@ -625,4 +625,30 @@ describe('DataTable row expansion panel', () => {
     expect(wrapper).toHaveClass('min-w-0');
     expect(wrapper).toHaveClass('overflow-x-auto');
   });
+
+  it('splits chevron expand from row onRowClick when both are armed', async () => {
+    const onRowClick = vi.fn();
+    const { user } = render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        enableExpanding
+        onRowClick={onRowClick}
+        renderExpandedRow={() => <div data-testid="run-panel">panel body</div>}
+      />,
+    );
+
+    await user.click(screen.getByText('Alice'));
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('run-panel')).not.toBeInTheDocument();
+
+    onRowClick.mockClear();
+    await user.click(screen.getAllByRole('button', { name: 'Expand row' })[0]!);
+    expect(onRowClick).not.toHaveBeenCalled();
+    expect(screen.getByTestId('run-panel')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Collapse row' })[0],
+    ).toBeInTheDocument();
+  });
 });

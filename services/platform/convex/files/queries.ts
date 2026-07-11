@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { MAX_BATCH_FILE_IDS } from '../../lib/shared/file-types';
+import { prepareFileUrlIds } from '../../lib/shared/file-url-batch';
 import { query } from '../_generated/server';
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../lib/rls';
@@ -37,10 +37,13 @@ export const getFileUrls = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
-    const fileIds = args.fileIds.slice(0, MAX_BATCH_FILE_IDS);
+    // Dedupe then resolve all — mirrors documents `batchGetStorageUrls`. Never
+    // silently truncate: a low product cap used to drop Outcome / thumbnail
+    // URLs while titles still rendered.
+    const uniqueIds = prepareFileUrlIds(args.fileIds);
 
-    const results = await Promise.all(
-      fileIds.map(async (fileId) => {
+    return Promise.all(
+      uniqueIds.map(async (fileId) => {
         try {
           const url = await ctx.storage.getUrl(fileId);
           return { fileId, url: url ? toPublicUrl(url) : null };
@@ -49,7 +52,5 @@ export const getFileUrls = query({
         }
       }),
     );
-
-    return results;
   },
 });

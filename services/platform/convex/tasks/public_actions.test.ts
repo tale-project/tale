@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  cancelTaskWorkflow,
   createTaskFromExternalIssue,
   mergeTaskPullRequest,
   startTaskWorkflow,
@@ -25,6 +26,7 @@ vi.mock('../_generated/api', () => ({
     },
     workflow_executions: {
       actions: { startWorkflowFromFile: 'startWorkflowFromFile' },
+      mutations: { cancelExecution: 'cancelExecution' },
     },
   },
   internal: {
@@ -65,6 +67,10 @@ function createCtx(opts: {
 }) {
   const runActionCalls: Array<{ ref: unknown; args: Record<string, unknown> }> =
     [];
+  const runMutationCalls: Array<{
+    ref: unknown;
+    args: Record<string, unknown>;
+  }> = [];
   const ctx = {
     runQuery: vi.fn(async (ref: unknown) => {
       if (ref === 'getTask') return opts.task ?? null;
@@ -75,8 +81,12 @@ function createCtx(opts: {
       runActionCalls.push({ ref, args });
       return opts.startResult ?? null;
     }),
+    runMutation: vi.fn(async (ref: unknown, args: Record<string, unknown>) => {
+      runMutationCalls.push({ ref, args });
+      return null;
+    }),
   };
-  return { ctx, runActionCalls };
+  return { ctx, runActionCalls, runMutationCalls };
 }
 
 const ARGS = {
@@ -141,6 +151,65 @@ describe('startTaskWorkflow', () => {
       reason: 'not_started',
       executionId: null,
     });
+  });
+});
+
+describe('cancelTaskWorkflow', () => {
+  const handler = (cancelTaskWorkflow as unknown as Handler).handler;
+  const cancelArgs = { organizationId: 'org_1', taskId: 'task_1' };
+
+  it('cancels the active execution and parks the task at cancelled', async () => {
+    const { ctx, runMutationCalls } = createCtx({
+      task: { task: { ...TASK, status: 'in_progress' } },
+      active: { executionId: 'exec_run', status: 'running' },
+    });
+    const result = await handler(ctx, cancelArgs);
+    expect(result).toEqual({
+      taskCancelled: true,
+      executionCancelled: true,
+      executionId: 'exec_run',
+    });
+    expect(runMutationCalls).toEqual([
+      { ref: 'cancelExecution', args: { executionId: 'exec_run' } },
+      {
+        ref: 'updateTaskStatus',
+        args: { taskId: 'task_1', status: 'cancelled' },
+      },
+    ]);
+  });
+
+  it('still parks the task when no execution is running', async () => {
+    const { ctx, runMutationCalls } = createCtx({
+      task: { task: { ...TASK, status: 'in_progress' } },
+      active: null,
+    });
+    const result = await handler(ctx, cancelArgs);
+    expect(result).toEqual({
+      taskCancelled: true,
+      executionCancelled: false,
+      executionId: null,
+    });
+    expect(runMutationCalls).toEqual([
+      {
+        ref: 'updateTaskStatus',
+        args: { taskId: 'task_1', status: 'cancelled' },
+      },
+    ]);
+  });
+
+  it('skips updateTaskStatus when the task is already cancelled', async () => {
+    const { ctx, runMutationCalls } = createCtx({
+      task: { task: { ...TASK, status: 'cancelled' } },
+      active: null,
+    });
+    const result = await handler(ctx, cancelArgs);
+    expect(result.taskCancelled).toBe(true);
+    expect(runMutationCalls).toEqual([]);
+  });
+
+  it('throws when the task does not exist', async () => {
+    const { ctx } = createCtx({ task: null });
+    await expect(handler(ctx, cancelArgs)).rejects.toThrow('Task not found');
   });
 });
 

@@ -14,9 +14,10 @@
  * (Request changes / Start) own intentional re-runs so operators are not
  * offered a second anonymous retry next to feedback-first flows.
  *
- * A still-running run offers a **Stop**: a confirmed cancel of the underlying
- * workflow (abandons in-progress steps, marks the run failed). This is the only
- * user-facing way to halt a runaway run from where runs are actually viewed.
+ * A still-running run can offer a **Stop** when `showStop` is true: a confirmed
+ * cancel of the underlying workflow. Subject-linked desk expand views leave
+ * Stop off — the desk **Cancel** action (`cancelTaskWorkflow`) owns halting
+ * the run so Start / Cancel stay one clean pair.
  */
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -90,9 +91,16 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
 export function EmbeddedRun({
   organizationId,
   executionId,
+  showStop = false,
 }: {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
+  /**
+   * Opt-in Stop control. Subject-linked desk expand views leave this off —
+   * desk Cancel (`cancelTaskWorkflow`) owns halting the run. Surfaces that
+   * have no Cancel verb can pass `true`.
+   */
+  showStop?: boolean;
 }) {
   const { projection, isLoading, error } = useExecutionProjection({
     organizationId,
@@ -103,10 +111,10 @@ export function EmbeddedRun({
   if (!projection) return isLoading ? <SkeletonText lines={4} /> : null;
   /** Failed executions only — completed runs use desk Start / Request changes. */
   const showRerun = projection.status === 'failed';
-  const showStop = RUNNING_STATUSES.has(projection.status);
+  const stopVisible = showStop && RUNNING_STATUSES.has(projection.status);
   return (
     <Stack gap={3}>
-      {(showRerun || showStop) && (
+      {(showRerun || stopVisible) && (
         <Row gap={0} align="stretch" justify="end">
           {showRerun ? (
             <RerunButton executionId={executionId} />

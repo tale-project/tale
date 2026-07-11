@@ -39,6 +39,7 @@ vi.mock('../../runtime/automation-runtime', () => ({
     automationSlug: 'demo',
     allowlist: [{ path: 'tasks/mutations:createTask', mode: 'mutation' }],
     config: { repo: 'tale-repo' },
+    projectName: 'SoftInstall Pro Ltd',
   }),
 }));
 
@@ -138,6 +139,20 @@ describe('Form — rendering and initial values', () => {
 
     expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue(
       'tale-repo',
+    );
+  });
+
+  it('prefills fields from initial, resolving $projectName', () => {
+    render(
+      <Form
+        fields={[TITLE_FIELD]}
+        initial={{ title: '$projectName' }}
+        submit={SUBMIT}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue(
+      'SoftInstall Pro Ltd',
     );
   });
 

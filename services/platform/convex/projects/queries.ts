@@ -422,12 +422,21 @@ export const listProjectRootFolders = query({
     organizationId: v.string(),
     /** Pack-declared setup root to exclude (e.g. `_setup` from a desk view). */
     setupFolderName: v.optional(v.string()),
+    /**
+     * When set, each row's `hasTask` is true iff a project-scoped task already
+     * exists for `(externalSystem, folderId as externalId)` — the same natural
+     * key desk Start uses via `createTaskFromExternalIssue`. Packs pass the
+     * same `externalSystem` string they use on create / Returns list; omit to
+     * leave `hasTask` false (Start gating stays pack-declared via `when`).
+     */
+    externalSystem: v.optional(v.string()),
   },
   returns: v.array(
     v.object({
       _id: v.id('folders'),
       name: v.string(),
       setupFolderId: v.union(v.id('folders'), v.null()),
+      hasTask: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -458,9 +467,30 @@ export const listProjectRootFolders = query({
       ? (roots.find((f) => f.name === setupName)?._id ?? null)
       : null;
 
+    const taskExternalIds = new Set<string>();
+    const externalSystem = args.externalSystem?.trim();
+    if (externalSystem) {
+      const tasks = await ctx.db
+        .query('tasks')
+        .withIndex('by_project_external', (q) =>
+          q
+            .eq('projectId', args.projectId)
+            .eq('externalSystem', externalSystem),
+        )
+        .collect();
+      for (const task of tasks) {
+        if (task.externalId) taskExternalIds.add(task.externalId);
+      }
+    }
+
     return roots
       .filter((f) => (setupName ? f.name !== setupName : true))
-      .map((f) => ({ _id: f._id, name: f.name, setupFolderId }));
+      .map((f) => ({
+        _id: f._id,
+        name: f.name,
+        setupFolderId,
+        hasTask: taskExternalIds.has(f._id),
+      }));
   },
 });
 

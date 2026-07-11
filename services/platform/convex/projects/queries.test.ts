@@ -204,6 +204,96 @@ describe('listProjectRootFolders', () => {
     expect(roots.map((f) => f.name).sort()).toEqual(['2026-Q1', '2026-Q2']);
     expect(roots.every((f) => f.name !== SETUP_FOLDER)).toBe(true);
     expect(roots.every((f) => f.setupFolderId === setupId)).toBe(true);
+    expect(roots.every((f) => f.hasTask === false)).toBe(true);
+  });
+
+  it('marks hasTask when a project task exists for the folder under externalSystem', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ORG_A);
+    const projectId = await seedProject(t, ORG_A);
+    await seedFolder(t, {
+      organizationId: ORG_A,
+      projectId,
+      name: SETUP_FOLDER,
+    });
+    const q1Id = await seedFolder(t, {
+      organizationId: ORG_A,
+      projectId,
+      name: '2026-Q1',
+    });
+    const q2Id = await seedFolder(t, {
+      organizationId: ORG_A,
+      projectId,
+      name: '2026-Q2',
+    });
+    await t.run((ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'Period job — 2026Q1',
+        status: 'done',
+        rank: 'a0',
+        number: 1,
+        createdBy: USER,
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        externalSystem: 'pack-a',
+        externalId: q1Id,
+      }),
+    );
+
+    const roots = await t
+      .withIdentity(IDENTITY)
+      .query(api.projects.queries.listProjectRootFolders, {
+        projectId,
+        organizationId: ORG_A,
+        setupFolderName: SETUP_FOLDER,
+        externalSystem: 'pack-a',
+      });
+
+    const byName = Object.fromEntries(roots.map((f) => [f.name, f]));
+    expect(byName['2026-Q1']?.hasTask).toBe(true);
+    expect(byName['2026-Q2']?.hasTask).toBe(false);
+    expect(byName['2026-Q1']?._id).toBe(q1Id);
+    expect(byName['2026-Q2']?._id).toBe(q2Id);
+  });
+
+  it('leaves hasTask false when externalSystem is omitted even if tasks exist', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ORG_A);
+    const projectId = await seedProject(t, ORG_A);
+    const q1Id = await seedFolder(t, {
+      organizationId: ORG_A,
+      projectId,
+      name: '2026-Q1',
+    });
+    await t.run((ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'Return',
+        status: 'in_review',
+        rank: 'a0',
+        number: 1,
+        createdBy: USER,
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        externalSystem: 'pack-a',
+        externalId: q1Id,
+      }),
+    );
+
+    const roots = await t
+      .withIdentity(IDENTITY)
+      .query(api.projects.queries.listProjectRootFolders, {
+        projectId,
+        organizationId: ORG_A,
+      });
+
+    expect(roots).toHaveLength(1);
+    expect(roots[0]?.hasTask).toBe(false);
   });
 
   it('returns every root with null setupFolderId when setupFolderName is omitted', async () => {

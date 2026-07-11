@@ -1023,22 +1023,39 @@ export function DataTable<TData, TValue = unknown>({
                     aria-selected={row.getIsSelected() || undefined}
                     onMouseEnter={() => onRowMouseEnter?.(row)}
                     onClick={() => {
-                      if (enableExpanding) {
-                        row.toggleExpanded();
-                      }
+                      // When both expand and onRowClick are armed, the chevron
+                      // owns expand (see cell below) and the row body opens the
+                      // detail/navigate path — never both from one click.
+                      // Expand-only tables still toggle from the row body.
                       if (rowClickable) {
                         onRowClick?.(row);
+                      } else if (enableExpanding) {
+                        row.toggleExpanded();
                       }
                     }}
                   >
                     {enableExpanding && (
-                      <TableCell className="w-[3rem]">
-                        <ChevronRight
-                          className={cn(
-                            'size-4 text-muted-foreground transition-transform duration-200',
-                            isExpanded && 'rotate-90',
-                          )}
-                        />
+                      <TableCell className="w-[3rem] p-0">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={
+                            isExpanded ? 'Collapse row' : 'Expand row'
+                          }
+                          className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            row.toggleExpanded();
+                          }}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform duration-200',
+                              isExpanded && 'rotate-90',
+                            )}
+                            aria-hidden
+                          />
+                        </button>
                       </TableCell>
                     )}
                     {row.getVisibleCells().map((cell) => {

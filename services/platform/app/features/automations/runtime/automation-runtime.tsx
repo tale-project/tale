@@ -24,6 +24,12 @@ export interface AutomationRuntime {
    * binding sentinel in view calls.
    */
   projectId?: string;
+  /**
+   * Display name of the bound project. Feeds `$projectName` (e.g. Form
+   * `initial` prefill). Undefined until the project query resolves, or when
+   * no project is bound.
+   */
+  projectName?: string;
   automationSlug: string;
   /** The automation's declared function allowlist (capabilities.functions). */
   allowlist: FunctionBinding[];

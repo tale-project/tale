@@ -20,6 +20,10 @@ import {
   type ActionEffect,
   useActionEffect,
 } from '../../runtime/action-effects';
+import {
+  hasTaskCommentFeedback,
+  TaskCommentFeedbackButton,
+} from './task-comment-feedback-button';
 
 // The action-spec shape is a `z.infer` re-export of `boundActionSchema`
 // (`lib/shared/schemas/automation_views.ts`) — one source of truth, no schema↔runtime
@@ -123,6 +127,25 @@ export function isSessionDoneLatched(
 }
 
 export function BoundButton({
+  action,
+  item,
+  size = 'sm',
+}: {
+  action: BoundActionSpec;
+  item?: Record<string, unknown>;
+  size?: 'sm' | 'default';
+}) {
+  // Feedback-first actions (Request changes) own their own hooks — early
+  // return before this component's hooks so rules-of-hooks stay clean.
+  if (hasTaskCommentFeedback(action)) {
+    return (
+      <TaskCommentFeedbackButton action={action} item={item} size={size} />
+    );
+  }
+  return <DispatchBoundButton action={action} item={item} size={size} />;
+}
+
+function DispatchBoundButton({
   action,
   item,
   size = 'sm',

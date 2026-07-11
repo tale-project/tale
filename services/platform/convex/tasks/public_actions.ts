@@ -260,6 +260,75 @@ export const startTaskWorkflow = action({
   },
 });
 
+/**
+ * Cancel the in-flight subject-linked run for a task (if any), then park the
+ * task at `cancelled` so desk Start can re-trigger. Pair of {@link startTaskWorkflow}:
+ * Start begins execution; Cancel stops it. Idempotent when nothing is running —
+ * still moves the task to `cancelled` so a stuck `in_progress` row can be restarted.
+ */
+export const cancelTaskWorkflow = action({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+  },
+  returns: v.object({
+    taskCancelled: v.boolean(),
+    executionCancelled: v.boolean(),
+    executionId: v.union(v.string(), v.null()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    taskCancelled: boolean;
+    executionCancelled: boolean;
+    executionId: string | null;
+  }> => {
+    await requireOrgMembershipById(ctx, args.organizationId);
+
+    const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
+      taskId: args.taskId,
+      organizationId: args.organizationId,
+    });
+    if (!loaded?.task) {
+      throw new Error('Task not found');
+    }
+
+    const active = await ctx.runQuery(
+      internal.workflow_executions.internal_queries
+        .getActiveExecutionForSubject,
+      {
+        organizationId: args.organizationId,
+        subjectType: 'task',
+        subjectId: args.taskId,
+      },
+    );
+
+    let executionCancelled = false;
+    let executionId: string | null = null;
+    if (active) {
+      executionId = active.executionId;
+      await ctx.runMutation(api.workflow_executions.mutations.cancelExecution, {
+        executionId: active.executionId,
+      });
+      executionCancelled = true;
+    }
+
+    if (loaded.task.status !== 'cancelled') {
+      await ctx.runMutation(api.tasks.mutations.updateTaskStatus, {
+        taskId: args.taskId,
+        status: 'cancelled',
+      });
+    }
+
+    return {
+      taskCancelled: true,
+      executionCancelled,
+      executionId,
+    };
+  },
+});
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

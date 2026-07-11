@@ -43,6 +43,10 @@ import { useBoundAction } from '../../hooks/use-bound-action';
 import { useActionEffect } from '../../runtime/action-effects';
 import { deriveDoneState, type BoundActionSpec } from './bound-button';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
+import {
+  hasTaskCommentFeedback,
+  TaskCommentFeedbackDialog,
+} from './task-comment-feedback-button';
 
 /** Field map from a row to the card anatomy (`boardPropsSchema.card`). */
 export interface BoardCardSpec {
@@ -106,7 +110,8 @@ function CardActionRunner({
   const { dispatch } = useBoundAction(action.path, action.mode);
   const applyEffect = useActionEffect();
   const ranRef = useRef(false);
-  const needsConfirm = Boolean(action.confirm);
+  const isFeedback = hasTaskCommentFeedback(action);
+  const needsConfirm = Boolean(action.confirm) && !isFeedback;
   const [confirmOpen, setConfirmOpen] = useState(needsConfirm);
   const label = actionLabel(t, action);
   const confirmSpec = action.confirm;
@@ -142,10 +147,23 @@ function CardActionRunner({
   }, [action, applyEffect, dispatch, onSettled, row]);
 
   useEffect(() => {
-    if (needsConfirm || ranRef.current) return;
+    if (needsConfirm || isFeedback || ranRef.current) return;
     ranRef.current = true;
     void run();
-  }, [needsConfirm, run]);
+  }, [isFeedback, needsConfirm, run]);
+
+  if (isFeedback) {
+    return (
+      <TaskCommentFeedbackDialog
+        action={action}
+        item={row}
+        open
+        onOpenChange={(open) => {
+          if (!open) onSettled();
+        }}
+      />
+    );
+  }
 
   if (!needsConfirm) return null;
   return (

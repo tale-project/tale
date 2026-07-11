@@ -45,6 +45,38 @@ export function useDocument(documentId: string | undefined) {
   );
 }
 
+/** Version list (current + historyFiles) for the History dialog. */
+export function useDocumentVersions(documentId: string | undefined) {
+  const organizationId = useOrganizationId();
+  return useConvexQuery(
+    api.documents.queries.listDocumentVersions,
+    documentId && organizationId
+      ? { documentId: toId<'documents'>(documentId), organizationId }
+      : 'skip',
+  );
+}
+
+/** Resolve a document by stable externalItemId (VAT Setup deep-links). */
+export function useDocumentByExternalItemId(
+  externalItemId: string | undefined,
+  options?: { projectId?: string; enabled?: boolean },
+) {
+  const organizationId = useOrganizationId();
+  const enabled = options?.enabled !== false;
+  return useConvexQuery(
+    api.documents.queries.getDocumentByExternalItemId,
+    enabled && externalItemId && organizationId
+      ? {
+          organizationId,
+          externalItemId,
+          ...(options?.projectId
+            ? { projectId: toId<'projects'>(options.projectId) }
+            : {}),
+        }
+      : 'skip',
+  );
+}
+
 export function useFolder(folderId: string | undefined) {
   const organizationId = useOrganizationId();
   return useConvexQuery(

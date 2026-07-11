@@ -20,7 +20,7 @@ import { Field } from '@tale/ui/field';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SquarePen } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { deriveConfigValues } from '@/lib/shared/platform/derive_config';
@@ -117,26 +117,49 @@ export function Form({
     (argsReferenceProjectId(submit.args) ||
       (whenQuery !== undefined && argsReferenceProjectId(whenQuery.args)));
 
-  // `initial` may carry binding sentinels (`$config:owner`, `$state.taskId`) —
-  // resolve them once against the live runtime; unresolved references become
-  // `undefined` and seed an empty input rather than a literal sentinel.
+  // `initial` may carry binding sentinels (`$config:owner`, `$projectName`,
+  // `$state.taskId`) — resolve them against the live runtime. `$projectName`
+  // often arrives after the first paint; we re-seed empty fields once when it
+  // resolves, without clobbering edits the operator already made.
   const state = viewState?.state;
   const resolvedInitial = useMemo(() => {
     const resolved = resolveBindingArgs(initial ?? {}, {
       organizationId: runtime.organizationId,
       projectId: runtime.projectId,
+      projectName: runtime.projectName,
       config: runtime.config,
       state,
     });
     return isRecord(resolved) ? resolved : {};
-    // Seed values only — later state/config changes must not clobber edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    initial,
+    runtime.organizationId,
+    runtime.projectId,
+    runtime.projectName,
+    runtime.config,
+    state,
+  ]);
 
   const [values, setValues] = useState<Record<string, string | boolean>>(() =>
     initFieldValues(fields, resolvedInitial),
   );
   const [errors, setErrors] = useState<Record<string, FieldError>>({});
+  const editedRef = useRef(false);
+
+  useEffect(() => {
+    if (editedRef.current) return;
+    setValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [key, seed] of Object.entries(resolvedInitial)) {
+        if (typeof seed !== 'string' || seed.trim() === '') continue;
+        if (asFieldString(prev[key]).trim() !== '') continue;
+        next[key] = seed;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [resolvedInitial]);
 
   // Mirror BoundButton's label resolution (`labelKey` through the platform
   // catalog with the literal as fallback), with the localized Save as the
@@ -229,9 +252,10 @@ export function Form({
                       value={values[f.key]}
                       disabled={isPending}
                       text={text}
-                      onChange={(next) =>
-                        setValues((s) => ({ ...s, [f.key]: next }))
-                      }
+                      onChange={(next) => {
+                        editedRef.current = true;
+                        setValues((s) => ({ ...s, [f.key]: next }));
+                      }}
                     />
                   </Field>
                 );

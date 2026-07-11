@@ -64,6 +64,15 @@ const DocumentPreviewText = lazyComponent(
     loading: () => <PreviewPaneSkeleton />,
   },
 );
+const DocumentPreviewMarkdown = lazyComponent(
+  () =>
+    import('./document-preview-markdown').then((m) => ({
+      default: m.DocumentPreviewMarkdown,
+    })),
+  {
+    loading: () => <PreviewPaneSkeleton />,
+  },
+);
 const DocumentPreviewImage = lazyComponent(
   () =>
     import('./document-preview-image').then((m) => ({
@@ -97,8 +106,9 @@ export function DocumentPreview({
     return getFileExtension(fileName || url);
   }, [fileName, url, mimeType]);
 
-  // Binary formats route via the shared extension → renderer map so the
+  // Dedicated renderers route via the shared extension → kind map so the
   // upload-accept and preview-support lists share one definition (#2380).
+  // Markdown is rendered; other text files fall through to source preview.
   const previewKind = getDocumentPreviewKind(extension);
 
   if (previewKind === 'pdf') {
@@ -119,6 +129,10 @@ export function DocumentPreview({
 
   if (previewKind === 'image') {
     return <DocumentPreviewImage url={url} fileName={fileName} />;
+  }
+
+  if (previewKind === 'markdown') {
+    return <DocumentPreviewMarkdown url={url} />;
   }
 
   if (isTextBasedFile(fileName || url, mimeType)) {

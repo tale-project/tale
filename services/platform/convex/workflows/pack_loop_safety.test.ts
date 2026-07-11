@@ -266,7 +266,25 @@ describe('task-ops pack: loop-safety invariants', () => {
       for (const step of wf.steps) {
         const action = actionOp(step);
         if (action?.type !== 'task' || action.op !== 'comment') continue;
-        const body = asString(actionParams(step).body);
+        const params = actionParams(step);
+        const bodyI18n = params.bodyI18n;
+        if (
+          bodyI18n &&
+          typeof bodyI18n === 'object' &&
+          !Array.isArray(bodyI18n)
+        ) {
+          for (const locale of ['en', 'de', 'fr'] as const) {
+            const localized = asString(
+              (bodyI18n as Record<string, unknown>)[locale],
+            );
+            expect(
+              localized.startsWith('[automated]'),
+              `${wf.file}: ${step.stepSlug} bodyI18n.${locale} must start with [automated]`,
+            ).toBe(true);
+          }
+          continue;
+        }
+        const body = asString(params.body);
         expect(
           body.startsWith('[automated]'),
           `${wf.file}: ${step.stepSlug} comment must start with [automated]`,

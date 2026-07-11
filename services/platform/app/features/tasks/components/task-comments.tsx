@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
@@ -20,6 +21,10 @@ import {
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  pickCommentBody,
+  type CommentBodyByLocale,
+} from '../utils/pick-comment-body';
 import { isPreviewableTaskActor } from '../utils/task-actor-preview';
 import { AssigneeAvatar } from './assignee-avatar';
 import { MentionText } from './mention-text';
@@ -40,6 +45,7 @@ interface TaskComment {
   createdAt: number;
   editedAt?: number;
   mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+  bodyByLocale?: CommentBodyByLocale;
 }
 
 /**
@@ -60,6 +66,7 @@ export function TaskComments({
   canComment,
   currentUserId,
   isAdmin,
+  showHeading = true,
 }: {
   taskId: Id<'tasks'>;
   organizationId: string;
@@ -67,9 +74,12 @@ export function TaskComments({
   canComment: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
+  /** When false, omit the "Comments (N)" title (e.g. parent disclosure owns it). */
+  showHeading?: boolean;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  const { locale } = useLocale();
   const { comments } = useTaskDiscussion(taskId);
   const { resolveActor, resolveActorPreview } = useActorDirectory(
     organizationId,
@@ -146,6 +156,7 @@ export function TaskComments({
       ? resolveActorPreview(c.authorType, c.authorId)
       : null;
     const isEditing = editingId === c.messageId;
+    const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
     return (
       <Row gap={2} align="start" className="group/comment">
         <AssigneeAvatar
@@ -194,7 +205,7 @@ export function TaskComments({
             </Stack>
           ) : (
             <MentionText
-              body={c.body}
+              body={displayBody}
               organizationId={organizationId}
               projectId={projectId}
               className="mt-0.5 wrap-break-word"
@@ -210,7 +221,7 @@ export function TaskComments({
                 <CommentAction
                   onClick={() => {
                     setEditingId(c.messageId);
-                    setEditDraft(c.body);
+                    setEditDraft(displayBody);
                   }}
                 >
                   {tCommon('actions.edit')}
@@ -233,11 +244,13 @@ export function TaskComments({
 
   return (
     <section>
-      <Text as="h3" variant="label">
-        {t('detail.comments')} ({comments.length})
-      </Text>
+      {showHeading ? (
+        <Text as="h3" variant="label">
+          {t('detail.comments')} ({comments.length})
+        </Text>
+      ) : null}
 
-      <Stack as="ul" className="mt-3">
+      <Stack as="ul" className={showHeading ? 'mt-3' : undefined}>
         {comments.length === 0 && (
           <li>
             <Text as="p" variant="muted">

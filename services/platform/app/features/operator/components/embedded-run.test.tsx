@@ -71,6 +71,20 @@ describe('EmbeddedRun — Re-run visibility', () => {
     );
     expect(screen.queryByText(/rerun:/)).not.toBeInTheDocument();
     expect(
+      screen.queryByRole('button', { name: 'operator.stop.button' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows Stop while in flight only when showStop is opted in', () => {
+    mockProjection = { status: 'running' };
+    render(
+      <EmbeddedRun
+        organizationId="org_1"
+        executionId={'exec_run' as never}
+        showStop
+      />,
+    );
+    expect(
       screen.getByRole('button', { name: 'operator.stop.button' }),
     ).toBeInTheDocument();
   });
