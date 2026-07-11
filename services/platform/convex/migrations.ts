@@ -1,17 +1,8 @@
-import { Migrations } from '@convex-dev/migrations';
+import { v } from 'convex/values';
 
-import { components, internal } from './_generated/api';
-import type { DataModel } from './_generated/dataModel';
+import { getString, isRecord } from '../lib/utils/type-utils';
+import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
-
-/**
- * Registry for one-time, run-once data migrations. Define future migrations
- * here with `migrations.define(...)` and run them via `migrations.runner(...)`;
- * the component tracks which have applied so each runs exactly once across
- * deploys. There are none today — the product ships greenfield — but the
- * machinery is kept so future schema changes have a first-class home.
- */
-export const migrations = new Migrations<DataModel>(components.migrations);
 
 /**
  * Deploy-time MIGRATION runner: applies pending versioned data migrations.
@@ -22,9 +13,27 @@ export const migrations = new Migrations<DataModel>(components.migrations);
  * a SEPARATE concern handled by `provisioning.ts:provisionAll` — it is not a
  * migration and is invoked as its own deploy step.
  */
+interface RunAllSummary {
+  ok: boolean;
+  applied: string[];
+  destructivePending: string[];
+  failedId: string | null;
+  error: string | null;
+}
+
 export const runAll = internalAction({
   args: {},
-  handler: async (ctx) => {
+  returns: v.object({
+    ok: v.boolean(),
+    applied: v.array(v.string()),
+    destructivePending: v.array(v.string()),
+    failedId: v.union(v.string(), v.null()),
+    error: v.union(v.string(), v.null()),
+  }),
+  // The explicit return annotation breaks the self-referential inference
+  // cycle (this module's exported type feeds `internal`, which the handler
+  // consumes) — without it the whole generated api degrades to `any`.
+  handler: async (ctx): Promise<RunAllSummary> => {
     // Apply pending versioned data migrations — but only NON-destructive ones.
     // Destructive migrations (table/column drops, row deletions) are never run
     // automatically on a deploy/restart; the operator applies them deliberately
@@ -46,13 +55,55 @@ export const runAll = internalAction({
             destructivePending.map((m) => m.id).join(', '),
         );
       }
+      return {
+        ok: true,
+        applied: result.completed,
+        destructivePending: destructivePending.map((m) => m.id),
+        failedId: null,
+        error: null,
+      };
     } catch (err) {
       // A migration failure must not wedge the deploy — the platform still
       // boots on the current schema; the operator re-runs `tale migrate up`.
+      // The bracketed marker is GREP-STABLE: docker-entrypoint.sh keys its
+      // boot banner on it and `tale migrate status` shows the failed ledger
+      // rows — change it only with both consumers.
+      const message = err instanceof Error ? err.message : String(err);
+      const failedId = await failedMigrationId(ctx);
       console.error(
-        '[migrations] applyUp failed during deploy (continuing):',
-        err instanceof Error ? err.message : err,
+        `[migrations][deploy-failure] id=${failedId ?? 'unknown'} error=${message} — ` +
+          "platform continues on the current schema; inspect with 'tale migrate status' " +
+          "and re-run 'tale migrate up' (idempotent, resumable).",
       );
+      return {
+        ok: false,
+        applied: [],
+        destructivePending: [],
+        failedId,
+        error: message,
+      };
     }
   },
 });
+
+/** The ledger row the failed run left behind, for the deploy-failure line. */
+async function failedMigrationId(ctx: {
+  // oxlint-disable-next-line typescript/no-explicit-any -- structural cross-fn typing; a `typeof internal…status` reference here would make this module's types circular through the generated api
+  runQuery: (...args: any[]) => Promise<any>;
+}): Promise<string | null> {
+  try {
+    const status: unknown = await ctx.runQuery(
+      internal.migrations.framework.entrypoints.status,
+      {},
+    );
+    if (!isRecord(status) || !Array.isArray(status.failed)) return null;
+    const first: unknown = status.failed[0];
+    return isRecord(first) ? (getString(first, 'id') ?? null) : null;
+  } catch (statusErr) {
+    console.warn(
+      '[migrations] could not read failed-migration status:',
+      statusErr instanceof Error ? statusErr.message : statusErr,
+    );
+    return null;
+  }
+}

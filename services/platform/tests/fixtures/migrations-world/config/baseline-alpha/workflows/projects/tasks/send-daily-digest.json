@@ -1,0 +1,15 @@
+{
+  "metadata": {
+    "labels": ["Tasks"]
+  },
+  "steps": [
+    {
+      "config": {},
+      "name": "Start",
+      "nextSteps": {},
+      "stepSlug": "start",
+      "stepType": "start"
+    }
+  ],
+  "name": "Send daily digest"
+}

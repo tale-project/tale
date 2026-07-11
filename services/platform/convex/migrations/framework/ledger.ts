@@ -35,6 +35,59 @@ export const getLedgerState = internalQuery({
 });
 
 /**
+ * Adopt ledger rows recorded under a migration's FORMER ids (a re-homed
+ * folder): the row is re-keyed to the current id + version identity, so a
+ * deployment that applied the migration pre-rename never re-runs it. Runs at
+ * the top of every apply action; idempotent (adopted rows stop matching).
+ *
+ * A `down`-in-flight cursor is reset on adoption: it paginated the OLD id's
+ * snapshot rows, which the new id's restore query cannot resume (restores
+ * consume their rows, so restarting is safe and loses nothing).
+ */
+export const reconcileAliases = internalMutation({
+  args: {
+    aliases: v.array(
+      v.object({
+        migrationId: v.string(),
+        semver: v.string(),
+        numericId: v.number(),
+        orderKey: v.string(),
+        formerIds: v.array(v.string()),
+      }),
+    ),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let adopted = 0;
+    for (const alias of args.aliases) {
+      let current = await rowFor(ctx, alias.migrationId);
+      for (const formerId of alias.formerIds) {
+        const former = await rowFor(ctx, formerId);
+        if (!former) continue;
+        if (current) {
+          console.warn(
+            `[migrations] ledger row under former id ${formerId} shadowed by ${alias.migrationId} — left untouched`,
+          );
+          continue;
+        }
+        await ctx.db.patch(former._id, {
+          migrationId: alias.migrationId,
+          semver: alias.semver,
+          numericId: alias.numericId,
+          orderKey: alias.orderKey,
+          ...(former.direction === 'down' && former.status === 'running'
+            ? { cursor: null }
+            : {}),
+        });
+        adopted++;
+        current = former;
+      }
+    }
+    return adopted;
+  },
+});
+
+/**
  * Upsert a `running` row for a migration about to run. If a row for this
  * migration already exists in the SAME direction (an interrupted run), its
  * cursor/processedOrgs are preserved so the runner resumes; otherwise the

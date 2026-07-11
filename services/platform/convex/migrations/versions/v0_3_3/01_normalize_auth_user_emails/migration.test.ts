@@ -1,21 +1,27 @@
+/**
+ * Hand-written (not on `defineMigrationTest`): Better Auth users live in the
+ * component, unreachable through `ctx.db` in a convex-test world, and no
+ * sanctioned support function seeds users (`support.seedAuthOrgs` creates
+ * organizations only — see `world/manifest.testkit.ts` profile.authUsersSeeded).
+ * The chain suite (`testing/chain.test.ts`) covers this migration's real
+ * runner path as an empty-batch no-op; the normalization/merge logic itself
+ * is covered by the `lib/auth` unit suites. This file asserts the registered
+ * meta, the destructive gate through the real entrypoints, and the component
+ * snapshot-restore semantics against a faked ctx.
+ */
+
 import { convexTest } from 'convex-test';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { internal } from '../../../../_generated/api';
 import schema from '../../../../schema';
+import { requireMeta } from '../../../framework/registry.gen';
 import { buildModules } from '../../../framework/test_helpers';
-import { meta } from './meta';
-
-vi.mock('../../../../_generated/server', async (importOriginal) => {
-  const mod = await importOriginal<Record<string, unknown>>();
-  return {
-    ...mod,
-    internalMutation: (config: Record<string, unknown>) => config,
-  };
-});
 
 const DIR = 'migrations/versions/v0_3_3/01_normalize_auth_user_emails';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
+
+const meta = requireMeta('0.3.3/01_normalize_auth_user_emails');
 
 describe('0.3.3/01_normalize_auth_user_emails', () => {
   it('is registered as a destructive component migration', () => {
@@ -102,14 +108,16 @@ describe('0.3.3/01_normalize_auth_user_emails', () => {
 
     const { restoreComponentSnapshotBatch } =
       await import('../../../framework/runner');
+    // Registered Convex functions expose the raw handler as `_handler` —
+    // the same seam convex-test resolves through.
     const handler = (
       restoreComponentSnapshotBatch as unknown as {
-        handler: (
+        _handler: (
           innerCtx: typeof ctx,
           args: { migrationId: string },
         ) => Promise<{ isDone: boolean; processed: number }>;
       }
-    ).handler;
+    )._handler;
 
     const result = await handler(ctx, { migrationId: meta.id });
 

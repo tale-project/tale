@@ -1,21 +1,20 @@
 import { describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 
-import { parseConvexRunJson, stripConvexBannerLines } from './convex-run';
+import {
+  RESULT_BEGIN,
+  RESULT_END,
+  buildConvexRunScript,
+  extractSentinelResult,
+  parseSentinelJson,
+  stripConvexBannerLines,
+} from './convex-run';
 
-/** v0.3.2 and earlier: unanchored Enter/Open/Paste in `grep -v` (GNU ERE). */
-const LEGACY_BANNER_GREP_V =
-  '^Admin key|^📋|^✅ Admin|^━|^🌐|^$|Steps:|Open|Enter|Paste';
-
-/** Mirrors GNU `grep -vE` in the platform container (JS RegExp ≠ ERE here). */
-function legacyGrepStrip(stdout: string): string {
-  const result = spawnSync('grep', ['-vE', LEGACY_BANNER_GREP_V], {
-    input: stdout,
-    encoding: 'utf8',
-  });
-  return result.stdout ?? '';
-}
-
+/**
+ * Regression fixture for the pre-v2 transport corruption: banner-strip greps
+ * with unanchored `Enter`/`Open` patterns ate JSON lines whose content matched
+ * a banner prefix (this meta's title, "OpenRouter" descriptions, …). The
+ * sentinel transport must return such payloads byte-intact.
+ */
 const ENTERPRISE_SSO_META = {
   description:
     'For each org with a legacy ssoProviders row, writes its unified ' +
@@ -36,49 +35,94 @@ const ENTERPRISE_SSO_META = {
   snapshot: 'fs-tree',
 };
 
-describe('stripConvexBannerLines', () => {
-  test('does not strip migration JSON lines containing Enterprise or OpenRouter', () => {
-    const line = `    "title": "${ENTERPRISE_SSO_META.title}",`;
-    expect(stripConvexBannerLines(line)).toBe(line);
+/** Frame a payload the way the in-container script does. */
+function framed(payload: string, noiseBefore = ''): string {
+  return `${noiseBefore}${RESULT_BEGIN}\n${payload}\n${RESULT_END}`;
+}
+
+describe('buildConvexRunScript', () => {
+  test('frames the result between the sentinels and preserves the exit code', () => {
+    const script = buildConvexRunScript('migrations:runAll');
     expect(
-      stripConvexBannerLines(
-        '    "description": "For openrouter provider config and OpenID scopes",',
-      ),
-    ).toContain('openrouter');
+      script.startsWith('# tale-bundle-sentinel:convex-run-script-v2\n'),
+    ).toBe(true);
+    expect(script).toContain(`echo "${RESULT_BEGIN}"`);
+    expect(script).toContain(`echo "${RESULT_END}"`);
+    expect(script).toContain('exit $STATUS');
+    // Streams stay separate — the v1 transport's `2>&1` merge is gone.
+    expect(script).not.toContain('2>&1');
+    expect(script).not.toContain('grep');
   });
 
-  test('strips convex CLI banner lines', () => {
-    const stdout = [
-      'Admin key:',
-      'Enter your deployment URL',
-      '[{"id":"x"}]',
-    ].join('\n');
-    expect(stripConvexBannerLines(stdout)).toBe('[{"id":"x"}]');
+  test('serializes args as a single-quoted JSON literal', () => {
+    const script = buildConvexRunScript(
+      'migrations/framework/entrypoints:applyUp',
+      { args: { to: '0.2.84', allowDestructive: true } },
+    );
+    expect(script).toContain(` '{"to":"0.2.84","allowDestructive":true}' `);
+  });
+
+  test('rejects unsafe function refs and args', () => {
+    expect(() => buildConvexRunScript('fn; rm -rf /')).toThrow(/unsafe/);
+    expect(() =>
+      buildConvexRunScript('fn', { args: { cmd: "'; touch /pwned; '" } }),
+    ).toThrow(/unsafe/);
   });
 });
 
-describe('parseConvexRunJson', () => {
-  test('parses planUp array after banner lines', () => {
-    const payload = [ENTERPRISE_SSO_META];
-    const stdout = `Admin key:\n${JSON.stringify(payload, null, 2)}`;
-    const parsed = parseConvexRunJson<typeof payload>(stdout);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.[0]?.title).toContain('Enterprise SSO');
+describe('extractSentinelResult', () => {
+  test('slices the frame and ignores stdout noise before it', () => {
+    const stdout = framed('{"ok":true}', 'env.sh: normalizing…\n');
+    expect(extractSentinelResult(stdout)).toBe('{"ok":true}');
   });
 
-  test('legacy v0.3.2 grep corrupts planUp JSON when title contains Enterprise', () => {
-    // Convex pretty-prints meta keys alphabetically; title follows snapshot.
-    const stdout = `[
-  {
-    "slug": "enterprise_sso_unify",
-    "snapshot": "fs-tree",
-    "title": "${ENTERPRISE_SSO_META.title}"
-  }
-]`;
-    const corrupted = legacyGrepStrip(stdout);
-    expect(() => JSON.parse(corrupted)).toThrow();
+  test('returns null when the frame is missing (script died early)', () => {
+    expect(extractSentinelResult('bash: bunx: command not found')).toBeNull();
+    expect(extractSentinelResult(`${RESULT_BEGIN}\nno end marker`)).toBeNull();
+  });
+
+  test('an empty frame (void function, empty capture) yields the empty string', () => {
+    expect(extractSentinelResult(framed(''))).toBe('');
+  });
+});
+
+describe('parseSentinelJson', () => {
+  test('returns pretty-printed payloads byte-intact, including banner-lookalike content', () => {
+    const payload = [ENTERPRISE_SSO_META];
+    const stdout = framed(JSON.stringify(payload, null, 2));
+    const parsed = parseSentinelJson<typeof payload>(stdout);
+    expect(parsed).toEqual(payload);
+    expect(parsed?.[0]?.title).toContain('Enterprise SSO');
+    expect(parsed?.[0]?.description).toContain('Idempotent');
+  });
+
+  test('parses single-line values and survives noise before the frame', () => {
     expect(
-      parseConvexRunJson<{ title: string }[]>(stdout)?.[0]?.title,
-    ).toContain('Enterprise SSO');
+      parseSentinelJson<{ inFlight: number }>(
+        framed('{"inFlight":2}', 'Deprecation warning from env.sh\n'),
+      ),
+    ).toEqual({ inFlight: 2 });
+  });
+
+  test('returns null for a missing frame, an empty frame, or non-JSON content', () => {
+    expect(parseSentinelJson('Admin key: derived')).toBeNull();
+    expect(parseSentinelJson(framed(''))).toBeNull();
+    expect(parseSentinelJson(framed('not json'))).toBeNull();
+  });
+});
+
+describe('stripConvexBannerLines (display-only stderr filter)', () => {
+  test('strips convex CLI banner lines', () => {
+    const text = [
+      'Admin key:',
+      'Enter your deployment URL',
+      '[migrations] applied on deploy',
+    ].join('\n');
+    expect(stripConvexBannerLines(text)).toBe('[migrations] applied on deploy');
+  });
+
+  test('keeps function log lines mentioning Enterprise or OpenRouter', () => {
+    const line = `[migrations] pending: ${ENTERPRISE_SSO_META.title}`;
+    expect(stripConvexBannerLines(line)).toBe(line);
   });
 });

@@ -1,35 +1,21 @@
 /**
  * Shared test scaffolding for migration round-trip tests.
  *
- *  - `historicalSchema` augments the production schema with legacy tables that
- *    were removed (e.g. `governancePolicies`) so a test can seed the OLD data
- *    shape, run a migration, and assert the result — `convex-test` validates
- *    against whatever schema it is given.
+ *  - The exported LEGACY TABLE definitions describe removed tables (e.g.
+ *    `governancePolicies`) at their pre-migration shapes; the union
+ *    `testing/world_schema.testkit.ts` assembles them (plus current tables)
+ *    into the schema every migration test and the chain harness run against.
  *  - `buildModules` normalizes an `import.meta.glob` result (whose keys are
  *    relative to the TEST file) into the convex-root-relative keys `convexTest`
  *    expects. Each test passes its own glob + its own dir-from-convex-root
  *    because `import.meta.glob` must take a string literal.
  */
 
-import { defineSchema, defineTable } from 'convex/server';
+import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { contactsTable } from '../../contacts/schema';
-import {
-  ssoConnectionsTable,
-  ssoProvisioningLinksTable,
-} from '../../enterprise_sso/schema';
-import { dsarPolicyPendingChangesTable } from '../../governance/schema';
-import { configCacheTable } from '../../lib/config_cache/schema';
 import { dataSourceValidator } from '../../lib/validators/common';
 import { jsonRecordValidator } from '../../lib/validators/json';
-import { projectsTable } from '../../projects/schema';
-import { ssoProvidersTable } from '../../sso_providers/schema';
-import {
-  wfEventSubscriptionsTable,
-  wfSchedulesTable,
-} from '../../workflows/triggers/schema';
-import { migrationLedgerTable, migrationSnapshotsTable } from './schema';
 
 /**
  * The legacy `governancePolicies` table as it existed at v0.2.84, before
@@ -171,49 +157,6 @@ export const legacySupportCasesWithCustomerId = defineTable({
 })
   .index('by_organization', ['organizationId'])
   .index('by_customer', ['customerId']);
-
-/**
- * The minimal schema the v0.2.85 governance migrations touch: the framework's
- * own ledger/snapshot tables, the configCache mirror, the new
- * dsarPolicyPendingChanges table, and the legacy governancePolicies table.
- * Kept minimal (rather than re-deriving the full production schema) because
- * `convexTest` only needs the tables a test actually reads/writes — and a
- * re-`defineSchema` over the spread production tables trips convex-test's table
- * export. Also carries the current (unmodified) `projects`/`wfSchedules`/
- * `wfEventSubscriptions` tables and the historical config-bearing app tables
- * above, for the 0.2.88/0.2.91/0.2.92 app-config and trigger migrations'
- * round-trip tests.
- */
-export const historicalSchema = defineSchema({
-  migrationLedger: migrationLedgerTable,
-  migrationSnapshots: migrationSnapshotsTable,
-  configCache: configCacheTable,
-  dsarPolicyPendingChanges: dsarPolicyPendingChangesTable,
-  // Contacts merge (issue #2618): the source tables + the target `contacts`
-  // table for the 0.3.4 backfill_contacts_from_{vendors,customers} migrations.
-  contacts: contactsTable,
-  customers: legacyCustomersTable,
-  vendors: legacyVendorsTable,
-  // FK holders (with the pre-teardown `customerId`) repointed onto contacts by
-  // the 0.3.4 backfill_conversation / backfill_support_case contactId migrations.
-  conversations: legacyConversationsWithCustomerId,
-  supportCases: legacySupportCasesWithCustomerId,
-  governancePolicies: legacyGovernancePoliciesTable,
-  // Source + target tables for the 0.2.85 enterprise-SSO unification migration.
-  ssoProviders: ssoProvidersTable,
-  ssoConnections: ssoConnectionsTable,
-  ssoProvisioningLinks: ssoProvisioningLinksTable,
-  // Legacy tables for the 0.2.87 run_code / model_sync file-cutover migrations.
-  orgPackagePolicy: legacyOrgPackagePolicyTable,
-  modelSyncSettings: legacyModelSyncSettingsTable,
-  // Current (unmodified) tables the 0.2.88/0.2.91/0.2.92 migrations read
-  // alongside the historical config-bearing app tables below.
-  projects: projectsTable,
-  wfSchedules: wfSchedulesTable,
-  wfEventSubscriptions: wfEventSubscriptionsTable,
-  appInstallations: legacyAppInstallationsWithConfigTable,
-  appProjectBindings: legacyAppProjectBindingsWithConfigTable,
-});
 
 /** Normalize one glob key relative to the convex root, resolving `..`. */
 function toConvexRootKey(dirFromRoot: string, globKey: string): string {

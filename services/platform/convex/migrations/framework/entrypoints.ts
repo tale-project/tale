@@ -16,18 +16,18 @@
 
 import { v } from 'convex/values';
 
-import { isValidOrgSlug } from '../../../lib/shared/constants/org-slug';
-import { getString, isRecord } from '../../../lib/utils/type-utils';
-import { components, internal } from '../../_generated/api';
+import { internal } from '../../_generated/api';
 import {
   internalAction,
   internalQuery,
   type ActionCtx,
 } from '../../_generated/server';
+import { getLimits } from './limits';
 import {
   appliedFrontier,
   computePendingUp,
   computeRollback,
+  foldLedgerAliases,
   indexLedger,
   isApplied,
   orderMigrations,
@@ -35,17 +35,13 @@ import {
   type LedgerState,
   type PlanStep,
 } from './planner';
-import { ALL_META } from './registry';
+import { ALL_META } from './registry.gen';
 import { buildOrderKey } from './semver';
 import {
   isRunnableKind,
   type MigrationDirection,
   type MigrationMeta,
 } from './types';
-
-// Hard stops so a logic bug can never spin forever.
-const MAX_BATCHES = 100_000;
-const MAX_ORG_PAGES = 10_000;
 
 const metaValidator = v.object({
   id: v.string(),
@@ -67,27 +63,56 @@ const metaValidator = v.object({
     v.literal('table-rows'),
     v.literal('fs-tree'),
   ),
+  formerIds: v.optional(v.array(v.string())),
 });
+
+/**
+ * Re-homed migrations whose ledger rows may still sit under a former id.
+ * The apply actions adopt those rows before planning (`ledger.reconcileAliases`);
+ * the read-only queries fold them at read time instead (they cannot write).
+ */
+const LEDGER_ALIASES = ALL_META.filter(
+  (m) => (m.formerIds?.length ?? 0) > 0,
+).map((m) => ({
+  migrationId: m.id,
+  semver: m.semver,
+  numericId: m.numericId,
+  orderKey: buildOrderKey(m.semver, m.numericId),
+  formerIds: [...(m.formerIds ?? [])],
+}));
+
+async function adoptFormerLedgerRows(ctx: ActionCtx): Promise<void> {
+  if (LEDGER_ALIASES.length === 0) return;
+  await ctx.runMutation(internal.migrations.framework.ledger.reconcileAliases, {
+    aliases: LEDGER_ALIASES,
+  });
+}
 
 // --------------------------------------------------------------------------
 // Reads (queries)
 // --------------------------------------------------------------------------
 
-/** Reduce ledger rows to the planner's view. */
-async function readLedgerStates(ctx: {
+interface LedgerRowView extends LedgerState {
+  error?: string;
+}
+
+/** Reduce ledger rows to the planner's view (+ the error for failed rows). */
+async function readLedgerRows(ctx: {
   db: {
     query: (t: 'migrationLedger') => { collect: () => Promise<unknown[]> };
   };
-}): Promise<LedgerState[]> {
+}): Promise<LedgerRowView[]> {
   const rows = (await ctx.db.query('migrationLedger').collect()) as Array<{
     migrationId: string;
     direction: 'up' | 'down';
     status: 'running' | 'applied' | 'rolledBack' | 'failed';
+    error?: string;
   }>;
   return rows.map((r) => ({
     migrationId: r.migrationId,
     direction: r.direction,
     status: r.status,
+    error: r.error,
   }));
 }
 
@@ -99,9 +124,13 @@ export const status = internalQuery({
     pending: v.array(metaValidator),
     pendingDestructive: v.array(v.string()),
     references: v.array(metaValidator),
+    /** Migrations whose last run FAILED — resumable via `tale migrate up`. */
+    failed: v.array(metaValidator),
+    /** migrationId → the recorded failure message, for operator triage. */
+    failedErrors: v.record(v.string(), v.string()),
   }),
   handler: async (ctx) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     const ledger = indexLedger(ledgerRows);
     const steps = orderMigrations(ALL_META);
 
@@ -114,12 +143,24 @@ export const status = internalQuery({
       .map((s) => s.meta);
     const frontier = appliedFrontier(steps, ledger);
 
+    const failedRows = ledgerRows.filter((r) => r.status === 'failed');
+    const failedIds = new Set(failedRows.map((r) => r.migrationId));
+    const failed = steps
+      .filter((s) => failedIds.has(s.meta.id))
+      .map((s) => s.meta);
+    const failedErrors: Record<string, string> = {};
+    for (const row of failedRows) {
+      failedErrors[row.migrationId] = row.error ?? 'unknown error';
+    }
+
     return {
       frontier: frontier?.meta.id ?? null,
       applied,
       pending,
       pendingDestructive: pending.filter((m) => m.destructive).map((m) => m.id),
       references,
+      failed,
+      failedErrors,
     };
   },
 });
@@ -128,7 +169,7 @@ export const planUp = internalQuery({
   args: { to: v.optional(v.string()) },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     return computePendingUp(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
@@ -137,7 +178,7 @@ export const planDown = internalQuery({
   args: { to: v.string() },
   returns: v.array(metaValidator),
   handler: async (ctx, args) => {
-    const ledgerRows = await readLedgerStates(ctx);
+    const ledgerRows = foldLedgerAliases(await readLedgerRows(ctx), ALL_META);
     return computeRollback(ALL_META, ledgerRows, args.to).map((s) => s.meta);
   },
 });
@@ -163,6 +204,7 @@ export const applyUp = internalAction({
   },
   returns: applyResultValidator,
   handler: async (ctx, args) => {
+    await adoptFormerLedgerRows(ctx);
     const ledgerRows = await ctx.runQuery(
       internal.migrations.framework.ledger.getLedgerState,
       {},
@@ -199,6 +241,7 @@ export const applyDown = internalAction({
   },
   returns: applyResultValidator,
   handler: async (ctx, args) => {
+    await adoptFormerLedgerRows(ctx);
     const ledgerRows = await ctx.runQuery(
       internal.migrations.framework.ledger.getLedgerState,
       {},
@@ -284,8 +327,9 @@ async function runDbMigration(
   meta: MigrationMeta,
   direction: MigrationDirection,
 ): Promise<void> {
+  const { maxBatches } = getLimits();
   const useRestore = direction === 'down' && meta.snapshot === 'table-rows';
-  for (let i = 0; i < MAX_BATCHES; i++) {
+  for (let i = 0; i < maxBatches; i++) {
     const result = useRestore
       ? await ctx.runMutation(
           internal.migrations.framework.runner.restoreSnapshotBatch,
@@ -297,7 +341,7 @@ async function runDbMigration(
         );
     if (result.isDone) return;
   }
-  throw new Error(`Migration ${meta.id} exceeded ${MAX_BATCHES} batches`);
+  throw new Error(`Migration ${meta.id} exceeded ${maxBatches} batches`);
 }
 
 async function runComponentMigration(
@@ -305,8 +349,9 @@ async function runComponentMigration(
   meta: MigrationMeta,
   direction: MigrationDirection,
 ): Promise<void> {
+  const { maxBatches } = getLimits();
   const useRestore = direction === 'down' && meta.snapshot === 'table-rows';
-  for (let i = 0; i < MAX_BATCHES; i++) {
+  for (let i = 0; i < maxBatches; i++) {
     const result = useRestore
       ? await ctx.runMutation(
           internal.migrations.framework.runner.restoreComponentSnapshotBatch,
@@ -318,7 +363,7 @@ async function runComponentMigration(
         );
     if (result.isDone) return;
   }
-  throw new Error(`Migration ${meta.id} exceeded ${MAX_BATCHES} batches`);
+  throw new Error(`Migration ${meta.id} exceeded ${maxBatches} batches`);
 }
 
 async function runNodeMigration(
@@ -330,6 +375,7 @@ async function runNodeMigration(
     processedOrgs: string[];
   },
 ): Promise<void> {
+  const { maxOrgPages } = getLimits();
   const processed = new Set(resume.processedOrgs);
   let cursor: string | null = resume.orgCursor;
   let prevCursor: string | null | undefined;
@@ -337,7 +383,7 @@ async function runNodeMigration(
   let pages = 0;
 
   while (!isDone) {
-    if (pages++ >= MAX_ORG_PAGES) {
+    if (pages++ >= maxOrgPages) {
       throw new Error(`Migration ${meta.id}: org pagination did not terminate`);
     }
     if (prevCursor !== undefined && cursor === prevCursor) {
@@ -347,40 +393,36 @@ async function runNodeMigration(
     }
     prevCursor = cursor;
 
-    const res: unknown = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
-        model: 'organization',
-        paginationOpts: { cursor, numItems: 200 },
-        where: [],
-      },
+    const res = await ctx.runQuery(
+      internal.migrations.framework.org_source.listOrgsPage,
+      { cursor, numItems: 200 },
     );
-    const page = isRecord(res) && Array.isArray(res.page) ? res.page : [];
-    const pageCursor =
-      isRecord(res) && typeof res.continueCursor === 'string'
-        ? res.continueCursor
-        : null;
 
-    for (const raw of page) {
-      if (!isRecord(raw)) continue;
-      const id = getString(raw, '_id') ?? getString(raw, 'id');
-      const slug = getString(raw, 'slug');
-      if (!id || !slug || !isValidOrgSlug(slug)) continue;
-      if (processed.has(id)) continue;
+    for (const org of res.page) {
+      if (processed.has(org.id)) continue;
 
       await ctx.runAction(
         internal.migrations.framework.node_runner.applyNodeForOrg,
-        { migrationId: meta.id, orgId: id, orgSlug: slug, direction },
+        {
+          migrationId: meta.id,
+          orgId: org.id,
+          orgSlug: org.slug,
+          direction,
+        },
       );
-      processed.add(id);
+      processed.add(org.id);
+      // Record the cursor that FETCHED this page, not `res.continueCursor`:
+      // a mid-page crash must resume by re-fetching the SAME page (the
+      // processed set skips finished orgs; handlers are idempotent). Storing
+      // the next page's cursor would silently skip the crashed org and the
+      // rest of its page while the run still completed as applied.
       await ctx.runMutation(
         internal.migrations.framework.ledger.recordOrgProgress,
-        { migrationId: meta.id, orgId: id, orgCursor: pageCursor },
+        { migrationId: meta.id, orgId: org.id, orgCursor: cursor },
       );
     }
 
-    cursor = pageCursor;
-    isDone =
-      isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
+    cursor = res.continueCursor;
+    isDone = res.isDone;
   }
 }

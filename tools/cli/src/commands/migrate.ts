@@ -68,6 +68,7 @@ function statusCommand(): Command {
       action(async () => {
         await withProject(async () => {
           const s = await getStatus();
+          const failed = s.failed ?? [];
           if (getOutputMode().json) {
             emitJson('migrate status', {
               frontier: s.frontier ?? null,
@@ -80,6 +81,10 @@ function statusCommand(): Command {
                 snapshot: m.snapshot,
               })),
               pendingDestructive: s.pendingDestructive.length,
+              failed: failed.map((m) => ({
+                id: m.id,
+                error: s.failedErrors?.[m.id] ?? 'unknown error',
+              })),
             });
             return;
           }
@@ -89,7 +94,20 @@ function statusCommand(): Command {
             ['Applied', String(s.applied.length)],
             ['Pending', String(s.pending.length)],
             ['Destructive pending', String(s.pendingDestructive.length)],
+            ...(failed.length > 0
+              ? [['FAILED', String(failed.length)] as [string, string]]
+              : []),
           ]);
+          if (failed.length > 0) {
+            logger.blank();
+            logger.error(
+              'FAILED — the last run of these migrations raised; the runner is resumable, re-run `tale migrate up` after addressing the cause:',
+            );
+            for (const m of failed) {
+              printMeta(m);
+              logger.info(`    error: ${s.failedErrors?.[m.id] ?? 'unknown'}`);
+            }
+          }
           if (s.pending.length > 0) {
             logger.blank();
             logger.info('PENDING');

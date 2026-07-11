@@ -4,20 +4,19 @@
  * (`migrations/framework/entrypoints:*`) via `docker exec` into the running
  * platform container, and parse their structured JSON results.
  *
- * Mirrors the proven env-sourcing + admin-key derivation incantation from
- * run-migrations.ts / reseed-all-orgs.ts (so `INSTANCE_SECRET` is populated and
- * the admin key matches the entrypoint's runtime computation), parameterized
- * per entrypoint with a JSON args string.
+ * The env-sourcing + admin-key derivation + sentinel-framed result transport
+ * is the shared `buildConvexRunScript` (docker/convex-run.ts), parameterized
+ * per entrypoint with a JSON args object.
  */
 
 import * as logger from '../../utils/logger';
 import {
-  CONVEX_RUN_BANNER_GREP_V,
-  parseConvexRunJson,
+  buildConvexRunScript,
+  parseSentinelJson,
+  redactAdminKey,
 } from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
-import { redactAdminKey } from './reseed-all-orgs';
 
 const TIMEOUT_S = 1800;
 const TIMEOUT_EXIT = 124;
@@ -30,7 +29,7 @@ export interface MigrationMeta {
   slug: string;
   title: string;
   description: string;
-  kind: 'db' | 'node' | 'reference';
+  kind: 'db' | 'node' | 'component' | 'reference';
   reversible: boolean;
   destructive: boolean;
   snapshot: 'none' | 'table-rows' | 'fs-tree';
@@ -42,6 +41,10 @@ interface MigrationStatus {
   pending: MigrationMeta[];
   pendingDestructive: string[];
   references: MigrationMeta[];
+  /** Migrations whose last run FAILED — resumable via `tale migrate up`.
+   *  Optional so the CLI keeps working against a pre-failed-field backend. */
+  failed?: MigrationMeta[];
+  failedErrors?: Record<string, string>;
 }
 
 export interface ApplyResult {
@@ -50,39 +53,14 @@ export interface ApplyResult {
   skipped: MigrationMeta[];
 }
 
-/**
- * Args reach `bunx convex run <fn> '<json>'` as a single-quoted JSON literal.
- * Our args are version strings, id arrays, and booleans, so the serialized
- * value is restricted to this charset — a defense-in-depth guard against shell
- * injection should a future caller pass something exotic.
- */
-const SAFE_ARGS_RE = /^[A-Za-z0-9_,[\]{}":. /\\-]*$/;
-
-function buildScript(fn: string, args: Record<string, unknown>): string {
-  const json = JSON.stringify(args);
-  if (!SAFE_ARGS_RE.test(json)) {
-    throw new Error(`Refusing to pass unsafe migration args: ${json}`);
-  }
-  return `set -eo pipefail
-source /app/env.sh
-env_normalize_common
-ensure_instance_secret
-ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
-cd /app
-HOME=/home/app timeout ${TIMEOUT_S} bunx convex run \\
-  migrations/framework/entrypoints:${fn} '${json}' \\
-  --url "\${CONVEX_URL:-http://convex:3210}" \\
-  --admin-key "$ADMIN_KEY" \\
-  --no-push 2>&1 \\
-  | { grep -v "${CONVEX_RUN_BANNER_GREP_V}" || true; }
-`;
-}
-
 async function runEntrypoint<T>(
   fn: string,
   args: Record<string, unknown>,
 ): Promise<T> {
-  const script = buildScript(fn, args);
+  const script = buildConvexRunScript(
+    `migrations/framework/entrypoints:${fn}`,
+    { args, timeoutS: TIMEOUT_S },
+  );
   const container = await findPlatformContainer();
   const result = await exec('docker', ['exec', '-i', container, 'bash', '-s'], {
     stdin: script,
@@ -104,7 +82,7 @@ async function runEntrypoint<T>(
     );
   }
 
-  const parsed = parseConvexRunJson<T>(result.stdout);
+  const parsed = parseSentinelJson<T>(result.stdout);
   if (parsed === null) {
     throw new Error(
       `tale migrate: could not parse ${fn} output:\n` +

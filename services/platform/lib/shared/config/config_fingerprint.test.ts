@@ -187,4 +187,38 @@ describe('computeConfigFingerprint', () => {
       additionalProperties: false,
     });
   });
+
+  it('never strips PROPERTIES that happen to share an annotation keyword name', () => {
+    // A config field may be called `description`, `default`, `title`, or
+    // `id` — inside a properties/$defs map those are data, not keywords.
+    // Dropping them blinded the drift gate to their changes (real bug caught
+    // by the version-checkpoint suite).
+    const schema = {
+      type: 'object',
+      properties: {
+        description: { type: 'string', description: 'doc text (annotation)' },
+        default: { type: 'boolean' },
+        id: { type: 'string' },
+      },
+      required: ['description'],
+      additionalProperties: false,
+      $defs: {
+        title: { type: 'number' },
+      },
+    };
+    const fp = computeConfigFingerprint({ s: schema });
+    expect(fp.schemas.s).toEqual({
+      type: 'object',
+      properties: {
+        description: { type: 'string' }, // kept as a property, doc stripped
+        default: { type: 'boolean' },
+        id: { type: 'string' },
+      },
+      required: ['description'],
+      additionalProperties: false,
+      $defs: {
+        title: { type: 'number' },
+      },
+    });
+  });
 });

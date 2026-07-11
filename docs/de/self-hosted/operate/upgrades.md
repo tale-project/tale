@@ -73,6 +73,28 @@ Drei Garantien, die das Pattern dir gibt:
 
 Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --help`; das operatorseitige Rezept ist `tale update && tale deploy && tale status` und visuelle Bestätigung im Browser.
 
+## Mit Datenmigrationen arbeiten
+
+Jedes Deploy wendet ausstehende Datenmigrationen automatisch an — aber nur die nicht-destruktiven. Migrationen, die Daten entfernen oder überschreiben (ein Tabellen-Drop, eine entfernte Spalte), laufen nie unbeaufsichtigt: Das Deploy überspringt sie, listet auf, welche warten, und überlässt dir die Entscheidung.
+
+```bash
+# Was angewendet ist, was aussteht, was fehlgeschlagen ist
+tale migrate status
+
+# Ausstehende Migrationen anwenden, jeden destruktiven Schritt einzeln prüfen
+tale migrate up --step
+
+# Alles ohne Rückfragen anwenden (CI / nach Prüfung des Plans)
+tale migrate up --yes
+
+# Daten auf eine frühere Version zurückrollen
+tale migrate down --to 0.3.3
+```
+
+Destruktive Migrationen sichern die betroffenen Zeilen bzw. Konfigurationsdateien, bevor sie sie anfassen — `tale migrate down` kann so wiederherstellen, was sie entfernt haben. Beide Richtungen sind fortsetzbar: Der Fortschritt wird pro Migration festgehalten (bei Konfigurationsdatei-Migrationen pro Organisation), ein Absturz oder Timeout setzt also dort wieder an, wo er unterbrochen wurde.
+
+Schlägt eine Migration während eines Deploys fehl, bootet die Plattform trotzdem auf ihrem aktuellen Schema — das Boot-Log zeigt einen deutlichen Fehler, und `tale migrate status` nennt die fehlgeschlagene Migration samt Fehlermeldung. Ursache beheben, dann `tale migrate up` erneut ausführen; bereits erledigte Arbeit wird übersprungen.
+
 ## Zurückrollen
 
 ```bash

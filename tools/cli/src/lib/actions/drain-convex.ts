@@ -18,7 +18,7 @@
 
 import * as logger from '../../utils/logger';
 import {
-  parseTrailingJson,
+  parseSentinelJson,
   redactAdminKey,
   runConvexAdmin,
 } from '../docker/convex-run';
@@ -90,9 +90,8 @@ export async function drainConvex(opts: {
     const res = await runConvexAdmin('control/drain:drainStatus', {
       container,
     });
-    const status = res.success
-      ? parseTrailingJson(res.stdout, isDrainStatus)
-      : null;
+    const value = res.success ? parseSentinelJson<unknown>(res.stdout) : null;
+    const status = isDrainStatus(value) ? value : null;
     if (status && status.inFlight === 0) {
       logger.info('All in-flight chat generations finished.');
       return;

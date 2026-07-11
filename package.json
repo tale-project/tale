@@ -41,6 +41,7 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:test": "bun services/platform/tests/integration/container-smoke-test.ts",
+    "docker:test:migrations": "bun services/platform/tests/integration/container-migrations-test.ts",
     "docker:test:image": "bun services/platform/tests/integration/container-image-test.ts",
     "docker:test:web": "bun services/platform/tests/integration/container-web-test.ts",
     "docker:test:docs": "bun services/platform/tests/integration/container-docs-test.ts",
@@ -59,6 +60,7 @@
     "gen:service": "bun run gen service",
     "gen:tool": "bun run gen tool",
     "gen:skill": "bun run gen skill",
+    "gen:migration": "bun run gen migration",
     "generate:icons": "bun scripts/generate-integration-icons.ts",
     "prepare": "bunx husky"
   },

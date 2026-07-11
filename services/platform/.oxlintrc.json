@@ -45,6 +45,7 @@
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",
+        "**/*.testkit.ts",
         "tests/**/*.ts",
         "scripts/**/*.ts"
       ],

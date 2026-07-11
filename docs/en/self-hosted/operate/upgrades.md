@@ -73,6 +73,28 @@ Three guarantees the pattern gives you:
 
 The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale update && tale deploy && tale status` and visual confirmation in the browser.
 
+## Working with data migrations
+
+Every deploy applies pending data migrations automatically — but only the non-destructive ones. Migrations that remove or overwrite data (a table drop, a column removal) are never run unattended: the deploy skips them, prints which ones are waiting, and leaves the decision to you.
+
+```bash
+# What is applied, what is pending, what failed
+tale migrate status
+
+# Apply pending migrations, reviewing each destructive step
+tale migrate up --step
+
+# Apply everything without prompting (CI / after reviewing the plan)
+tale migrate up --yes
+
+# Roll data back to an earlier version
+tale migrate down --to 0.3.3
+```
+
+Destructive migrations snapshot the affected rows or config files before touching them, so `tale migrate down` can rebuild what they removed. Both directions are resumable: progress is tracked per migration (and per organization for config-file migrations), so a crash or timeout picks up where it stopped instead of starting over.
+
+If a migration fails during a deploy, the platform still boots on its current schema — the boot log prints a prominent error and `tale migrate status` shows the failed migration with the recorded error. Fix the cause, then re-run `tale migrate up`; already-completed work is skipped.
+
 ## Rolling back
 
 ```bash

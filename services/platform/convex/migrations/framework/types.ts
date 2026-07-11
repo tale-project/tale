@@ -66,6 +66,16 @@ export interface MigrationMeta {
   /** `true` when `up` removes/overwrites data; gates accept-all + deploy auto-run. */
   readonly destructive: boolean;
   readonly snapshot: SnapshotStrategy;
+  /**
+   * Ids this migration previously shipped under (a re-homed folder). Ledger
+   * rows and snapshots recorded under a former id keep counting: the apply
+   * actions adopt ledger rows to the current id before planning, and snapshot
+   * restores fall back to former ids. Without this, renaming a shipped
+   * migration would re-run it on every deployment that already applied it.
+   * Mutable element type: the wire meta validator (`v.array`) infers a
+   * mutable array, and `readonly string[]` would not satisfy it.
+   */
+  readonly formerIds?: string[];
 }
 
 /** Direction a migration is being applied. */
@@ -90,6 +100,13 @@ export interface DbMigration {
    * schema — Convex permits reading such tables at runtime.
    */
   readonly table: string;
+  /**
+   * Table the runner paginates for `down` when `up` MOVED rows into a
+   * different table (expand/contract renames): the inverse must walk the
+   * TARGET table — `table` is empty once `up` completes, so a `down` over it
+   * would silently restore nothing. Defaults to `table` (in-place transforms).
+   */
+  readonly downTable?: string;
   /** Rows per batch transaction. Default 100. */
   readonly batchSize?: number;
   /** Forward per-row transform. Mutate via `ctx.db`; idempotent. */

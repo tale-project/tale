@@ -6,7 +6,9 @@ import {
   buildModules,
   legacyGovernancePoliciesTable,
 } from '../../../framework/test_helpers';
-import { migration } from './index';
+import { migration as module } from './migration';
+
+const migration = module.spec;
 
 const DIR =
   'migrations/versions/v0_2_73/03_governance_personalization_policy_split';

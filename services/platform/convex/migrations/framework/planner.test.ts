@@ -4,6 +4,7 @@ import {
   appliedFrontier,
   computePendingUp,
   computeRollback,
+  foldLedgerAliases,
   indexLedger,
   orderMigrations,
   restrictToOnly,
@@ -108,5 +109,36 @@ describe('restrictToOnly', () => {
       A.id,
       C.id,
     ]);
+  });
+});
+
+describe('foldLedgerAliases', () => {
+  const RENAMED = meta('0.3.4', 6, { formerIds: ['0.2.90/06_m'] });
+  const OLD_ROW: LedgerState = {
+    migrationId: '0.2.90/06_m',
+    direction: 'up',
+    status: 'applied',
+  };
+
+  it('re-keys a former-id row to the current id', () => {
+    const folded = foldLedgerAliases([OLD_ROW], [RENAMED]);
+    expect(folded).toEqual([
+      { migrationId: RENAMED.id, direction: 'up', status: 'applied' },
+    ]);
+  });
+
+  it('a row under the current id shadows the former-id row', () => {
+    const current: LedgerState = {
+      migrationId: RENAMED.id,
+      direction: 'down',
+      status: 'rolledBack',
+    };
+    const folded = foldLedgerAliases([OLD_ROW, current], [RENAMED]);
+    expect(folded).toEqual([OLD_ROW, current]);
+  });
+
+  it('is a passthrough when no meta declares formerIds', () => {
+    const rows = [OLD_ROW];
+    expect(foldLedgerAliases(rows, [A, B])).toEqual(rows);
   });
 });

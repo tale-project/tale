@@ -5,31 +5,16 @@
  * orchestrating action (`entrypoints.applyUp/applyDown`) enumerates orgs and
  * calls this once per org so progress is resumable at org granularity.
  *
- * This is the only place that assembles the `NodeMigrationHelpers` (the
- * filesystem surface), keeping `node:*` access out of the handler modules.
+ * The filesystem surface handed to handlers is assembled in
+ * `node_helpers.ts` (shared with migration tests), keeping `node:*` access
+ * out of the handler modules.
  */
 
 import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
-import {
-  atomicWrite,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-} from '../../lib/file_io';
-import { NODE_MIGRATIONS } from './registry.node';
-import { restoreFsTree, snapshotFsTree } from './snapshot_store';
-import type { NodeMigrationHelpers } from './types';
-
-const helpers: NodeMigrationHelpers = {
-  atomicWrite,
-  readFileSafe,
-  removeFileSafe,
-  removeDirSafe,
-  snapshotFsTree,
-  restoreFsTree,
-};
+import { legacyNodeHelpers as helpers } from './node_helpers';
+import { NODE_MIGRATIONS } from './registry.node.gen';
 
 /** Apply one `node` migration to one org, forward or inverse. */
 export const applyNodeForOrg = internalAction({

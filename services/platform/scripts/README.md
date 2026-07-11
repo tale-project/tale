@@ -17,6 +17,40 @@ This directory contains development and utility scripts for the project.
   - Uses `--local` flag for local development
   - **Usage**: Called automatically by dev.ts
 
+### Migration Gate Scripts
+
+- **`migrations-codegen.ts`** - Registry codegen + structural validation for the versioned
+  migration framework: derives every migration's identity from its folder, regenerates
+  `convex/migrations/framework/registry(.node).gen.ts` and the `api.d.ts` module map, and
+  enforces the folder contract (uniqueness, contiguity, 'use node' ⟺ kind, harness marker)
+  - **Usage**: `bun run migrations:sync` (write) / called by `check-migrations.ts` (check)
+
+- **`check-migrations.ts`** - The migrations CI gate orchestrator: codegen check mode plus the
+  `_id`-FK guard (a `table-rows` migration may not snapshot a `v.id()`-referenced table)
+  - **Usage**: first member of `bun run migrations:check`
+
+- **`check-migration-corpus.ts`** - Corpus coverage guard: every runnable migration's declared
+  subjects must be covered by the world corpus (baseline seed, an earlier migration's `produces`,
+  or a version-boundary injection), and every migration version must have a checkpoint fixture
+  - **Usage**: second member of `bun run migrations:check`
+
+- **`check-schema-snapshot.ts`** / **`check-config-snapshot.ts`** - "Missing migration" guards:
+  fingerprint the live Convex schema / org-config Zod schemas against the committed baselines;
+  data-incompatible drift demands a migration first
+  - **Usage**: `bun run migrations:check` (check) / `bun run migrations:snapshot` (refresh)
+
+- **`dump-version-schemas.ts`** - Version-checkpoint generator: extracts every released tag's
+  Convex schema fingerprint, org-config schemas (Zod → JSON Schema), and initialized-project
+  scaffold into the content-addressed store under `convex/migrations/testing/versions/` — the
+  ground truth the versions suite validates the migration chain against. Run once per release
+  tag / new version folder (`--force`, `--tag vX.Y.Z` to refresh selectively)
+  - **Usage**: `bun scripts/dump-version-schemas.ts`
+
+- **`audit-migration-versions.ts`** - Read-only placement report: cross-checks every migration's
+  declared version against the checkpoint schema diffs AND the first released tag that shipped
+  its folder (former-id paths for re-homed migrations)
+  - **Usage**: `bun scripts/audit-migration-versions.ts` (`--json` for the machine inventory)
+
 ### Utility Scripts
 
 - **`generate-admin-password.ts`** - Admin password generation

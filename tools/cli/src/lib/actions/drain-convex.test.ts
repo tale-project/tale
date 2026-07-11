@@ -12,11 +12,11 @@ mock.module('../docker/find-platform-container', () => ({
   findPlatformContainer: findPlatformContainerMock,
 }));
 // Partial mock: stub only `runConvexAdmin` so later test files still see the
-// real banner/JSON helpers (Bun on Windows keeps mock.module global per run).
+// real helpers (Bun keeps mock.module global per run on every platform — a
+// stubbed shared helper here fails other files' tests in CI's file order).
 mock.module('../docker/convex-run', () => ({
   ...realConvexRun,
   runConvexAdmin: runConvexAdminMock,
-  redactAdminKey: (s: string) => s,
 }));
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,
@@ -29,7 +29,9 @@ mock.module('../../utils/logger', () => ({
 
 const { drainConvex, endDrainConvex } = await import('./drain-convex');
 
-function ok(stdout: string) {
+/** Frame the payload the way the sentinel transport delivers it. */
+function ok(payload: string) {
+  const stdout = `${realConvexRun.RESULT_BEGIN}\n${payload}\n${realConvexRun.RESULT_END}`;
   return { success: true, stdout, stderr: '', exitCode: 0 };
 }
 function fail(stderr: string) {

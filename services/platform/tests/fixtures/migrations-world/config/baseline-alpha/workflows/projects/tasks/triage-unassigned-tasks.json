@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "labels": ["Tasks"]
+  },
+  "steps": [
+    {
+      "config": {},
+      "name": "Start",
+      "nextSteps": {},
+      "stepSlug": "start",
+      "stepType": "start"
+    }
+  ],
+  "triggers": {
+    "events": [
+      {
+        "eventType": "task.created"
+      }
+    ]
+  },
+  "name": "Triage unassigned tasks"
+}
