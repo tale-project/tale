@@ -521,6 +521,6 @@ describe('Collection — search, row click, add action', () => {
       screen.getByRole('button', { name: 'Create quarter folder' }),
     );
     expect(dispatch).not.toHaveBeenCalled();
-    expect(applyEffect).toHaveBeenCalledWith(effect);
+    expect(applyEffect).toHaveBeenCalledWith(effect, undefined);
   });
 });

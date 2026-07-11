@@ -58,6 +58,7 @@ vi.mock('convex/react', async (importOriginal) => ({
 
 import type { Data } from '@measured/puck';
 
+import { AutomationRuntimeProvider } from '../runtime/automation-runtime';
 import { AutomationView, withStableItemIds } from './automation-view';
 
 afterEach(() => {
@@ -69,16 +70,28 @@ describe('AutomationView — stable ids for hand-authored view docs', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
-      <AutomationView
-        data={{
-          root: { props: {} },
-          zones: {},
-          content: [
-            { type: 'Text', props: { text: 'First block', variant: 'body' } },
-            { type: 'Text', props: { text: 'Second block', variant: 'body' } },
-          ],
+      <AutomationRuntimeProvider
+        value={{
+          organizationId: 'org-1',
+          automationSlug: 'test',
+          allowlist: [],
+          config: {},
         }}
-      />,
+      >
+        <AutomationView
+          data={{
+            root: { props: {} },
+            zones: {},
+            content: [
+              { type: 'Text', props: { text: 'First block', variant: 'body' } },
+              {
+                type: 'Text',
+                props: { text: 'Second block', variant: 'body' },
+              },
+            ],
+          }}
+        />
+      </AutomationRuntimeProvider>,
     );
 
     expect(screen.getByText('First block')).toBeInTheDocument();

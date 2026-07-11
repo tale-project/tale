@@ -122,7 +122,12 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useNavigate: () => vi.fn(),
+  useParams: () => ({ id: 'org-1' }),
   redirect: vi.fn(),
+}));
+
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProject: () => ({ project: null, isLoading: false }),
 }));
 
 // Puck's <Render> stack is irrelevant to the page's tab plumbing.
