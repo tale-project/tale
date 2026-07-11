@@ -93,6 +93,8 @@ export function KnowledgePool({
             <div className="flex flex-col">
               {scene.rows.map((row, index) => {
                 const Icon = TYPE_ICON[row.type];
+                const indexed = beat >= BEAT.done;
+                const indexing = beat >= BEAT.indexing && !indexed;
                 return beat >= BEAT.row1 + index ? (
                   <motion.div
                     key={row.name}
@@ -118,15 +120,15 @@ export function KnowledgePool({
                     <span className="flex justify-end">
                       <span
                         className={cn(
-                          'inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium',
-                          beat >= BEAT.done
+                          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                          indexed
                             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                            : beat >= BEAT.indexing
+                            : indexing
                               ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
                               : 'bg-surface-site-inset text-fg-muted',
                         )}
                       >
-                        {beat >= BEAT.done
+                        {indexed
                           ? t('demos.knowledge.statusIndexed')
                           : t('demos.knowledge.statusIndexing')}
                       </span>

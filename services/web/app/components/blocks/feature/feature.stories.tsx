@@ -34,7 +34,7 @@ export const Hero: Story = {
     <FeatureHero
       eyebrow="Platform"
       title="What are agents in Tale?"
-      description="Dock Claude Code, Codex, Cursor, and Gemini beside in-product agents — one orchestrator, shared knowledge, approvals on the way out."
+      description="Dock Claude Code, Codex, Hermes, and OpenClaw beside in-product agents — one orchestrator, shared knowledge, approvals on the way out."
       showCtas
     />
   ),

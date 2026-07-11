@@ -27,10 +27,10 @@
     },
     "platformAgents": {
       "title": "Que sont les agents dans Tale ?",
-      "description": "Les agents Tale combinent instructions, connaissances, outils et modèle. Connecte Claude Code, Codex, Cursor et Gemini sous un orchestrateur que tu héberges."
+      "description": "Les agents Tale combinent instructions, connaissances, outils et modèle. Connecte Claude Code, Codex, Hermes et OpenClaw sous un orchestrateur que tu héberges."
     },
     "platformChat": {
-      "title": "Qu’est-ce que Chat dans Tale ?",
+      "title": "Chats dans Tale",
       "description": "Tale Chat, l’entrée du quotidien : choisis un agent, envoie un message, lis la réponse — citations, appels d’outils, Arena et approbations dans le fil."
     },
     "platformAutomations": {
@@ -74,10 +74,10 @@
       },
       "agents": {
         "label": "Agents",
-        "description": "Orchestrer Claude Code, Codex, Cursor et Gemini."
+        "description": "Orchestrer Claude Code, Codex, Hermes et OpenClaw."
       },
       "chat": {
-        "label": "Chat",
+        "label": "Chats",
         "description": "IA du quotidien avec citations, outils et Arena."
       },
       "projects": {
@@ -153,7 +153,7 @@
   "home": {
     "hero": {
       "title": "Orchestre chaque agent IA de ta stack",
-      "subtitle": "Connecte Claude Code, Codex, Cursor et les autres agents de ton équipe. Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure que tu fais tourner.",
+      "subtitle": "Connecte Claude Code, Codex, Hermes, OpenClaw et les autres agents de ton équipe. Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure que tu fais tourner.",
       "ctaPrimary": "Demander une démo",
       "ctaSecondary": "Nous contacter"
     },
@@ -179,7 +179,7 @@
         "inputPlaceholder": "Pose ta question…"
       },
       "connect": {
-        "label": "Démo animée : la liste Agents montre Claude Code, Codex, Cursor, Agent Support et Gemini comme lignes installées avec des chips de modèle.",
+        "label": "Démo animée : la liste Agents montre Claude Code, Codex, Hermes, Agent Support et OpenClaw comme lignes installées avec des chips de modèle.",
         "windowTitle": "Agents",
         "searchPlaceholder": "Rechercher des agents…",
         "addLabel": "Agents",
@@ -189,14 +189,14 @@
         "statusReady": "Prêt",
         "agent1": "Claude Code",
         "agent2": "Codex",
-        "agent3": "Cursor",
+        "agent3": "Hermes",
         "agent4": "Agent Support",
-        "agent5": "Gemini",
+        "agent5": "OpenClaw",
         "model1": "Claude Opus",
         "model2": "GPT-5.5",
-        "model3": "Composer",
+        "model3": "Claude Sonnet",
         "model4": "Claude Sonnet",
-        "model5": "Gemini 2.5"
+        "model5": "Claude Opus"
       },
       "knowledge": {
         "label": "Démo animée : la table Documents de la base de connaissances indexe un PDF, un site, un catalogue produits et un runbook, puis affiche les badges d’indexation.",
@@ -299,6 +299,52 @@
         "members2": "14",
         "members3": "5",
         "members4": "11"
+      },
+      "tasks": {
+        "windowTitle": "Tasks",
+        "colTodo": "To do",
+        "colInProgress": "In progress",
+        "colInReview": "In review",
+        "colDone": "Done",
+        "working": "En cours",
+        "label": "Démo animée : le tableau de tâches du projet montre les colonnes To do, In progress, In review et Done — un agent travaille une carte dans In progress.",
+        "id1": "WEB-14",
+        "title1": "Cartographier les redirections /docs",
+        "assignee1": "Non assigné",
+        "id2": "WEB-15",
+        "title2": "Rédiger le texte de la page pricing",
+        "assignee2": "Mira",
+        "id3": "WEB-12",
+        "title3": "Rédiger le guide de migration",
+        "assignee3": "Relaunch Agent",
+        "id4": "WEB-11",
+        "title4": "Relire la checklist staging",
+        "assignee4": "Relaunch Agent",
+        "id5": "WEB-9",
+        "title5": "Livrer les tokens de marque",
+        "assignee5": "Design Agent"
+      },
+      "sandbox": {
+        "filesTab": "Files",
+        "liveTab": "Live",
+        "treeRoot": "workspace",
+        "liveHint": "Vue navigateur live",
+        "label": "Démo animée : un chat d’agent sandbox ouvre le volet Files sur une CLI Python, puis passe à la vue Live du navigateur de l’app en cours.",
+        "prompt": "Scaffold une petite CLI Python et ouvre-la dans le navigateur pour que je puisse cliquer.",
+        "agent": "Claude Code",
+        "model": "Claude Opus",
+        "reply": "cli.py et un aperçu local sont prêts — Files montre l’arbre ; Live streame le navigateur.",
+        "file1": "cli.py",
+        "file2": "pyproject.toml",
+        "file3": "tests/test_cli.py",
+        "file4": "README.md",
+        "activeFile": "cli.py",
+        "code1": "import click",
+        "code2": "@click.command()",
+        "code3": "def main():",
+        "code4": "    click.echo(\"ready\")",
+        "browserUrl": "http://127.0.0.1:5173",
+        "browserTitle": "Aperçu CLI · localhost"
       }
     },
     "tour": {
@@ -307,7 +353,7 @@
       "connect": {
         "eyebrow": "Agents & intégrations",
         "title": "Amène les agents\nque tu utilises déjà",
-        "description": "Claude Code, Codex, Cursor, Gemini — plus Slack, GitHub, Outlook et le reste de ta stack. Rien n’est remplacé ; tout est coordonné."
+        "description": "Claude Code, Codex, Hermes, OpenClaw — plus Slack, GitHub, Outlook et le reste de ta stack. Rien n’est remplacé ; tout est coordonné."
       },
       "pool": {
         "eyebrow": "Connaissances",
@@ -360,7 +406,7 @@
     },
     "agents": {
       "title": "Fonctionne avec les agents que tu utilises",
-      "subtitle": "Accroche Claude Code, Codex, Cursor, Gemini, Hermes, OpenClaw, Pi et OpenCode sous un orchestrateur que tu héberges."
+      "subtitle": "Accroche Claude Code, Codex, Hermes, OpenClaw, Pi et OpenCode sous un orchestrateur que tu héberges."
     },
     "compliance": {
       "eyebrow": "SÉCURITÉ",
@@ -758,7 +804,7 @@
   "platformAgents": {
     "eyebrow": "Agents",
     "title": "Que sont les agents dans Tale ?",
-    "description": "Un agent Tale est la combinaison à quatre boutons d’instructions, connaissances, outils et modèle. Les éditeurs les construisent une fois ; l’équipe les exécute dans Chat, automations et projets — y compris des agents externes comme Claude Code, Codex, Cursor et Gemini.",
+    "description": "Un agent Tale est la combinaison à quatre boutons d’instructions, connaissances, outils et modèle. Les éditeurs les construisent une fois ; l’équipe les exécute dans Chat, automations et projets — y compris des agents externes comme Claude Code, Codex, Hermes et OpenClaw.",
     "capabilities": {
       "heading": "Que peuvent faire les agents ?",
       "description": "Ce qu’une définition d’agent donne à toute l’équipe — et ce qu’elle ajoute par rapport à un modèle nu.",
@@ -770,7 +816,7 @@
         },
         {
           "title": "Les agents externes s’accostent",
-          "body": "Connecte Claude Code, Codex, Cursor et Gemini pour router le travail vers l’agent qui vit déjà dans ta stack.",
+          "body": "Connecte Claude Code, Codex, Hermes et OpenClaw pour router le travail vers l’agent qui vit déjà dans ta stack.",
           "docsLabel": "Agents externes"
         },
         {
@@ -798,8 +844,8 @@
           "a": "Un agent Tale combine instructions, connaissances, outils et modèle en une unité réutilisable que les membres exécutent dans Chat et automations."
         },
         {
-          "q": "Tale peut-il orchestrer Claude Code et Cursor ?",
-          "a": "Oui. Tale connecte des agents externes comme Claude Code, Codex, Cursor et Gemini pour que ton équipe route le travail via un orchestrateur."
+          "q": "Tale peut-il orchestrer Claude Code et Hermes ?",
+          "a": "Oui. Tale connecte des agents externes comme Claude Code, Codex, Hermes et OpenClaw pour que ton équipe route le travail via un orchestrateur."
         },
         {
           "q": "Quand utiliser un agent plutôt qu’un workflow ?",
@@ -857,9 +903,9 @@
         },
         {
           "id": "chat",
-          "eyebrow": "Chat",
-          "title": "Parle aux agents\ndans les fils du quotidien",
-          "description": "Choisis un agent dans Chat, envoie un message, et vois une réponse fondée arriver en streaming avec citations."
+          "eyebrow": "Sandbox",
+          "title": "Regarde l’agent\ndans Files et Live",
+          "description": "Les agents externes travaillent dans un sandbox — parcours l’arbre du workspace, ouvre le fichier qu’ils viennent d’écrire, et suis le navigateur live pendant qu’ils cliquent dans le résultat."
         }
       ]
     },
@@ -893,20 +939,6 @@
         "runTone3": "running",
         "duration3": "0,8 s"
       },
-      "hero": {
-        "label": "Démo animée : un fil commencé avec l’agent Support est délégué à l’agent Docs, qui répond avec la checklist d’installation hors ligne et deux sources citées.",
-        "prompt": "Le pilote de Bâle veut notre checklist d’installation hors ligne avant vendredi — on envoie quoi ?",
-        "routedTitle": "Délégué à Agent Docs",
-        "routedDetail": "Transmis par l’agent Support — historique intact.",
-        "reply1": "Envoie le guide d’installation air-gapped, version 2.3 ou plus.",
-        "reply2": "Il couvre le registre de modèles hors ligne et l’activation de licence.",
-        "reply3": "Joins la fiche de dimensionnement matériel pour leur pilote à 40 utilisateurs,",
-        "reply4": "et signale que l’installation sans DNS demande l’image appliance.",
-        "citation1": "install-airgap.pdf",
-        "citation2": "Exigences du pilote",
-        "composerAgentRouted": "Agent Docs",
-        "composerModel": "Claude Opus"
-      },
       "connect": {
         "label": "Démo animée : la liste Agents de cette page — agent Support, agent Docs, agent Release, agent Recherche et agent Pilote, chacun avec son modèle.",
         "agent1": "Agent Support",
@@ -934,6 +966,24 @@
         "project4": "Train de release",
         "agents4": "3 agents",
         "members4": "7"
+      },
+      "sandbox": {
+        "label": "Démo animée : Hermes édite install_offline.py dans le volet Files, puis le navigateur Live montre la checklist d’install air-gap.",
+        "prompt": "Corrige le script d’install offline et montre-moi la checklist dans le navigateur live.",
+        "agent": "Hermes",
+        "model": "Claude Sonnet",
+        "reply": "Chemin du registry corrigé — Files a le diff ; Live est sur la checklist.",
+        "file1": "install_offline.py",
+        "file2": "registry.json",
+        "file3": "docs/checklist.md",
+        "file4": "Dockerfile",
+        "activeFile": "install_offline.py",
+        "code1": "def resolve_registry(path):",
+        "code2": "    root = Path(path).expanduser()",
+        "code3": "    if not root.exists():",
+        "code4": "        raise SystemExit(\"missing registry\")",
+        "browserUrl": "http://127.0.0.1:8787/checklist",
+        "browserTitle": "Checklist d’install air-gap"
       }
     }
   },
@@ -1115,8 +1165,8 @@
     }
   },
   "platformChat": {
-    "eyebrow": "Chat",
-    "title": "Qu’est-ce que Chat dans Tale ?",
+    "eyebrow": "Chats",
+    "title": "Chats dans Tale",
     "description": "Chat est le point d’entrée quotidien : choisis un agent (ou aucun), tape, et une réponse arrive en streaming avec citations, appels d’outils et comparaisons Arena optionnelles — la surface dans laquelle chaque autre module plateforme alimente.",
     "capabilities": {
       "heading": "Que comprend Chat ?",
@@ -1483,7 +1533,7 @@
           "id": "agents",
           "eyebrow": "Agents",
           "title": "Chaque agent,\nun seul roster",
-          "description": "Claude Code, Codex, Cursor, Gemini — accrochés à côté des agents produit pour router le travail vers l’outil que ton équipe utilise déjà."
+          "description": "Claude Code, Codex, Hermes, OpenClaw — accrochés à côté des agents produit pour router le travail vers l’outil que ton équipe utilise déjà."
         },
         {
           "id": "knowledge",
@@ -1534,7 +1584,7 @@
         },
         {
           "q": "Par où commencer ?",
-          "a": "Ouvre Chat pour une réponse fondée, ou Agents pour accrocher Claude Code, Codex, Cursor et Gemini sous un seul orchestrateur."
+          "a": "Ouvre Chat pour une réponse fondée, ou Agents pour accrocher Claude Code, Codex, Hermes et OpenClaw sous un seul orchestrateur."
         }
       ]
     },
@@ -1939,24 +1989,6 @@
         "agents4": "1 agent",
         "members4": "6"
       },
-      "automation": {
-        "label": "Démo animée : une tâche du tableau assignée à un agent traverse la boucle task-ops et se termine par une demande de revue.",
-        "trigger": "Tâche assignée à l’agent",
-        "llm": "Rédiger le guide de migration",
-        "condition": "Checklist validée ?",
-        "branchYes": "Oui",
-        "action": "Demander une revue",
-        "actionAlt": "Escalader au responsable",
-        "run1": "#214",
-        "runTone1": "done",
-        "duration1": "48s",
-        "run2": "#215",
-        "runTone2": "pending",
-        "duration2": "—",
-        "run3": "#216",
-        "runTone3": "running",
-        "duration3": "12s"
-      },
       "hero": {
         "label": "Démo animée : un chat de projet reprend la refonte du site avec les instructions et fichiers du projet en contexte ; l’agent répond avec des citations.",
         "prompt": "Que reste-t-il avant la mise en ligne de la refonte ?",
@@ -1990,6 +2022,24 @@
         "audit2": "Page tarifs publiée",
         "audit3": "Tâche #212 fermée sur le tableau",
         "budgetValue": "CHF 120 / 400"
+      },
+      "tasks": {
+        "label": "Démo animée : le board Website relaunch — Relaunch Agent travaille WEB-12 (guide de migration) dans In progress pendant que WEB-11 attend dans In review.",
+        "id1": "WEB-14",
+        "title1": "Finir la carte de redirections /docs",
+        "assignee1": "Non assigné",
+        "id2": "WEB-15",
+        "title2": "Réécrire le hero de la page pricing",
+        "assignee2": "Mira",
+        "id3": "WEB-12",
+        "title3": "Rédiger le guide de migration du relaunch",
+        "assignee3": "Relaunch Agent",
+        "id4": "WEB-11",
+        "title4": "Valider la checklist staging",
+        "assignee4": "Relaunch Agent",
+        "id5": "WEB-9",
+        "title5": "Publier le set de tokens de marque",
+        "assignee5": "Design Agent"
       }
     }
   },

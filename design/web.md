@@ -96,11 +96,13 @@ and follow one contract:
   (Agents / Knowledge / Automations / Projects / Settings) use `AdaptiveHeaderTitle` (page title
   only). Pass `title` for list pages. Reference captures in
   `services/docs/public/images/platform/`. The frame is a labelled `role="img"` window (localized
-  one-sentence `aria-label`, everything inside `aria-hidden`) with a **fixed aspect ratio**
+  one-sentence `aria-label`; decorative DOM under `aria-hidden` + `inert`; `data-nosnippet` so
+  crawlers don't lift demo copy into snippets) with a **fixed aspect ratio**
   (CLS 0). Elevation uses `shadow-demo` / `shadow-demo-hero`. Demos sit on `DemoStage`
   (atmospheric wash — never a photo). Demo _content_ must match product idioms (chat bubbles,
   RoutingStepRow, SourceCards, composer toolbar, Agents/Documents tables, workflow-step cards,
-  Executions table, in-chat approval cards) — not fictional hub diagrams. Give mobile a taller
+  Executions table, in-chat approval cards, project task boards, sandbox Files /
+  Live panes) — not fictional hub diagrams. Give mobile a taller
   ratio than desktop; size wells against **German**.
 - **Text primitives, not the markdown engine.** `demo-typing-text` / `demo-stream-text` reuse the
   globals.css `.stream-reveal`/`.animate-cursor-blink` primitives. Never pull `IncrementalMarkdown`

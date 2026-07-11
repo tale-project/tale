@@ -39,6 +39,7 @@ export function ConnectAgents({
   const inView = useInView(ref, { once: true, margin: '-15%' });
   const beat = useDemoTimeline({ beats: BEATS, start: inView });
   const reduceMotion = useReducedMotion();
+  const ready = beat >= BEAT.done;
 
   return (
     <div ref={ref}>
@@ -87,12 +88,12 @@ export function ConnectAgents({
                       <span
                         className={cn(
                           'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
-                          beat >= BEAT.done
+                          ready
                             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                             : 'bg-surface-site-inset text-fg-muted',
                         )}
                       >
-                        {beat >= BEAT.done ? (
+                        {ready ? (
                           <span className="size-1.5 rounded-full bg-emerald-500" />
                         ) : null}
                         {t('demos.connect.statusReady')}

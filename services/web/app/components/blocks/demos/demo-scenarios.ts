@@ -222,3 +222,90 @@ export function useProjectsScenario(
     })),
   };
 }
+
+/**
+ * Fixed board layout (4 lanes × fixed card slots) — mirrors
+ * `BOARD_TASK_STATUSES` lanes Todo → Done from
+ * `services/platform/app/features/tasks/lib/display.ts` (backlog/cancelled
+ * omitted so the marketing frame stays dense).
+ */
+export interface TaskBoardCard {
+  id: string;
+  title: string;
+  assignee: string;
+}
+
+export interface TaskBoardScenario {
+  label: string;
+  /** Cards in To do (2), In progress (1), In review (1), Done (1). */
+  todo: readonly [TaskBoardCard, TaskBoardCard];
+  inProgress: TaskBoardCard;
+  inReview: TaskBoardCard;
+  done: TaskBoardCard;
+}
+
+export function useTaskBoardScenario(
+  ns: Namespace = 'home',
+  prefix = 'demos.tasks',
+): TaskBoardScenario {
+  const { t } = useT(ns);
+  const card = (n: number): TaskBoardCard => ({
+    id: t(`${prefix}.id${n}`),
+    title: t(`${prefix}.title${n}`),
+    assignee: t(`${prefix}.assignee${n}`),
+  });
+  return {
+    label: t(`${prefix}.label`),
+    todo: [card(1), card(2)],
+    inProgress: card(3),
+    inReview: card(4),
+    done: card(5),
+  };
+}
+
+/**
+ * Sandbox chat + Files / Live side pane — vocabulary from
+ * `workspace-files-pane.tsx` and `live-browser-pane.tsx` (no platform imports).
+ */
+export interface SandboxScenario {
+  label: string;
+  prompt: string;
+  agent: string;
+  model: string;
+  reply: string;
+  /** File-tree entries under the workspace root (fixed count). */
+  files: readonly [string, string, string, string];
+  activeFile: string;
+  codeLines: readonly [string, string, string, string];
+  browserUrl: string;
+  browserTitle: string;
+}
+
+export function useSandboxScenario(
+  ns: Namespace = 'home',
+  prefix = 'demos.sandbox',
+): SandboxScenario {
+  const { t } = useT(ns);
+  return {
+    label: t(`${prefix}.label`),
+    prompt: t(`${prefix}.prompt`),
+    agent: t(`${prefix}.agent`),
+    model: t(`${prefix}.model`),
+    reply: t(`${prefix}.reply`),
+    files: [
+      t(`${prefix}.file1`),
+      t(`${prefix}.file2`),
+      t(`${prefix}.file3`),
+      t(`${prefix}.file4`),
+    ],
+    activeFile: t(`${prefix}.activeFile`),
+    codeLines: [
+      t(`${prefix}.code1`),
+      t(`${prefix}.code2`),
+      t(`${prefix}.code3`),
+      t(`${prefix}.code4`),
+    ],
+    browserUrl: t(`${prefix}.browserUrl`),
+    browserTitle: t(`${prefix}.browserTitle`),
+  };
+}
