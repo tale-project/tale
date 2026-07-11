@@ -40,8 +40,11 @@ Identity is **derived from the folder path** (`id`, `semver`, `numericId`, `slug
 Rules the factories and `migrations:check` enforce (so you don't have to remember them):
 unique ids/orderKeys, contiguous `NN`, `'use node'` ⟺ node kind, destructive ⇒ snapshot,
 `table-rows` never on a `v.id()`-referenced table, a sibling `migration.test.ts` that uses
-`defineMigrationTest` for db/node kinds, and a version checkpoint fixture for every version
-folder (see "Version truth" below).
+`defineMigrationTest` for db/node kinds, a version checkpoint fixture for every version
+folder (see "Version truth" below), and index truth — every `withIndex` in a runnable
+migration must name an index the CURRENT schema defines (the live backend serves no
+custom indexes on a table that left the schema; read legacy tables with a filtered scan —
+the world schema keeps era indexes for shape validation, so vitest alone won't catch it).
 
 ### Re-homing a migration — `formerIds`
 
