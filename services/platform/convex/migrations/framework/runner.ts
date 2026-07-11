@@ -58,8 +58,12 @@ interface SnapshotPage {
  * One page of a migration's snapshot rows. A re-homed migration's snapshots
  * may sit under one of its FORMER ids (captured before the rename); when the
  * current id has none, the first former id with rows is drained instead.
+ *
+ * Exported for the paginate-count contract test only (runner.test.ts): the
+ * whole lookup must issue AT MOST ONE `.paginate()` — the real backend
+ * rejects a second one per mutation and convex-test cannot prove that.
  */
-async function snapshotPageFor(
+export async function snapshotPageFor(
   ctx: MutationCtx,
   migrationId: string,
   cursor: string | null,
@@ -73,12 +77,22 @@ async function snapshotPageFor(
     return { ...page, fromFormerId: false };
   }
   for (const formerId of requireMeta(migrationId).formerIds ?? []) {
+    // take(), never a second paginate: the real backend allows ONE paginated
+    // query per mutation (convex-test does not enforce this, so only the
+    // container e2e sees the violation). No cursor is lost — fallback rows
+    // are consumed by the restore, so each batch reads the head of what
+    // remains anyway.
     const fallback = await ctx.db
       .query('migrationSnapshots')
       .withIndex('by_migration', (q) => q.eq('migrationId', formerId))
-      .paginate({ cursor: null, numItems });
-    if (fallback.page.length > 0) {
-      return { ...fallback, fromFormerId: true };
+      .take(numItems);
+    if (fallback.length > 0) {
+      return {
+        page: fallback,
+        isDone: fallback.length < numItems,
+        continueCursor: '',
+        fromFormerId: true,
+      };
     }
   }
   return { ...page, fromFormerId: false };

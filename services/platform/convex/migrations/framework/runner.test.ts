@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { components, internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import betterAuthSchema from '../../betterAuth/schema';
+import { snapshotPageFor } from './runner';
 import { migrationLedgerTable, migrationSnapshotsTable } from './schema';
 import { buildOrderKey } from './semver';
 import { buildModules } from './test_helpers';
@@ -68,11 +69,25 @@ const h = vi.hoisted(() => {
     },
   };
 
-  const allMeta: readonly MigrationMeta[] = Object.values(dbMigrations).map(
-    (m) => m.meta,
-  );
+  // Registry-only fixture (no runnable module): a re-homed migration for the
+  // snapshotPageFor former-id fallback contract.
+  const REHOMED_ID = '9.9.9/04_rehomed';
+  const REHOMED_FORMER_ID = '9.9.8/01_rehomed_old';
 
-  return { MARK_ID, BOOM_ID, RESTORE_ID, dbMigrations, allMeta };
+  const allMeta: readonly MigrationMeta[] = [
+    ...Object.values(dbMigrations).map((m) => m.meta),
+    { ...mkMeta(REHOMED_ID), formerIds: [REHOMED_FORMER_ID] },
+  ];
+
+  return {
+    MARK_ID,
+    BOOM_ID,
+    RESTORE_ID,
+    REHOMED_ID,
+    REHOMED_FORMER_ID,
+    dbMigrations,
+    allMeta,
+  };
 });
 
 vi.mock('./registry.gen', () => ({
@@ -288,6 +303,75 @@ describe('runner.restoreSnapshotBatch', () => {
         migrationId: h.RESTORE_ID,
       }),
     ).rejects.toThrow(/No ledger row for running migration/);
+  });
+});
+
+describe('snapshotPageFor — one paginate per mutation (backend contract)', () => {
+  // The real backend rejects a second `.paginate()` inside one mutation
+  // ("ran multiple paginated queries") and convex-test does NOT enforce the
+  // limit — a violation only surfaces in the container e2e. Count the calls
+  // through a mock ctx: the former-id fallback must read with take().
+  const CURRENT = h.REHOMED_ID;
+  const FORMER = h.REHOMED_FORMER_ID;
+
+  function countingCtx(rowsById: Record<string, unknown[]>) {
+    const counts = { paginate: 0, take: 0 };
+    const db = {
+      query: () => ({
+        withIndex: (_name: string, keyFn: (q: unknown) => void) => {
+          let migrationId = '';
+          const q = {
+            eq: (_field: string, value: string) => {
+              migrationId = value;
+              return q;
+            },
+          };
+          keyFn(q);
+          const rows = () => rowsById[migrationId] ?? [];
+          return {
+            paginate: async ({ numItems }: { numItems: number }) => {
+              counts.paginate += 1;
+              return {
+                page: rows().slice(0, numItems),
+                isDone: true,
+                continueCursor: '',
+              };
+            },
+            take: async (n: number) => {
+              counts.take += 1;
+              return rows().slice(0, n);
+            },
+          };
+        },
+      }),
+    };
+    return { ctx: { db } as unknown as MutationCtx, counts };
+  }
+
+  it('serves current-id rows with a single paginate', async () => {
+    const { ctx, counts } = countingCtx({ [CURRENT]: [{ n: 1 }] });
+    const page = await snapshotPageFor(ctx, CURRENT, null, 10);
+    expect(page.page).toEqual([{ n: 1 }]);
+    expect(page.fromFormerId).toBe(false);
+    expect(counts.paginate).toBe(1);
+  });
+
+  it('falls back to former-id rows without a second paginate', async () => {
+    const { ctx, counts } = countingCtx({ [FORMER]: [{ n: 2 }, { n: 3 }] });
+    const page = await snapshotPageFor(ctx, CURRENT, null, 10);
+    expect(page.page).toEqual([{ n: 2 }, { n: 3 }]);
+    expect(page.fromFormerId).toBe(true);
+    expect(page.isDone).toBe(true);
+    expect(counts.paginate).toBe(1);
+    expect(counts.take).toBe(1);
+  });
+
+  it('stays at one paginate when no id has rows', async () => {
+    const { ctx, counts } = countingCtx({});
+    const page = await snapshotPageFor(ctx, CURRENT, null, 10);
+    expect(page.page).toEqual([]);
+    expect(page.fromFormerId).toBe(false);
+    expect(counts.paginate).toBe(1);
   });
 });
 
