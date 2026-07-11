@@ -64,6 +64,17 @@ vi.mock('@/app/features/documents/hooks/mutations', () => ({
   useCreateFolder: () => ({ mutateAsync: createFolderMutateAsync }),
 }));
 
+vi.mock('@/app/features/documents/hooks/queries', () => ({
+  useDocumentByExternalItemId: () => ({
+    data: undefined,
+    isLoading: false,
+  }),
+  useDocumentVersions: () => ({
+    data: undefined,
+    isLoading: false,
+  }),
+}));
+
 // FormDialog (inside ProjectCreateFolderDialog) reads the org id off the
 // router params; the component tree here renders without a router.
 vi.mock('@/app/hooks/use-organization-id', () => ({

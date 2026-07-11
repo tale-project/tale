@@ -644,7 +644,13 @@ describe('DataTable row expansion panel', () => {
     expect(screen.queryByTestId('run-panel')).not.toBeInTheDocument();
 
     onRowClick.mockClear();
-    await user.click(screen.getAllByRole('button', { name: 'Expand row' })[0]!);
+    const expandButton = screen.getAllByRole('button', {
+      name: 'Expand row',
+    })[0];
+    if (expandButton === undefined) {
+      throw new Error('expected Expand row button');
+    }
+    await user.click(expandButton);
     expect(onRowClick).not.toHaveBeenCalled();
     expect(screen.getByTestId('run-panel')).toBeInTheDocument();
     expect(

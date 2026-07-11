@@ -754,7 +754,6 @@
       "input": "Input",
       "more": "Details",
       "comments": "Comments",
-      "run": "Workflow run",
       "discuss": "Discussion",
       "externalRef": "External reference",
       "subjectFolder": "Folder",
@@ -2607,7 +2606,6 @@
       "compareFailed": "Couldn't compare versions",
       "backToList": "Back to versions",
       "versionLabel": "Version from {date}",
-      "selectAsBase": "Select as base",
       "selectAsCompare": "Select to compare",
       "baseSelected": "Base",
       "compareSelectedBadge": "Compare",
@@ -7416,7 +7414,6 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Unassigned",
-      "id": "ID",
       "author": "Author",
       "created": "Created"
     },

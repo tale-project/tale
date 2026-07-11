@@ -95,7 +95,7 @@ describe('OperatorView layout', () => {
               stepSlug: 'gate',
               name: 'Approve',
               stepType: 'human',
-              render: 'gate',
+              render: 'review',
               partState: 'waiting_human',
             },
             {

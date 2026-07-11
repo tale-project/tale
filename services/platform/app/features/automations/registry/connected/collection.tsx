@@ -238,10 +238,14 @@ function useBoundAddAction(
   const { dispatch, isPending } = useBoundAction(boundPath, boundMode);
   const applyEffect = useActionEffect();
   if (!spec) return undefined;
-  const i18n =
-    'i18n' in spec
-      ? (spec.i18n as Record<string, Record<string, string>> | undefined)
-      : undefined;
+  let i18n: Record<string, Record<string, unknown>> | undefined;
+  if ('i18n' in spec && isRecord(spec.i18n)) {
+    const map: Record<string, Record<string, unknown>> = {};
+    for (const [localeKey, props] of Object.entries(spec.i18n)) {
+      if (isRecord(props)) map[localeKey] = props;
+    }
+    i18n = map;
+  }
   const fallbackLabel = isEffectAction(spec)
     ? (spec.label ?? spec.labelKey ?? 'Add')
     : (spec.label ?? spec.path);
@@ -261,7 +265,7 @@ function useBoundAddAction(
       label,
       variant,
       onClick: () => {
-        applyEffect(spec.effect);
+        applyEffect(spec.effect, undefined);
       },
     };
   }
@@ -389,6 +393,7 @@ function CollectionBody({
       }),
     // When columns are declared, row data churn must not rebuild column defs —
     // that remounts BoundButton cells and drops in-flight latch state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `rows` when columns declared so BoundButton latch survives query refresh
     hasDeclaredColumns
       ? [columns, actions, subjectType, subjectIdField]
       : [columns, actions, subjectType, subjectIdField, rows],

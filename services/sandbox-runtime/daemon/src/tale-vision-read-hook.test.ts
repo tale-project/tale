@@ -54,7 +54,12 @@ const writeFake = (name: string, body: string) => {
 const denyReason = (stdout: string): string => {
   const out = JSON.parse(stdout);
   expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
-  return out.hookSpecificOutput.permissionDecisionReason as string;
+  const reason: unknown = out.hookSpecificOutput.permissionDecisionReason;
+  expect(typeof reason).toBe('string');
+  if (typeof reason !== 'string') {
+    throw new Error('expected permissionDecisionReason string');
+  }
+  return reason;
 };
 
 describe('tale-vision-read-hook', () => {

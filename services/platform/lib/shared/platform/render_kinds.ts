@@ -60,7 +60,7 @@ export const REVIEW_CARDINALITIES = ['one', 'many'] as const;
  * Unknown values degrade to `process` at the renderer — never throw.
  */
 export const SURFACES = ['outcome', 'process'] as const;
-export type Surface = (typeof SURFACES)[number];
+type Surface = (typeof SURFACES)[number];
 
 const SURFACE_SET = new Set<string>(SURFACES);
 

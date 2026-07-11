@@ -754,7 +754,6 @@
       "input": "Eingabe",
       "more": "Details",
       "comments": "Kommentare",
-      "run": "Workflow-Lauf",
       "discuss": "Diskussion",
       "externalRef": "Externe Referenz",
       "subjectFolder": "Ordner",
@@ -2607,7 +2606,6 @@
       "compareFailed": "Versionen konnten nicht verglichen werden",
       "backToList": "Zurück zu den Versionen",
       "versionLabel": "Version vom {date}",
-      "selectAsBase": "Als Basis wählen",
       "selectAsCompare": "Zum Vergleich wählen",
       "baseSelected": "Basis",
       "compareSelectedBadge": "Vergleich",
@@ -7124,7 +7122,6 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Nicht zugewiesen",
-      "id": "ID",
       "author": "Autor",
       "created": "Erstellt"
     },

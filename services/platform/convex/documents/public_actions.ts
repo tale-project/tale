@@ -53,11 +53,17 @@ function resolveBody(args: {
       message: 'Provide exactly one of content or yaml',
     });
   }
-  if (hasContent) {
-    return args.content as string;
+  if (args.content !== undefined) {
+    return args.content;
+  }
+  if (args.yaml === undefined) {
+    throw new ConvexError({
+      code: 'INVALID_ARGUMENT',
+      message: 'Provide exactly one of content or yaml',
+    });
   }
   try {
-    return serializeYamlMap(args.yaml as Record<string, string>);
+    return serializeYamlMap(args.yaml);
   } catch (err) {
     if (err instanceof YamlMapError) {
       throw new ConvexError({
@@ -95,7 +101,15 @@ export const ensureProjectTextDocument = action({
       v.literal('skipped'),
     ),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    folderId: Id<'folders'>;
+    documentId: Id<'documents'>;
+    createdFolder: boolean;
+    action: 'created' | 'updated' | 'skipped';
+  }> => {
     const { userId } = await requireOrgMembershipById(ctx, args.organizationId);
 
     const fileName = validateFileName(args.fileName);
@@ -143,7 +157,7 @@ export const ensureProjectTextDocument = action({
         organizationId: args.organizationId,
         externalItemId,
         title: fileName,
-        fileId: stored.fileStorageId as Id<'_storage'>,
+        fileId: stored.fileStorageId,
         mimeType: contentType,
         extension,
         folderId: folder.folderId,

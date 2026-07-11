@@ -435,10 +435,8 @@ function InstalledAutomationBody({
   const { locale } = useLocale();
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- route project id
-  const { project } = useProject(
-    projectId !== undefined ? (projectId as Id<'projects'>) : undefined,
-  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- route param is the bound project's Convex id
+  const { project } = useProject(projectId as Id<'projects'> | undefined);
   useOpenTimeIntegrityCheck(organizationId, automationSlug);
   // Invalid-view repair reinstalls through the shared preflight flow.
   const {

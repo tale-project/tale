@@ -204,7 +204,7 @@ describe('listProjectRootFolders', () => {
     expect(roots.map((f) => f.name).sort()).toEqual(['2026-Q1', '2026-Q2']);
     expect(roots.every((f) => f.name !== SETUP_FOLDER)).toBe(true);
     expect(roots.every((f) => f.setupFolderId === setupId)).toBe(true);
-    expect(roots.every((f) => f.hasTask === false)).toBe(true);
+    expect(roots.every((f) => !f.hasTask)).toBe(true);
   });
 
   it('marks hasTask when a project task exists for the folder under externalSystem', async () => {

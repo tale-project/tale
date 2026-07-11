@@ -755,7 +755,6 @@
       "input": "Entrée",
       "more": "Détails",
       "comments": "Commentaires",
-      "run": "Exécution du workflow",
       "discuss": "Discussion",
       "externalRef": "Référence externe",
       "subjectFolder": "Dossier",
@@ -2608,7 +2607,6 @@
       "compareFailed": "Impossible de comparer les versions",
       "backToList": "Retour aux versions",
       "versionLabel": "Version du {date}",
-      "selectAsBase": "Sélectionner comme base",
       "selectAsCompare": "Sélectionner pour comparer",
       "baseSelected": "Base",
       "compareSelectedBadge": "Comparer",
@@ -7125,7 +7123,6 @@
       "labels": "Étiquettes",
       "status": "Statut",
       "unassigned": "Non assigné",
-      "id": "ID",
       "author": "Auteur",
       "created": "Créé le"
     },

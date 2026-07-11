@@ -10,7 +10,8 @@ export interface DocumentArtifactResult {
   title: string;
   action: DocumentArtifactAction;
   fileId?: string;
-  documentId?: string;
+  /** Always present when parseDocumentArtifact returns a result. */
+  documentId: string;
   success?: boolean;
   contentChanged?: boolean;
 }
