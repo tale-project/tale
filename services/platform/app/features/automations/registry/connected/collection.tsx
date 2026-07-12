@@ -63,6 +63,7 @@ import {
   type BoundColumn,
   type BoundRow,
 } from './bound-columns';
+import { SubjectAwaitingInputActions } from './subject-awaiting-input-actions';
 import { SubjectRerunAction } from './subject-rerun-action';
 import { SubjectRun } from './subject-run';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
@@ -386,6 +387,18 @@ function CollectionBody({
                   subjectType={subjectType}
                   subjectId={subjectId}
                   fallback={statusBadge}
+                />
+              ),
+            }
+          : undefined,
+        actionsGate: subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId, cluster) => (
+                <SubjectAwaitingInputActions
+                  subjectType={subjectType}
+                  subjectId={subjectId}
+                  cluster={cluster}
                 />
               ),
             }

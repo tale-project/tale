@@ -50,6 +50,8 @@ function TaskExpandComments({ taskId }: { taskId: string }) {
       }
     >
       <div className="mt-3">
+        {/* Newest-first: this thread is a run log — the latest automated
+            comment (figures, question, ⚠️) is what the operator opens it for. */}
         <TaskComments
           taskId={task._id}
           organizationId={task.organizationId}
@@ -58,6 +60,7 @@ function TaskExpandComments({ taskId }: { taskId: string }) {
           currentUserId={me?.userId}
           isAdmin={me?.isAdmin}
           showHeading={false}
+          order="desc"
         />
       </div>
     </CollapsibleDetails>
@@ -78,6 +81,12 @@ export function SubjectRun({
     { organizationId, subjectType, subjectId },
   );
 
+  const isTask = subjectType === 'task';
+  // The comment thread outranks the process machinery for an operator, so it
+  // slots in ABOVE the collapsed "Run details" (below the Outcome). Without a
+  // run to embed, it simply follows the placeholder.
+  const comments = isTask ? <TaskExpandComments taskId={subjectId} /> : null;
+
   const runBody = (() => {
     if (isLoading && data === undefined) return <SkeletonText lines={4} />;
     if (!data) return <Text variant="muted">{t('runs.none')}</Text>;
@@ -86,17 +95,18 @@ export function SubjectRun({
         organizationId={organizationId}
         executionId={data.executionId}
         showRerun={false}
+        beforeDetails={comments}
       />
     );
   })();
 
-  if (subjectType !== 'task') return runBody;
+  if (!isTask) return runBody;
 
   return (
     <Stack gap={3}>
       <SubjectInputPanel subjectType={subjectType} subjectId={subjectId} />
       {runBody}
-      <TaskExpandComments taskId={subjectId} />
+      {!data && comments}
     </Stack>
   );
 }

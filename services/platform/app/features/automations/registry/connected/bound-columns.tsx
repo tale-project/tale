@@ -100,6 +100,13 @@ export interface BoundColumnsContext {
     idField: string;
     render: (subjectId: string, statusBadge: ReactNode) => ReactNode;
   };
+  /** Gates the whole actions cluster per subject row — lets the connected
+   *  layer suppress it while the row's run awaits operator input (a config
+   *  "Start" there would re-run without the answer). */
+  actionsGate?: {
+    idField: string;
+    render: (subjectId: string, cluster: ReactNode) => ReactNode;
+  };
 }
 
 /** Infer columns from the first row when undeclared. */
@@ -225,14 +232,8 @@ export function buildBoundColumns(
           : undefined;
         const rowActionId =
           typeof rawRowActionId === 'string' ? rawRowActionId : undefined;
-        return (
-          // Stop row-click expansion / onRowClick when interacting with actions.
-          <Row
-            gap={2}
-            align="center"
-            justify="end"
-            onClick={(e) => e.stopPropagation()}
-          >
+        const cluster = (
+          <>
             {actions.map((a, ai) =>
               isEffectAction(a) ? (
                 <EffectButton key={ai} action={a} item={item} />
@@ -243,6 +244,22 @@ export function buildBoundColumns(
             {ctx.rowActions &&
               rowActionId !== undefined &&
               ctx.rowActions.render(rowActionId)}
+          </>
+        );
+        const rawGateId = ctx.actionsGate
+          ? item[ctx.actionsGate.idField]
+          : undefined;
+        return (
+          // Stop row-click expansion / onRowClick when interacting with actions.
+          <Row
+            gap={2}
+            align="center"
+            justify="end"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {ctx.actionsGate && typeof rawGateId === 'string'
+              ? ctx.actionsGate.render(rawGateId, cluster)
+              : cluster}
           </Row>
         );
       },

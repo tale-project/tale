@@ -117,3 +117,45 @@ describe('TaskComments bodyByLocale', () => {
     expect(screen.queryByText('[automated] Return prepared')).toBeNull();
   });
 });
+
+describe('TaskComments order', () => {
+  // The fixture timeline is ascending: msg_1 (automated) then msg_2 (user).
+  const listedBodies = () =>
+    screen
+      .getAllByRole('listitem')
+      .map((li) => li.textContent ?? '')
+      .filter(
+        (text) => text.includes('[automated]') || text.includes('Thanks.'),
+      );
+
+  it('reads as a conversation (oldest first) by default', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+    const bodies = listedBodies();
+    expect(bodies[0]).toContain('[automated] Return prepared');
+    expect(bodies[1]).toContain('Thanks.');
+  });
+
+  it('puts the newest comment first with order="desc" (log surfaces)', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+        order="desc"
+      />,
+    );
+    const bodies = listedBodies();
+    expect(bodies[0]).toContain('Thanks.');
+    expect(bodies[1]).toContain('[automated] Return prepared');
+  });
+});

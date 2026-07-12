@@ -850,7 +850,7 @@
       "failed": "Échec",
       "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la.",
       "awaitingInput": "Réponse requise",
-      "awaitingInputHint": "En attente — le desk t’a posé une question. Ouvre la ligne, réponds, puis Start.",
+      "awaitingInputHint": "En attente — le desk t’a posé une question. Déplie la ligne, réponds, puis « Envoyer et continuer ».",
       "input": {
         "heading": "Nous avons besoin de ta réponse pour continuer",
         "placeholder": "Saisis ta réponse…",

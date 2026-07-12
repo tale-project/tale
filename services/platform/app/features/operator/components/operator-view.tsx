@@ -17,8 +17,13 @@ import { StageTimeline } from './stage-timeline';
 
 export function OperatorView({
   projection,
+  beforeDetails,
 }: {
   projection: OperatorProjection;
+  /** Optional domain content rendered between the outcome (+ waiting steps)
+   *  and the collapsed "Run details" — e.g. the task comment thread on desk
+   *  rows, which outranks the process machinery for an operator. */
+  beforeDetails?: React.ReactNode;
 }) {
   const { t } = useT('operator');
   const waitingHuman = projection.steps.filter(
@@ -51,6 +56,7 @@ export function OperatorView({
       {/* Always expanded when present — peer of Input in the detail overlay. */}
       <OutcomeStrip projection={projection} />
       {waitingHuman.map((step) => renderStep(step, true))}
+      {beforeDetails}
       {hasProcess ? (
         <CollapsibleDetails
           summary={

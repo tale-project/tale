@@ -14,6 +14,7 @@
  * query), so it only appears on rows that actually need an answer. Platform code
  * over org-RLS-gated execution data, like `SubjectRun` and the status chip.
  */
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -85,38 +86,32 @@ export function SubjectInputPanel({
   };
 
   return (
-    <Stack
-      as="section"
-      gap={3}
-      className="border-primary/40 bg-primary/5 rounded-lg border p-4"
-      aria-label={t('runs.input.heading')}
+    // The house banner (same primitive as the desk's "Getting started" box),
+    // info-tinted to match the blue "Needs your input" chip. `live="off"`:
+    // it appears on a user-initiated expand, not as an announcement.
+    <Alert
+      variant="info"
+      icon={MessageCircleQuestion}
+      title={t('runs.input.heading')}
+      live="off"
+      description={data.questions.map((question) => (
+        <Text key={question} as="p" variant="muted" className="text-sm">
+          {question}
+        </Text>
+      ))}
     >
-      <Row gap={2} align="start">
-        <MessageCircleQuestion
-          className="text-primary mt-0.5 size-4 shrink-0"
-          aria-hidden
-        />
-        <div className="flex flex-col gap-1">
-          <Text as="h3" variant="label">
-            {t('runs.input.heading')}
-          </Text>
-          {data.questions.map((question) => (
-            <Text key={question} as="p" variant="muted" className="text-sm">
-              {question}
-            </Text>
-          ))}
-        </div>
-      </Row>
-      <Stack gap={2}>
+      <Stack gap={2} className="mt-3">
         <Textarea
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
           placeholder={t('runs.input.placeholder')}
-          rows={3}
+          rows={2}
           aria-label={t('runs.input.heading')}
+          className="bg-background"
         />
         <Row gap={2} justify="end">
           <Button
+            size="sm"
             onClick={() => void submit()}
             disabled={busy || answer.trim().length === 0}
           >
@@ -124,6 +119,6 @@ export function SubjectInputPanel({
           </Button>
         </Row>
       </Stack>
-    </Stack>
+    </Alert>
   );
 }

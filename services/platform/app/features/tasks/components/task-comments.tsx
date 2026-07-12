@@ -67,6 +67,7 @@ export function TaskComments({
   currentUserId,
   isAdmin,
   showHeading = true,
+  order = 'asc',
 }: {
   taskId: Id<'tasks'>;
   organizationId: string;
@@ -76,11 +77,16 @@ export function TaskComments({
   isAdmin?: boolean;
   /** When false, omit the "Comments (N)" title (e.g. parent disclosure owns it). */
   showHeading?: boolean;
+  /** `asc` (default) reads as a conversation; `desc` puts the newest comment
+   *  first — for log-like surfaces (a desk run's timeline) where the latest
+   *  automated comment carries the actionable state. */
+  order?: 'asc' | 'desc';
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
-  const { comments } = useTaskDiscussion(taskId);
+  const { comments: timeline } = useTaskDiscussion(taskId);
+  const comments = order === 'desc' ? timeline.toReversed() : timeline;
   const { resolveActor, resolveActorPreview } = useActorDirectory(
     organizationId,
     projectId,

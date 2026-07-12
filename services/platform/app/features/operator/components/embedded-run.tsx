@@ -95,6 +95,7 @@ export function EmbeddedRun({
   executionId,
   showStop = false,
   showRerun = true,
+  beforeDetails,
 }: {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
@@ -110,6 +111,9 @@ export function EmbeddedRun({
    * user-cancelled or failed run must not also offer a second anonymous retry.
    */
   showRerun?: boolean;
+  /** Passed through to `OperatorView`: domain content rendered between the
+   *  outcome and the collapsed "Run details". */
+  beforeDetails?: React.ReactNode;
 }) {
   const { projection, isLoading, error } = useExecutionProjection({
     organizationId,
@@ -134,7 +138,7 @@ export function EmbeddedRun({
           )}
         </Row>
       )}
-      <OperatorView projection={projection} />
+      <OperatorView projection={projection} beforeDetails={beforeDetails} />
     </Stack>
   );
 }
