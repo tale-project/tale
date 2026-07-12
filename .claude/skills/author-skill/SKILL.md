@@ -116,10 +116,11 @@ Decide who runs the skill, then pick its source of truth — three cases:
 - **Product-only skill** → `builtin-configs/skills/<name>/` (document skills like `pptx`, the
   org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/`write-integration`/
   `write-automation`, and the Bun-workspace `visual-aspect-analyzer` — all embedded in the CLI
-  binary and seeded per-org identically). Not projected into the guides. `visual-aspect-analyzer`
-  is additionally baked into the sandbox image
+  binary and seeded per-org identically). Not projected into the guides, except
+  `visual-aspect-analyzer`: it is in `WORKFLOW_SKILLS` so repo-dev agents get the visual gate, and
+  it is additionally baked into the sandbox image
   ([`services/sandbox-runtime/Dockerfile`](../../../services/sandbox-runtime/Dockerfile)) with its
-  deps installed, and that baked copy wins in sandbox sessions. (The product `write-skill` teaches
+  deps installed — that baked copy wins in sandbox sessions. (The product `write-skill` teaches
   ORG agents to author org skills; this repo-dev standard is `author-skill` — two different
   audiences, two skills.)
 

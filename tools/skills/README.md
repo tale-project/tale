@@ -13,8 +13,9 @@ Skills live in two independent source roots, by audience:
   allowlist in `src/sync.ts`) are generic senior-dev guides that ALSO serve repo-dev agents, so this
   tool projects each into `.agents/skills/<name>/` (and from there into the mirror). Every skill
   here is included the same way — `visual-aspect-analyzer`, a self-contained Bun workspace, is
-  additionally baked into the `services/sandbox-runtime` image with its deps installed, and that
-  baked copy wins in sandbox sessions.
+  projected too (repo-dev agents run it as the visual gate) and additionally baked into the
+  `services/sandbox-runtime` image with its deps installed; that baked copy wins in sandbox
+  sessions.
 
 ## What it does
 

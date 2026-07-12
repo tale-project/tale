@@ -9,6 +9,11 @@ export default {
     // own `workspaces` entry below and must stay in the dead-code sweep.
     'builtin-configs/**',
     '!builtin-configs/skills/visual-aspect-analyzer/**',
+    // Generated skill trees (`bun run skills:sync`): the .agents projection of
+    // visual-aspect-analyzer and the whole .claude mirror duplicate sources
+    // that are already swept at builtin-configs/skills/.
+    '.agents/skills/visual-aspect-analyzer/**',
+    '.claude/skills/**',
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
     // `builtin-configs/integrations` catalog (sucrase-transpiled runtime
     // connectors, never imported) — ignore like builtin-configs/.

@@ -13,6 +13,7 @@ export const SKIP_DIRS: ReadonlySet<string> = new Set([
   '.history',
   '_generated',
   'node_modules',
+  '.turbo',
 ]);
 
 /**
@@ -31,6 +32,9 @@ const SKIP_SUFFIXES: readonly string[] = [
   '.test.js',
   '.spec.ts',
   '.secrets.json',
+  // Local build artifact (a projected skill may be a Bun workspace whose
+  // typecheck drops this next to its sources) — volatile, never content.
+  '.tsbuildinfo',
 ];
 
 /** True if `filename` is source-only and must be excluded from a synced target. */
