@@ -14,6 +14,15 @@ describe('customBoundSlugs', () => {
     ).toEqual(['my-skill', 'pdf']);
   });
 
+  it('filters baked builtin names so a bound skill never clobbers the image-baked copy', () => {
+    // Mirrors planBoundOrgSkillPrune's baked guard: stage side and prune side
+    // must agree, or a bound 'visual-aspect-analyzer' would be staged over
+    // the symlinked image copy and then never pruned.
+    expect(customBoundSlugs(['visual-aspect-analyzer', 'pdf'])).toEqual([
+      'pdf',
+    ]);
+  });
+
   it('returns empty when bindings are absent or empty', () => {
     expect(customBoundSlugs(undefined)).toEqual([]);
     expect(customBoundSlugs([])).toEqual([]);
