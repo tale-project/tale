@@ -2,33 +2,55 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Field } from '@tale/ui/field';
 import { Row, Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
-import { useMemo, useEffect, useCallback, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Select } from '@/app/components/ui/forms/select';
 import { useForm } from '@/app/components/ui/forms/use-form';
+import {
+  ConfigFieldInput,
+  initFieldValues,
+} from '@/app/features/automations/components/config-field-inputs';
+import { useConfigFieldText } from '@/app/features/automations/hooks/use-automation-text';
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import type { AutomationConfigField } from '@/lib/shared/schemas/automation_views';
 
-import { useReadWorkflow } from '../../hooks/file-queries';
 import { buildInputTemplateFromSchema } from '../../utils/input-schema-template';
 import { useGenerateCron } from '../hooks/actions';
 import { useCreateSchedule, useUpdateSchedule } from '../hooks/slug-mutations';
+import { useWorkflowInputSchema } from '../hooks/use-workflow-input-schema';
 import { mapTriggerError } from '../lib/map-trigger-error';
+import {
+  assembleScheduleVariables,
+  buildScheduleConfigFields,
+  seedScheduleFieldValues,
+} from '../utils/schedule-config-fields';
+import { computeScheduleVariablesValidity } from '../utils/schedule-variables-validity';
+import {
+  browserTimezone,
+  listTimezoneOptions,
+} from '../utils/timezone-options';
 
 interface ScheduleData {
   _id: string;
   cronExpression: string;
   timezone: string;
+  /** The project this schedule is bound to (`wfSchedules.projectId`) — the
+   *  structured form's `projectId` field defaults to it (#2614). */
+  projectId?: string;
   variables?: Record<string, unknown> | null;
 }
 
@@ -76,22 +98,46 @@ export function ScheduleCreateDialog({
   const [generateError, setGenerateError] = useState('');
   const [isGeneratePopoverOpen, setIsGeneratePopoverOpen] = useState(false);
   const isEdit = !!schedule;
+  const baseId = useId();
 
   // Pull the workflow's start-node inputSchema so we can pre-fill the variables
   // editor with the expected shape — same pattern as the test panel.
-  const { data: workflowRead } = useReadWorkflow(organizationId, workflowSlug);
-  const inputTemplate = useMemo(() => {
-    if (!workflowRead?.ok) return '{}';
-    const startStep = workflowRead.config.steps?.find(
-      (s) => s.stepType === 'start',
-    );
-    const startConfig = startStep?.config as
-      | { inputSchema?: Parameters<typeof buildInputTemplateFromSchema>[0] }
-      | undefined;
-    return buildInputTemplateFromSchema(startConfig?.inputSchema);
-  }, [workflowRead]);
-
+  const inputSchema = useWorkflowInputSchema(organizationId, workflowSlug);
+  const inputTemplate = useMemo(
+    () => buildInputTemplateFromSchema(inputSchema),
+    [inputSchema],
+  );
   const hasInputSchema = inputTemplate !== '{}';
+
+  const { projects } = useProjects(organizationId);
+  const projectOptions = useMemo(
+    () => projects.map((p) => ({ value: p._id, label: p.name })),
+    [projects],
+  );
+
+  const text = useConfigFieldText();
+  const fields = useMemo(
+    () =>
+      buildScheduleConfigFields(inputSchema, projectOptions, {
+        projectLabel: t('triggers.schedules.form.projectLabel'),
+        projectPlaceholder: t('triggers.schedules.form.projectPlaceholder'),
+        repoLabel: t('triggers.schedules.form.repoLabel'),
+        repoPlaceholder: t('triggers.schedules.form.repoPlaceholder'),
+      }),
+    [inputSchema, projectOptions, t],
+  );
+  // A schema with an array/object property (other than the recognized
+  // owner/repo pair) can't render as plain controls — fall back to JSON only.
+  const canUseForm = fields !== null && fields.length > 0;
+  // `fields` itself is a fresh array every render whenever any of its own
+  // inputs (notably `projectOptions`, which is `[]` on every render while
+  // `useProjects` is still loading) is referentially unstable — depending on
+  // `fields` directly in the reset effect below would then re-fire, and
+  // re-seed `values`, on EVERY render, an infinite loop (`useProjects`'s
+  // `data ?? []` fallback has no stable identity of its own). The field KEYS
+  // are what actually matter for re-seeding (e.g. the schema finishing its
+  // own load) — collapse to that stable primitive for the dependency array.
+  const fieldsKey = fields ? fields.map((f) => f.key).join('|') : '';
 
   const initialVariablesJson = useMemo(() => {
     if (schedule?.variables && Object.keys(schedule.variables).length > 0) {
@@ -101,7 +147,14 @@ export function ScheduleCreateDialog({
   }, [schedule, inputTemplate]);
 
   const [variablesJson, setVariablesJson] = useState(initialVariablesJson);
-  const [variablesError, setVariablesError] = useState('');
+  const [mode, setMode] = useState<'form' | 'json'>(
+    canUseForm ? 'form' : 'json',
+  );
+  const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [timezone, setTimezone] = useState(
+    () => schedule?.timezone ?? browserTimezone(),
+  );
+  const timezoneOptions = useMemo(() => listTimezoneOptions(), []);
 
   const schema = useMemo(
     () =>
@@ -140,18 +193,97 @@ export function ScheduleCreateDialog({
   } = form;
 
   useEffect(() => {
-    if (open) {
-      reset({
-        cronExpression: schedule?.cronExpression ?? '',
-      });
-      setNaturalLanguage('');
-      setCronDescription('');
-      setGenerateError('');
-      setIsGeneratePopoverOpen(false);
-      setVariablesJson(initialVariablesJson);
-      setVariablesError('');
+    if (!open) return;
+    reset({ cronExpression: schedule?.cronExpression ?? '' });
+    setNaturalLanguage('');
+    setCronDescription('');
+    setGenerateError('');
+    setIsGeneratePopoverOpen(false);
+    setTimezone(schedule?.timezone ?? browserTimezone());
+    setVariablesJson(initialVariablesJson);
+    if (fields !== null && fields.length > 0) {
+      setValues(
+        initFieldValuesFor(fields, schedule?.variables, schedule?.projectId),
+      );
+      setMode('form');
+    } else {
+      setMode('json');
     }
-  }, [open, schedule, reset, initialVariablesJson]);
+    // `fieldsKey` (not `fields` itself) is the dependency — see the comment
+    // above `fieldsKey` — so this only re-seeds when the schema's field set
+    // actually gains/loses a key (e.g. the workflow read resolving after the
+    // dialog is already open), not on every unrelated re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fields` (read inside) is intentionally NOT a dep; `fieldsKey` is its stable proxy, see comment above its declaration
+  }, [open, schedule, reset, initialVariablesJson, fieldsKey]);
+
+  const { variables: assembledVariables, invalidFields: deriveInvalidFields } =
+    useMemo(
+      () =>
+        fields
+          ? assembleScheduleVariables(fields, values)
+          : { variables: {}, invalidFields: [] },
+      [fields, values],
+    );
+
+  const parsedJson = useMemo<Record<string, unknown> | null>(() => {
+    const trimmed = variablesJson.trim();
+    if (trimmed === '' || trimmed === '{}') return {};
+    try {
+      const parsed: unknown = JSON.parse(variablesJson);
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed)
+      ) {
+        return null;
+      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard above narrows to non-null, non-array object
+      return parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }, [variablesJson]);
+
+  const effectiveVariables =
+    mode === 'json' ? (parsedJson ?? {}) : assembledVariables;
+
+  const {
+    missingRequiredFields,
+    missingRequiredSet,
+    jsonIsValid,
+    variablesValid,
+  } = computeScheduleVariablesValidity({
+    hasInputSchema,
+    inputSchema,
+    mode,
+    parsedJson,
+    effectiveVariables,
+    deriveInvalidCount: deriveInvalidFields.length,
+  });
+
+  const jsonErrorMessage =
+    mode === 'json' && hasInputSchema
+      ? !jsonIsValid
+        ? t('triggers.schedules.form.variablesInvalid')
+        : missingRequiredFields.length > 0
+          ? t('triggers.schedules.form.validation.missingRequired', {
+              fields: missingRequiredFields.join(', '),
+            })
+          : undefined
+      : undefined;
+
+  const handleToggleMode = useCallback(() => {
+    if (mode === 'form') {
+      // Show exactly what would be saved.
+      setVariablesJson(JSON.stringify(assembledVariables, null, 2));
+      setMode('json');
+      return;
+    }
+    if (fields && parsedJson) {
+      setValues(initFieldValuesFor(fields, parsedJson, schedule?.projectId));
+    }
+    setMode('form');
+  }, [mode, assembledVariables, fields, parsedJson, schedule?.projectId]);
 
   const handleGenerate = useCallback(async () => {
     if (!naturalLanguage.trim() || isGenerating) return;
@@ -182,33 +314,17 @@ export function ScheduleCreateDialog({
   ]);
 
   const onSubmit = async (data: ScheduleFormData) => {
-    let parsedVariables: Record<string, unknown> | undefined;
-    if (variablesJson.trim() && variablesJson.trim() !== '{}') {
-      try {
-        const parsed: unknown = JSON.parse(variablesJson);
-        if (
-          parsed === null ||
-          typeof parsed !== 'object' ||
-          Array.isArray(parsed)
-        ) {
-          throw new Error('not an object');
-        }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard above narrows to non-null, non-array object
-        parsedVariables = parsed as Record<string, unknown>;
-      } catch {
-        setVariablesError(t('triggers.schedules.form.variablesInvalid'));
-        return;
-      }
-    }
-    setVariablesError('');
+    // Defense in depth — Save is already disabled while invalid.
+    if (!variablesValid) return;
+    const variablesToSave = hasInputSchema ? effectiveVariables : undefined;
 
     try {
       if (isEdit && schedule) {
         await updateSchedule({
           scheduleId: toId<'wfSchedules'>(schedule._id),
           cronExpression: data.cronExpression,
-          timezone: 'UTC',
-          variables: parsedVariables,
+          timezone,
+          variables: variablesToSave,
         });
         toast({
           title: t('triggers.schedules.toast.updated'),
@@ -219,8 +335,8 @@ export function ScheduleCreateDialog({
           organizationId,
           workflowSlug,
           cronExpression: data.cronExpression,
-          timezone: 'UTC',
-          variables: parsedVariables,
+          timezone,
+          variables: variablesToSave,
         });
         toast({
           title: t('triggers.schedules.toast.created'),
@@ -248,7 +364,7 @@ export function ScheduleCreateDialog({
       submitText={isEdit ? tCommon('actions.save') : tCommon('actions.create')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={isValid && variablesValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>
@@ -340,22 +456,108 @@ export function ScheduleCreateDialog({
           )}
         </FormSection>
 
+        <FormSection>
+          <Select
+            id="schedule-timezone"
+            label={t('triggers.schedules.form.timezoneLabel')}
+            options={timezoneOptions}
+            value={timezone}
+            onValueChange={setTimezone}
+          />
+        </FormSection>
+
         {hasInputSchema && (
           <FormSection>
-            <JsonInput
-              value={variablesJson}
-              onChange={(value) => {
-                setVariablesJson(value);
-                setVariablesError('');
-              }}
-              label={t('triggers.schedules.form.variablesLabel')}
-              description={t('triggers.schedules.form.variablesDescription')}
-              rows={6}
-              errorMessage={variablesError}
-            />
+            {canUseForm && (
+              <Row justify="end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleToggleMode}
+                >
+                  {mode === 'json'
+                    ? t('triggers.schedules.form.useFormToggle')
+                    : t('triggers.schedules.form.editAsJsonToggle')}
+                </Button>
+              </Row>
+            )}
+
+            {mode === 'form' && fields ? (
+              <Stack gap={3}>
+                <Text variant="label">
+                  {t('triggers.schedules.form.variablesLabel')}
+                </Text>
+                <Text variant="caption">
+                  {t('triggers.schedules.form.variablesDescription')}
+                </Text>
+                {fields.map((f) => {
+                  const fieldId = `${baseId}-${f.key}`;
+                  const derivedKeys = f.derive ? f.derive.into : [f.key];
+                  const isMissing = derivedKeys.some((k) =>
+                    missingRequiredSet.has(k),
+                  );
+                  const isInvalidDerive = deriveInvalidFields.includes(f.key);
+                  const label = text.label(f);
+                  const error = isInvalidDerive
+                    ? t('triggers.schedules.form.repoInvalid')
+                    : isMissing
+                      ? tCommon('validation.required', { field: label })
+                      : undefined;
+                  return (
+                    <Field
+                      key={f.key}
+                      label={label}
+                      htmlFor={fieldId}
+                      required={f.required}
+                      error={error}
+                      description={text.help(f)}
+                    >
+                      <ConfigFieldInput
+                        id={fieldId}
+                        field={f}
+                        value={values[f.key]}
+                        text={text}
+                        disabled={isSubmitting}
+                        onChange={(next) =>
+                          setValues((s) => ({ ...s, [f.key]: next }))
+                        }
+                      />
+                    </Field>
+                  );
+                })}
+              </Stack>
+            ) : (
+              <JsonInput
+                value={variablesJson}
+                onChange={setVariablesJson}
+                label={t('triggers.schedules.form.variablesLabel')}
+                description={t('triggers.schedules.form.variablesDescription')}
+                rows={6}
+                errorMessage={jsonErrorMessage}
+              />
+            )}
           </FormSection>
         )}
       </FormSection>
     </FormDialog>
+  );
+}
+
+/** `initFieldValues` (config-field-inputs.tsx) seeded via
+ *  `seedScheduleFieldValues` — factored so both the open-effect and the
+ *  form↔JSON toggle share the exact same seeding. */
+function initFieldValuesFor(
+  fields: AutomationConfigField[] | null,
+  variables: Record<string, unknown> | null | undefined,
+  boundProjectId: string | undefined,
+): Record<string, string | boolean> {
+  return initFieldValues(
+    fields ?? [],
+    seedScheduleFieldValues(
+      fields ?? [],
+      variables ?? undefined,
+      boundProjectId,
+    ),
   );
 }

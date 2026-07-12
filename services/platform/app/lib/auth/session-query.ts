@@ -1,3 +1,4 @@
+import { warmConvexToken } from '@/app/lib/auth/convex-token-cache';
 import { authClient } from '@/lib/auth-client';
 
 /**
@@ -33,17 +34,20 @@ export const sessionQueryOptions = {
 
 /**
  * Fire the session request as early as possible — at module load, before React
- * mounts `ConvexBetterAuthProvider`. The provider's `useSession()` (and the
- * Convex JWT fetch it gates on, which authenticates the websocket) can then
- * resolve against an already in-flight request instead of starting a fresh
- * serial HTTP hop only after mount. This trims the cold-load auth handshake
- * that blocks every authenticated query.
+ * mounts the auth provider (`ConvexProviderWithAuth` +
+ * `useAuthFromBetterAuth`). The hook's `useSession()` (and the Convex JWT
+ * fetch that authenticates the websocket) can then resolve against already
+ * in-flight requests instead of starting fresh serial HTTP hops only after
+ * mount. This trims the cold-load auth handshake that blocks every
+ * authenticated query.
  */
 export function warmSession(): void {
   if (typeof window === 'undefined') return;
   void authClient.getSession();
-  // Also prime the Convex JWT path at module load (warm connection + server
-  // mint + JWKS), so the auth provider's own token fetch — the second serial
-  // hop that gates the websocket authentication on cold load — resolves faster.
-  void authClient.convex?.token?.({ fetchOptions: { throw: false } });
+  // Also mint the Convex JWT at module load, in PARALLEL with the session
+  // fetch — the second serial hop that gates the websocket authentication on
+  // cold load. The result is persisted and kept in flight so the auth
+  // provider's first `fetchAccessToken` consumes it instead of starting a
+  // third HTTP hop (see convex-token-cache).
+  warmConvexToken();
 }

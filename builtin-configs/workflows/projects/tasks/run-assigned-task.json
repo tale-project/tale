@@ -39,24 +39,8 @@
         "description": "Assignment events on closed/archived tasks (e.g. bulk edits) must not start agent work."
       },
       "nextSteps": {
-        "true": "ack",
+        "true": "run",
         "false": "done"
-      }
-    },
-    {
-      "stepSlug": "ack",
-      "name": "Acknowledge (In progress)",
-      "stepType": "action",
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "in_progress"
-        }
-      },
-      "nextSteps": {
-        "success": "run"
       }
     },
     {
@@ -83,7 +67,7 @@
       "stepType": "condition",
       "config": {
         "expression": "steps.run.output.data.ok == true && steps.run.output.data.external != true",
-        "description": "Internal runs park at In review now; external dispatches return immediately and the daemon's completion does it later."
+        "description": "Internal runs park at In review now; external dispatches return immediately and the daemon's completion does it later. The In progress ack happens inside run admission (run_on_task), never before it — a refused run must not flash the status."
       },
       "nextSteps": {
         "true": "to_review",
@@ -100,7 +84,7 @@
       },
       "nextSteps": {
         "true": "done",
-        "false": "check_refused"
+        "false": "check_admitted"
       }
     },
     {
@@ -120,16 +104,16 @@
       }
     },
     {
-      "stepSlug": "check_refused",
-      "name": "Guardrail refusal?",
+      "stepSlug": "check_admitted",
+      "name": "Was the run admitted?",
       "stepType": "condition",
       "config": {
-        "expression": "steps.run.output.data.refusedReason == 'queued' || steps.run.output.data.refusedReason == 'budget_paused' || steps.run.output.data.refusedReason == 'task_circuit_breaker' || steps.run.output.data.refusedReason == 'automation_disabled'",
-        "description": "Guardrail refusals already posted their own specific comment (queued / budget / breaker) — roll back quietly. Real failures get an explanatory comment."
+        "expression": "steps.run.output.data.runId",
+        "description": "An admitted run (a run row exists) was acked In progress before it failed — explain and roll back. A refused run never touched the status, so there is nothing to roll back."
       },
       "nextSteps": {
-        "true": "rollback_quiet",
-        "false": "fail_comment"
+        "true": "fail_comment",
+        "false": "check_refused"
       }
     },
     {
@@ -165,15 +149,28 @@
       }
     },
     {
-      "stepSlug": "rollback_quiet",
-      "name": "Roll back to To do (guardrail already commented)",
+      "stepSlug": "check_refused",
+      "name": "Did the refusal already explain itself?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.run.output.data.refusedReason == 'queued' || steps.run.output.data.refusedReason == 'budget_paused' || steps.run.output.data.refusedReason == 'task_circuit_breaker' || steps.run.output.data.refusedReason == 'automation_disabled' || steps.run.output.data.refusedReason == 'task_not_found'",
+        "description": "Guardrail refusals post their own notices (queued / budget / breaker) and a deleted task has no timeline left — end quietly. Other refusals (agent disabled or not installed) get an explanatory comment; the status stays untouched either way."
+      },
+      "nextSteps": {
+        "true": "done",
+        "false": "refused_comment"
+      }
+    },
+    {
+      "stepSlug": "refused_comment",
+      "name": "Explain why the run never started",
       "stepType": "action",
       "config": {
         "type": "task",
         "parameters": {
-          "operation": "update_status",
+          "operation": "comment",
           "taskId": "{{input.task._id}}",
-          "status": "todo"
+          "body": "[automated] ⚠️ {{input.assigneeId}} could not start this task: {{steps.run.output.data.error || 'unknown error'}} The task status was left unchanged. If the agent is not installed or enabled, enable it on the Agents page — connecting an integration alone does not enable its bundled agents."
         }
       },
       "nextSteps": {

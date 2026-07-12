@@ -27,6 +27,12 @@ import {
 import { useTriggerTimestamp } from '../hooks/use-trigger-timestamp';
 import { CollapsibleSection } from './collapsible-section';
 import { SecretRevealDialog } from './secret-reveal-dialog';
+import {
+  WEBHOOK_ACTIVE_COLUMN_SIZE,
+  WEBHOOK_LAST_TRIGGERED_COLUMN_SIZE,
+  WEBHOOK_URL_COLUMN_SIZE,
+  WEBHOOK_URL_TEXT_MAX_WIDTH,
+} from './webhook-table-columns';
 
 interface WebhooksSectionProps {
   workflowRootId: string;
@@ -167,7 +173,8 @@ export function WebhooksSection({
           return (
             <Row gap={2} className="min-w-0">
               <code
-                className="max-w-[300px] truncate font-mono text-sm"
+                className="truncate font-mono text-sm"
+                style={{ maxWidth: WEBHOOK_URL_TEXT_MAX_WIDTH }}
                 title={maskedUrl}
               >
                 {maskedUrl}
@@ -188,7 +195,7 @@ export function WebhooksSection({
             </Row>
           );
         },
-        size: 400,
+        size: WEBHOOK_URL_COLUMN_SIZE,
       },
       {
         id: 'active',
@@ -202,7 +209,7 @@ export function WebhooksSection({
             aria-label={t('triggers.webhooks.columns.active')}
           />
         ),
-        size: 80,
+        size: WEBHOOK_ACTIVE_COLUMN_SIZE,
       },
       {
         id: 'lastTriggered',
@@ -212,7 +219,7 @@ export function WebhooksSection({
             {formatTimestamp(row.original.lastTriggeredAt)}
           </Text>
         ),
-        size: 180,
+        size: WEBHOOK_LAST_TRIGGERED_COLUMN_SIZE,
       },
       {
         id: 'actions',

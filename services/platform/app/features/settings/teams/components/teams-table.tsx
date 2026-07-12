@@ -83,7 +83,10 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
     pageSize,
     search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
-    entityLabel: tSettings('teams.entityLabel'),
+    entityLabel: {
+      one: tSettings('teams.entityLabelOne'),
+      other: tSettings('teams.entityLabel'),
+    },
   });
 
   const teamIds = teams?.map((t) => t.id) ?? [];

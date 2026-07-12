@@ -10,7 +10,12 @@ import { Field } from '@/app/components/ui/forms/field';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
-import { type ContactData, isContactDoc } from '../lib/contact-data';
+import {
+  type ContactData,
+  getContactLocaleLabel,
+  getContactSourceLabel,
+  isContactDoc,
+} from '../lib/contact-data';
 
 interface ContactInformationProps {
   contact: ContactData;
@@ -43,7 +48,11 @@ export function ContactInformation({ contact }: ContactInformationProps) {
         : []),
       {
         label: t('labels.source'),
-        value: <Text>{contact.source || t('labels.notAvailable')}</Text>,
+        value: (
+          <Text>
+            {getContactSourceLabel(contact.source, t('labels.notAvailable'))}
+          </Text>
+        ),
       },
       {
         label: t('labels.created'),
@@ -51,7 +60,7 @@ export function ContactInformation({ contact }: ContactInformationProps) {
       },
       {
         label: t('labels.locale'),
-        value: <Text>{contact.locale || 'en'}</Text>,
+        value: <Text>{getContactLocaleLabel(contact.locale)}</Text>,
       },
     ],
     [contact, phone, createdAt, t],

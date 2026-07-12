@@ -26,7 +26,7 @@ import { useFileIndexingStatus } from './use-file-indexing-status';
 
 interface MetadataRow {
   storageId: Id<'_storage'>;
-  ragStatus?: 'queued' | 'running' | 'completed' | 'failed';
+  ragStatus?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
   ragError?: string;
   ragProgress?: string;
   fileName: string;
@@ -72,6 +72,12 @@ function successToasts() {
 function failureToasts() {
   return toastMock.mock.calls.filter(
     ([arg]) => arg?.title === 'indexingFailed',
+  );
+}
+
+function unsupportedToasts() {
+  return toastMock.mock.calls.filter(
+    ([arg]) => arg?.title === 'indexingUnsupported',
   );
 }
 
@@ -137,5 +143,50 @@ describe('useFileIndexingStatus — deferred toast firing (#1457)', () => {
 
     expect(successToasts()).toHaveLength(0);
     expect(failureToasts()).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the #2598 class — a directly-uploaded file with no
+// text extractor for its format is marked `unsupported`, a terminal state
+// `saveFileMetadata` sets SYNCHRONOUSLY at upload time (never via `queued`/
+// `running`, unlike `failed`). Before this fix the local `RagStatus` union
+// omitted `unsupported` (a TS compile error) and the toast effect only fired
+// on a `wasPending` transition, so an unsupported file got zero feedback: the
+// composer's immediate "uploaded successfully" toast already fired (it skips
+// the deferred-toast suppression for non-indexable files), silently implying
+// the file was fully usable.
+// ---------------------------------------------------------------------------
+describe('useFileIndexingStatus — honest "unsupported" feedback (#2598 class)', () => {
+  it('fires a non-destructive "format not supported" toast the first time a file is observed unsupported', () => {
+    // Unlike `queued` → `failed`, this never passes through a pending state —
+    // the very first query result already shows `unsupported`.
+    metadataValue = [row('unsupported')];
+    renderHook(() => useFileIndexingStatus([attachment()], 'org-1'));
+
+    expect(unsupportedToasts()).toHaveLength(1);
+    expect(unsupportedToasts()[0]?.[0]).toMatchObject({
+      title: 'indexingUnsupported',
+      description: 'indexingUnsupportedDescription',
+    });
+    // Honest, not alarming — matches the Documents page's `slate` badge
+    // treatment for `unsupported`, distinct from `failed`'s destructive one.
+    expect(unsupportedToasts()[0]?.[0]).not.toHaveProperty(
+      'variant',
+      'destructive',
+    );
+    expect(successToasts()).toHaveLength(0);
+    expect(failureToasts()).toHaveLength(0);
+  });
+
+  it('does not re-fire on a further reactive update of the same unsupported file', () => {
+    metadataValue = [row('unsupported')];
+    const { rerender } = renderHook(() =>
+      useFileIndexingStatus([attachment()], 'org-1'),
+    );
+    expect(unsupportedToasts()).toHaveLength(1);
+
+    rerender();
+    expect(unsupportedToasts()).toHaveLength(1);
   });
 });

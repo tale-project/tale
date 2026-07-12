@@ -4,7 +4,7 @@
 // session's lifetime (so a destroyed+recreated sandbox can't resume a stale
 // conversation). Mocks the generated query factory so the handler is callable.
 
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 vi.mock('../_generated/server', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
@@ -14,7 +14,13 @@ vi.mock('../_generated/server', async (importOriginal) => {
   };
 });
 
+const getUserById = vi.fn();
+vi.mock('../betterAuth/trusted_headers/get_user_by_id', () => ({
+  getUserById: (...args: unknown[]) => getUserById(...args),
+}));
+
 import {
+  getSessionOwnerIdentity,
   latestAgentSessionId,
   listStaleWorkflowRunSessions,
 } from './session_queries';
@@ -260,5 +266,114 @@ describe('listStaleWorkflowRunSessions', () => {
     ]);
     const out = await stale.handler(ctx, { organizationId: ORG, limit: 2 });
     expect(out).toHaveLength(2);
+  });
+});
+
+interface OwnerRow {
+  sessionId: string;
+  status: string;
+  createdBy: string;
+}
+
+// Mock ctx for the by_sessionId scan: yields every historical + live row for
+// the requested sessionId, oldest-first, the way the real index does — the
+// handler is responsible for skipping non-live (terminal) incarnations.
+function createOwnerMockCtx(rows: OwnerRow[]) {
+  function makeBuilder() {
+    let sessionId: string | undefined;
+    const builder: Record<string | symbol, unknown> = {};
+    builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
+      const query = {
+        eq: (field: string, value: unknown) => {
+          if (field === 'sessionId') sessionId = value as string;
+          return query;
+        },
+      };
+      cb(query);
+      return builder;
+    });
+    builder[Symbol.asyncIterator] = function () {
+      return asyncIter(rows.filter((r) => r.sessionId === sessionId))[
+        Symbol.asyncIterator
+      ]();
+    };
+    return builder;
+  }
+  return { db: { query: vi.fn(() => makeBuilder()) } };
+}
+
+const ownerIdentity = getSessionOwnerIdentity as unknown as QueryHandler<
+  { sessionId: string },
+  { name: string; email: string } | null
+>;
+
+describe('getSessionOwnerIdentity', () => {
+  const SID = 'sess-1';
+
+  beforeEach(() => {
+    getUserById.mockReset();
+  });
+
+  it("resolves the live row's createdBy to the platform user's name + email", async () => {
+    getUserById.mockResolvedValue({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+    });
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'active', createdBy: 'user-1' },
+    ]);
+    expect(await ownerIdentity.handler(ctx, { sessionId: SID })).toEqual({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+    });
+    expect(getUserById).toHaveBeenCalledWith(ctx, 'user-1');
+  });
+
+  it('skips terminal (destroyed) rows and resolves the live incarnation', async () => {
+    getUserById.mockResolvedValue({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+    });
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'destroyed', createdBy: 'stale-user' },
+      { sessionId: SID, status: 'stopped', createdBy: 'user-1' },
+    ]);
+    await ownerIdentity.handler(ctx, { sessionId: SID });
+    expect(getUserById).toHaveBeenCalledWith(ctx, 'user-1');
+  });
+
+  it('returns null for a synthetic/system-owned session (no resolvable user)', async () => {
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'active', createdBy: 'system' },
+    ]);
+    getUserById.mockResolvedValue(null);
+    expect(await ownerIdentity.handler(ctx, { sessionId: SID })).toBeNull();
+  });
+
+  it('returns null when the user has a blank email', async () => {
+    getUserById.mockResolvedValue({ name: 'Ada Lovelace', email: '' });
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'active', createdBy: 'user-1' },
+    ]);
+    expect(await ownerIdentity.handler(ctx, { sessionId: SID })).toBeNull();
+  });
+
+  it('falls back to the email as the display name when name is blank', async () => {
+    getUserById.mockResolvedValue({ name: '  ', email: 'ada@example.com' });
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'active', createdBy: 'user-1' },
+    ]);
+    expect(await ownerIdentity.handler(ctx, { sessionId: SID })).toEqual({
+      name: 'ada@example.com',
+      email: 'ada@example.com',
+    });
+  });
+
+  it('returns null when no live row exists for the sessionId', async () => {
+    const ctx = createOwnerMockCtx([
+      { sessionId: SID, status: 'destroyed', createdBy: 'user-1' },
+    ]);
+    expect(await ownerIdentity.handler(ctx, { sessionId: SID })).toBeNull();
+    expect(getUserById).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
   TASK_ACTIVITY_LABEL_KEY,
+  TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
   type TaskCreatorType,
 } from '../lib/display';
@@ -188,10 +189,16 @@ export function TaskTimeline({
               entry.fromValue && isTaskStatus(entry.fromValue)
                 ? t(`status.${entry.fromValue}`)
                 : entry.fromValue;
+            const refusalLabelKey =
+              entry.action === 'agent_run.refused' && entry.toValue
+                ? TASK_RUN_REFUSAL_LABEL_KEY[entry.toValue]
+                : undefined;
             const to =
               entry.toValue && isTaskStatus(entry.toValue)
                 ? t(`status.${entry.toValue}`)
-                : entry.toValue;
+                : refusalLabelKey
+                  ? t(refusalLabelKey)
+                  : entry.toValue;
             const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
             return (

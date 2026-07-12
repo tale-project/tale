@@ -84,12 +84,21 @@ export function useAvailableTools() {
   };
 }
 
-export type AvailableIntegration = ConvexItemOf<
-  typeof api.agents.queries.getAvailableIntegrations
->;
+/**
+ * One bindable integration, as projected by `getAvailableIntegrations` — an
+ * action (not a reactive query), since `description` comes from the org's
+ * `integration.json` catalog files on disk (see `convex/agents/queries.ts`).
+ */
+export interface AvailableIntegration {
+  name: string;
+  title: string;
+  type: string;
+  description?: string;
+}
 
 export function useAvailableIntegrations(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useActionQuery(
+    ['config', 'integrations', '_available', organizationId],
     api.agents.queries.getAvailableIntegrations,
     { organizationId },
   );

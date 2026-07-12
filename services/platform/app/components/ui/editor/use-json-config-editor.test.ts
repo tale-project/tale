@@ -105,4 +105,64 @@ describe('useJsonConfigEditor', () => {
     rerender({ initial: { a: 2 } });
     expect(result.current.save).toBe(save0);
   });
+
+  describe('schema', () => {
+    // A minimal `JsonConfigSchema<Cfg>` stand-in — any Zod schema's
+    // `safeParse` satisfies the same shape (#2665).
+    const positiveASchema = {
+      safeParse: (value: Cfg) =>
+        value.a > 0 ? { success: true as const } : { success: false as const },
+    };
+
+    it('defaults to isValid:true with no schema (pre-existing behavior)', () => {
+      const { result } = renderHook(() =>
+        useJsonConfigEditor<Cfg>({
+          initial: { a: -1 },
+          save: vi.fn().mockResolvedValue(undefined),
+        }),
+      );
+      expect(result.current.isValid).toBe(true);
+    });
+
+    it('reports isValid:true while loading even with a schema', () => {
+      const { result } = renderHook(() =>
+        useJsonConfigEditor<Cfg>({
+          initial: undefined,
+          save: vi.fn().mockResolvedValue(undefined),
+          schema: positiveASchema,
+        }),
+      );
+      expect(result.current.isValid).toBe(true);
+    });
+
+    it('reports isValid:false for schema-invalid config', () => {
+      const { result } = renderHook(() =>
+        useJsonConfigEditor<Cfg>({
+          initial: { a: 1 },
+          save: vi.fn().mockResolvedValue(undefined),
+          schema: positiveASchema,
+        }),
+      );
+      act(() => result.current.updateConfig({ a: -1 }));
+      expect(result.current.isValid).toBe(false);
+    });
+
+    it('does not register a save path with the dirty blocker while invalid', async () => {
+      const save = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() =>
+        useJsonConfigEditor<Cfg>({
+          initial: { a: 1 },
+          save,
+          schema: positiveASchema,
+        }),
+      );
+      act(() => result.current.updateConfig({ a: -1 }));
+      expect(result.current.isValid).toBe(false);
+      // An invalid draft can only fail server-side — `save()` still works
+      // directly (EditorActions gates the button on `isValid`), but nothing
+      // here throws just because the config is invalid.
+      await expect(result.current.save()).resolves.toBeUndefined();
+      expect(save).toHaveBeenCalledWith({ a: -1 });
+    });
+  });
 });

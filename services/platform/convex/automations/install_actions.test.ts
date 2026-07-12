@@ -40,6 +40,7 @@ vi.mock('../_generated/api', () => ({
         bindAutomationToProject: 'bindAutomationToProject',
         getAutomationInstallationInternal: 'getAutomationInstallationInternal',
         reconcileAutomationSchedules: 'reconcileAutomationSchedules',
+        listAutomationBindingsInternal: 'listAutomationBindingsInternal',
       },
     },
   },
@@ -76,7 +77,8 @@ const {
   uninstallAutomation,
   previewAutomationInstall,
 } = await import('./install_actions');
-const { ensureOrgResources } = await import('./install_actions');
+const { ensureOrgResources, syncAutomationSchedules } =
+  await import('./install_actions');
 
 type ActionConfig = {
   handler: (ctx: never, args: never) => Promise<unknown>;
@@ -347,6 +349,97 @@ describe('ensureOrgResources — prior-ledger thread-through (R1)', () => {
       'test-org',
       'support',
       undefined,
+    );
+  });
+});
+
+describe('syncAutomationSchedules — binding projectId seeding (#2607)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** A project-scoped manifest whose inline workflow declares one schedule and
+   *  a start `inputSchema` (with or without a `projectId` input). */
+  const manifestWith = (properties: Record<string, unknown>) =>
+    ({
+      name: 'Triage',
+      scope: 'project',
+      workflow: {
+        triggers: {
+          schedules: [{ cron: '*/30 * * * *', timezone: 'UTC', variables: {} }],
+        },
+        steps: [
+          {
+            stepSlug: 'start',
+            name: 'Start',
+            stepType: 'start',
+            config: {
+              inputSchema: { properties, required: Object.keys(properties) },
+            },
+            nextSteps: {},
+          },
+        ],
+      },
+    }) as never;
+
+  it('seeds variables.projectId from each binding when the start schema declares it', async () => {
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue([{ projectId: 'proj_1' }]);
+
+    await syncAutomationSchedules(
+      ctx as never,
+      'org-123',
+      'triage',
+      manifestWith({
+        owner: { type: 'string' },
+        projectId: { type: 'string' },
+      }),
+    );
+
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'reconcileAutomationSchedules',
+      {
+        organizationId: 'org-123',
+        automationSlug: 'triage',
+        desired: [
+          {
+            workflowSlug: 'triage',
+            cronExpression: '*/30 * * * *',
+            timezone: 'UTC',
+            projectId: 'proj_1',
+            variables: { projectId: 'proj_1' },
+          },
+        ],
+      },
+    );
+  });
+
+  it('never invents projectId when the start schema does not declare it', async () => {
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue([{ projectId: 'proj_1' }]);
+
+    await syncAutomationSchedules(
+      ctx as never,
+      'org-123',
+      'triage',
+      manifestWith({ owner: { type: 'string' } }),
+    );
+
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'reconcileAutomationSchedules',
+      {
+        organizationId: 'org-123',
+        automationSlug: 'triage',
+        desired: [
+          {
+            workflowSlug: 'triage',
+            cronExpression: '*/30 * * * *',
+            timezone: 'UTC',
+            projectId: 'proj_1',
+            variables: {},
+          },
+        ],
+      },
     );
   });
 });

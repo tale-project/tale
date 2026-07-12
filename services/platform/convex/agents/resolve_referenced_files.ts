@@ -94,7 +94,18 @@ export async function resolveReferencedFiles(
       .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
       .first();
     if (!fm || fm.ragStatus !== 'completed') {
-      throw new ConvexError({ code: 'KB_REF_INVALID' });
+      // Access is already established at this point (org/scope/active
+      // checks above passed), so naming the file here doesn't leak whether
+      // an INACCESSIBLE document exists — the opaque code stays opaque for
+      // every access failure above. `reason` distinguishes the one format
+      // that will NEVER index (issue #2598) from the ordinary "still
+      // indexing / retry" case so the composer can say something useful
+      // instead of the generic opaque toast.
+      throw new ConvexError({
+        code: 'KB_REF_INVALID',
+        reason: fm?.ragStatus === 'unsupported' ? 'unsupported' : 'not_indexed',
+        fileName: doc.title?.trim() || fm?.fileName,
+      });
     }
     resolved.push({
       documentId,

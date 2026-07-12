@@ -1,3 +1,4 @@
+import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -11,6 +12,8 @@ const {
   previewHolder,
   useRequiredIntegrationsMock,
   agentReadiness,
+  scheduleReadiness,
+  navigateSpy,
 } = vi.hoisted(() => ({
   installSpy: vi.fn(),
   previewSpy: vi.fn(),
@@ -21,6 +24,11 @@ const {
   useRequiredIntegrationsMock: vi.fn(),
   // Mutable holder for the imperative getAutomationAgentReadiness result.
   agentReadiness: { value: { agents: [] as unknown[] } },
+  // Mutable holder for the imperative getAutomationScheduleReadiness result.
+  scheduleReadiness: {
+    value: { required: [] as string[], schedules: [] as unknown[] },
+  },
+  navigateSpy: vi.fn(),
 }));
 
 vi.mock('../../hooks/use-install-state', () => ({
@@ -38,11 +46,19 @@ vi.mock('../../hooks/use-required-integrations', () => ({
   useRequiredIntegrations: useRequiredIntegrationsMock,
 }));
 
-// The wizard fetches agent readiness imperatively + persists auth-mode through
-// useConvexAction; the agent-secrets step reads agent env through useConvexQuery.
+// The wizard fetches agent AND schedule readiness imperatively (two distinct
+// actions through the same hook) + persists auth-mode through useConvexAction;
+// the agent-secrets step reads agent env through useConvexQuery. Convex's
+// generated `api` is a proxy that returns a fresh reference on every access,
+// so dispatch by `getFunctionName()`, not `===` (see
+// `document_action_link_file.test.ts` for the same pattern).
 vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({
-    mutateAsync: vi.fn(async () => agentReadiness.value),
+  useConvexAction: (func: Parameters<typeof getFunctionName>[0]) => ({
+    mutateAsync: vi.fn(async () =>
+      getFunctionName(func).includes('getAutomationScheduleReadiness')
+        ? scheduleReadiness.value
+        : agentReadiness.value,
+    ),
     isPending: false,
   }),
 }));
@@ -77,7 +93,7 @@ vi.mock(
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateSpy,
 }));
 
 function withOneBlockedIntegration() {
@@ -103,7 +119,10 @@ function withNoIntegrations() {
   });
 }
 
-function renderWizard(requiredIntegrations: string[] = ['github']) {
+function renderWizard(
+  requiredIntegrations: string[] = ['github'],
+  options: { scope?: 'org' | 'project'; projectId?: string } = {},
+) {
   return render(
     <AutomationInstallWizard
       open
@@ -111,7 +130,8 @@ function renderWizard(requiredIntegrations: string[] = ['github']) {
       organizationId="org_1"
       automationSlug="issue-desk"
       automationName="Issue Desk"
-      scope="org"
+      scope={options.scope ?? 'org'}
+      projectId={options.projectId}
       requiredIntegrations={requiredIntegrations}
     />,
   );
@@ -126,6 +146,8 @@ describe('AutomationInstallWizard', () => {
     previewSpy.mockImplementation(async () => previewHolder.value);
     useRequiredIntegrationsMock.mockReset();
     agentReadiness.value = { agents: [] };
+    scheduleReadiness.value = { required: [], schedules: [] };
+    navigateSpy.mockReset();
   });
 
   it('installs once, then connects the required integration before finishing', async () => {
@@ -175,6 +197,78 @@ describe('AutomationInstallWizard', () => {
       screen.getByText(/required integration isn't connected/i),
     ).toBeInTheDocument();
     expect(screen.queryByText('Issue Desk is ready')).not.toBeInTheDocument();
+  });
+
+  it('keeps Done from claiming ready when a required schedule variable is still blank (#2605)', async () => {
+    withNoIntegrations();
+    scheduleReadiness.value = {
+      required: ['owner', 'repo'],
+      schedules: [
+        {
+          scheduleId: 'sched_1',
+          cronExpression: '0 * * * *',
+          missingFields: ['owner'],
+        },
+      ],
+    };
+    const { user } = renderWizard([]);
+
+    await screen.findByText('Ready to install Issue Desk.');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    // A blank required schedule variable blocks the "ready" claim just like an
+    // unconnected required integration does, and names the gap + a Triggers
+    // deep link — never a silent green Done screen.
+    expect(
+      await screen.findByText('Finish setting up Issue Desk'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Required schedule variables aren't set yet: owner. Set them on the automation's Triggers tab before it can run.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Open Triggers' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Issue Desk is ready')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Everything it needs is connected.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Finish lands on the bound project's Tasks page for a project-scoped install (#2611)", async () => {
+    withNoIntegrations();
+    const { user } = renderWizard([], {
+      scope: 'project',
+      projectId: 'proj_1',
+    });
+
+    await screen.findByText('Ready to install Issue Desk.');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Issue Desk is ready');
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }));
+
+    expect(navigateSpy).toHaveBeenCalledWith({
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id: 'org_1', projectId: 'proj_1' },
+    });
+  });
+
+  it('Finish lands on the automation detail page for an org-scoped install', async () => {
+    withNoIntegrations();
+    const { user } = renderWizard([]);
+
+    await screen.findByText('Ready to install Issue Desk.');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Issue Desk is ready');
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }));
+
+    expect(navigateSpy).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations/$automationSlug',
+      params: { id: 'org_1', automationSlug: 'issue-desk' },
+    });
   });
 
   it('after install, walks a BYO agent through mode choice then secrets', async () => {

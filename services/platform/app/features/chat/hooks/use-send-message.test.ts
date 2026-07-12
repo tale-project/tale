@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook, act } from '@testing-library/react';
+import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { PendingMessage } from '../context/chat-layout-context';
@@ -104,6 +105,65 @@ describe('useSendMessage — error handling', () => {
 
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
+    );
+  });
+
+  it('names the file + reason on a KB_REF_INVALID rejection for an unindexed mention (#2598)', async () => {
+    mockChatWithAgent.mockRejectedValue(
+      new ConvexError({
+        code: 'KB_REF_INVALID',
+        reason: 'not_indexed',
+        fileName: 'Meetings.pdf',
+      }),
+    );
+
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'toast.kbRefNotIndexed' }),
+    );
+  });
+
+  it('distinguishes the never-indexable "unsupported" reason from the ordinary not-yet-indexed case', async () => {
+    mockChatWithAgent.mockRejectedValue(
+      new ConvexError({
+        code: 'KB_REF_INVALID',
+        reason: 'unsupported',
+        fileName: 'Daily standup.loop',
+      }),
+    );
+
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'toast.kbRefUnsupported' }),
+    );
+  });
+
+  it('falls back to the opaque KB_REF_INVALID toast when no reason/fileName is present (access-denied cases stay opaque)', async () => {
+    mockChatWithAgent.mockRejectedValue(
+      new ConvexError({ code: 'KB_REF_INVALID' }),
+    );
+
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'toast.kbRefInvalid' }),
     );
   });
 

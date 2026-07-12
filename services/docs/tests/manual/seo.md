@@ -55,9 +55,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Boundary & error tests
 
-| ID  | Test     | Input                                                            | Expected                                                                                     |
-| --- | -------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| B1  | Real 404 | `curl -s -o /dev/null -w '%{http_code}' {base}/nope-not-a-route` | **HTTP 404** with `dist/404/index.html` (`noindex`) when served from the built static server |
+| ID  | Test     | Input                                                            | Expected                                                                                                                                                                                                                                                                                         |
+| --- | -------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B1  | Real 404 | `curl -s -o /dev/null -w '%{http_code}' {base}/nope-not-a-route` | **HTTP 404** with `dist/404/index.html` (`noindex`) when served from the built static server. _(NOTE: manual-only until a docs container probe asserts this — `container-web-test.ts` already probes `/nope` → 404 for web; `container-docs-test.ts` has no equivalent probe yet, filed #2620.)_ |
 
 ## Accessibility (WCAG 2.1 AA)
 

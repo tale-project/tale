@@ -6,6 +6,7 @@
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
+import { effectiveScheduleInput } from '../../../automations/schedule_variables';
 import { createDebugLog } from '../../../lib/debug_log';
 import type { ConvexJsonRecord } from '../../../lib/validators/json';
 import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
@@ -85,6 +86,20 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
           const orgSlug = await resolveOrgSlug(ctx, organizationId);
 
+          // The project chosen at install/bind time lives on the schedule ROW
+          // (`wfSchedules.projectId`) while workflows read
+          // `{{input.projectId}}` — merge it in when the variables carry none
+          // (a row that predates install-time seeding, or a blank
+          // placeholder), so the cron run still receives its bound project.
+          const rows = await ctx.runQuery(
+            internal.workflows.triggers.internal_queries
+              .getSchedulesBySlugInternal,
+            { organizationId, workflowSlug },
+          );
+          const rowProjectId = rows.find(
+            (row) => row._id === scheduleId,
+          )?.projectId;
+
           await ctx.runAction(
             internal.workflow_engine.helpers.engine.start_workflow_from_file
               .startWorkflowFromFile,
@@ -92,7 +107,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
               organizationId,
               orgSlug,
               workflowSlug,
-              input: variables ?? {},
+              input: effectiveScheduleInput(variables ?? {}, rowProjectId),
               triggeredBy: 'schedule',
               triggerData: {
                 triggerType: 'schedule',

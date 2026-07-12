@@ -130,7 +130,10 @@ export function ProductsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
-    entityLabel: tProducts('title').toLowerCase(),
+    entityLabel: {
+      one: tProducts('entityLabelOne'),
+      other: tProducts('title').toLowerCase(),
+    },
   });
 
   return (

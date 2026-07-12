@@ -1,7 +1,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import {
   normalizeCatalogModel,
   type NormalizedCapability,
@@ -87,5 +87,74 @@ describe('model-catalog normalize → upsert → query round trip', () => {
     expect(cap?.supportsVision).toBe(true);
     expect(cap?.supportsTools).toBe(true);
     expect(cap?.outputCentsPerMillion).toBeGreaterThan(0);
+  });
+});
+
+// A second realistic entry so the list query has something to sort.
+const RAW_OPENROUTER_2 = {
+  id: 'openai/gpt-4o',
+  name: 'OpenAI: GPT-4o',
+  pricing: { prompt: '0.0000025', completion: '0.00001' },
+  context_length: 128000,
+  architecture: {
+    input_modalities: ['text', 'image'],
+    output_modalities: ['text'],
+  },
+  supported_parameters: ['tools'],
+};
+
+describe('listCatalogModels (settings model picker, #2655)', () => {
+  async function seedCatalog(t: T): Promise<void> {
+    const entries = [RAW_OPENROUTER_2, RAW_OPENROUTER].map((raw) => {
+      const norm = normalizeCatalogModel(raw);
+      if (!norm) throw new Error('normalize returned null');
+      return projectForUpsert(norm);
+    });
+    await t.mutation(internal.model_catalog.mutations.upsertCapabilities, {
+      source: 'openrouter',
+      fetchedAt: 1,
+      entries,
+    });
+  }
+
+  it('returns the whole cache with capabilities, sorted by modelId, for an org member', async () => {
+    const t: T = convexTest(schema, modules);
+    // Seed the local member mirror so the org-membership gate resolves without
+    // the (test-unavailable) Better Auth component — mirrors tasks/queries.test.ts.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'm_user_1',
+        userId: 'user_1',
+        organizationId: 'org-1',
+        role: 'member',
+        createdAt: 0,
+      });
+    });
+    await seedCatalog(t);
+
+    const rows = await t
+      .withIdentity({ subject: 'user_1' })
+      .query(api.model_catalog.queries.listCatalogModels, {
+        organizationId: 'org-1',
+      });
+    // Seeded openai/* first — the query must return modelId-sorted rows.
+    expect(rows.map((r) => r.modelId)).toEqual([
+      'anthropic/claude-opus-4',
+      'openai/gpt-4o',
+    ]);
+    // Capability facts ride along so selecting a model can fill them.
+    expect(rows[0].contextWindow).toBe(200000);
+    expect(rows[0].supportsVision).toBe(true);
+    expect(rows[1].supportsTools).toBe(true);
+  });
+
+  it('rejects an unauthenticated caller', async () => {
+    const t: T = convexTest(schema, modules);
+    await seedCatalog(t);
+    await expect(
+      t.query(api.model_catalog.queries.listCatalogModels, {
+        organizationId: 'org-1',
+      }),
+    ).rejects.toThrow();
   });
 });

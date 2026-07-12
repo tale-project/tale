@@ -18,6 +18,10 @@
  *   5. `startTaskAgentRun` — the AUTHORITATIVE transactional admission
  *      (re-checks the guard, increments concurrency counters, inserts the
  *      run row BEFORE generation so the circuit-breaker window sees it).
+ *      Assignment runs acknowledge In progress HERE, on the admitted side
+ *      of the gate — never before it (#2604), so a refused run leaves the
+ *      task status untouched. Refusals that never create a run row are
+ *      recorded on the task activity timeline instead (#2609).
  *   6. Prompt assembly from `getTaskContextForAgent` (untrusted-delimited)
  *      + the step's instructions + optional promptContext.
  *   7. `runAgentGeneration` under a deadline, with `task_read`/`task_write`
@@ -343,6 +347,89 @@ export const resolveDurableTaskRunPlan = internalAction({
   },
 });
 
+/** Args shared by the choreography helpers below. */
+interface RunAttribution {
+  organizationId: string;
+  agentSlug: string;
+  taskId: Id<'tasks'>;
+  trigger?: string;
+  wfExecutionId?: string;
+  workflowSlug?: string;
+}
+
+/**
+ * Acknowledge an ASSIGNMENT run as In progress — strictly AFTER admission.
+ * The run-assigned-task pack used to ack before dispatching the run, which
+ * flashed To do → In progress → To do whenever admission refused (#2604);
+ * the ack now lives on the admitted side of the gate. Assignment-only:
+ * mention/revision/SLA runs own their own status choreography in their
+ * packs. Actor + attribution mirror the pack's former `update_status` step
+ * (workflow sentinel), so the timeline reads identically. Idempotent — the
+ * mutation no-ops when the task is already In progress (old per-org pack
+ * copies that still ack pre-run stay compatible).
+ */
+async function ackAssignmentInProgress(
+  ctx: ActionCtx,
+  args: RunAttribution,
+): Promise<void> {
+  if (args.trigger !== 'assignment') return;
+  await ctx.runMutation(
+    internal.tasks.internal_mutations.agentUpdateTaskStatus,
+    {
+      organizationId: args.organizationId,
+      actorId: 'workflow',
+      taskId: args.taskId,
+      status: 'in_progress',
+      attribution: {
+        workflowSlug: args.workflowSlug,
+        wfExecutionId: args.wfExecutionId
+          ? toId<'wfExecutions'>(args.wfExecutionId)
+          : undefined,
+      },
+    },
+  );
+}
+
+/**
+ * Surface an admission refusal on the task activity timeline (#2609) — a
+ * refused run never reaches `startTaskAgentRun`, so no `taskAgentRuns` row
+ * exists to show in the task detail. 'queued' is deliberately NOT recorded
+ * (the queue drainer retries it — a wait, not a failure), nor is
+ * 'task_not_found' (no timeline left to write to). Never throws: refusal
+ * reporting must not change the refusal result the workflow branches on.
+ */
+async function recordRefusalActivity(
+  ctx: ActionCtx,
+  args: RunAttribution,
+  refusedReason: string,
+): Promise<void> {
+  try {
+    await ctx.runMutation(
+      internal.tasks.internal_mutations.recordAgentRunRefused,
+      {
+        organizationId: args.organizationId,
+        taskId: args.taskId,
+        agentSlug: args.agentSlug,
+        refusedReason,
+        attribution: {
+          workflowSlug: args.workflowSlug,
+          wfExecutionId: args.wfExecutionId
+            ? toId<'wfExecutions'>(args.wfExecutionId)
+            : undefined,
+        },
+      },
+    );
+  } catch (error) {
+    console.error('[AgentTaskRun] failed to record refusal activity', {
+      org: args.organizationId,
+      task: String(args.taskId),
+      agent: args.agentSlug,
+      refusedReason,
+      error,
+    });
+  }
+}
+
 async function readTaskAutomationConfig(
   ctx: ActionCtx,
   organizationId: string,
@@ -394,6 +481,7 @@ export const runAgentOnTask = internalAction({
           agent: args.agentSlug,
           reason: 'automation_disabled',
         });
+        await recordRefusalActivity(ctx, args, 'automation_disabled');
         return {
           ok: false,
           refusedReason: 'automation_disabled',
@@ -410,6 +498,7 @@ export const runAgentOnTask = internalAction({
         orgSlug,
       );
       if (!delegate) {
+        await recordRefusalActivity(ctx, args, 'agent_not_found');
         return {
           ok: false,
           refusedReason: 'agent_not_found',
@@ -427,6 +516,7 @@ export const runAgentOnTask = internalAction({
         { organizationId: args.organizationId, agentSlug: args.agentSlug },
       );
       if (!live) {
+        await recordRefusalActivity(ctx, args, 'agent_disabled');
         return {
           ok: false,
           refusedReason: 'agent_disabled',
@@ -534,6 +624,9 @@ export const runAgentOnTask = internalAction({
             error: `External dispatch failed: ${enqueue.reason ?? 'unknown'}`,
           };
         }
+        // Dispatch accepted — the daemon works asynchronously, so the task
+        // parks at In progress until its `complete` (or the watchdog) moves it.
+        await ackAssignmentInProgress(ctx, args);
         return {
           ok: true,
           external: true,
@@ -600,6 +693,8 @@ export const runAgentOnTask = internalAction({
         trigger: args.trigger,
         wfExecutionId: args.wfExecutionId,
       });
+      // Admitted — only now may an assignment run show as In progress (#2604).
+      await ackAssignmentInProgress(ctx, args);
 
       // 6. Prompt assembly.
       const context = await ctx.runQuery(
@@ -767,11 +862,7 @@ type RefusalVerdict = {
 
 async function handleRefusal(
   ctx: ActionCtx,
-  args: {
-    organizationId: string;
-    agentSlug: string;
-    taskId: Id<'tasks'>;
-  },
+  args: RunAttribution,
   agentConfig: SerializableAgentConfig,
   verdict: RefusalVerdict,
 ): Promise<RunAgentOnTaskResult> {
@@ -794,6 +885,7 @@ async function handleRefusal(
           },
         );
       }
+      await recordRefusalActivity(ctx, args, 'budget_paused');
       return {
         ok: false,
         refusedReason: 'budget_paused',
@@ -811,6 +903,7 @@ async function handleRefusal(
           windowHours: 1,
         },
       );
+      await recordRefusalActivity(ctx, args, 'task_circuit_breaker');
       return {
         ok: false,
         refusedReason: 'task_circuit_breaker',

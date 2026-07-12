@@ -40,6 +40,16 @@ export interface ResolvedKbFolder {
   name: string;
   /** RAG-indexed files the folder contributed (post-cap). */
   fileCount: number;
+  /**
+   * Active, blob-backed documents in the folder's subtree that were
+   * considered but did NOT make it into `fileCount` — no blob, or
+   * `fileMetadata.ragStatus !== 'completed'` (queued/running/failed/
+   * unsupported/never-uploaded). Surfaced so a folder that expands to zero
+   * files reads "0/2 files — 2 not indexed" instead of a silent "0 files"
+   * (issue #2598). Excludes cross-folder blob dedup and cap-truncated files
+   * — those have their own signal (`truncated`).
+   */
+  skippedCount: number;
 }
 
 export interface ResolvedFolderReferences {
@@ -99,7 +109,7 @@ export async function resolveReferencedFolders(
       throw new ConvexError({ code: 'KB_REF_INVALID' });
     }
 
-    const { resolved, hitCap } = await expandFolder(
+    const { resolved, hitCap, skipped } = await expandFolder(
       ctx,
       folder,
       seenFileIds,
@@ -111,6 +121,7 @@ export async function resolveReferencedFolders(
       folderId: folder._id,
       name: folder.name,
       fileCount: resolved.length,
+      skippedCount: skipped,
     });
   }
 
@@ -127,9 +138,14 @@ async function expandFolder(
   root: Doc<'folders'>,
   seenFileIds: Set<string>,
   budget: number,
-): Promise<{ resolved: ResolvedKbReference[]; hitCap: boolean }> {
+): Promise<{
+  resolved: ResolvedKbReference[];
+  hitCap: boolean;
+  skipped: number;
+}> {
   const resolved: ResolvedKbReference[] = [];
   let hitCap = false;
+  let skipped = 0;
 
   const queue: Id<'folders'>[] = [root._id];
   let visited = 0;
@@ -161,12 +177,21 @@ async function expandFolder(
       }
       if (!isActiveDocument(doc)) continue;
       const fileId = doc.fileId;
-      if (!fileId || seenFileIds.has(fileId)) continue;
+      if (!fileId) {
+        // No blob yet (e.g. a placeholder mid-upload) — will never resolve
+        // for THIS turn, so it counts toward the skip total.
+        skipped++;
+        continue;
+      }
+      if (seenFileIds.has(fileId)) continue;
       const fm = await ctx.db
         .query('fileMetadata')
         .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
         .first();
-      if (!fm || fm.ragStatus !== 'completed') continue;
+      if (!fm || fm.ragStatus !== 'completed') {
+        skipped++;
+        continue;
+      }
       seenFileIds.add(fileId);
       resolved.push({
         documentId: doc._id,
@@ -179,5 +204,5 @@ async function expandFolder(
     if (hitCap) break;
   }
 
-  return { resolved, hitCap };
+  return { resolved, hitCap, skipped };
 }

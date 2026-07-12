@@ -12,11 +12,9 @@ import { useAbility } from '@/app/hooks/use-ability';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
+import { UNKNOWN_CONTACT_EMAIL } from '../lib/contact-data';
 import { ContactDeleteDialog } from './contact-delete-dialog';
 import { ContactEditDialog } from './contact-edit-dialog';
-
-/** Placeholder email a contact record carries when it has no real address. */
-const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 interface ContactRowActionsProps {
   contact: Doc<'contacts'>;

@@ -260,6 +260,10 @@ export const worldSchema = defineSchema({
   threadFiles: threadFilesTable,
 
   // --- 0.2.90 ---------------------------------------------------------------
+  // The production def still carries the transitional `customerId` (see the
+  // pre-drop comment in `conversations/schema.ts`); the corpus and 0.3.4/24+27
+  // rely on it. When the contract phase finally drops it there, this mapping
+  // needs a chain-union twin restoring the field (same for `supportCases`).
   conversations: conversationsTable,
   conversationMessages: conversationMessagesTable,
   integrationCredentials: integrationCredentialsTable,

@@ -127,4 +127,43 @@ describe('DocumentRowActions', () => {
       ).toBeInTheDocument();
     });
   });
+
+  describe('reindex visibility (#2598)', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+    };
+
+    it('offers reindex on a failed file (transient, retryable)', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-1"
+          itemType="file"
+          name="report.pdf"
+          sourceMode="manual"
+          ragStatus="failed"
+        />,
+      );
+      await openMenu();
+      expect(screen.getByText('documents.actions.reindex')).toBeInTheDocument();
+    });
+
+    it('hides reindex on a terminal `unsupported` file — no text extractor will ever succeed', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-2"
+          itemType="file"
+          name="Daily SCRUM stand-up.loop"
+          sourceMode="auto"
+          ragStatus="unsupported"
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.queryByText('documents.actions.reindex'),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

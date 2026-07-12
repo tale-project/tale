@@ -15,8 +15,12 @@
  *                           unassigned-triage re-routes it (the
  *                           reassign-to-manager path retired with the chart).
  *
- * Roster reads go through `listAgentsForOrg`, which carries a module-scope 60s
- * cache — one dir scan per org per minute across all consumers.
+ * Roster reads go through `listInstalledAgentsForOrg` — the same
+ * installed-&&-enabled liveness gate the assign mutations check via
+ * `assertAgentAssigneeLive` (`agents/installations.ts`) — so triage never
+ * recommends a candidate the assign gate would then reject. It layers on
+ * `listAgentsForOrg`'s module-scope 60s cache — one dir scan per org per
+ * minute across all consumers.
  */
 
 import { v } from 'convex/values';
@@ -24,9 +28,10 @@ import { v } from 'convex/values';
 import { RESERVED_AGENT_SLUGS } from '../../lib/shared/constants/agents';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
-import { listAgentsForOrg } from './internal_actions';
+import { listInstalledAgentsForOrg } from './internal_actions';
 
 export interface AssignableAgent {
   slug: string;
@@ -41,12 +46,16 @@ function asOptionalString(value: unknown): string | undefined {
 
 /**
  * Every real org agent (router/system slugs excluded), projected off the
- * cached agent list.
+ * LIVE roster — installed && enabled, the same gate `assertAgentAssigneeLive`
+ * checks at assign time. A disabled or uninstalled agent is filtered out
+ * here rather than surfacing as a candidate the assign mutation then rejects.
  */
 export async function listAssignableAgents(
+  ctx: ActionCtx,
+  organizationId: string,
   orgSlug: string,
 ): Promise<AssignableAgent[]> {
-  const raw = await listAgentsForOrg(orgSlug);
+  const raw = await listInstalledAgentsForOrg(ctx, organizationId, orgSlug);
   const roster: AssignableAgent[] = [];
   for (const entry of raw) {
     if (!isRecord(entry)) continue;
@@ -85,7 +94,11 @@ export const getOrgRole = internalAction({
   }),
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const roster = await listAssignableAgents(orgSlug);
+    const roster = await listAssignableAgents(
+      ctx,
+      args.organizationId,
+      orgSlug,
+    );
     return {
       exists: roster.some((entry) => entry.slug === args.agentSlug),
       isManager: false,
@@ -141,7 +154,11 @@ export const listTaskCandidates = internalAction({
     if (!project) return { candidates: [] };
 
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const roster = await listAssignableAgents(orgSlug);
+    const roster = await listAssignableAgents(
+      ctx,
+      args.organizationId,
+      orgSlug,
+    );
 
     const allowed = new Set(project.allowedAgentSlugs ?? []);
     const recommended = new Set(project.recommendedAgentSlugs ?? []);

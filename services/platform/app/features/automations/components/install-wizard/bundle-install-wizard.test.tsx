@@ -1,9 +1,13 @@
+import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
-import { BundleInstallWizard } from './bundle-install-wizard';
+import {
+  BundleInstallWizard,
+  type BundleInstallWizardProps,
+} from './bundle-install-wizard';
 
 const {
   installSpy,
@@ -11,6 +15,8 @@ const {
   previewHolder,
   useRequiredIntegrationsMock,
   agentReadinessByAutomation,
+  scheduleReadinessByAutomation,
+  navigateSpy,
 } = vi.hoisted(() => ({
   installSpy: vi.fn(),
   previewBundleSpy: vi.fn(),
@@ -22,6 +28,11 @@ const {
   agentReadinessByAutomation: {
     value: {} as Record<string, { agents: unknown[] }>,
   },
+  // Same, for the imperative getAutomationScheduleReadiness result.
+  scheduleReadinessByAutomation: {
+    value: {} as Record<string, { required: string[]; schedules: unknown[] }>,
+  },
+  navigateSpy: vi.fn(),
 }));
 
 vi.mock('../../hooks/use-install-state', () => ({
@@ -38,18 +49,26 @@ vi.mock('../../hooks/use-required-integrations', () => ({
 }));
 
 vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: (_fn: unknown) => ({
+  useConvexAction: (func: Parameters<typeof getFunctionName>[0]) => ({
     mutateAsync: vi.fn(async (args: { automationSlug?: string }) => {
-      // `setAgentAuthMode` and `getAutomationAgentReadiness` share this mock —
-      // return the per-automationSlug agent readiness fixture when asked, else a
-      // harmless resolved value.
-      if (
-        args?.automationSlug &&
-        agentReadinessByAutomation.value[args.automationSlug]
-      ) {
-        return agentReadinessByAutomation.value[args.automationSlug];
+      // `setAgentAuthMode`, `getAutomationAgentReadiness`, and
+      // `getAutomationScheduleReadiness` all share this mock — dispatch by
+      // `getFunctionName()` (Convex's generated `api` is a proxy that returns a
+      // fresh reference on every access, so `===` can't tell them apart), then
+      // return the per-automationSlug fixture when asked, else a harmless
+      // resolved value shaped for whichever action this is.
+      const isScheduleReadiness = getFunctionName(func).includes(
+        'getAutomationScheduleReadiness',
+      );
+      const table = isScheduleReadiness
+        ? scheduleReadinessByAutomation.value
+        : agentReadinessByAutomation.value;
+      if (args?.automationSlug && table[args.automationSlug]) {
+        return table[args.automationSlug];
       }
-      return { agents: [] };
+      return isScheduleReadiness
+        ? { required: [], schedules: [] }
+        : { agents: [] };
     }),
     isPending: false,
   }),
@@ -85,7 +104,7 @@ vi.mock(
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateSpy,
 }));
 
 function withNoIntegrations() {
@@ -107,7 +126,11 @@ function memberPreview(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function renderWizard() {
+function renderWizard(
+  overrides: Partial<
+    Pick<BundleInstallWizardProps, 'scope' | 'projectId'>
+  > = {},
+) {
   return render(
     <BundleInstallWizard
       open
@@ -116,6 +139,7 @@ function renderWizard() {
       bundleSlug="email-bundle"
       bundleName="Email"
       scope="org"
+      {...overrides}
     />,
   );
 }
@@ -125,6 +149,8 @@ describe('BundleInstallWizard', () => {
     installSpy.mockReset();
     installSpy.mockResolvedValue({ ok: true, members: [] });
     previewBundleSpy.mockReset();
+    navigateSpy.mockReset();
+    scheduleReadinessByAutomation.value = {};
     previewHolder.value = [
       memberPreview({
         automationSlug: 'reply-gmail-emails',
@@ -329,5 +355,52 @@ describe('BundleInstallWizard', () => {
     const { container } = renderWizard();
     await screen.findByText('Ready to install Email (2 automations).');
     await checkAccessibility(container);
+  });
+
+  it('names the members that still need schedule variables set, instead of claiming ready (#2611)', async () => {
+    scheduleReadinessByAutomation.value = {
+      'reply-gmail-emails': {
+        required: ['owner', 'repo'],
+        schedules: [
+          {
+            scheduleId: 'sched_1',
+            cronExpression: '0 * * * *',
+            missingFields: ['owner', 'repo'],
+          },
+        ],
+      },
+    };
+    const { user } = renderWizard();
+
+    await screen.findByText('Ready to install Email (2 automations).');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(
+      await screen.findByText('Finish setting up Email'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'These members still need schedule variables set before they can run: Reply to Gmail emails (owner, repo)',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Open Triggers' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Email is ready')).not.toBeInTheDocument();
+  });
+
+  it("Finish lands on the bound project's Tasks page for a project-scoped bundle install (#2611)", async () => {
+    const { user } = renderWizard({ scope: 'project', projectId: 'proj_1' });
+
+    await screen.findByText('Ready to install Email (2 automations).');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Email is ready');
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }));
+
+    expect(navigateSpy).toHaveBeenCalledWith({
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id: 'org_1', projectId: 'proj_1' },
+    });
   });
 });

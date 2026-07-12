@@ -3,17 +3,20 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 /**
- * Save a prompt with an AI-generated title (10s timeout, PROMPT-XXXXX fallback).
- * Used by the chat "save from message bubble" flow where the user hasn't
- * authored a title yet.
+ * Save a prompt. Honours a user-supplied title; when the caller omits or
+ * blanks it, the server AI-generates one (10s timeout, PROMPT-XXXXX
+ * fallback). Used by both the chat "save from message bubble" dialog and the
+ * library "Create prompt" form — either lets the title field stay blank.
  */
 export function useSavePrompt() {
   return useConvexAction(api.prompts.actions.savePrompt);
 }
 
 /**
- * Create a prompt directly with a user-supplied title. Used by the library
- * "Create prompt" flow which renders the full PromptFormDialog.
+ * Create a prompt directly via the mutation (no AI title fallback — a blank
+ * title becomes a PROMPT-XXXXX id). Not currently wired to any UI; prefer
+ * `useSavePrompt` for user-facing create flows so a blank title still gets
+ * an AI-generated suggestion.
  */
 export function useCreatePrompt() {
   return useConvexMutation(api.prompts.mutations.createPrompt);

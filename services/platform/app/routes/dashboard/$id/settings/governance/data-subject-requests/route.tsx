@@ -28,7 +28,10 @@ function DataSubjectRequestsRoute() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <SettingsPage>
+    // `fullWidth`: `RequestsListSection`'s table declares an explicit ~940px
+    // column-size floor, wider than the `max-w-3xl` other settings pages
+    // standardized on (#2567).
+    <SettingsPage fullWidth>
       <div id="dsar-policy">
         <DsarPolicyEditor organizationId={organizationId} />
       </div>

@@ -19,9 +19,11 @@ The drawer is where all the per-provider work happens. The list view is delibera
 
 ## Adding a provider
 
-Click **Add provider**. Tale's providers are OpenAI-compatible endpoints, so a provider is a **base URL** plus an **API key** — OpenRouter (`https://openrouter.ai/api/v1`) for the widest catalog, a direct vendor, or a local Ollama or vLLM server on your network. The key is stored encrypted and used only to call that provider.
+Click **Add provider**. **Start from a known provider** picks OpenAI, Anthropic, or OpenRouter and fills in the provider name and base URL — the only thing left to add is your API key. Editing the name or base URL by hand switches the picker back to **Custom**, the manual path: a provider is a **base URL** plus an **API key** — a direct vendor's own endpoint, OpenRouter (`https://openrouter.ai/api/v1`) for the widest catalog, or a local Ollama or vLLM server on your network. The key is stored encrypted and used only to call that provider.
 
-Once the credential lands, populate the model list: **Fetch models** pulls the list the provider's API reports, and **Add model** declares one by hand. No model is callable until it is in the provider's list with the right capability tag.
+Once the credential lands, populate the model list: **Fetch models** pulls the list the provider's API reports, **Add model** declares one by hand, and — once the org's model catalog has synced — picking a model from the catalog inside that dialog fills its ID and known capabilities (context window, pricing, reasoning) instead of typing them. No model is callable until it is in the provider's list with the right capability tag.
+
+For OpenAI, Anthropic, and OpenRouter, the base URL stays locked to the published endpoint even after the provider is created — open the row's drawer, click **Edit** under **General**, and the field shows read-only with an **Override base URL** button beside it. Reach for the override only to point that provider's slug at a compatible proxy or regional mirror; every other provider's base URL is editable directly, no override needed.
 
 ## The model list and capability tags
 

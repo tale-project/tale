@@ -160,12 +160,17 @@ function ConfigurationEditor({
   automationSlug,
   automation,
   workflowSlug,
+  projectId,
   extraController,
 }: {
   organizationId: string;
   automationSlug: string;
   automation: AutomationSummary;
   workflowSlug?: string;
+  /** The project scoping the Triggers deep link, when rendered under a
+   *  project route — schedules and their `?tab=triggers` view stay in the
+   *  same project context the operator is already in. */
+  projectId?: string;
   /** Composed into the tab strip's Save/Discard alongside this identity form
    *  (the project-bindings editor for a project-scoped automation). */
   extraController?: EditorController;
@@ -410,6 +415,32 @@ function ConfigurationEditor({
                     />
                   )}
                 />
+                {/* Two variable bags exist and operators conflate them: the
+                    workflow defaults above vs the SCHEDULE variables that
+                    cron runs actually send as input. Name the split and link
+                    the fix path (#2612). */}
+                <Text variant="muted" className="text-sm">
+                  {t('configuration.scheduleVarsHint')}{' '}
+                  {projectId !== undefined ? (
+                    <Link
+                      to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
+                      params={{ id: organizationId, projectId, automationSlug }}
+                      search={{ tab: 'triggers' }}
+                      className="text-foreground underline underline-offset-2"
+                    >
+                      {t('configuration.openTriggers')}
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/dashboard/$id/automations/$automationSlug"
+                      params={{ id: organizationId, automationSlug }}
+                      search={{ tab: 'triggers' }}
+                      className="text-foreground underline underline-offset-2"
+                    >
+                      {t('configuration.openTriggers')}
+                    </Link>
+                  )}
+                </Text>
               </>
             )}
           </Stack>
@@ -423,10 +454,14 @@ export function AutomationConfiguration({
   organizationId,
   automationSlug,
   automation,
+  projectId,
 }: {
   organizationId: string;
   automationSlug: string;
   automation: AutomationSummary;
+  /** Rendered under a project route — threads through to the Triggers deep
+   *  link so it stays in the same project context. */
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const navigate = useNavigate();
@@ -477,6 +512,7 @@ export function AutomationConfiguration({
           automationSlug={automationSlug}
           automation={automation}
           workflowSlug={workflowSlug}
+          projectId={projectId}
           extraController={
             isProjectScoped ? projectsEditor.controller : undefined
           }

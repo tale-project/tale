@@ -1,6 +1,8 @@
 export { useConvexAuth } from 'convex/react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { clearConvexTokenCache } from '@/app/lib/auth/convex-token-cache';
+import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
@@ -23,6 +25,11 @@ function useConvexAuthUser() {
     // than the previous org's suffix (the sign-out flows hard-navigate, so the
     // next document title is composed from a fresh, empty cache).
     clearTitleSuffix();
+    // Sign-out revoked the session server-side: drop the pre-auth caches so
+    // the next load can't attempt a websocket pre-authentication with the
+    // revoked token or hydrate the shell for the signed-out account (#2386).
+    clearConvexTokenCache();
+    clearMemberContextCache();
   };
 
   return {

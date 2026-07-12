@@ -34,6 +34,12 @@ export const fileMetadataTable = defineTable({
       v.literal('running'),
       v.literal('completed'),
       v.literal('failed'),
+      // Terminal, non-retryable: the format has no text extractor (e.g. a
+      // OneDrive-synced .loop file arriving as application/octet-stream).
+      // Set once at saveFileMetadata time — never scheduled, never queued —
+      // so the UI can distinguish "will never index" from the transient
+      // undefined "not indexed yet" state and skip the retry affordance.
+      v.literal('unsupported'),
     ),
   ),
   ragError: v.optional(v.string()),

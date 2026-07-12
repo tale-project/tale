@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
@@ -60,7 +60,40 @@ vi.mock('@/app/hooks/use-url-state', () => ({
   }),
 }));
 
+// The schedule-readiness readout normally rides a real Convex action query —
+// stub it to a mutable fixture so tests can drive "no gap" vs "gap" without a
+// ConvexProvider.
+const scheduleReadiness = vi.hoisted(() => ({ missingFields: [] as string[] }));
+
+vi.mock(
+  '@/app/features/automations/hooks/use-automation-schedule-readiness',
+  () => ({
+    useAutomationScheduleReadiness: () => ({
+      readiness: { required: [], schedules: [] },
+      missingFields: scheduleReadiness.missingFields,
+      isLoading: false,
+      refetch: vi.fn(),
+    }),
+  }),
+);
+
+import type { StepDef } from '../utils/step-icons';
 import { WorkflowSteps } from './workflow-steps';
+
+// Minimal fixture — the banner reads only `organizationId`/`wfDefinitionId`
+// off the first step to key the schedule-readiness query.
+const STEP: StepDef = {
+  _id: 'step-1',
+  _creationTime: 0,
+  organizationId: 'org-1',
+  wfDefinitionId: 'wf-1',
+  stepSlug: 'step-1',
+  name: 'Step 1',
+  stepType: 'action',
+  order: 0,
+  nextSteps: {},
+  config: {},
+};
 
 describe('WorkflowSteps canvas editing affordances', () => {
   it('keeps the "add step" toolbar button visible but disabled', () => {
@@ -84,5 +117,44 @@ describe('WorkflowSteps canvas editing affordances', () => {
     expect(h.flowCanvasProps.deleteKeyCode).toBeNull();
     expect(h.flowCanvasProps.onConnect).toBeUndefined();
     expect(h.flowCanvasProps.onEdgesDelete).toBeUndefined();
+  });
+});
+
+// Regression coverage for the #2605/#2606 class: the Editor tab's "this
+// workflow is active" banner must not claim more-ready-than-real when an
+// ACTIVE schedule is still missing required start-schema variables — it has
+// to fold in the same readiness signal the Integrations-tab checklist reads
+// (`useAutomationScheduleReadiness`).
+describe('WorkflowSteps activity banner schedule-readiness gap (#2605/#2606)', () => {
+  afterEach(() => {
+    scheduleReadiness.missingFields = [];
+  });
+
+  it('shows the plain "active" banner when no schedule is missing variables', () => {
+    render(
+      <WorkflowSteps steps={[STEP]} hasActiveTrigger setupIncomplete={false} />,
+    );
+
+    expect(
+      screen.getByText('steps.banners.hasActiveTriggers'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('steps.banners.hasActiveTriggersScheduleGap'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('swaps in the schedule-gap copy when an active schedule leaves required fields blank', () => {
+    scheduleReadiness.missingFields = ['owner', 'repo'];
+
+    render(
+      <WorkflowSteps steps={[STEP]} hasActiveTrigger setupIncomplete={false} />,
+    );
+
+    expect(
+      screen.getByText('steps.banners.hasActiveTriggersScheduleGap'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('steps.banners.hasActiveTriggers'),
+    ).not.toBeInTheDocument();
   });
 });

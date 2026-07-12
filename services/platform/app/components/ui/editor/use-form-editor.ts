@@ -165,8 +165,6 @@ export function useFormEditor<T extends FieldValues>({
     return new Set(Object.keys(form.formState.dirtyFields));
   }, [data, form.formState.dirtyFields]);
 
-  useRegisterDirtySource(isDirty);
-
   const doSave = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -215,6 +213,14 @@ export function useFormEditor<T extends FieldValues>({
     }
   }, [form]);
 
+  const isValid = schema ? form.formState.isValid : true;
+
+  // Register with the page-level DirtyBlockerProvider. A valid draft also
+  // registers its save path so the navigation dialog can offer "Save & Leave"
+  // (#2572); an invalid one registers none — that save could only fail — and
+  // the dialog degrades to Stay/Discard.
+  useRegisterDirtySource(isDirty, isValid ? { save: doSave } : undefined);
+
   const submit = useCallback(
     (e?: { preventDefault: () => void }) => {
       e?.preventDefault();
@@ -255,7 +261,7 @@ export function useFormEditor<T extends FieldValues>({
     dismissRemoteUpdate,
     isDirty,
     isSaving: form.formState.isSubmitting,
-    isValid: schema ? form.formState.isValid : true,
+    isValid,
     isLoading: data === undefined,
     dirtyKeys,
     save: doSave,

@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
-import { SkillsTable } from '@/app/features/skills/components/skills-table';
+import { SkillBindingsSelect } from '@/app/features/skills/components/skill-bindings-select';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
 import { WORKFLOW_SKILL_NAMES } from '@/convex/lib/skills/guidance';
 import { useT } from '@/lib/i18n/client';
@@ -60,12 +60,12 @@ function SkillsTab() {
     : t('agents.form.sectionSkillBindingsDescription');
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.form.sectionSkillBindings')}
         description={sectionDescription}
       />
-      <SkillsTable
+      <SkillBindingsSelect
         organizationId={organizationId}
         excludeSlugs={isExternalAgent ? workflowSlugs : undefined}
         bindingMode={{

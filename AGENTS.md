@@ -38,7 +38,7 @@ enforced source and match it (the generic method is `search-codebase`'s orient s
 | Types                   | the `tsconfig*.json` chain (strict)                            |
 | Commit format & scopes  | `.commitlintrc.json`                                           |
 | Security / SAST         | [`tools/opengrep/`](tools/opengrep/) — `bun run lint:sast`     |
-| Design system & tokens  | [`design/`](design/) + [`designs/`](designs/) + `@tale/ui`     |
+| Design system & tokens  | [`design/`](design/) (`docs/` + `sources/`) + `@tale/ui`       |
 | Everything at once      | `bun run check` (format, lint, typecheck, all tests)           |
 
 The **guards are the spec** — run `bun run check` and read the failures; they teach the house style

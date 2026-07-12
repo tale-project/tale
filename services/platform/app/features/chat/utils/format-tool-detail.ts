@@ -178,6 +178,7 @@ const TOOL_LABEL_KEYS: Record<string, string> = {
   secret_read: 'tools.secretRead',
   request_human_input: 'tools.requestHumanInput',
   request_user_location: 'tools.requestUserLocation',
+  automation_search: 'tools.automationSearch',
 };
 
 /**

@@ -26,6 +26,10 @@ export function useListWorkflows(
     workflowListKey(organizationId, filter),
     api.workflows.file_actions.listWorkflows,
     { organizationId, filter },
+    // Never fire with an empty org id: callers fall back to `''` while the org
+    // context is still resolving (e.g. the task modal's actor directory), and
+    // the server rejects an empty id with an uncaught ORG_NOT_FOUND (#2668).
+    { enabled: !!organizationId },
   );
   return { workflows: data, isLoading, error, refetch };
 }
@@ -38,7 +42,7 @@ export function useReadWorkflow(
     configKeys.detail('workflows', organizationId, workflowSlug ?? ''),
     api.workflows.file_actions.readWorkflow,
     { organizationId, workflowSlug: workflowSlug ?? '' },
-    { enabled: !!workflowSlug },
+    { enabled: !!organizationId && !!workflowSlug },
   );
 }
 
@@ -50,6 +54,7 @@ export function useWorkflowHistory(
     configKeys.history('workflows', organizationId, workflowSlug),
     api.workflows.file_actions.listHistory,
     { organizationId, workflowSlug },
+    { enabled: !!organizationId && !!workflowSlug },
   );
   return { history: data, isLoading, error, refetch };
 }

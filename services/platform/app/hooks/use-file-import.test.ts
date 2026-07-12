@@ -3,27 +3,27 @@ import { describe, it, expect } from 'vitest';
 import { parseCSVWithMapper } from '@/lib/utils/file-parsing';
 
 import {
+  contactMappers,
   customerMappers,
   productMappers,
   PRODUCT_REQUIRED_COLUMNS,
-  vendorMappers,
 } from './use-file-import';
 
-describe('vendorMappers.csv', () => {
-  it('parses email only', () => {
-    const result = vendorMappers.csv(['vendor@example.com'], 0);
+describe('contactMappers.csv', () => {
+  it('parses email only, leaving locale unset (#2642)', () => {
+    const result = contactMappers.csv(['contact@example.com'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: undefined,
-      locale: 'en',
+      locale: undefined,
       source: 'manual_import',
     });
   });
 
   it('parses email with locale (2 fields)', () => {
-    const result = vendorMappers.csv(['vendor@example.com', 'es'], 0);
+    const result = contactMappers.csv(['contact@example.com', 'es'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: undefined,
       locale: 'es',
       source: 'manual_import',
@@ -31,9 +31,9 @@ describe('vendorMappers.csv', () => {
   });
 
   it('parses email with locale containing region (2 fields)', () => {
-    const result = vendorMappers.csv(['vendor@example.com', 'pt-BR'], 0);
+    const result = contactMappers.csv(['contact@example.com', 'pt-BR'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: undefined,
       locale: 'pt-BR',
       source: 'manual_import',
@@ -41,32 +41,32 @@ describe('vendorMappers.csv', () => {
   });
 
   it('parses email with locale using underscore separator (2 fields)', () => {
-    const result = vendorMappers.csv(['vendor@example.com', 'zh_Hans'], 0);
+    const result = contactMappers.csv(['contact@example.com', 'zh_Hans'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: undefined,
       locale: 'zh_Hans',
       source: 'manual_import',
     });
   });
 
-  it('parses email with name (2 fields, non-locale value)', () => {
-    const result = vendorMappers.csv(['vendor@example.com', 'Acme Corp'], 0);
+  it('parses email with name (2 fields, non-locale value), leaving locale unset', () => {
+    const result = contactMappers.csv(['contact@example.com', 'Acme Corp'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: 'Acme Corp',
-      locale: 'en',
+      locale: undefined,
       source: 'manual_import',
     });
   });
 
   it('parses email, name, and locale (3 fields)', () => {
-    const result = vendorMappers.csv(
-      ['vendor@example.com', 'Acme Corp', 'fr'],
+    const result = contactMappers.csv(
+      ['contact@example.com', 'Acme Corp', 'fr'],
       0,
     );
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: 'Acme Corp',
       locale: 'fr',
       source: 'manual_import',
@@ -74,9 +74,9 @@ describe('vendorMappers.csv', () => {
   });
 
   it('handles empty name in 3-field format', () => {
-    const result = vendorMappers.csv(['vendor@example.com', '', 'de'], 0);
+    const result = contactMappers.csv(['contact@example.com', '', 'de'], 0);
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: undefined,
       locale: 'de',
       source: 'manual_import',
@@ -84,57 +84,57 @@ describe('vendorMappers.csv', () => {
   });
 
   it('returns null for empty email', () => {
-    const result = vendorMappers.csv(['', 'name'], 0);
+    const result = contactMappers.csv(['', 'name'], 0);
     expect(result).toBeNull();
   });
 
   it('returns null for missing email', () => {
-    const result = vendorMappers.csv([], 0);
+    const result = contactMappers.csv([], 0);
     expect(result).toBeNull();
   });
 });
 
-describe('vendorMappers.excel', () => {
+describe('contactMappers.excel', () => {
   it('parses record with lowercase keys', () => {
-    const result = vendorMappers.excel({
-      email: 'vendor@example.com',
+    const result = contactMappers.excel({
+      email: 'contact@example.com',
       name: 'Acme Corp',
       locale: 'fr',
     });
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: 'Acme Corp',
       locale: 'fr',
       source: 'file_upload',
     });
   });
 
-  it('defaults locale to en when missing', () => {
-    const result = vendorMappers.excel({ email: 'v@example.com' });
+  it('leaves locale unset when missing, instead of fabricating "en" (#2642)', () => {
+    const result = contactMappers.excel({ email: 'v@example.com' });
     expect(result).toEqual({
       email: 'v@example.com',
       name: undefined,
-      locale: 'en',
+      locale: undefined,
       source: 'file_upload',
     });
   });
 
   it('returns null when email is missing', () => {
-    const result = vendorMappers.excel({ name: 'Acme Corp' });
+    const result = contactMappers.excel({ name: 'Acme Corp' });
     expect(result).toBeNull();
   });
 
-  // Regression test for #1323: a vendor file whose columns are named
+  // Regression test for #1323: a contact file whose columns are named
   // differently ("Email Address", "Company", "Language") must still map
   // every field instead of silently dropping the name/locale.
   it('maps aliased header columns (email address / company / language)', () => {
-    const result = vendorMappers.excel({
-      'email address': 'vendor@example.com',
+    const result = contactMappers.excel({
+      'email address': 'contact@example.com',
       company: 'Acme Corp',
       language: 'de',
     });
     expect(result).toEqual({
-      email: 'vendor@example.com',
+      email: 'contact@example.com',
       name: 'Acme Corp',
       locale: 'de',
       source: 'file_upload',
@@ -142,8 +142,8 @@ describe('vendorMappers.excel', () => {
   });
 
   it('maps "vendor name" alias to name', () => {
-    const result = vendorMappers.excel({
-      email: 'vendor@example.com',
+    const result = contactMappers.excel({
+      email: 'contact@example.com',
       'vendor name': 'Beta LLC',
     });
     expect(result).toMatchObject({ name: 'Beta LLC' });

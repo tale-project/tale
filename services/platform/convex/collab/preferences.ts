@@ -1,5 +1,17 @@
 /**
  * Per-user notification preferences (tri-state: undefined → system default ON).
+ *
+ * `taskReview` is the odd one out: it's a human-in-the-loop safety signal,
+ * so the settings UI locks its toggle always-on and both notification
+ * dispatch paths ignore whatever is stored for it (#2651 — see
+ * `notify.ts::isAllowed` / `notify_task_reviews.ts::prefAllows`).
+ * `setNotificationPreferences` mirrors that on the write side: it never
+ * persists a client-supplied value for `taskReview`, so a stale `false` row
+ * (written by a direct/legacy caller that predates the lock, or one that
+ * still sends it) can't be written or re-accumulated — the field is simply
+ * dropped from every patch/insert, which also self-heals any existing
+ * stale row on its next write. No migration needed since the stored value
+ * is never read.
  */
 
 import { v } from 'convex/values';
@@ -87,7 +99,11 @@ export const setNotificationPreferences = mutation({
       taskStatusChanged: args.taskStatusChanged,
       taskCommented: args.taskCommented,
       mention: args.mention,
-      taskReview: args.taskReview,
+      // Never persist a client-supplied `taskReview` value (#2651): the
+      // toggle is locked always-on in the UI and both dispatch paths ignore
+      // whatever is stored, so accepting-but-dropping it here is what keeps
+      // a direct/legacy write from (re-)creating a stale `false` row.
+      taskReview: undefined,
       escalation: args.escalation,
       automationAlerts: args.automationAlerts,
       digest: args.digest,

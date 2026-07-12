@@ -71,6 +71,13 @@ export async function isAllowed(
   organizationId: string,
   type: NotificationType,
 ): Promise<boolean> {
+  // Review requests are a safety signal — the settings UI locks the toggle
+  // always-on (#2651), and automation-fired review reminders/resolutions
+  // (this is the gate `notifyFromAutomation` uses) must honor that lock too.
+  // Ignore any stored `taskReview` value, including a stale `false`
+  // persisted before the lock shipped — no migration needed since the
+  // stored value is simply never read.
+  if (PREF_FIELD[type] === 'taskReview') return true;
   const prefs = await ctx.db
     .query('notificationPreferences')
     .withIndex('by_userId_organizationId', (q) =>

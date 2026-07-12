@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { moderationProviderConfigSchema } from '@/lib/shared/schemas/governance';
 import { render, screen } from '@/tests/utils/render';
 
 // Entry point is exported as `ModerationProviderConfigView` (the guardrails
@@ -87,6 +88,33 @@ describe('ModerationProviderConfig', () => {
       );
       await user.click(screen.getByRole('switch'));
       expect(screen.getByText(/set an endpoint first/i)).toBeInTheDocument();
+    });
+  });
+
+  // #2657: enabling (deferred, per #2344 above — nothing persists yet) then
+  // disabling the same never-configured provider used to fire a save that
+  // failed the schema's endpoint/template validation, throwing an uncaught
+  // `ConvexError` even though the save was turning the layer OFF.
+  describe('enable-without-endpoint then disable (#2657)', () => {
+    it('persists the disable with a still-blank endpoint, validating clean against the real schema', async () => {
+      setLoaded();
+      const { user } = render(
+        <ModerationProviderConfigView organizationId="org-1" />,
+      );
+      const toggle = screen.getByRole('switch');
+
+      await user.click(toggle); // enable — deferred, no save (#2344)
+      expect(saveMutateAsync).not.toHaveBeenCalled();
+
+      await user.click(toggle); // disable — must always persist
+      expect(saveMutateAsync).toHaveBeenCalledTimes(1);
+
+      const [{ config }] = saveMutateAsync.mock.calls.at(-1) as [
+        { config: unknown },
+      ];
+      expect((config as { enabled: boolean }).enabled).toBe(false);
+      const parsed = moderationProviderConfigSchema.safeParse(config);
+      expect(parsed.success).toBe(true);
     });
   });
 

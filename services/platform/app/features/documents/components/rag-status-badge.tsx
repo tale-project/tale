@@ -33,6 +33,7 @@ const statusConfig: Record<RagStatus, { variant: BadgeVariant }> = {
   running: { variant: 'blue' },
   completed: { variant: 'green' },
   failed: { variant: 'destructive' },
+  unsupported: { variant: 'slate' },
   not_indexed: { variant: 'blue' },
   stale: { variant: 'orange' },
 };
@@ -51,6 +52,7 @@ export function RagStatusBadge({
     useRetryRagIndexing();
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
+  const [isUnsupportedDialogOpen, setIsUnsupportedDialogOpen] = useState(false);
 
   // Get translated label for status
   const getStatusLabel = useCallback(
@@ -60,6 +62,7 @@ export function RagStatusBadge({
         running: t('rag.status.indexing'),
         completed: t('rag.status.indexed'),
         failed: t('rag.status.failed'),
+        unsupported: t('rag.status.unsupported'),
         not_indexed: t('rag.status.notIndexed'),
         stale: t('rag.status.needsReindex'),
       };
@@ -201,6 +204,39 @@ export function RagStatusBadge({
         </ViewDialog>
         {retryButton}
       </span>
+    );
+  }
+
+  // Terminal, non-retryable: no text extractor exists for this format —
+  // deliberately no retry affordance (unlike 'failed', which may be
+  // transient). Clickable badge explains why, mirroring 'failed'.
+  if (effectiveStatus === 'unsupported') {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsUnsupportedDialogOpen(true);
+          }}
+          className="cursor-pointer"
+          aria-label={t('rag.dialog.unsupported.title')}
+        >
+          <Badge variant={config.variant} dot>
+            {getStatusLabel(effectiveStatus)}
+          </Badge>
+        </button>
+        <ViewDialog
+          open={isUnsupportedDialogOpen}
+          onOpenChange={setIsUnsupportedDialogOpen}
+          title={t('rag.dialog.unsupported.title')}
+          description={t('rag.dialog.unsupported.description')}
+        >
+          <Text className="mt-4">
+            {t('rag.dialog.unsupported.description')}
+          </Text>
+        </ViewDialog>
+      </>
     );
   }
 

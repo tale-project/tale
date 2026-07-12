@@ -43581,7 +43581,6 @@
               "type": "string"
             },
             "requestTemplate": {
-              "minLength": 1,
               "type": "string"
             },
             "timeoutMs": {
@@ -43590,7 +43589,6 @@
               "type": "integer"
             },
             "url": {
-              "format": "uri",
               "type": "string"
             }
           },
@@ -43659,7 +43657,6 @@
               "additionalProperties": false,
               "properties": {
                 "categoriesPath": {
-                  "minLength": 1,
                   "type": "string"
                 },
                 "categoryShape": {

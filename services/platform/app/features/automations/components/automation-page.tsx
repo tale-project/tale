@@ -26,7 +26,7 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, UserPen, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -50,6 +50,7 @@ import { startCase } from '@/lib/utils/string';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import { useAutomationAgentReadiness } from '../hooks/use-automation-agent-readiness';
+import { useAutomationScheduleReadiness } from '../hooks/use-automation-schedule-readiness';
 import { useAutomationDisplay } from '../hooks/use-automation-text';
 import {
   type AutomationSummary,
@@ -92,11 +93,32 @@ const TRIGGERS_TAB = 'triggers';
 const INTEGRATIONS_TAB = 'integrations';
 const ENVIRONMENT_TAB = 'environment';
 
+/**
+ * The Configuration tab's editable keys — the `ConfigurationForm` field names
+ * (`automation-configuration.tsx`) plus the project-bindings editor's
+ * `projectBindings` (`use-project-bindings-editor.ts`). Powers the per-tab
+ * amber unsaved dot (#2573): the strip intersects these with the ACTIVE
+ * editor controller's `dirtyKeys`, exactly like the agent settings tabs.
+ * Only the mounted tab's editor registers, so these can't false-positive
+ * while another tab is open.
+ */
+const CONFIGURATION_TAB_DIRTY_KEYS = [
+  'name',
+  'description',
+  'timeout',
+  'maxRetries',
+  'backoffMs',
+  'variables',
+  'projectBindings',
+] as const;
+
 function ReadinessChecklist({
   organizationId,
   status,
   blockedIntegrations,
   blockedAgents,
+  missingScheduleFields,
+  triggersTo,
   onFinishSetup,
   only,
 }: {
@@ -110,6 +132,12 @@ function ReadinessChecklist({
     credentialMismatch?: CredentialRuntimeMismatchDetail;
     missingEnvKeys: string[];
   }[];
+  /** Required schedule variables no active schedule provides — cron runs
+   *  WILL fail until they're set on the Triggers tab. */
+  missingScheduleFields: string[];
+  /** Base path of the automation page when its Triggers tab is rendered
+   *  (developer with a workflow) — the schedule-gap deep link's target. */
+  triggersTo?: string;
   /** Open the finish-setup wizard for the remaining steps. */
   onFinishSetup: () => void;
   /** Scope the banner to one tab's concern: integration blockers on the
@@ -128,11 +156,12 @@ function ReadinessChecklist({
     [required],
   );
 
-  // Integration/broken blockers belong on the Integrations tab; agent blockers
-  // on Configuration. `only` filters the banner to the relevant ones.
+  // Integration/broken/schedule blockers belong on the Integrations tab; agent
+  // blockers on Configuration. `only` filters the banner to the relevant ones.
   const showBroken = only !== 'agents' && status === 'broken';
   const showIntegrations = only !== 'agents' && blockedIntegrations.length > 0;
   const showAgents = only !== 'integrations' && blockedAgents.length > 0;
+  const showSchedule = only !== 'agents' && missingScheduleFields.length > 0;
 
   const missingSummary = useMemo(() => {
     const parts: string[] = [];
@@ -153,29 +182,53 @@ function ReadinessChecklist({
         }),
       );
     }
+    if (showSchedule) {
+      parts.push(
+        t('readiness.summaryScheduleVars', {
+          fields: missingScheduleFields.join(', '),
+        }),
+      );
+    }
     return parts.join(' · ');
   }, [
     showBroken,
     showIntegrations,
     showAgents,
+    showSchedule,
     blockedIntegrations,
     blockedAgents,
+    missingScheduleFields,
     titleBySlug,
     t,
   ]);
 
-  if (!showBroken && !showIntegrations && !showAgents) return null;
+  if (!showBroken && !showIntegrations && !showAgents && !showSchedule) {
+    return null;
+  }
 
-  // One warning banner, one button — opens the wizard for the remaining steps.
-  // Laid out like the org danger-zone Alert: summary on the left, the action
-  // button pinned right on wider screens, stacked on mobile.
+  // One warning banner — the wizard button for broken/integration/agent gaps,
+  // a Triggers deep link for schedule-variable gaps (the wizard can't set
+  // those; the schedule's own editor can). Laid out like the org danger-zone
+  // Alert: summary on the left, the actions pinned right on wider screens,
+  // stacked on mobile.
   return (
     <Alert variant="warning" icon={Wrench} title={t('readiness.title')}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm">{missingSummary}</span>
-        <Button variant="warning" className="shrink-0" onClick={onFinishSetup}>
-          {t('install.setup')}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          {showSchedule && triggersTo !== undefined && (
+            <Button asChild variant="secondary">
+              <Link to={triggersTo} search={{ tab: TRIGGERS_TAB }}>
+                {t('readiness.openTriggers')}
+              </Link>
+            </Button>
+          )}
+          {(showBroken || showIntegrations || showAgents) && (
+            <Button variant="warning" onClick={onFinishSetup}>
+              {t('install.setup')}
+            </Button>
+          )}
+        </div>
       </div>
     </Alert>
   );
@@ -213,6 +266,7 @@ function ReadinessSection({
   automationSlug,
   status,
   blockedIntegrations,
+  triggersTo,
   onFinishSetup,
   only,
 }: {
@@ -220,6 +274,8 @@ function ReadinessSection({
   automationSlug: string;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
+  /** Base path for the Triggers deep link, when that tab is rendered. */
+  triggersTo?: string;
   onFinishSetup: () => void;
   only?: 'integrations' | 'agents';
 }) {
@@ -229,6 +285,15 @@ function ReadinessSection({
     automationSlug,
     only !== 'integrations',
   );
+  // Schedule-variable gaps ride the integrations-scoped banner: an ACTIVE
+  // schedule missing a required start-schema field fails at fire time, so a
+  // green checklist must not hide it (#2606).
+  const { missingFields: missingScheduleFields } =
+    useAutomationScheduleReadiness(
+      organizationId,
+      automationSlug,
+      only !== 'agents',
+    );
   const blockedAgents = useMemo(
     () =>
       agentReadiness
@@ -257,6 +322,8 @@ function ReadinessSection({
       status={status}
       blockedIntegrations={blockedIntegrations}
       blockedAgents={blockedAgents}
+      missingScheduleFields={only === 'agents' ? [] : missingScheduleFields}
+      triggersTo={triggersTo}
       onFinishSetup={onFinishSetup}
       only={only}
     />
@@ -394,6 +461,7 @@ function InstalledAutomationBody({
       organizationId={organizationId}
       automationSlug={automationSlug}
       automation={automation}
+      projectId={projectId}
     />
   );
 
@@ -488,11 +556,19 @@ function InstalledAutomationBody({
             value: TRIGGERS_TAB,
             label: t('tabs.triggers'),
             content: (
-              <Triggers
-                workflowId={workflowSlug}
-                organizationId={organizationId}
-                workflowSlug={workflowSlug}
-              />
+              // Lead-in naming WHICH variable bag drives cron runs — the
+              // schedule variables edited here, not the Configuration tab's
+              // workflow defaults (#2612; Configuration links back here).
+              <VStack gap={4}>
+                <Text variant="muted" className="text-sm">
+                  {t('triggers.scheduleVarsLead')}
+                </Text>
+                <Triggers
+                  workflowId={workflowSlug}
+                  organizationId={organizationId}
+                  workflowSlug={workflowSlug}
+                />
+              </VStack>
             ),
           },
           {
@@ -572,6 +648,10 @@ function InstalledAutomationBody({
     href: basePath,
     search: item.value === defaultTab ? {} : { tab: item.value },
     isActive: activeTab === item.value,
+    dirtyKeys:
+      item.value === CONFIGURATION_TAB
+        ? CONFIGURATION_TAB_DIRTY_KEYS
+        : undefined,
   }));
 
   // The tab strip's trailing slot holds only the Finish-setup button (the AI
@@ -598,6 +678,9 @@ function InstalledAutomationBody({
       automationSlug={automationSlug}
       status={status}
       blockedIntegrations={blockedIntegrations}
+      // The Triggers deep link only exists where the tab does (developer with
+      // a workflow); everyone else still sees the gap named in the summary.
+      triggersTo={showDevTabs ? basePath : undefined}
       onFinishSetup={() => setFinishSetupOpen(true)}
       only={only}
     />

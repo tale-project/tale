@@ -28,6 +28,7 @@ import { changedKeys } from '@/lib/utils/structural-equal';
 
 import { useOrganization } from '../../organization/hooks/queries';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
+import { useAgentValidation } from '../hooks/use-agent-validation';
 import { HistoryDiffDialog } from './history-diff-dialog';
 
 interface AgentNavigationProps {
@@ -156,9 +157,11 @@ export function AgentNavigation({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
-  // Register with the page-level DirtyBlockerProvider so the unsaved-changes
-  // dialog fires on navigation away from the agent editor.
-  useRegisterDirtySource(isDirty);
+  // Real client-side validity — the same `agentJsonSchema` the server's
+  // `saveAgent` enforces, so Save disables instead of round-tripping to a
+  // guaranteed VALIDATION_ERROR (#2665). The offending fields render their
+  // own inline errors on the General / Instructions tabs.
+  const { isValid } = useAgentValidation(config);
 
   // Encode the agent id: app-owned agents have a composite slug
   // (`<app>/<name>`), and its `/` must stay a single path segment (`%2F`) so the
@@ -300,14 +303,26 @@ export function AgentNavigation({
     () => ({
       isDirty,
       isSaving,
-      isValid: true,
+      isValid,
       isLoading: false,
       dirtyKeys,
       save: doSave,
       reset: resetConfig,
     }),
-    [doSave, dirtyKeys, isDirty, isSaving, resetConfig],
+    [doSave, dirtyKeys, isDirty, isSaving, isValid, resetConfig],
   );
+
+  // Register with the page-level DirtyBlockerProvider so the unsaved-changes
+  // dialog fires on navigation away from the agent editor. The config state
+  // lives in `AgentConfigProvider` ABOVE the tab routes, so switching tabs
+  // inside `basePath` loses nothing — scope the blocker to leaving the agent
+  // (#2572). A valid draft also registers its save path so the dialog can
+  // offer "Save & Leave"; an invalid one deliberately doesn't (that save is
+  // guaranteed to fail server-side).
+  useRegisterDirtySource(isDirty, {
+    scopePath: basePath,
+    ...(isValid && { save: doSave }),
+  });
 
   const handleLoadHistory = useCallback(async () => {
     setIsLoadingHistory(true);

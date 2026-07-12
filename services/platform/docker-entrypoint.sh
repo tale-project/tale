@@ -265,9 +265,12 @@ deploy_convex_functions() {
   # `/home/you/tale/.tale-config`) left over from running `bun scripts/dev.ts`
   # on the host — that path is unreachable inside the convex container.
   #
-  # Only TALE_CONFIG_DIR is pushed; AGENTS_DIR/WORKFLOWS_DIR/INTEGRATIONS_DIR/
-  # PROVIDERS_DIR are derived inside Convex (`convex/*/file_utils.ts` falls
-  # back to `${TALE_CONFIG_DIR}/<subdir>` when the specific var is absent).
+  # Only TALE_CONFIG_DIR is pushed. The per-domain overrides (AGENTS_DIR/
+  # WORKFLOWS_DIR/INTEGRATIONS_DIR/PROVIDERS_DIR/SKILLS_DIR) are no longer
+  # honored anywhere under the uniform org-first layout — resolvers read
+  # exclusively from `${TALE_CONFIG_DIR}/<orgSlug>/<domain>/` — which is
+  # also why the sync loop below actively purges any of those names it
+  # finds still set in the Convex deployment.
   #
   # For local dev against a real writable config dir, bind-mount the host
   # config root into the convex container via compose.dev.yml:

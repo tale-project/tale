@@ -19,6 +19,7 @@ import { TestTubeDiagonal, X, AlertTriangle, Plus } from 'lucide-react';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 import { FlowCanvas } from '@/app/components/flow/flow-canvas';
+import { useAutomationScheduleReadiness } from '@/app/features/automations/hooks/use-automation-schedule-readiness';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
@@ -114,6 +115,23 @@ function WorkflowStepsInner({
   const { t } = useT('workflows');
   const { t: tCommon } = useT('common');
   const hasSteps = steps && steps.length > 0;
+
+  // Schedule-variable readiness (#2605/#2606 sibling): an ACTIVE schedule
+  // missing a required start-schema field WILL fail at fire time, so the
+  // "this workflow is active" claim below must not read as "everything will
+  // run cleanly" when it can't. Every step already carries its owning org +
+  // workflow slug (`StepDef.organizationId` / `wfDefinitionId`), so this
+  // reads the SAME readiness signal `useAutomationScheduleReadiness` already
+  // surfaces on the automation page's Integrations-tab checklist — without
+  // threading new props through the Editor tab's caller chain. Disabled
+  // while the banner itself wouldn't show, to skip the query entirely then.
+  const firstStep = steps?.[0];
+  const { missingFields: missingScheduleFields } =
+    useAutomationScheduleReadiness(
+      firstStep?.organizationId ?? '',
+      firstStep?.wfDefinitionId ?? '',
+      hasActiveTrigger && !setupIncomplete && firstStep !== undefined,
+    );
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -369,7 +387,14 @@ function WorkflowStepsInner({
                       >
                         <Row className="items-center justify-between gap-2">
                           <Text className="text-sm">
-                            {t('steps.banners.hasActiveTriggers')}
+                            {missingScheduleFields.length > 0
+                              ? t(
+                                  'steps.banners.hasActiveTriggersScheduleGap',
+                                  {
+                                    fields: missingScheduleFields.join(', '),
+                                  },
+                                )
+                              : t('steps.banners.hasActiveTriggers')}
                           </Text>
                           <Button
                             variant="ghost"

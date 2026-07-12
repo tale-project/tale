@@ -25,10 +25,7 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import {
-  listInstalledAutomationSlugsFromDisk,
-  readInstalledAutomationFolders,
-} from '../automations/file_utils';
+import { readInstalledAutomationFolders } from '../automations/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -307,10 +304,15 @@ export const listAgents = action({
     );
 
     // App-owned agents (org/apps/<app>/agents/) — invisible to the global walk
-    // above. Surface them too, grouped under their app's display folder (the
-    // manifest's `folder`, falling back to the app slug) and tagged with
-    // automationSlug so the global agents list can mark the group.
-    const automationSlugs = await listInstalledAutomationSlugsFromDisk(orgSlug);
+    // above. Surface only INSTALLED automations: uploaded private bundles also
+    // live under org/automations/ but must not contribute agents until install
+    // (and private uploads keep the bundle on disk after uninstall, so a disk
+    // scan is wrong — #2564). `automationInstallations` is authoritative.
+    const automationSlugs: string[] = await ctx.runQuery(
+      internal.automations.install_mutations
+        .listAutomationInstallationsInternal,
+      { organizationId: args.organizationId },
+    );
     const appFolders = await readInstalledAutomationFolders(
       orgSlug,
       automationSlugs,

@@ -8,8 +8,18 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+// Hoisted so the save spy is inspectable across renders (each render must see
+// the SAME `mutateAsync`, not a fresh `vi.fn()`) — mirrors
+// `moderation-provider-config.test.tsx`.
+const { saveMutateAsync } = vi.hoisted(() => ({
+  saveMutateAsync: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: saveMutateAsync,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -48,8 +58,66 @@ function setLoading() {
   state.isLoading = true;
   state.policy = undefined;
 }
+function setConfigured() {
+  state.isLoading = false;
+  state.policy = {
+    enabled: false,
+    config: {
+      mode: 'block',
+      enabledPatterns: ['email'],
+      customPatterns: [],
+    },
+  };
+}
 
 describe('PiiConfig', () => {
+  // #2656: enabling with nothing configured yet used to persist
+  // `enabledPatterns: []` — a silent no-op. First enable must now seed the
+  // universal pattern set and the documented `mask` default.
+  describe('seed universal patterns on first enable (#2656)', () => {
+    it('seeds the default pattern set + mask mode when enabling with no patterns configured', async () => {
+      setLoaded();
+      saveMutateAsync.mockClear();
+      const { user } = render(<PiiConfig organizationId="org-1" />);
+      await user.click(screen.getByRole('switch'));
+      expect(saveMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policyType: 'pii_config',
+          config: expect.objectContaining({
+            enabled: true,
+            mode: 'mask',
+            enabledPatterns: [
+              'email',
+              'phone',
+              'creditCard',
+              'cvc',
+              'iban',
+              'ssn',
+              'nationalId',
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('does not override an already-configured pattern set/mode when enabling', async () => {
+      setConfigured();
+      saveMutateAsync.mockClear();
+      const { user } = render(<PiiConfig organizationId="org-1" />);
+      await user.click(screen.getByRole('switch'));
+      expect(saveMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policyType: 'pii_config',
+          config: expect.objectContaining({
+            enabled: true,
+            mode: 'block',
+            enabledPatterns: ['email'],
+          }),
+        }),
+      );
+    });
+  });
+
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {
       setLoaded();

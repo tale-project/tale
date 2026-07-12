@@ -12,7 +12,7 @@ import {
 } from '@/app/components/ui/data-display/table-date-cell';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { i18n } from '@/lib/i18n/i18n';
-import { startCase } from '@/lib/utils/string';
+import { formatEnumLabel } from '@/lib/utils/string';
 
 const DEFAULT_LANGUAGE_TO_COUNTRY: Record<string, string> = {
   en: 'US',
@@ -74,8 +74,17 @@ export const ACTIONS_COLUMN_SIZE = 56;
  */
 export const SELECT_COLUMN_SIZE = 40;
 
-interface CreationTimeColumnOptions {
+interface CreationTimeColumnOptions<TData = unknown> {
   size?: number;
+  /**
+   * Overrides the default (label-only) header — e.g. to make the column
+   * sortable. Set through the builder's options rather than spreading its
+   * return value: `ColumnDef<TData>` is a wide union, and TS can't narrow a
+   * spread-then-override of a generic union return back down to a single
+   * member (`accessorKey` gets lost), so `{ ...createCreationTimeColumn(),
+   * header: … }` fails to typecheck even though the shape is valid.
+   */
+  header?: ColumnDef<TData>['header'];
 }
 
 interface DateColumnOptions {
@@ -151,15 +160,17 @@ export function createCreationTimeColumn<
   TData extends { _creationTime: number },
 >(
   tTables: TranslationFn,
-  options?: CreationTimeColumnOptions,
+  options?: CreationTimeColumnOptions<TData>,
 ): ColumnDef<TData> {
   return {
     accessorKey: '_creationTime',
-    header: () => (
-      <span className="block w-full text-right">
-        {tTables('headers.created')}
-      </span>
-    ),
+    header:
+      options?.header ??
+      (() => (
+        <span className="block w-full text-right">
+          {tTables('headers.created')}
+        </span>
+      )),
     size: options?.size ?? 140,
     // Right-aligned short date → skeleton renders a narrow right-aligned bar
     // that matches the cell instead of a full-width text bar.
@@ -234,9 +245,7 @@ export function createSourceColumn<TData extends { source?: string | null }>(
     size: options?.size ?? 140,
     cell: ({ row }) => (
       <Text as="span" variant="caption">
-        {row.original.source
-          ? startCase(row.original.source.toLowerCase())
-          : tTables('cells.unknown')}
+        {formatEnumLabel(row.original.source, tTables('cells.unknown'))}
       </Text>
     ),
   };
@@ -260,7 +269,12 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
     // A single flag glyph — center a small bar rather than a full-width one.
     meta: { align: 'center' },
     cell: ({ row }) => {
-      const locale = row.original.locale || 'en';
+      const locale = row.original.locale;
+      // An unset locale is an unknown fact, not `'en'` — rendering a flag for
+      // it would assert a value nobody chose (#2642).
+      if (!locale) {
+        return <span className="text-muted-foreground text-base">—</span>;
+      }
       const flag = getCountryFlag(locale);
       return <span className="text-base">{flag}</span>;
     },

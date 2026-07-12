@@ -82,27 +82,41 @@ vi.mock('../../organization/hooks/queries', () => ({
   useOrganization: () => ({ data: undefined, isLoading: false }),
 }));
 
+// Mutable so each test can shape the agent config / dirty state the
+// component reads.
+const agentConfigState = {
+  config: {} as Record<string, unknown>,
+  isDirty: false,
+  isSaving: false,
+  resetConfig: vi.fn(),
+  markSaving: vi.fn(),
+  markSaved: vi.fn(),
+  overrideConfig: vi.fn(),
+};
 vi.mock('../hooks/use-agent-config-context', () => ({
-  useAgentConfig: () => ({
-    config: {},
-    isDirty: false,
-    isSaving: false,
-    resetConfig: vi.fn(),
-    markSaving: vi.fn(),
-    markSaved: vi.fn(),
-    overrideConfig: vi.fn(),
-  }),
+  useAgentConfig: () => agentConfigState,
 }));
 
 vi.mock('./history-diff-dialog', () => ({
   HistoryDiffDialog: () => null,
 }));
 
+import { screen } from '@testing-library/react';
+import { expect } from 'vitest';
+
 import { AgentNavigation } from './agent-navigation';
+
+const VALID_CONFIG = {
+  displayName: 'Support Agent',
+  systemInstructions: 'Help the user.',
+  supportedModels: ['openai:gpt-4o'],
+};
 
 describe('AgentNavigation', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
+      agentConfigState.config = {};
+      agentConfigState.isDirty = false;
       const { container } = render(
         <AgentNavigation
           organizationId="test-org"
@@ -111,6 +125,40 @@ describe('AgentNavigation', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  describe('save validity gate (#2665)', () => {
+    it('disables Save for a dirty but schema-invalid config', () => {
+      // Empty config: no display name / instructions / models — the server's
+      // `agentJsonSchema.parse` would reject it, so Save must not be offered.
+      agentConfigState.config = { supportedModels: [] };
+      agentConfigState.isDirty = true;
+      render(
+        <AgentNavigation
+          organizationId="test-org"
+          agentId="test-agent"
+          onSaved={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'common.actions.save' }),
+      ).toBeDisabled();
+    });
+
+    it('enables Save for a dirty, valid config', () => {
+      agentConfigState.config = { ...VALID_CONFIG };
+      agentConfigState.isDirty = true;
+      render(
+        <AgentNavigation
+          organizationId="test-org"
+          agentId="test-agent"
+          onSaved={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'common.actions.save' }),
+      ).toBeEnabled();
     });
   });
 });

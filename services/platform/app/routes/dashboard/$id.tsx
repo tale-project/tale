@@ -27,14 +27,21 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { ProvisioningBanner } from '@/app/features/organization/components/provisioning-banner';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
+import { getCachedConvexTokenUserId } from '@/app/lib/auth/convex-token-cache';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import {
+  cacheMemberContext,
+  clearMemberContextCache,
+  readCachedMemberContextRole,
+} from '@/app/lib/member-context-cache';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
@@ -159,6 +166,21 @@ function DashboardLayout() {
   useEffect(() => {
     if (memberContext) markColdLoad('member-context');
   }, [memberContext]);
+  // Persist the resolved shell identity so the NEXT load of this dashboard can
+  // hydrate the nav shell instantly (member-context-cache, epic #2386). A
+  // not-ok result clears the hint so it can never outlive a removal.
+  useEffect(() => {
+    if (!memberContext) return;
+    if (memberContext.status === 'ok') {
+      cacheMemberContext({
+        userId: memberContext.userId,
+        organizationId: memberContext.organizationId,
+        role: memberContext.role,
+      });
+    } else {
+      clearMemberContextCache();
+    }
+  }, [memberContext]);
   const { t } = useT('accessDenied');
   const { t: tNotFound } = useT('common');
   const { t: tSettings } = useT('settings');
@@ -209,6 +231,19 @@ function DashboardLayout() {
   const status = memberContext?.status;
   const resolvedRole =
     memberContext?.status === 'ok' ? memberContext.role : null;
+  // Instant shell hydration (epic #2386): while the live member context is
+  // still resolving on a fresh load, fall back to the persisted last-known
+  // role — only once the websocket is backend-authenticated (so everything the
+  // hydrated shell mounts fires authorized queries) and only when the cached
+  // record matches this exact user + org (the read rejects everything else;
+  // the identity hint is the resolved session's user, or before it resolves,
+  // the user the pre-auth token authenticated as). The live subscription
+  // confirms or corrects the shell within one round trip.
+  const shellUserId = session?.data?.user?.id ?? getCachedConvexTokenUserId();
+  const persistedRole =
+    isAuthenticated && memberContext === undefined && shellUserId
+      ? readCachedMemberContextRole(shellUserId, organizationId)
+      : null;
   // Keep the last known role while the membership query refetches after a cache
   // invalidation — otherwise hasRole drops to false for a frame and the rail
   // swaps Navigation ↔ NavRailPlaceholder (visible flash on every click).
@@ -218,7 +253,7 @@ function DashboardLayout() {
     memberContext === undefined &&
     abilityRef.current?.role != null
       ? abilityRef.current.role
-      : null);
+      : persistedRole);
 
   if (!abilityRef.current || abilityRef.current.role !== currentRole) {
     abilityRef.current = {
@@ -332,6 +367,9 @@ function DashboardLayout() {
                     <TwoFactorLowBackupCodesBanner
                       organizationId={organizationId}
                     />
+                  )}
+                  {hasRole && (
+                    <ProvisioningBanner organizationId={organizationId} />
                   )}
                   {hasRole && <ChangelogToastTrigger />}
                   {hasRole ? (

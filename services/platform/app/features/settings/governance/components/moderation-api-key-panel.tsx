@@ -9,6 +9,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useSaveModerationSecret } from '../hooks/mutations';
 import { useModerationSecretStatus } from '../hooks/queries';
 
@@ -37,9 +38,14 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
       setEditing(false);
       setDraft('');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : t('moderationProvider.saveFailed');
-      toast({ title: msg, variant: 'destructive' });
+      toast({
+        title: mapGovernanceSaveError(
+          err,
+          t,
+          t('moderationProvider.saveFailed'),
+        ),
+        variant: 'destructive',
+      });
     }
   };
 

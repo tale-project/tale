@@ -3971,6 +3971,10 @@
             {
               "type": "literal",
               "value": "failed"
+            },
+            {
+              "type": "literal",
+              "value": "unsupported"
             }
           ]
         },

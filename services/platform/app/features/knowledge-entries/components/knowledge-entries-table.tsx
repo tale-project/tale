@@ -82,7 +82,10 @@ export function KnowledgeEntriesTable({
       placeholder: searchPlaceholder,
     },
     approxRowCount: count,
-    entityLabel: t('title').toLowerCase(),
+    entityLabel: {
+      one: t('entityLabelOne'),
+      other: t('title').toLowerCase(),
+    },
   });
 
   return (

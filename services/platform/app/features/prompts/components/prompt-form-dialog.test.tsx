@@ -5,17 +5,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
+// Spied stub — mirrors the previous inline stub's rendered text exactly, but
+// records call args too, so tests can assert on the exact `params` a
+// translation call was made with (the stub never resolves a real message
+// catalog, so it can't substitute a param into a translation VALUE).
+const mockT = vi.fn(
+  (ns: string, key: string, params?: Record<string, string | number>) => {
+    const base = `${ns}.${key}`;
+    if (!params) return base;
+    return Object.entries(params).reduce(
+      (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+      base,
+    );
+  },
+);
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
-    t: (key: string, params?: Record<string, string>) => {
-      if (params) {
-        return Object.entries(params).reduce(
-          (acc, [k, v]) => acc.replace(`{${k}}`, v),
-          `${ns}.${key}`,
-        );
-      }
-      return `${ns}.${key}`;
-    },
+    t: (key: string, params?: Record<string, string | number>) =>
+      mockT(ns, key, params),
   }),
 }));
 
@@ -64,6 +72,7 @@ import { PromptFormDialog } from './prompt-form-dialog';
 
 beforeEach(() => {
   mockUsePromptResult = { data: undefined, isLoading: false };
+  mockT.mockClear();
 });
 
 describe('PromptFormDialog', () => {
@@ -308,6 +317,71 @@ describe('PromptFormDialog', () => {
       expect(
         screen.getByRole('tab', { name: 'prompts.scope.global' }),
       ).toBeInTheDocument();
+    });
+  });
+
+  // Regression for #2644: the size indicator used to read raw bytes/KB
+  // ("45 B / 16.0 KB") — a developer unit — instead of characters.
+  describe('size indicator (#2644)', () => {
+    it('uses the character-count key, not the byte-count one', () => {
+      render(
+        <PromptFormDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          isSubmitting={false}
+        />,
+      );
+      expect(screen.getByText('prompts.form.charsUsed')).toBeInTheDocument();
+      expect(
+        screen.queryByText('prompts.form.bytesUsed'),
+      ).not.toBeInTheDocument();
+    });
+
+    // Regression: the #2644 fix compared `content.length` (characters)
+    // straight against `MAX_PROMPT_CONTENT_BYTES` (a UTF-8 byte cap), so
+    // multi-byte content read as "under limit" in the counter while Save
+    // was already byte-blocked — a contradiction. The counter must never
+    // pair a char count with that byte-cap number again.
+    it('never claims under-limit in the counter while Save is byte-blocked by multi-byte content', () => {
+      render(
+        <PromptFormDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          isSubmitting={false}
+        />,
+      );
+      const contentField = screen.getByRole('textbox', {
+        name: 'prompts.form.contentLabel',
+      });
+      // 9,000 'é' chars = 9,000 JS string units but 18,000 UTF-8 bytes —
+      // comfortably under the 16,384 byte cap in *characters*, over it in
+      // *bytes*.
+      fireEvent.change(contentField, { target: { value: 'é'.repeat(9_000) } });
+
+      // The real, byte-based gate has tripped.
+      expect(
+        screen.getByRole('button', { name: 'prompts.form.create' }),
+      ).toBeDisabled();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'prompts.form.bytesOverLimitAlert',
+      );
+
+      // The counter reports only the character count — no byte-cap number
+      // riding along that would misleadingly suggest headroom. Take the
+      // LAST call: earlier renders reflect the pre-edit, empty content.
+      const charsUsedCalls = mockT.mock.calls.filter(
+        ([, key]) => key === 'form.charsUsed',
+      );
+      expect(charsUsedCalls.at(-1)?.[2]).toEqual({ used: 9_000 });
+
+      // The real cap is instead surfaced, human-readable, in the alert that
+      // only appears once it's actually relevant.
+      const alertCalls = mockT.mock.calls.filter(
+        ([, key]) => key === 'form.bytesOverLimitAlert',
+      );
+      expect(alertCalls.at(-1)?.[2]).toEqual({ limit: '16 KB' });
     });
   });
 });

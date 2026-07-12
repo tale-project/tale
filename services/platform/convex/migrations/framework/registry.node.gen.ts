@@ -24,6 +24,7 @@ import { migration as n0_3_4_04 } from '../versions/v0_3_4/04_remove_workforce_a
 import { migration as n0_3_4_06 } from '../versions/v0_3_4/06_remove_retired_task_workflows/migration';
 import { migration as n0_3_4_11 } from '../versions/v0_3_4/11_retire_issue_desk/migration';
 import { migration as n0_3_4_21 } from '../versions/v0_3_4/21_branding_single_accent_color/migration';
+import { migration as n0_3_4_30 } from '../versions/v0_3_4/30_run_assigned_task_admission_gate/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
@@ -39,4 +40,5 @@ export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
   "0.3.4/06_remove_retired_task_workflows": composeNode(requireMeta("0.3.4/06_remove_retired_task_workflows"), n0_3_4_06),
   "0.3.4/11_retire_issue_desk": composeNode(requireMeta("0.3.4/11_retire_issue_desk"), n0_3_4_11),
   "0.3.4/21_branding_single_accent_color": composeNode(requireMeta("0.3.4/21_branding_single_accent_color"), n0_3_4_21),
+  "0.3.4/30_run_assigned_task_admission_gate": composeNode(requireMeta("0.3.4/30_run_assigned_task_admission_gate"), n0_3_4_30),
 };

@@ -2,8 +2,8 @@
 
 /**
  * Faithful port of `CrawlerService._extract_structured_data_from_html`
- * (services/crawler/app/services/crawler_service.py) using jsdom in place of
- * BeautifulSoup.
+ * (services/crawler/app/services/crawler_service.py) using linkedom in place
+ * of BeautifulSoup.
  *
  * Extracts, from a page's raw HTML:
  *   - opengraph: every `<meta property="og:*">` (key stripped of the `og:` prefix)

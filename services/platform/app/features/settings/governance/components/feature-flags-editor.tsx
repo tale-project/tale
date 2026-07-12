@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
+import type { TFunction } from 'i18next';
 import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -31,6 +32,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   featureFlagsConfigSchema,
+  MIN_MAX_CONTEXT_TOKENS,
   type FeatureFlagsConfig,
   type FeatureFlagRule,
 } from '@/lib/shared/schemas/governance';
@@ -38,6 +40,7 @@ import { formatNumber } from '@/lib/utils/format/number';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { RulesTableEmptyState } from './rules-table-empty-state';
@@ -78,6 +81,33 @@ function parseFeatureFlagsConfig(policy: unknown): FeatureFlagsConfig {
     return result.data;
   }
   return { enabled: false, rules: [] };
+}
+
+interface FeatureFlagRuleErrors {
+  maxContextTokens?: string;
+}
+
+/**
+ * Client-side mirror of the server floor (#2660): a sub-{@link
+ * MIN_MAX_CONTEXT_TOKENS} value used to save optimistically (the row
+ * appeared saved), then fail server-side with an uncaught `ConvexError` and
+ * silently never persist. Blocking it here means the dialog never calls
+ * `onSave` with a rule the server would reject.
+ */
+function validateFeatureFlagRule(
+  rule: FeatureFlagRule,
+  t: TFunction,
+): FeatureFlagRuleErrors {
+  const errors: FeatureFlagRuleErrors = {};
+  if (
+    rule.maxContextTokens != null &&
+    rule.maxContextTokens < MIN_MAX_CONTEXT_TOKENS
+  ) {
+    errors.maxContextTokens = t('featureFlags.invalidMaxContextTokens', {
+      min: formatNumber(MIN_MAX_CONTEXT_TOKENS),
+    });
+  }
+  return errors;
 }
 
 interface RuleDialogProps {
@@ -134,6 +164,9 @@ function RuleDialog({
     [draft, initialRule],
   );
 
+  const errors = useMemo(() => validateFeatureFlagRule(draft, t), [draft, t]);
+  const isValid = Object.keys(errors).length === 0;
+
   const updateDraft = useCallback((patch: Partial<FeatureFlagRule>) => {
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
@@ -147,10 +180,16 @@ function RuleDialog({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      // Guard: never persist a rule the server would reject (#2660). The
+      // Confirm button is already disabled via `isValid` below; this is the
+      // defense-in-depth backstop (e.g. Enter-to-submit inside a field).
+      if (Object.keys(validateFeatureFlagRule(draft, t)).length > 0) {
+        return;
+      }
       onSave(draft);
       onOpenChange(false);
     },
-    [draft, onSave, onOpenChange],
+    [draft, t, onSave, onOpenChange],
   );
 
   return (
@@ -161,6 +200,7 @@ function RuleDialog({
       onSubmit={handleSubmit}
       submitText={tCommon('actions.confirm')}
       isDirty={isDirty}
+      isValid={isValid}
     >
       <Stack gap={4}>
         <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
@@ -255,7 +295,8 @@ function RuleDialog({
               }
               disabled={cannotManage}
               placeholder="e.g. 50000"
-              min={0}
+              min={MIN_MAX_CONTEXT_TOKENS}
+              errorMessage={errors.maxContextTokens}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('featureFlags.maxContextTokensHint')}
@@ -369,11 +410,13 @@ export function FeatureFlagsEditor({
           variant: 'success',
         });
       } catch (error: unknown) {
-        const description =
-          error instanceof Error ? error.message : t('featureFlags.saveFailed');
         toast({
           title: t('toastSaveFailedTitle'),
-          description,
+          description: mapGovernanceSaveError(
+            error,
+            t,
+            t('featureFlags.saveFailed'),
+          ),
           variant: 'destructive',
         });
       }

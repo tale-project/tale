@@ -1,26 +1,20 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo } from 'react';
-import * as z from 'zod';
+import { useEffect } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateContact } from '../hooks/mutations';
-
-const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
-
-type ContactFormData = {
-  name: string;
-  email: string;
-  phone: string;
-  locale: string;
-};
+import {
+  type ContactFormValues,
+  useContactFormSchema,
+} from '../hooks/use-contact-form';
+import { ContactFormFields } from './contact-form-fields';
 
 interface ContactEditDialogProps {
   contact: Doc<'contacts'>;
@@ -35,38 +29,15 @@ export function ContactEditDialog({
   onOpenChange,
 }: ContactEditDialogProps) {
   const { t: tContacts } = useT('contacts');
-  const { t: tCommon } = useT('common');
   const { mutateAsync: updateContact } = useUpdateContact();
-
-  const formSchema = useMemo(
-    () =>
-      z.object({
-        name: z
-          .string()
-          .trim()
-          .min(1, tCommon('validation.required', { field: tContacts('name') })),
-        email: z.string().email(tCommon('validation.email')),
-        phone: z.string(),
-        locale: z
-          .string()
-          .min(
-            1,
-            tCommon('validation.required', { field: tContacts('locale') }),
-          )
-          .regex(
-            LOCALE_PATTERN,
-            tCommon('validation.required', { field: tContacts('locale') }),
-          ),
-      }),
-    [tContacts, tCommon],
-  );
+  const formSchema = useContactFormSchema();
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
     reset,
-  } = useForm<ContactFormData>({
+  } = useForm<ContactFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: contact.name || '',
@@ -85,13 +56,20 @@ export function ContactEditDialog({
     });
   }, [contact, reset]);
 
-  const onSubmit = async (data: ContactFormData) => {
+  const onSubmit = async (data: ContactFormValues) => {
     try {
       await updateContact({
         contactId: contact._id,
+        // Send the trimmed value as-is (including `''`) rather than
+        // `|| undefined` — `updateContact` drops `undefined` args as
+        // "unchanged" (see `convex/contacts/update_contact.ts`'s
+        // `cleanUpdateData` filter), so `undefined` here would silently skip
+        // patching a field the user just cleared, leaving the old value in
+        // place behind a misleading success toast. Name is optional
+        // (#2640); Phone always was — both must be clearable.
         name: data.name.trim(),
         email: data.email.trim(),
-        phone: data.phone.trim() || undefined,
+        phone: data.phone.trim(),
         locale: data.locale,
       });
 
@@ -126,43 +104,10 @@ export function ContactEditDialog({
       isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Input
-        id="name"
-        label={tContacts('name')}
-        placeholder={tContacts('namePlaceholder')}
-        {...register('name')}
+      <ContactFormFields
+        register={register}
+        errors={errors}
         disabled={isSubmitting}
-        errorMessage={errors.name?.message}
-        required
-      />
-
-      <Input
-        id="email"
-        type="email"
-        label={tContacts('email')}
-        placeholder={tContacts('emailPlaceholder')}
-        {...register('email')}
-        disabled={isSubmitting}
-        errorMessage={errors.email?.message}
-        required
-      />
-
-      <Input
-        id="phone"
-        label={tContacts('phone')}
-        {...register('phone')}
-        disabled={isSubmitting}
-        errorMessage={errors.phone?.message}
-      />
-
-      <Input
-        id="locale"
-        label={tContacts('locale')}
-        placeholder={tContacts('localePlaceholder')}
-        {...register('locale')}
-        disabled={isSubmitting}
-        errorMessage={errors.locale?.message}
-        required
       />
     </FormDialog>
   );

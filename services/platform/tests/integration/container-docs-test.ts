@@ -10,4 +10,9 @@
 // =============================================================================
 import { runStaticSiteTest } from './static-site-test';
 
-await runStaticSiteTest({ name: 'docs', port: 13002, sizeBudgetMb: 400 });
+await runStaticSiteTest({
+  name: 'docs',
+  port: 13002,
+  sizeBudgetMb: 400,
+  probes: [{ path: '/nope', status: 404 }],
+});

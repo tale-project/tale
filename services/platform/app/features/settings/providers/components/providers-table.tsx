@@ -166,7 +166,10 @@ export function ProvidersTable({
   const list = useListPage<ProviderRow>({
     dataSource: { type: 'query', data: isLoading ? undefined : providers },
     pageSize,
-    entityLabel: t('providers.entityLabel'),
+    entityLabel: {
+      one: t('providers.entityLabelOne'),
+      other: t('providers.entityLabel'),
+    },
   });
 
   return (

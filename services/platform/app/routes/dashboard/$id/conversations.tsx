@@ -8,8 +8,10 @@ import {
   redirect,
   useNavigate,
   useParams,
+  useSearch,
 } from '@tanstack/react-router';
 import { Inbox, SquarePen } from 'lucide-react';
+import { useEffect } from 'react';
 
 import {
   AdaptiveHeaderRoot,
@@ -19,6 +21,9 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
+import { useComposeContactName } from '@/app/features/conversations/hooks/queries';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -52,6 +57,20 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
   component: ConversationsLayout,
 });
 
+/** localStorage key for a compose intent stashed while no mailbox is
+ *  connected (see {@link ConversationsLayout}) — scoped per member+org like
+ *  the compose draft keys in `ComposeEmailPane`. */
+function pendingComposeKey(userId: string | undefined, organizationId: string) {
+  return userId
+    ? `conversations-pending-compose-${userId}-${organizationId}`
+    : `conversations-pending-compose-${organizationId}`;
+}
+
+interface PendingCompose {
+  compose: string;
+  composeContact?: string;
+}
+
 function ConversationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('conversations');
@@ -66,6 +85,78 @@ function ConversationsLayout() {
   const params = useParams({ strict: false });
   const currentStatus =
     typeof params.status === 'string' ? params.status : 'open';
+
+  // `compose`/`composeContact` (a contact-row "New email" action) are owned by
+  // the `$status` child route's `validateSearch` — but that route's component
+  // never mounts while there's no inbox to show it in (the early return
+  // below), so read them loosely here too. Without this the params are
+  // silently dropped the moment a mailbox isn't connected yet (#2641).
+  const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
+  const composeParam =
+    typeof rawSearch.compose === 'string' ? rawSearch.compose : undefined;
+  const composeContactParam =
+    typeof rawSearch.composeContact === 'string'
+      ? rawSearch.composeContact
+      : undefined;
+
+  const { user } = useAuth();
+  const [pendingCompose, setPendingCompose, clearPendingCompose] =
+    usePersistedState<PendingCompose | null>(
+      pendingComposeKey(user?.userId, organizationId),
+      null,
+    );
+
+  // No mailbox yet: stash the compose intent so it survives the round trip to
+  // the Automations catalog and back (nothing else holds it — the child route
+  // that owns these params never mounts here).
+  useEffect(() => {
+    if (!isLoading && !hasInbox && composeParam !== undefined) {
+      setPendingCompose({
+        compose: composeParam,
+        composeContact: composeContactParam,
+      });
+    }
+  }, [
+    isLoading,
+    hasInbox,
+    composeParam,
+    composeContactParam,
+    setPendingCompose,
+  ]);
+
+  // A mailbox now exists: resume the stashed intent exactly once, then forget
+  // it — reopens the same compose the user started before setup.
+  useEffect(() => {
+    if (!isLoading && hasInbox && pendingCompose) {
+      clearPendingCompose();
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status: currentStatus },
+        search: (prev) => ({
+          ...prev,
+          compose: pendingCompose.compose,
+          composeContact: pendingCompose.composeContact,
+        }),
+        replace: true,
+      });
+    }
+  }, [
+    isLoading,
+    hasInbox,
+    pendingCompose,
+    clearPendingCompose,
+    navigate,
+    organizationId,
+    currentStatus,
+  ]);
+
+  // Only resolve the contact while the notice below can actually use it — has
+  // its own `skip` gate, so a connected inbox never carries this subscription.
+  const { name: composeContactName, isLoading: isComposeContactLoading } =
+    useComposeContactName(
+      organizationId,
+      !isLoading && !hasInbox ? composeContactParam : undefined,
+    );
 
   if (isLoading || !hasInbox) {
     return (
@@ -86,7 +177,20 @@ function ConversationsLayout() {
               headingLevel={2}
               className="flex-1 self-center"
               title={t('activate.noAutomationTitle')}
-              description={t('activate.noAutomationDescription')}
+              description={
+                composeContactParam && !isComposeContactLoading ? (
+                  <>
+                    {t('activate.noAutomationDescription')}{' '}
+                    <span className="text-foreground font-medium">
+                      {t('activate.composeNotice', {
+                        name: composeContactName ?? t('unknownContact'),
+                      })}
+                    </span>
+                  </>
+                ) : (
+                  t('activate.noAutomationDescription')
+                )
+              }
               action={
                 <Button asChild>
                   <Link

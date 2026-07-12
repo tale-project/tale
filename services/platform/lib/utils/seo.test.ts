@@ -53,4 +53,28 @@ describe('seo', () => {
 
     expect(titleOf(tags)).toBe(`Chat - ${FALLBACK_SUFFIX}`);
   });
+
+  describe('titleOverride (#2647)', () => {
+    it('substitutes the loaded entity name for the static metadata title', () => {
+      getTitleSuffix.mockReturnValue('QA Guides Org');
+
+      // oxlint-disable-next-line typescript/no-explicit-any -- see above
+      const tags = seo('chat' as any, 'Getting started');
+
+      expect(titleOf(tags)).toBe('Getting started - QA Guides Org');
+      expect(tags).toContainEqual({
+        name: 'og:title',
+        content: 'Getting started - QA Guides Org',
+      });
+    });
+
+    it('falls back to the static metadata title when no override is given', () => {
+      getTitleSuffix.mockReturnValue('QA Guides Org');
+
+      // oxlint-disable-next-line typescript/no-explicit-any -- see above
+      const tags = seo('chat' as any, undefined);
+
+      expect(titleOf(tags)).toBe('Chat - QA Guides Org');
+    });
+  });
 });

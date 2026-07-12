@@ -61,6 +61,7 @@ export const startChat = internalMutation({
           folderId: v.id('folders'),
           name: v.string(),
           fileCount: v.number(),
+          skippedCount: v.number(),
         }),
       ),
     ),

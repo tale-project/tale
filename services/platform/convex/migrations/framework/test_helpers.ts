@@ -103,12 +103,16 @@ export const legacyAppProjectBindingsWithConfigTable = defineTable({
   .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId']);
 
 /**
- * Pre-0.3.4 `customers` + `vendors` tables and the `customerId` link on
- * `conversations` / `supportCases`, all dropped in the Customers + Vendors →
- * Contacts merge (issue #2618). Declared here so the 0.3.4 backfill migrations
- * (02/03 contacts-from-{vendors,customers}; 04/05 conversation/support-case
- * contactId) can seed the OLD shape and round-trip. Minimal — only the fields
- * those tests read/write.
+ * Pre-0.3.4 `customers` + `vendors` tables, dropped in the Customers +
+ * Vendors → Contacts merge (issue #2618). Declared here so the 0.3.4 backfill
+ * migrations (22/23 contacts-from-{vendors,customers}) can seed the OLD
+ * shape and round-trip. Minimal — only the fields those tests read/write.
+ * The `customerId` link these tables' FK once pointed at still lives
+ * transitionally on the PRODUCTION `conversations` / `supportCases` tables
+ * (see the pre-drop comments there): the real backend validates the corpus
+ * seed and the 0.3.4/24-28 + 31/32 writes against the production defs, so
+ * the field can only leave them once the chain baseline has advanced past
+ * the teardown migrations.
  */
 export const legacyCustomersTable = defineTable({
   organizationId: v.string(),
@@ -135,28 +139,6 @@ export const legacyVendorsTable = defineTable({
   metadata: v.optional(jsonRecordValidator),
   notes: v.optional(v.string()),
 }).index('by_organizationId', ['organizationId']);
-
-export const legacyConversationsWithCustomerId = defineTable({
-  organizationId: v.string(),
-  customerId: v.optional(v.id('customers')),
-  contactId: v.optional(v.id('contacts')),
-  status: v.optional(v.string()),
-}).index('by_organizationId', ['organizationId']);
-
-export const legacySupportCasesWithCustomerId = defineTable({
-  organizationId: v.string(),
-  subject: v.string(),
-  status: v.string(),
-  customerId: v.optional(v.id('customers')),
-  contactId: v.optional(v.id('contacts')),
-  requesterEmail: v.optional(v.string()),
-  createdBy: v.string(),
-  createdByType: v.string(),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-})
-  .index('by_organization', ['organizationId'])
-  .index('by_customer', ['customerId']);
 
 /** Normalize one glob key relative to the convex root, resolving `..`. */
 function toConvexRootKey(dirFromRoot: string, globKey: string): string {

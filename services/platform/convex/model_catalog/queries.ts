@@ -134,6 +134,30 @@ export const getModelCapabilities = query({
 });
 
 /**
+ * Full synced catalog for the provider settings UI's model picker (#2655) —
+ * the "Add model" flow offers these ids as autocomplete and copies the
+ * capability facts onto the selected entry. One org-gated read of the whole
+ * cache (a few hundred rows); the client filters as the user types. Sorted by
+ * modelId so the list is stable across syncs.
+ */
+export const listCatalogModels = query({
+  args: { organizationId: v.string() },
+  returns: v.array(capabilityRow),
+  handler: async (ctx, args) => {
+    await getOrganizationMember(ctx, args.organizationId);
+    const out: CapabilityRow[] = [];
+    for await (const row of ctx.db.query('modelCapabilityCache')) {
+      out.push({
+        modelId: row.modelId,
+        source: row.source,
+        ...pickCapabilityFields(row),
+      });
+    }
+    return out.sort((a, b) => a.modelId.localeCompare(b.modelId));
+  },
+});
+
+/**
  * Whether the weekly in-instance provider-config auto-sync is enabled for this
  * org. The source of truth is the file-based governance policy `model_sync`
  * (mirrored into `configCache`); a missing file ⇒ enabled (default on).

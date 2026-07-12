@@ -166,7 +166,11 @@ export function AuditLogsPage({
   }
 
   return (
-    <SettingsPage fitToContainer>
+    // `fullWidth`: the audit/error log columns declare an explicit ~1280px
+    // size floor (timestamp/action/actor/resource/target/category/error) —
+    // wider than the `max-w-3xl` other settings pages standardized on
+    // (#2567) — so this table keeps the full settings pane width.
+    <SettingsPage fitToContainer fullWidth>
       <SettingsSection
         title={t('logs.heading')}
         description={t('logs.subheading')}

@@ -9,6 +9,18 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true, cannot: () => false }),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  toast: vi.fn(),
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useUpdateContact: () => ({ mutateAsync: vi.fn() }),
+}));
+
 function makeContactDoc(overrides = {}) {
   return {
     _id: 'contact-1' as never,
@@ -83,6 +95,71 @@ describe('ContactInfoDialog', () => {
     );
 
     expect(screen.queryByText('Unknown Contact')).not.toBeInTheDocument();
+  });
+
+  // --- Edit / New email header actions (#2639) ------------------------------
+  it('offers Edit and New email for an editable full contact document', () => {
+    render(
+      <ContactInfoDialog
+        contact={makeContactDoc()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'New email' }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no actions for the lightweight ContactInfo shape (no _id to act on)', () => {
+    render(
+      <ContactInfoDialog
+        contact={makeContactInfo()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Edit' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'New email' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides New email for a placeholder/unresolved address', () => {
+    render(
+      <ContactInfoDialog
+        contact={makeContactDoc({ email: 'unknown@example.com' })}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'New email' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes the details dialog and opens the edit dialog on Edit', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <ContactInfoDialog
+        contact={makeContactDoc()}
+        open={true}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(
+      await screen.findByRole('dialog', { name: 'Edit contact' }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

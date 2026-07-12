@@ -196,6 +196,63 @@ describe('MessageBubble copy action', () => {
   });
 });
 
+// Issue #2598: a folder `@`-mention whose files all filtered out at
+// resolution time must say so on the sent chip — never render a silent
+// "0 files" that reads as an empty folder.
+describe('MessageBubble folder mention chip', () => {
+  function userMessageWithFolder(
+    folderRef: NonNullable<Message['folderRefs']>[number],
+  ): Message {
+    return {
+      id: 'user-msg-1',
+      role: 'user',
+      content: 'Summarize @Meetings',
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      threadId: 'thread-1',
+      folderRefs: [folderRef],
+    };
+  }
+
+  it('shows the skipped count + reason when the folder resolved zero indexed files', async () => {
+    const { MessageBubble } = await import('./message-bubble');
+
+    render(
+      <MessageBubble
+        message={userMessageWithFolder({
+          folderId: 'folder-1',
+          name: 'Meetings',
+          fileCount: 0,
+          skippedCount: 2,
+        })}
+        organizationId="org-1"
+        hideFeedback
+      />,
+    );
+
+    expect(screen.getByText('Meetings')).toBeInTheDocument();
+    expect(screen.getByText('0/2 files — 2 not indexed')).toBeInTheDocument();
+  });
+
+  it('falls back to the plain file count when nothing was skipped', async () => {
+    const { MessageBubble } = await import('./message-bubble');
+
+    render(
+      <MessageBubble
+        message={userMessageWithFolder({
+          folderId: 'folder-1',
+          name: 'Reports',
+          fileCount: 3,
+          skippedCount: 0,
+        })}
+        organizationId="org-1"
+        hideFeedback
+      />,
+    );
+
+    expect(screen.getByText('3 files')).toBeInTheDocument();
+  });
+});
+
 // The multi-party (Discussions) props: `isOwn` overrides alignment by AUTHORSHIP
 // and `authorName` adds a name label for non-own entries. Defaults must leave
 // the 1:1 chat behavior (alignment by `role`) untouched.

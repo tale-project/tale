@@ -122,6 +122,20 @@ export function NotificationBell({
               POPOVER_CONTENT_CLASSES,
               'bg-card w-96 max-w-[calc(100vw-2rem)] p-0',
             )}
+            // Radix auto-focuses the first tabbable element on open (the
+            // Expand button, when present) — an `IconButton`, which wraps
+            // itself in its own Tooltip that opens on focus. That tooltip
+            // mounts a second Radix `DismissableLayer` *after* this popover's,
+            // and Radix's escape-key handling only fires on whichever layer it
+            // currently considers "highest" (the most recently mounted one in
+            // its shared stack) — so the tooltip's layer silently swallows
+            // Escape and this popover's own `onEscapeKeyDown` never runs
+            // (#2650). Handling Escape here directly, as a plain keydown on
+            // the content rather than through that gated mechanism, closes the
+            // popover regardless of which nested layer Radix thinks is on top.
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setOpen(false);
+            }}
           >
             <NotificationListPanel
               onNavigate={() => setOpen(false)}

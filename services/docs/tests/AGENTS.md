@@ -41,15 +41,16 @@ and asserts the list is empty — the failure prints each file once with offendi
 
 **Parity** — the locales must stay in lockstep (`en/` is the source of truth):
 
-| Check (`*.test.ts`) | Catches → fix                                                                                                                                        |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `walk`              | Harness sanity: walker finds pages, base locales `en`/`de`/`fr` present → if it trips the harness itself is broken (check `lib/paths.ts`, the tree). |
-| `navigation`        | A `docs/nav.json` slug with no `.md`/`.mdx` under a locale (renamed page, untranslated page, typo) → create the file or fix/remove the nav entry.    |
-| `locale-tree`       | An `en/` page with no DE/FR mirror, or a DE/FR orphan with no `en/` source → create the mirror or delete the orphan.                                 |
-| `locale-outline`    | DE/FR drifting from the EN page's heading-depth sequence or fenced-code-block count → restructure the locale page to match EN's outline.             |
-| `locale-components` | DE/FR drifting from the EN page's ordered sequence of component opening tags (a dropped `<Warning>`, a reordered `<Step>`) → match EN's components.  |
-| `readme`            | Root `README.md` / `README.<locale>.md` heading outlines diverging, or EN not linking a mirror → mirror the change across all READMEs.               |
-| `content-manifest`  | `app/content/frontmatter.json` stale vs on-disk frontmatter → regenerate (`bun run --filter @tale/docs build:search-index`).                         |
+| Check (`*.test.ts`)  | Catches → fix                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `walk`               | Harness sanity: walker finds pages, base locales `en`/`de`/`fr` present → if it trips the harness itself is broken (check `lib/paths.ts`, the tree).            |
+| `navigation`         | A `docs/nav.json` slug with no `.md`/`.mdx` under a locale (renamed page, untranslated page, typo) → create the file or fix/remove the nav entry.               |
+| `locale-tree`        | An `en/` page with no DE/FR mirror, or a DE/FR orphan with no `en/` source → create the mirror or delete the orphan.                                            |
+| `locale-outline`     | DE/FR drifting from the EN page's heading-depth sequence or fenced-code-block count → restructure the locale page to match EN's outline.                        |
+| `locale-translation` | A DE/FR page whose opening paragraph is byte-identical to the EN source's (an untranslated English mirror) → author the page natively per `write-translations`. |
+| `locale-components`  | DE/FR drifting from the EN page's ordered sequence of component opening tags (a dropped `<Warning>`, a reordered `<Step>`) → match EN's components.             |
+| `readme`             | Root `README.md` / `README.<locale>.md` heading outlines diverging, or EN not linking a mirror → mirror the change across all READMEs.                          |
+| `content-manifest`   | `app/content/frontmatter.json` stale vs on-disk frontmatter → regenerate (`bun run --filter @tale/docs build:search-index`).                                    |
 
 **Structure** — each page is mechanically well-formed:
 

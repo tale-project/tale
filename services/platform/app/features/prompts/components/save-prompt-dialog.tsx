@@ -5,6 +5,7 @@ import { Text } from '@tale/ui/text';
 import { useCallback, useId, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -14,13 +15,13 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
-import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
+import { MAX_PROMPT_TITLE_LEN } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useSavePrompt } from '../hooks/mutations';
+import { usePromptContentLimit } from '../hooks/use-prompt-content-limit';
 import { extractErrorCode } from '../lib/extract-error-code';
-import { formatBytes } from '../lib/format-prompt-bytes';
 import type { PromptScope } from '../lib/prompt-scope';
 import { CategoryPickerPopover } from './category-picker-popover';
 
@@ -52,6 +53,7 @@ function SavePromptDialogContent({
   const isOrgAdmin =
     memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState(initialContent);
   const [scope, setScope] = useState<PromptScope>('personal');
   const [teamId, setTeamId] = useState<string | undefined>();
@@ -59,9 +61,9 @@ function SavePromptDialogContent({
     Id<'promptCategories'> | undefined
   >();
 
-  const bytesId = useId();
+  const charsId = useId();
   const categoryLabelId = useId();
-  const bytesErrorId = `${bytesId}-error`;
+  const charsErrorId = `${charsId}-error`;
   const isPending = savePrompt.isPending;
   const userTeamIds = useMemo(
     () => (teams ?? []).map((team) => team.id),
@@ -84,13 +86,12 @@ function SavePromptDialogContent({
     [t, isOrgAdmin],
   );
 
-  const contentBytes = useMemo(
-    () => new TextEncoder().encode(content).byteLength,
-    [content],
-  );
-  const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
-  const approachingLimit =
-    !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
+  const {
+    chars: contentChars,
+    overLimit: overByteLimit,
+    approachingLimit,
+    limitLabel,
+  } = usePromptContentLimit(content);
 
   const isValid =
     content.trim().length > 0 &&
@@ -101,6 +102,7 @@ function SavePromptDialogContent({
   // gate the discard-confirm prompt — NOT to gate submit. The dialog's purpose
   // is to create a new prompt, so "submittable" is `isValid`, not "modified".
   const hasUserEdits =
+    title.trim().length > 0 ||
     content !== initialContent ||
     scope !== 'personal' ||
     !!teamId ||
@@ -121,6 +123,10 @@ function SavePromptDialogContent({
       try {
         await savePrompt.mutateAsync({
           organizationId,
+          // Blank means "let the server AI-generate one" — savePrompt
+          // already honours a user-supplied title and only falls back to
+          // AI generation when this is omitted.
+          title: title.trim() || undefined,
           content: content.trim(),
           scope,
           teamId: scope === 'team' ? teamId : undefined,
@@ -158,6 +164,7 @@ function SavePromptDialogContent({
       isValid,
       isPending,
       organizationId,
+      title,
       content,
       scope,
       teamId,
@@ -184,6 +191,19 @@ function SavePromptDialogContent({
       submitText={t('form.save')}
     >
       <Stack gap={1}>
+        <Input
+          label={t('form.titleLabel')}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t('form.titlePlaceholder')}
+          maxLength={MAX_PROMPT_TITLE_LEN}
+        />
+        <Text variant="muted" className="text-xs">
+          {t('form.titleAutoGenHint')}
+        </Text>
+      </Stack>
+
+      <Stack gap={1}>
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -191,11 +211,11 @@ function SavePromptDialogContent({
           required
           aria-required
           aria-label={t('form.contentLabel')}
-          aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+          aria-describedby={`${charsId}${overByteLimit ? ` ${charsErrorId}` : ''}`}
           aria-invalid={overByteLimit || undefined}
         />
         <Text
-          id={bytesId}
+          id={charsId}
           variant="muted"
           className={cn(
             'text-right text-xs',
@@ -204,18 +224,15 @@ function SavePromptDialogContent({
           )}
           aria-live="polite"
         >
-          {t('form.bytesUsed', {
-            used: formatBytes(contentBytes),
-            max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
-          })}
+          {t('form.charsUsed', { used: contentChars })}
         </Text>
         {overByteLimit && (
           <Text
-            id={bytesErrorId}
+            id={charsErrorId}
             role="alert"
             className="text-destructive text-right text-xs"
           >
-            {t('form.bytesOverLimitAlert')}
+            {t('form.bytesOverLimitAlert', { limit: limitLabel })}
           </Text>
         )}
       </Stack>
@@ -229,16 +246,21 @@ function SavePromptDialogContent({
         options={scopeOptions}
       />
 
-      {scope === 'team' && teamOptions.length > 0 && (
-        <Select
-          label={t('form.teamLabel')}
-          options={teamOptions}
-          value={teamId ?? ''}
-          onValueChange={(v) => setTeamId(v || undefined)}
-          placeholder={t('form.teamPlaceholder')}
-          required
-        />
-      )}
+      {scope === 'team' &&
+        (teamOptions.length > 0 ? (
+          <Select
+            label={t('form.teamLabel')}
+            options={teamOptions}
+            value={teamId ?? ''}
+            onValueChange={(v) => setTeamId(v || undefined)}
+            placeholder={t('form.teamPlaceholder')}
+            required
+          />
+        ) : (
+          <Text variant="muted" className="text-xs">
+            {t('form.noTeamsAvailable')}
+          </Text>
+        ))}
 
       <Stack gap={2}>
         <label

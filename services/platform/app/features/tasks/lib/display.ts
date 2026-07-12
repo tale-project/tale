@@ -56,6 +56,21 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'comment.added': 'activity.commentAdded',
   'dependency.added': 'activity.dependencyAdded',
   'dependency.removed': 'activity.dependencyRemoved',
+  'agent_run.refused': 'activity.agentRunRefused',
+};
+
+/**
+ * Maps a run-admission `refusedReason` code (stored as the `toValue` of an
+ * `'agent_run.refused'` activity row — see convex/agents/run_agent_on_task.ts)
+ * to its `tasks` i18n key. Unknown codes fall back to the raw string at the
+ * call site. Lowercase phrases: they render mid-sentence in the timeline.
+ */
+export const TASK_RUN_REFUSAL_LABEL_KEY: Record<string, string> = {
+  agent_disabled: 'agentRuns.refused.agent_disabled',
+  agent_not_found: 'agentRuns.refused.agent_not_found',
+  automation_disabled: 'agentRuns.refused.automation_disabled',
+  budget_paused: 'agentRuns.refused.budget_paused',
+  task_circuit_breaker: 'agentRuns.refused.task_circuit_breaker',
 };
 
 /** Statuses that count a blocker as resolved (no longer blocking its dependents). */

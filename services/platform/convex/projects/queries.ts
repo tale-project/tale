@@ -297,6 +297,7 @@ export const listProjectDocuments = query({
         v.literal('running'),
         v.literal('completed'),
         v.literal('failed'),
+        v.literal('unsupported'),
         v.null(),
       ),
       createdBy: v.optional(v.string()),

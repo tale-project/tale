@@ -1,19 +1,20 @@
 'use client';
 
-import { Plus, HardDrive, NotepadText } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ClipboardList, HardDrive, Plus } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
+import { ContactCreateDialog } from './contact-create-dialog';
 import { ImportContactsDialog } from './contacts-import-dialog';
 
 export type ImportMode = 'manual' | 'upload';
 
 interface ContactsActionMenuProps {
   organizationId: string;
-  /** Optionally lift dialog state so the empty-state CTA can open manual entry. */
+  /** Optionally lift the create-dialog state so the empty-state CTA can open it. */
   createOpen?: boolean;
   onCreateOpenChange?: (open: boolean) => void;
 }
@@ -25,33 +26,25 @@ export function ContactsActionMenu({
 }: ContactsActionMenuProps) {
   const { t: tContacts } = useT('contacts');
   const ability = useAbility();
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isDialogOpen = controlledCreateOpen ?? internalOpen;
-  const setIsDialogOpen = onCreateOpenChange ?? setInternalOpen;
-  const [importMode, setImportMode] = useState<ImportMode>('manual');
-  const openedViaMenuRef = useRef(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const isCreateDialogOpen = controlledCreateOpen ?? internalCreateOpen;
+  const setIsCreateDialogOpen = onCreateOpenChange ?? setInternalCreateOpen;
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode>('upload');
 
-  // The external empty-state CTA opens manual entry. The menu's own buttons set
-  // the mode themselves, so only reset when the open did NOT come from them —
-  // otherwise clicking "from device" would immediately flip back to manual.
-  useEffect(() => {
-    if (controlledCreateOpen && !openedViaMenuRef.current) {
-      setImportMode('manual');
-    }
-    if (!controlledCreateOpen) openedViaMenuRef.current = false;
-  }, [controlledCreateOpen]);
+  const handleAddClick = useCallback(() => {
+    setIsCreateDialogOpen(true);
+  }, [setIsCreateDialogOpen]);
 
   const handleUploadClick = useCallback(() => {
-    openedViaMenuRef.current = true;
     setImportMode('upload');
-    setIsDialogOpen(true);
-  }, [setIsDialogOpen]);
+    setIsImportDialogOpen(true);
+  }, []);
 
-  const handleManualEntryClick = useCallback(() => {
-    openedViaMenuRef.current = true;
+  const handlePasteClick = useCallback(() => {
     setImportMode('manual');
-    setIsDialogOpen(true);
-  }, [setIsDialogOpen]);
+    setIsImportDialogOpen(true);
+  }, []);
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return null;
@@ -60,8 +53,13 @@ export function ContactsActionMenu({
   return (
     <>
       <DataTableActionMenu
-        label={tContacts('importMenu.importContacts')}
+        label={tContacts('addButton')}
         icon={Plus}
+        onClick={handleAddClick}
+      />
+      <DataTableActionMenu
+        label={tContacts('importMenu.importContacts')}
+        variant="secondary"
         menuItems={[
           {
             label: tContacts('importMenu.fromDevice'),
@@ -69,18 +67,23 @@ export function ContactsActionMenu({
             onClick: handleUploadClick,
           },
           {
-            label: tContacts('importMenu.manualEntry'),
-            icon: NotepadText,
-            onClick: handleManualEntryClick,
+            label: tContacts('importMenu.pasteContacts'),
+            icon: ClipboardList,
+            onClick: handlePasteClick,
           },
         ]}
       />
+      <ContactCreateDialog
+        isOpen={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        organizationId={organizationId}
+      />
       <ImportContactsDialog
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
         organizationId={organizationId}
         mode={importMode}
-        onSuccess={() => setIsDialogOpen(false)}
+        onSuccess={() => setIsImportDialogOpen(false)}
       />
     </>
   );

@@ -108,7 +108,13 @@ export default createPlaywrightConfig({
         // sub-hourly sweeps that starve a loaded local backend past its ~1s
         // function timeout, and dev-engine renices the backend. Only applies
         // when Playwright boots the stack itself — a reused stack keeps its
-        // own env, so a dev stack's crons are never affected.
+        // own env, so a dev stack's crons are never affected. Also gates
+        // dev-engine's boot-time node-executor health probe (#2631 —
+        // `scripts/node-executor-probe.ts`): a rare local-backend boot race
+        // leaves every `'use node'` action failing with "Cannot find module"
+        // while the backend otherwise looks healthy, so a broken shard used
+        // to burn its whole run retrying specs before timing out. The probe
+        // fails the webServer boot loudly instead.
         TALE_E2E: '1',
         // Never pop a browser when the orchestrator is the e2e webServer — a
         // local (non-CI) `bun test:e2e` that spawns the stack would otherwise
@@ -123,6 +129,11 @@ export default createPlaywrightConfig({
         // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
         ENCRYPTION_SECRET_HEX:
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        // `tests/manual/SETUP.md` §1A's mode-A command block mirrors this exact
+        // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
+        // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_INTEGRATIONS_
+        // BASE) for AI/manual testers — when you change a value or add/remove a
+        // var here, update that doc in the same change (#2633 was a drift here).
         ...(useMockLlm
           ? {
               // Hermetic config dir: seeds every new org with the single E2E

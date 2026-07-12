@@ -13,6 +13,7 @@ import {
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useResizeObserver } from '@/app/hooks/use-resize-observer';
+import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 import { cn } from '@/lib/utils/cn';
 
@@ -92,6 +93,7 @@ export function TabNavigation({
   const pathname = location.pathname;
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
+  const { t: tCommon } = useT('common');
   // The horizontally-scrolling tab list. Kept separate from the outer <nav> so
   // the trailing button group can sit outside the scroll area and stay pinned
   // to the right while only the tabs scroll. All measurement/scroll logic reads
@@ -382,10 +384,20 @@ export function TabNavigation({
               )}
             >
               {isItemDirty && (
-                <span
-                  aria-hidden="true"
-                  className="inline-block size-1.5 rounded-full bg-amber-500"
-                />
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="inline-block size-1.5 rounded-full bg-amber-500"
+                  />
+                  {/* The dot alone is decorative (aria-hidden) — this is its
+                      text twin, so screen-reader users still hear that the
+                      tab carries unsaved changes. The trailing `{' '}`
+                      keeps it a separate word from the label that follows
+                      (adjacent JSX text nodes concatenate with no space). */}
+                  <span className="sr-only">
+                    {tCommon('aria.unsavedChanges')}
+                  </span>{' '}
+                </>
               )}
               {item.label}
               {item.trailing}

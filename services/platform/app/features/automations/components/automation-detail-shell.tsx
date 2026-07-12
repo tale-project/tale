@@ -21,6 +21,7 @@ import {
   HeaderBreadcrumbs,
 } from '@/app/components/layout/header-breadcrumbs';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { useActiveEditor } from '@/app/components/ui/editor';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -47,6 +48,11 @@ export function AutomationDetailShell({
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+  // The active tab's editor controller (null on tab-less states / tabs with
+  // no form). Feeds the strip's per-tab amber unsaved dot: any tab whose
+  // `dirtyKeys` intersect the controller's lights up — the same indicator the
+  // agent settings tabs render (#2573).
+  const activeEditor = useActiveEditor();
   return (
     <PageLayout
       organizationId={organizationId}
@@ -91,6 +97,7 @@ export function AutomationDetailShell({
               standalone={false}
               matchMode="exact"
               ariaLabel={t('tabs.ariaLabel')}
+              dirtyKeys={activeEditor?.dirtyKeys}
             >
               {tabsChildren}
             </TabNavigation>

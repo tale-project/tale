@@ -447,6 +447,79 @@ describe('DataTable addAction contract', () => {
   });
 });
 
+describe('DataTable entity count footer (#2646)', () => {
+  it('pluralizes the entity noun for a single row when given { one, other }', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[sampleRows[0]]}
+        approxRowCount={1}
+        infiniteScroll={{
+          hasMore: false,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'project', other: 'projects' },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Showing all 1 project')).toBeInTheDocument();
+  });
+
+  it('keeps the plural noun for more than one row', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        infiniteScroll={{
+          hasMore: false,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'project', other: 'projects' },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Showing all 3 projects')).toBeInTheDocument();
+  });
+
+  it('falls back to the legacy plural-only string for unmigrated callers', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[sampleRows[0]]}
+        approxRowCount={1}
+        infiniteScroll={{
+          hasMore: false,
+          onLoadMore: vi.fn(),
+          entityLabel: 'projects',
+        }}
+      />,
+    );
+
+    // Documents the still-imperfect (but unchanged) output for callers that
+    // haven't migrated to `{ one, other }` yet — not the desired end state.
+    expect(screen.getByText('Showing all 1 projects')).toBeInTheDocument();
+  });
+
+  it('pluralizes off the total (not the filtered count) for a filtered subset', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[sampleRows[0]]}
+        approxRowCount={1}
+        infiniteScroll={{
+          hasMore: false,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'project', other: 'projects' },
+          totalCount: 5,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Showing 1 of 5 projects')).toBeInTheDocument();
+  });
+});
+
 describe('DataTable non-sticky wheel scroll', () => {
   it('chains vertical wheel scroll from the table frame to a scrollable ancestor', () => {
     const scrollParent = document.createElement('div');

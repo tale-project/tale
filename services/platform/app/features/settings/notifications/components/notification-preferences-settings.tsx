@@ -123,15 +123,24 @@ function NotificationPreferencesSettingsView({
       </SettingsSection>
       <SettingsSection title={t('title')} description={t('description')}>
         {IN_APP_PREF_KEYS.map((key) => {
+          // Review requests are a safety signal — the section description
+          // above already promises they "always stay on"; back that promise
+          // with a locked control instead of a toggle that quietly breaks it
+          // once flipped off (#2651).
+          const isLockedOn = key === 'taskReview';
           const value = prefs?.[key];
-          const checked = value !== false;
+          const checked = isLockedOn ? true : value !== false;
           return (
             <SettingsToggleRow
               key={key}
               label={t(`fields.${key}.label`)}
-              description={t(`fields.${key}.description`)}
+              description={
+                isLockedOn
+                  ? `${t('fields.taskReview.description')} ${t('fields.taskReview.lockedHint')}`
+                  : t(`fields.${key}.description`)
+              }
               checked={checked}
-              disabled={isPending}
+              disabled={isLockedOn || isPending}
               ariaBusy={isPending}
               onCheckedChange={(next) => void handleToggle(key, next)}
             />

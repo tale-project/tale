@@ -126,6 +126,7 @@ export function DocumentsTable({
       not_indexed: ['not_indexed'],
       indexing: ['queued', 'running'],
       failed: ['failed'],
+      unsupported: ['unsupported'],
       stale: ['stale'],
     }),
     [],
@@ -147,6 +148,10 @@ export function DocumentsTable({
             label: tDocuments('filter.ragStatus.indexing'),
           },
           { value: 'failed', label: tDocuments('filter.ragStatus.failed') },
+          {
+            value: 'unsupported',
+            label: tDocuments('filter.ragStatus.unsupported'),
+          },
           {
             value: 'stale',
             label: tDocuments('filter.ragStatus.needsReindex'),
@@ -367,7 +372,10 @@ export function DocumentsTable({
     },
     getRowId: (row) => row.id,
     approxRowCount: docCount,
-    entityLabel: tDocuments('entityLabel'),
+    entityLabel: {
+      one: tDocuments('entityLabelOne'),
+      other: tDocuments('entityLabel'),
+    },
   });
 
   return (

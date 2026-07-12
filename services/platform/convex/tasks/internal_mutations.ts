@@ -46,6 +46,7 @@ import {
   truncateImportedTitle,
   workflowActivityContext,
 } from './helpers';
+import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   extractMentions,
   parseMentionTokens,
@@ -244,6 +245,17 @@ export const agentCreateTask = internalMutation({
               mentions,
               ...eventActor(args.actorId),
             },
+          });
+          // Core fallback: when no task-mention automation is live (fresh org
+          // mid-provision, pack-less catalog), schedule the runs directly
+          // (#2637 sibling). `eventActor`'s 'workflow' sentinel already keeps
+          // engine-authored creates inert, same as the pack's guard.
+          await dispatchAgentTaskMentionRuns(ctx, {
+            organizationId: args.organizationId,
+            taskId,
+            description,
+            mentions,
+            ...eventActor(args.actorId),
           });
         }
       }
@@ -737,6 +749,43 @@ export const agentAssignTask = internalMutation({
       });
     }
     return { ok: true };
+  },
+});
+
+/**
+ * Record a run-admission refusal on the task's product activity timeline
+ * (action `'agent_run.refused'`, `toValue` = the machine `refusedReason`).
+ * Refusals happen BEFORE `startTaskAgentRun` inserts a `taskAgentRuns` row,
+ * so without this row the failure never appears in the task detail's
+ * activity feed (#2609). Actor = the agent that was asked to run; `context`
+ * carries the dispatching workflow when known. Missing task → quiet no-op
+ * (there is no timeline left to write to).
+ */
+export const recordAgentRunRefused = internalMutation({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    agentSlug: v.string(),
+    refusedReason: v.string(),
+    attribution: optionalAttribution,
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) return null;
+    const { workflowSlug, wfExecutionId } = args.attribution ?? {};
+    await recordActivity(ctx, {
+      task,
+      actorType: 'agent',
+      actorId: args.agentSlug,
+      action: 'agent_run.refused',
+      toValue: args.refusedReason,
+      context:
+        workflowSlug || wfExecutionId
+          ? { workflowSlug, wfExecutionId }
+          : undefined,
+    });
+    return null;
   },
 });
 

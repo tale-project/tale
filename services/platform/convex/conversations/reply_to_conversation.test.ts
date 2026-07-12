@@ -280,6 +280,118 @@ describe('replyToConversation', () => {
   });
 });
 
+// `sendMessageViaIntegration` is the shared choke point `replyToConversation`
+// and `composeEmailConversation` both delegate through — one gate closes the
+// gap for every write path (#2661). Exercised here via `replyToConversation`
+// since it needs no extra setup beyond the fixtures already in this file.
+describe('replyToConversation — attachment caps (#2661)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function storeBlob(t: T): Promise<Id<'_storage'>> {
+    return t.run((ctx) => ctx.storage.store(new Blob(['x'])));
+  }
+
+  it('rejects an over-count attachment set and sends nothing', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, EDITOR, ORG);
+    const contactId = await seedContact(t, 'jane@acme.test');
+    const conversationId = await seedConversation(t, {
+      contactId,
+      integrationName: 'outlook',
+      subject: 'Need help',
+    });
+    const storageId = await storeBlob(t);
+    const attachments = Array.from({ length: 11 }, (_, i) => ({
+      storageId,
+      fileName: `doc-${i}.pdf`,
+      contentType: 'application/pdf',
+      size: 1024,
+    }));
+
+    const error: unknown = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.conversations.mutations.replyToConversation, {
+        conversationId,
+        organizationId: ORG,
+        content: 'Hello',
+        attachments,
+      })
+      .catch((e: unknown) => e);
+
+    expect(String(error)).toContain('CONVERSATION_ATTACHMENTS_TOO_MANY');
+    expect(await outboundMessages(t, conversationId)).toHaveLength(0);
+  });
+
+  it('rejects a disallowed MIME type and sends nothing', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, EDITOR, ORG);
+    const contactId = await seedContact(t, 'jane@acme.test');
+    const conversationId = await seedConversation(t, {
+      contactId,
+      integrationName: 'outlook',
+      subject: 'Need help',
+    });
+    const storageId = await storeBlob(t);
+
+    const error: unknown = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.conversations.mutations.replyToConversation, {
+        conversationId,
+        organizationId: ORG,
+        content: 'Hello',
+        attachments: [
+          {
+            storageId,
+            fileName: 'payload.exe',
+            contentType: 'application/x-msdownload',
+            size: 1024,
+          },
+        ],
+      })
+      .catch((e: unknown) => e);
+
+    expect(String(error)).toContain('CONVERSATION_ATTACHMENT_TYPE_INVALID');
+    expect(await outboundMessages(t, conversationId)).toHaveLength(0);
+  });
+
+  it('rejects a declared over-size attachment and sends nothing', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, EDITOR, ORG);
+    const contactId = await seedContact(t, 'jane@acme.test');
+    const conversationId = await seedConversation(t, {
+      contactId,
+      integrationName: 'outlook',
+      subject: 'Need help',
+    });
+    const storageId = await storeBlob(t);
+
+    const error: unknown = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.conversations.mutations.replyToConversation, {
+        conversationId,
+        organizationId: ORG,
+        content: 'Hello',
+        attachments: [
+          {
+            storageId,
+            fileName: 'huge.pdf',
+            contentType: 'application/pdf',
+            size: 5e8,
+          },
+        ],
+      })
+      .catch((e: unknown) => e);
+
+    expect(String(error)).toContain('CONVERSATION_ATTACHMENT_TOO_LARGE');
+    expect(await outboundMessages(t, conversationId)).toHaveLength(0);
+  });
+});
+
 describe('bulkReplyToConversations', () => {
   beforeEach(() => {
     vi.useFakeTimers();

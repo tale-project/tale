@@ -79,6 +79,54 @@ function refuse(
   return { ok: false, refusedReason, error };
 }
 
+const NOTICE_DETAIL_MAX = 300;
+
+/** Refusals with no discussion to post into (or where posting is refused). */
+const SILENT_REFUSALS = new Set([
+  'discussion_not_found',
+  'discussion_not_open',
+  'discussion_locked',
+]);
+
+/**
+ * Surface a failed run as a visible System notice in the thread — a @mention
+ * must never fail into silence (#2637). Best-effort: a notice failure is
+ * logged, never re-thrown, so it can't mask the run's own result. Exported for
+ * direct unit coverage (`run_agent_on_discussion.test.ts`) — the surrounding
+ * action calls org/agent/budget/discussion internals not worth standing up
+ * just to exercise this gating.
+ */
+export async function postFailureNotice(
+  ctx: ActionCtx,
+  args: { organizationId: string; agentSlug: string; threadId: string },
+  result: RunAgentOnDiscussionResult,
+): Promise<void> {
+  if (result.ok) return;
+  if (result.refusedReason && SILENT_REFUSALS.has(result.refusedReason)) {
+    return;
+  }
+  const detail = (result.error ?? result.refusedReason ?? 'unknown error')
+    .replace(/\s+/g, ' ')
+    .slice(0, NOTICE_DETAIL_MAX);
+  try {
+    await ctx.runMutation(
+      internal.discussions.internal_mutations.systemPostDiscussionNotice,
+      {
+        organizationId: args.organizationId,
+        threadId: args.threadId,
+        message: `The agent "${args.agentSlug}" was mentioned here but could not reply: ${detail}`,
+      },
+    );
+  } catch (error) {
+    console.warn('[AgentDiscussionRun] failed to post failure notice', {
+      org: args.organizationId,
+      thread: args.threadId,
+      agent: args.agentSlug,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 /**
  * Flatten the recent transcript tail into the prompt body: most-recent
  * `MAX_TRANSCRIPT_MESSAGES`, string content only, separated by `---`, then
@@ -151,6 +199,18 @@ function buildDiscussionPrompt(args: {
   return lines.join('\n');
 }
 
+interface RunAgentOnDiscussionArgs {
+  organizationId: string;
+  agentSlug: string;
+  threadId: string;
+  instructions: string;
+  promptContext?: string;
+  maxSteps?: number;
+  timeoutMs?: number;
+  wfExecutionId?: string;
+  workflowSlug?: string;
+}
+
 export const runAgentOnDiscussion = internalAction({
   args: {
     organizationId: v.string(),
@@ -165,176 +225,181 @@ export const runAgentOnDiscussion = internalAction({
   },
   returns: v.object(resultShape),
   handler: async (ctx, args): Promise<RunAgentOnDiscussionResult> => {
-    const startedAt = Date.now();
-    try {
-      // 1. Org task-automation master switch.
-      const automation = await readTaskAutomationConfig(
-        ctx,
-        args.organizationId,
-      );
-      if (!automation.enabled) {
-        return refuse(
-          'automation_disabled',
-          'Task automation is disabled for this organization.',
-        );
-      }
-
-      // 2. Load + install/enable gate.
-      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const [delegate] = await loadDelegateAgents(
-        ctx,
-        [args.agentSlug],
-        args.organizationId,
-        orgSlug,
-      );
-      if (!delegate) {
-        return refuse(
-          'agent_not_found',
-          `Agent "${args.agentSlug}" not found or misconfigured.`,
-        );
-      }
-      const live = await ctx.runQuery(
-        internal.agents.installations.isAgentLiveInternal,
-        { organizationId: args.organizationId, agentSlug: args.agentSlug },
-      );
-      if (!live) {
-        return refuse(
-          'agent_disabled',
-          `Agent "${args.agentSlug}" is disabled or not installed.`,
-        );
-      }
-      // Best-effort: ensure the org's default agents are provisioned (no-op
-      // once provisioned, which every org is at create). This run is already
-      // admitted via the gate above.
-      await ensureAgentsProvisioned(ctx, args.organizationId, orgSlug);
-      const agentConfig = delegate.agentConfig;
-
-      // 3. Budget guard (monthly cap). chat_turn shaped: no per-task breaker.
-      const verdict = await ctx.runQuery(
-        internal.agents.guardrails.budget_guard.checkAgentRunAllowed,
-        {
-          organizationId: args.organizationId,
-          agentSlug: args.agentSlug,
-          context: 'chat_turn',
-          budget: agentConfig.budget,
-        },
-      );
-      if (!verdict.allowed) {
-        return refuse(
-          verdict.reason ?? 'budget_paused',
-          `Agent "${args.agentSlug}" cannot run right now (${verdict.reason ?? 'budget'}).`,
-        );
-      }
-
-      // 4. Discussion pre-check.
-      const discussion = await ctx.runQuery(
-        internal.discussions.internal_queries.getDiscussionInternal,
-        { organizationId: args.organizationId, threadId: args.threadId },
-      );
-      if (!discussion) {
-        return refuse('discussion_not_found', 'Discussion not found.');
-      }
-      if (
-        discussion.discussionStatus &&
-        discussion.discussionStatus !== 'open'
-      ) {
-        return refuse(
-          'discussion_not_open',
-          `Discussion is ${discussion.discussionStatus}.`,
-        );
-      }
-      if ((discussion.agentReplyDepth ?? 0) >= MAX_AGENT_REPLY_CHAIN_DEPTH) {
-        return refuse(
-          'reply_chain_depth_exceeded',
-          'Discussion agent-reply chain is at its depth limit.',
-        );
-      }
-
-      // 5. Transcript (recent tail) for the prompt.
-      const { messages } = await ctx.runQuery(
-        internal.threads.internal_queries.getThreadMessagesInternal,
-        { threadId: args.threadId, callerOrgId: args.organizationId },
-      );
-      const transcript = buildTranscript(messages);
-      if (transcript.length === 0) {
-        return {
-          ok: false,
-          error: 'Discussion has no readable content to reply to.',
-        };
-      }
-
-      // 6. Generate in an isolated thread. Tool-free for determinism — the
-      // agent answers in-persona from the transcript above.
-      const { threadId: genThreadId } = await ctx.runMutation(
-        internal.discussions.internal_mutations.createDiscussionRunThread,
-        { actorId: args.agentSlug },
-      );
-      const prompt = buildDiscussionPrompt({
-        title: discussion.title,
-        transcript,
-        instructions: args.instructions,
-        promptContext: args.promptContext,
-      });
-      const timeoutMs = Math.min(
-        args.timeoutMs ?? agentConfig.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS,
-        MAX_RUN_TIMEOUT_MS,
-      );
-      const runConfig: SerializableAgentConfig = {
-        ...agentConfig,
-        convexToolNames: [],
-        integrationBindings: [],
-        workflowBindings: [],
-        skillBindings: [],
-      };
-      const result = await ctx.runAction(
-        internal.lib.agent_chat.internal_actions.runAgentGeneration,
-        {
-          agentType: 'custom',
-          agentConfig: runConfig,
-          model: delegate.model,
-          provider: delegate.provider,
-          debugTag: `[DiscussionRun:${args.agentSlug}]`,
-          enableStreaming: false,
-          threadId: genThreadId,
-          organizationId: args.organizationId,
-          promptMessage: prompt,
-          deadlineMs: startedAt + timeoutMs,
-          maxSteps: args.maxSteps ?? 2,
-        },
-      );
-      const text = (result?.text ?? '').trim();
-      if (text.length === 0) {
-        return { ok: false, error: 'Agent produced no reply.' };
-      }
-
-      // 7. Post through the discussion mutation (loop guard + mentions + events).
-      const posted = await ctx.runMutation(
-        internal.discussions.internal_mutations.agentReplyToDiscussion,
-        {
-          organizationId: args.organizationId,
-          actorId: args.agentSlug,
-          threadId: args.threadId,
-          message: text,
-        },
-      );
-      return {
-        ok: posted.posted,
-        text,
-        posted: posted.posted,
-        mentionCount: posted.mentionCount,
-        refusedReason: posted.posted ? undefined : posted.reason,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const timedOut = /deadline|timeout|timed out/i.test(message);
-      console.error('[AgentDiscussionRun] failed', {
-        org: args.organizationId,
-        thread: args.threadId,
-        agent: args.agentSlug,
-        timedOut,
-        error: message,
-      });
-      return { ok: false, error: message, timedOut };
-    }
+    const result = await executeRun(ctx, args);
+    // Every non-ok outcome leaves a visible System notice in the thread —
+    // whichever route (workflow pack or direct dispatch) invoked the run.
+    await postFailureNotice(ctx, args, result);
+    return result;
   },
 });
+
+async function executeRun(
+  ctx: ActionCtx,
+  args: RunAgentOnDiscussionArgs,
+): Promise<RunAgentOnDiscussionResult> {
+  const startedAt = Date.now();
+  try {
+    // 1. Org task-automation master switch.
+    const automation = await readTaskAutomationConfig(ctx, args.organizationId);
+    if (!automation.enabled) {
+      return refuse(
+        'automation_disabled',
+        'Task automation is disabled for this organization.',
+      );
+    }
+
+    // 2. Load + install/enable gate.
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const [delegate] = await loadDelegateAgents(
+      ctx,
+      [args.agentSlug],
+      args.organizationId,
+      orgSlug,
+    );
+    if (!delegate) {
+      return refuse(
+        'agent_not_found',
+        `Agent "${args.agentSlug}" not found or misconfigured.`,
+      );
+    }
+    const live = await ctx.runQuery(
+      internal.agents.installations.isAgentLiveInternal,
+      { organizationId: args.organizationId, agentSlug: args.agentSlug },
+    );
+    if (!live) {
+      return refuse(
+        'agent_disabled',
+        `Agent "${args.agentSlug}" is disabled or not installed.`,
+      );
+    }
+    // Best-effort: ensure the org's default agents are provisioned (no-op
+    // once provisioned, which every org is at create). This run is already
+    // admitted via the gate above.
+    await ensureAgentsProvisioned(ctx, args.organizationId, orgSlug);
+    const agentConfig = delegate.agentConfig;
+
+    // 3. Budget guard (monthly cap). chat_turn shaped: no per-task breaker.
+    const verdict = await ctx.runQuery(
+      internal.agents.guardrails.budget_guard.checkAgentRunAllowed,
+      {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+        context: 'chat_turn',
+        budget: agentConfig.budget,
+      },
+    );
+    if (!verdict.allowed) {
+      return refuse(
+        verdict.reason ?? 'budget_paused',
+        `Agent "${args.agentSlug}" cannot run right now (${verdict.reason ?? 'budget'}).`,
+      );
+    }
+
+    // 4. Discussion pre-check.
+    const discussion = await ctx.runQuery(
+      internal.discussions.internal_queries.getDiscussionInternal,
+      { organizationId: args.organizationId, threadId: args.threadId },
+    );
+    if (!discussion) {
+      return refuse('discussion_not_found', 'Discussion not found.');
+    }
+    if (discussion.discussionStatus && discussion.discussionStatus !== 'open') {
+      return refuse(
+        'discussion_not_open',
+        `Discussion is ${discussion.discussionStatus}.`,
+      );
+    }
+    if ((discussion.agentReplyDepth ?? 0) >= MAX_AGENT_REPLY_CHAIN_DEPTH) {
+      return refuse(
+        'reply_chain_depth_exceeded',
+        'Discussion agent-reply chain is at its depth limit.',
+      );
+    }
+
+    // 5. Transcript (recent tail) for the prompt.
+    const { messages } = await ctx.runQuery(
+      internal.threads.internal_queries.getThreadMessagesInternal,
+      { threadId: args.threadId, callerOrgId: args.organizationId },
+    );
+    const transcript = buildTranscript(messages);
+    if (transcript.length === 0) {
+      return {
+        ok: false,
+        error: 'Discussion has no readable content to reply to.',
+      };
+    }
+
+    // 6. Generate in an isolated thread. Tool-free for determinism — the
+    // agent answers in-persona from the transcript above.
+    const { threadId: genThreadId } = await ctx.runMutation(
+      internal.discussions.internal_mutations.createDiscussionRunThread,
+      { actorId: args.agentSlug },
+    );
+    const prompt = buildDiscussionPrompt({
+      title: discussion.title,
+      transcript,
+      instructions: args.instructions,
+      promptContext: args.promptContext,
+    });
+    const timeoutMs = Math.min(
+      args.timeoutMs ?? agentConfig.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS,
+      MAX_RUN_TIMEOUT_MS,
+    );
+    const runConfig: SerializableAgentConfig = {
+      ...agentConfig,
+      convexToolNames: [],
+      integrationBindings: [],
+      workflowBindings: [],
+      skillBindings: [],
+    };
+    const result = await ctx.runAction(
+      internal.lib.agent_chat.internal_actions.runAgentGeneration,
+      {
+        agentType: 'custom',
+        agentConfig: runConfig,
+        model: delegate.model,
+        provider: delegate.provider,
+        debugTag: `[DiscussionRun:${args.agentSlug}]`,
+        enableStreaming: false,
+        threadId: genThreadId,
+        organizationId: args.organizationId,
+        promptMessage: prompt,
+        deadlineMs: startedAt + timeoutMs,
+        maxSteps: args.maxSteps ?? 2,
+      },
+    );
+    const text = (result?.text ?? '').trim();
+    if (text.length === 0) {
+      return { ok: false, error: 'Agent produced no reply.' };
+    }
+
+    // 7. Post through the discussion mutation (loop guard + mentions + events).
+    const posted = await ctx.runMutation(
+      internal.discussions.internal_mutations.agentReplyToDiscussion,
+      {
+        organizationId: args.organizationId,
+        actorId: args.agentSlug,
+        threadId: args.threadId,
+        message: text,
+      },
+    );
+    return {
+      ok: posted.posted,
+      text,
+      posted: posted.posted,
+      mentionCount: posted.mentionCount,
+      refusedReason: posted.posted ? undefined : posted.reason,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const timedOut = /deadline|timeout|timed out/i.test(message);
+    console.error('[AgentDiscussionRun] failed', {
+      org: args.organizationId,
+      thread: args.threadId,
+      agent: args.agentSlug,
+      timedOut,
+      error: message,
+    });
+    return { ok: false, error: message, timedOut };
+  }
+}

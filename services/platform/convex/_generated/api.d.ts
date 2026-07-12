@@ -247,6 +247,8 @@ import type * as automations_install_fs from "../automations/install_fs.js";
 import type * as automations_install_mutations from "../automations/install_mutations.js";
 import type * as automations_install_preflight from "../automations/install_preflight.js";
 import type * as automations_install_queries from "../automations/install_queries.js";
+import type * as automations_schedule_readiness from "../automations/schedule_readiness.js";
+import type * as automations_schedule_variables from "../automations/schedule_variables.js";
 import type * as automations_upload_actions from "../automations/upload_actions.js";
 import type * as automations_upload_mutations from "../automations/upload_mutations.js";
 import type * as automations_view_parse from "../automations/view_parse.js";
@@ -457,6 +459,7 @@ import type * as enterprise_sso_saml_acs_handler from "../enterprise_sso/saml/ac
 import type * as enterprise_sso_saml_attributes from "../enterprise_sso/saml/attributes.js";
 import type * as enterprise_sso_saml_login_handler from "../enterprise_sso/saml/login_handler.js";
 import type * as enterprise_sso_saml_metadata_handler from "../enterprise_sso/saml/metadata_handler.js";
+import type * as enterprise_sso_saml_parse_metadata from "../enterprise_sso/saml/parse_metadata.js";
 import type * as enterprise_sso_saml_validate_assertion from "../enterprise_sso/saml/validate_assertion.js";
 import type * as enterprise_sso_sign_cookie_value from "../enterprise_sso/sign_cookie_value.js";
 import type * as enterprise_sso_types from "../enterprise_sso/types.js";
@@ -1016,6 +1019,9 @@ import type * as migrations_versions_v0_3_4_26_usage_ledger_apikey_budget_scope_
 import type * as migrations_versions_v0_3_4_27_clear_conversation_customer_id_migration from "../migrations/versions/v0_3_4/27_clear_conversation_customer_id/migration.js";
 import type * as migrations_versions_v0_3_4_28_clear_support_case_customer_id_migration from "../migrations/versions/v0_3_4/28_clear_support_case_customer_id/migration.js";
 import type * as migrations_versions_v0_3_4_29_customers_vendors_to_contacts_teardown_migration from "../migrations/versions/v0_3_4/29_customers_vendors_to_contacts_teardown/migration.js";
+import type * as migrations_versions_v0_3_4_30_run_assigned_task_admission_gate_migration from "../migrations/versions/v0_3_4/30_run_assigned_task_admission_gate/migration.js";
+import type * as migrations_versions_v0_3_4_31_drop_conversation_customer_id_migration from "../migrations/versions/v0_3_4/31_drop_conversation_customer_id/migration.js";
+import type * as migrations_versions_v0_3_4_32_drop_support_case_customer_id_migration from "../migrations/versions/v0_3_4/32_drop_support_case_customer_id/migration.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -1967,6 +1973,8 @@ declare const fullApi: ApiFromModules<{
   "automations/install_mutations": typeof automations_install_mutations;
   "automations/install_preflight": typeof automations_install_preflight;
   "automations/install_queries": typeof automations_install_queries;
+  "automations/schedule_readiness": typeof automations_schedule_readiness;
+  "automations/schedule_variables": typeof automations_schedule_variables;
   "automations/upload_actions": typeof automations_upload_actions;
   "automations/upload_mutations": typeof automations_upload_mutations;
   "automations/view_parse": typeof automations_view_parse;
@@ -2177,6 +2185,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/saml/attributes": typeof enterprise_sso_saml_attributes;
   "enterprise_sso/saml/login_handler": typeof enterprise_sso_saml_login_handler;
   "enterprise_sso/saml/metadata_handler": typeof enterprise_sso_saml_metadata_handler;
+  "enterprise_sso/saml/parse_metadata": typeof enterprise_sso_saml_parse_metadata;
   "enterprise_sso/saml/validate_assertion": typeof enterprise_sso_saml_validate_assertion;
   "enterprise_sso/sign_cookie_value": typeof enterprise_sso_sign_cookie_value;
   "enterprise_sso/types": typeof enterprise_sso_types;
@@ -2736,6 +2745,9 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_3_4/27_clear_conversation_customer_id/migration": typeof migrations_versions_v0_3_4_27_clear_conversation_customer_id_migration;
   "migrations/versions/v0_3_4/28_clear_support_case_customer_id/migration": typeof migrations_versions_v0_3_4_28_clear_support_case_customer_id_migration;
   "migrations/versions/v0_3_4/29_customers_vendors_to_contacts_teardown/migration": typeof migrations_versions_v0_3_4_29_customers_vendors_to_contacts_teardown_migration;
+  "migrations/versions/v0_3_4/30_run_assigned_task_admission_gate/migration": typeof migrations_versions_v0_3_4_30_run_assigned_task_admission_gate_migration;
+  "migrations/versions/v0_3_4/31_drop_conversation_customer_id/migration": typeof migrations_versions_v0_3_4_31_drop_conversation_customer_id_migration;
+  "migrations/versions/v0_3_4/32_drop_support_case_customer_id/migration": typeof migrations_versions_v0_3_4_32_drop_support_case_customer_id_migration;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

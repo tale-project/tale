@@ -48,6 +48,7 @@ import {
 } from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';
@@ -442,11 +443,13 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           variant: 'success',
         });
       } catch (error: unknown) {
-        const description =
-          error instanceof Error ? error.message : t('modelAccess.saveFailed');
         toast({
           title: t('toastSaveFailedTitle'),
-          description,
+          description: mapGovernanceSaveError(
+            error,
+            t,
+            t('modelAccess.saveFailed'),
+          ),
           variant: 'destructive',
         });
       }

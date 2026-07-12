@@ -57,6 +57,16 @@ contacts.searchPlaceholder
 products.searchPlaceholder
 websites.searchPlaceholder
 
+# Sortable-column header state announced to assistive tech (#2639):
+# `t.common('aria.sortAscending' | 'aria.sortDescending' | 'aria.sortAvailable')`
+# in app/features/contacts/hooks/use-contacts-table-config.tsx reads `t.common`
+# off the `createTableConfigHook` factory's runtime `extraTranslations` record
+# (same shape as `common.aria.selectAll`/`selectRow` above) — the regex
+# scanner can't tie the property access back to a flat key.
+common.aria.sortAscending
+common.aria.sortDescending
+common.aria.sortAvailable
+
 
 # `piiTypeLabel(name, tTypes)` in pii-type-labels.ts maps a dynamic pattern
 # name (`email`, `phone`, `nl-bsn`, …) onto a translation key. The scanner
@@ -341,3 +351,10 @@ settings.skills.notFound
 # conversation-list block; the column builder is now its only caller.)
 common.aria.selectAll
 common.aria.selectRow
+
+# Run-admission refusal reasons (#2609): task-timeline.tsx and
+# task-run-failure-banner.tsx resolve `TASK_RUN_REFUSAL_LABEL_KEY[refusedReason]`
+# — an enum-driven lookup keyed by the machine `refusedReason` string stored on
+# the `taskActivity` row's `toValue` (see convex/agents/run_agent_on_task.ts) —
+# a runtime value the regex scanner can't tie back to these keys.
+tasks.agentRuns.refused

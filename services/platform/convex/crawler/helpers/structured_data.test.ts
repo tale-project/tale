@@ -62,6 +62,45 @@ describe('extractStructuredDataFromHtml', () => {
     const html = `<meta property="og:title" content="" />`;
     expect(extractStructuredDataFromHtml(html).opengraph).toBeUndefined();
   });
+
+  it('does not decode entities inside a JSON-LD script (RAWTEXT content model)', () => {
+    // Per the HTML spec, <script> content is never entity-decoded — only
+    // attribute values are. A page that HTML-escapes JSON-LD (a common
+    // templating bug) still round-trips: JSON.parse sees the raw `&amp;`.
+    const html = `<script type="application/ld+json">{"name": "Fish &amp; Chips"}</script>`;
+    const result = extractStructuredDataFromHtml(html);
+    expect(result.json_ld).toEqual([{ name: 'Fish &amp; Chips' }]);
+  });
+
+  it('decodes entities in meta attribute values (unlike script text)', () => {
+    const html = `<meta property="og:title" content="Fish &amp; Chips" />`;
+    expect(extractStructuredDataFromHtml(html).opengraph).toEqual({
+      title: 'Fish & Chips',
+    });
+  });
+
+  it('recovers meta/description tags from a malformed head with unquoted attributes', () => {
+    const html = `<html><head>
+      <meta property=og:title content=Unquoted>
+      <meta name="description" content="Fine desc">
+    </head><body>content</body></html>`;
+    const result = extractStructuredDataFromHtml(html);
+    expect(result.opengraph).toEqual({ title: 'Unquoted' });
+    expect(result.meta).toEqual({ description: 'Fine desc' });
+  });
+
+  it('an unclosed <title> swallows the rest of the document (RCDATA), hiding a JSON-LD block that follows it', () => {
+    // Documents this real crawl risk rather than papering over it: <title>
+    // is RCDATA and only closes at a literal `</title>`, so a page missing
+    // that closing tag loses everything after it — including any JSON-LD —
+    // to the title's text. Both jsdom and linkedom agree on this parse.
+    const html = `<html><head>
+      <title>Unclosed
+      <script type="application/ld+json">{"@type": "Article"}</script>
+    </head><body>content</body></html>`;
+    const result = extractStructuredDataFromHtml(html);
+    expect(result.json_ld).toBeUndefined();
+  });
 });
 
 describe('extractTitleFromHtml', () => {
@@ -81,5 +120,13 @@ describe('extractTitleFromHtml', () => {
 
   it('returns null for an empty title', () => {
     expect(extractTitleFromHtml('<title>   </title>')).toBeNull();
+  });
+
+  it('decodes entities and recovers the title from a page with unclosed sibling tags', () => {
+    const html = `<html><head>
+      <title>Fish &amp; Chips</title>
+      <meta property=og:type content=article>
+    </head><body><p>unclosed paragraph<div>content</div></body></html>`;
+    expect(extractTitleFromHtml(html)).toBe('Fish & Chips');
   });
 });

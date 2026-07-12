@@ -40,17 +40,23 @@ const ENRICHED_ATTACHMENT_MARKER =
 
 // Folder pin marker (kb_reference_block.ts::buildKbFolderBlock) — key names
 // differ from the file marker on purpose so neither regex can match the
-// other's block.
+// other's block. `folderSkippedCount` is OPTIONAL in the regex: a message
+// sent before issue #2598 shipped was persisted without it, and the group
+// must still match (defaulting to 0 below) so an old sent bubble doesn't
+// regress to showing the raw, unstripped marker text.
 const KB_FOLDER_MARKER =
-  /\*\(kbFolderId: ([a-z0-9]+) \| folderName: (.+?) \| folderFileCount: (\d+)\)\*/g;
+  /\*\(kbFolderId: ([a-z0-9]+) \| folderName: (.+?) \| folderFileCount: (\d+)(?: \| folderSkippedCount: (\d+))?\)\*/g;
 const INTERNAL_KB_FOLDER_BLOCK =
-  /\n?\n?[^\n]+\n\*\(kbFolderId: [a-z0-9]+ \| folderName: .+? \| folderFileCount: \d+\)\*/g;
+  /\n?\n?[^\n]+\n\*\(kbFolderId: [a-z0-9]+ \| folderName: .+? \| folderFileCount: \d+(?: \| folderSkippedCount: \d+)?\)\*/g;
 
 /** A pinned folder parsed back off the message body for the sent bubble. */
 export interface KbFolderRef {
   folderId: string;
   name: string;
   fileCount: number;
+  /** Files considered but not RAG-indexed (0 for pre-#2598 messages, which
+   *  never recorded this). */
+  skippedCount: number;
 }
 
 export function extractFileAttachments(text: string): FileAttachment[] {
@@ -74,6 +80,7 @@ export function extractKbFolderRefs(text: string): KbFolderRef[] {
       folderId: match[1],
       name: match[2],
       fileCount: Number(match[3]),
+      skippedCount: match[4] !== undefined ? Number(match[4]) : 0,
     });
   }
   return refs;
@@ -139,6 +146,16 @@ export interface ChatMessage {
   isOptimisticShell?: boolean;
 }
 
+interface UseMessageProcessingOptions {
+  /** Multi-party surfaces (Discussions): keep assistant-role messages that
+   *  precede the first loaded user message. 1:1 chat drops those as orphans
+   *  (a chat thread always starts with a user prompt), but a discussion
+   *  legitimately OPENS with an agent/system-authored message stored as
+   *  role 'assistant' — the orphan filter would hide it forever as soon as
+   *  any member replied (#2638). */
+  keepPreUserAssistantMessages?: boolean;
+}
+
 interface UseMessageProcessingResult {
   messages: ChatMessage[];
   uiMessages: UIMessage[] | undefined;
@@ -191,7 +208,10 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
  */
 export function useMessageProcessing(
   threadId: string | undefined,
+  options?: UseMessageProcessingOptions,
 ): UseMessageProcessingResult {
+  const keepPreUserAssistantMessages =
+    options?.keepPreUserAssistantMessages === true;
   const organizationId = useOrganizationId();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
   const query = api.threads.queries
@@ -435,7 +455,9 @@ export function useMessageProcessing(
         // Keep user and assistant messages
         if (m.role === 'user') return true;
         if (m.role === 'assistant') {
-          return m.order >= minUserOrder;
+          // Discussions keep every assistant message — an agent/system opener
+          // sits BEFORE the first user reply and is not an orphan (#2638).
+          return keepPreUserAssistantMessages || m.order >= minUserOrder;
         }
         if (m.role === 'system') {
           return true;
@@ -674,7 +696,13 @@ export function useMessageProcessing(
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
         }),
     );
-  }, [uiMessages, messageErrors, effectiveGenerating, hasPendingSendForThread]);
+  }, [
+    uiMessages,
+    messageErrors,
+    effectiveGenerating,
+    hasPendingSendForThread,
+    keepPreUserAssistantMessages,
+  ]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.

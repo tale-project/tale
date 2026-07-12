@@ -19,6 +19,7 @@ import { ContactsActionMenu } from './contacts-action-menu';
  */
 
 const mockBulkCreate = vi.fn();
+const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 const mockToast = vi.fn();
@@ -29,6 +30,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useBulkCreateContacts: () => ({ mutateAsync: mockBulkCreate }),
+  useCreateContact: () => ({ mutateAsync: mockCreate }),
   useUpdateContact: () => ({ mutateAsync: mockUpdate }),
   useDeleteContact: () => ({ mutateAsync: mockDelete }),
 }));
@@ -60,22 +62,27 @@ describe('contacts CRUD (e2e migration)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBulkCreate.mockResolvedValue({ success: 1, failed: 0, errors: [] });
+    mockCreate.mockResolvedValue({ success: true, contactId: 'contact-new' });
     mockUpdate.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
   });
 
-  // --- Create: action menu → Manual entry → CSV line → Import ---------------
-  it('creates a contact via the CSV manual-entry dialog', async () => {
+  // --- Create: action menu → Import contacts → Paste contacts → CSV line → Import
+  it('creates a contact via the CSV paste-contacts dialog', async () => {
     const { user } = render(<ContactsActionMenu organizationId="org-1" />);
 
-    // Header create affordance (a writer always sees it).
+    // Bulk import stays under "Import contacts" (a writer always sees it);
+    // the structured single-contact "Add contact" affordance sits next to it
+    // (#2639) and is covered by contact-create-dialog.test.tsx.
     await user.click(screen.getByRole('button', { name: 'Import contacts' }));
     await user.click(
-      await screen.findByRole('menuitem', { name: 'Manual entry' }),
+      await screen.findByRole('menuitem', { name: 'Paste contacts' }),
     );
 
-    // The CSV manual-entry dialog opens.
-    const dialog = await screen.findByRole('dialog', { name: 'Add contacts' });
+    // The CSV paste dialog opens.
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Paste contacts',
+    });
 
     // Header-less positional CSV: one `email,name` line creates exactly one
     // manual_import row. Contacts carry no status column.
@@ -89,9 +96,10 @@ describe('contacts CRUD (e2e migration)', () => {
         organizationId: 'org-1',
         contacts: [
           {
+            // No locale column in the CSV line — stored unset, not
+            // fabricated as 'en' (#2642).
             email: 'e2e-contact@example.test',
             name: 'E2E contacts create',
-            locale: 'en',
             source: 'manual_import',
           },
         ],
@@ -167,9 +175,9 @@ describe('contacts CRUD (e2e migration)', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Import contacts' }));
       await user.click(
-        await screen.findByRole('menuitem', { name: 'Manual entry' }),
+        await screen.findByRole('menuitem', { name: 'Paste contacts' }),
       );
-      await screen.findByRole('dialog', { name: 'Add contacts' });
+      await screen.findByRole('dialog', { name: 'Paste contacts' });
       await checkAccessibility(container);
     });
   });

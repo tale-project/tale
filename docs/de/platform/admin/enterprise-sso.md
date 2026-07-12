@@ -55,7 +55,7 @@ Wenn ein Anbieter OAuth2, aber kein Discovery-Dokument bietet, wähle **OAuth2**
 
 1. Wähle in Tale **SAML 2.0**. Die Seite zeigt deine **SP-Metadaten-URL** und **ACS-URL (Antwort)** — kopiere diese.
 2. Erstelle in deinem IdP eine neue SAML-2.0-Anwendung. Setze deren **ACS-URL** und **Entity-ID/Audience** auf die angezeigten SP-Werte (oder lade die SP-Metadaten-URL hoch) und das **Name-ID**-Format auf E-Mail-Adresse.
-3. Kopiere die **Entity-ID**, die **Anmelde-URL** und das **Signaturzertifikat (PEM)** des IdP nach Tale und speichere.
+3. Füge unter **IdP-Metadaten importieren** die Föderations-Metadaten-URL deines IdP ein und klick auf **Importieren** — oder klick auf **XML hochladen**, falls dein IdP nur eine Datei zum Herunterladen anbietet. Tale liest die Metadaten aus und füllt Entity-ID, Anmelde-URL und Signaturzertifikat in den Feldern darunter, ohne dass du etwas abtippen musst. Alle drei Felder bleiben bearbeitbar — prüfe die importierten Werte (oder trag sie von Hand ein, falls dein IdP keine Metadaten veröffentlicht), bevor du speicherst.
 4. Ordne die Attribute für **E-Mail**, **Name** und **Gruppe** in deinem IdP zu; weichen die Namen von den Standardwerten ab, trage die passenden Attributnamen in Tales erweiterten Feldern ein.
 
 Tale unterstützt sowohl IdP-initiiertes SAML (der IdP sendet eine Assertion an die ACS-URL) als auch SP-initiiertes SAML (ein Mitglied klickt auf **Mit SSO anmelden** und Tale leitet zum IdP weiter). Signierte Assertions sind erforderlich; verschlüsselte Assertions werden unterstützt, wenn du ein SP-Schlüsselpaar bereitstellst.

@@ -5,6 +5,8 @@
  * accept strings, and size limits across the entire platform.
  */
 
+import { ConvexError } from 'convex/values';
+
 import { isTextBasedFile, TEXT_FILE_ACCEPT } from '../utils/text-file-types';
 
 // ---------------------------------------------------------------------------
@@ -565,6 +567,66 @@ export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 /** Max file IDs per batch URL query */
 export const MAX_BATCH_FILE_IDS = 10;
+
+// ---------------------------------------------------------------------------
+// Attachment cap validation (shared by every server-side attachment gate)
+// ---------------------------------------------------------------------------
+
+export interface AttachmentCapInput {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+interface AttachmentCapErrorCodes {
+  tooMany: string;
+  typeInvalid: string;
+  tooLarge: string;
+  totalTooLarge: string;
+}
+
+export interface AttachmentCapsConfig {
+  maxCount: number;
+  totalMaxSize: number;
+  isAllowedType: (attachment: AttachmentCapInput) => boolean;
+  maxSizeForType: (fileType: string) => number;
+  errorCodes: AttachmentCapErrorCodes;
+}
+
+/**
+ * Generic count/size/MIME cap check shared by every server-side surface that
+ * re-enforces a composer's client-side attachment caps — a scripted client
+ * bypassing the upload widget's gates (`useConvexFileUpload` and friends)
+ * could otherwise attach an unbounded `attachments[]` to a public mutation.
+ * Each caller supplies its own caps + error codes and stays the single
+ * source of truth for its own limits; this only owns the check ORDER (count,
+ * then per-file type/size, then combined total) so every surface fails the
+ * same way for the same violation. See `validateChatAttachmentCaps`
+ * (`convex/agents/chat_turn.ts`) and `validateConversationAttachmentCaps`
+ * (`convex/conversations/attachments.ts`) for the concrete wiring.
+ */
+export function validateAttachmentCaps(
+  attachments: AttachmentCapInput[] | undefined,
+  config: AttachmentCapsConfig,
+): void {
+  if (!attachments || attachments.length === 0) return;
+  if (attachments.length > config.maxCount) {
+    throw new ConvexError({ code: config.errorCodes.tooMany });
+  }
+  let totalSize = 0;
+  for (const attachment of attachments) {
+    if (!config.isAllowedType(attachment)) {
+      throw new ConvexError({ code: config.errorCodes.typeInvalid });
+    }
+    if (attachment.fileSize > config.maxSizeForType(attachment.fileType)) {
+      throw new ConvexError({ code: config.errorCodes.tooLarge });
+    }
+    totalSize += attachment.fileSize;
+  }
+  if (totalSize > config.totalMaxSize) {
+    throw new ConvexError({ code: config.errorCodes.totalTooLarge });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Tool name → file type mapping (for agent-scoped file uploads)

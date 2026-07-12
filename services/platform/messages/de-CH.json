@@ -157,7 +157,7 @@
   },
   "prompts": {
     "form": {
-      "bytesOverLimitAlert": "Inhalt überschreitet das Grössenlimit. Kürze den Prompt, um zu speichern."
+      "bytesOverLimitAlert": "Inhalt überschreitet das Grössenlimit von {limit}. Kürze den Prompt, um zu speichern."
     }
   },
   "settings": {

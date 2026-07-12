@@ -180,6 +180,63 @@ describe('AutomationConfiguration — identity', () => {
     // The env editor moved to its own Environment tab — no longer in Configuration.
     expect(screen.queryByTestId('env-editor')).not.toBeInTheDocument();
   });
+
+  // #2612 — Configuration's workflow variables are the file's defaults, not
+  // what a cron run sends; the cross-link must point at the SAME route the
+  // rest of the page uses, org- or project-scoped, so it never drops the
+  // operator out of their project context.
+  it('cross-links to the org-level Triggers tab when rendered on the org route', () => {
+    abilityMock.can.mockReturnValue(true);
+    readWorkflowMock.mockReturnValue({
+      data: {
+        ok: true,
+        hash: 'h1',
+        config: { steps: [], config: {} },
+      } as never,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation({ workflows: ['sample-automation'] })}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Open Triggers' })).toHaveAttribute(
+      'href',
+      '/dashboard/$id/automations/$automationSlug',
+    );
+  });
+
+  it('cross-links to the project-scoped Triggers tab when rendered under a project route', () => {
+    abilityMock.can.mockReturnValue(true);
+    readWorkflowMock.mockReturnValue({
+      data: {
+        ok: true,
+        hash: 'h1',
+        config: { steps: [], config: {} },
+      } as never,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    render(
+      <AutomationConfiguration
+        organizationId="org_1"
+        automationSlug="sample-automation"
+        automation={catalogAutomation({ workflows: ['sample-automation'] })}
+        projectId="proj_1"
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Open Triggers' })).toHaveAttribute(
+      'href',
+      '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+    );
+  });
 });
 
 describe('AutomationConfiguration — entity sections', () => {

@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
+import { ConvexError } from 'convex/values';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ActiveEditorProvider,
@@ -17,22 +18,30 @@ import { EnterpriseSsoForm } from './enterprise-sso-form';
 
 const adminAbility = defineAbilityFor('admin');
 
-vi.mock('@/app/hooks/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
-  toast: vi.fn(),
-}));
-
 // Capture the action mocks so individual tests can assert on them. Each hook
 // returns the SAME stable mutation object so the test can read `.mutateAsync`.
 // Declared via `vi.hoisted` so they exist when the hoisted `vi.mock` factory
 // below runs.
-const { upsertOidcMock, upsertSamlMock, testConnMock, revealClientIdMock } =
-  vi.hoisted(() => ({
-    upsertOidcMock: vi.fn().mockResolvedValue(null),
-    upsertSamlMock: vi.fn().mockResolvedValue(null),
-    testConnMock: vi.fn().mockResolvedValue({ valid: true }),
-    revealClientIdMock: vi.fn().mockResolvedValue(null),
-  }));
+const {
+  upsertOidcMock,
+  upsertSamlMock,
+  testConnMock,
+  revealClientIdMock,
+  parseMetadataMock,
+  toastMock,
+} = vi.hoisted(() => ({
+  upsertOidcMock: vi.fn().mockResolvedValue(null),
+  upsertSamlMock: vi.fn().mockResolvedValue(null),
+  testConnMock: vi.fn().mockResolvedValue({ valid: true }),
+  revealClientIdMock: vi.fn().mockResolvedValue(null),
+  parseMetadataMock: vi.fn().mockResolvedValue(null),
+  toastMock: vi.fn(),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: toastMock }),
+  toast: toastMock,
+}));
 
 vi.mock('../hooks/use-enterprise-sso', () => {
   const stub = (mutateAsync: ReturnType<typeof vi.fn>) => () => ({
@@ -46,6 +55,7 @@ vi.mock('../hooks/use-enterprise-sso', () => {
     useSetProvisioning: stub(vi.fn()),
     useTestSsoConnection: stub(testConnMock),
     useRevealOidcClientId: stub(revealClientIdMock),
+    useParseSamlMetadata: stub(parseMetadataMock),
     useDisableSso: stub(vi.fn()),
     useRemoveSso: stub(vi.fn()),
     useRegenerateScimToken: stub(vi.fn()),
@@ -451,11 +461,12 @@ describe('EnterpriseSsoForm validation + save', () => {
   });
 
   it('renders the setup guide as a collapsible, closed by default (#2383)', () => {
-    const { container } = renderForm(connectedOidc);
-    const details = container.querySelector('details');
+    renderForm(connectedOidc);
+    // The form carries several <details> now (Advanced, setup guide) — anchor
+    // on the guide's own summary text.
+    const details = screen.getByText(/setup guide/i).closest('details');
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute('open');
-    expect(details).toHaveTextContent(/setup guide/i);
   });
 
   it('adds a role-mapping rule and saves it (#2085[12])', async () => {
@@ -549,5 +560,164 @@ describe('EnterpriseSsoForm multi-org email-domain warning', () => {
     });
     expect(screen.queryByLabelText(/email domain/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no email domain set/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
+  beforeEach(() => {
+    parseMetadataMock.mockReset();
+    toastMock.mockClear();
+  });
+
+  it('imports metadata from a URL and fills the three SAML fields, still editable', async () => {
+    parseMetadataMock.mockResolvedValueOnce({
+      idpEntityId: 'https://sts.example.net/entity',
+      idpSsoUrl: 'https://sts.example.net/saml2',
+      idpCertificate:
+        '-----BEGIN CERTIFICATE-----\nIMPORTED\n-----END CERTIFICATE-----',
+    });
+    const { user } = renderForm(samlConfig);
+
+    await user.type(
+      screen.getByLabelText(/^metadata url$/i),
+      'https://idp.example.com/federationmetadata.xml',
+    );
+    await user.click(screen.getByRole('button', { name: /^import$/i }));
+
+    await waitFor(() =>
+      expect(parseMetadataMock).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        url: 'https://idp.example.com/federationmetadata.xml',
+      }),
+    );
+    const entityId = screen.getByLabelText(/idp entity id/i);
+    await waitFor(() =>
+      expect(entityId).toHaveValue('https://sts.example.net/entity'),
+    );
+    expect(screen.getByLabelText(/idp sign-on url/i)).toHaveValue(
+      'https://sts.example.net/saml2',
+    );
+    expect(screen.getByLabelText(/idp signing certificate/i)).toHaveValue(
+      '-----BEGIN CERTIFICATE-----\nIMPORTED\n-----END CERTIFICATE-----',
+    );
+    // Importing is the draft; the fields stay editable as the review step.
+    expect(entityId).not.toHaveAttribute('readonly');
+    await user.type(entityId, '2');
+    expect(entityId).toHaveValue('https://sts.example.net/entity2');
+  });
+
+  it('parses an uploaded XML file through the server action', async () => {
+    parseMetadataMock.mockResolvedValueOnce({
+      idpEntityId: 'https://sts.example.net/entity',
+      idpSsoUrl: 'https://sts.example.net/saml2',
+      idpCertificate:
+        '-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----',
+    });
+    const { user, container } = renderForm(samlConfig);
+
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+    const file = new File(['<EntityDescriptor/>'], 'metadata.xml', {
+      type: 'text/xml',
+    });
+    if (fileInput) await user.upload(fileInput, file);
+
+    await waitFor(() =>
+      expect(parseMetadataMock).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        xml: '<EntityDescriptor/>',
+      }),
+    );
+  });
+
+  it('rejects an oversized upload client-side without calling the action', async () => {
+    const { user, container } = renderForm(samlConfig);
+
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+    // 1 MiB + 1 byte — just over the server's MAX_SAML_METADATA_BYTES mirror.
+    const oversized = new File([new Uint8Array(1_048_577)], 'metadata.xml', {
+      type: 'text/xml',
+    });
+    if (fileInput) await user.upload(fileInput, oversized);
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: expect.stringMatching(/too large/i),
+        variant: 'destructive',
+      }),
+    );
+    expect(parseMetadataMock).not.toHaveBeenCalled();
+  });
+
+  it('maps a stable server error code to its localized message', async () => {
+    parseMetadataMock.mockRejectedValueOnce(
+      new ConvexError({ code: 'sso_metadata_not_idp' }),
+    );
+    const { user } = renderForm(samlConfig);
+
+    await user.type(
+      screen.getByLabelText(/^metadata url$/i),
+      'https://idp.example.com/meta.xml',
+    );
+    await user.click(screen.getByRole('button', { name: /^import$/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: expect.stringMatching(/describes no identity provider/i),
+        variant: 'destructive',
+      }),
+    );
+    // The stored values stay untouched on failure.
+    expect(screen.getByLabelText(/idp entity id/i)).toHaveValue(
+      'https://idp.example.com/entity',
+    );
+  });
+});
+
+describe('EnterpriseSsoForm per-protocol display name (#2652)', () => {
+  it('follows the protocol switch while the name is still a default', async () => {
+    const { user } = renderForm(unconfigured);
+
+    // Unconfigured seeds the Entra default.
+    const displayName = screen.getByLabelText(/display name/i);
+    expect(displayName).toHaveValue('Microsoft Entra ID');
+
+    await user.click(screen.getByRole('combobox', { name: /protocol/i }));
+    await user.click(await screen.findByRole('option', { name: /saml 2\.0/i }));
+    expect(displayName).toHaveValue('SAML SSO');
+  });
+
+  it('never overwrites a customized name on protocol switch', async () => {
+    const { user } = renderForm(unconfigured);
+
+    const displayName = screen.getByLabelText(/display name/i);
+    await user.clear(displayName);
+    await user.type(displayName, 'Acme corporate login');
+
+    await user.click(screen.getByRole('combobox', { name: /protocol/i }));
+    await user.click(await screen.findByRole('option', { name: /saml 2\.0/i }));
+    expect(displayName).toHaveValue('Acme corporate login');
+  });
+
+  it('keeps a stored custom name over the protocol default', () => {
+    renderForm(samlConfig); // displayName: 'Acme SSO'
+    expect(screen.getByLabelText(/display name/i)).toHaveValue('Acme SSO');
+  });
+});
+
+describe('EnterpriseSsoForm PKCE under Advanced (#2653)', () => {
+  it('renders the PKCE toggle inside a closed Advanced disclosure, default unchanged', () => {
+    renderForm(unconfigured);
+
+    const pkce = screen.getByRole('switch', { name: /use pkce/i });
+    const details = pkce.closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent(/advanced/i);
+    // Default stays on — moving the control must not change behaviour.
+    expect(pkce).toHaveAttribute('aria-checked', 'true');
   });
 });

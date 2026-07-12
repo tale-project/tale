@@ -37,6 +37,30 @@ const DEFAULT_VALUE: PiiConfigPanelValue = {
   customPatterns: [],
 };
 
+/**
+ * Universal, org-agnostic detection patterns seeded the first time PII
+ * protection is enabled (#2656) — email, phone, and the common financial /
+ * government identifiers apply identically to every org, unlike the
+ * content-safety word lists or the moderation endpoint, which genuinely
+ * can't be guessed. Without this, the toggle persists `enabledPatterns: []`
+ * and protects nothing until the admin hand-checks boxes. The admin can
+ * still deselect any of these afterwards.
+ */
+const DEFAULT_ENABLED_PATTERNS: readonly string[] = [
+  'email',
+  'phone',
+  'creditCard',
+  'cvc',
+  'iban',
+  'ssn',
+  'nationalId',
+];
+
+/** Matches the builtin default (`builtin-configs/governance/pii-config.json`
+ *  → `mode: "mask"`) so the first-enable write doesn't silently diverge from
+ *  the documented default. */
+const FIRST_ENABLE_MODE: PiiConfigPanelValue['mode'] = 'mask';
+
 type PiiPolicy = ReturnType<typeof useGovernancePolicy>['data'];
 
 function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
@@ -129,9 +153,24 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const handleEnabledChange = useCallback(
     (checked: boolean) => {
       setEnabled(checked);
+      // #2656: nothing configured yet (no patterns picked) is exactly the
+      // "first enable" moment — seed the universal defaults + the
+      // documented mode so the toggle protects something immediately,
+      // instead of persisting an empty, inert `enabledPatterns: []`. Any
+      // org that already picked patterns keeps them untouched.
+      if (checked && value.enabledPatterns.length === 0) {
+        const seeded: PiiConfigPanelValue = {
+          ...value,
+          mode: FIRST_ENABLE_MODE,
+          enabledPatterns: [...DEFAULT_ENABLED_PATTERNS],
+        };
+        setValue(seeded);
+        void persistConfig({ enabled: checked, value: seeded });
+        return;
+      }
       void persistConfig({ enabled: checked });
     },
-    [persistConfig],
+    [persistConfig, value],
   );
 
   const handlePanelChange = useCallback(

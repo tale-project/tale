@@ -223,7 +223,10 @@ export function RequestsListSection({
             onLoadMore: () => loadMore(25),
             isLoadingMore,
             isInitialLoading,
-            entityLabel: t('dataSubjectRequests.entityLabel'),
+            entityLabel: {
+              one: t('dataSubjectRequests.entityLabelOne'),
+              other: t('dataSubjectRequests.entityLabel'),
+            },
           }}
           emptyState={{
             title: t('dataSubjectRequests.sections.requestsList.empty.title'),

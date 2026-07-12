@@ -4,6 +4,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import enMessages from '@/messages/en.json';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
@@ -125,6 +126,8 @@ vi.mock('./workflow-debug-controls', () => ({
     <div data-testid="debug-controls">{props.currentStepName}</div>
   ),
 }));
+
+import { toast } from '@/app/hooks/use-toast';
 
 import { WorkflowTester } from './workflow-tester';
 
@@ -408,5 +411,52 @@ describe('WorkflowTester per-step feedback (#1484)', () => {
       name: 'workflows.tester.result.stepsHeading',
     });
     await checkAccessibility(container);
+  });
+});
+
+describe('WorkflowTester dry run affordance (#2659)', () => {
+  function getDryRunButton() {
+    return screen.getByRole('button', {
+      name: 'workflows.tester.dryRun.button',
+    });
+  }
+
+  it('keeps the Dry run button visible but soft-disabled, not the old destructive toast', async () => {
+    const user = userEvent.setup();
+    render(
+      <WorkflowTester organizationId="org-1" workflowSlug="my-workflow" />,
+    );
+
+    const dryRunButton = getDryRunButton();
+    // Soft-disabled (aria-disabled, still focusable) rather than natively
+    // `disabled` — a native disable would remove the button from the tab
+    // order and no tooltip could ever reach a keyboard user (#1949).
+    expect(dryRunButton).not.toBeDisabled();
+    expect(dryRunButton).toHaveAttribute('aria-disabled', 'true');
+
+    // Dry run isn't implemented for file-based workflows — the button must
+    // no longer fire the destructive "not supported" toast on click.
+    await user.click(dryRunButton);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('surfaces why dry run is unavailable as a tooltip reachable by keyboard focus', async () => {
+    render(
+      <WorkflowTester organizationId="org-1" workflowSlug="my-workflow" />,
+    );
+
+    getDryRunButton().focus();
+
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent(
+      'workflows.tester.dryRun.fileBasedUnsupported',
+    );
+  });
+
+  it('drops the "dry run simulates execution" promise from the panel help copy', () => {
+    // The mocked `t()` only echoes keys, so the actual English copy is
+    // checked directly against the source of truth (#2659).
+    expect(enMessages.workflows.tester.tip).not.toMatch(/dry run/i);
+    expect(enMessages.workflows.tester.tip).not.toMatch(/simulat/i);
   });
 });

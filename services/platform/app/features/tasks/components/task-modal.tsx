@@ -60,6 +60,7 @@ import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskReviewCard } from './task-review-card';
+import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTimeline } from './task-timeline';
 
@@ -547,6 +548,11 @@ function EditTaskBody({
         }
         main={
           <>
+            <TaskRunFailureBanner
+              taskId={task._id}
+              organizationId={task.organizationId}
+              projectId={task.projectId}
+            />
             <TaskReviewCard taskId={task._id} />
             <section className="flex flex-col gap-1.5">
               <Text as="h3" variant="label">

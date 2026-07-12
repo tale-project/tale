@@ -10,6 +10,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import {
   useApplyBoundsProposal,
   useRejectBoundsProposal,
@@ -79,7 +80,14 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
     } catch (err) {
       toast({
         title: t('toastSaveFailedTitle'),
-        description: err instanceof Error ? err.message : String(err),
+        description: mapGovernanceSaveError(
+          err,
+          t,
+          t(
+            'retentionPolicy.boundsProposal.applyFailedToast',
+            'Failed to apply the bounds proposal.',
+          ),
+        ),
         variant: 'destructive',
       });
     }
@@ -99,7 +107,14 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
     } catch (err) {
       toast({
         title: t('toastSaveFailedTitle'),
-        description: err instanceof Error ? err.message : String(err),
+        description: mapGovernanceSaveError(
+          err,
+          t,
+          t(
+            'retentionPolicy.boundsProposal.rejectFailedToast',
+            'Failed to reject the bounds proposal.',
+          ),
+        ),
         variant: 'destructive',
       });
     }

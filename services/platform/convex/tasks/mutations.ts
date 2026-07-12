@@ -63,6 +63,7 @@ import {
   TERMINAL_STATUSES,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
+import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   addedMentions,
   extractMentions,
@@ -208,9 +209,11 @@ function validateLabels(labels: string[] | undefined): string[] | undefined {
 /**
  * Fan-out for `@mentions` in a task DESCRIPTION — the description-side mirror
  * of the comment mention pipeline: subscribe + notify mentioned humans
- * (`notifyTaskMentions`) and emit `task.mentioned` so the mention-response
- * automation can put mentioned agents to work. Callers pass only the mentions
- * the write NEWLY introduced (see `addedMentions`).
+ * (`notifyTaskMentions`), emit `task.mentioned` so the mention-response
+ * automation can put mentioned agents to work, then `dispatchAgentTaskMentionRuns`
+ * schedules the same runs directly when no such automation is live for this
+ * org (fresh org, pack-less catalog — events are never replayed). Callers
+ * pass only the mentions the write NEWLY introduced (see `addedMentions`).
  */
 async function fanOutDescriptionMentions(
   ctx: MutationCtx,
@@ -237,6 +240,17 @@ async function fanOutDescriptionMentions(
       actorType: 'user',
       actorId: args.actorId,
     },
+  });
+  // Core fallback: when no task-mention automation is live (fresh org
+  // mid-provision, pack-less catalog), schedule the runs directly so an
+  // @mention in a task description always reaches the agent (#2637 sibling).
+  await dispatchAgentTaskMentionRuns(ctx, {
+    organizationId: args.task.organizationId,
+    taskId: args.task._id,
+    description: args.task.description,
+    mentions: args.mentions,
+    actorType: 'user',
+    actorId: args.actorId,
   });
 }
 

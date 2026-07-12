@@ -31,6 +31,10 @@ import {
   readAgentsResult,
 } from '../../hooks/use-automation-agent-readiness';
 import {
+  missingScheduleFieldsOf,
+  readScheduleReadinessResult,
+} from '../../hooks/use-automation-schedule-readiness';
+import {
   type AutomationInstallPreview,
   isInstallOverridesError,
   useAutomationInstallActions,
@@ -213,6 +217,9 @@ function AutomationInstallWizardBody({
   const fetchAgentReadiness = useConvexAction(
     api.automations.agent_readiness.getAutomationAgentReadiness,
   );
+  const fetchScheduleReadiness = useConvexAction(
+    api.automations.schedule_readiness.getAutomationScheduleReadiness,
+  );
   const setAuthMode = useConvexAction(api.agents.file_actions.setAgentAuthMode);
 
   const requiredBySlug = useMemo(
@@ -246,6 +253,25 @@ function AutomationInstallWizardBody({
   const [modeChoices, setModeChoices] = useState<Record<string, AgentAuthMode>>(
     {},
   );
+  // Required schedule variables still blank on the automation's ACTIVE
+  // schedules (known once installed) — the Done step must not claim ready
+  // while a cron run would fail on them (#2605). `null` = not loaded.
+  const [scheduleGaps, setScheduleGaps] = useState<string[] | null>(null);
+  const loadScheduleGaps = async (): Promise<void> => {
+    try {
+      const r = await fetchScheduleReadiness.mutateAsync({
+        organizationId,
+        automationSlug,
+      });
+      setScheduleGaps(missingScheduleFieldsOf(readScheduleReadinessResult(r)));
+    } catch (err) {
+      console.warn(
+        '[AutomationInstallWizard] schedule readiness load failed:',
+        err,
+      );
+      setScheduleGaps([]);
+    }
+  };
 
   const applyAgents = (agents: AgentReadiness[]) => {
     setAgentSnapshot(agents);
@@ -278,6 +304,15 @@ function AutomationInstallWizardBody({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, agentSnapshot, organizationId, automationSlug]);
+
+  // connect-only: the schedules already exist → load their gaps on open (the
+  // install path loads them in `doInstall`, right after provisioning).
+  useEffect(() => {
+    if (mode !== 'connect-only' || scheduleGaps !== null) return undefined;
+    void loadScheduleGaps();
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, scheduleGaps, organizationId, automationSlug]);
 
   const externalAgents = useMemo(
     () => (agentSnapshot ?? []).filter(isExternalAgent),
@@ -444,6 +479,9 @@ function AutomationInstallWizardBody({
       );
       setAgentSnapshot([]);
     }
+    // Its schedules now exist too — load their required-variable gaps so the
+    // Done step can name them instead of claiming ready (#2605).
+    await loadScheduleGaps();
     return true;
   };
 
@@ -459,21 +497,47 @@ function AutomationInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // Land on the automation's ORG-level detail page — the same target the
-    // catalog card opens. The project-nested route wraps the detail in the
-    // project layout's own PageLayout + ContentArea, doubling the page padding.
-    if (mode === 'install') {
+    if (mode !== 'install') return;
+    // Land somewhere useful (#2611), mirroring the bundle wizard: a
+    // project-scoped install's work happens on the bound project's Tasks
+    // page (its Backlog), so Finish opens that surface instead of the
+    // automation's own Editor tab. An org-scoped automation has no such
+    // surface — its ORG-level detail page (the same target the catalog card
+    // opens) is the useful one; the project-nested route would double the
+    // page padding (project layout's own PageLayout + ContentArea).
+    if (targetProjectId !== undefined) {
       void navigate({
-        to: '/dashboard/$id/automations/$automationSlug',
-        params: { id: organizationId, automationSlug },
+        to: '/dashboard/$id/projects/$projectId/tasks',
+        params: { id: organizationId, projectId: targetProjectId },
       });
+      return;
     }
+    void navigate({
+      to: '/dashboard/$id/automations/$automationSlug',
+      params: { id: organizationId, automationSlug },
+    });
+  };
+
+  // The Done step's deep link into the Triggers tab (`?tab=triggers` on the
+  // automation page), where schedule variables are edited — same
+  // close-then-navigate shape as `handleFinish`.
+  const openTriggers = () => {
+    onOpenChange(false);
+    void navigate({
+      to: '/dashboard/$id/automations/$automationSlug',
+      params: { id: organizationId, automationSlug },
+      search: { tab: 'triggers' },
+    });
   };
 
   // Required integrations left unconnected at finish BLOCK the automation from
   // running — the Done screen must not claim it's "ready" when any remain.
   const unconnectedRequired = stepSlugs.filter((slug) => !connectedSlugs[slug]);
   const hasRequiredSkips = unconnectedRequired.length > 0;
+  // Same for required schedule variables still blank on an active schedule:
+  // cron runs fail on them, so Done must name them, not say "ready" (#2605).
+  const scheduleGapFields = scheduleGaps ?? [];
+  const hasScheduleGaps = scheduleGapFields.length > 0;
   // Everything still outstanding at finish (required + optional providers/BYO
   // agents) → the "some skipped" summary copy.
   const skippedCount =
@@ -608,21 +672,47 @@ function AutomationInstallWizardBody({
         })}
 
         <WizardStep id="done">
-          <VStack gap={1}>
+          <VStack gap={2}>
             <Text className="text-sm font-medium">
-              {hasRequiredSkips
+              {hasRequiredSkips || hasScheduleGaps
                 ? t('installWizard.doneNeedsSetupTitle', {
                     name: automationName,
                   })
                 : t('installWizard.doneTitle', { name: automationName })}
             </Text>
-            <Text variant="muted" className="text-sm">
-              {hasRequiredSkips
-                ? t('installWizard.doneNeedsSetup')
-                : skippedCount > 0
-                  ? t('installWizard.doneSomeSkipped')
-                  : t('installWizard.doneAllConnected')}
-            </Text>
+            {/* "Everything connected" only when NOTHING remains — neither a
+                skipped required integration nor a blank schedule variable. */}
+            {hasRequiredSkips ? (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneNeedsSetup')}
+              </Text>
+            ) : skippedCount > 0 ? (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneSomeSkipped')}
+              </Text>
+            ) : hasScheduleGaps ? null : (
+              <Text variant="muted" className="text-sm">
+                {t('installWizard.doneAllConnected')}
+              </Text>
+            )}
+            {hasScheduleGaps && (
+              <>
+                <Text variant="muted" className="text-sm">
+                  {t('installWizard.doneScheduleVars', {
+                    fields: scheduleGapFields.join(', '),
+                  })}
+                </Text>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  onClick={openTriggers}
+                >
+                  {t('installWizard.openTriggers')}
+                </Button>
+              </>
+            )}
           </VStack>
         </WizardStep>
 

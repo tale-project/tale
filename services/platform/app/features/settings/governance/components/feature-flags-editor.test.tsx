@@ -26,9 +26,15 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
+// Hoisted so the save spy is inspectable across renders (each render must see
+// the SAME `mutateAsync`, not a fresh `vi.fn()`).
+const { saveMutateAsync } = vi.hoisted(() => ({
+  saveMutateAsync: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: saveMutateAsync,
     isPending: false,
   }),
 }));
@@ -164,6 +170,51 @@ describe('FeatureFlagsEditor', () => {
       const bodyRows = container.querySelectorAll('tbody tr');
       expect(bodyRows).toHaveLength(3);
       expect(bodyRows[0].querySelectorAll('td')).toHaveLength(7);
+    });
+  });
+
+  // #2660: a sub-4096 "Max context tokens" used to save optimistically, then
+  // fail server-side with an uncaught ConvexError — nothing persisted, no
+  // user-visible error. The client must now block it inline instead.
+  describe('Max context tokens floor (#2660)', () => {
+    it('blocks a sub-4096 value with an inline error and does not save', async () => {
+      const { user } = render(<FeatureFlagsEditor organizationId="org_1" />);
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+
+      const tokensInput = screen.getByLabelText(/max context tokens/i);
+      await user.type(tokensInput, '1000');
+
+      expect(screen.getByRole('alert')).toHaveTextContent(/4,096|4096/);
+      const confirmButton = screen.getByRole('button', { name: /confirm/i });
+      expect(confirmButton).toBeDisabled();
+
+      await user.click(confirmButton);
+      expect(saveMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('lets a quick-set preset button clear the error and save', async () => {
+      const { user } = render(<FeatureFlagsEditor organizationId="org_1" />);
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+
+      const tokensInput = screen.getByLabelText(/max context tokens/i);
+      await user.type(tokensInput, '1000');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '8K' }));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      const confirmButton = screen.getByRole('button', { name: /confirm/i });
+      expect(confirmButton).not.toBeDisabled();
+      await user.click(confirmButton);
+
+      expect(saveMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policyType: 'feature_flags',
+          config: expect.objectContaining({
+            rules: [expect.objectContaining({ maxContextTokens: 8192 })],
+          }),
+        }),
+      );
     });
   });
 });

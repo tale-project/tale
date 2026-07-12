@@ -343,13 +343,21 @@ export const retentionPolicyConfigSchema = z.object({
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 
+/**
+ * Server floor for `maxContextTokens` below. Exported so the feature-flags
+ * editor can enforce the identical floor client-side (#2660) — without it, a
+ * sub-floor value optimistically renders as a saved rule, the server rejects
+ * it with an uncaught `ConvexError`, and nothing actually persists.
+ */
+export const MIN_MAX_CONTEXT_TOKENS = 4096;
+
 export const featureFlagRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),
   scopeId: z.string().optional(),
   webSearch: z.boolean().optional(),
   codeExecution: z.boolean().optional(),
   fileUpload: z.boolean().optional(),
-  maxContextTokens: z.number().min(4096).optional(),
+  maxContextTokens: z.number().min(MIN_MAX_CONTEXT_TOKENS).optional(),
 });
 export type FeatureFlagRule = z.infer<typeof featureFlagRuleSchema>;
 
@@ -542,23 +550,30 @@ export type ChatFilterConfig = z.infer<typeof chatFilterConfigSchema>;
 const headerNameRegex = /^[A-Za-z0-9-]+$/;
 const crlfNullRegex = /[\r\n\0]/;
 
-const moderationRequestTemplateSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (v) => !/\{\{secret\./.test(v),
-    'Secrets not allowed in body template',
-  )
-  .refine((v) => {
-    try {
-      JSON.parse(
-        v.replace(/\{\{text\}\}/g, '""').replace(/\{\{direction\}\}/g, '""'),
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'Request template must be valid JSON');
+/**
+ * Validates a request-template string against the constraints the field-level
+ * schema used to enforce unconditionally (#2657): non-empty, no `{{secret.}}`
+ * placeholders, and valid JSON once `{{text}}` / `{{direction}}` are
+ * substituted. Called from the top-level `superRefine` ONLY when
+ * `enabled === true` — a disabled provider's stale/blank template is inert
+ * and must not block a save that is turning the layer off.
+ */
+function validateModerationRequestTemplate(v: string): string | null {
+  if (v.length < 1) {
+    return 'Too small: expected string to have >=1 characters';
+  }
+  if (/\{\{secret\./.test(v)) {
+    return 'Secrets not allowed in body template';
+  }
+  try {
+    JSON.parse(
+      v.replace(/\{\{text\}\}/g, '""').replace(/\{\{direction\}\}/g, '""'),
+    );
+  } catch {
+    return 'Request template must be valid JSON';
+  }
+  return null;
+}
 
 const moderationBufferPolicyInnerSchema = z.object({
   minFlushChars: z.number().int().min(32).max(512).default(120),
@@ -572,29 +587,45 @@ const moderationBufferPolicySchema = moderationBufferPolicyInnerSchema.default(
   MODERATION_BUFFER_POLICY_DEFAULT,
 );
 
+/**
+ * Validates a URL string against the constraints the field-level schema used
+ * to enforce unconditionally (#2657): non-empty, well-formed, http(s) only.
+ * Called from the top-level `superRefine` ONLY when `enabled === true` — see
+ * `validateModerationRequestTemplate` above for why a disabled provider must
+ * not be blocked by its own unconfigured/stale endpoint.
+ */
+function validateModerationUrl(u: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(u);
+  } catch {
+    return 'Invalid URL';
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return 'URL must be http(s)://';
+  }
+  return null;
+}
+
 const moderationEndpointSchema = z.object({
   // Accept http:// and https://. HTTPS is strongly recommended for public
   // endpoints (the request carries chat text in the clear) but HTTP is
   // valid for internal / localhost mocks. The URL's own host is auto-
   // allowlisted by `safeFetch`, so admins don't need to also configure an
   // SSRF allowlist — redirects to a different host still get rejected.
-  url: z
-    .string()
-    .url()
-    .refine((u) => {
-      try {
-        const p = new URL(u).protocol;
-        return p === 'https:' || p === 'http:';
-      } catch {
-        return false;
-      }
-    }, 'URL must be http(s)://'),
+  //
+  // Field-level validation intentionally stops at "is a string" — the
+  // well-formed-http(s)-URL check only applies when the provider is enabled
+  // (see `validateModerationUrl` + the top-level `superRefine` below, #2657).
+  url: z.string(),
   method: z.literal('POST').default('POST'),
   headers: z.record(
     z.string().regex(headerNameRegex, 'Invalid header name'),
     z.string().refine((v) => !crlfNullRegex.test(v), 'CRLF not allowed'),
   ),
-  requestTemplate: moderationRequestTemplateSchema,
+  // Field-level validation intentionally stops at "is a string" — see
+  // `validateModerationRequestTemplate` + the top-level `superRefine` below.
+  requestTemplate: z.string(),
   timeoutMs: z.number().int().min(500).max(30_000).default(3000),
   maxResponseBytes: z.number().int().min(1024).max(1_048_576).default(262_144),
   bufferPolicy: moderationBufferPolicySchema,
@@ -607,7 +638,11 @@ const responseShapeSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('custom_jsonpath'),
     flaggedPath: z.string().optional(),
-    categoriesPath: z.string().min(1),
+    // Required only while the provider is enabled (see the top-level
+    // `superRefine` below, #2657) — a disabled provider mid-edit-draft
+    // (responseShape switched to custom_jsonpath, path not filled in yet)
+    // must still be able to save `enabled: false`.
+    categoriesPath: z.string(),
     scoresPath: z.string().optional(),
     categoryShape: z.enum(['array', 'record_of_bool', 'record_of_score']),
   }),
@@ -635,18 +670,56 @@ const moderationFailBehaviorSchema = moderationFailBehaviorInnerSchema.default(
   MODERATION_FAIL_BEHAVIOR_DEFAULT,
 );
 
-export const moderationProviderConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  appliesTo: z
-    .array(z.enum(['input', 'output']))
-    .min(1)
-    .default(['input']),
-  endpoint: moderationEndpointSchema,
-  responseShape: responseShapeSchema,
-  categoryMappings: z.array(moderationCategoryMappingSchema).max(30),
-  failBehavior: moderationFailBehaviorSchema,
-  configVersion: z.number().int().default(1),
-});
+export const moderationProviderConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    appliesTo: z
+      .array(z.enum(['input', 'output']))
+      .min(1)
+      .default(['input']),
+    endpoint: moderationEndpointSchema,
+    responseShape: responseShapeSchema,
+    categoryMappings: z.array(moderationCategoryMappingSchema).max(30),
+    failBehavior: moderationFailBehaviorSchema,
+    configVersion: z.number().int().default(1),
+  })
+  .superRefine((data, ctx) => {
+    // #2657: disabling this guardrail layer must never fail validation on
+    // config it is turning off. Toggling `enabled` false persists whatever
+    // endpoint / responseShape draft happens to be in local state (including
+    // an unconfigured/blank one) — these fields are only load-bearing while
+    // the provider actually runs, so only enforce them when `enabled: true`.
+    if (!data.enabled) return;
+
+    const urlError = validateModerationUrl(data.endpoint.url);
+    if (urlError) {
+      ctx.addIssue({
+        code: 'custom',
+        message: urlError,
+        path: ['endpoint', 'url'],
+      });
+    }
+    const templateError = validateModerationRequestTemplate(
+      data.endpoint.requestTemplate,
+    );
+    if (templateError) {
+      ctx.addIssue({
+        code: 'custom',
+        message: templateError,
+        path: ['endpoint', 'requestTemplate'],
+      });
+    }
+    if (
+      data.responseShape.type === 'custom_jsonpath' &&
+      data.responseShape.categoriesPath.length < 1
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Too small: expected string to have >=1 characters',
+        path: ['responseShape', 'categoriesPath'],
+      });
+    }
+  });
 export type ModerationProviderConfig = z.infer<
   typeof moderationProviderConfigSchema
 >;

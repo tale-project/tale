@@ -20,7 +20,6 @@ import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import {
   type InstalledAutomationDisplay,
-  listInstalledAutomationSlugsFromDisk,
   readInstalledAutomationDisplays,
   readInstalledAutomationFolders,
 } from '../automations/file_utils';
@@ -214,6 +213,10 @@ export const listWorkflows = action({
   returns: v.any(),
   // oxlint-disable-next-line typescript/no-explicit-any -- listWorkflows returns heterogeneous shapes; v.any() at API boundary
   handler: async (ctx, args): Promise<any[]> => {
+    // An empty org id means the caller's org context has not resolved yet
+    // (clients fall back to `''`); there is nothing to list, so return empty
+    // instead of surfacing an uncaught ORG_NOT_FOUND on the console (#2668).
+    if (!args.organizationId) return [];
     const { orgSlug } = await requireOrgMembershipById(
       ctx,
       args.organizationId,
@@ -329,7 +332,14 @@ export const listWorkflows = action({
     // `folder` falling back to the slug, plus its self-translated display text)
     // so the global workflows list groups + marks it. Automations with no inline
     // workflow (bundles, view-only ones) are skipped.
-    const automationSlugs = await listInstalledAutomationSlugsFromDisk(orgSlug);
+    // Only INSTALLED automations contribute workflows: uploaded private
+    // bundles also live on disk before install (and stay after uninstall), so
+    // a disk scan would surface never-installed workflows (#2564 class).
+    const automationSlugs: string[] = await ctx.runQuery(
+      internal.automations.install_mutations
+        .listAutomationInstallationsInternal,
+      { organizationId: args.organizationId },
+    );
     const appFolders = await readInstalledAutomationFolders(
       orgSlug,
       automationSlugs,

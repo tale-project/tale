@@ -24,7 +24,7 @@ interface FakeFileMeta {
   fileName: string;
   contentType: string;
   size: number;
-  ragStatus?: 'queued' | 'running' | 'completed' | 'failed';
+  ragStatus?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
 }
 
 /**
@@ -142,9 +142,38 @@ describe('resolveReferencedFolders', () => {
 
     expect(result.files.map((f) => f.fileId)).toEqual(['f1', 'f2']);
     expect(result.folders).toEqual([
-      { folderId: 'root', name: 'Reports', fileCount: 2 },
+      { folderId: 'root', name: 'Reports', fileCount: 2, skippedCount: 2 },
     ]);
     expect(result.truncated).toBe(false);
+  });
+
+  it('surfaces the skipped count when every file in the folder is unindexed (#2598)', async () => {
+    const ctx = createCtx({
+      rowsById: {
+        root: { _id: 'root', organizationId: 'org1', name: 'Meetings' },
+      },
+      docsByFolder: {
+        root: [
+          { _id: 'd1', title: 'a.loop', fileId: 'f1' },
+          { _id: 'd2', title: 'b.loop', fileId: 'f2' },
+        ],
+      },
+      fileMetaByStorageId: {
+        // No extractor for this format — terminal, non-retryable.
+        f1: { ...META, ragStatus: 'unsupported' },
+        f2: { ...META, ragStatus: 'unsupported' },
+      },
+    });
+
+    const result = await resolveReferencedFolders(ctx, {
+      ...ARGS,
+      referencedFolderIds: folderIds(['root']),
+    });
+
+    expect(result.files).toEqual([]);
+    expect(result.folders).toEqual([
+      { folderId: 'root', name: 'Meetings', fileCount: 0, skippedCount: 2 },
+    ]);
   });
 
   it('rejects a team folder outside the caller teams and a foreign-org folder', async () => {
@@ -208,7 +237,7 @@ describe('resolveReferencedFolders', () => {
       },
     );
     expect(result.folders).toEqual([
-      { folderId: 'pf', name: 'PF', fileCount: 0 },
+      { folderId: 'pf', name: 'PF', fileCount: 0, skippedCount: 0 },
     ]);
   });
 

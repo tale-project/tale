@@ -24,6 +24,7 @@ vi.mock('@/convex/_generated/api', () => ({
     contacts: {
       mutations: {
         bulkCreateContacts: 'bulkCreateContacts',
+        createContact: 'createContact',
         deleteContact: 'deleteContact',
         updateContact: 'updateContact',
       },
@@ -36,9 +37,61 @@ vi.mock('@/convex/_generated/api', () => ({
 
 import {
   useBulkCreateContacts,
+  useCreateContact,
   useDeleteContact,
   useUpdateContact,
 } from './mutations';
+
+describe('useCreateContact', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns a mutation result object', () => {
+    const result = useCreateContact();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
+  });
+
+  it('calls mutation with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce({
+      success: true,
+      contactId: 'contact-1',
+    });
+    const { mutateAsync: createContact } = useCreateContact();
+
+    await createContact({
+      organizationId: 'org-1',
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: '+1-555-0100',
+      source: 'manual_import',
+      locale: 'en',
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: '+1-555-0100',
+      source: 'manual_import',
+      locale: 'en',
+    });
+  });
+
+  it('propagates errors from mutation', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Create failed'));
+    const { mutateAsync: createContact } = useCreateContact();
+
+    await expect(
+      createContact({
+        organizationId: 'org-1',
+        email: 'jane@example.com',
+        source: 'manual_import',
+      }),
+    ).rejects.toThrow('Create failed');
+  });
+});
 
 describe('useBulkCreateContacts', () => {
   it('returns a mutation result object', () => {

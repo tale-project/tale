@@ -43,6 +43,7 @@ import {
 } from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';
@@ -459,11 +460,13 @@ export function DefaultModelEditor({
           variant: 'success',
         });
       } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to save';
         toast({
           title: t('toastSaveFailedTitle'),
-          description: message,
+          description: mapGovernanceSaveError(
+            error,
+            t,
+            t('defaultModels.saveFailed'),
+          ),
           variant: 'destructive',
         });
       }

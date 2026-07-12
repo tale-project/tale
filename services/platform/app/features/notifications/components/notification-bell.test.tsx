@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+import { IconButton } from '@tale/ui/icon-button';
 import '@testing-library/jest-dom/vitest';
+import { Maximize2 } from 'lucide-react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -15,10 +17,18 @@ vi.mock('@/app/features/inbox/hooks/queries', () => ({
   useUnreadNotificationCount: () => 0,
 }));
 
-// The popover body pulls in the full notifications data layer; stub it so the
-// test stays focused on the popover container's accessible name.
+// The popover body pulls in the full notifications data layer; stub it to a
+// deterministic surface. The stub keeps the real production shape that
+// matters for #2650: an `IconButton` (Expand) as the FIRST tabbable element,
+// so Radix's open-auto-focus lands there exactly like it does in production
+// — an `IconButton` always wraps itself in its own Tooltip, and focusing it
+// opens that tooltip, which is the actual mechanism that swallowed Escape.
 vi.mock('./notification-list-panel', () => ({
-  NotificationListPanel: () => <div data-testid="notification-list-panel" />,
+  NotificationListPanel: ({ onExpand }: { onExpand?: () => void }) => (
+    <div data-testid="notification-list-panel">
+      <IconButton aria-label="Expand" icon={Maximize2} onClick={onExpand} />
+    </div>
+  ),
 }));
 
 beforeEach(() => {
@@ -46,5 +56,31 @@ describe('NotificationBell', () => {
         'Notifications',
       ),
     );
+  });
+
+  describe('Escape dismissal (#2650)', () => {
+    it('closes the popover on Escape and returns focus to the bell trigger', async () => {
+      const { user } = render(<NotificationBell organizationId="org-1" />);
+      const trigger = screen.getByRole('button', { name: 'Notifications' });
+
+      await user.click(trigger);
+
+      // Radix auto-focuses the first tabbable element on open — the stubbed
+      // Expand `IconButton` — which opens its own Tooltip and is the actual
+      // mechanism that previously swallowed Escape (see the mock above).
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole('button', { name: 'Expand' }),
+        ),
+      );
+      expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+
+      await user.keyboard('{Escape}');
+
+      await waitFor(() =>
+        expect(document.querySelector('[role="dialog"]')).toBeNull(),
+      );
+      expect(document.activeElement).toBe(trigger);
+    });
   });
 });

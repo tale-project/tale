@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -92,14 +92,17 @@ import { WorkflowSpecification } from './workflow-specification';
 /**
  * Saving moved to the page's shared Save cluster (the active-editor
  * contract) — this probe stands in for `EditorActions` so the test drives
- * the registered controller exactly the way the tab strip does.
+ * the registered controller exactly the way the tab strip does, including
+ * `EditorActions`'s real `isValid` gate (#2665).
  */
 function EditorProbe() {
   const controller = useActiveEditor();
   if (!controller) return null;
   return (
     <button
-      disabled={!controller.isDirty || controller.isSaving}
+      disabled={
+        !controller.isDirty || controller.isSaving || !controller.isValid
+      }
       onClick={() => void controller.save()}
     >
       probe-save
@@ -197,6 +200,30 @@ describe('WorkflowSpecification', () => {
         }),
       }),
     );
+  });
+
+  it('disables Save and shows an inline error once the draft exceeds the 20,000-character ceiling (#2665)', async () => {
+    renderSpecification('too-long-workflow');
+    const textarea = screen.getByLabelText('Specification');
+
+    fireEvent.change(textarea, { target: { value: 'x'.repeat(20_001) } });
+
+    const saveButton = screen.getByRole('button', { name: 'probe-save' });
+    await waitFor(() =>
+      expect(
+        screen.getByText('Specification must be 20000 characters or fewer'),
+      ).toBeInTheDocument(),
+    );
+    expect(saveButton).toBeDisabled();
+    expect(textarea).toHaveAttribute('aria-invalid', 'true');
+
+    // Trimming back under the ceiling clears the error and re-enables Save —
+    // the gate tracks the LIVE draft, not just the first violation.
+    fireEvent.change(textarea, { target: { value: 'x'.repeat(20_000) } });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(
+      screen.queryByText('Specification must be 20000 characters or fewer'),
+    ).not.toBeInTheDocument();
   });
 
   it('offers "Regenerate graph" on a graph_stale banner and opens the diff dialog', async () => {

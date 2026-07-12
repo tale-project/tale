@@ -278,6 +278,7 @@
       "recent": {
         "title": "Aktuelles Feedback",
         "entityLabel": "Feedback-Einträge",
+        "entityLabelOne": "Feedback-Eintrag",
         "emptyTitle": "Kein Feedback in diesem Zeitraum",
         "emptyDescription": "Passe Zeitraum oder Filter an, um mehr zu sehen.",
         "noComment": "(kein Kommentar)",
@@ -499,11 +500,14 @@
       "namePlaceholder": "Name der Automation",
       "descriptionPlaceholder": "Was diese Automation tut",
       "runtimeTitle": "Workflow-Einstellungen",
+      "scheduleVarsHint": "Das sind die Standardwerte des Workflows. Die Variablen, die ein Cron-Lauf tatsächlich sendet, stehen bei jedem Zeitplan, im Trigger-Tab.",
+      "openTriggers": "Trigger öffnen",
       "validation": {
         "nameRequired": "Name ist erforderlich"
       }
     },
     "triggers": {
+      "scheduleVarsLead": "Das sind die Variablen, die dieser Zeitplan beim Auslösen sendet — getrennt von den Workflow-Standardwerten im Konfigurations-Tab.",
       "errors": {
         "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
         "invalidSlug": "Die Kennung dieser Automatisierung ist ungültig.",
@@ -611,7 +615,8 @@
     },
     "bundle": {
       "memberCount": "Bundle · {count} Automatisierungen",
-      "needsAttention": "Aufmerksamkeit nötig"
+      "needsAttention": "Aufmerksamkeit nötig",
+      "partOf": "Teil von {name}"
     },
     "install": {
       "install": "Installieren",
@@ -659,6 +664,8 @@
       "summaryBroken": "Installierte Dateien fehlen",
       "summaryIntegrations": "Nicht verbunden: {names}",
       "summaryAgents": "Einrichtung nötig: {names}",
+      "summaryScheduleVars": "Zeitplan-Variablen fehlen: {fields}",
+      "openTriggers": "Trigger öffnen",
       "mismatch": {
         "cursorKeyOnClaudeRuntime": "{agent} läuft als Claude Code, in Umgebung steht aber {configuredKeys} — für diese Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle Externe Laufzeit auf Cursor und speichere, oder trage das passende Secret ein.",
         "claudeKeyOnCursorRuntime": "{agent} läuft als Cursor, in Umgebung steht aber {configuredKeys} — für diese Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle Externe Laufzeit auf Claude Code und speichere, oder trage das passende Secret ein."
@@ -697,6 +704,9 @@
       "doneNeedsSetup": "Eine erforderliche Integration ist noch nicht verbunden — verbinde sie im Integrationen-Tab der Automatisierung, bevor sie laufen kann.",
       "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
       "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der Automatisierung abschließen.",
+      "doneScheduleVars": "Erforderliche Zeitplan-Variablen sind noch nicht gesetzt: {fields}. Setze sie im Trigger-Tab der Automatisierung, bevor sie laufen kann.",
+      "doneBundleScheduleVars": "Diese Mitglieder brauchen noch Zeitplan-Variablen, bevor sie laufen können: {members}",
+      "openTriggers": "Trigger öffnen",
       "finish": "Fertigstellen",
       "skipForNow": "Später erledigen",
       "installFailed": "Automatisierung konnte nicht installiert werden",
@@ -898,6 +908,8 @@
       "modelAccessDenied": "Modell nicht verfügbar",
       "budgetExceeded": "Nutzungslimit erreicht",
       "kbRefInvalid": "Ein referenziertes Dokument ist nicht mehr verfügbar. Entferne es und versuche es erneut.",
+      "kbRefNotIndexed": "„{fileName}“ ist noch nicht indexiert. Entferne es oder warte, bis die Indexierung abgeschlossen ist, und versuche es erneut.",
+      "kbRefUnsupported": "„{fileName}“ kann nicht indexiert werden — dieser Dateityp wird nicht unterstützt. Entferne es, um deine Nachricht zu senden.",
       "backendRestarting": "Server wird neu gestartet",
       "backendRestartingDescription": "Der Server wird kurz für ein Update neu gestartet. Bitte sende deine Nachricht gleich erneut."
     },
@@ -984,7 +996,8 @@
       "requestUserLocation": "Standort anfragen",
       "updateTodos": "To-do-Liste",
       "proposeMemory": "Erinnerung vorschlagen",
-      "secretRead": "Geheimnis lesen"
+      "secretRead": "Geheimnis lesen",
+      "automationSearch": "Automatisierungssuche"
     },
     "agentSelector": {
       "label": "Agent auswählen",
@@ -1129,7 +1142,7 @@
     "budgetWarningTypeTokens": "Token",
     "budgetWarningTypeCost": "Kosten",
     "budgetWarningTypeRequests": "Anfragen",
-    "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
+    "placeholder": "Frag zu Kontakten, Produkten oder Dokumenten…",
     "planMode": {
       "label": "Planen- oder Ausführen-Modus",
       "plan": "Planen",
@@ -1191,6 +1204,8 @@
     "indexing": "Indizierung...",
     "indexingFailed": "Indizierung fehlgeschlagen",
     "indexingFailedDescription": "{filename} konnte nicht für die Suche indiziert werden.",
+    "indexingUnsupported": "Format nicht unterstützt",
+    "indexingUnsupportedDescription": "{filename} kann nicht indexiert werden — für diesen Dateityp gibt es keine Textextraktion.",
     "viewImage": "Bild anzeigen",
     "fileTypes": {
       "image": "BILD",
@@ -1619,6 +1634,7 @@
       "exitFullscreen": "Vollbild beenden"
     },
     "kbFolderChipFiles": "{count, plural, one {# Datei} other {# Dateien}}",
+    "kbFolderChipFilesSkipped": "{resolved}/{count, plural, one {# Datei} other {# Dateien}} — {skipped, plural, one {# nicht indexiert} other {# nicht indexiert}}",
     "embedded": {
       "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
     }
@@ -1807,7 +1823,11 @@
       "skipToContent": "Zum Hauptinhalt springen",
       "mainNavigation": "Hauptnavigation",
       "projectsNavigation": "Projektnavigation",
-      "workflowNavigation": "Workflow-Navigation"
+      "workflowNavigation": "Workflow-Navigation",
+      "sortAscending": "aufsteigend sortiert",
+      "sortDescending": "absteigend sortiert",
+      "sortAvailable": "sortierbar",
+      "unsavedChanges": "Nicht gespeicherte Änderungen"
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
@@ -1815,9 +1835,9 @@
       "loadMore": "Mehr laden",
       "loading": "Weitere werden geladen...",
       "noMore": "Keine weiteren Einträge",
-      "showingAll": "Alle {count} {entity} werden angezeigt",
-      "showingFiltered": "{filtered} von {total} {entity} werden angezeigt",
-      "showingRange": "{start}-{end} von {total} {entity} werden angezeigt"
+      "showingAll": "{count, plural, one {# {entityOne} wird angezeigt} other {Alle # {entityOther} werden angezeigt}}",
+      "showingFiltered": "{total, plural, one {{filtered} von # {entityOne} wird angezeigt} other {{filtered} von # {entityOther} werden angezeigt}}",
+      "showingRange": "{total, plural, one {{start}-{end} von # {entityOne} wird angezeigt} other {{start}-{end} von # {entityOther} werden angezeigt}}"
     },
     "search": {
       "noResults": "Keine Ergebnisse gefunden",
@@ -1832,7 +1852,6 @@
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
       "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
       "somethingWentWrong": "Etwas ist schiefgelaufen",
-      "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.",
       "errorLoadingPage": "Beim Laden dieser Seite ist ein Fehler aufgetreten. Du kannst es erneut versuchen oder zu einem anderen Bereich navigieren.",
       "persistsProblem": "Wenn dieses Problem weiterhin besteht,",
       "contactSupport": "kontaktiere den Support",
@@ -2080,6 +2099,7 @@
       "description": "Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.",
       "noAutomationTitle": "Richte deine Inbox ein",
       "noAutomationDescription": "Installiere eine E-Mail-Automatisierung (Gmail, Outlook oder IMAP), um hier Konversationen zu lesen und zu beantworten.",
+      "composeNotice": "Um {name} zu schreiben, installiere zuerst eine E-Mail-Automatisierung.",
       "browseAutomations": "Automatisierungen durchsuchen"
     },
     "filter": {
@@ -2103,6 +2123,7 @@
   },
   "contacts": {
     "title": "Kontakte",
+    "entityLabelOne": "Kontakt",
     "searchPlaceholder": "Kontakte suchen",
     "filter": {
       "source": {
@@ -2117,12 +2138,19 @@
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
       "expectedColumns": "Erwartete Spalten: email, name, locale"
     },
+    "addButton": "Kontakt hinzufügen",
     "editContact": "Kontakt bearbeiten",
     "deleteContact": "Kontakt löschen",
     "importMenu": {
       "importContacts": "Kontakte importieren",
       "fromDevice": "Von deinem Gerät",
-      "manualEntry": "Manuelle Eingabe"
+      "pasteContacts": "Kontakte einfügen"
+    },
+    "create": {
+      "title": "Kontakt hinzufügen",
+      "success": "Kontakt erstellt",
+      "error": "Kontakt konnte nicht erstellt werden",
+      "duplicateEmail": "Ein Kontakt mit dieser E-Mail existiert bereits"
     },
     "thisContact": "diesen Kontakt",
     "updateSuccess": "Kontakt aktualisiert",
@@ -2142,7 +2170,7 @@
       "successDescription": "{success} Kontakte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "noneImported": "Es wurden keine Kontakte importiert",
       "error": "Importfehler",
-      "addContacts": "Kontakte hinzufügen",
+      "pasteContacts": "Kontakte einfügen",
       "uploadContacts": "Kontakte hochladen",
       "import": "Importieren",
       "errorCodes": {
@@ -2241,6 +2269,7 @@
   },
   "documents": {
     "entityLabel": "Dokumente",
+    "entityLabelOne": "Dokument",
     "tableCaption": "Dokumente und Ordner",
     "searchPlaceholder": "Dokumente suchen",
     "deleteFolder": {
@@ -2328,6 +2357,7 @@
         "notIndexed": "Nicht indexiert",
         "indexing": "Wird indexiert",
         "failed": "Fehlgeschlagen",
+        "unsupported": "Nicht unterstützt",
         "needsReindex": "Neuindexierung nötig"
       },
       "source": {
@@ -2451,6 +2481,7 @@
         "indexing": "Wird indexiert",
         "indexed": "Indexiert",
         "failed": "Fehlgeschlagen",
+        "unsupported": "Nicht unterstützt",
         "notIndexed": "Nicht indexiert",
         "needsReindex": "Neuindexierung nötig",
         "unknown": "Unbekannt"
@@ -2475,6 +2506,10 @@
           "description": "Das Dokument konnte nicht für die RAG-Suche indexiert werden.",
           "errorDetails": "Fehlerdetails:",
           "unknownError": "Unbekannter Fehler aufgetreten"
+        },
+        "unsupported": {
+          "title": "Format nicht unterstützt",
+          "description": "Für diesen Dateityp gibt es keine Textextraktion, daher kann er nicht für die RAG-Suche indexiert werden. Konvertiere die Datei in ein unterstütztes Format (PDF, DOCX, TXT, …) und lade sie erneut hoch, damit sie durchsuchbar wird."
         }
       }
     },
@@ -2505,6 +2540,10 @@
       "heading": "Erstelle dein Inhaberkonto",
       "why": "Dies ist das erste Konto auf dieser Tale-Installation und erhält daher volle Administratorrechte. Teammitglieder fügst du später hinzu."
     },
+    "workspace": {
+      "createError": "Dein Arbeitsbereich konnte nicht erstellt werden. Prüfe deine Verbindung und klicke erneut auf „Weiter“.",
+      "nameTakenError": "Dieser Name ist schon vergeben. Wähle einen anderen."
+    },
     "provider": {
       "heading": "OpenRouter verbinden",
       "connect": "Verbinden",
@@ -2531,6 +2570,18 @@
       "goToDashboard": "Zum Dashboard"
     }
   },
+  "provisioning": {
+    "banner": {
+      "title": "Die Einrichtung dieses Arbeitsbereichs ist unvollständig",
+      "body": "Ein Teil der mitgelieferten Konfiguration fehlt, deshalb funktionieren Agenten und Chat womöglich noch nicht.",
+      "retry": "Einrichtung wiederholen",
+      "retrying": "Einrichtung läuft…"
+    },
+    "toast": {
+      "retrySucceeded": "Einrichtung des Arbeitsbereichs abgeschlossen.",
+      "retryFailed": "Die Einrichtung ist erneut fehlgeschlagen. Sieh in den Server-Logs nach und versuche es dann noch einmal."
+    }
+  },
   "emptyStates": {
     "providers": {
       "title": "Keine Anbieter konfiguriert",
@@ -2538,7 +2589,7 @@
     },
     "contacts": {
       "title": "Noch keine Kontakte",
-      "description": "Lade deinen ersten Kontakt hoch, um loszulegen"
+      "description": "Füge deinen ersten Kontakt hinzu, um loszulegen"
     },
     "products": {
       "title": "Noch keine Produkte",
@@ -2650,6 +2701,7 @@
       "title": "Standardmodelle",
       "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
       "saved": "Standardmodell-Konfiguration wurde aktualisiert",
+      "saveFailed": "Standardmodell-Konfiguration konnte nicht gespeichert werden",
       "addRule": "Regel hinzufügen",
       "addRuleTitle": "Standardmodell-Regel hinzufügen",
       "editRuleTitle": "Standardmodell-Regel bearbeiten",
@@ -2703,6 +2755,7 @@
       "title": "Aufbewahrungsrichtlinie",
       "description": "Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.",
       "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
+      "saveFailed": "Aufbewahrungsrichtlinie konnte nicht gespeichert werden",
       "save": "Änderungen speichern",
       "reset": "Auf Standardwerte zurücksetzen",
       "unsavedHint": "Du hast nicht gespeicherte Änderungen.",
@@ -2751,7 +2804,8 @@
       "pendingChange": {
         "title": "Eine Aufbewahrungsverkürzung steht aus.",
         "applyIn": "wird in {days} Tag(en) wirksam.",
-        "cancel": "Abbrechen"
+        "cancel": "Abbrechen",
+        "cancelFailedToast": "Ausstehende Aufbewahrungsänderung konnte nicht abgebrochen werden."
       },
       "boundsProposal": {
         "title": "Der Betreiber hat Änderungen an den Aufbewahrungsgrenzen vorgeschlagen.",
@@ -2769,7 +2823,9 @@
         "diffRow": "{category}: {field} {from} → {to} ({direction})",
         "impactRow": "{category}: {current} wird auf {clamped} begrenzt",
         "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
-        "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen."
+        "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen.",
+        "applyFailedToast": "Grenzwertvorschlag konnte nicht angewendet werden.",
+        "rejectFailedToast": "Grenzwertvorschlag konnte nicht abgelehnt werden."
       },
       "promptTemplates": {
         "title": "Prompt-Vorlagen",
@@ -2929,6 +2985,7 @@
       "fileUpload": "Datei-Upload",
       "maxContextTokens": "Max. Kontext-Tokens",
       "maxContextTokensHint": "Maximale Kontext-Tokens für KI-Antworten. Leer lassen für unbegrenzt.",
+      "invalidMaxContextTokens": "Max. Kontext-Tokens müssen mindestens {min} betragen.",
       "scope": "Geltungsbereich",
       "target": "Ziel",
       "allUsers": "Alle Benutzer",
@@ -2967,7 +3024,8 @@
       "title": "Sprachausgabe",
       "description": "Wenn deaktiviert, kann kein Mitglied dieser Organisation Sprachausgabe nutzen. Persönliche Voreinstellungen und Chat-spezifische Überschreibungen haben dann keine Wirkung.",
       "enabledLabel": "Sprachausgabe für diese Organisation aktiviert",
-      "saved": "Sprachausgabe-Richtlinie aktualisiert"
+      "saved": "Sprachausgabe-Richtlinie aktualisiert",
+      "saveFailed": "Sprachausgabe-Richtlinie konnte nicht gespeichert werden"
     },
     "personalization": {
       "enabledLabel": "Für diese Organisation aktiviert",
@@ -3260,8 +3318,6 @@
       "legalHold": "Legal Hold",
       "trash": "Papierkorb",
       "guardrails": "Guardrails",
-      "usage": "Nutzung",
-      "feedback": "Feedback",
       "logs": "Protokolle",
       "dataSubjectRequests": "Anfragen betroffener Personen",
       "runCodePolicy": "Run-code-Pakete"
@@ -3334,9 +3390,7 @@
         "fileMetadata": "Temporäre Dateien",
         "promptTemplate": "Prompt-Vorlagen",
         "messageFeedback": "Nachrichten-Feedback",
-        "customer": "Kunden",
         "contact": "Kontakte",
-        "vendor": "Lieferanten",
         "externalConversation": "Externe Konversationen",
         "messageMetadata": "Nachrichten-Metadaten",
         "workflowExecution": "Workflow-Läufe",
@@ -3355,7 +3409,8 @@
         "expiredDescription": "Dieser Datensatz wurde durch die Aufbewahrungsrichtlinie gelöscht. Eine Wiederherstellung übersteuert diese Richtlinie und aktiviert den Datensatz wieder. Auditiert.",
         "expiredPhraseLabel": "Tippe \"restore\" zum Bestätigen",
         "restoredToast": "Wiederhergestellt.",
-        "failedToast": "Wiederherstellung fehlgeschlagen"
+        "failedToast": "Wiederherstellung fehlgeschlagen",
+        "failedDescription": "Dieser Datensatz konnte nicht wiederhergestellt werden."
       }
     },
     "legalHold": {
@@ -3408,6 +3463,7 @@
         "history": {
           "title": "Freigabeverlauf",
           "entityLabel": "Freigaben",
+          "entityLabelOne": "Freigabe",
           "description": "Schreibgeschützte Übersicht wirksam gewordener und abgelehnter Freigabeanträge.",
           "empty": {
             "title": "Noch keine abgeschlossenen Freigabeanträge",
@@ -3585,6 +3641,7 @@
     "dataSubjectRequests": {
       "title": "Anfragen betroffener Personen",
       "entityLabel": "Anfragen",
+      "entityLabelOne": "Anfrage",
       "description": "DSGVO Art. 17 Löschungsbelege. Neue Anfragen einreichen, Fristen überwachen und Art. 12(3)-Verlängerungen gewähren, wenn komplexe Fälle mehr Zeit brauchen.",
       "accessDenied": "Nur Administratoren.",
       "filters": {
@@ -3832,6 +3889,21 @@
       "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
     }
   },
+  "metrics": {
+    "title": "Metriken",
+    "groups": {
+      "usage": "Nutzung",
+      "feedback": "Feedback",
+      "automations": "Automatisierungen",
+      "projects": "Projekte"
+    },
+    "projects": {
+      "selectLabel": "Projekt",
+      "selectPlaceholder": "Projekt auswählen…",
+      "emptyTitle": "Projekt auswählen",
+      "emptyDescription": "Wähle ein Projekt, um seine Aufgaben-Metriken zu sehen."
+    }
+  },
   "humanInputRequest": {
     "questionTitle": "Frage",
     "submit": "Antwort absenden",
@@ -3892,6 +3964,7 @@
   },
   "knowledgeEntries": {
     "title": "Wissenseinträge",
+    "entityLabelOne": "Wissenseintrag",
     "searchPlaceholder": "Wissenseinträge durchsuchen",
     "addButton": "Eintrag hinzufügen",
     "addEntry": "Wissenseintrag hinzufügen",
@@ -4087,9 +4160,9 @@
       "title": "Projekte",
       "description": "Geteilte Arbeitsbereiche für Dateien, Anweisungen und Chats."
     },
-    "apps": {
-      "title": "Apps",
-      "description": "Installierte Pakete und die Apps, die sie deiner Organisation hinzufügen."
+    "project": {
+      "title": "Projekt",
+      "description": "Ein geteilter Arbeitsbereich für Dateien, Anweisungen und Chats."
     },
     "websites": {
       "title": "Websites",
@@ -4231,9 +4304,21 @@
       "title": "API-Schlüssel",
       "description": "API-Schlüssel für Integrationen erstellen und verwalten."
     },
+    "runtimes": {
+      "title": "Runtimes",
+      "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, Cursor)."
+    },
+    "deployment": {
+      "title": "Datenresidenz",
+      "description": "Wo deine Daten gespeichert und verarbeitet werden."
+    },
     "governance": {
       "title": "Richtlinien",
       "description": "Organisationsweite Richtlinien und System-Prompts verwalten."
+    },
+    "metrics": {
+      "title": "Metriken",
+      "description": "Organisationsweite KPIs für Nutzung, Feedback, Automatisierungen und Projekte."
     },
     "shared-chat": {
       "title": "Geteilter Chat",
@@ -4287,6 +4372,7 @@
     "apiRest": "REST",
     "branding": "Branding",
     "governance": "Richtlinien",
+    "metrics": "Metriken",
     "personalization": "Personalisierung",
     "environment": "Umgebung",
     "account": "Konto",
@@ -4337,7 +4423,8 @@
       },
       "taskReview": {
         "label": "Review-Anfragen",
-        "description": "Wenn Agenten-Arbeit auf dein Review wartet."
+        "description": "Wenn Agenten-Arbeit auf dein Review wartet.",
+        "lockedHint": "Immer an — das ist ein Sicherheitssignal."
       },
       "escalation": {
         "label": "Agenten-Eskalationen",
@@ -4607,6 +4694,7 @@
   },
   "products": {
     "title": "Produkte",
+    "entityLabelOne": "Produkt",
     "searchPlaceholder": "Produkte suchen",
     "addButton": "Produkt hinzufügen",
     "importMenu": {
@@ -4769,13 +4857,13 @@
       "tagsPlaceholder": "Kommagetrennte Tags...",
       "save": "Speichern",
       "create": "Erstellen",
-      "bytesUsed": "{used} / {max}",
+      "charsUsed": "{used} Zeichen",
       "versionConflictTitle": "Neuere Version verfügbar",
       "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
       "versionConflictDirtyWarning": "Deine nicht gespeicherten Änderungen gehen verloren.",
       "versionConflictDiscardConfirm": "Neueste Version laden und nicht gespeicherte Änderungen verwerfen?",
       "loadLatest": "Neueste laden",
-      "bytesOverLimitAlert": "Inhalt überschreitet das Größenlimit. Kürze den Prompt, um zu speichern."
+      "bytesOverLimitAlert": "Inhalt überschreitet das Größenlimit von {limit}. Kürze den Prompt, um zu speichern."
     },
     "saveAs": {
       "title": "Prompt speichern",
@@ -4943,6 +5031,9 @@
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
       },
+      "metrics": {
+        "description": "Organisationsweite KPIs für Nutzung, Feedback, Automatisierungen und Projekte."
+      },
       "sandboxes": {
         "description": "Always-on Remote-Agent-Sandboxes verwalten."
       },
@@ -4988,7 +5079,8 @@
       "empty": "Noch keine Token-Quellen. Füge eine hinzu, um Agenten einen rotierenden Anmeldedaten-Pool zu geben.",
       "edit": "Bearbeiten",
       "delete": "Löschen",
-      "entityLabel": "Token-Quelle",
+      "entityLabel": "Token-Quellen",
+      "entityLabelOne": "Token-Quelle",
       "emptyTitle": "Noch keine Token-Quellen",
       "actions": "Token-Quellen-Aktionen",
       "deleteTitle": "Token-Quelle löschen",
@@ -5057,6 +5149,7 @@
       "membersSectionTitle": "Mitglieder",
       "membersDescription": "Personen, die Zugriff auf diese Organisation haben.",
       "membersEntityLabel": "Mitglieder",
+      "memberEntityLabel": "Mitglied",
       "defaultLocale": "Standardsprache (für Agenten)",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
@@ -5101,6 +5194,7 @@
     "teams": {
       "title": "Teams",
       "entityLabel": "Teams",
+      "entityLabelOne": "Team",
       "createTeam": "Team erstellen",
       "searchTeam": "Teams suchen",
       "columns": {
@@ -5136,6 +5230,7 @@
     "agents": {
       "title": "Agenten",
       "entityLabel": "Agenten",
+      "entityLabelOne": "Agent",
       "tableCaption": "Installierte Agents",
       "createAgent": "Agent erstellen",
       "createMenu": {
@@ -5162,6 +5257,11 @@
       "agentNotFound": "Agent nicht gefunden oder Du hast keinen Zugriff.",
       "agentSaved": "Agent gespeichert",
       "agentSaveFailed": "Agent konnte nicht gespeichert werden",
+      "validation": {
+        "displayNameRequired": "Gib einen Anzeigenamen ein.",
+        "systemInstructionsRequired": "Gib Systemanweisungen ein.",
+        "modelRequired": "Füge mindestens ein Modell hinzu."
+      },
       "historyLoadFailed": "Verlauf konnte nicht geladen werden",
       "historyRestored": "Agent aus Verlauf wiederhergestellt",
       "historyRestoreFailed": "Wiederherstellung aus Verlauf fehlgeschlagen",
@@ -5248,13 +5348,12 @@
         "noAutomationsAvailable": "Keine aktiven Automatisierungen verfügbar.",
         "bindIntegrationsPlaceholder": "Integrationen binden…",
         "bindAutomationsPlaceholder": "Automatisierungen binden…",
+        "bindSkillsPlaceholder": "Skills binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",
         "skillBindingsExternalNoCustomSkillsDescription": "Noch keine zusätzlichen Org-Skills zum Binden — Workflow-Disziplinen laden trotzdem automatisch. Lege in den Skills-Einstellungen einen eigenen Skill an, wenn dieser Agent einen braucht.",
         "skillBindingsCounter": "{count}/{max} gebunden",
-        "skillBindingsToggleAria": "{slug} binden",
-        "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",
         "skillBindingsNoSkillsInOrgDescription": "In dieser Organisation existieren noch keine Skills.",
         "skillBindingsNoSkillsInOrgCta": "In den Skills-Einstellungen anlegen",
         "sectionKnowledge": "Wissen",
@@ -5415,7 +5514,7 @@
         "webSearchHintLink": "Websites verwalten",
         "searchPlaceholder": "Tools durchsuchen…",
         "enabledCount": "{enabled}/{total}",
-        "enabledCountLabel": "{enabled} von {total} Tools aktiviert",
+        "enabledCountLabel": "{enabled} von {total, plural, one {# Tool} other {# Tools}} aktiviert",
         "categories": {
           "contacts": "Kontakte",
           "products": "Produkte",
@@ -5478,7 +5577,8 @@
           "task_write": "Aufgaben anlegen und aktualisieren",
           "project_read": "Projekte und ihre Inhalte einsehen",
           "project_write": "Projekte anlegen und aktualisieren",
-          "secret_read": "Gespeicherte Geheimnisse für externe Dienste verwenden"
+          "secret_read": "Gespeicherte Geheimnisse für externe Dienste verwenden",
+          "automation_search": "Bestehende Automatisierungen und Bundles nachschlagen, um Duplikate zu vermeiden"
         }
       },
       "webhook": {
@@ -5548,8 +5648,6 @@
         "menuLabel": "{name} verwalten"
       },
       "columns": {
-        "name": "Skill",
-        "description": "Beschreibung",
         "loadError": "SKILL.md konnte nicht gelesen werden"
       },
       "loadErrorDetail": {
@@ -5870,6 +5968,27 @@
         "scopesLabel": "Scopes",
         "pkceLabel": "PKCE verwenden",
         "pkceDescription": "Sendet bei jeder Autorisierungsanfrage eine PKCE-Challenge — empfohlen, wenn der IdP sie unterstützt.",
+        "advanced": "Erweitert",
+        "defaultDisplayName": {
+          "entra": "Microsoft Entra ID",
+          "oidc": "OIDC-SSO",
+          "oauth2": "OAuth2-SSO",
+          "saml": "SAML-SSO"
+        },
+        "metadata": {
+          "title": "IdP-Metadaten importieren",
+          "help": "Dein IdP veröffentlicht Entity-ID, Anmelde-URL und Signaturzertifikat als Föderations-Metadaten-XML. Importiere sie hier, um die Felder unten zu füllen — du kannst jeden Wert vor dem Speichern prüfen und anpassen.",
+          "urlLabel": "Metadaten-URL",
+          "importUrl": "Importieren",
+          "uploadXml": "XML hochladen",
+          "imported": "IdP-Metadaten importiert — prüfe die Felder unten und speichere dann.",
+          "importFailed": "Die IdP-Metadaten ließen sich nicht importieren.",
+          "errorTooLarge": "Das Metadaten-Dokument ist zu groß (max. 1 MB).",
+          "errorInvalid": "Das sieht nicht nach gültigem Föderations-Metadaten-XML aus.",
+          "errorNotIdp": "Die Metadaten beschreiben keinen Identity Provider — hast du versehentlich SP-Metadaten hochgeladen?",
+          "errorIncomplete": "In den Metadaten fehlt die Entity-ID, die Anmelde-URL oder das Signaturzertifikat.",
+          "errorFetchFailed": "Die Metadaten-URL ließ sich nicht abrufen. Prüfe die Adresse oder lade die Datei herunter und lade sie hier hoch."
+        },
         "idpEntityIdLabel": "IdP-Entity-ID",
         "idpSsoUrlLabel": "IdP-Anmelde-URL",
         "idpCertLabel": "IdP-Signaturzertifikat (PEM)",
@@ -5994,6 +6113,7 @@
     "providers": {
       "title": "Anbieter",
       "entityLabel": "Anbieter",
+      "entityLabelOne": "Anbieter",
       "modelCatalog": {
         "title": "Modellkatalog",
         "description": "Modell-Fähigkeiten (Preise, Kontextfenster, Reasoning, Tools, Vision) werden aus dem öffentlichen OpenRouter-Katalog aktuell gehalten und dienen als Standardwerte unter deiner Anbieter-Konfiguration. Aktualisiert sich täglich.",
@@ -6082,6 +6202,16 @@
       "apiFormatHelp": "Das API-Format, das der Endpunkt dieses Anbieters spricht. Belasse es bei OpenAI-kompatibel, sofern der Anbieter keinen nativen Anthropic-Endpunkt bereitstellt (z. B. .../anthropic). Anbieter im Anthropic-Format funktionieren mit externen Agenten (Claude Code); der In-App-Chat verwendet den OpenAI-kompatiblen Client.",
       "apiFormatOpenai": "OpenAI-kompatibel (Standard)",
       "apiFormatAnthropic": "Anthropic",
+      "advanced": "Erweitert",
+      "baseUrlManagedHelp": "Der veröffentlichte Endpunkt dieses Anbieters — bereits eingetragen.",
+      "baseUrlOverride": "Basis-URL überschreiben",
+      "presetLabel": "Mit einem bekannten Anbieter starten",
+      "presetHelp": "Die Auswahl füllt Anbietername und Endpunkt aus — du ergänzt nur noch deinen API-Schlüssel.",
+      "presetCustom": "Benutzerdefiniert",
+      "catalogPickerLabel": "Aus dem Modellkatalog wählen",
+      "catalogPickerPlaceholder": "Modell auswählen…",
+      "catalogPickerEmpty": "Keine passenden Katalogmodelle.",
+      "catalogPickerHelp": "Die Auswahl übernimmt Modell-ID und Fähigkeiten aus dem synchronisierten Katalog. Unten kannst du weiterhin eine eigene ID eingeben.",
       "secretsEnv": "Umgebungsvariable für den API-Schlüssel",
       "secretsEnvPlaceholder": "z. B. TALE_PROVIDER_KEY_OPENROUTER",
       "secretsEnvHelp": "Liest den API-Schlüssel aus dieser Umgebungsvariable statt aus der Secrets-Datei. Eine Wertänderung erfordert einen Neustart der Plattform.",
@@ -6248,6 +6378,7 @@
     },
     "apiKeys": {
       "entityLabel": "Schlüssel",
+      "entityLabelOne": "Schlüssel",
       "createKey": "API-Schlüssel erstellen",
       "createKeySubmit": "Schlüssel erstellen",
       "searchKeys": "API-Schlüssel suchen...",
@@ -6346,6 +6477,7 @@
       },
       "errors": {
         "entityLabel": "Fehlerprotokolle",
+        "entityLabelOne": "Fehlerprotokoll",
         "tableCaption": "Fehlerprotokoll-Datentabelle",
         "emptyTitle": "Keine Fehlerprotokolle",
         "emptyDescription": "Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt."
@@ -6370,6 +6502,7 @@
       },
       "audit": {
         "entityLabel": "Audit-Protokolle",
+        "entityLabelOne": "Audit-Protokoll",
         "tableCaption": "Audit-Protokoll-Datentabelle",
         "emptyTitle": "Keine Audit-Protokolle",
         "emptyDescription": "Audit-Protokolle werden hier angezeigt, sobald Aktionen in deiner Organisation durchgeführt werden.",
@@ -6977,6 +7110,7 @@
       "unassign": "Zuweisung aufheben",
       "you": "Du",
       "search": "Personen suchen…",
+      "liveAgentsOnly": "Nur installierte und aktivierte Agenten werden angezeigt — eine verbundene Integration aktiviert ihre Agenten nicht automatisch.",
       "dispatchHints": {
         "agentPlatform": "Nutzt Plattform-Tools und postet einen Task-Kommentar.",
         "codingDaemon": "Läuft auf deinem Rechner in einem Git-Workspace.",
@@ -6996,7 +7130,8 @@
       "assigneeChanged": "Zuständigkeit geändert",
       "commentAdded": "Kommentar hinzugefügt",
       "dependencyAdded": "Abhängigkeit hinzugefügt",
-      "dependencyRemoved": "Abhängigkeit entfernt"
+      "dependencyRemoved": "Abhängigkeit entfernt",
+      "agentRunRefused": "Ausführung abgelehnt"
     },
     "review": {
       "needsReview": "Review ausstehend",
@@ -7008,6 +7143,11 @@
       "feedbackPlaceholder": "Was soll sich ändern? Der Agent erhält dies wortwörtlich.",
       "approvedToast": "Aufgabe freigegeben und abgeschlossen",
       "changesRequestedToast": "Änderungen angefordert — der Agent arbeitet daran"
+    },
+    "runFailure": {
+      "title": "Agent konnte nicht starten",
+      "description": "{agent} konnte nicht starten: {reason}. Der Status der Aufgabe bleibt unverändert.",
+      "viewAgents": "Agenten verwalten"
     },
     "agentRuns": {
       "working": "Agent arbeitet…",
@@ -7026,6 +7166,13 @@
         "unblock": "entblockt",
         "decomposition": "Aufteilung",
         "manual": "manuell"
+      },
+      "refused": {
+        "agent_disabled": "Agent ist nicht installiert oder deaktiviert",
+        "agent_not_found": "Agent nicht gefunden oder falsch konfiguriert",
+        "automation_disabled": "Aufgaben-Automatisierung ist aus",
+        "budget_paused": "Monatsbudget aufgebraucht",
+        "task_circuit_breaker": "Agenten-Läufe sind auf dieser Aufgabe pausiert"
       }
     },
     "timeline": {
@@ -7333,6 +7480,7 @@
   },
   "websites": {
     "title": "Websites",
+    "entityLabelOne": "Website",
     "searchPlaceholder": "Websites suchen",
     "addButton": "Website hinzufügen",
     "addWebsite": "Website hinzufügen",
@@ -7482,6 +7630,7 @@
   "projects": {
     "title": "Projekte",
     "entityLabel": "Projekte",
+    "entityLabelOne": "Projekt",
     "navigation": {
       "list": "Alle Projekte",
       "overview": "Allgemein",
@@ -7864,7 +8013,6 @@
       "agents": "Mitgelieferte Agenten aktualisieren",
       "workflows": "Mitgelieferte Automatisierungen aktualisieren",
       "integrations": "Mitgelieferte Integrationen aktualisieren",
-      "apps": "Mitgelieferte Apps aktualisieren",
       "automations": "Mitgelieferte Automatisierungen aktualisieren",
       "skills": "Mitgelieferte Skills aktualisieren"
     },
@@ -8080,22 +8228,35 @@
         "emptyDescription": "Erstelle einen Zeitplan, um diesen Workflow regelmäßig automatisch auszulösen.",
         "columns": {
           "cronExpression": "Cron-Ausdruck",
+          "project": "Projekt",
           "active": "Aktiv",
           "lastTriggered": "Zuletzt ausgelöst",
           "createdBy": "Erstellt von"
         },
+        "unboundProject": "Kein Projekt",
+        "needsConfiguration": "Konfiguration nötig",
+        "needsConfigurationDetail": "Fehlende Pflichtvariablen: {fields}",
         "form": {
           "title": "Zeitplan erstellen",
           "editTitle": "Zeitplan bearbeiten",
           "cronExpression": "Cron-Ausdruck",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
+          "timezoneLabel": "Zeitzone",
           "variablesLabel": "Workflow-Variablen",
           "variablesDescription": "Eingabeparameter, die bei jedem geplanten Lauf übergeben werden. Vorausgefüllt aus dem Eingabeschema des Workflows.",
           "variablesInvalid": "Variablen müssen ein gültiges JSON-Objekt sein",
+          "projectLabel": "Projekt",
+          "projectPlaceholder": "Projekt auswählen",
+          "repoLabel": "GitHub-Repository",
+          "repoPlaceholder": "owner/repo oder https://github.com/owner/repo",
+          "repoInvalid": "Gib es als owner/repo oder als GitHub-URL ein",
+          "useFormToggle": "Formular verwenden",
+          "editAsJsonToggle": "Als JSON bearbeiten",
           "validation": {
             "cronRequired": "Cron-Ausdruck ist erforderlich",
-            "cronInvalid": "Muss ein gültiger Cron-Ausdruck mit 5 Feldern sein"
+            "cronInvalid": "Muss ein gültiger Cron-Ausdruck mit 5 Feldern sein",
+            "missingRequired": "Konfiguriere die erforderlichen Felder, bevor du speicherst: {fields}"
           },
           "presets": {
             "every5Minutes": "Alle 5 Minuten",
@@ -8192,12 +8353,14 @@
     "executions": {
       "title": "Ausführungen",
       "entityLabel": "Ausführungen",
+      "entityLabelOne": "Ausführung",
       "searchPlaceholder": "Nach Ausführungs-ID suchen",
       "viewOnCanvas": "Auf dem Canvas ansehen"
     },
     "steps": {
       "banners": {
-        "hasActiveTriggers": "Dieser Workflow ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
+        "hasActiveTriggers": "Dieser Workflow ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen.",
+        "hasActiveTriggersScheduleGap": "Dieser Workflow ist aktiv, aber einem aktiven Zeitplan fehlen erforderliche Variablen ({fields}) — diese Ausführungen schlagen fehl, bis sie gesetzt sind."
       },
       "toolbar": {
         "testWorkflow": "Workflow testen",
@@ -8280,17 +8443,11 @@
         "invalidJson": "Gib gültiges JSON ein, um diesen Workflow auszuführen.",
         "missingRequired": "Konfiguriere die erforderlichen Felder, bevor du ausführst: {fields}"
       },
-      "tip": "Probelauf simuliert die Ausführung ohne Nebeneffekte. Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.",
+      "tip": "Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.",
       "execute": "Ausführen",
       "executing": "Wird ausgeführt...",
-      "dryRunning": "Wird simuliert...",
       "dryRun": {
         "button": "Probelauf",
-        "success": "Probelauf abgeschlossen",
-        "failed": "Probelauf hat Probleme gefunden",
-        "errors": "Fehler",
-        "warnings": "Warnungen",
-        "executionPath": "Ausführungspfad",
         "fileBasedUnsupported": "Probelauf ist für dateibasierte Workflows noch nicht verfügbar."
       },
       "toast": {

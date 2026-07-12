@@ -13,6 +13,7 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import type { RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
 import {
@@ -36,6 +37,10 @@ interface DocumentRowActionsProps {
   teamIds?: string[];
   onFolderDeleted?: () => void;
   parentFolderTeamId?: string;
+  /** Gates the "Reindex" action — terminal `unsupported` files (no text
+   *  extractor exists) never get a retry affordance, on the row menu any
+   *  more than on the `RagStatusBadge` itself (#2598). */
+  ragStatus?: RagStatus;
 }
 
 export function DocumentRowActions({
@@ -48,6 +53,7 @@ export function DocumentRowActions({
   teamIds,
   onFolderDeleted,
   parentFolderTeamId,
+  ragStatus,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -180,7 +186,7 @@ export function DocumentRowActions({
         label: tDocuments('actions.reindex'),
         icon: RefreshCw,
         onClick: handleReindex,
-        visible: canWrite && itemType === 'file',
+        visible: canWrite && itemType === 'file' && ragStatus !== 'unsupported',
         disabled: isReindexing,
       },
       {
@@ -234,6 +240,7 @@ export function DocumentRowActions({
       isHeld,
       syncConfigId,
       isDirectlySelected,
+      ragStatus,
     ],
   );
 

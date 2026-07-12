@@ -25,6 +25,15 @@ import {
   AUTO_AGENT_SLUG,
   DEFAULT_CHAT_AGENT_SLUG,
 } from '../../lib/shared/constants/agents';
+import {
+  type AttachmentCapInput,
+  CHAT_MAX_FILE_COUNT,
+  CHAT_MAX_TOTAL_SIZE,
+  CHAT_UPLOAD_ALLOWED_TYPES,
+  getMaxFileSizeForType,
+  validateAttachmentCaps,
+} from '../../lib/shared/file-types';
+import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { notifyChatMentions } from '../collab/notify';
@@ -44,6 +53,41 @@ import {
   resolveReferencedFiles,
 } from './resolve_referenced_files';
 import { resolveReferencedFolders } from './resolve_referenced_folders';
+
+export type ChatAttachmentCapInput = AttachmentCapInput;
+
+/**
+ * Re-enforce the composer's attachment caps server-side: max file count,
+ * per-file size (type-aware — audio/video get the higher transcription-pipeline
+ * ceiling), total size, and the MIME allowlist (mirroring the client's
+ * `isTextBasedFile` fallback for text-like files outside the strict list).
+ * `chatWithAgentTurn` is a public mutation, so a scripted client bypassing
+ * `useConvexFileUpload`'s gates could otherwise attach an unbounded
+ * `attachments[]` — same class of gap `validateTaskAttachments`
+ * (`convex/tasks/attachments.ts`) closes for tasks and
+ * `validateConversationAttachmentCaps` (`convex/conversations/attachments.ts`)
+ * closes for outbound email. Uses the same shared caps the client enforces
+ * (`lib/shared/file-types.ts`), through the generic `validateAttachmentCaps`
+ * check those two share, so the surfaces can't drift apart.
+ */
+export function validateChatAttachmentCaps(
+  attachments: ChatAttachmentCapInput[] | undefined,
+): void {
+  validateAttachmentCaps(attachments, {
+    maxCount: CHAT_MAX_FILE_COUNT,
+    totalMaxSize: CHAT_MAX_TOTAL_SIZE,
+    isAllowedType: (att) =>
+      CHAT_UPLOAD_ALLOWED_TYPES.includes(att.fileType) ||
+      isTextBasedFile(att.fileName, att.fileType),
+    maxSizeForType: getMaxFileSizeForType,
+    errorCodes: {
+      tooMany: 'CHAT_ATTACHMENTS_TOO_MANY',
+      typeInvalid: 'CHAT_ATTACHMENT_TYPE_INVALID',
+      tooLarge: 'CHAT_ATTACHMENT_TOO_LARGE',
+      totalTooLarge: 'CHAT_ATTACHMENTS_TOTAL_SIZE_EXCEEDED',
+    },
+  });
+}
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -106,6 +150,11 @@ export const chatWithAgentTurn = mutation({
     if (!authUser) {
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
+
+    // Server-side re-enforcement of the composer's attachment caps — BEFORE
+    // the prewarm branch, since prewarm forwards `attachments` to the same
+    // generation action. A denial throws synchronously; nothing is committed.
+    validateChatAttachmentCaps(args.attachments);
 
     // Projects: validate access BEFORE the prewarm branch (a denial throws
     // synchronously and the client shows a PROJECT_* toast — same UX as

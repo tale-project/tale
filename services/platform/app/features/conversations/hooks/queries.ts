@@ -66,6 +66,34 @@ export function useApproxConversationCountByStatus(
 }
 
 /**
+ * A contact's display name for the Inbox's not-yet-installed empty state, when
+ * a `?composeContact=` deep link (a contact-row "New email" action) arrives
+ * before any mailbox is connected (#2641) — names the contact in the "install
+ * an automation first" notice instead of silently dropping the intent. Pass
+ * `undefined` to skip: every other view that resolves a contact by id already
+ * carries its own `useContacts` subscription (e.g. `conversation-header.tsx`),
+ * so this only fetches the org's contact list when this specific lookup is
+ * pending.
+ */
+export function useComposeContactName(
+  organizationId: string,
+  contactId: string | undefined,
+): { name: string | undefined; isLoading: boolean } {
+  const { data, isLoading } = useConvexQuery(
+    api.contacts.queries.listContacts,
+    contactId ? { organizationId } : 'skip',
+  );
+
+  if (!contactId) return { name: undefined, isLoading: false };
+
+  const contact = data?.find((c) => c._id === contactId);
+  return {
+    name: contact ? contact.name || contact.email : undefined,
+    isLoading,
+  };
+}
+
+/**
  * The inboxes the compose dialog can send through — exactly the Inbox's own
  * connected providers, so compose can never disagree with the page it lives on
  * (reaching the Inbox already requires an installed email automation whose

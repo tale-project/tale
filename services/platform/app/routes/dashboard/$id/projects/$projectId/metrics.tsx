@@ -7,7 +7,6 @@ import {
   ProjectMetricsPage,
   type PeriodDays,
 } from '@/app/features/tasks/components/project-metrics-page';
-import { seo } from '@/lib/utils/seo';
 
 export const searchSchema = z.object({
   // The router parses a bare `?period=90` as the JSON number 90, which fails a
@@ -24,9 +23,11 @@ export const searchSchema = z.object({
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/metrics',
 )({
-  head: () => ({
-    meta: seo('projects'),
-  }),
+  // No `head` override here (unlike the other project tabs): the parent
+  // `$projectId` layout route already sets the document title to the loaded
+  // project's own name (#2647). Overriding it with the generic
+  // `seo('projects')` — the *list* page's title — defeated that per-project
+  // title on this one tab.
   validateSearch: searchSchema,
   component: ProjectMetricsRoute,
 });

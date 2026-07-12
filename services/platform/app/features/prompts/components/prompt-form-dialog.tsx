@@ -24,7 +24,6 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { Id } from '@/convex/_generated/dataModel';
 import {
-  MAX_PROMPT_CONTENT_BYTES,
   MAX_PROMPT_TAG_LEN,
   MAX_PROMPT_TAGS_COUNT,
   MAX_PROMPT_TITLE_LEN,
@@ -34,7 +33,7 @@ import { cn } from '@/lib/utils/cn';
 
 import type { PromptTemplate } from '../hooks/queries';
 import { useCategories, usePrompt } from '../hooks/queries';
-import { formatBytes } from '../lib/format-prompt-bytes';
+import { usePromptContentLimit } from '../hooks/use-prompt-content-limit';
 import type { PromptScope } from '../lib/prompt-scope';
 import { CategoryPickerPopover } from './category-picker-popover';
 import { TagChipInput } from './tag-chip-input';
@@ -102,8 +101,8 @@ function PromptFormDialogContent({
   const [tags, setTags] = useState(initialTags);
 
   const contentId = useId();
-  const bytesId = `${contentId}-bytes`;
-  const bytesErrorId = `${contentId}-bytes-error`;
+  const charsId = `${contentId}-chars`;
+  const charsErrorId = `${contentId}-chars-error`;
   const categoryLabelId = useId();
 
   const isEditing = !!initialData;
@@ -230,16 +229,16 @@ function PromptFormDialogContent({
     ...(showGlobalTab ? [{ value: 'global', label: t('scope.global') }] : []),
   ];
 
-  // Server measures the trimmed content (size_guards.assertPromptSizes) — mirror
-  // that here so trailing whitespace doesn't block submit on a value the server
-  // would accept.
-  const contentBytes = useMemo(
-    () => new TextEncoder().encode(content.trim()).byteLength,
-    [content],
-  );
-  const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
-  const approachingLimit =
-    !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
+  // Server measures the trimmed content (size_guards.assertPromptSizes) —
+  // mirror that here so trailing whitespace doesn't block submit on a value
+  // the server would accept.
+  const trimmedContent = content.trim();
+  const {
+    chars: contentChars,
+    overLimit: overByteLimit,
+    approachingLimit,
+    limitLabel,
+  } = usePromptContentLimit(trimmedContent);
 
   const isDirty =
     title !== (initialData?.title ?? '') ||
@@ -379,11 +378,11 @@ function PromptFormDialogContent({
           required
           aria-required
           aria-label={t('form.contentLabel')}
-          aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+          aria-describedby={`${charsId}${overByteLimit ? ` ${charsErrorId}` : ''}`}
           aria-invalid={overByteLimit || undefined}
         />
         <Text
-          id={bytesId}
+          id={charsId}
           variant="muted"
           className={cn(
             'text-right text-xs',
@@ -392,18 +391,15 @@ function PromptFormDialogContent({
           )}
           aria-live="polite"
         >
-          {t('form.bytesUsed', {
-            used: formatBytes(contentBytes),
-            max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
-          })}
+          {t('form.charsUsed', { used: contentChars })}
         </Text>
         {overByteLimit && (
           <Text
-            id={bytesErrorId}
+            id={charsErrorId}
             role="alert"
             className="text-destructive text-right text-xs"
           >
-            {t('form.bytesOverLimitAlert')}
+            {t('form.bytesOverLimitAlert', { limit: limitLabel })}
           </Text>
         )}
       </Stack>

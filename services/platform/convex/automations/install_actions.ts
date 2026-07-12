@@ -48,6 +48,7 @@ import {
   type PreflightEntry,
   preflightKey,
 } from './install_preflight';
+import { startInputSchemaOf } from './schedule_variables';
 
 /**
  * Register an automation's single INLINE workflow: the install record only.
@@ -96,10 +97,15 @@ async function registerInlineWorkflow(
  *    so two projects each get their own independent reconcile run and never
  *    share a single org-wide schedule.
  *
- * `variables` seeds from the inline workflow's OWN declared schedule spec only —
+ * `variables` seeds from the inline workflow's OWN declared schedule spec —
  * there is no install-time automation config to fold in any more; an operator-set
  * value (e.g. a GitHub repo) is edited directly on the schedule via the
- * workflow's Triggers tab.
+ * workflow's Triggers tab. One exception: when the workflow's start schema
+ * declares a `projectId` input, each per-project schedule seeds
+ * `variables.projectId` from its binding — the project the operator already
+ * chose at install time must reach `{{input.projectId}}` without being
+ * re-typed on the Triggers tab (#2607). Reconcile keeps operator-FILLED values
+ * over this seed; only blank placeholders are converged.
  *
  * It hands the fully-computed desired set to `reconcileAutomationSchedules`, which
  * CONVERGES an existing schedule's `variables` to the desired value (so a plain
@@ -137,6 +143,12 @@ export async function syncAutomationSchedules(
       });
     }
   } else {
+    // Seed `variables.projectId` from the binding only when the workflow's
+    // start schema actually declares that input — never invent a variable the
+    // workflow doesn't read.
+    const startSchema = startInputSchemaOf(workflow);
+    const seedsProjectId =
+      startSchema !== undefined && 'projectId' in startSchema.properties;
     const bindings = await ctx.runQuery(
       internal.automations.install_mutations.listAutomationBindingsInternal,
       { organizationId, automationSlug },
@@ -148,7 +160,9 @@ export async function syncAutomationSchedules(
           cronExpression: schedule.cron,
           timezone: schedule.timezone,
           projectId: binding.projectId,
-          variables: schedule.variables,
+          variables: seedsProjectId
+            ? { ...schedule.variables, projectId: binding.projectId }
+            : schedule.variables,
         });
       }
     }

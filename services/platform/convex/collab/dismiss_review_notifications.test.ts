@@ -119,40 +119,56 @@ async function seedReviewFixture(t: T): Promise<{
 }
 
 describe('dismissReviewRequestNotifications via respondToTaskReview', () => {
-  it('marks stacked initial and reminder review rows read and drops actionable count', async () => {
-    const t = convexTest(schema, modules);
-    await seedMember(t, REVIEWER);
-    const { approvalId, initialNotificationId, reminderNotificationId } =
-      await seedReviewFixture(t);
+  // This test chains two attention queries around a `respondToTaskReview`
+  // mutation whose handler itself fans out across auth/role resolution,
+  // `dismissReviewRequestNotifications` (a member scan + a per-member unread
+  // scan), activity + audit logging, and `notifyTaskReviewResolved` — more
+  // sequential convex-test round trips than its sibling tests in this file.
+  // Verified: unrelated to this branch (code path unchanged from main) and
+  // consistently <350ms locally; under a loaded CI/parallel-suite worker the
+  // default 5s per-test budget has been observed too tight (5009ms), same
+  // class of flake as `convex/scim/http_actions.test.ts`.
+  it(
+    'marks stacked initial and reminder review rows read and drops actionable count',
+    { timeout: 20_000 },
+    async () => {
+      const t = convexTest(schema, modules);
+      await seedMember(t, REVIEWER);
+      const { approvalId, initialNotificationId, reminderNotificationId } =
+        await seedReviewFixture(t);
 
-    const asReviewer = t.withIdentity({ subject: REVIEWER });
+      const asReviewer = t.withIdentity({ subject: REVIEWER });
 
-    const before = await asReviewer.query(
-      api.collab.attention.getMyAttentionSummary,
-      { organizationId: ORG },
-    );
-    expect(before.unreadActionableCount).toBe(2);
+      const before = await asReviewer.query(
+        api.collab.attention.getMyAttentionSummary,
+        { organizationId: ORG },
+      );
+      expect(before.unreadActionableCount).toBe(2);
 
-    await asReviewer.mutation(api.tasks.review_mutations.respondToTaskReview, {
-      approvalId,
-      decision: 'approve',
-    });
+      await asReviewer.mutation(
+        api.tasks.review_mutations.respondToTaskReview,
+        {
+          approvalId,
+          decision: 'approve',
+        },
+      );
 
-    const after = await asReviewer.query(
-      api.collab.attention.getMyAttentionSummary,
-      { organizationId: ORG },
-    );
-    expect(after.unreadActionableCount).toBe(0);
-    expect(after.pendingReviewCount).toBe(0);
+      const after = await asReviewer.query(
+        api.collab.attention.getMyAttentionSummary,
+        { organizationId: ORG },
+      );
+      expect(after.unreadActionableCount).toBe(0);
+      expect(after.pendingReviewCount).toBe(0);
 
-    const rows = await t.run(async (ctx) => {
-      const initial = await ctx.db.get(initialNotificationId);
-      const reminder = await ctx.db.get(reminderNotificationId);
-      return { initial, reminder };
-    });
-    expect(rows.initial?.read).toBe(true);
-    expect(rows.initial?.readAt).toBeTypeOf('number');
-    expect(rows.reminder?.read).toBe(true);
-    expect(rows.reminder?.readAt).toBeTypeOf('number');
-  });
+      const rows = await t.run(async (ctx) => {
+        const initial = await ctx.db.get(initialNotificationId);
+        const reminder = await ctx.db.get(reminderNotificationId);
+        return { initial, reminder };
+      });
+      expect(rows.initial?.read).toBe(true);
+      expect(rows.initial?.readAt).toBeTypeOf('number');
+      expect(rows.reminder?.read).toBe(true);
+      expect(rows.reminder?.readAt).toBeTypeOf('number');
+    },
+  );
 });

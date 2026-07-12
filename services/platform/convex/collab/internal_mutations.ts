@@ -7,9 +7,12 @@
  * `notify_task_reviews.ts`:
  *  - the AUDIENCE is declarative (`task_assignee`, `task_subscribers`,
  *    `project_creator`, `org_admins`, explicit `user_ids`) and resolved here;
- *  - every type respects the tri-state preference gate (automation noise is
- *    always muteable — the only pref-skipping notification is the original
- *    review request, which is transactional, not automation-driven);
+ *  - every type respects the tri-state preference gate via `isAllowed`,
+ *    EXCEPT `task_review_requested`/`task_review_resolved`: the `taskReview`
+ *    toggle is locked always-on in the settings UI (safety signal, #2651),
+ *    so `isAllowed` never honors a stored `taskReview` value — automation
+ *    review reminders/resolutions can't be muted any more than the original
+ *    transactional review request can. Every other type is muteable;
  *  - repeated cron firings are DEDUPED: an unread notification with the same
  *    (user, type, titleKey, resource) inside the dedupe window suppresses a
  *    re-send.

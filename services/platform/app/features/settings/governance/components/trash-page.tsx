@@ -34,6 +34,8 @@ import {
 } from '@/convex/governance/soft_delete_validators';
 import { useT } from '@/lib/i18n/client';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
+
 interface Props {
   organizationId: string;
 }
@@ -185,10 +187,16 @@ export function TrashPage({ organizationId }: Props) {
       // surgically removing the row from `loadedPages`.
       resetPagination();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Restore failed';
       toast({
         title: t('trash.restore.failedToast', 'Failed to restore'),
-        description: message,
+        description: mapGovernanceSaveError(
+          err,
+          t,
+          t(
+            'trash.restore.failedDescription',
+            'Failed to restore this record.',
+          ),
+        ),
         variant: 'destructive',
       });
     }

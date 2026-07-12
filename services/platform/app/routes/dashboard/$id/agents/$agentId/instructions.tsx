@@ -5,7 +5,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Info } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -22,6 +22,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ByoModelEditor } from '@/app/features/agents/components/byo-model-editor';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { useAgentValidation } from '@/app/features/agents/hooks/use-agent-validation';
 import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import {
@@ -72,6 +73,10 @@ function InstructionsTab() {
   const { t } = useT('settings');
   const { id: organizationId } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
+  // Inline errors for the required fields this tab owns: system instructions
+  // (any locale counts) and the ≥1-model floor, mirroring the save schema so
+  // the disabled Save button always has a visible reason here (#2665).
+  const { fieldErrors } = useAgentValidation(config);
   const { providers } = useListProviders(organizationId);
   const { data: organization } = useOrganization(organizationId);
   const translateMutation = useTranslateAgentFields();
@@ -491,7 +496,7 @@ function InstructionsTab() {
   );
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.form.sectionInstructions')}
         description={t('agents.form.sectionInstructionsDescription')}
@@ -538,6 +543,7 @@ function InstructionsTab() {
             required
             rows={8}
             className="font-mono text-sm"
+            errorMessage={fieldErrors.systemInstructions}
           />
         </Stack>
         <CollapsibleDetails
@@ -636,6 +642,18 @@ function InstructionsTab() {
             getProviderName={getProviderName}
             renderItemAction={renderItemAction}
           />
+        )}
+        {/* Same error anatomy as the form fields' `errorMessage` (Input /
+            Textarea) — the picker is a composite control with no error prop. */}
+        {fieldErrors.supportedModels && (
+          <p
+            role="alert"
+            aria-live="polite"
+            className="text-destructive flex items-center gap-1.5 text-sm"
+          >
+            <Info className="size-4" aria-hidden="true" />
+            {fieldErrors.supportedModels}
+          </p>
         )}
       </PageSection>
 

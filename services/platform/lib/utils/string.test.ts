@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { stripLeadingPunctuation } from './string';
+import { formatEnumLabel, stripLeadingPunctuation } from './string';
 
 describe('stripLeadingPunctuation', () => {
   it('strips leading colon and space', () => {
@@ -46,5 +46,17 @@ describe('stripLeadingPunctuation', () => {
   it('preserves numbered list content', () => {
     const input = '请提供以下信息：\n1. 名称：\n2. 地址：';
     expect(stripLeadingPunctuation(input)).toBe(input);
+  });
+});
+
+describe('formatEnumLabel', () => {
+  it('title-cases a snake_case enum value', () => {
+    expect(formatEnumLabel('manual_import', 'Unknown')).toBe('Manual Import');
+  });
+
+  it('falls back when the value is unset (#2643)', () => {
+    expect(formatEnumLabel(undefined, 'Unknown')).toBe('Unknown');
+    expect(formatEnumLabel(null, 'Unknown')).toBe('Unknown');
+    expect(formatEnumLabel('', 'Unknown')).toBe('Unknown');
   });
 });

@@ -32,10 +32,34 @@ vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => null,
 }));
 // The empty-state action rows navigate ("Invite teammates", "Upload
-// documents"); there is no RouterProvider in these tests.
+// documents"); there is no RouterProvider in these tests. `Link` backs
+// `ProviderKeyErrorAction`'s `LinkButton` (the missing-API-key disabled-reason
+// action) — same no-op-anchor mock pattern as other route-less component tests.
 const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
+  Link: ({
+    children,
+    className,
+  }: {
+    children?: ReactNode;
+    className?: string;
+  }) => (
+    // Router-Link test double, not real navigation — same suppression as the
+    // other route-less component tests' anchor stub.
+    // oxlint-disable-next-line jsx-a11y/anchor-is-valid
+    <a href="#" className={className}>
+      {children}
+    </a>
+  ),
+}));
+// `ProviderKeyErrorAction` (rendered in the missing-API-key disabled state)
+// gates its "Open provider settings" link on this ability; default to an
+// admin so the picker/send-gate tests above (which never touch this path)
+// aren't affected, and the disabled-composer tests below flip it per case.
+const mockCan = vi.fn(() => true);
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: mockCan }),
 }));
 // The KB source is instantiated unconditionally (fixed hook order) and reaches
 // Convex — replace it with a source that serves this mutable state (idle by
@@ -337,5 +361,76 @@ describe('ChatInput send gate', () => {
     await user.keyboard('{Enter}');
 
     expect(onSendMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+const NO_API_KEY_MESSAGE =
+  "No API key configured for this model's provider — add one in Settings → AI providers.";
+
+function renderDisabledForMissingApiKey(
+  overrides?: Partial<Parameters<typeof ChatInput>[0]>,
+) {
+  const onSendMessage = vi.fn();
+  const utils = render(
+    <ChatInput
+      organizationId="org-1"
+      value=""
+      onChange={vi.fn()}
+      onSendMessage={onSendMessage}
+      attachments={[]}
+      uploadingFiles={[]}
+      uploadFiles={vi.fn()}
+      removeAttachment={vi.fn()}
+      clearAttachments={vi.fn(() => [])}
+      variant="assistant"
+      disabled
+      disabledReason="no-api-key"
+      disabledMessage={NO_API_KEY_MESSAGE}
+      {...overrides}
+    />,
+  );
+  return { ...utils, onSendMessage };
+}
+
+// #2576 regression: the composer used to stay fully editable when the
+// selected model's provider had no API key — `sendBlocked` left the textarea
+// itself enabled (typing/pasting still worked) and a keyboard Enter was a
+// silent no-op. Missing API key is now a hard `disabled` state (like
+// no-agents/archived), so the reason is visible on an EMPTY composer without
+// typing first, and a native `disabled` textarea can't receive keyboard
+// input at all — there is no Enter to swallow.
+describe('ChatInput disabled composer (missing API key)', () => {
+  it('disables the textarea and shows the reason on an empty composer', () => {
+    renderDisabledForMissingApiKey();
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toBeDisabled();
+    expect(textarea).toHaveValue('');
+    expect(screen.getByText(NO_API_KEY_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('shows the actionable Settings link for an admin', () => {
+    mockCan.mockReturnValue(true);
+    renderDisabledForMissingApiKey();
+
+    expect(
+      screen.getByRole('link', { name: 'Open provider settings' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ask an admin/i)).not.toBeInTheDocument();
+  });
+
+  it('shows an "ask an admin" hint instead of a link for a member', () => {
+    mockCan.mockReturnValue(false);
+    renderDisabledForMissingApiKey();
+
+    expect(
+      screen.getByText(
+        'Ask an admin to add an API key in Settings → AI providers.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Open provider settings' }),
+    ).not.toBeInTheDocument();
   });
 });

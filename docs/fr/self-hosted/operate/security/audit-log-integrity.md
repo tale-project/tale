@@ -15,7 +15,7 @@ L’alerte out-of-band est dédupliquée. Tu reçois une notification à la prem
 
 L’alerte arrive sous deux formes, et le titre te dit laquelle. **Échec du contrôle d'intégrité du journal d'audit** est la critique : la chaîne de hachage elle-même ne se vérifie pas, ou la signature d’un point de contrôle signé ne correspond pas à la clé configurée. Traite-la comme un signal de falsification possible tant que tu ne l’as pas expliquée.
 
-**Les signatures du journal d'audit ne peuvent pas être vérifiées** est un avertissement calme, pas une intrusion : un point de contrôle est signé, mais le déploiement n’a aucune `TALE_AUDIT_SIGNING_KEY` configurée pour vérifier cette signature. Rien n’a été forgé — Tale ne peut simplement pas prouver que le point de contrôle est authentique tant que tu n’as pas restauré la clé. Le panneau dans le produit reflète la distinction : une chaîne saine montre le badge vert **Vérifié**, un incident actif le badge rouge **Alerte d'intégrité active**, et une organisation que le cron n’a pas encore atteinte montre **Pas encore vérifié**.
+**Les signatures du journal d'audit ne peuvent pas être vérifiées** est un avertissement calme, pas une intrusion : un point de contrôle est signé, mais le déploiement n’a aucune `TALE_AUDIT_SIGNING_KEY` configurée pour vérifier cette signature. Rien n’a été forgé — Tale ne peut pas prouver que le point de contrôle est authentique tant que tu n’as pas restauré la clé. Le panneau dans le produit reflète la distinction : une chaîne saine montre le badge vert **Vérifié**, un incident actif le badge rouge **Alerte d'intégrité active**, et une organisation que le cron n’a pas encore atteinte montre **Pas encore vérifié**.
 
 ## Ouvrir le panneau d’intégrité
 

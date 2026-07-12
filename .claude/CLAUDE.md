@@ -12,7 +12,7 @@
 
 ## Pencil
 
-- `design/comments.md` is strictly designer↔developer UI communication. Put code-level bug analysis in a GitHub issue, never there.
+- `design/docs/comments.md` is strictly designer↔developer UI communication. Put code-level bug analysis in a GitHub issue, never there.
 
 ## Other
 

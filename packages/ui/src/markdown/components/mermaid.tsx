@@ -1,3 +1,5 @@
+import DOMPurify from 'dompurify';
+import type { UponSanitizeAttributeHook } from 'dompurify';
 import { AlertTriangle, Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   type PointerEvent as ReactPointerEvent,
@@ -78,6 +80,62 @@ interface ViewportState {
 }
 
 const INITIAL_VIEWPORT: ViewportState = { zoom: 1, panX: 0, panY: 0 };
+
+/**
+ * DOMPurify's `svg`/`svgFilters` profiles deliberately exclude `<use>` and
+ * `<foreignObject>` — both are documented mXSS/XSS vectors (`<use>`'s
+ * href/xlink:href can point at a javascript:/data: URI or an external
+ * origin; `<foreignObject>` is a namespace-confusion vector). Re-admitting
+ * them (below) without this hook would let `<use href="javascript:…">` or
+ * `<use href="https://evil/…#id">` through untouched, since ADD_TAGS only
+ * controls which *tags* are kept, not attribute values. Pin `<use>` to
+ * same-document fragment references only — the one legitimate use case
+ * (reusing a local `<defs>` shape) — and strip anything else.
+ */
+const restrictUseHrefToFragment: UponSanitizeAttributeHook = (node, data) => {
+  if (
+    node.tagName.toLowerCase() === 'use' &&
+    (data.attrName === 'href' || data.attrName === 'xlink:href') &&
+    !data.attrValue.startsWith('#')
+  ) {
+    data.keepAttr = false;
+  }
+};
+
+/**
+ * Mermaid renders untrusted diagram DSL to SVG client-side and we inject the
+ * result via `dangerouslySetInnerHTML` — the same defect class fixed in
+ * `app/features/workspace/viewers/svg-viewer.tsx` (#2662): a hand-rolled
+ * `on\w+=` regex strip is bypassable (`<svg/onload=…>` has no leading space,
+ * `href=javascript:…` can be unquoted), so this must be a real sanitizer
+ * that parses the markup as a DOM tree. `securityLevel: 'strict'` on
+ * `mermaid.initialize` already runs the output through mermaid's own bundled
+ * DOMPurify, but that's an implementation detail of a third-party dependency,
+ * not a boundary this component controls — sanitize again at the point
+ * where we hand the string to React, same as every other untrusted-SVG
+ * sink in this codebase.
+ *
+ * Mermaid legitimately renders text labels as
+ * `<foreignObject><div>…</div></foreignObject>`, which the plain `svg`/
+ * `svgFilters` DOMPurify profiles drop entirely. Re-admit `foreignObject`
+ * (and `use`, for `<defs>` shape reuse) via `html` + `ADD_TAGS`, mark
+ * `foreignObject` as an HTML integration point so its HTML children are
+ * sanitized rather than dropped wholesale, and use the hook above to keep
+ * `<use>`'s href safe. This config is deliberately identical to
+ * `sanitizeSvg` in `svg-viewer.tsx` — @tale/ui can't import from the
+ * `services/platform` app (wrong dependency direction) so it can't be a
+ * single shared helper; keep both copies in sync if the trade-off changes.
+ */
+export function sanitizeMermaidSvg(input: string): string {
+  DOMPurify.addHook('uponSanitizeAttribute', restrictUseHrefToFragment);
+  const safe = DOMPurify.sanitize(input, {
+    USE_PROFILES: { svg: true, svgFilters: true, html: true },
+    ADD_TAGS: ['use', 'foreignObject'],
+    HTML_INTEGRATION_POINTS: { foreignobject: true },
+  });
+  DOMPurify.removeHook('uponSanitizeAttribute');
+  return safe;
+}
 
 /**
  * Render a Mermaid diagram from its DSL source. Mermaid is lazy-loaded
@@ -173,7 +231,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
             return `<svg${cleaned}>`;
           },
         );
-        setSvg(fixed);
+        setSvg(sanitizeMermaidSvg(fixed));
         if (result.bindFunctions && containerRef.current) {
           result.bindFunctions(containerRef.current);
         }
@@ -491,8 +549,8 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         // the SVG would inherit auto-centering from the stage's flex/grid
         // context and fight the transform.
         className="absolute top-0 left-0 [&>svg]:max-w-none"
-        // oxlint-disable-next-line react/no-danger -- Mermaid output is SVG by design
-        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- Mermaid renders the diagram to trusted SVG markup; no untrusted HTML is injected
+        // oxlint-disable-next-line react/no-danger -- sanitized by sanitizeMermaidSvg() above
+        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `svg` state is sanitizeMermaidSvg() output
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
     </div>

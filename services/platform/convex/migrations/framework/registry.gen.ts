@@ -35,6 +35,8 @@ import { migration as m0_3_4_24 } from '../versions/v0_3_4/24_backfill_conversat
 import { migration as m0_3_4_25 } from '../versions/v0_3_4/25_backfill_support_case_contact_id/migration';
 import { migration as m0_3_4_27 } from '../versions/v0_3_4/27_clear_conversation_customer_id/migration';
 import { migration as m0_3_4_28 } from '../versions/v0_3_4/28_clear_support_case_customer_id/migration';
+import { migration as m0_3_4_31 } from '../versions/v0_3_4/31_drop_conversation_customer_id/migration';
+import { migration as m0_3_4_32 } from '../versions/v0_3_4/32_drop_support_case_customer_id/migration';
 import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
@@ -691,6 +693,42 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: true,
     snapshot: 'none',
   },
+  {
+    id: "0.3.4/30_run_assigned_task_admission_gate",
+    semver: "0.3.4",
+    numericId: 30,
+    slug: "run_assigned_task_admission_gate",
+    title: "Upgrade run-assigned-task to the no-flash admission gate",
+    description: "For every org whose run-assigned-task.json still carries the pre-#2604 ack-then-run graph (guard -> ack -> run; a \"Guardrail refusal?\" gate that rolls back quietly), drops the ack step, rewires guard/check_external, and swaps in the check_admitted/refused_comment steps so a refused run never flashes To do -> In progress -> To do. Skips (and warns on) a file whose ack/check_refused/rollback_quiet steps don't match their known defaults — an operator customization is left alone. down re-detects the upgraded shape the same way and reconstructs the exact pre-#2604 graph.",
+    kind: 'node',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/31_drop_conversation_customer_id",
+    semver: "0.3.4",
+    numericId: 31,
+    slug: "drop_conversation_customer_id",
+    title: "Drop conversations.customerId (contract phase)",
+    description: "Clears the residual customerId shape 0.3.4/27 could never repoint (customerId set, no contactId at all — the customer/vendor was hard-deleted before 0.3.4/22-23 ran), so every row satisfies the schema once customerId leaves it. down is a documented no-op: with no contactId there is no stamped contact to recover a value from, so the id was already unrecoverable — the same conclusion 0.3.4/27 reached for these rows.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/32_drop_support_case_customer_id",
+    semver: "0.3.4",
+    numericId: 32,
+    slug: "drop_support_case_customer_id",
+    title: "Drop supportCases.customerId (contract phase)",
+    description: "Clears the residual customerId shape 0.3.4/28 could never repoint (customerId set, no contactId at all — the customer/vendor was hard-deleted before 0.3.4/22-23 ran), so every row satisfies the schema once customerId leaves it. down is a documented no-op: with no contactId there is no stamped contact to recover a value from, so the id was already unrecoverable — the same conclusion 0.3.4/28 reached for these rows.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -732,6 +770,8 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.3.4/25_backfill_support_case_contact_id": composeDb(requireMeta("0.3.4/25_backfill_support_case_contact_id"), m0_3_4_25),
   "0.3.4/27_clear_conversation_customer_id": composeDb(requireMeta("0.3.4/27_clear_conversation_customer_id"), m0_3_4_27),
   "0.3.4/28_clear_support_case_customer_id": composeDb(requireMeta("0.3.4/28_clear_support_case_customer_id"), m0_3_4_28),
+  "0.3.4/31_drop_conversation_customer_id": composeDb(requireMeta("0.3.4/31_drop_conversation_customer_id"), m0_3_4_31),
+  "0.3.4/32_drop_support_case_customer_id": composeDb(requireMeta("0.3.4/32_drop_support_case_customer_id"), m0_3_4_32),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */
