@@ -11,6 +11,7 @@
  */
 
 import { convexTest, type TestConvex } from 'convex-test';
+import type { GenericSchema, SchemaDefinition } from 'convex/server';
 
 import { internal } from '../../../_generated/api';
 import betterAuthSchema from '../../../betterAuth/schema';
@@ -51,14 +52,18 @@ export function collectVia(t: WorldTestConvex) {
 /**
  * Build and seed the world. The caller owns `configRoot` (a mkdtemp dir) and
  * must have stubbed `TALE_CONFIG_DIR` to it (plus `ENCRYPTION_SECRET_HEX` to
- * `WORLD_ENCRYPTION_SECRET_HEX`) BEFORE migrations run.
+ * `WORLD_ENCRYPTION_SECRET_HEX`) BEFORE migrations run. `schema` defaults to
+ * the union `worldSchema`; the production-schema seed guard passes the live
+ * `convex/schema.ts` instead to reproduce the real backend's validation
+ * posture (declared tables validated, legacy tables passed through).
  */
 export async function buildSeededWorld(
   configRoot: string,
   modules: Record<string, () => Promise<unknown>>,
   authModules: Record<string, () => Promise<unknown>>,
+  schema: SchemaDefinition<GenericSchema, boolean> = worldSchema,
 ): Promise<SeededWorld> {
-  const t = convexTest(worldSchema, modules) as WorldTestConvex;
+  const t = convexTest(schema, modules) as WorldTestConvex;
   t.registerComponent('betterAuth', betterAuthSchema, authModules);
   const seeded: Array<{ id: string; slug: string }> = await t.mutation(
     internal.migrations.testing.support.seedAuthOrgs,

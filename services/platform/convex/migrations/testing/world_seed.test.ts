@@ -2,7 +2,10 @@
 
 /**
  * Corpus smoke test: proves the baseline world seeds cleanly under the union
- * `worldSchema` (every insert schema-validated by convex-test), that the
+ * `worldSchema` (every insert schema-validated by convex-test), that the same
+ * baseline is admitted by the CURRENT production schema (the container e2e's
+ * seed/push posture — a transitional field dropped from a declared table too
+ * early fails here instead of minutes into the container e2e), that the
  * fixture config trees land on disk, that the edge rows the chain relies on
  * exist, and that seeding is deterministic (two fresh worlds digest equal).
  * The chain harness builds on exactly this construction.
@@ -14,6 +17,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import currentSchema from '../../schema';
 import { buildModules } from '../framework/test_helpers';
 import { digestDb, digestFs } from './digest.testkit';
 import {
@@ -186,6 +190,31 @@ describe('baseline world corpus', () => {
     await expect(
       access(path.join(root, WORLD_ORGS.beta.slug, 'branding')),
     ).rejects.toThrow();
+  });
+
+  it('baseline seed is admitted by the CURRENT production schema', async () => {
+    // The container e2e injects this same baseline into a LIVE deployment
+    // running the production schema (support:seedWorld), and a real upgrade
+    // validates every existing row against the new schema at push time —
+    // BEFORE any migration runs. A transitional field dropped from a declared
+    // table too early (e.g. `conversations.customerId`, #2618) fails there
+    // and nowhere in the worldSchema-based suites; convex-test reproduces the
+    // backend's posture exactly (declared tables validated, legacy tables
+    // passed through), so this locks it locally. Boundary injections are
+    // deliberately NOT applied: some carry shapes that existed in no released
+    // schema (threadMetadata's app-era rows) and belong to the versions suite.
+    const { t } = await buildSeededWorld(
+      root,
+      modules,
+      authModules,
+      currentSchema,
+    );
+
+    // The load-bearing edge: legacy customerId rows must exist AND validate.
+    const conversations = await collectVia(t)('conversations');
+    expect(conversations.some((r) => typeof r.customerId === 'string')).toBe(
+      true,
+    );
   });
 
   it('seeds deterministically — two fresh worlds digest identically', async () => {

@@ -107,12 +107,12 @@ export const legacyAppProjectBindingsWithConfigTable = defineTable({
  * Vendors → Contacts merge (issue #2618). Declared here so the 0.3.4 backfill
  * migrations (22/23 contacts-from-{vendors,customers}) can seed the OLD
  * shape and round-trip. Minimal — only the fields those tests read/write.
- * The `customerId` link these tables' FK once pointed at (`conversations` /
- * `supportCases`) is restored as a chain-union field directly on
- * `worldConversationsTable` / `worldSupportCasesTable` in
- * `world_schema.testkit.ts` — those tables are otherwise identical to the
- * current production schema, so duplicating the FK there (not here) keeps
- * one definition per table shape.
+ * The `customerId` link these tables' FK once pointed at still lives
+ * transitionally on the PRODUCTION `conversations` / `supportCases` tables
+ * (see the pre-drop comments there): the real backend validates the corpus
+ * seed and the 0.3.4/24-28 + 31/32 writes against the production defs, so
+ * the field can only leave them once the chain baseline has advanced past
+ * the teardown migrations.
  */
 export const legacyCustomersTable = defineTable({
   organizationId: v.string(),
