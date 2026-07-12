@@ -44,10 +44,11 @@ tests/stress/
 # never source. Untracked so CI never sees them, but a local working tree may;
 # excluding keeps the local scan identical to the CI gate.
 .agents/review-out/
-# Generated skill trees (`bun run skills:sync`): the .agents projection of
-# visual-aspect-analyzer and the whole .claude mirror duplicate code that is
-# already scanned at its builtin-configs/skills/ source.
-.agents/skills/visual-aspect-analyzer/
+# Generated skill trees (`bun run skills:sync`): the .agents projections and
+# the whole .claude mirror duplicate code that is already scanned (or
+# accepted-risk-excluded) at its builtin-configs/skills/ source; the
+# hand-written .agents guides are docs-only.
+.agents/skills/
 .claude/skills/
 # Static assets and vendored/minified bundles are not our source to lint.
 **/public/

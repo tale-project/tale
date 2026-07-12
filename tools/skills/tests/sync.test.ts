@@ -126,8 +126,8 @@ describe('runSync — mirror', () => {
   });
 });
 
-describe('runSync — workflow-skill projection', () => {
-  /** A workflow skill at its `builtin-configs/skills` source of truth. */
+describe('runSync — skill projection', () => {
+  /** A projected skill at its `builtin-configs/skills` source of truth. */
   function scaffoldWorkflow(): void {
     writeUnder(
       'builtin-configs/skills/fix-bug/SKILL.md',
@@ -138,7 +138,7 @@ describe('runSync — workflow-skill projection', () => {
   /** Repo-relative path of a file in the projected `.agents/skills` copy. */
   const projected = (rel: string): string => join(root, '.agents/skills', rel);
 
-  test('sync projects a workflow skill builtin-configs -> .agents/skills -> .claude/skills', async () => {
+  test('sync projects a listed skill builtin-configs -> .agents/skills -> .claude/skills', async () => {
     scaffoldWorkflow();
     expect((await run(false)).code).toBe(0);
     expect(existsSync(projected('fix-bug/SKILL.md'))).toBe(true);
@@ -166,7 +166,7 @@ describe('runSync — workflow-skill projection', () => {
     );
     const checked = await run(true);
     expect(checked.code).toBe(1);
-    expect(checked.out).toContain('workflow-skill projection is out of date');
+    expect(checked.out).toContain('skill projection is out of date');
     expect(checked.out).toContain(
       'builtin-configs/skills/<name>/ is the source of truth',
     );

@@ -19,10 +19,10 @@ interface Answers {
 //                Mirrored into .claude/skills/ by `bun run skills:sync`;
 //                Cursor/Codex/Copilot read .agents/skills/ directly.
 //   - project -> builtin-configs/skills/ product skill shipped to org agents
-//                (embedded in the CLI binary + seeded per-org). A GENERIC
-//                workflow skill that should ALSO guide repo-dev agents adds its
-//                name to WORKFLOW_SKILLS in tools/skills/src/sync.ts, which
-//                projects it into .agents/skills/ (and on to .claude/skills/).
+//                (embedded in the CLI binary + seeded per-org). Every product
+//                skill except the document skills also adds its name to
+//                PROJECTED_SKILLS in tools/skills/src/sync.ts, which projects
+//                it into .agents/skills/ (and on to .claude/skills/).
 //
 // Both categories scaffold the same docs shape: SKILL.md + README, with any
 // runnable code hand-added under `scripts/` (self-contained — the tools/skills
@@ -51,7 +51,7 @@ function nextSteps(name: string, category: SkillCategory): string {
     intro +
     `  1. write builtin-configs/skills/${name}/SKILL.md and add any runnable code under ${name}/scripts/\n` +
     `  2. it ships to product agents from there (embedded in the CLI binary + seeded per-org)\n` +
-    `  3. GENERIC workflow skill that should also guide repo-dev agents? add "${name}" to WORKFLOW_SKILLS in tools/skills/src/sync.ts + its AGENTS.md row, then \`bun run skills:sync\` to project it into .agents/skills/\n` +
+    `  3. add "${name}" to PROJECTED_SKILLS in tools/skills/src/sync.ts (every non-document skill projects to the repo-dev guides) + an AGENTS.md row for a repo-dev workflow, then \`bun run skills:sync\`\n` +
     `  4. \`bun run skills:check\` verifies the projection and every \`bun|python scripts/…\` the SKILL.md references exists`
   );
 }
