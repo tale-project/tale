@@ -145,6 +145,11 @@ export function Form({
   );
   const [errors, setErrors] = useState<Record<string, FieldError>>({});
   const editedRef = useRef(false);
+  // Submit stays inactive until the operator actually changes a field (and
+  // again after a successful save), so a form can't be submitted by accident
+  // with its default/prefilled values. Set only by user edits below — the
+  // sentinel re-seed effect above is a system action and must not mark dirty.
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     if (editedRef.current) return;
@@ -183,6 +188,7 @@ export function Form({
     if (Object.keys(nextErrors).length > 0) return;
     try {
       const result = await dispatch(submit.args, undefined, { input });
+      setDirty(false);
       applyEffect(onSuccess ?? submit.onSuccess, result);
     } catch (err) {
       // The mutation/action layer already toasts + logs the failure; surface
@@ -238,6 +244,7 @@ export function Form({
                     label={label}
                     htmlFor={fieldId}
                     required={f.required}
+                    description={text.help(f)}
                     error={
                       error === 'required'
                         ? tCommon('validation.required', { field: label })
@@ -254,6 +261,7 @@ export function Form({
                       text={text}
                       onChange={(next) => {
                         editedRef.current = true;
+                        setDirty(true);
                         setValues((s) => ({ ...s, [f.key]: next }));
                       }}
                     />
@@ -262,7 +270,7 @@ export function Form({
               })}
             </VStack>
             <HStack className="justify-end">
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || !dirty}>
                 {submitLabel}
               </Button>
             </HStack>

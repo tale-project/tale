@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -156,6 +156,22 @@ describe('Form — rendering and initial values', () => {
     );
   });
 
+  it('renders field help as an accessible description', () => {
+    render(
+      <Form
+        fields={[{ ...TITLE_FIELD, help: 'Where the rate comes from' }]}
+        submit={SUBMIT}
+      />,
+    );
+
+    const desc = screen.getByText('Where the rate comes from');
+    expect(desc).toBeInTheDocument();
+    const input = screen.getByRole('textbox', { name: /Title/ });
+    expect(input.getAttribute('aria-describedby')).toContain(
+      desc.getAttribute('id'),
+    );
+  });
+
   it('renders a textarea for multiline fields and a checkbox for booleans', () => {
     render(
       <Form
@@ -186,12 +202,16 @@ describe('Form — required validation', () => {
       <Form fields={[{ ...TITLE_FIELD, required: true }]} submit={SUBMIT} />,
     );
 
+    // Submit is inactive until dirty; touch-then-clear leaves the required
+    // field empty AND dirty so the submit path (and its validation) can run.
+    const input = screen.getByRole('textbox', { name: /Title/ });
+    await userEvent.type(input, 'x');
+    await userEvent.clear(input);
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(dispatch).not.toHaveBeenCalled();
     const error = screen.getByRole('alert');
     expect(error).toHaveTextContent('common.validation.required');
-    const input = screen.getByRole('textbox', { name: /Title/ });
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input.getAttribute('aria-describedby')).toContain(
       error.getAttribute('id'),
@@ -203,15 +223,40 @@ describe('Form — required validation', () => {
       <Form fields={[{ ...TITLE_FIELD, required: true }]} submit={SUBMIT} />,
     );
 
+    const input = screen.getByRole('textbox', { name: /Title/ });
+    await userEvent.type(input, 'x');
+    await userEvent.clear(input);
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await userEvent.type(
-      screen.getByRole('textbox', { name: /Title/ }),
-      'Ship it',
-    );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    await userEvent.type(input, 'Ship it');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Form — submit stays inactive until dirty', () => {
+  it('disables submit until a field changes, and re-disables after a save', async () => {
+    render(
+      <Form
+        fields={[TITLE_FIELD]}
+        submit={SUBMIT}
+        onSuccess={{ kind: 'toast', titleKey: 'form.done' }}
+      />,
+    );
+
+    const button = screen.getByRole('button', { name: 'Create' });
+    expect(button).toBeDisabled(); // default/prefilled — no accidental submit
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Go');
+    expect(button).toBeEnabled();
+
+    await userEvent.click(button);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    // a successful save clears the dirty flag → inactive again until next edit
+    await waitFor(() => expect(button).toBeDisabled());
   });
 });
 
