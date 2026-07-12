@@ -6,7 +6,7 @@
     "packages/*",
     "services/*",
     "services/sandbox-runtime/daemon",
-    "builtin-configs/skills/visual-aspect-analyzer",
+    "builtin-configs/skills/*",
     "tools/*"
   ],
   "scripts": {
