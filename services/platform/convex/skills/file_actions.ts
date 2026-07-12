@@ -1418,3 +1418,43 @@ export const readSkillForExecution = internalAction({
     };
   },
 });
+
+/**
+ * Read ONE skill asset's text for execution/seeding — internal twin of the
+ * public {@link readSkillAsset} that takes an already-resolved `orgSlug` and
+ * does NO membership re-check (same trust contract as
+ * {@link readSkillForExecution}: the caller MUST have authenticated the org).
+ * Never throws — a bad slug / traversal / missing file comes back as
+ * `{ ok: false }` so a best-effort seeding caller can skip and continue.
+ */
+export const readSkillAssetForExecution = internalAction({
+  args: {
+    orgSlug: v.string(),
+    slug: v.string(),
+    assetPath: v.string(),
+  },
+  returns: v.union(
+    v.object({ ok: v.literal(true), content: v.string() }),
+    v.object({ ok: v.literal(false), error: v.string() }),
+  ),
+  handler: async (_ctx, args) => {
+    if (!validateSkillSlug(args.slug)) {
+      return { ok: false as const, error: 'invalid_slug' };
+    }
+    try {
+      const filePath = await resolveSkillAssetPathChecked(
+        args.orgSlug,
+        args.slug,
+        args.assetPath,
+      );
+      const content = await readFileSafe(filePath);
+      if (content === null) return { ok: false as const, error: 'not_found' };
+      return { ok: true as const, content };
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : 'read_failed',
+      };
+    }
+  },
+});

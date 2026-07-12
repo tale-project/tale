@@ -90,6 +90,20 @@ export const ensureProjectTextDocument = action({
     yaml: v.optional(v.record(v.string(), v.string())),
     contentType: v.optional(v.string()),
     externalItemId: v.optional(v.string()),
+    // Generic seeding: after writing the inline doc, ALSO copy each named skill
+    // file verbatim into the SAME folder as an editable document. The pack names
+    // the skill + paths — the platform stays product-agnostic. Best-effort: a
+    // missing/invalid skill file is skipped (the inline doc still succeeds).
+    seedSkillFiles: v.optional(
+      v.array(
+        v.object({
+          skillSlug: v.string(),
+          skillPath: v.string(),
+          fileName: v.string(),
+          externalItemId: v.optional(v.string()),
+        }),
+      ),
+    ),
   },
   returns: v.object({
     folderId: v.id('folders'),
@@ -100,6 +114,7 @@ export const ensureProjectTextDocument = action({
       v.literal('updated'),
       v.literal('skipped'),
     ),
+    seededSkillFiles: v.optional(v.number()),
   }),
   handler: async (
     ctx,
@@ -109,8 +124,12 @@ export const ensureProjectTextDocument = action({
     documentId: Id<'documents'>;
     createdFolder: boolean;
     action: 'created' | 'updated' | 'skipped';
+    seededSkillFiles?: number;
   }> => {
-    const { userId } = await requireOrgMembershipById(ctx, args.organizationId);
+    const { userId, orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     const fileName = validateFileName(args.fileName);
     const body = resolveBody({ content: args.content, yaml: args.yaml });
@@ -165,11 +184,66 @@ export const ensureProjectTextDocument = action({
       },
     );
 
+    // Best-effort seeding of skill-default files (e.g. operator-editable rate
+    // tables) into the same folder, so the pack can ship editable defaults
+    // alongside the inline doc. Each is copied VERBATIM from the skill; a
+    // missing/invalid one is skipped so it never blocks the primary doc.
+    let seededSkillFiles = 0;
+    for (const seed of args.seedSkillFiles ?? []) {
+      const seedFileName = validateFileName(seed.fileName);
+      const read = await ctx.runAction(
+        internal.skills.file_actions.readSkillAssetForExecution,
+        { orgSlug, slug: seed.skillSlug, assetPath: seed.skillPath },
+      );
+      if (!read.ok) {
+        console.warn(
+          `[ensureProjectTextDocument] skipped seed ${seed.skillSlug}/${seed.skillPath}: ${read.error}`,
+        );
+        continue;
+      }
+      const seedExt = extractExtension(seedFileName);
+      const seedContentType =
+        seedExt === 'yaml' || seedExt === 'yml' ? 'text/yaml' : 'text/plain';
+      const seedStored = await ctx.runAction(
+        internal.documents.internal_actions.storeRawContent,
+        {
+          organizationId: args.organizationId,
+          fileName: seedFileName,
+          content: read.content,
+          contentType: seedContentType,
+          extension: seedExt,
+        },
+      );
+      if (!seedStored.success || !seedStored.fileStorageId) {
+        console.warn(
+          `[ensureProjectTextDocument] seed store failed for ${seedFileName}`,
+        );
+        continue;
+      }
+      await ctx.runMutation(
+        internal.documents.internal_mutations.upsertDocumentByExternalId,
+        {
+          organizationId: args.organizationId,
+          externalItemId:
+            seed.externalItemId?.trim() ||
+            `project-text:${args.projectId}:${args.folderName.trim()}:${seedFileName}`,
+          title: seedFileName,
+          fileId: seedStored.fileStorageId,
+          mimeType: seedContentType,
+          extension: seedExt,
+          folderId: folder.folderId,
+          createdBy: userId,
+        },
+      );
+      seededSkillFiles += 1;
+    }
+
     return {
       folderId: folder.folderId,
       documentId: upserted.documentId,
       createdFolder: folder.created,
       action: upserted.action,
+      ...(args.seedSkillFiles !== undefined && { seededSkillFiles }),
     };
   },
 });

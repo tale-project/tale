@@ -20,11 +20,19 @@ vi.mock('../_generated/api', () => ({
         upsertDocumentByExternalId: 'upsertDocumentByExternalId',
       },
     },
+    skills: {
+      file_actions: {
+        readSkillAssetForExecution: 'readSkillAssetForExecution',
+      },
+    },
   },
 }));
 
 vi.mock('../lib/auth/require_org_membership', () => ({
-  requireOrgMembershipById: vi.fn(async () => ({ userId: 'user_1' })),
+  requireOrgMembershipById: vi.fn(async () => ({
+    userId: 'user_1',
+    orgSlug: 'test-org',
+  })),
 }));
 
 // oxlint-disable-next-line typescript/no-explicit-any -- vi.mock narrows to { handler }
@@ -59,6 +67,16 @@ function createCtx() {
           extension: args.extension,
           args,
         };
+      }
+      if (ref === 'readSkillAssetForExecution') {
+        const map: Record<string, string> = {
+          'mapping/rates.yaml': 'rates:\n  standard: 0.081\n',
+          'mapping/vat-codes.yaml': 'codes:\n  V81: standard\n',
+        };
+        const content = map[args.assetPath as string];
+        return content
+          ? { ok: true, content }
+          : { ok: false, error: 'not_found' };
       }
       return null;
     },
@@ -147,5 +165,81 @@ describe('ensureProjectTextDocument', () => {
       ([ref]) => ref === 'storeRawContent',
     );
     expect(storeCall?.[1]).toMatchObject({ content: 'hello: world\n' });
+  });
+
+  it('seeds skill files verbatim into the same folder', async () => {
+    const { ctx, runMutation, runAction } = createCtx();
+    const result = await handler(ctx, {
+      ...BASE,
+      yaml: { client: 'Acme AG' },
+      seedSkillFiles: [
+        {
+          skillSlug: 'swiss-vat-return',
+          skillPath: 'mapping/rates.yaml',
+          fileName: 'rates.yaml',
+          externalItemId: 'vatplus:project_1:rates.yaml',
+        },
+        {
+          skillSlug: 'swiss-vat-return',
+          skillPath: 'mapping/vat-codes.yaml',
+          fileName: 'vat-codes.yaml',
+        },
+      ],
+    });
+    expect(result.seededSkillFiles).toBe(2);
+    // read each table from the skill by the resolved orgSlug
+    expect(runAction).toHaveBeenCalledWith(
+      'readSkillAssetForExecution',
+      expect.objectContaining({
+        orgSlug: 'test-org',
+        slug: 'swiss-vat-return',
+        assetPath: 'mapping/rates.yaml',
+      }),
+    );
+    // stored verbatim + upserted into the folder (explicit + defaulted key)
+    const storedRates = runAction.mock.calls.find(
+      ([ref, a]) => ref === 'storeRawContent' && a.fileName === 'rates.yaml',
+    );
+    expect(storedRates?.[1]).toMatchObject({
+      content: 'rates:\n  standard: 0.081\n',
+      contentType: 'text/yaml',
+    });
+    expect(runMutation).toHaveBeenCalledWith(
+      'upsertDocumentByExternalId',
+      expect.objectContaining({
+        title: 'rates.yaml',
+        folderId: 'folder_1',
+        externalItemId: 'vatplus:project_1:rates.yaml',
+      }),
+    );
+    expect(runMutation).toHaveBeenCalledWith(
+      'upsertDocumentByExternalId',
+      expect.objectContaining({
+        title: 'vat-codes.yaml',
+        externalItemId: 'project-text:project_1:Setup:vat-codes.yaml',
+      }),
+    );
+  });
+
+  it('skips a missing skill file without failing the primary doc', async () => {
+    const { ctx } = createCtx();
+    const result = await handler(ctx, {
+      ...BASE,
+      yaml: { client: 'Acme AG' },
+      seedSkillFiles: [
+        {
+          skillSlug: 'swiss-vat-return',
+          skillPath: 'mapping/rates.yaml',
+          fileName: 'rates.yaml',
+        },
+        {
+          skillSlug: 'swiss-vat-return',
+          skillPath: 'mapping/missing.yaml',
+          fileName: 'missing.yaml',
+        },
+      ],
+    });
+    expect(result.documentId).toBe('doc_1');
+    expect(result.seededSkillFiles).toBe(1);
   });
 });
