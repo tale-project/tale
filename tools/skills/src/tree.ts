@@ -1,6 +1,7 @@
 /**
  * In-memory representation of a skill directory tree, plus the pure diff used to
- * detect sync drift between a `skills/<name>/` source and its committed copies.
+ * detect sync drift between a `builtin-configs/skills/<name>/` source and its
+ * committed copies.
  */
 
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';

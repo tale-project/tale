@@ -185,13 +185,16 @@ describe('runSync — workflow-skill projection', () => {
   });
 });
 
-describe('runSync — portability guards over shipped roots', () => {
+describe('runSync — portability guards over the shipped root', () => {
   test('a bare import in a shipped skill fails the check', async () => {
     writeUnder(
-      'skills/demo/SKILL.md',
+      'builtin-configs/skills/demo/SKILL.md',
       '---\nname: demo\ndescription: x\n---\n\n# Demo\n',
     );
-    writeUnder('skills/demo/scripts/bad.ts', `import { z } from 'zod';\n`);
+    writeUnder(
+      'builtin-configs/skills/demo/scripts/bad.ts',
+      `import { z } from 'zod';\n`,
+    );
     const checked = await run(true);
     expect(checked.code).toBe(1);
     expect(checked.out).toContain('"zod"');

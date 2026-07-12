@@ -113,12 +113,15 @@ Decide who runs the skill, then pick its source of truth — three cases:
   ships to agents working on _any_ codebase, it must be **generic and portable** — no repo paths, no
   Tale rule names; cross-reference siblings by slug in prose, never by file link. `implement-feature`,
   `fix-bug`, … live here.
-- **Product-only / integrated skill** → `builtin-configs/skills/<name>/` (document skills like `pptx`
-  and the org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/`write-integration`/
-  `write-automation` — embedded in the CLI binary, seeded per-org) or, when it is a self-contained Bun
-  **workspace**, the root [`skills/`](../../../skills/) dir (baked into the sandbox image). Not
-  projected into the guides. (The product `write-skill` teaches ORG agents to author org skills; this
-  repo-dev standard is `author-skill` — two different audiences, two skills.)
+- **Product-only skill** → `builtin-configs/skills/<name>/` (document skills like `pptx`, the
+  org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/`write-integration`/
+  `write-automation`, and the Bun-workspace `visual-aspect-analyzer` — all embedded in the CLI
+  binary and seeded per-org identically). Not projected into the guides. `visual-aspect-analyzer`
+  is additionally baked into the sandbox image
+  ([`services/sandbox-runtime/Dockerfile`](../../../services/sandbox-runtime/Dockerfile)) with its
+  deps installed, and that baked copy wins in sandbox sessions. (The product `write-skill` teaches
+  ORG agents to author org skills; this repo-dev standard is `author-skill` — two different
+  audiences, two skills.)
 
 **Never hand-edit a generated copy.** `.claude/skills/<name>/` is a mirror; `.agents/skills/<workflow>/`
 is a projection of its `builtin-configs/skills/` source — edit the source, then `bun run skills:sync`.

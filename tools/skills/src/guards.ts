@@ -1,7 +1,7 @@
 /**
  * Portability guards for shipped skill code. They enforce the "call the
  * underlying code the same way regardless of where the skill runs" contract on
- * the SOURCE tree (`skills/<name>/`), before anything is synced.
+ * the SOURCE tree (`builtin-configs/skills/<name>/`), before anything is synced.
  */
 
 import { parseDocument } from 'yaml';

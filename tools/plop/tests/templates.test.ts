@@ -126,17 +126,9 @@ const SPECS: GenSpec[] = [
     name: 'skill',
     register: registerSkill,
     dir: 'skill',
-    // Only `integrated` scaffolds the TypeScript workspace; local/project are
-    // always docs (`plain`), so cover both template dirs across categories.
-    combos: [
-      {
-        name: 'x',
-        description: 'd',
-        category: 'integrated',
-        kind: 'typescript',
-      },
-      { name: 'x', description: 'd', category: 'local', kind: 'plain' },
-    ],
+    // Both categories scaffold the same docs shape (`plain`); one combo
+    // covers the single template dir.
+    combos: [{ name: 'x', description: 'd', kind: 'plain', category: 'local' }],
   },
 ];
 

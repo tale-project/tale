@@ -2,15 +2,19 @@
  * Skill sync engine. Pure library — the CLI entry that runs it lives in
  * ./index.ts (kept separate so this stays side-effect-free and unit-testable).
  *
- * The repo keeps skills in three independent source roots, by audience:
+ * The repo keeps skills in two independent source roots, by audience:
  *   - `.agents/skills/`         repo-dev coding guides (docs). The SOURCE every
  *                               harness reads: Cursor / Codex / Copilot open it
  *                               directly; Claude Code reads its mirror under
  *                               `.claude/skills/`, which this tool regenerates.
  *   - `builtin-configs/skills/` product skills shipped to org agents (docx, pptx,
- *                               …) — embedded in the CLI binary + seeded per-org.
- *   - `skills/`                 self-contained Bun workspace skills baked into the
- *                               `services/sandbox-runtime` image (visual-aspect-analyzer).
+ *                               visual-aspect-analyzer, …) — embedded in the CLI
+ *                               binary + seeded per-org, all treated identically.
+ *                               visual-aspect-analyzer (a self-contained Bun
+ *                               workspace) is ADDITIONALLY baked into the
+ *                               `services/sandbox-runtime` image with its deps
+ *                               installed; in sandbox sessions that baked copy
+ *                               wins (BAKED_BUILTIN_SKILL_NAMES).
  *
  * A subset of the product skills — the {@link WORKFLOW_SKILLS} (implement-feature,
  * fix-bug, …) — are ALSO repo-dev guides: generic, portable senior-dev workflows
@@ -21,11 +25,11 @@
  * projected.
  *
  * `runSync` does three things, in both modes:
- *   1. Guards the skill roots — the SHIPPED roots (`builtin-configs/skills/`,
- *      `skills/`) against the portability contract (a shipped skill whose code
- *      can't run where it lands, or whose SKILL.md points at a missing script),
- *      and ALL roots' SKILL.md frontmatter against strict YAML — never passes on
- *      a violation.
+ *   1. Guards the skill roots — the shipped root (`builtin-configs/skills/`)
+ *      against the portability contract (a shipped skill whose code can't run
+ *      where it lands, or whose SKILL.md points at a missing script), and BOTH
+ *      roots' SKILL.md frontmatter against strict YAML — never passes on a
+ *      violation.
  *   2. Projects `builtin-configs/skills/<workflow>/` → `.agents/skills/<workflow>/`
  *      (the generated copy a repo-dev harness reads; never hand-edit it).
  *   3. Mirrors `.agents/skills/` → `.claude/skills/` (the only Claude Code copy).
@@ -90,20 +94,13 @@ const WORKFLOW_SKILLS: readonly string[] = [
 ];
 
 /**
- * Repo-relative roots whose skills ship to product/runtime agents and so must
- * honour the portability contract. `.agents/skills` is deliberately excluded —
- * it is docs-only and references repo paths, not skill-relative scripts.
- */
-const SHIPPED_ROOTS: readonly string[] = ['builtin-configs/skills', 'skills'];
-
-/**
  * Repo-relative roots whose every SKILL.md frontmatter must parse as strict
- * YAML. This covers ALL three roots the tool walks — including the docs-only
+ * YAML. This covers BOTH roots the tool walks — including the docs-only
  * `.agents/skills` guides — because every harness that reads a skill (Cursor,
  * Codex, Claude Code, external product-org agents) parses the frontmatter, so a
  * malformed block breaks a consumer wherever it lives.
  */
-const FRONTMATTER_ROOTS: readonly string[] = [MIRROR_SOURCE, ...SHIPPED_ROOTS];
+const FRONTMATTER_ROOTS: readonly string[] = [MIRROR_SOURCE, PRODUCT_SOURCE];
 
 export interface SyncOptions {
   /** Absolute path to the repo root (the parent of `.agents/`). */
@@ -187,21 +184,20 @@ interface GuardPlan {
 
 /**
  * Run the guards over the skill roots. The portability guards (imports, command
- * refs) apply only to the SHIPPED roots; the strict-YAML frontmatter guard
- * applies to ALL roots the tool walks (see {@link FRONTMATTER_ROOTS}). The skill
- * label is its repo-relative path (`builtin-configs/skills/pptx`) so a violation
- * names the exact bundle. Pure read.
+ * refs) apply only to the shipped root (`builtin-configs/skills`); the
+ * strict-YAML frontmatter guard applies to BOTH roots the tool walks (see
+ * {@link FRONTMATTER_ROOTS}). The skill label is its repo-relative path
+ * (`builtin-configs/skills/pptx`) so a violation names the exact bundle. Pure
+ * read.
  */
 export function planGuards(repoRoot: string): GuardPlan {
   const imports: ImportViolation[] = [];
   const commands: CommandRefViolation[] = [];
-  for (const root of SHIPPED_ROOTS) {
-    for (const name of skillDirsIn(repoRoot, root)) {
-      const label = `${root}/${name}`;
-      const source = readTree(join(repoRoot, root, name));
-      imports.push(...checkImports(label, source));
-      commands.push(...checkCommandRefs(label, source));
-    }
+  for (const name of skillDirsIn(repoRoot, PRODUCT_SOURCE)) {
+    const label = `${PRODUCT_SOURCE}/${name}`;
+    const source = readTree(join(repoRoot, PRODUCT_SOURCE, name));
+    imports.push(...checkImports(label, source));
+    commands.push(...checkCommandRefs(label, source));
   }
   const frontmatter: FrontmatterViolation[] = [];
   for (const root of FRONTMATTER_ROOTS) {

@@ -68,7 +68,7 @@ generic and portable — their source of truth is [`builtin-configs/skills/<name
 [`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into [`.agents/skills/`](.agents/skills/); authoring
 skills are Tale-specific and live only under `.agents/skills/`. Both mirror into a generated
 `.claude/skills/` — **never hand-edit a generated copy** (`bun run skills:check` fails on drift). Document
-skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are product-only, not projected.
+skills (`pptx`, …) and the image-baked `visual-aspect-analyzer` Bun workspace are product-only, not projected.
 
 | Skill                                                              | Read before…                                                                                                      |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
