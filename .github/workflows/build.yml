@@ -12,6 +12,7 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'builtin-configs/skills/visual-aspect-analyzer/**'
       - 'docs/**'
       - 'patches/**'
       - '.github/workflows/build.yml'
@@ -34,6 +35,7 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'builtin-configs/skills/visual-aspect-analyzer/**'
       - 'docs/**'
       - 'patches/**'
       - '.github/workflows/build.yml'
