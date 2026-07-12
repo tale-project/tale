@@ -31,6 +31,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationRuntime } from '../../runtime/automation-runtime';
+import { SubjectInputPanel } from './subject-input-panel';
 
 function TaskExpandComments({ taskId }: { taskId: string }) {
   const { t } = useT('automations');
@@ -93,6 +94,7 @@ export function SubjectRun({
 
   return (
     <Stack gap={3}>
+      <SubjectInputPanel subjectType={subjectType} subjectId={subjectId} />
       {runBody}
       <TaskExpandComments taskId={subjectId} />
     </Stack>

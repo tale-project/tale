@@ -849,7 +849,14 @@
       "failed": "Fehlgeschlagen",
       "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu.",
       "awaitingInput": "Deine Eingabe nötig",
-      "awaitingInputHint": "Angehalten — der Desk hat dir eine Frage gestellt. Öffne die Zeile, antworte und dann Start."
+      "awaitingInputHint": "Angehalten — der Desk hat dir eine Frage gestellt. Öffne die Zeile, antworte und dann Start.",
+      "input": {
+        "heading": "Wir brauchen deine Eingabe, um fortzufahren",
+        "placeholder": "Gib deine Antwort ein …",
+        "submit": "Senden & fortfahren",
+        "submittedToast": "Antwort gesendet — der Lauf macht dort weiter, wo er aufgehört hat.",
+        "rerunFailedToast": "Der Lauf konnte nicht neu gestartet werden. Nutze Start in der Zeile."
+      }
     },
     "membership": {
       "boundProjectsTitle": "Gebundene Projekte",

@@ -849,7 +849,14 @@
       "failed": "Failed",
       "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it.",
       "awaitingInput": "Needs your input",
-      "awaitingInputHint": "Parked — the desk asked you a question. Open the row, reply, then Start."
+      "awaitingInputHint": "Parked — the desk asked you a question. Open the row, reply, then Start.",
+      "input": {
+        "heading": "We need your input to continue",
+        "placeholder": "Type your answer…",
+        "submit": "Submit & continue",
+        "submittedToast": "Answer sent — the run is picking up where it left off.",
+        "rerunFailedToast": "Couldn't restart the run. Use Start on the row to retry."
+      }
     },
     "membership": {
       "boundProjectsTitle": "Bound projects",
