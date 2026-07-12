@@ -9,9 +9,9 @@ Skills live in two independent source roots, by audience:
   which this tool regenerates.
 - **`builtin-configs/skills/`** — product skills shipped to org agents: embedded in the CLI binary,
   seeded per-org at chat time. Hand-maintained, all included the same way. Every one of them except
-  the document skills `docx`/`pdf`/`xlsx` (the `PROJECTED_SKILLS` allowlist in `src/sync.ts`) is
-  ALSO projected into `.agents/skills/<name>/` (and from there into the mirror) so repo-dev agents
-  can use it — the workflow guides, the `write-*` org-entity skills, `pptx`, `web-research`, and
+  the document skills `docx`/`pdf`/`pptx`/`xlsx` (the `PROJECTED_SKILLS` allowlist in `src/sync.ts`)
+  is ALSO projected into `.agents/skills/<name>/` (and from there into the mirror) so repo-dev
+  agents can use it — the workflow guides, the `write-*` org-entity skills, `web-research`, and
   `visual-aspect-analyzer` (a self-contained Bun workspace, additionally baked into the
   `services/sandbox-runtime` image with its deps installed; that baked copy wins in sandbox
   sessions).

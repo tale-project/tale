@@ -117,8 +117,8 @@ Decide who runs the skill, then pick its source of truth — three cases:
   `xlsx`, the org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/
   `write-integration`/`write-automation`, `web-research`, and the Bun-workspace
   `visual-aspect-analyzer` — all embedded in the CLI binary and seeded per-org identically).
-  Everything here except `docx`/`pdf`/`xlsx` is also in `PROJECTED_SKILLS`, so repo-dev agents get
-  it too. `visual-aspect-analyzer` is additionally baked into the sandbox image
+  Everything here except the document skills is also in `PROJECTED_SKILLS`, so repo-dev agents
+  get it too. `visual-aspect-analyzer` is additionally baked into the sandbox image
   ([`services/sandbox-runtime/Dockerfile`](../../../services/sandbox-runtime/Dockerfile)) with its
   deps installed — that baked copy wins in sandbox sessions. (The product `write-skill` teaches
   ORG agents to author org skills; this repo-dev standard is `author-skill` — two different

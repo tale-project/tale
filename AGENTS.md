@@ -64,9 +64,9 @@ Safety and architecture invariants — they hold even where no linter covers the
 Adding, renaming, or removing a skill updates this table and runs `bun run skills:sync`; the authoring
 standard is [`author-skill`](.agents/skills/author-skill/SKILL.md). **Two homes:** product skills' source
 of truth is [`builtin-configs/skills/<name>/`](builtin-configs/skills/) (shipped to product org agents),
-and every one of them except the document skills `docx`/`pdf`/`xlsx` is projected via the
+and every one of them except the document skills `docx`/`pdf`/`pptx`/`xlsx` is projected via the
 `PROJECTED_SKILLS` allowlist in [`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into
-[`.agents/skills/`](.agents/skills/) — the workflow guides, the org-entity `write-*` skills, `pptx`,
+[`.agents/skills/`](.agents/skills/) — the workflow guides, the org-entity `write-*` skills,
 `web-research`, and the image-baked `visual-aspect-analyzer` (the repo-dev visual gate). Authoring
 skills are Tale-specific and live only under `.agents/skills/`. Both mirror into a generated
 `.claude/skills/` — **never hand-edit a generated copy** (`bun run skills:check` fails on drift).
