@@ -21,8 +21,9 @@
  * that serve both org agents and the agents working on this repo. Their single
  * source of truth is `builtin-configs/skills/<name>/`; this tool PROJECTS them
  * into `.agents/skills/<name>/`, from where the mirror copies them to
- * `.claude/skills/`. The product-only skills (docx/pdf/pptx/xlsx) are NOT
- * projected.
+ * `.claude/skills/`. Every other builtin-configs skill (the document skills,
+ * the write-* org-entity skills, web-research, visual-aspect-analyzer) is
+ * product-only and NOT projected.
  *
  * `runSync` does three things, in both modes:
  *   1. Guards the skill roots — the shipped root (`builtin-configs/skills/`)
@@ -70,9 +71,11 @@ const PRODUCT_SOURCE = 'builtin-configs/skills';
  * Product skills that are ALSO repo-dev guides. Their source of truth lives in
  * `builtin-configs/skills/<name>/` (so they ship to org agents); this tool
  * projects each into `.agents/skills/<name>/`, which the mirror then copies into
- * `.claude/skills/`. The remaining `builtin-configs/skills` entries (docx, pdf,
- * pptx, xlsx) are product-only and are deliberately NOT projected — they are not
- * repo-dev guides. This list is the registry the directory layout can't express.
+ * `.claude/skills/`. Every remaining `builtin-configs/skills` entry (the
+ * document skills, the write-* org-entity skills, web-research,
+ * visual-aspect-analyzer) is product-only and deliberately NOT projected — they
+ * are not repo-dev guides. This list is the registry the directory layout can't
+ * express.
  */
 const WORKFLOW_SKILLS: readonly string[] = [
   'implement-feature',
