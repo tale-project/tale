@@ -960,6 +960,7 @@ import type * as migrations_framework_node_runner from "../migrations/framework/
 import type * as migrations_framework_org_source from "../migrations/framework/org_source.js";
 import type * as migrations_framework_planner from "../migrations/framework/planner.js";
 import type * as migrations_framework_runner from "../migrations/framework/runner.js";
+import type * as migrations_framework_schema from "../migrations/framework/schema.js";
 import type * as migrations_framework_schema_fingerprint from "../migrations/framework/schema_fingerprint.js";
 import type * as migrations_framework_semver from "../migrations/framework/semver.js";
 import type * as migrations_framework_snapshot_helpers from "../migrations/framework/snapshot_helpers.js";
@@ -2690,6 +2691,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/framework/org_source": typeof migrations_framework_org_source;
   "migrations/framework/planner": typeof migrations_framework_planner;
   "migrations/framework/runner": typeof migrations_framework_runner;
+  "migrations/framework/schema": typeof migrations_framework_schema;
   "migrations/framework/schema_fingerprint": typeof migrations_framework_schema_fingerprint;
   "migrations/framework/semver": typeof migrations_framework_semver;
   "migrations/framework/snapshot_helpers": typeof migrations_framework_snapshot_helpers;
