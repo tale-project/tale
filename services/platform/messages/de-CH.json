@@ -43,7 +43,8 @@
     },
     "outcome": {
       "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
-      "failed": "Dieser Schritt ist fehlgeschlagen."
+      "failed": "Dieser Schritt ist fehlgeschlagen.",
+      "empty": "Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche erzeugt."
     },
     "artifact": {
       "filed": "{title} abgelegt",

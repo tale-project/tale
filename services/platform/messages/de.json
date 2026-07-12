@@ -50,7 +50,8 @@
     },
     "outcome": {
       "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
-      "failed": "Dieser Schritt ist fehlgeschlagen."
+      "failed": "Dieser Schritt ist fehlgeschlagen.",
+      "empty": "Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche erzeugt."
     },
     "artifact": {
       "filed": "{title} abgelegt",
@@ -846,7 +847,9 @@
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "failed": "Fehlgeschlagen",
-      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
+      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu.",
+      "awaitingInput": "Deine Eingabe nötig",
+      "awaitingInputHint": "Angehalten — der Desk hat dir eine Frage gestellt. Öffne die Zeile, antworte und dann Start."
     },
     "membership": {
       "boundProjectsTitle": "Gebundene Projekte",

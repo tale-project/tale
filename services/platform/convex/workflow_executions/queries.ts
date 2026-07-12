@@ -2,6 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { deriveRunIndicator } from '../../lib/shared/platform/run_capacity';
+import * as ApprovalsHelpers from '../approvals/helpers';
 import { queryWithRLS } from '../lib/rls';
 import { TERMINAL_STATUSES } from '../tasks/helpers';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
@@ -121,7 +122,12 @@ export const getSubjectRunIndicator = queryWithRLS({
     subjectId: v.string(),
   },
   returns: v.object({
-    state: v.union(v.literal('parked'), v.literal('failed'), v.null()),
+    state: v.union(
+      v.literal('parked'),
+      v.literal('failed'),
+      v.literal('awaiting_input'),
+      v.null(),
+    ),
     failedExecutionId: v.union(v.id('wfExecutions'), v.null()),
   }),
   handler: async (ctx, args) => {
@@ -151,7 +157,29 @@ export const getSubjectRunIndicator = queryWithRLS({
       )
       .order('desc')
       .first();
-    const state = deriveRunIndicator(row);
+    let state: 'parked' | 'failed' | 'awaiting_input' | null =
+      deriveRunIndicator(row);
+    // A run that ended by asking the operator for a decision leaves a pending
+    // human-input / review approval keyed to that execution — surface it as
+    // "awaiting input" so a parked-for-input row reads distinctly from a fresh
+    // To do. Keyed to the execution, it clears on its own once a newer run (the
+    // operator's reply) supersedes this one.
+    if (state === null && row) {
+      const pending = await ApprovalsHelpers.listPendingApprovalsForExecution(
+        ctx,
+        row._id,
+      );
+      if (
+        pending.some(
+          (a) =>
+            a.resourceType === 'operator_input' ||
+            a.resourceType === 'human_input_request' ||
+            a.resourceType === 'task_review',
+        )
+      ) {
+        state = 'awaiting_input';
+      }
+    }
     return {
       state,
       failedExecutionId: state === 'failed' && row ? row._id : null,

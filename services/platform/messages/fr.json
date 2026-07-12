@@ -50,7 +50,8 @@
     },
     "outcome": {
       "inProgress": "En cours — les résultats apparaîtront ici.",
-      "failed": "Cette étape a échoué."
+      "failed": "Cette étape a échoué.",
+      "empty": "Pas encore de résultats — ils apparaîtront ici dès qu’un passage en produit."
     },
     "artifact": {
       "filed": "{title} déposé",
@@ -847,7 +848,9 @@
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
       "failed": "Échec",
-      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
+      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la.",
+      "awaitingInput": "Réponse requise",
+      "awaitingInputHint": "En attente — le desk t’a posé une question. Ouvre la ligne, réponds, puis Start."
     },
     "membership": {
       "boundProjectsTitle": "Projets liés",

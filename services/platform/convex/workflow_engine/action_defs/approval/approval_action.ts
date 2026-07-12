@@ -118,7 +118,14 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
           requestedBy: params.requestedBy,
           dueDate: params.dueDate,
           description: params.description,
-          wfExecutionId: params.executionId,
+          // Default to the current execution (like request_review) so a marker
+          // created from inside a workflow is keyed to that run without the
+          // caller threading the id — lets run-scoped indicators find + expire it.
+          wfExecutionId:
+            params.executionId ??
+            (extras?.executionId
+              ? toId<'wfExecutions'>(extras.executionId)
+              : undefined),
           stepSlug: params.stepSlug,
           metadata: params.metadata,
         });

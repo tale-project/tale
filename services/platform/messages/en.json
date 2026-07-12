@@ -45,7 +45,8 @@
     },
     "outcome": {
       "inProgress": "Working — results will appear here.",
-      "failed": "This step failed."
+      "failed": "This step failed.",
+      "empty": "No results yet — they will appear here once a run produces them."
     },
     "artifact": {
       "filed": "Filed {title}",
@@ -846,7 +847,9 @@
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
-      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it.",
+      "awaitingInput": "Needs your input",
+      "awaitingInputHint": "Parked — the desk asked you a question. Open the row, reply, then Start."
     },
     "membership": {
       "boundProjectsTitle": "Bound projects",

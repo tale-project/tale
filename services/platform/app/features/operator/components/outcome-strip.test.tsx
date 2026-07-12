@@ -193,8 +193,8 @@ describe('OutcomeStrip', () => {
     ).toBeInTheDocument();
   });
 
-  it('stays quiet when a settled run never produced outcome files', () => {
-    const { container } = render(
+  it('keeps the Outcome lane as an empty-state placeholder when a settled run produced no files', () => {
+    render(
       <OutcomeStrip
         projection={projection({
           status: 'completed',
@@ -206,6 +206,33 @@ describe('OutcomeStrip', () => {
               render: 'artifact',
               partState: 'upcoming',
               params: { surface: 'outcome' },
+            },
+          ],
+        })}
+      />,
+    );
+    // A settled run with an outcome-annotated step but no files/errors renders
+    // the Outcome section as a stable placeholder rather than vanishing.
+    expect(screen.getByText('Outcome')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'No results yet — they will appear here once a run produces them.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('omits the Outcome entirely when the automation has no outcome-annotated step', () => {
+    const { container } = render(
+      <OutcomeStrip
+        projection={projection({
+          status: 'completed',
+          steps: [
+            {
+              stepSlug: 'some_step',
+              name: 'A step',
+              stepType: 'action',
+              render: 'status',
+              partState: 'output_available',
             },
           ],
         })}

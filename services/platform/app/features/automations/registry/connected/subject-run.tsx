@@ -84,6 +84,7 @@ export function SubjectRun({
       <EmbeddedRun
         organizationId={organizationId}
         executionId={data.executionId}
+        showRerun={false}
       />
     );
   })();

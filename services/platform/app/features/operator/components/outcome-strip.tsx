@@ -117,11 +117,10 @@ export function OutcomeStrip({
     ready.length === 0 &&
     errors.length === 0 &&
     (pending.length > 0 || runInFlight);
-
-  // Settled run with no outcome files/errors → omit (not an empty card).
-  if (ready.length === 0 && errors.length === 0 && !awaitingFiles) {
-    return null;
-  }
+  // A settled run with no outcome files/errors keeps the Outcome lane too — it
+  // renders an empty-state placeholder rather than vanishing, so the section is
+  // a stable peer of Input whether or not this run produced anything yet.
+  const noOutputYet = ready.length === 0 && errors.length === 0;
 
   const { entries, textOnly } = entriesForReadySteps(ready);
 
@@ -145,11 +144,16 @@ export function OutcomeStrip({
           </div>
         </Row>
         <VStack gap={3} className="px-5 pb-5">
-          {awaitingFiles && (
+          {noOutputYet && (
             <Text variant="muted">
-              {t('outcome.inProgress', {
-                defaultValue: 'Working — results will appear here.',
-              })}
+              {awaitingFiles
+                ? t('outcome.inProgress', {
+                    defaultValue: 'Working — results will appear here.',
+                  })
+                : t('outcome.empty', {
+                    defaultValue:
+                      'No results yet — they will appear here once a run produces them.',
+                  })}
             </Text>
           )}
 

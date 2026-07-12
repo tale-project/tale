@@ -55,6 +55,21 @@ describe('EmbeddedRun — Re-run visibility', () => {
     expect(screen.getByText('rerun:exec_failed')).toBeInTheDocument();
   });
 
+  it('hides Re-run on a failed run when the surface owns re-run (showRerun=false)', () => {
+    // Desk subject-linked views pass showRerun={false}: their Start owns the
+    // re-run, so a user-cancelled (terminal-failed) run must not also show it.
+    mockProjection = { status: 'failed' };
+    render(
+      <EmbeddedRun
+        organizationId="org_1"
+        executionId={'exec_failed' as never}
+        showRerun={false}
+      />,
+    );
+    expect(screen.queryByText(/rerun:/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('operator-view')).toBeInTheDocument();
+  });
+
   it('hides Re-run on a successful completed run', () => {
     mockProjection = { status: 'completed' };
     render(
