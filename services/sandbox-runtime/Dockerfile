@@ -228,8 +228,8 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 # tool) into the image so the thin pointer SKILL.md staged per turn (see convex
 # node_only/sandbox/integration_skills.ts) runs it with zero setup. Copied
 # straight from its builtin-configs/skills/ source workspace — the dockerignore
-# keeps node_modules out (deps install fresh below) and a `*.md` negation keeps
-# its guides + examples; tests ship too, so `bun run e2e` works in the sandbox.
+# keeps node_modules out (deps install fresh below); guides, src, and tests all
+# ship, so `bun run e2e` works in the sandbox.
 #
 # It does NOT install a second Playwright/Chromium: only its own pngjs runtime
 # dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
