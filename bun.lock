@@ -65,6 +65,18 @@
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
       },
     },
+    "builtin-configs/skills/visual-aspect-analyzer": {
+      "name": "@tale/visual-aspect-analyzer",
+      "dependencies": {
+        "pngjs": "^7.0.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.11",
+        "@types/pngjs": "^6.0.5",
+        "happy-dom": "^20.10.6",
+        "typescript": "6.0.2",
+      },
+    },
     "packages/e2e": {
       "name": "@tale/e2e",
       "version": "0.1.0",
@@ -412,18 +424,6 @@
         "@tale/e2e": "workspace:*",
         "@types/bun": "1.3.11",
         "sharp": "0.34.2",
-      },
-    },
-    "skills/visual-aspect-analyzer": {
-      "name": "@tale/visual-aspect-analyzer",
-      "dependencies": {
-        "pngjs": "^7.0.0",
-      },
-      "devDependencies": {
-        "@types/bun": "1.3.11",
-        "@types/pngjs": "^6.0.5",
-        "happy-dom": "^20.10.6",
-        "typescript": "6.0.2",
       },
     },
     "tools/cli": {
@@ -2009,7 +2009,7 @@
 
     "@tale/ui": ["@tale/ui@workspace:packages/ui"],
 
-    "@tale/visual-aspect-analyzer": ["@tale/visual-aspect-analyzer@workspace:skills/visual-aspect-analyzer"],
+    "@tale/visual-aspect-analyzer": ["@tale/visual-aspect-analyzer@workspace:builtin-configs/skills/visual-aspect-analyzer"],
 
     "@tale/web": ["@tale/web@workspace:services/web"],
 

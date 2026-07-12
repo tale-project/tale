@@ -102,8 +102,8 @@ bun run e2e         # real Chromium against tests/fixtures (skips with no browse
 ```
 
 `typecheck` and `test` run on every pull request as part of the repo-wide gate
-in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), which also runs
-oxfmt, oxlint, knip, and commitlint. This skill is a turbo workspace, so its
+in [`.github/workflows/test.yml`](../../../.github/workflows/test.yml), which also
+runs oxfmt, oxlint, knip, and commitlint. This skill is a turbo workspace, so its
 checks run through `bun run check` (or `bunx turbo run typecheck test`) at the
 repo root — no separate install or lockfile here.
 
