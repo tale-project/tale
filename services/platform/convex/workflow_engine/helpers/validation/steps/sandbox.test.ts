@@ -95,4 +95,60 @@ describe('validateSandboxStep', () => {
     const res = validateSandboxStep({});
     expect(res.valid).toBe(false);
   });
+
+  it('accepts a script run with well-formed useSkills', () => {
+    const res = validateSandboxStep({
+      run: {
+        script: 'pack://vat-return-desk/scripts/run_quarter.py',
+        language: 'python',
+        useSkills: [
+          {
+            slug: 'swiss-vat-return',
+            include: ['engine', 'mapping', 'schema'],
+          },
+        ],
+      },
+    });
+    expect(res.valid).toBe(true);
+  });
+
+  it('accepts a script run WITHOUT useSkills (backward-compatible)', () => {
+    const res = validateSandboxStep({
+      run: { script: 'pack://x/y.py', language: 'python' },
+    });
+    expect(res.valid).toBe(true);
+  });
+
+  it('rejects useSkills that is not an array', () => {
+    const res = validateSandboxStep({
+      run: { script: 's', language: 'python', useSkills: { slug: 'x' } },
+    });
+    expect(res.valid).toBe(false);
+  });
+
+  it('rejects a useSkills entry missing slug or include', () => {
+    const res = validateSandboxStep({
+      run: { script: 's', language: 'python', useSkills: [{ slug: 'x' }] },
+    });
+    expect(res.valid).toBe(false);
+  });
+
+  it('rejects a useSkills include with traversal or absolute path', () => {
+    const traversal = validateSandboxStep({
+      run: {
+        script: 's',
+        language: 'python',
+        useSkills: [{ slug: 'x', include: ['engine/../..'] }],
+      },
+    });
+    expect(traversal.valid).toBe(false);
+    const absolute = validateSandboxStep({
+      run: {
+        script: 's',
+        language: 'python',
+        useSkills: [{ slug: 'x', include: ['/etc'] }],
+      },
+    });
+    expect(absolute.valid).toBe(false);
+  });
 });

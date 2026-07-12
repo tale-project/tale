@@ -1075,6 +1075,7 @@ import type * as node_only_sandbox_session_admin_actions from "../node_only/sand
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
 import type * as node_only_sandbox_session_exec from "../node_only/sandbox/session_exec.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
+import type * as node_only_sandbox_stage_skills from "../node_only/sandbox/stage_skills.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
@@ -2808,6 +2809,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
   "node_only/sandbox/session_exec": typeof node_only_sandbox_session_exec;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
+  "node_only/sandbox/stage_skills": typeof node_only_sandbox_stage_skills;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;

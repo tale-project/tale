@@ -431,6 +431,14 @@ const sandboxRunValidator = v.union(
       v.literal('bash'),
     ),
     params: v.optional(jsonRecordValidator),
+    // Make whole org-skill subtrees available at
+    // `/user/code/skills/<slug>/<include...>` each run (read live from
+    // `org/skills/`, symmetric with AGENT skill use). `include` paths are
+    // skill-root relative. Absent ⇒ today's single-file behaviour; present ⇒ a
+    // script + its same-package data/library ship unbundled, not embedded.
+    useSkills: v.optional(
+      v.array(v.object({ slug: v.string(), include: v.array(v.string()) })),
+    ),
   }),
 );
 

@@ -57,6 +57,42 @@ export function validateSandboxStep(
     }
   }
 
+  // Optional multi-file staging: each entry stages an org skill's declared
+  // subtrees. Deep slug/path validation happens at run time (stage_skills.ts);
+  // here we catch the shape + the security-critical path shapes at publish.
+  if (hasScript && run.useSkills !== undefined) {
+    if (!Array.isArray(run.useSkills)) {
+      errors.push('sandbox "run.useSkills" must be an array');
+    } else {
+      for (const spec of run.useSkills) {
+        if (
+          !isRecord(spec) ||
+          typeof spec.slug !== 'string' ||
+          spec.slug.length === 0 ||
+          !Array.isArray(spec.include) ||
+          spec.include.length === 0
+        ) {
+          errors.push(
+            'each sandbox useSkills entry needs { slug: string, include: non-empty string[] }',
+          );
+          continue;
+        }
+        for (const inc of spec.include) {
+          if (
+            typeof inc !== 'string' ||
+            inc.length === 0 ||
+            inc.startsWith('/') ||
+            inc.split(/[\\/]+/).some((s) => s === '..')
+          ) {
+            errors.push(
+              `sandbox useSkills "${spec.slug}" include "${String(inc)}" must be a relative path without ".."`,
+            );
+          }
+        }
+      }
+    }
+  }
+
   if (config.env !== undefined) {
     if (!isRecord(config.env)) {
       errors.push('sandbox "env" must be an object of string values');

@@ -107,6 +107,7 @@ import {
 } from './resume_rotation';
 import { runAgentInSessionImpl } from './run_agent';
 import { runAndHarvestInSession } from './session_exec';
+import { collectStageSkillFiles } from './stage_skills';
 import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
@@ -599,6 +600,12 @@ export const runSandboxScript = internalAction({
       v.literal('bash'),
     ),
     params: v.optional(v.record(v.string(), v.any())),
+    // Org-skill subtrees to make available at /user/code/skills/<slug>/ before
+    // the run (see stage_skills.ts) — read live from org/skills each run, so a
+    // thin frozen entry can import the skill's modules + read its on-disk tables.
+    useSkills: v.optional(
+      v.array(v.object({ slug: v.string(), include: v.array(v.string()) })),
+    ),
     inputs: inputArgValidator,
     output: outputArgValidator,
     timeoutMs: v.optional(v.number()),
@@ -694,6 +701,22 @@ export const runSandboxScript = internalAction({
           path: 'code/params.json',
           url: await storeAsUrl(JSON.stringify(args.params)),
         });
+      }
+
+      // Stage requested org-skill subtrees (engine code + data tables + schema)
+      // under /user/code/skills/<slug>/ so a thin frozen entry imports them and
+      // reads their on-disk tables — the multi-file analog of the single entry.
+      // Read live from org/skills each run (no rebuild). Fail the step here,
+      // BEFORE reserving a slot, if a skill is missing or the subtree blows the
+      // cap, so a broken pack surfaces loudly instead of truncating silently.
+      if (args.useSkills && args.useSkills.length > 0) {
+        try {
+          stageInputs.push(
+            ...(await collectStageSkillFiles(orgSlug, args.useSkills)),
+          );
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
       }
 
       // Reserve + create the ephemeral workflow-run session — the SAME session
