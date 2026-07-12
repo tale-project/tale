@@ -13,6 +13,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import { toId } from '../../../lib/type_cast_helpers';
+import { TASK_COMMENT_MAX } from '../../../tasks/helpers';
 import {
   taskActorTypeValidator,
   taskPriorityValidator,
@@ -21,6 +22,17 @@ import {
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 const WORKFLOW_ACTOR_ID = 'workflow';
+
+// Workflow templates interpolate unbounded step output (e.g. an author agent's
+// summary) into comments; a body over the mutation's cap must degrade to a
+// truncated comment, not fail the step and kill the run.
+const TRUNCATION_MARK = '… (truncated)';
+function clampCommentBody(text: string): string {
+  if (text.length <= TASK_COMMENT_MAX) return text;
+  return (
+    text.slice(0, TASK_COMMENT_MAX - TRUNCATION_MARK.length) + TRUNCATION_MARK
+  );
+}
 
 function workflowAttribution(
   variables: Record<string, unknown>,
@@ -438,15 +450,24 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
 
       case 'update_status': {
         if (params.comment !== undefined && params.comment.trim() !== '') {
-          await ctx.runMutation(
-            internal.tasks.internal_mutations.agentAddComment,
-            {
-              organizationId,
-              actorId: WORKFLOW_ACTOR_ID,
-              taskId: toId<'tasks'>(params.taskId),
-              body: params.comment,
-            },
-          );
+          // The ride-along comment is garnish on the status change — clamp it
+          // and log a post failure, never let it block the transition.
+          try {
+            await ctx.runMutation(
+              internal.tasks.internal_mutations.agentAddComment,
+              {
+                organizationId,
+                actorId: WORKFLOW_ACTOR_ID,
+                taskId: toId<'tasks'>(params.taskId),
+                body: clampCommentBody(params.comment.trim()),
+              },
+            );
+          } catch (error) {
+            console.error(
+              '[workflow] task.update_status ride-along comment failed (status change proceeds)',
+              error,
+            );
+          }
         }
         return await ctx.runMutation(
           internal.tasks.internal_mutations.agentUpdateTaskStatus,
@@ -475,43 +496,63 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       }
 
       case 'comment': {
+        // A comment is a NOTIFICATION. Over-long bodies are clamped and every
+        // failure path degrades to `{posted: false}` instead of throwing — a
+        // lost log line must never fail the step and kill the run (a 10k
+        // author summary once burned a whole run this way). Static authoring
+        // mistakes belong to publish-time validation, not a run-time crash.
         const bodyI18n = params.bodyI18n;
-        const body =
+        const body = clampCommentBody(
           bodyI18n?.en?.trim() ||
-          (typeof params.body === 'string' ? params.body.trim() : '');
+            (typeof params.body === 'string' ? params.body.trim() : ''),
+        );
         if (!body) {
-          throw new Error(
-            'task.comment requires `body` or `bodyI18n.en` (non-empty)',
+          console.warn(
+            '[workflow] task.comment skipped — empty `body` / `bodyI18n.en` (template rendered nothing)',
           );
+          return { posted: false, error: 'empty body' };
         }
         if (bodyI18n) {
           const de = bodyI18n.de?.trim() ?? '';
           const fr = bodyI18n.fr?.trim() ?? '';
           if (!de || !fr) {
-            throw new Error(
-              'task.comment `bodyI18n` requires non-empty en, de, and fr',
+            console.warn(
+              '[workflow] task.comment skipped — `bodyI18n` requires non-empty en, de, and fr',
             );
+            return { posted: false, error: 'bodyI18n missing a locale' };
           }
         }
-        return await ctx.runMutation(
-          internal.tasks.internal_mutations.agentAddComment,
-          {
-            organizationId,
-            actorId: WORKFLOW_ACTOR_ID,
-            taskId: toId<'tasks'>(params.taskId),
-            body,
-            ...(bodyI18n
-              ? {
-                  bodyByLocale: {
-                    en: bodyI18n.en.trim(),
-                    de: bodyI18n.de.trim(),
-                    fr: bodyI18n.fr.trim(),
-                  },
-                }
-              : {}),
-            attribution,
-          },
-        );
+        try {
+          const result = await ctx.runMutation(
+            internal.tasks.internal_mutations.agentAddComment,
+            {
+              organizationId,
+              actorId: WORKFLOW_ACTOR_ID,
+              taskId: toId<'tasks'>(params.taskId),
+              body,
+              ...(bodyI18n
+                ? {
+                    bodyByLocale: {
+                      en: clampCommentBody(bodyI18n.en.trim()),
+                      de: clampCommentBody(bodyI18n.de.trim()),
+                      fr: clampCommentBody(bodyI18n.fr.trim()),
+                    },
+                  }
+                : {}),
+              attribution,
+            },
+          );
+          return { posted: true, ...result };
+        } catch (error) {
+          console.error(
+            '[workflow] task.comment failed — run continues without the comment',
+            error,
+          );
+          return {
+            posted: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
       }
 
       case 'list_comments': {

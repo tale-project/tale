@@ -116,6 +116,170 @@ describe('taskAction update_status — optional comment ride-along', () => {
   });
 });
 
+describe('taskAction comment — body clamped to the mutation cap', () => {
+  // Templates interpolate unbounded step output (an author agent's summary ran
+  // to 10,135 chars in the wild); the mutation rejects >10k with
+  // TASK_COMMENT_INVALID, which failed the step and killed the whole run. The
+  // action must truncate instead — a shortened log comment over a dead run.
+  function recordingCtx() {
+    const calls: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
+    const ctx = {
+      runQuery: () => {
+        throw new Error('unexpected runQuery');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+      runMutation: (ref: unknown, args: Record<string, unknown>) => {
+        calls.push({ ref, args });
+        return Promise.resolve(null);
+      },
+    } as unknown as ActionCtx;
+    return { ctx, calls };
+  }
+
+  it('truncates an over-cap body with a marker', async () => {
+    const { ctx, calls } = recordingCtx();
+    const params = {
+      operation: 'comment',
+      taskId: 'task_1',
+      body: 'x'.repeat(10_135),
+    } as unknown as ExecParams;
+
+    await taskAction.execute(ctx, params, { organizationId: 'org_1' });
+
+    const body = calls[0]?.args.body as string;
+    expect(body).toHaveLength(10_000);
+    expect(body.endsWith('… (truncated)')).toBe(true);
+  });
+
+  it('clamps every locale of bodyI18n independently', async () => {
+    const { ctx, calls } = recordingCtx();
+    const params = {
+      operation: 'comment',
+      taskId: 'task_1',
+      bodyI18n: {
+        en: 'e'.repeat(12_000),
+        de: 'kurz',
+        fr: 'f'.repeat(10_001),
+      },
+    } as unknown as ExecParams;
+
+    await taskAction.execute(ctx, params, { organizationId: 'org_1' });
+
+    const byLocale = calls[0]?.args.bodyByLocale as Record<string, string>;
+    expect(byLocale.en).toHaveLength(10_000);
+    expect(byLocale.de).toBe('kurz');
+    expect(byLocale.fr).toHaveLength(10_000);
+    expect(byLocale.fr.endsWith('… (truncated)')).toBe(true);
+  });
+
+  it('passes an under-cap body through untouched', async () => {
+    const { ctx, calls } = recordingCtx();
+    const params = {
+      operation: 'comment',
+      taskId: 'task_1',
+      body: 'short note',
+    } as unknown as ExecParams;
+
+    const result = await taskAction.execute(ctx, params, {
+      organizationId: 'org_1',
+    });
+
+    expect(calls[0]?.args.body).toBe('short note');
+    expect(result).toMatchObject({ posted: true });
+  });
+});
+
+describe('taskAction comment — a notification never fails the step', () => {
+  // The engine has no error port on action steps: a thrown comment op fails
+  // the step and kills the run. A log line is never worth that, so every
+  // failure path returns `{posted: false}` instead of throwing.
+  it('degrades to posted:false when the mutation rejects', async () => {
+    const ctx = {
+      runQuery: () => {
+        throw new Error('unexpected runQuery');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+      runMutation: () =>
+        Promise.reject(new Error('TASK_COMMENT_INVALID or a transient OCC')),
+    } as unknown as ActionCtx;
+    const params = {
+      operation: 'comment',
+      taskId: 'task_1',
+      body: 'a log line',
+    } as unknown as ExecParams;
+
+    const result = await taskAction.execute(ctx, params, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toMatchObject({ posted: false });
+  });
+
+  it('skips (posted:false, no write) on an empty rendered body', async () => {
+    const calls: unknown[] = [];
+    const ctx = {
+      runQuery: () => {
+        throw new Error('unexpected runQuery');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+      runMutation: (ref: unknown) => {
+        calls.push(ref);
+        return Promise.resolve(null);
+      },
+    } as unknown as ActionCtx;
+    const params = {
+      operation: 'comment',
+      taskId: 'task_1',
+      body: '   ',
+    } as unknown as ExecParams;
+
+    const result = await taskAction.execute(ctx, params, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toMatchObject({ posted: false });
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('taskAction update_status — ride-along comment failure', () => {
+  it('still applies the status change when the comment post rejects', async () => {
+    const statusCalls: Array<Record<string, unknown>> = [];
+    const ctx = {
+      runQuery: () => {
+        throw new Error('unexpected runQuery');
+      },
+      runAction: () => {
+        throw new Error('unexpected runAction');
+      },
+      runMutation: (ref: unknown, args: Record<string, unknown>) => {
+        if ('status' in args) {
+          statusCalls.push(args);
+          return Promise.resolve(null);
+        }
+        return Promise.reject(new Error('comment write failed'));
+      },
+    } as unknown as ActionCtx;
+    const params = {
+      operation: 'update_status',
+      taskId: 'task_1',
+      status: 'todo',
+      comment: '[automated] parked for a human',
+    } as unknown as ExecParams;
+
+    await taskAction.execute(ctx, params, { organizationId: 'org_1' });
+
+    expect(statusCalls).toHaveLength(1);
+    expect(statusCalls[0]?.status).toBe('todo');
+  });
+});
+
 describe('taskAction list_comments — timeline feedback read', () => {
   // Fixture timeline (ascending): user asks → workflow posts figures with the
   // prepared anchor → user leaves two feedback comments → an agent replies.
@@ -311,22 +475,24 @@ describe('taskAction comment — bodyI18n snapshot', () => {
     expect(calls[0]?.args.bodyByLocale).toBeUndefined();
   });
 
-  it('rejects bodyI18n missing a locale', async () => {
-    const { ctx } = recordingCtx();
-    await expect(
-      taskAction.execute(
-        ctx,
-        {
-          operation: 'comment',
-          taskId: 'task_1',
-          bodyI18n: {
-            en: '[automated] en',
-            de: '',
-            fr: '[automated] fr',
-          },
-        } as unknown as ExecParams,
-        { organizationId: 'org_1' },
-      ),
-    ).rejects.toThrow(/bodyI18n/);
+  it('skips (posted:false, no write) when bodyI18n misses a locale', async () => {
+    // Was a throw — but a thrown comment op fails the step and kills the run,
+    // so authoring gaps degrade to a skipped notification instead.
+    const { ctx, calls } = recordingCtx();
+    const result = await taskAction.execute(
+      ctx,
+      {
+        operation: 'comment',
+        taskId: 'task_1',
+        bodyI18n: {
+          en: '[automated] en',
+          de: '',
+          fr: '[automated] fr',
+        },
+      } as unknown as ExecParams,
+      { organizationId: 'org_1' },
+    );
+    expect(result).toMatchObject({ posted: false });
+    expect(calls).toHaveLength(0);
   });
 });
