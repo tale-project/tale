@@ -248,6 +248,46 @@ export function TaskComments({
     );
   };
 
+  // The composer sits at the NEWEST end of the thread — below an ascending
+  // conversation, above a newest-first log — so a fresh comment appears where
+  // it was typed.
+  const composer = canComment && (
+    <Row gap={2} align="start" className={order === 'desc' ? 'mb-4' : 'mt-4'}>
+      {currentUser && (
+        <AssigneeAvatar
+          assigneeType="user"
+          assigneeId={currentUser.id}
+          name={currentUser.name}
+        />
+      )}
+      <Stack gap={2} className="min-w-0 flex-1">
+        <MentionTextarea
+          id="new-comment"
+          organizationId={organizationId}
+          projectId={projectId}
+          rows={2}
+          value={draft}
+          onValueChange={setDraft}
+          onKeyDown={onModEnter(() => void submitNew())}
+          placeholder={t('actions.comment')}
+        />
+        <MentionTriggerChips
+          organizationId={organizationId}
+          target={{ taskId }}
+          draft={draft}
+        />
+        <Row gap={0} align="stretch" justify="end">
+          <Button
+            disabled={draft.trim().length === 0}
+            onClick={() => void submitNew()}
+          >
+            {t('actions.comment')}
+          </Button>
+        </Row>
+      </Stack>
+    </Row>
+  );
+
   return (
     <section>
       {showHeading ? (
@@ -255,6 +295,8 @@ export function TaskComments({
           {t('detail.comments')} ({comments.length})
         </Text>
       ) : null}
+
+      {order === 'desc' && composer}
 
       <Stack as="ul" className={showHeading ? 'mt-3' : undefined}>
         {comments.length === 0 && (
@@ -269,42 +311,7 @@ export function TaskComments({
         ))}
       </Stack>
 
-      {canComment && (
-        <Row gap={2} align="start" className="mt-4">
-          {currentUser && (
-            <AssigneeAvatar
-              assigneeType="user"
-              assigneeId={currentUser.id}
-              name={currentUser.name}
-            />
-          )}
-          <Stack gap={2} className="min-w-0 flex-1">
-            <MentionTextarea
-              id="new-comment"
-              organizationId={organizationId}
-              projectId={projectId}
-              rows={2}
-              value={draft}
-              onValueChange={setDraft}
-              onKeyDown={onModEnter(() => void submitNew())}
-              placeholder={t('actions.comment')}
-            />
-            <MentionTriggerChips
-              organizationId={organizationId}
-              target={{ taskId }}
-              draft={draft}
-            />
-            <Row gap={0} align="stretch" justify="end">
-              <Button
-                disabled={draft.trim().length === 0}
-                onClick={() => void submitNew()}
-              >
-                {t('actions.comment')}
-              </Button>
-            </Row>
-          </Stack>
-        </Row>
-      )}
+      {order === 'asc' && composer}
 
       <DeleteDialog
         open={pendingDeleteId !== null}

@@ -13,6 +13,16 @@ vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
 }));
 
+vi.mock('./mention-textarea', () => ({
+  MentionTextarea: (props: { value: string; placeholder?: string }) => (
+    <textarea placeholder={props.placeholder} value={props.value} readOnly />
+  ),
+}));
+
+vi.mock('./mention-trigger-chips', () => ({
+  MentionTriggerChips: () => null,
+}));
+
 vi.mock('../hooks/queries', () => ({
   useTaskDiscussion: () => ({
     comments: [
@@ -157,5 +167,47 @@ describe('TaskComments order', () => {
     const bodies = listedBodies();
     expect(bodies[0]).toContain('Thanks.');
     expect(bodies[1]).toContain('[automated] Return prepared');
+  });
+});
+
+describe('TaskComments composer position', () => {
+  // The composer sits at the newest end: below an ascending conversation,
+  // above a newest-first log.
+  const composerVsList = (container: HTMLElement) => {
+    const composer = container.querySelector('textarea');
+    const firstItem = container.querySelector('ul li');
+    if (!composer || !firstItem) return 'missing';
+    const pos = composer.compareDocumentPosition(firstItem);
+    // DOCUMENT_POSITION_FOLLOWING (4): the list comes AFTER the composer.
+    return pos & Node.DOCUMENT_POSITION_FOLLOWING
+      ? 'composer-first'
+      : 'list-first';
+  };
+
+  it('renders below the thread by default (asc)', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+      />,
+    );
+    expect(composerVsList(container)).toBe('list-first');
+  });
+
+  it('renders above the thread with order="desc"', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+        order="desc"
+      />,
+    );
+    expect(composerVsList(container)).toBe('composer-first');
   });
 });
