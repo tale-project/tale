@@ -25,7 +25,30 @@ Pool their knowledge, delegate real work — on infrastructure you run.
 
 ---
 
-<a href="https://tale.dev/docs"><img src=".github/assets/readme-hero.webp" alt="The Tale platform — Arena mode running the same prompt through two models side by side" width="100%"></a>
+<table>
+  <tr>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena mode running the same prompt through two models side by side" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="A project task board whose cards are picked up by agents" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="The agent editor bundling instructions, knowledge, tools, and a model" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Chat & Arena</b> — one prompt, two models side by side</sub></td>
+    <td align="center"><sub><b>Tasks</b> — assign a card to an agent and it goes to work</sub></td>
+    <td align="center"><sub><b>Agents</b> — instructions, knowledge, tools, and a model as one unit</sub></td>
+  </tr>
+  <tr>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The workflow editor canvas with typed steps on a live automation" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="The integrations catalog with Slack, GitHub, Gmail, Teams, and more" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Guardrails settings layering content safety, PII detection, and moderation" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Workflow editor</b> — typed steps, schedules, and approval gates</sub></td>
+    <td align="center"><sub><b>Integrations</b> — Slack, Gmail, GitHub, MCP servers, and more</sub></td>
+    <td align="center"><sub><b>Governance</b> — guardrails, PII filters, audit trail, spend limits</sub></td>
+  </tr>
+</table>
+
+<p align="center"><a href="SCREENSHOTS.md"><b>Browse the full screenshot gallery →</b></a></p>
 
 Tale is an open-source, self-hosted platform that orchestrates AI agents. It connects the agents and CLIs your team already uses, pools their knowledge into one governed knowledge base, and runs automations with human approval — on your own infrastructure or in a managed cloud. Tale is not another chat UI: it is the orchestration, knowledge, and governance layer over the agents you already run. Everything is MIT-licensed, and the free Community edition ships the identical feature set.
 
