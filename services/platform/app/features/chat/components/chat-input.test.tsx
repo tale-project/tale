@@ -434,3 +434,38 @@ describe('ChatInput disabled composer (missing API key)', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+const LOCKED_DISCUSSION_MESSAGE = 'This discussion is locked';
+
+function renderLockedComposer() {
+  return render(
+    <ChatInput
+      organizationId="org-1"
+      value=""
+      onChange={vi.fn()}
+      onSendMessage={vi.fn()}
+      attachments={[]}
+      uploadingFiles={[]}
+      uploadFiles={vi.fn()}
+      removeAttachment={vi.fn()}
+      clearAttachments={vi.fn(() => [])}
+      variant="assistant"
+      disabled
+      disabledReason="locked"
+      disabledMessage={LOCKED_DISCUSSION_MESSAGE}
+    />,
+  );
+}
+
+// #2680: locked discussions reused chat's archived disabled copy.
+describe('ChatInput disabled composer (locked discussion)', () => {
+  it('shows the caller-supplied locked message instead of the archived copy', () => {
+    renderLockedComposer();
+
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByText(LOCKED_DISCUSSION_MESSAGE)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/this chat is archived/i),
+    ).not.toBeInTheDocument();
+  });
+});

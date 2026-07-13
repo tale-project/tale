@@ -332,7 +332,10 @@ export function DiscussionThreadView({
               onSendMessage={handleSend}
               isLoading={isSending}
               disabled={isLocked}
-              disabledReason={isLocked ? 'archived' : undefined}
+              disabledReason={isLocked ? 'locked' : undefined}
+              disabledMessage={
+                isLocked ? t('reply.lockedPlaceholder') : undefined
+              }
               organizationId={organizationId}
               threadId={threadId}
               projectId={String(projectId)}

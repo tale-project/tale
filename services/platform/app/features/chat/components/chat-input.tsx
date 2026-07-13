@@ -103,13 +103,18 @@ interface ChatInputProps extends Omit<
    */
   queueModeActive?: boolean;
   disabled?: boolean;
-  disabledReason?: 'no-agents' | 'pending-approval' | 'archived' | 'no-api-key';
+  disabledReason?:
+    | 'no-agents'
+    | 'pending-approval'
+    | 'archived'
+    | 'locked'
+    | 'no-api-key';
   /**
    * Reason text for `disabledReason === 'no-api-key'` — distinguishes the
    * specific-model vs org-wide missing-key wording (`modelSelector.noApiKey`
-   * vs `modelSelector.noProviderKey`, chosen by the caller). The other
-   * `disabledReason`s carry a fixed, non-interpolated string, so they don't
-   * need this.
+   * vs `modelSelector.noProviderKey`, chosen by the caller). Also used for
+   * `disabledReason === 'locked'` so callers can supply domain-specific copy
+   * (e.g. discussions) instead of the chat archived string.
    */
   disabledMessage?: string;
   placeholder?: string;
@@ -1335,11 +1340,13 @@ export function ChatInput({
                 <Text as="div" variant="muted">
                   {disabledReason === 'archived'
                     ? tChat('archivedDisabled')
-                    : disabledReason === 'pending-approval'
-                      ? tChat('pendingApprovalDisabled')
-                      : disabledReason === 'no-api-key'
-                        ? (disabledMessage ?? tChat('modelSelector.noApiKey'))
-                        : tChat('noAgentsAvailable')}
+                    : disabledReason === 'locked'
+                      ? disabledMessage
+                      : disabledReason === 'pending-approval'
+                        ? tChat('pendingApprovalDisabled')
+                        : disabledReason === 'no-api-key'
+                          ? (disabledMessage ?? tChat('modelSelector.noApiKey'))
+                          : tChat('noAgentsAvailable')}
                 </Text>
                 {/* Missing API key is a setup blocker with an actionable fix
                     (unlike no-agents/pending-approval/archived, which are
