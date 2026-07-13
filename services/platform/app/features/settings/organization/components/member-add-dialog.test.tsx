@@ -6,6 +6,8 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { AddMemberDialog } from './member-add-dialog';
 
+const VALID_NEW_USER_PASSWORD = 'ValidPass12!';
+
 const { createMemberMock, userExistsMock } = vi.hoisted(() => ({
   createMemberMock: vi.fn(),
   userExistsMock: vi.fn(() => false),
@@ -70,9 +72,39 @@ describe('AddMemberDialog', () => {
     });
   });
 
+  // Regression test for #2687: password is optional in zod until submit, so
+  // formState.isValid alone must not enable Add member for a new user with an
+  // empty password field.
+  describe('missing password for a new user (#2687)', () => {
+    it('disables submit when name and email are filled but password is empty', async () => {
+      const { user } = render(
+        <AddMemberDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+
+      const displayName = document.querySelector(
+        'input[name="displayName"]',
+      ) as HTMLInputElement;
+      const email = document.querySelector(
+        'input[name="email"]',
+      ) as HTMLInputElement;
+      await user.type(displayName, 'New User');
+      await user.type(email, 'new.user@example.com');
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeDisabled());
+      expect(createMemberMock).not.toHaveBeenCalled();
+    });
+  });
+
   // Regression test for #1470: creating a new user without a password failed
-  // with a generic toast. The backend now returns a PASSWORD_REQUIRED code and
-  // the dialog shows a field-level error on the password input.
+  // with a generic toast. The backend returns PASSWORD_REQUIRED and the dialog
+  // shows a field-level error on the password input (safety net if submit runs).
   describe('missing password for a new user (#1470)', () => {
     it('shows a password field error when the backend requires a password', async () => {
       createMemberMock.mockRejectedValueOnce(
@@ -93,7 +125,11 @@ describe('AddMemberDialog', () => {
       const email = document.querySelector(
         'input[name="email"]',
       ) as HTMLInputElement;
+      const password = document.querySelector(
+        'input[name="password"]',
+      ) as HTMLInputElement;
       await user.type(email, 'new.user@example.com');
+      await user.type(password, VALID_NEW_USER_PASSWORD);
 
       const submit = document.querySelector(
         'button[type="submit"]',
@@ -132,7 +168,11 @@ describe('AddMemberDialog', () => {
       const email = document.querySelector(
         'input[name="email"]',
       ) as HTMLInputElement;
+      const password = document.querySelector(
+        'input[name="password"]',
+      ) as HTMLInputElement;
       await user.type(email, 'existing.member@example.com');
+      await user.type(password, VALID_NEW_USER_PASSWORD);
 
       const submit = document.querySelector(
         'button[type="submit"]',

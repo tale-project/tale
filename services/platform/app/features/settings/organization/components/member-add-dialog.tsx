@@ -214,7 +214,10 @@ export function AddMemberDialog({
         submitText={tDialogs('addMember.title')}
         submittingText={tCommon('actions.adding')}
         isSubmitting={isSubmitting}
-        isValid={formState.isValid}
+        isValid={
+          formState.isValid &&
+          (emailBelongsToExistingUser || password.trim().length > 0)
+        }
         onSubmit={handleSubmit(onSubmit)}
       >
         <Input
