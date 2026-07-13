@@ -518,6 +518,7 @@ export function ExecutionsTable({
         presets: ['today', 'last7Days', 'last30Days', 'allTime'],
       }}
       emptyState={{
+        icon: Workflow,
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
       }}

@@ -23,14 +23,14 @@ export function RulesTableEmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 px-5 py-10 text-center',
+        'flex flex-col items-center justify-center px-5 py-10 text-center',
         className,
       )}
     >
-      {Icon && <Icon className="text-muted-foreground size-8" />}
+      {Icon && <Icon className="text-muted-foreground mb-4 size-8" />}
       <p className="text-foreground text-sm font-medium">{title}</p>
       {description && (
-        <p className="text-muted-foreground text-sm">{description}</p>
+        <p className="text-muted-foreground mt-1 text-sm">{description}</p>
       )}
     </div>
   );

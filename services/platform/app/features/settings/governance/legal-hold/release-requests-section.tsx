@@ -5,7 +5,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Check, X } from 'lucide-react';
+import { Check, Inbox, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -208,6 +208,7 @@ export function ReleaseRequestsSection({
               approxRowCount={pending.data?.length}
               getRowId={(row) => row._id}
               emptyState={{
+                icon: Inbox,
                 title: t('legalHold.sections.releaseRequests.empty.title'),
                 description: t(
                   'legalHold.sections.releaseRequests.empty.description',
@@ -227,6 +228,7 @@ export function ReleaseRequestsSection({
               approxRowCount={approved.data?.length}
               getRowId={(row) => row._id}
               emptyState={{
+                icon: Inbox,
                 title: t('legalHold.sections.releaseRequests.empty.title'),
                 description: t(
                   'legalHold.sections.releaseRequests.empty.description',

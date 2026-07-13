@@ -229,6 +229,7 @@ export function RequestsListSection({
             },
           }}
           emptyState={{
+            icon: FileText,
             title: t('dataSubjectRequests.sections.requestsList.empty.title'),
             description: t(
               'dataSubjectRequests.sections.requestsList.empty.description',

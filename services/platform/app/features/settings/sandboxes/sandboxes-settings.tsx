@@ -2,7 +2,7 @@ import { Badge } from '@tale/ui/badge';
 import { Row, Stack } from '@tale/ui/layout';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
-import { Pin, PinOff, Square, Trash2 } from 'lucide-react';
+import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -270,6 +270,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         approxRowCount={data?.length}
         getRowId={(row) => row.sessionId}
         emptyState={{
+          icon: Box,
           title: t('empty.title'),
           description: t('empty.description'),
         }}

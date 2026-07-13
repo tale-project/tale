@@ -4,6 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -194,6 +195,7 @@ export function ReleaseHistorySection({
           },
         }}
         emptyState={{
+          icon: History,
           title: t('legalHold.sections.history.empty.title'),
           description: t('legalHold.sections.history.empty.description'),
         }}

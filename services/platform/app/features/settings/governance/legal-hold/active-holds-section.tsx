@@ -212,6 +212,7 @@ export function ActiveHoldsSection({
           approxRowCount={rows?.length}
           getRowId={(row) => row._id}
           emptyState={{
+            icon: Lock,
             title: t('legalHold.sections.activeHolds.empty.title'),
             description: t('legalHold.sections.activeHolds.empty.description'),
           }}
