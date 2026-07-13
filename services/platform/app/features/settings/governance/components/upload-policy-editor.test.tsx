@@ -83,6 +83,18 @@ describe('UploadPolicyEditor', () => {
       render(<UploadPolicyEditor organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+
+    it('spans the full settings section so Discard/Save share the Edit edge', () => {
+      // Regression: max-w-2xl left the form + action cluster narrower than
+      // Retention's Edit on the same Policies & limits page.
+      setLoaded();
+      const { container } = render(
+        <UploadPolicyEditor organizationId="org-1" />,
+      );
+      const form = container.querySelector('form');
+      expect(form).not.toBeNull();
+      expect(form?.querySelector('.max-w-2xl')).toBeNull();
+    });
   });
 
   describe('loading state (skeletonized)', () => {

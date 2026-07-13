@@ -184,7 +184,10 @@ export function PasswordPolicyEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            <Stack gap={6} className="max-w-2xl">
+            {/* Full section width (not max-w-2xl): Discard/Save share the
+                section right edge with sibling Security & Monitoring actions.
+                Short numeric fields stay max-w-xs so they don't stretch. */}
+            <Stack gap={6}>
               <Stack gap={4}>
                 <div>
                   <Input
@@ -193,6 +196,7 @@ export function PasswordPolicyEditor({
                     min={6}
                     max={128}
                     step={1}
+                    wrapperClassName="max-w-xs"
                     errorMessage={errors.minLength?.message}
                     {...register('minLength', { valueAsNumber: true })}
                   />
@@ -248,6 +252,7 @@ export function PasswordPolicyEditor({
                       min={1}
                       max={3650}
                       step={1}
+                      wrapperClassName="max-w-xs"
                       errorMessage={errors.rotationDays?.message}
                       {...register('rotationDays', { valueAsNumber: true })}
                     />

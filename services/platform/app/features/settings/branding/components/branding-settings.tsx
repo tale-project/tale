@@ -56,7 +56,7 @@ function BrandingSettingsView({
   }, []);
 
   return (
-    <SettingsPage fitToContainer>
+    <SettingsPage fitToContainer fullWidth>
       <SettingsSection
         title={tNav('branding')}
         description={tSettings('menu.branding.description')}
@@ -64,7 +64,9 @@ function BrandingSettingsView({
       >
         {/* `justify-center` centers the fixed-width form on small screens where
             the preview is hidden; it's inert on lg where the flex-1 preview fills
-            the row. */}
+            the row. `fullWidth` above drops the default max-w-3xl cap — otherwise
+            form (max-w-sm) + preview share ~768px and the mock dashboard
+            squashes into a ~300px strip. */}
         <Row gap={6} align="stretch" justify="center" className="flex-1">
           <BrandingForm
             organizationId={organizationId}

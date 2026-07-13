@@ -127,7 +127,10 @@ export function SystemPromptEditor({
       >
         <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset disabled={editor.isLoading} className="contents">
-            <Stack gap={6} className="max-w-2xl">
+            {/* Full section width (not max-w-2xl): sits above Default Models
+                on Content & models, so the textareas and the Discard/Save
+                cluster must share the same right edge as "+ Add rule". */}
+            <Stack gap={6}>
               <FormSection
                 label={t('systemPrompt.prefixLabel')}
                 description={t('systemPrompt.prefixDescription')}

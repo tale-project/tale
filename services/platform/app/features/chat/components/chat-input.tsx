@@ -1284,7 +1284,15 @@ export function ChatInput({
               onCompositionEnd={() => {
                 isComposingRef.current = false;
               }}
-              className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
+              className={cn(
+                'text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]',
+                // The disabled-reason overlay is `absolute top-0` over this
+                // textarea. A conversation-starter click (or a restored draft)
+                // can still leave glyphs in `value` while `disabled` — without
+                // this, those glyphs stack under the "No API key…" copy and
+                // read as a garbled double-print.
+                disabled && 'text-transparent caret-transparent',
+              )}
               disabled={inputDisabled}
               placeholder=""
               aria-labelledby={textareaLabelId}
