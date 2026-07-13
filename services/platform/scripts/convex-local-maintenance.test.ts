@@ -184,6 +184,9 @@ describe('applyConvexLocalMaintenance', () => {
     expect(result.integrityError).toContain('module storage is incomplete');
     expect(result.integrityError).toContain('live');
     expect(formatModuleIntegrityError(['live'])).toContain('setup:clean');
+    // The advice must preserve data — point at export/import, not a bare wipe.
+    expect(formatModuleIntegrityError(['live'])).toContain('convex export');
+    expect(formatModuleIntegrityError(['live'])).toContain('convex import');
   });
 
   it('sets integrityError after prune if a live blob disappeared', () => {
