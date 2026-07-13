@@ -46,6 +46,19 @@ interface DefinitionStep {
   /** The step's own inline i18n (`workflowStepI18nSchema`) — resolved via
    * `resolveWorkflowStepText`; when present it wins over `ui.labelKey`. */
   i18n?: WorkflowStepI18n;
+  /** Literal document-action `parameters.title` (no template) when authored. */
+  promisedTitle?: string;
+}
+
+/** Prefer a concrete file name for Outcome slots; skip templated titles. */
+function parsePromisedTitle(rawConfig: unknown): string | undefined {
+  if (!isRecord(rawConfig) || rawConfig.type !== 'document') return undefined;
+  if (!isRecord(rawConfig.parameters)) return undefined;
+  const title = rawConfig.parameters.title;
+  if (typeof title !== 'string') return undefined;
+  const trimmed = title.trim();
+  if (trimmed === '' || trimmed.includes('{{')) return undefined;
+  return trimmed;
 }
 
 function parseParams(
@@ -115,6 +128,8 @@ function parseDefinitionSteps(config: unknown): DefinitionStep[] {
     if (typeof raw.role === 'string') step.role = raw.role;
     const i18n = parseStepI18n(raw.i18n);
     if (i18n !== undefined) step.i18n = i18n;
+    const promisedTitle = parsePromisedTitle(raw.config);
+    if (promisedTitle !== undefined) step.promisedTitle = promisedTitle;
     out.push(step);
   }
   return out;
@@ -259,6 +274,9 @@ function projectStep(
   }
   if (step.ui?.params !== undefined) projection.params = step.ui.params;
   if (step.role !== undefined) projection.role = step.role;
+  if (step.promisedTitle !== undefined) {
+    projection.promisedTitle = step.promisedTitle;
+  }
   if (node !== undefined) projection.node = node;
   if (opts.liveParts !== undefined && opts.liveParts.length > 0) {
     projection.liveParts = opts.liveParts;

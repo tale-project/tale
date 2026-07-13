@@ -61,7 +61,12 @@ interface AutomationAgentRow {
 }
 
 export const getAutomationAgentReadiness = action({
-  args: { organizationId: v.string(), automationSlug: v.string() },
+  args: {
+    organizationId: v.string(),
+    automationSlug: v.string(),
+    /** UI locale for resolving pack-agent `i18n` display names. */
+    locale: v.optional(v.string()),
+  },
   returns: v.any(),
   handler: async (ctx, args): Promise<unknown> => {
     await requireOrgMembershipById(ctx, args.organizationId);
@@ -72,6 +77,7 @@ export const getAutomationAgentReadiness = action({
       {
         organizationId: args.organizationId,
         automationSlug: args.automationSlug,
+        ...(args.locale !== undefined && { locale: args.locale }),
       },
     )) as AutomationAgentRow[];
     // Skip malformed-config rows (they carry `status`/`message`, not agent fields).

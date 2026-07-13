@@ -169,15 +169,112 @@ describe('OutcomeStrip', () => {
     expect(screen.queryAllByText('Done')).toHaveLength(0);
   });
 
-  it('keeps an Outcome placeholder while the run is in flight and files are not ready', () => {
+  it('promises a muted slot per upcoming outcome step while the run is in flight', () => {
     render(
       <OutcomeStrip
         projection={projection({
           status: 'running',
           steps: [
             {
-              stepSlug: 'publish_return',
-              name: 'File return.xml',
+              stepSlug: 'publish_a',
+              name: 'File artifact A into the folder',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'upcoming',
+              params: { surface: 'outcome' },
+              promisedTitle: 'a.xml',
+            },
+            {
+              stepSlug: 'publish_b',
+              name: 'File artifact B overview',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'upcoming',
+              params: { surface: 'outcome' },
+              promisedTitle: 'b.md',
+            },
+            {
+              stepSlug: 'publish_c',
+              name: 'File artifact C',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'upcoming',
+              params: { surface: 'outcome' },
+              promisedTitle: 'c.csv',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Outcome')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Working — results will appear here.'),
+    ).toBeNull();
+    expect(screen.getByText('a.xml')).toBeInTheDocument();
+    expect(screen.getByText('b.md')).toBeInTheDocument();
+    expect(screen.getByText('c.csv')).toBeInTheDocument();
+    expect(screen.getByText('Not ready yet.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('promises outcome slots when publish steps were skipped after the run parked for input', () => {
+    // A completed run can leave earlier outcome steps `skipped` (routed around)
+    // while the desk still waits on operator input for a follow-up pass.
+    render(
+      <OutcomeStrip
+        projection={projection({
+          status: 'completed',
+          steps: [
+            {
+              stepSlug: 'publish_a',
+              name: 'File artifact A into the folder',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'skipped',
+              params: { surface: 'outcome' },
+              promisedTitle: 'a.xml',
+            },
+            {
+              stepSlug: 'publish_b',
+              name: 'File artifact B overview',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'skipped',
+              params: { surface: 'outcome' },
+              promisedTitle: 'b.md',
+            },
+            {
+              stepSlug: 'publish_c',
+              name: 'File artifact C',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'skipped',
+              params: { surface: 'outcome' },
+              promisedTitle: 'c.csv',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(
+      screen.queryByText(
+        'No results yet — they will appear here once a run produces them.',
+      ),
+    ).toBeNull();
+    expect(screen.getByText('a.xml')).toBeInTheDocument();
+    expect(screen.getByText('b.md')).toBeInTheDocument();
+    expect(screen.getByText('c.csv')).toBeInTheDocument();
+  });
+
+  it('falls back to the step name when no promisedTitle was authored', () => {
+    render(
+      <OutcomeStrip
+        projection={projection({
+          status: 'running',
+          steps: [
+            {
+              stepSlug: 'publish_summary',
+              name: 'Publish the summary artifact',
               stepType: 'action',
               render: 'artifact',
               partState: 'upcoming',
@@ -187,10 +284,46 @@ describe('OutcomeStrip', () => {
         })}
       />,
     );
-    expect(screen.getByText('Outcome')).toBeInTheDocument();
     expect(
-      screen.getByText('Working — results will appear here.'),
+      screen.getByText('Publish the summary artifact'),
     ).toBeInTheDocument();
+  });
+
+  it('keeps ready artifacts next to still-pending outcome slots', () => {
+    render(
+      <OutcomeStrip
+        projection={projection({
+          status: 'running',
+          steps: [
+            {
+              stepSlug: 'publish_a',
+              name: 'File artifact A into the folder',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'output_available',
+              params: { surface: 'outcome' },
+              output: {
+                title: 'a.xml',
+                documentId: 'd1',
+                fileId: 'f1',
+                action: 'created',
+              },
+            },
+            {
+              stepSlug: 'publish_b',
+              name: 'File artifact B overview',
+              stepType: 'action',
+              render: 'artifact',
+              partState: 'upcoming',
+              params: { surface: 'outcome' },
+              promisedTitle: 'b.md',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'a.xml' })).toBeInTheDocument();
+    expect(screen.getByText('b.md')).toBeInTheDocument();
   });
 
   it('keeps the Outcome lane as an empty-state placeholder when a settled run produced no files', () => {
@@ -214,6 +347,8 @@ describe('OutcomeStrip', () => {
     // A settled run with an outcome-annotated step but no files/errors renders
     // the Outcome section as a stable placeholder rather than vanishing.
     expect(screen.getByText('Outcome')).toBeInTheDocument();
+    expect(screen.queryByText('File return.xml')).toBeNull();
+    expect(screen.queryByText('Not ready yet.')).toBeNull();
     expect(
       screen.getByText(
         'No results yet — they will appear here once a run produces them.',

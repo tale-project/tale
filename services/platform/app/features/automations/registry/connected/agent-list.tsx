@@ -13,6 +13,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
@@ -95,6 +96,7 @@ function AuthModeToggle({
 
 export function AgentList({ title, agents, roles }: AgentListProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const { automationSlug } = useAutomationRuntime();
   const list = useBoundAction(
     'agents/file_actions:listAutomationAgents',
@@ -167,6 +169,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
         const result = await listRef.current.dispatch({
           organizationId: '$orgId',
           automationSlug,
+          locale,
         });
         const all = Array.isArray(result) ? result.filter(isRecord) : [];
         // The action already scopes to this automation's agents; `agents` is only an
@@ -191,7 +194,7 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
     return () => {
       cancelled = true;
     };
-  }, [agents, automationSlug]);
+  }, [agents, automationSlug, locale]);
 
   const roleOf = (slug: string): string | undefined => {
     if (!roles) return undefined;

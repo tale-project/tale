@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
@@ -99,10 +100,15 @@ export function useAutomationAgentReadiness(
   isLoading: boolean;
   refetch: () => void;
 } {
+  const { locale } = useLocale();
   const q = useActionQuery(
-    ['automations', 'agent-readiness', organizationId, automationSlug],
+    ['automations', 'agent-readiness', organizationId, automationSlug, locale],
     api.automations.agent_readiness.getAutomationAgentReadiness,
-    { organizationId, automationSlug: automationSlug },
+    {
+      organizationId,
+      automationSlug: automationSlug,
+      locale,
+    },
     { enabled: enabled && organizationId !== '' && automationSlug !== '' },
   );
 

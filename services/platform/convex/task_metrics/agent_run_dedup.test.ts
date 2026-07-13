@@ -149,18 +149,18 @@ describe('startTaskAgentRun dedup (park-reentry counter-leak fix)', () => {
       projectId,
       wfExecutionId,
       stepSlug: 'extract_invoices',
-      agentSlug: 'vat-return-desk/invoice-extract',
+      agentSlug: 'vat-return-desk/invoice-reader',
     });
     // A counter the first entry already bumped — the re-acquire must NOT bump it.
     await seedCounter(t, 'org', 1);
-    await seedCounter(t, 'agent:vat-return-desk/invoice-extract', 1);
+    await seedCounter(t, 'agent:vat-return-desk/invoice-reader', 1);
 
     const res = await t.mutation(
       internal.task_metrics.internal_mutations.startTaskAgentRun,
       {
         organizationId: ORG,
         taskId,
-        agentSlug: 'vat-return-desk/invoice-extract',
+        agentSlug: 'vat-return-desk/invoice-reader',
         trigger: 'manual',
         wfExecutionId,
         stepSlug: 'extract_invoices',
@@ -172,7 +172,7 @@ describe('startTaskAgentRun dedup (park-reentry counter-leak fix)', () => {
     expect(res.runId).toBe(existing); // same row, not a duplicate
     expect(await runsFor(t, wfExecutionId)).toHaveLength(1);
     expect(await counter(t, 'org')).toBe(1); // unchanged
-    expect(await counter(t, 'agent:vat-return-desk/invoice-extract')).toBe(1);
+    expect(await counter(t, 'agent:vat-return-desk/invoice-reader')).toBe(1);
   });
 
   it('does NOT dedup a different step of the same execution (distinct logical run)', async () => {
