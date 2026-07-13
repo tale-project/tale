@@ -86,13 +86,16 @@ describe('diffTrees', () => {
 });
 
 describe('expectedTargetTree', () => {
-  test('drops test + secrets files, keeps shipped files (incl. binary)', () => {
+  test('drops test + secrets + build-artifact files, keeps shipped files (incl. binary)', () => {
     const source = tree({
       'SKILL.md': 'x',
       'scripts/a.ts': 'y',
       'scripts/a.test.ts': 'z',
       'scripts/b.spec.ts': 'z',
       'provider.secrets.json': 's',
+      // A projected Bun-workspace skill drops this next to its sources on
+      // every typecheck — shipping it would drift the sync check forever.
+      'tsconfig.tsbuildinfo': 'volatile',
       'assets/logo.png': 'binary-bytes',
     });
     expect([...expectedTargetTree(source).keys()].sort()).toEqual([

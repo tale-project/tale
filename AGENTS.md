@@ -62,36 +62,38 @@ Safety and architecture invariants — they hold even where no linter covers the
 ## Skills and guides index
 
 Adding, renaming, or removing a skill updates this table and runs `bun run skills:sync`; the authoring
-standard is [`author-skill`](.agents/skills/author-skill/SKILL.md). **Two homes:** workflow skills are
-generic and portable — their source of truth is [`builtin-configs/skills/<name>/`](builtin-configs/skills/)
-(shipped to product org agents), projected via the `WORKFLOW_SKILLS` allowlist in
-[`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into [`.agents/skills/`](.agents/skills/); authoring
+standard is [`author-skill`](.agents/skills/author-skill/SKILL.md). **Two homes:** product skills' source
+of truth is [`builtin-configs/skills/<name>/`](builtin-configs/skills/) (shipped to product org agents),
+and every one of them except the document skills `docx`/`pdf`/`pptx`/`xlsx` is projected via the
+`PROJECTED_SKILLS` allowlist in [`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into
+[`.agents/skills/`](.agents/skills/) — the workflow guides, the org-entity `write-*` skills,
+`web-research`, and the image-baked `visual-aspect-analyzer` (the repo-dev visual gate). Authoring
 skills are Tale-specific and live only under `.agents/skills/`. Both mirror into a generated
-`.claude/skills/` — **never hand-edit a generated copy** (`bun run skills:check` fails on drift). Document
-skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are product-only, not projected.
+`.claude/skills/` — **never hand-edit a generated copy** (`bun run skills:check` fails on drift).
 
-| Skill                                                              | Read before…                                                                                                      |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| [`write-notes`](.agents/skills/write-notes/SKILL.md)               | starting work under any other skill — answer its note form and write the note first                               |
-| [`search-codebase`](.agents/skills/search-codebase/SKILL.md)       | touching code anywhere — orient in the repo, find the concept to reuse, sweep every affected site                 |
-| [`deep-research`](.agents/skills/deep-research/SKILL.md)           | deciding on facts you don't have — a new domain, dependency, API, or load-bearing claim                           |
-| [`delegate-work`](.agents/skills/delegate-work/SKILL.md)           | splitting a big task across subagents — disjoint units, complete briefs, you own the merge                        |
-| [`browse-web`](.agents/skills/browse-web/SKILL.md)                 | driving a real browser — verify a web UI, reproduce a web bug, research a JS-heavy page                           |
-| [`implement-feature`](.agents/skills/implement-feature/SKILL.md)   | adding new behaviour — a feature, screen, endpoint, flag, or capability                                           |
-| [`make-improvement`](.agents/skills/make-improvement/SKILL.md)     | refactoring, optimizing, or deduplicating — changing structure, not behaviour                                     |
-| [`implement-ui`](.agents/skills/implement-ui/SKILL.md)             | writing or editing any UI — a component, screen, page, or route (app, web, docs)                                  |
-| [`design-ui`](.agents/skills/design-ui/SKILL.md)                   | any visual/UI work, or reading the design files — app vs web, colours + tokens                                    |
-| [`fix-bug`](.agents/skills/fix-bug/SKILL.md)                       | chasing a bug to its root cause and locking it with a regression test                                             |
-| [`review-code`](.agents/skills/review-code/SKILL.md)               | reviewing a working diff — yours or a colleague's — before it merges                                              |
-| [`review-pr`](.agents/skills/review-pr/SKILL.md)                   | reviewing a GitHub pull request end-to-end                                                                        |
-| [`create-pr`](.agents/skills/create-pr/SKILL.md)                   | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                                        |
-| [`create-issue`](.agents/skills/create-issue/SKILL.md)             | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels                        |
-| [`test-code`](.agents/skills/test-code/SKILL.md)                   | writing tests, or proving behaviour by observing the real outcome                                                 |
-| [`validate-configs`](.agents/skills/validate-configs/SKILL.md)     | editing builtin-configs/ or fixture config JSON, a config-domain schema, or a red config gate                     |
-| [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)   | adding/changing/testing a versioned data migration, or a red migrations:check / corpus gate                       |
-| [`author-skill`](.agents/skills/author-skill/SKILL.md)             | adding, editing, or moving a skill                                                                                |
-| [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing any end-user docs page — journey-first, with the repo facts in [`docs/AGENTS.md`](docs/AGENTS.md) |
-| [`write-translations`](.agents/skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                                              |
+| Skill                                                                      | Read before…                                                                                                      |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [`write-notes`](.agents/skills/write-notes/SKILL.md)                       | starting work under any other skill — answer its note form and write the note first                               |
+| [`search-codebase`](.agents/skills/search-codebase/SKILL.md)               | touching code anywhere — orient in the repo, find the concept to reuse, sweep every affected site                 |
+| [`deep-research`](.agents/skills/deep-research/SKILL.md)                   | deciding on facts you don't have — a new domain, dependency, API, or load-bearing claim                           |
+| [`delegate-work`](.agents/skills/delegate-work/SKILL.md)                   | splitting a big task across subagents — disjoint units, complete briefs, you own the merge                        |
+| [`browse-web`](.agents/skills/browse-web/SKILL.md)                         | driving a real browser — verify a web UI, reproduce a web bug, research a JS-heavy page                           |
+| [`implement-feature`](.agents/skills/implement-feature/SKILL.md)           | adding new behaviour — a feature, screen, endpoint, flag, or capability                                           |
+| [`make-improvement`](.agents/skills/make-improvement/SKILL.md)             | refactoring, optimizing, or deduplicating — changing structure, not behaviour                                     |
+| [`implement-ui`](.agents/skills/implement-ui/SKILL.md)                     | writing or editing any UI — a component, screen, page, or route (app, web, docs)                                  |
+| [`design-ui`](.agents/skills/design-ui/SKILL.md)                           | any visual/UI work, or reading the design files — app vs web, colours + tokens                                    |
+| [`fix-bug`](.agents/skills/fix-bug/SKILL.md)                               | chasing a bug to its root cause and locking it with a regression test                                             |
+| [`review-code`](.agents/skills/review-code/SKILL.md)                       | reviewing a working diff — yours or a colleague's — before it merges                                              |
+| [`review-pr`](.agents/skills/review-pr/SKILL.md)                           | reviewing a GitHub pull request end-to-end                                                                        |
+| [`create-pr`](.agents/skills/create-pr/SKILL.md)                           | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                                        |
+| [`create-issue`](.agents/skills/create-issue/SKILL.md)                     | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels                        |
+| [`test-code`](.agents/skills/test-code/SKILL.md)                           | writing tests, or proving behaviour by observing the real outcome                                                 |
+| [`visual-aspect-analyzer`](.agents/skills/visual-aspect-analyzer/SKILL.md) | the final visual-regression gate on a finished UI change — run it once, done at `score: 100`                      |
+| [`validate-configs`](.agents/skills/validate-configs/SKILL.md)             | editing builtin-configs/ or fixture config JSON, a config-domain schema, or a red config gate                     |
+| [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)           | adding/changing/testing a versioned data migration, or a red migrations:check / corpus gate                       |
+| [`author-skill`](.agents/skills/author-skill/SKILL.md)                     | adding, editing, or moving a skill                                                                                |
+| [`write-docs`](.agents/skills/write-docs/SKILL.md)                         | writing/editing any end-user docs page — journey-first, with the repo facts in [`docs/AGENTS.md`](docs/AGENTS.md) |
+| [`write-translations`](.agents/skills/write-translations/SKILL.md)         | editing any non-English locale file or doc, or touching the glossary                                              |
 
 Built-in harness skills cover the rest — `react-doctor` (React smells), `code-review` / `security-review`
 (automated diff review), `claude-api`, `update-config`. Use them; don't reimplement them.

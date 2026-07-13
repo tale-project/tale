@@ -1,6 +1,6 @@
 ---
 name: author-skill
-description: Use this skill whenever you author, edit, rewrite, split, merge, or move a skill — a Tale-specific repo-dev guide under .agents/skills/, a generic workflow skill whose source of truth is builtin-configs/skills/ and is projected into .agents/skills/, or a product-only skill under builtin-configs/skills/. It covers the description-as-invocation rule, the canonical SKILL.md skeleton, progressive disclosure, the five failure modes to prune against, leading words, which home a skill belongs in, and the AGENTS.md index + WORKFLOW_SKILLS allowlist + sync every skill ships with. Load it before touching any SKILL.md, and never hand-edit a generated .claude/skills mirror or a projected .agents/skills copy.
+description: Use this skill whenever you author, edit, rewrite, split, merge, or move a skill — a Tale-specific repo-dev guide under .agents/skills/, a generic workflow skill whose source of truth is builtin-configs/skills/ and is projected into .agents/skills/, or a product-only skill under builtin-configs/skills/. It covers the description-as-invocation rule, the canonical SKILL.md skeleton, progressive disclosure, the five failure modes to prune against, leading words, which home a skill belongs in, and the AGENTS.md index + PROJECTED_SKILLS allowlist + sync every skill ships with. Load it before touching any SKILL.md, and never hand-edit a generated .claude/skills mirror or a projected .agents/skills copy.
 ---
 
 # author-skill
@@ -108,17 +108,21 @@ Decide who runs the skill, then pick its source of truth — three cases:
   paths and link siblings by file. `author-skill` and `write-translations` live here.
 - **Generic workflow skill** (a senior-dev workflow that ALSO ships to product org agents) → source of
   truth under [`builtin-configs/skills/<name>/`](../../../builtin-configs/skills/), with its name in the
-  `WORKFLOW_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts).
+  `PROJECTED_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts).
   `skills:sync` **projects** it into `.agents/skills/<name>/` and on to `.claude/skills/`. Because it
   ships to agents working on _any_ codebase, it must be **generic and portable** — no repo paths, no
   Tale rule names; cross-reference siblings by slug in prose, never by file link. `implement-feature`,
   `fix-bug`, … live here.
-- **Product-only / integrated skill** → `builtin-configs/skills/<name>/` (document skills like `pptx`
-  and the org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/`write-integration`/
-  `write-automation` — embedded in the CLI binary, seeded per-org) or, when it is a self-contained Bun
-  **workspace**, the root [`skills/`](../../../skills/) dir (baked into the sandbox image). Not
-  projected into the guides. (The product `write-skill` teaches ORG agents to author org skills; this
-  repo-dev standard is `author-skill` — two different audiences, two skills.)
+- **Product skill** → `builtin-configs/skills/<name>/` (the document skills `docx`/`pdf`/`pptx`/
+  `xlsx`, the org-entity authoring skills `write-agent`/`write-workflow`/`write-skill`/
+  `write-integration`/`write-automation`, `web-research`, and the Bun-workspace
+  `visual-aspect-analyzer` — all embedded in the CLI binary and seeded per-org identically).
+  Everything here except the document skills is also in `PROJECTED_SKILLS`, so repo-dev agents
+  get it too. `visual-aspect-analyzer` is additionally baked into the sandbox image
+  ([`services/sandbox-runtime/Dockerfile`](../../../services/sandbox-runtime/Dockerfile)) with its
+  deps installed — that baked copy wins in sandbox sessions. (The product `write-skill` teaches
+  ORG agents to author org skills; this repo-dev standard is `author-skill` — two different
+  audiences, two skills.)
 
 **Never hand-edit a generated copy.** `.claude/skills/<name>/` is a mirror; `.agents/skills/<workflow>/`
 is a projection of its `builtin-configs/skills/` source — edit the source, then `bun run skills:sync`.
@@ -131,9 +135,9 @@ imports — `skills:check` enforces it).
 
 Adding a skill means **adding its row to the skill index in [`/AGENTS.md`](../../../AGENTS.md)**;
 removing one removes that row; renaming updates it. The index is the map every agent reads — if it
-lies, agents load the wrong thing. A **generic workflow skill** also needs its name in the
-`WORKFLOW_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts) so it
-projects into the guides. Then run `bun run skills:sync` (the
+lies, agents load the wrong thing. Every **builtin-configs skill** that is not a document skill
+also needs its name in the `PROJECTED_SKILLS` allowlist in
+[`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts) so it projects into the guides. Then run `bun run skills:sync` (the
 [`@tale/skills`](../../../tools/skills/) tool) to regenerate every projection and the `.claude/skills/`
 mirror. Same change, every time.
 
@@ -142,6 +146,6 @@ mirror. Same change, every time.
 - [ ] **Frontmatter is `name` (== directory, dash-case) + `description` only** — nothing else.
 - [ ] **The description commands the agent into the skill** — directive opener (`Use this skill whenever …`), exhaustive triggers, an enforcement / boundary clause, first sentence standing alone.
 - [ ] **Pruned against the five failure modes** — no no-ops, no duplication, every cited path verified on this branch, ≤ ~150 lines, and any done-gate written as a true `- [ ]` checklist.
-- [ ] **Registered** — its row is in the [`/AGENTS.md`](../../../AGENTS.md) index (and, for a workflow skill, its name is in `WORKFLOW_SKILLS`).
+- [ ] **Registered** — its row is in the [`/AGENTS.md`](../../../AGENTS.md) index (and, for any builtin-configs skill that is not a document skill, its name is in `PROJECTED_SKILLS`).
 - [ ] **`bun run skills:sync` run**, and the regenerated `.claude/skills/` mirror (+ any projection) committed.
 - [ ] **`bun run skills:check` passes** — no drift, every shipped `SKILL.md` script ref resolves, bun scripts self-contained.

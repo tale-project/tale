@@ -18,11 +18,11 @@ bun run gen            # interactive: pick a generator, then a variant
 bun run gen:package    # packages/<name> — kind: react | typescript
 bun run gen:service    # services/<name> — kind: react | docker
 bun run gen:tool       # tools/<name>    — kind: typescript | shell
-bun run gen:skill      # skills/<name>   — kind: typescript | python
+bun run gen:skill      # .agents/skills/<name> or builtin-configs/skills/<name> — docs (SKILL.md + README)
 ```
 
-Each generator prompts for a **kind** and scaffolds from the matching
-`templates/<category>/<kind>/` directory.
+Each generator prompts for a **kind** (the skill generator for a **category**)
+and scaffolds from the matching `templates/<category>/<kind>/` directory.
 
 ## Layout
 

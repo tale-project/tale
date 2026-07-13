@@ -214,8 +214,8 @@ describe('parseSkillMd — YAML security', () => {
 
 /**
  * Guard: every shipped `SKILL.md` — the product catalog under
- * `builtin-configs/skills/` and `skills/`, plus the generated repo-dev
- * mirrors (`.agents/skills/`, `.claude/skills/`) — must parse with the same
+ * `builtin-configs/skills/`, plus the generated repo-dev mirrors
+ * (`.agents/skills/`, `.claude/skills/`) — must parse with the same
  * strict parser the runtime uses. An unquoted `: ` (or any other invalid
  * YAML) in a description previously shipped undetected because `skills:sync`
  * copies files verbatim and never runs `parseSkillMd`; this locks that gap.
@@ -223,12 +223,7 @@ describe('parseSkillMd — YAML security', () => {
 describe('parseSkillMd — shipped SKILL.md frontmatter', () => {
   // repo root: .../services/platform/lib/shared/schemas → up 5 levels.
   const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
-  const roots = [
-    'builtin-configs/skills',
-    'skills',
-    '.agents/skills',
-    '.claude/skills',
-  ];
+  const roots = ['builtin-configs/skills', '.agents/skills', '.claude/skills'];
 
   function shippedSkillMds(): { rel: string; content: string }[] {
     const out: { rel: string; content: string }[] = [];

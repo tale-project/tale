@@ -6,7 +6,7 @@
     "packages/*",
     "services/*",
     "services/sandbox-runtime/daemon",
-    "skills/*",
+    "builtin-configs/skills/*",
     "tools/*"
   ],
   "scripts": {

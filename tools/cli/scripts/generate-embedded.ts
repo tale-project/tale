@@ -19,11 +19,14 @@ const REFERENCE_DIRS: [string, string][] = [
   ['builtin-configs', 'builtin-configs'],
 ];
 
-const SKIP_DIRS = new Set(['.history', '_generated', 'node_modules']);
+const SKIP_DIRS = new Set(['.history', '_generated', 'node_modules', '.turbo']);
 const SKIP_EXTENSIONS = [
   '.test.ts',
   '.test.js',
   '.spec.ts',
+  // Local build artifacts (a Bun workspace lives under builtin-configs/ —
+  // embedding these would bloat the binary and make it non-deterministic).
+  '.tsbuildinfo',
   // Provider secrets — the committed examples are SOPS blobs bound to a
   // single recipient and undecryptable to any other contributor; bundling
   // them adds bloat without value, and shipping plaintext credentials in

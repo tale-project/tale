@@ -126,8 +126,8 @@ describe('runSync — mirror', () => {
   });
 });
 
-describe('runSync — workflow-skill projection', () => {
-  /** A workflow skill at its `builtin-configs/skills` source of truth. */
+describe('runSync — skill projection', () => {
+  /** A projected skill at its `builtin-configs/skills` source of truth. */
   function scaffoldWorkflow(): void {
     writeUnder(
       'builtin-configs/skills/fix-bug/SKILL.md',
@@ -138,7 +138,7 @@ describe('runSync — workflow-skill projection', () => {
   /** Repo-relative path of a file in the projected `.agents/skills` copy. */
   const projected = (rel: string): string => join(root, '.agents/skills', rel);
 
-  test('sync projects a workflow skill builtin-configs -> .agents/skills -> .claude/skills', async () => {
+  test('sync projects a listed skill builtin-configs -> .agents/skills -> .claude/skills', async () => {
     scaffoldWorkflow();
     expect((await run(false)).code).toBe(0);
     expect(existsSync(projected('fix-bug/SKILL.md'))).toBe(true);
@@ -166,7 +166,7 @@ describe('runSync — workflow-skill projection', () => {
     );
     const checked = await run(true);
     expect(checked.code).toBe(1);
-    expect(checked.out).toContain('workflow-skill projection is out of date');
+    expect(checked.out).toContain('skill projection is out of date');
     expect(checked.out).toContain(
       'builtin-configs/skills/<name>/ is the source of truth',
     );
@@ -185,13 +185,16 @@ describe('runSync — workflow-skill projection', () => {
   });
 });
 
-describe('runSync — portability guards over shipped roots', () => {
+describe('runSync — portability guards over the shipped root', () => {
   test('a bare import in a shipped skill fails the check', async () => {
     writeUnder(
-      'skills/demo/SKILL.md',
+      'builtin-configs/skills/demo/SKILL.md',
       '---\nname: demo\ndescription: x\n---\n\n# Demo\n',
     );
-    writeUnder('skills/demo/scripts/bad.ts', `import { z } from 'zod';\n`);
+    writeUnder(
+      'builtin-configs/skills/demo/scripts/bad.ts',
+      `import { z } from 'zod';\n`,
+    );
     const checked = await run(true);
     expect(checked.code).toBe(1);
     expect(checked.out).toContain('"zod"');

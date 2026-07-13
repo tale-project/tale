@@ -227,9 +227,9 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 # Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
 # tool) into the image so the thin pointer SKILL.md staged per turn (see convex
 # node_only/sandbox/integration_skills.ts) runs it with zero setup. Copied
-# straight from its skills/ source workspace — the dockerignore already drops
-# its tests, node_modules and tsbuildinfo, and a `*.md` negation keeps its
-# guides + examples.
+# straight from its builtin-configs/skills/ source workspace — the dockerignore
+# keeps node_modules out (deps install fresh below); guides, src, and tests all
+# ship, so `bun run e2e` works in the sandbox.
 #
 # It does NOT install a second Playwright/Chromium: only its own pngjs runtime
 # dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
@@ -238,7 +238,7 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 # version the skill targets). require.resolve locates them so the link survives
 # npm hoisting, and reusing that install means the skill reuses the MCP's
 # already-downloaded Chromium revision (no second ~150 MB browser).
-COPY skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
+COPY builtin-configs/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
 RUN cd /opt/agents/skills/visual-aspect-analyzer \
     && bun install --production \
     && MCP=/opt/agents/lib/node_modules/@playwright/mcp \

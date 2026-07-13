@@ -41,13 +41,21 @@ function isSkillReadOk(value: unknown): value is SkillReadOk {
   return isRecord(value) && value.ok === true && typeof value.body === 'string';
 }
 
-/** Slugs in skillBindings that are custom (not workflow auto-staged). */
+/**
+ * Slugs in skillBindings that are custom (not workflow auto-staged). Baked
+ * builtin names are excluded like the prune side below: the image-baked copy
+ * (deps installed) already owns `${skillsStageDir}/<name>`, and staging a
+ * same-named org skill over it would clobber the only runnable copy.
+ */
 export function customBoundSlugs(
   skillBindings: readonly string[] | undefined,
 ): string[] {
   if (!skillBindings?.length) return [];
   return skillBindings.filter(
-    (s) => validateSkillSlug(s) && !WORKFLOW_SET.has(s),
+    (s) =>
+      validateSkillSlug(s) &&
+      !WORKFLOW_SET.has(s) &&
+      !BAKED_BUILTIN_SKILL_NAMES.has(s),
   );
 }
 
