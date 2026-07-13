@@ -59,6 +59,11 @@ export interface ConfirmDialogProps {
   requireConfirmPhrase?: string;
   /** Optional label shown above the type-to-confirm input. */
   requireConfirmPhraseLabel?: string;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -81,6 +86,7 @@ export function ConfirmDialog({
   className,
   requireConfirmPhrase,
   requireConfirmPhraseLabel,
+  restoreFocusRef,
 }: ConfirmDialogProps) {
   const { t: tCommon } = useT('common');
   const [phraseInput, setPhraseInput] = React.useState('');
@@ -139,6 +145,7 @@ export function ConfirmDialog({
       description={description}
       footer={footer}
       className={className}
+      restoreFocusRef={restoreFocusRef}
     >
       {children}
       {requireConfirmPhrase !== undefined && (
