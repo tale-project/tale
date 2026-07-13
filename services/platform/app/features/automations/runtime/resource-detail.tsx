@@ -37,10 +37,13 @@ import {
   useState,
 } from 'react';
 
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { isActiveExecutionStatus } from '@/lib/shared/platform/run_capacity';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { TaskComments } from '../../tasks/components/task-comments';
@@ -183,10 +186,20 @@ function TaskActivitySection({
  * direct-API precedent rather than the bundle capability allowlist.
  */
 function TaskCommentsSection({ taskId }: { taskId: string }) {
+  const { t } = useT('automations');
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a task subject's target.id is a tasks Convex id (openDetail contract)
   const id = taskId as Id<'tasks'>;
   const { task, canComment } = useTask(id);
   const { data: me } = useCurrentMemberContext(task?.organizationId);
+  // Same subscription the sibling SubjectRun holds (Convex dedupes identical
+  // query+args) — while that run is active, warn at the composer that it
+  // won't see comments posted now (runs read the timeline when they start).
+  const { organizationId } = useAutomationRuntime();
+  const { data: run } = useConvexQuery(
+    api.workflow_executions.queries.getLatestExecutionForSubject,
+    { organizationId, subjectType: 'task', subjectId: taskId },
+  );
+  const runActive = run != null && isActiveExecutionStatus(run.status);
   if (!task) return null;
   return (
     <TaskComments
@@ -196,6 +209,7 @@ function TaskCommentsSection({ taskId }: { taskId: string }) {
       canComment={canComment}
       currentUserId={me?.userId}
       isAdmin={me?.isAdmin}
+      composerHint={runActive ? t('detail.commentsDuringRun') : undefined}
     />
   );
 }
@@ -300,10 +314,10 @@ export function ResourceDetailProvider({
   const { t } = useT('automations');
   const [target, setTarget] = useState<ResourceDetailTarget | null>(null);
   const open = useCallback((next: ResourceDetailTarget) => setTarget(next), []);
-  const api = useMemo<ResourceDetailApi>(() => ({ open }), [open]);
+  const detailApi = useMemo<ResourceDetailApi>(() => ({ open }), [open]);
 
   return (
-    <ResourceDetailContext.Provider value={api}>
+    <ResourceDetailContext.Provider value={detailApi}>
       {children}
       <ResponsiveDialog
         open={target !== null}

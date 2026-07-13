@@ -14,8 +14,17 @@ vi.mock('./mention-text', () => ({
 }));
 
 vi.mock('./mention-textarea', () => ({
-  MentionTextarea: (props: { value: string; placeholder?: string }) => (
-    <textarea placeholder={props.placeholder} value={props.value} readOnly />
+  MentionTextarea: (props: {
+    value: string;
+    placeholder?: string;
+    'aria-describedby'?: string;
+  }) => (
+    <textarea
+      placeholder={props.placeholder}
+      value={props.value}
+      aria-describedby={props['aria-describedby']}
+      readOnly
+    />
   ),
 }));
 
@@ -209,5 +218,44 @@ describe('TaskComments composer position', () => {
       />,
     );
     expect(composerVsList(container)).toBe('composer-first');
+  });
+});
+
+describe('TaskComments composer hint', () => {
+  it('renders the hint and wires it as the textarea description', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+        composerHint="A run is in progress."
+      />,
+    );
+    expect(screen.getByText('A run is in progress.')).toHaveAttribute(
+      'id',
+      'new-comment-hint',
+    );
+    expect(container.querySelector('textarea')).toHaveAttribute(
+      'aria-describedby',
+      'new-comment-hint',
+    );
+  });
+
+  it('omits the hint and the aria wiring when not provided', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+      />,
+    );
+    expect(container.querySelector('#new-comment-hint')).toBeNull();
+    expect(container.querySelector('textarea')).not.toHaveAttribute(
+      'aria-describedby',
+    );
   });
 });

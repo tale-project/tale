@@ -756,6 +756,7 @@
       "input": "Entrée",
       "more": "Détails",
       "comments": "Commentaires",
+      "commentsDuringRun": "Une exécution est en cours et ne verra pas les nouveaux commentaires. Pour un retour que l'automatisation doit traiter, commente après la fin de l'exécution.",
       "discuss": "Discussion",
       "externalRef": "Référence externe",
       "subjectFolder": "Dossier",

@@ -68,6 +68,7 @@ export function TaskComments({
   isAdmin,
   showHeading = true,
   order = 'asc',
+  composerHint,
 }: {
   taskId: Id<'tasks'>;
   organizationId: string;
@@ -81,6 +82,9 @@ export function TaskComments({
    *  first — for log-like surfaces (a desk run's timeline) where the latest
    *  automated comment carries the actionable state. */
   order?: 'asc' | 'desc';
+  /** Contextual note under the composer (also the textarea's accessible
+   *  description) — e.g. "a run is in progress and won't see new comments". */
+  composerHint?: string;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -270,7 +274,13 @@ export function TaskComments({
           onValueChange={setDraft}
           onKeyDown={onModEnter(() => void submitNew())}
           placeholder={t('actions.comment')}
+          aria-describedby={composerHint ? 'new-comment-hint' : undefined}
         />
+        {composerHint && (
+          <Text as="p" id="new-comment-hint" variant="caption">
+            {composerHint}
+          </Text>
+        )}
         <MentionTriggerChips
           organizationId={organizationId}
           target={{ taskId }}

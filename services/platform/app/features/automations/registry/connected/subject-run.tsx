@@ -29,11 +29,20 @@ import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context'
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { isActiveExecutionStatus } from '@/lib/shared/platform/run_capacity';
 
 import { useAutomationRuntime } from '../../runtime/automation-runtime';
 import { SubjectInputPanel } from './subject-input-panel';
 
-function TaskExpandComments({ taskId }: { taskId: string }) {
+function TaskExpandComments({
+  taskId,
+  runActive,
+}: {
+  taskId: string;
+  /** The subject's latest run is still executing — comments posted now won't
+   *  reach it (runs read the timeline when they start), so warn at the composer. */
+  runActive: boolean;
+}) {
   const { t } = useT('automations');
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- subjectId for subjectType=task is a tasks id
   const id = taskId as Id<'tasks'>;
@@ -61,6 +70,7 @@ function TaskExpandComments({ taskId }: { taskId: string }) {
           isAdmin={me?.isAdmin}
           showHeading={false}
           order="desc"
+          composerHint={runActive ? t('detail.commentsDuringRun') : undefined}
         />
       </div>
     </CollapsibleDetails>
@@ -85,7 +95,10 @@ export function SubjectRun({
   // The comment thread outranks the process machinery for an operator, so it
   // slots in ABOVE the collapsed "Run details" (below the Outcome). Without a
   // run to embed, it simply follows the placeholder.
-  const comments = isTask ? <TaskExpandComments taskId={subjectId} /> : null;
+  const runActive = data != null && isActiveExecutionStatus(data.status);
+  const comments = isTask ? (
+    <TaskExpandComments taskId={subjectId} runActive={runActive} />
+  ) : null;
 
   const runBody = (() => {
     if (isLoading && data === undefined) return <SkeletonText lines={4} />;
