@@ -864,7 +864,7 @@ function TestBrokerOutcome({
     <Stack gap={1} role="status">
       <HStack gap={2} align="start">
         {usable ? (
-          <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
+          <Check className="text-success mt-0.5 size-4 shrink-0" />
         ) : (
           <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" />
         )}

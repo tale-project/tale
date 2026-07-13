@@ -29,11 +29,32 @@ export type AgentPrimaryBehavior = NonNullable<
  * `supportedModels` is never touched here: every agent needs ≥1 model except a
  * byo-external one, and re-deriving models on a type switch is the caller's
  * concern (it surfaces a warning when the switch would leave models empty).
+ *
+ * Pass `saved` (the last-saved config) to make an unsaved round-trip a no-op:
+ * when `target` is the saved behavior, the behavior-scoped fields the switch
+ * away cleared (`toolNames`, `workflows`, `integrationBindings`, `agentKind`,
+ * `authMode`, `nativeWebTools`) are restored from the snapshot instead of
+ * staying cleared — otherwise reverting the agent type silently drops bound
+ * tools/workflows AND leaves the editor permanently dirty.
  */
 export function nextConfigForBehavior(
   current: AgentJsonConfig,
   target: AgentPrimaryBehavior,
+  saved?: AgentJsonConfig,
 ): Partial<AgentJsonConfig> {
+  if (saved && (saved.primaryBehavior ?? 'chat') === target) {
+    // Reverting to the saved behavior: the saved snapshot already passed the
+    // schema for this exact behavior, so its field combination is valid.
+    return {
+      primaryBehavior: target,
+      toolNames: saved.toolNames,
+      workflows: saved.workflows,
+      integrationBindings: saved.integrationBindings,
+      agentKind: saved.agentKind,
+      authMode: saved.authMode,
+      nativeWebTools: saved.nativeWebTools,
+    };
+  }
   switch (target) {
     case 'chat':
       return {

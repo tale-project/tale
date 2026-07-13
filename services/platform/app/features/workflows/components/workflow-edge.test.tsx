@@ -68,7 +68,7 @@ describe('WorkflowEdge branch label badge (#2370)', () => {
     );
 
     const badge = screen.getByText('No');
-    expect(badge).toHaveClass('text-amber-700', 'border-warning');
+    expect(badge).toHaveClass('text-warning', 'border-warning');
     expect(badge).not.toHaveClass('text-destructive');
     expect(badge).not.toHaveClass('border-destructive');
   });

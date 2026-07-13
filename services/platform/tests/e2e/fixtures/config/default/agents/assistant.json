@@ -8,8 +8,8 @@
   "webSearchMode": "off",
   "personalizationMode": "off",
   "structuredResponsesEnabled": false,
-  "toolNames": ["request_human_input"],
-  "maxSteps": 1,
+  "toolNames": ["request_human_input", "file_write", "update_todos"],
+  "maxSteps": 4,
   "timeoutMs": 120000,
   "metadata": { "autoInstall": true }
 }

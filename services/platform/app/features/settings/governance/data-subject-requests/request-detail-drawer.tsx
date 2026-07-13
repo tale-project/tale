@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
@@ -439,39 +440,37 @@ function CoolingOffBanner({
 }) {
   const { t } = useT('governance');
   return (
-    <Stack
-      role="status"
-      gap={2}
-      className="text-foreground rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
-    >
-      <Row gap={2} align="start">
-        <Clock
-          className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
-          aria-hidden="true"
-        />
-        <Stack gap={1}>
-          <Text as="span" className="font-medium">
-            {t('dataSubjectRequests.drawer.coolingOffBanner.title')}
-          </Text>
-          <Text as="span" variant="muted" className="text-xs">
-            {t('dataSubjectRequests.drawer.coolingOffBanner.description')}
-          </Text>
-          <Text as="span" variant="muted" className="text-xs">
-            <TableDateCell date={effectiveAt} />
-          </Text>
-        </Stack>
-      </Row>
-      <Row gap={0} align="stretch" justify="end">
-        <Button
-          type="button"
-          variant="destructive"
-          icon={Ban}
-          onClick={onCancel}
-        >
-          {t('dataSubjectRequests.actions.cancel')}
-        </Button>
-      </Row>
-    </Stack>
+    <Alert variant="warning" className="text-sm">
+      <Stack gap={2}>
+        <Row gap={2} align="start">
+          <Clock
+            className="text-warning mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <Stack gap={1}>
+            <Text as="span" className="font-medium">
+              {t('dataSubjectRequests.drawer.coolingOffBanner.title')}
+            </Text>
+            <Text as="span" variant="muted" className="text-xs">
+              {t('dataSubjectRequests.drawer.coolingOffBanner.description')}
+            </Text>
+            <Text as="span" variant="muted" className="text-xs">
+              <TableDateCell date={effectiveAt} />
+            </Text>
+          </Stack>
+        </Row>
+        <Row gap={0} align="stretch" justify="end">
+          <Button
+            type="button"
+            variant="destructive"
+            icon={Ban}
+            onClick={onCancel}
+          >
+            {t('dataSubjectRequests.actions.cancel')}
+          </Button>
+        </Row>
+      </Stack>
+    </Alert>
   );
 }
 

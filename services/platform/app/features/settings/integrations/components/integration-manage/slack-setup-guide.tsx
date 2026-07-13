@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
@@ -41,51 +42,57 @@ export function SlackSetupGuide({
   if (error || !data) return null;
 
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-3">
-      <Stack gap={1}>
-        <Text variant="label">{t('integrations.slackSetup.title')}</Text>
-        <Text variant="body-sm" className="text-muted-foreground">
-          {t('integrations.slackSetup.intro')}
-        </Text>
+    <Card padding="sm">
+      <Stack gap={3}>
+        <Stack gap={1}>
+          <Text variant="label">{t('integrations.slackSetup.title')}</Text>
+          <Text variant="body-sm" className="text-muted-foreground">
+            {t('integrations.slackSetup.intro')}
+          </Text>
+        </Stack>
+
+        <a
+          href={SLACK_APPS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+        >
+          {t('integrations.slackSetup.openSlackApps')}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+
+        <Stack gap={2}>
+          <HStack className="items-center justify-between">
+            <Label>{t('integrations.slackSetup.manifest')}</Label>
+            <Button type="button" variant="secondary" onClick={copyManifest}>
+              {copied ? (
+                <Check className="mr-1.5 size-3.5" />
+              ) : (
+                <Copy className="mr-1.5 size-3.5" />
+              )}
+              {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
+            </Button>
+          </HStack>
+          <Card
+            asChild
+            padding="sm"
+            className="bg-muted/40 max-h-64 overflow-auto font-mono text-xs"
+          >
+            <pre>{data.manifest}</pre>
+          </Card>
+        </Stack>
+
+        <CopyableField
+          label={t('integrations.slackSetup.requestUrl')}
+          description={t('integrations.slackSetup.requestUrlHelp')}
+          value={data.eventsUrl}
+        />
+        <CopyableField
+          label={t('integrations.slackSetup.redirectUrl')}
+          description={t('integrations.slackSetup.redirectUrlHelp')}
+          value={data.redirectUrl}
+        />
       </Stack>
-
-      <a
-        href={SLACK_APPS_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
-      >
-        {t('integrations.slackSetup.openSlackApps')}
-        <ExternalLink className="size-3.5" aria-hidden="true" />
-      </a>
-
-      <Stack gap={2}>
-        <HStack className="items-center justify-between">
-          <Label>{t('integrations.slackSetup.manifest')}</Label>
-          <Button type="button" variant="secondary" onClick={copyManifest}>
-            {copied ? (
-              <Check className="mr-1.5 size-3.5" />
-            ) : (
-              <Copy className="mr-1.5 size-3.5" />
-            )}
-            {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
-          </Button>
-        </HStack>
-        <pre className="bg-muted/40 ring-border max-h-64 overflow-auto rounded-lg border p-3 font-mono text-xs">
-          {data.manifest}
-        </pre>
-      </Stack>
-
-      <CopyableField
-        label={t('integrations.slackSetup.requestUrl')}
-        description={t('integrations.slackSetup.requestUrlHelp')}
-        value={data.eventsUrl}
-      />
-      <CopyableField
-        label={t('integrations.slackSetup.redirectUrl')}
-        description={t('integrations.slackSetup.redirectUrlHelp')}
-        value={data.redirectUrl}
-      />
-    </Stack>
+    </Card>
   );
 }

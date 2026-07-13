@@ -147,11 +147,10 @@ test.describe('agent editor depth', () => {
     org,
   }) => {
     await openAgentTab(page, org.organizationId, 'instructions');
+    // Tabs carry no tab-level heading (the tab strip names the tab) — the
+    // description lead-in is the render-complete anchor.
     await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.form.sectionInstructions'),
-        level: 2,
-      }),
+      page.getByText(t('settings.agents.form.sectionInstructionsDescription')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     const instructions = page.getByLabel(
@@ -183,11 +182,9 @@ test.describe('agent editor depth', () => {
     org,
   }) => {
     await openAgentTab(page, org.organizationId, 'conversation-starters');
+    // No tab-level heading — anchor on the description lead-in.
     await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.conversationStarters.title'),
-        level: 2,
-      }),
+      page.getByText(t('settings.agents.conversationStarters.description')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // Add an empty slot, fill it, then blur so the value syncs into config (the
@@ -228,11 +225,9 @@ test.describe('agent editor depth', () => {
     org,
   }) => {
     await openAgentTab(page, org.organizationId, 'knowledge');
+    // No tab-level heading — anchor on the description lead-in.
     await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.form.sectionKnowledge'),
-        level: 2,
-      }),
+      page.getByText(t('settings.agents.form.sectionKnowledgeDescription')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // Option labels are `<mode> — <description>`; a created agent defaults to
@@ -252,11 +247,9 @@ test.describe('agent editor depth', () => {
     org,
   }) => {
     await openAgentTab(page, org.organizationId, 'tools');
+    // No tab-level heading — anchor on the description lead-in.
     await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.form.sectionTools'),
-        level: 2,
-      }),
+      page.getByText(t('settings.agents.form.sectionToolsDescription')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // Web-search is a built-in capability exposed as a fully-i18n'd RadioGroup

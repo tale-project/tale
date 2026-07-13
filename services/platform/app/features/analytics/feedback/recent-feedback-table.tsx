@@ -7,10 +7,10 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
 
@@ -90,12 +90,12 @@ export function RecentFeedbackTable({
             </Text>
           ) : row.original.rating === 'positive' ? (
             <ThumbsUp
-              className="size-4 text-emerald-600 dark:text-emerald-400"
+              className="text-chart-success size-4"
               aria-label={tAnalytics('feedback.recent.helpfulAria')}
             />
           ) : (
             <ThumbsDown
-              className="size-4 text-rose-600 dark:text-rose-400"
+              className="text-chart-failure size-4"
               aria-label={tAnalytics('feedback.recent.notHelpfulAria')}
             />
           ),
@@ -199,13 +199,10 @@ export function RecentFeedbackTable({
   );
 
   return (
-    <div className={cn('flex flex-col gap-3')}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Text as="h3" className="text-foreground text-base font-semibold">
-          {tAnalytics('feedback.recent.title')}
-        </Text>
-        {headerActions}
-      </div>
+    <MetricsSection
+      title={tAnalytics('feedback.recent.title')}
+      actions={headerActions}
+    >
       <DataTable
         columns={columns}
         data={rows}
@@ -230,6 +227,6 @@ export function RecentFeedbackTable({
           description: tAnalytics('feedback.recent.emptyDescription'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

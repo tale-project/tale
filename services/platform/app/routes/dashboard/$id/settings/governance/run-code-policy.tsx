@@ -1,12 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import {
+  useRegisterActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -220,8 +225,33 @@ function RunCodePolicyRoute() {
         description: t('runCodePolicy.saveFailed'),
         variant: 'destructive',
       });
+      // Rethrow so the header Save cluster doesn't flash "Saved" on failure
+      // (same local-toast-then-throw contract as the useFormEditor pages).
+      throw error;
     }
   }, [liveDraft, organizationId, upsertMutation, toast, t]);
+
+  // Header Save/Discard via the settings layout's active-editor registry —
+  // the same cluster every other settings page uses (no in-content button).
+  const isDirty =
+    form.defaultMode !== savedDraft.defaultMode ||
+    form.pythonAllowText !== listToString(savedDraft.pythonAllow) ||
+    form.pythonDenyText !== listToString(savedDraft.pythonDeny) ||
+    form.nodeAllowText !== listToString(savedDraft.nodeAllow) ||
+    form.nodeDenyText !== listToString(savedDraft.nodeDeny);
+  const editorController = useMemo<EditorController>(
+    () => ({
+      isDirty,
+      isSaving: upsertMutation.isPending,
+      isValid: true,
+      isLoading,
+      dirtyKeys: isDirty ? new Set(['runCodePolicy']) : new Set<string>(),
+      save: handleSave,
+      reset: () => setEdits({}),
+    }),
+    [handleSave, isDirty, isLoading, upsertMutation.isPending],
+  );
+  useRegisterActiveEditor(editorController);
 
   // -- Tester widget state -------------------------------------------------
   const [testBucket, setTestBucket] = useState<Bucket>('python');
@@ -326,16 +356,6 @@ function RunCodePolicyRoute() {
           </Stack>
         </SettingsSection>
 
-        <Button
-          onClick={handleSave}
-          disabled={cannotManage || upsertMutation.isPending}
-          className="self-start"
-        >
-          {upsertMutation.isPending
-            ? t('runCodePolicy.saving')
-            : t('runCodePolicy.save')}
-        </Button>
-
         <SettingsSection
           title={t('runCodePolicy.testerTitle')}
           description={t('runCodePolicy.testerDescription')}
@@ -376,52 +396,54 @@ function RunCodePolicyRoute() {
             </Button>
 
             {testRows.length > 0 && (
-              <Stack
-                role="list"
-                as="ul"
-                gap={0}
-                className="border-border bg-card divide-border divide-y rounded-md border"
-              >
-                {testRows.map((row, idx) => {
-                  const allowed = row.decision.decision === 'allowed';
-                  const Icon = allowed ? CheckCircle2 : XCircle;
-                  return (
-                    <li
-                      key={`${row.bucket}-${idx}-${row.spec}`}
-                      className="flex items-start gap-3 px-3 py-2 text-sm"
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        className={cn(
-                          'mt-0.5 size-4 shrink-0',
-                          allowed ? 'text-green-600' : 'text-red-600',
-                        )}
-                      />
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-foreground font-mono text-xs">
-                          {row.spec}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          {t('runCodePolicy.testerBaseLabel')}:{' '}
-                          <span className="font-mono">{row.base}</span>
-                        </span>
-                        <span
+              <Card padding="none" className="overflow-hidden">
+                <Stack
+                  role="list"
+                  as="ul"
+                  gap={0}
+                  className="divide-border divide-y"
+                >
+                  {testRows.map((row, idx) => {
+                    const allowed = row.decision.decision === 'allowed';
+                    const Icon = allowed ? CheckCircle2 : XCircle;
+                    return (
+                      <li
+                        key={`${row.bucket}-${idx}-${row.spec}`}
+                        className="flex items-start gap-3 px-3 py-2 text-sm"
+                      >
+                        <Icon
+                          aria-hidden="true"
                           className={cn(
-                            'text-xs',
-                            allowed ? 'text-green-700' : 'text-red-700',
+                            'mt-0.5 size-4 shrink-0',
+                            allowed ? 'text-success' : 'text-destructive',
                           )}
-                        >
-                          {allowed
-                            ? t('runCodePolicy.testerAllowed')
-                            : t('runCodePolicy.testerDenied')}
-                          {' — '}
-                          {t(`runCodePolicy.${row.decision.reasonKey}`)}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </Stack>
+                        />
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-foreground font-mono text-xs">
+                            {row.spec}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {t('runCodePolicy.testerBaseLabel')}:{' '}
+                            <span className="font-mono">{row.base}</span>
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs',
+                              allowed ? 'text-green-700' : 'text-red-700',
+                            )}
+                          >
+                            {allowed
+                              ? t('runCodePolicy.testerAllowed')
+                              : t('runCodePolicy.testerDenied')}
+                            {' — '}
+                            {t(`runCodePolicy.${row.decision.reasonKey}`)}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </Stack>
+              </Card>
             )}
           </Stack>
         </SettingsSection>

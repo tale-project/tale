@@ -59,6 +59,7 @@ export function ImageUploadField({
   const prevCurrentUrlRef = useRef(currentUrl);
   const saveImage = useSaveImage();
   const { toast } = useToast();
+  const { t } = useT('settings');
   const { t: tToast } = useT('toast');
 
   if (prevCurrentUrlRef.current !== currentUrl) {
@@ -244,7 +245,9 @@ export function ImageUploadField({
             type="button"
             onClick={handleRemove}
             className="bg-foreground text-background ring-offset-background focus-visible:ring-ring absolute -top-1 -right-1 flex size-4 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:scale-100"
-            aria-label={`Remove ${label ?? 'image'}`}
+            aria-label={t('branding.removeImageAria', {
+              label: label ?? t('branding.imageFallback'),
+            })}
           >
             <X className="size-2.5" />
           </button>

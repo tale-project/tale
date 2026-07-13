@@ -55,6 +55,33 @@ describe('config-domain validator completeness (registry drift guard)', () => {
   it('every domain declares a validator, mapping back and gate files intact', () => {
     expect(checkValidatorRegistryComplete()).toEqual([]);
   });
+
+  // #2675: the covering-gate file-existence half is checkout-bound. A root
+  // without the repo's test files (a shipped image's filesystem) must fail
+  // the default/strict mode — and pass when the runtime call site turns the
+  // checkout-bound half off. Registry completeness runs in both modes.
+  describe('covering-gate check outside a checkout (#2675)', () => {
+    // Exists, but contains none of the covering test files — the same shape
+    // as a container's `$TALE_CONFIG_BUILTIN_DIR` filesystem.
+    const checkoutlessRoot = `${REPO_ROOT}builtin-configs`;
+
+    it('strict mode still reports missing covering gates', () => {
+      const issues = checkValidatorRegistryComplete({
+        repoRoot: checkoutlessRoot,
+      });
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues.every((i) => i.includes('covering gate'))).toBe(true);
+    });
+
+    it('the runtime mode (checkCoveringGates: false) reports none', () => {
+      expect(
+        checkValidatorRegistryComplete({
+          checkCoveringGates: false,
+          repoRoot: checkoutlessRoot,
+        }),
+      ).toEqual([]);
+    });
+  });
 });
 
 describe.each(ROOTS)('$label config tree', ({ dir, kind }) => {

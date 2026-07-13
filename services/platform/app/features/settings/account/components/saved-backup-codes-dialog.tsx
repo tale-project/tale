@@ -1,5 +1,6 @@
 'use client';
 
+import { Card } from '@tale/ui/card';
 import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
@@ -45,16 +46,13 @@ export function SavedBackupCodesDialog({
         <Text variant="muted" className="text-sm">
           {t('backupCodes.description')}
         </Text>
-        <Grid
-          as="ul"
-          cols={2}
-          gap={2}
-          className="bg-muted rounded-md border p-3 font-mono text-sm"
-        >
-          {backupCodes.map((code) => (
-            <li key={code}>{code}</li>
-          ))}
-        </Grid>
+        <Card padding="sm" className="bg-muted font-mono text-sm">
+          <Grid as="ul" cols={2} gap={2}>
+            {backupCodes.map((code) => (
+              <li key={code}>{code}</li>
+            ))}
+          </Grid>
+        </Card>
       </Stack>
     </ConfirmDialog>
   );

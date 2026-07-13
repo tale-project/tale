@@ -1,15 +1,15 @@
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
-import { Tabs, type TabItem } from '@tale/ui/tabs';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
-import { Languages, Loader2, Plus } from 'lucide-react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { Plus } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { ReorderList } from '@/app/components/ui/forms/reorder-list';
+import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
+import { AgentTabContent } from '@/app/features/agents/components/agent-tab-content';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
@@ -18,7 +18,6 @@ import { useT } from '@/lib/i18n/client';
 import {
   MAX_CONVERSATION_STARTER_LENGTH,
   MAX_CONVERSATION_STARTERS,
-  SUPPORTED_AGENT_LOCALES,
 } from '@/lib/shared/constants/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { seo } from '@/lib/utils/seo';
@@ -47,7 +46,6 @@ function toStrings(items: StarterItem[]): string[] {
 
 function ConversationStartersTab() {
   const { t } = useT('settings');
-  const { t: tGlobal } = useT('global');
   const { id: organizationId } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
   const { data: organization } = useOrganization(organizationId);
@@ -191,41 +189,6 @@ function ConversationStartersTab() {
     return !!starters && starters.length > 0;
   }
 
-  const localeTabItems: TabItem[] = useMemo(() => {
-    const tabs: TabItem[] = [];
-    tabs.push({
-      value: defaultLocale,
-      label: (
-        <span className="flex items-center gap-1.5">
-          {tGlobal(`languages.${defaultLocale}`)}
-          <span className="text-muted-foreground text-xs">
-            ({t('agents.conversationStarters.default')})
-          </span>
-        </span>
-      ),
-    });
-    for (const locale of SUPPORTED_AGENT_LOCALES) {
-      if (locale !== defaultLocale) {
-        tabs.push({
-          value: locale,
-          label: (
-            <span className="flex items-center gap-1.5">
-              {tGlobal(`languages.${locale}`)}
-              {!hasLocaleContent(locale) && (
-                <span className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px] leading-none">
-                  {t('agents.conversationStarters.untranslated')}
-                </span>
-              )}
-            </span>
-          ),
-        });
-      }
-    }
-    return tabs;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultLocale, config.i18n, t, tGlobal]);
-
-  const canAutoTranslate = editingLocale !== null && sourceStarters.length > 0;
   const isEditingOverride = editingLocale !== null;
 
   async function handleAutoTranslate() {
@@ -267,34 +230,29 @@ function ConversationStartersTab() {
   }
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.conversationStarters.title')}
-        description={t('agents.conversationStarters.description')}
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {t('agents.conversationStarters.description')}
+      </Text>
 
-      <Tabs
-        variant="underline"
-        value={editingLocale ?? defaultLocale}
-        onValueChange={(v) => setEditingLocale(v === defaultLocale ? null : v)}
-        items={localeTabItems}
-        actions={
-          canAutoTranslate ? (
-            <button
-              type="button"
-              onClick={handleAutoTranslate}
-              disabled={translateMutation.isPending}
-              className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center gap-1 pb-2 text-sm transition-colors disabled:opacity-50"
-            >
-              {translateMutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Languages className="size-3.5" />
-              )}
-              {t('agents.conversationStarters.autoTranslate')}
-            </button>
-          ) : undefined
+      {/* Shared per-locale tab scaffold — the same LocaleTabs the General and
+          Instructions tabs use (this file used to carry a byte-identical
+          hand-rolled copy of it). */}
+      <LocaleTabs
+        defaultLocale={defaultLocale}
+        editingLocale={editingLocale ?? defaultLocale}
+        onEditingLocaleChange={(v) =>
+          setEditingLocale(v === defaultLocale ? null : v)
         }
+        hasTranslation={hasLocaleContent}
+        onAutoTranslate={
+          sourceStarters.length > 0
+            ? () => void handleAutoTranslate()
+            : undefined
+        }
+        isTranslating={translateMutation.isPending}
       />
 
       <FormSection>
@@ -338,6 +296,6 @@ function ConversationStartersTab() {
           </Button>
         )}
       </FormSection>
-    </ContentArea>
+    </AgentTabContent>
   );
 }

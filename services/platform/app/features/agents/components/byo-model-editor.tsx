@@ -104,6 +104,11 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          // Commit the pending id when focus leaves the field — a Save click
+          // blurs first, so "type → Save" persists the model instead of
+          // silently discarding it (#2679). A duplicate or empty draft stays
+          // put (`handleAdd` refuses it), same as pressing Enter.
+          onBlur={handleAdd}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();

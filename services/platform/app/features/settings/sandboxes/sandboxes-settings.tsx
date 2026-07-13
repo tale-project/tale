@@ -5,6 +5,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -96,6 +97,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'createdBy',
         header: t('columns.owner'),
+        size: 150,
         cell: ({ row }) => {
           const s = row.original;
           // Name + email when resolved; fall back to the raw id (system-owned /
@@ -118,10 +120,12 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'agentKind',
         header: t('columns.agent'),
+        size: 95,
         cell: ({ row }) => row.original.agentKind ?? '—',
       },
       {
         id: 'status',
+        size: 85,
         header: t('columns.status'),
         cell: ({ row }) => {
           const s = row.original;
@@ -148,6 +152,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       },
       {
         id: 'task',
+        size: 150,
         header: t('columns.task'),
         cell: ({ row }) => {
           const op = row.original.currentOp;
@@ -176,6 +181,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       },
       {
         id: 'spend',
+        size: 75,
         header: t('columns.spend'),
         // Cumulative spend across every task this sandbox has run. `|| undefined`
         // renders a never-billed sandbox as "—" rather than a misleading $0.00.
@@ -185,10 +191,13 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'createdAt',
         header: t('columns.created'),
+        size: 95,
         cell: ({ row }) => <TableDateCell date={row.original.createdAt} />,
       },
       {
         id: 'actions',
+        size: 44,
+        meta: { isAction: true },
         header: t('columns.actions'),
         cell: ({ row }) => {
           const s = row.original;
@@ -254,11 +263,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
 
   // Non-privileged member (or unauthenticated) → query returns null.
   if (data === null) {
-    return (
-      <SettingsSection title={t('title')}>
-        <p className="text-muted-foreground text-sm">{t('accessDenied')}</p>
-      </SettingsSection>
-    );
+    return <AccessDenied message={t('accessDenied')} />;
   }
 
   return (

@@ -47,7 +47,6 @@ import { AgentSecretsStep } from './agent-secrets-step';
 import { AuthModeStep } from './auth-mode-step';
 import { ConnectIntegrationStep } from './connect-integration-step';
 import { ConnectProviderStep } from './connect-provider-step';
-import { firstViewIdFromPreviewEntries } from './first-view-id';
 import { ReviewOverridesStep } from './review-overrides-step';
 
 export interface AutomationInstallWizardProps {
@@ -496,36 +495,11 @@ function AutomationInstallWizardBody({
       });
   };
 
+  // Finish only closes the wizard — installing must never yank the operator
+  // away from where they were working. The Done step offers explicit links
+  // (e.g. `openTriggers`) for anyone who wants to jump into the automation.
   const handleFinish = () => {
     onOpenChange(false);
-    // After install, land where the operator was working: the project-nested
-    // automation page when a project was selected (or pre-bound), otherwise
-    // the org-level detail the catalog card opens. Project-nested detail
-    // routes bare-outlet under Automations chrome (no project-shell padding).
-    // When the bundle ships views, open the first view tab (`?tab=<id>`) so
-    // Finish lands on the desk rather than Editor/Integrations.
-    if (mode === 'install') {
-      const finishProjectId = projectId ?? selectedProjectId;
-      const firstViewId = firstViewIdFromPreviewEntries(preview.entries);
-      const search = firstViewId !== undefined ? { tab: firstViewId } : {};
-      if (finishProjectId) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-          params: {
-            id: organizationId,
-            projectId: finishProjectId,
-            automationSlug,
-          },
-          search,
-        });
-      } else {
-        void navigate({
-          to: '/dashboard/$id/automations/$automationSlug',
-          params: { id: organizationId, automationSlug },
-          search,
-        });
-      }
-    }
   };
 
   // The Done step's deep link into the Triggers tab (`?tab=triggers` on the

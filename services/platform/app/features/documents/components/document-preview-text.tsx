@@ -7,6 +7,7 @@ import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,
@@ -79,13 +80,25 @@ export function DocumentPreviewText({
         content !== null &&
         content !== undefined &&
         (isCodeFile && highlightedHtml ? (
+          // `w-full` matters: inside the pane's flex column, `mx-auto` alone
+          // would shrink the block to its content width and float it in the
+          // horizontal middle — short files showed their line-number gutter
+          // mid-pane instead of along the left edge of the reading column.
           <div
             ref={highlightRef}
-            className="code-line-numbers mx-auto max-w-4xl text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:bg-transparent! [&_pre]:p-0!"
+            className="code-line-numbers mx-auto w-full max-w-4xl text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!"
           />
         ) : (
-          <div className="mx-auto max-w-4xl">
-            <pre className="m-0! bg-transparent! p-0!">
+          <div className="mx-auto w-full max-w-4xl">
+            {/* For a code file this is the pre-highlight frame: reserve the
+                3rem `code-line-numbers` gutter (2rem numbers + 1rem margin) so
+                the text keeps its x-position when the colours land. */}
+            <pre
+              className={cn(
+                'm-0! bg-transparent! p-0!',
+                isCodeFile && 'pl-12!',
+              )}
+            >
               <code className="text-foreground font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
                 {content}
               </code>

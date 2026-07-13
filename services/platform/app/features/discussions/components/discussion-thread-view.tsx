@@ -332,7 +332,15 @@ export function DiscussionThreadView({
               onSendMessage={handleSend}
               isLoading={isSending}
               disabled={isLocked}
-              disabledReason={isLocked ? 'archived' : undefined}
+              disabledReason={isLocked ? 'locked' : undefined}
+              // ChatInput's disabled overlay is chat's shared shell — its
+              // fixed copy per `disabledReason` belongs to chat (e.g.
+              // "archived"). A locked discussion isn't archived, so hand the
+              // discussions-owned notice over explicitly rather than
+              // borrowing chat's wording (#2680).
+              disabledMessage={
+                isLocked ? t('reply.lockedPlaceholder') : undefined
+              }
               organizationId={organizationId}
               threadId={threadId}
               projectId={String(projectId)}

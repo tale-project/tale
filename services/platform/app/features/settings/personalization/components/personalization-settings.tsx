@@ -18,6 +18,7 @@ import {
 } from 'react';
 import { z } from 'zod';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import {
   useFormEditor,
   useRegisterActiveEditor,
@@ -639,6 +640,10 @@ function SavedMemoriesSection({
   const { toast } = useToast();
   const { mutateAsync: softDelete } = useSoftDeleteMemory();
   const loading = useSkeleton();
+  // Memory awaiting delete confirmation — a themed DeleteDialog, not the
+  // native browser confirm (unthemed, unlocalized chrome buttons).
+  const [pendingDelete, setPendingDelete] =
+    useState<Doc<'userMemories'> | null>(null);
 
   return (
     <SettingsSection
@@ -663,23 +668,35 @@ function SavedMemoriesSection({
                 icon={Trash2}
                 aria-label={t('page.memories.delete')}
                 variant="ghost"
-                onClick={async () => {
-                  if (!window.confirm(t('page.memories.deleteConfirm'))) return;
-                  try {
-                    await softDelete({ memoryId: m._id });
-                    toast({ title: t('toasts.deleted') });
-                  } catch (err) {
-                    toast({
-                      title: convexErrorMessage(err, t('errors.saveFailed')),
-                      variant: 'destructive',
-                    });
-                  }
-                }}
+                onClick={() => setPendingDelete(m)}
               />
             </li>
           ))}
         </ul>
       )}
+      <DeleteDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={t('page.memories.delete')}
+        description={t('page.memories.deleteConfirm')}
+        preview={pendingDelete ? { primary: pendingDelete.content } : undefined}
+        onDelete={async () => {
+          if (!pendingDelete) return;
+          try {
+            await softDelete({ memoryId: pendingDelete._id });
+            toast({ title: t('toasts.deleted') });
+          } catch (err) {
+            toast({
+              title: convexErrorMessage(err, t('errors.saveFailed')),
+              variant: 'destructive',
+            });
+          } finally {
+            setPendingDelete(null);
+          }
+        }}
+      />
     </SettingsSection>
   );
 }

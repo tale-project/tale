@@ -3,13 +3,11 @@
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { Row } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -36,6 +34,7 @@ import {
   useToggleAgentWebhook,
 } from '../hooks/mutations';
 import { useAgentWebhooks, type AgentWebhook } from '../hooks/queries';
+import { AgentTabContent } from './agent-tab-content';
 
 interface AgentWebhookSectionProps {
   organizationId: string;
@@ -183,7 +182,7 @@ export function AgentWebhookSection({
                 className="shrink-0"
               >
                 {copiedToken === row.original.token ? (
-                  <Check className="size-3.5 text-green-500" />
+                  <Check className="text-success size-3.5" />
                 ) : (
                   <Copy className="size-3.5" />
                 )}
@@ -302,11 +301,14 @@ export function AgentWebhookSection({
     // table's own `url` column now carries the budget reclaimed from the
     // tightened `active` / `lastTriggered` columns (#2568) so URLs stay
     // readable at this width.
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.webhook.title')}
-        description={t('agents.webhook.description')}
-        action={
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <Text variant="muted" className="max-w-2xl text-sm">
+          {t('agents.webhook.description')}
+        </Text>
+        <div className="shrink-0">
           <Button
             variant="secondary"
             onClick={handleCreate}
@@ -315,8 +317,8 @@ export function AgentWebhookSection({
             <Plus className="mr-2 size-4" />
             {t('agents.webhook.createButton')}
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       <DataTable
         columns={columns}
@@ -378,6 +380,6 @@ export function AgentWebhookSection({
         isDeleting={isDeleting}
         onDelete={handleDelete}
       />
-    </ContentArea>
+    </AgentTabContent>
   );
 }

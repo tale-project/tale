@@ -38,62 +38,66 @@ export function MappingList({
           {t('moderationProvider.mappingsEmpty')}
         </div>
       ) : (
-        <Table>
-          <TableCaption className="sr-only">
-            {t('moderationProvider.categoryMappings')}
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                {t('moderationProvider.mappingColumnProviderCategory')}
-              </TableHead>
-              <TableHead>
-                {t('moderationProvider.mappingColumnInternalLabel')}
-              </TableHead>
-              <TableHead>{t('moderationProvider.mappingColumnMode')}</TableHead>
-              <TableHead>
-                {t('moderationProvider.mappingColumnThreshold')}
-              </TableHead>
-              <TableHead>
-                {t('moderationProvider.mappingColumnEnabled')}
-              </TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {mappings.map((mapping, index) => (
-              <TableRow key={index}>
-                <TableCell className="font-mono text-xs">
-                  {mapping.providerCategory}
-                </TableCell>
-                <TableCell>{mapping.internalLabel}</TableCell>
-                <TableCell className="capitalize">{mapping.mode}</TableCell>
-                <TableCell>
-                  {mapping.scoreThreshold ?? (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {mapping.enabled
-                    ? t('moderationProvider.yes')
-                    : t('moderationProvider.no')}
-                </TableCell>
-                <TableCell className="text-right">
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    icon={Pencil}
-                    aria-label={t('moderationProvider.editMappingAria', {
-                      category: mapping.providerCategory,
-                    })}
-                    disabled={disabled}
-                    onClick={() => onEdit(index)}
-                  />
-                </TableCell>
+        <div className="border-border overflow-hidden rounded-lg border">
+          <Table>
+            <TableCaption className="sr-only">
+              {t('moderationProvider.categoryMappings')}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  {t('moderationProvider.mappingColumnProviderCategory')}
+                </TableHead>
+                <TableHead>
+                  {t('moderationProvider.mappingColumnInternalLabel')}
+                </TableHead>
+                <TableHead>
+                  {t('moderationProvider.mappingColumnMode')}
+                </TableHead>
+                <TableHead>
+                  {t('moderationProvider.mappingColumnThreshold')}
+                </TableHead>
+                <TableHead>
+                  {t('moderationProvider.mappingColumnEnabled')}
+                </TableHead>
+                <TableHead />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {mappings.map((mapping, index) => (
+                <TableRow key={index}>
+                  <TableCell className="font-mono text-xs">
+                    {mapping.providerCategory}
+                  </TableCell>
+                  <TableCell>{mapping.internalLabel}</TableCell>
+                  <TableCell className="capitalize">{mapping.mode}</TableCell>
+                  <TableCell>
+                    {mapping.scoreThreshold ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {mapping.enabled
+                      ? t('moderationProvider.yes')
+                      : t('moderationProvider.no')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      icon={Pencil}
+                      aria-label={t('moderationProvider.editMappingAria', {
+                        category: mapping.providerCategory,
+                      })}
+                      disabled={disabled}
+                      onClick={() => onEdit(index)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
       <div>
         <Button

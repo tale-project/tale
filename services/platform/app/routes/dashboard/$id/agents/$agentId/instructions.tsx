@@ -3,28 +3,28 @@ import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { SectionHeader } from '@tale/ui/section-header';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen, Info } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { AgentTabContent } from '@/app/features/agents/components/agent-tab-content';
 import { ByoModelEditor } from '@/app/features/agents/components/byo-model-editor';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useAgentValidation } from '@/app/features/agents/hooks/use-agent-validation';
 import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import {
   useListProviders,
   useModelCapabilities,
@@ -517,11 +517,12 @@ function InstructionsTab() {
   );
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.form.sectionInstructions')}
-        description={t('agents.form.sectionInstructionsDescription')}
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {t('agents.form.sectionInstructionsDescription')}
+      </Text>
       <Stack>
         <Stack gap={3}>
           <HStack justify="between" align="center">
@@ -603,7 +604,7 @@ function InstructionsTab() {
           title={t('agents.form.webTools.sectionTitle')}
           description={t('agents.form.webTools.sectionDescription')}
         >
-          <Switch
+          <SettingsToggleRow
             checked={config.nativeWebTools ?? false}
             onCheckedChange={(checked) =>
               updateConfig({ nativeWebTools: checked })
@@ -684,7 +685,7 @@ function InstructionsTab() {
           title={t('agents.form.sectionStructuredResponses')}
           description={t('agents.form.sectionStructuredResponsesDescription')}
         >
-          <Switch
+          <SettingsToggleRow
             checked={structuredResponsesEnabled}
             onCheckedChange={(checked) =>
               updateConfig({ structuredResponsesEnabled: checked })
@@ -712,6 +713,6 @@ function InstructionsTab() {
           writeOverride(currentValue + separator + content);
         }}
       />
-    </ContentArea>
+    </AgentTabContent>
   );
 }

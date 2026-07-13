@@ -136,9 +136,13 @@ export async function fileAttachmentsIntoWorkspace(
               contentType,
               sha256,
               source: 'user_upload' as const,
-              renderHint: contentType.startsWith('image/')
-                ? ('image' as const)
-                : ('attachment' as const),
+              // Only images carry a hint. Anything else stays unhinted so the
+              // viewer's inference decides — stamping 'attachment' here made
+              // every non-image upload permanently download-only, unlike the
+              // agent-written twin of the same file (#2677).
+              ...(contentType.startsWith('image/')
+                ? { renderHint: 'image' as const }
+                : {}),
             },
           );
           filed += 1;

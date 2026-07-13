@@ -8,7 +8,7 @@
  * stores panel.
  * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
  *
- * Built on the shared settings UI (`PageSection`, app `Input`/`Select`/
+ * Built on the shared settings UI (`SettingsSection`, app `Input`/`Select`/
  * `Switch`, `Alert`, `Stack`/`HStack`) so it matches every other settings page
  * instead of carrying bespoke banner / label / card chrome.
  *
@@ -21,7 +21,6 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
@@ -34,6 +33,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -227,7 +227,7 @@ function PgSection({
 }) {
   const { t } = useT('settings');
   return (
-    <PageSection
+    <SettingsSection
       className={className}
       title={title}
       description={description}
@@ -326,7 +326,7 @@ function PgSection({
       ) : // Off = built-in: the status pill in the header already says so, so
       // the body stays empty rather than repeating it as a grey sentence.
       null}
-    </PageSection>
+    </SettingsSection>
   );
 }
 
@@ -737,7 +737,7 @@ function DeploymentSettingsView({
             }
           />
 
-          <PageSection
+          <SettingsSection
             className="border-border border-t pt-8"
             title={t('dataResidency.storage.title')}
             description={t('dataResidency.storage.description')}
@@ -895,7 +895,7 @@ function DeploymentSettingsView({
               </Stack>
             ) : // Off = local volume: the header status pill already says so.
             null}
-          </PageSection>
+          </SettingsSection>
 
           {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
           own header switch toggles `enabled`. Titled "(advanced)" rather than

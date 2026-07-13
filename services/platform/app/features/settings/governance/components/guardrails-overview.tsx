@@ -2,7 +2,10 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Grid, Row, Stack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import {
@@ -82,12 +85,12 @@ function StatusCard({
   // description are static and always render their real text.
   const loading = useSkeleton();
   return (
-    <div className="border-border rounded-lg border p-4">
+    <Card padding="md">
       <Row gap={2} className="mb-2">
         <Icon
           className={
             enabled && !loading
-              ? 'size-4 text-emerald-600'
+              ? 'text-success size-4'
               : 'text-muted-foreground size-4'
           }
           aria-hidden
@@ -115,7 +118,7 @@ function StatusCard({
           <p className="text-muted-foreground text-xs">{disabledReason}</p>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -302,14 +305,12 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
   return (
     <Stack as="section" className="mt-8">
       <Row gap={3} align="start" justify="between" wrap>
-        <Stack gap={1} className="min-w-0">
-          <h2 className="text-foreground text-base leading-tight font-semibold">
-            {t('guardrailsOverview.recentEvents.title')}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {t('guardrailsOverview.recentEvents.description')}
-          </p>
-        </Stack>
+        <SectionHeader
+          as="h2"
+          className="min-w-0"
+          title={t('guardrailsOverview.recentEvents.title')}
+          description={t('guardrailsOverview.recentEvents.description')}
+        />
         <Row gap={2} align="stretch">
           <Select
             aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
@@ -385,9 +386,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
 
       {!isLoading && (!events || events.length === 0) ? (
         // Real empty-state only once the read has settled with zero rows.
-        <div className="border-border text-muted-foreground rounded-lg border p-6 text-center text-sm">
-          {t('guardrailsOverview.recentEvents.empty')}
-        </div>
+        <EmptyState title={t('guardrailsOverview.recentEvents.empty')} />
       ) : (
         // While loading, render the SAME table shell with placeholder rows
         // (wrapped in `<Skeletonize>` so the masked cells announce "Loading"
@@ -794,13 +793,17 @@ function resolveCategoryLabels(
 
 function KindBadge({ kind }: { kind: string }) {
   const { t } = useT('governance');
+  // Same themed chip convention as the DSAR status badges (H10-1/2): /20
+  // tinted bg clears WCAG 1.4.11 non-text contrast, text pairs for dark.
+  // (The shared Badge's colored variants carry no dark classes, so they
+  // can't be used for themed status chips yet.)
   const classes =
     kind === 'blocked'
-      ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+      ? 'bg-red-500/20 text-red-700 dark:text-red-300'
       : kind === 'detected'
-        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
         : kind === 'step_error'
-          ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
+          ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
           : 'bg-muted text-muted-foreground';
   const label =
     kind === 'blocked'

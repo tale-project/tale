@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Grid, HStack, Row, Stack } from '@tale/ui/layout';
+import { Card } from '@tale/ui/card';
+import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -19,8 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
+import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -177,6 +177,7 @@ function RuleDialog({
   mode,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
@@ -184,6 +185,15 @@ function RuleDialog({
       setDraft(initialRule);
     }
   }, [open, initialRule]);
+
+  const modelSelectOptions = useMemo(
+    () => allModelOptions.map((o) => ({ value: o.value, label: o.label })),
+    [allModelOptions],
+  );
+  const tagsByModel = useMemo(
+    () => new Map(allModelOptions.map((o) => [o.value, o.tags])),
+    [allModelOptions],
+  );
 
   const updateDraft = useCallback((patch: Partial<ModelAccessRule>) => {
     setDraft((prev) => {
@@ -211,108 +221,90 @@ function RuleDialog({
       title={title}
       onSubmit={handleSubmit}
       submitText={t('modelAccess.confirm')}
-      className="sm:max-w-2xl"
     >
       <Stack gap={4}>
-        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
+        <Select
+          label={t('modelAccess.scope')}
+          options={SCOPE_OPTIONS}
+          value={draft.scope}
+          onValueChange={(value: string) => {
+            if (isScopeValue(value)) {
+              updateDraft({ scope: value });
+            }
+          }}
+          disabled={cannotManage}
+        />
+
+        {draft.scope === 'role' && (
           <Select
-            label={t('modelAccess.scope')}
-            options={SCOPE_OPTIONS}
-            value={draft.scope}
-            onValueChange={(value: string) => {
-              if (isScopeValue(value)) {
-                updateDraft({ scope: value });
-              }
-            }}
+            label={t('modelAccess.role')}
+            options={ROLE_OPTIONS}
+            value={draft.scopeId ?? ''}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
           />
+        )}
 
-          {draft.scope === 'role' && (
-            <Select
-              label={t('modelAccess.role')}
-              options={ROLE_OPTIONS}
-              value={draft.scopeId ?? ''}
-              onValueChange={(value) => updateDraft({ scopeId: value })}
-              disabled={cannotManage}
-            />
-          )}
+        {draft.scope === 'user' && (
+          <SearchableSelect
+            label={t('modelAccess.user')}
+            placeholder={t('modelAccess.selectUser')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={memberOptions}
+            searchPlaceholder={t('modelAccess.searchUsers')}
+            emptyText={t('modelAccess.noUsersFound')}
+            aria-label={t('modelAccess.selectUser')}
+          />
+        )}
 
-          {draft.scope === 'user' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('modelAccess.user')}
-                placeholder={t('modelAccess.selectUser')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={memberOptions}
-                searchPlaceholder={t('modelAccess.searchUsers')}
-                emptyText={t('modelAccess.noUsersFound')}
-                aria-label={t('modelAccess.selectUser')}
-              />
-            </div>
-          )}
+        {draft.scope === 'team' && (
+          <SearchableSelect
+            label={t('modelAccess.team')}
+            placeholder={t('modelAccess.selectTeam')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={teamOptions}
+            searchPlaceholder={t('modelAccess.searchTeams')}
+            emptyText={t('modelAccess.noTeamsFound')}
+            aria-label={t('modelAccess.selectTeam')}
+          />
+        )}
 
-          {draft.scope === 'team' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('modelAccess.team')}
-                placeholder={t('modelAccess.selectTeam')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={teamOptions}
-                searchPlaceholder={t('modelAccess.searchTeams')}
-                emptyText={t('modelAccess.noTeamsFound')}
-                aria-label={t('modelAccess.selectTeam')}
-              />
-            </div>
-          )}
-        </Row>
-
-        <CheckboxGroup
+        <MultiSelect
           label={
             mode === 'allowlist'
               ? t('modelAccess.allowedModels')
               : t('modelAccess.blockedModels')
           }
+          value={
+            mode === 'allowlist'
+              ? draft.allowedModels
+              : (draft.blockedModels ?? [])
+          }
+          onValueChange={(values) => {
+            if (mode === 'allowlist') {
+              updateDraft({ allowedModels: values });
+            } else {
+              updateDraft({ blockedModels: values });
+            }
+          }}
+          options={modelSelectOptions}
+          optionAction={(option) => (
+            <ModelInfoPopover
+              tags={tagsByModel.get(option.value) ?? []}
+              capabilities={modelCapabilities.get(option.value)}
+              organizationId={organizationId}
+            />
+          )}
+          placeholder={t('modelAccess.selectModels')}
+          searchPlaceholder={tCommon('search.placeholder')}
+          emptyText={tCommon('search.noResults')}
           disabled={cannotManage}
-        >
-          <Grid cols={2} gap={2}>
-            {allModelOptions.map((option) => {
-              const selected =
-                mode === 'allowlist'
-                  ? draft.allowedModels
-                  : (draft.blockedModels ?? []);
-              const checked = selected.includes(option.value);
-              const toggle = (next: boolean) => {
-                const values = next
-                  ? [...selected, option.value]
-                  : selected.filter((v) => v !== option.value);
-                if (mode === 'allowlist') {
-                  updateDraft({ allowedModels: values });
-                } else {
-                  updateDraft({ blockedModels: values });
-                }
-              };
-              return (
-                <Row key={option.value} gap={1} align="start" justify="between">
-                  <Checkbox
-                    label={option.label}
-                    checked={checked}
-                    onCheckedChange={(c) => toggle(c === true)}
-                    disabled={cannotManage}
-                  />
-                  <ModelInfoPopover
-                    tags={option.tags}
-                    capabilities={modelCapabilities.get(option.value)}
-                    organizationId={organizationId}
-                  />
-                </Row>
-              );
-            })}
-          </Grid>
-        </CheckboxGroup>
+          modal
+        />
       </Stack>
     </FormDialog>
   );
@@ -630,7 +622,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
               </Button>
             </HStack>
 
-            <div className="border-border overflow-hidden rounded-lg border">
+            <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('modelAccess.title')}>
                 <TableCaption className="sr-only">
                   {t('modelAccess.title')}
@@ -729,7 +721,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                   )}
                 </TableBody>
               </Table>
-            </div>
+            </Card>
           </Stack>
         )}
 

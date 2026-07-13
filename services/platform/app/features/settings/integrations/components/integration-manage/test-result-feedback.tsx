@@ -20,7 +20,7 @@ export function TestResultFeedback({
       className={cn(
         'flex items-center gap-2 rounded-lg border p-3 text-sm',
         result.success
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+          ? 'border-success/30 bg-success/10 text-success'
           : 'border-destructive/30 bg-destructive/5 text-destructive',
       )}
       aria-live="polite"

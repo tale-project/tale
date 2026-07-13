@@ -63,6 +63,14 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
     impactPreview: ImpactEntry[];
   } = proposal.data;
 
+  // A non-first proposal with nothing to show would render a
+  // "0 of 0 change(s)" banner — there is nothing for the admin to
+  // review, so stay silent (the backend diff covers added/removed
+  // categories, making this an unreachable safety net).
+  if (!firstApply && diff.length === 0 && impactPreview.length === 0) {
+    return null;
+  }
+
   const tighteningCount = diff.filter((d) => d.direction === 'tighten').length;
   const totalCount = diff.length;
 

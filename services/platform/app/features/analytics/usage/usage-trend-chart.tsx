@@ -9,8 +9,8 @@ import {
   TrendBarChart,
   type ChartSeries,
 } from '@/app/components/metrics/charts';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export type UsageMetric = 'requests' | 'tokens' | 'cost';
 export type UsageGranularity = 'daily' | 'weekly' | 'monthly';
@@ -47,6 +47,7 @@ export function UsageTrendChart({
   granularity,
 }: UsageTrendChartProps) {
   const { t } = useT('analytics');
+  const { formatNumber, formatCostCents } = useFormatNumber();
 
   const data = series.map((p) => ({
     ...p,

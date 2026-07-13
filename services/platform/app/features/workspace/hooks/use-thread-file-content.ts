@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 
 import { api } from '@/convex/_generated/api';
 
+import { resolveRenderKind } from '../utils/resolve-render-kind';
+
 interface UseThreadFileContentArgs {
   threadId: string | undefined;
   organizationId: string;
@@ -62,9 +64,13 @@ export function useThreadFileContent({
     }
     // Image / attachment renderers don't need the body text — skip the
     // fetch to save bandwidth (a 4 MB PNG would otherwise come over the
-    // wire twice on every refocus).
-    const isBinaryHint =
-      meta.renderHint === 'image' || meta.renderHint === 'attachment';
+    // wire twice on every refocus). Decided on the RESOLVED kind, not the
+    // raw hint, so it can't disagree with the viewer router: a stored
+    // 'attachment' hint on text content resolves to a text kind (#2677) and
+    // must fetch, while an unhinted binary resolves to 'attachment' and
+    // rightly skips.
+    const kind = resolveRenderKind(meta.renderHint, path, meta.contentType);
+    const isBinaryHint = kind === 'image' || kind === 'attachment';
     if (isBinaryHint) {
       setBody({ url: meta.url });
       return undefined;

@@ -1,4 +1,5 @@
 import { Grid, Stack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
@@ -6,8 +7,10 @@ import { useCallback, useMemo } from 'react';
 import { Controller } from 'react-hook-form';
 import { z } from 'zod';
 
+import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
 import { ContentArea } from '@/app/components/layout/content-area';
 import {
+  useComposedEditor,
   useFormEditor,
   useRegisterActiveEditor,
 } from '@/app/components/ui/editor';
@@ -157,7 +160,14 @@ function ConfigurationPage() {
     save,
   });
 
-  useRegisterActiveEditor(editor);
+  // The env/secret list saves to the workflowEnv side-table, independent of
+  // the workflow file — compose both editors so the ONE header Save/Discard
+  // cluster (WorkflowNavigation reads the active editor) drives them together,
+  // instead of a second in-content Save button under the form.
+  const { controller: envController, onEditorState } = useEnvEditorController();
+  const composedEditor = useComposedEditor(editor, envController);
+
+  useRegisterActiveEditor(composedEditor);
 
   const {
     form: {
@@ -175,7 +185,9 @@ function ConfigurationPage() {
   // labels and help text stay real text.
   return (
     <Skeletonize loading={isLoading}>
-      <ContentArea variant="narrow" gap={4}>
+      {/* Same measure + rhythm as the sibling Triggers tab and the automation
+          Configuration tab (max-w-3xl / gap-6) — this route was the outlier. */}
+      <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
         <form id={CONFIGURATION_FORM_ID} onSubmit={editor.submit}>
           <fieldset
             disabled={isLoading || editor.isLoading || editor.isSaving}
@@ -256,16 +268,22 @@ function ConfigurationPage() {
 
         {/* Workflow-level env & secrets, auto-injected into EVERY sandbox step.
             Lives outside the RHF form: it writes straight to the workflowEnv
-            side-table (encrypt-on-save for secrets), independent of the file
-            save above. */}
-        <FormSection>
-          <Text variant="label">{tWorkflows('configuration.env')}</Text>
-          <Text variant="caption">{tWorkflows('configuration.envHelp')}</Text>
+            side-table (encrypt-on-save for secrets), composed into the header
+            Save/Discard cluster above. Same SectionHeader treatment as the
+            automation page's Environment tab. */}
+        <Stack gap={3}>
+          <SectionHeader
+            as="h3"
+            title={tWorkflows('configuration.env')}
+            description={tWorkflows('configuration.envHelp')}
+          />
           <WorkflowEnvEditor
             organizationId={organizationId}
             workflowSlug={workflowSlug}
+            externalSave
+            onEditorState={onEditorState}
           />
-        </FormSection>
+        </Stack>
       </ContentArea>
     </Skeletonize>
   );

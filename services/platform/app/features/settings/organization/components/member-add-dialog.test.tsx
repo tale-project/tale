@@ -40,10 +40,25 @@ vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
   };
 });
 
+// Satisfies every rule of DEFAULT_PASSWORD_POLICY (12+ chars, upper, lower,
+// digit, special).
+const VALID_PASSWORD = 'Sup3r$ecretPass';
+
 beforeEach(() => {
+  createMemberMock.mockClear();
   // Default: the email is a NEW user, so the password field is shown.
   userExistsMock.mockReturnValue(false);
 });
+
+function renderDialog() {
+  return render(
+    <AddMemberDialog
+      organizationId="org-1"
+      open={true}
+      onOpenChange={vi.fn()}
+    />,
+  );
+}
 
 describe('AddMemberDialog', () => {
   describe('accessibility', () => {
@@ -70,11 +85,75 @@ describe('AddMemberDialog', () => {
     });
   });
 
+  // #2687: validation parity with the sibling password forms (change-password
+  // dialog, onboarding account step) — submit is proactively disabled until
+  // the required fields for the active path are valid, instead of letting the
+  // click bounce off the backend's PASSWORD_REQUIRED error.
+  describe('proactive validation for a new user (#2687)', () => {
+    it('keeps submit disabled until the password satisfies the policy', async () => {
+      const { user } = renderDialog();
+
+      const submit = screen.getByRole('button', { name: 'Add member' });
+      await user.type(screen.getByLabelText('Name'), 'New User');
+      await user.type(screen.getByLabelText(/^email/i), 'new.user@example.com');
+
+      // Name + valid new email but no password: a new user cannot be created
+      // without one, so submit must stay disabled and a click must not fire.
+      expect(submit).toBeDisabled();
+      await user.click(submit);
+      expect(createMemberMock).not.toHaveBeenCalled();
+
+      // A policy-valid password enables submit …
+      const password = screen.getByLabelText('Password');
+      await user.type(password, VALID_PASSWORD);
+      await waitFor(() => expect(submit).toBeEnabled());
+
+      // … and clearing it disables submit again (an observed enabled→disabled
+      // flip, so the earlier disabled assertion cannot be a timing fluke).
+      await user.clear(password);
+      await waitFor(() => expect(submit).toBeDisabled());
+      expect(createMemberMock).not.toHaveBeenCalled();
+    });
+
+    it('still submits an existing user without a password', async () => {
+      // The email already belongs to a user → their credentials are reused, so
+      // no password is required and submit is gated by the schema alone.
+      userExistsMock.mockReturnValue(true);
+      createMemberMock.mockResolvedValueOnce({ isExistingUser: true });
+
+      const { user } = renderDialog();
+
+      await user.type(
+        screen.getByLabelText(/^email/i),
+        'existing.user@example.com',
+      );
+
+      const submit = screen.getByRole('button', { name: 'Add member' });
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      await waitFor(() => expect(createMemberMock).toHaveBeenCalledTimes(1));
+      expect(createMemberMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'existing.user@example.com',
+          password: undefined,
+        }),
+      );
+      // The success view confirms no new credentials were created.
+      await screen.findByText(/already had an account/i);
+    });
+  });
+
   // Regression test for #1470: creating a new user without a password failed
-  // with a generic toast. The backend now returns a PASSWORD_REQUIRED code and
-  // the dialog shows a field-level error on the password input.
+  // with a generic toast; the backend returns a PASSWORD_REQUIRED code and the
+  // dialog shows a field-level error on the password input. Since #2687 the
+  // submit button is disabled while the password is empty for a new user, so
+  // the backstop's remaining path is the debounced-lookup race: the lookup
+  // still reports "existing user" (password field hidden, submit enabled)
+  // while the submitted email is actually new.
   describe('missing password for a new user (#1470)', () => {
-    it('shows a password field error when the backend requires a password', async () => {
+    it('surfaces the backend PASSWORD_REQUIRED error on the password field', async () => {
+      userExistsMock.mockReturnValue(true);
       createMemberMock.mockRejectedValueOnce(
         new ConvexError({
           code: 'PASSWORD_REQUIRED',
@@ -82,38 +161,37 @@ describe('AddMemberDialog', () => {
         }),
       );
 
-      const { user } = render(
+      const { user, rerender } = renderDialog();
+
+      await user.type(screen.getByLabelText(/^email/i), 'new.user@example.com');
+
+      const submit = screen.getByRole('button', { name: 'Add member' });
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+      await waitFor(() => expect(createMemberMock).toHaveBeenCalledTimes(1));
+
+      // The lookup catches up — the email is new after all. The password field
+      // reappears carrying the backstop error, not a generic toast.
+      userExistsMock.mockReturnValue(false);
+      rerender(
         <AddMemberDialog
           organizationId="org-1"
           open={true}
           onOpenChange={vi.fn()}
         />,
       );
-
-      const email = document.querySelector(
-        'input[name="email"]',
-      ) as HTMLInputElement;
-      await user.type(email, 'new.user@example.com');
-
-      const submit = document.querySelector(
-        'button[type="submit"]',
-      ) as HTMLButtonElement;
-      await waitFor(() => expect(submit).toBeEnabled());
-      await user.click(submit);
-
-      // The specific error is surfaced on the field, not as a generic toast.
       await screen.findByText('Password is required to create a new user');
-      expect(createMemberMock).toHaveBeenCalledTimes(1);
     });
   });
 
   // Regression test for #2018: adding an email that already belongs to a member
   // of the org surfaced as an opaque generic toast. The backend now returns a
   // DUPLICATE_MEMBER code and the dialog shows a field-level error on the email
-  // input.
+  // input. A duplicate member necessarily belongs to an existing user, so the
+  // lookup reports "existing" — no password is needed for submit to enable.
   describe('duplicate member (#2018)', () => {
     it('shows an email field error when the user is already a member', async () => {
-      createMemberMock.mockClear();
+      userExistsMock.mockReturnValue(true);
       createMemberMock.mockRejectedValueOnce(
         new ConvexError({
           code: 'DUPLICATE_MEMBER',
@@ -121,22 +199,14 @@ describe('AddMemberDialog', () => {
         }),
       );
 
-      const { user } = render(
-        <AddMemberDialog
-          organizationId="org-1"
-          open={true}
-          onOpenChange={vi.fn()}
-        />,
+      const { user } = renderDialog();
+
+      await user.type(
+        screen.getByLabelText(/^email/i),
+        'existing.member@example.com',
       );
 
-      const email = document.querySelector(
-        'input[name="email"]',
-      ) as HTMLInputElement;
-      await user.type(email, 'existing.member@example.com');
-
-      const submit = document.querySelector(
-        'button[type="submit"]',
-      ) as HTMLButtonElement;
+      const submit = screen.getByRole('button', { name: 'Add member' });
       await waitFor(() => expect(submit).toBeEnabled());
       await user.click(submit);
 

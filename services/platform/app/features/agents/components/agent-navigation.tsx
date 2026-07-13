@@ -7,6 +7,8 @@ import { useCallback, useMemo, useState } from 'react';
 
 import {
   EditorActions,
+  useActiveEditor,
+  useComposedEditor,
   useRegisterDirtySource,
   type EditorController,
 } from '@/app/components/ui/editor';
@@ -89,9 +91,10 @@ const AGENT_TAB_DIRTY_KEYS = {
   ],
   conversationStarters: ['conversationStarters'],
   webhook: [],
-  // Env/secrets live in the `agentEnv` side-table, not the agent file — so this
-  // tab never lights the config dirty-dot.
-  environment: [],
+  // Env/secrets live in the `agentEnv` side-table, not the agent file — the
+  // Environment tab's editor registers itself in the active-editor registry
+  // and reports the 'environment' dirty key, which this entry matches.
+  environment: ['environment'],
 } as const;
 
 function computeDirtyKeys(
@@ -299,7 +302,7 @@ export function AgentNavigation({
 
   // Build an `EditorController` from the legacy context so `EditorActions`
   // (and any future per-tab consumers) get the unified shape.
-  const editorController: EditorController = useMemo(
+  const configController: EditorController = useMemo(
     () => ({
       isDirty,
       isSaving,
@@ -310,6 +313,16 @@ export function AgentNavigation({
       reset: resetConfig,
     }),
     [doSave, dirtyKeys, isDirty, isSaving, isValid, resetConfig],
+  );
+
+  // Side-table editors (the Environment tab's env/secret list) register in the
+  // active-editor registry; composing them here keeps ONE header Save/Discard
+  // cluster driving both the agent file and whatever side-table editor is
+  // mounted — no per-tab save buttons.
+  const registeredEditor = useActiveEditor();
+  const editorController = useComposedEditor(
+    configController,
+    registeredEditor,
   );
 
   // Register with the page-level DirtyBlockerProvider so the unsaved-changes
@@ -452,7 +465,9 @@ export function AgentNavigation({
         items={navigationItems}
         standalone={false}
         ariaLabel={tCommon('aria.agentsNavigation')}
-        dirtyKeys={dirtyKeys}
+        // Composed keys: config-file diffs + any registered side-table editor
+        // (e.g. 'environment'), so every tab's dirty dot has one source.
+        dirtyKeys={editorController.dirtyKeys}
       >
         <EditorActions
           controller={editorController}

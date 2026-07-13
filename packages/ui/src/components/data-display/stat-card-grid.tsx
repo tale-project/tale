@@ -20,12 +20,13 @@ import { Text } from '../typography/text';
  * vs loaded.
  */
 const statCardGridVariants = cva(
-  'border-border-base divide-border-base grid grid-cols-2 divide-y rounded-lg border md:divide-x md:divide-y-0',
+  'border-border-base divide-border-base grid divide-y rounded-lg border md:divide-x md:divide-y-0',
   {
     variants: {
       cols: {
-        2: 'md:grid-cols-2',
-        4: 'md:grid-cols-4',
+        2: 'grid-cols-2 md:grid-cols-2',
+        3: 'grid-cols-1 md:grid-cols-3',
+        4: 'grid-cols-2 md:grid-cols-4',
       },
     },
     defaultVariants: { cols: 4 },

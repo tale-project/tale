@@ -13,9 +13,13 @@ Six rôles couvrent presque chaque équipe à laquelle Tale est livré. Les Admi
 
 </Frame>
 
-## Une invitation mise en pratique
+## Ajouter un membre
 
-Pour ajouter une personne à ton organisation, ouvre **Paramètres > Organisation**, fais défiler jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Le nouveau membre reçoit un lien e-mail valide 24 heures et atterrit dans le rôle par défaut que tu choisis — change le rôle dans le formulaire avant l’envoi s’il ne doit pas être Membre. Le défaut s’applique dès qu’il accepte l’invitation ; la promotion ultérieure est un changement en un clic dans la même section Membres.
+Pour ajouter une personne à ton organisation, ouvre **Paramètres > Organisation**, fais défiler jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Renseigne son **Nom**, son **E-mail** et son **Rôle**, puis définis un **Mot de passe** — Tale n’envoie pas d’invitation par e-mail, un mot de passe est donc requis pour créer un nouveau compte. (Si l’e-mail correspond déjà à un compte Tale, aucun mot de passe n’est demandé : la personne se connecte avec ses identifiants existants et est simplement ajoutée à cette organisation.)
+
+Lors de l’**Ajouter un membre**, Tale affiche les nouveaux identifiants **une seule fois**, en rappelant de les enregistrer maintenant : ils ne seront plus affichés. Transmets-les au nouveau membre par un autre canal ; il n’y a pas d’e-mail de réinitialisation. Quiconque oublie ensuite son mot de passe contacte un administrateur, qui peut en définir un nouveau depuis la même section Membres.
+
+Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le changer ensuite est une modification en un clic dans la même section Membres.
 
 ## Les six rôles
 

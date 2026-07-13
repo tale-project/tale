@@ -1,11 +1,10 @@
 import { HStack, VStack } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
+import { AgentTabContent } from '@/app/features/agents/components/agent-tab-content';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { SkillBindingsSelect } from '@/app/features/skills/components/skill-bindings-select';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
@@ -60,11 +59,12 @@ function SkillsTab() {
     : t('agents.form.sectionSkillBindingsDescription');
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.form.sectionSkillBindings')}
-        description={sectionDescription}
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {sectionDescription}
+      </Text>
       <SkillBindingsSelect
         organizationId={organizationId}
         excludeSlugs={isExternalAgent ? workflowSlugs : undefined}
@@ -101,6 +101,6 @@ function SkillsTab() {
           ),
         }}
       />
-    </ContentArea>
+    </AgentTabContent>
   );
 }

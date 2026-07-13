@@ -43,7 +43,14 @@ export const validateBuiltinCatalog = internalAction({
       return { ok: false, issueCount: 0, filesValidated: 0 };
     }
 
-    const registryIssues = checkValidatorRegistryComplete();
+    // Registry completeness (domain ↔ validator mapping) is checked here
+    // like everywhere else, but the covering-gate file-existence half is
+    // checkout-bound: the shipped image carries no repo checkout and never
+    // bundles test files, so checking them at runtime turned every healthy
+    // container boot red (#2675). The vitest and build-time gates keep it on.
+    const registryIssues = checkValidatorRegistryComplete({
+      checkCoveringGates: false,
+    });
     const { issues: catalogIssues, filesValidated } = validateConfigDir(
       builtinDir,
       'catalog',

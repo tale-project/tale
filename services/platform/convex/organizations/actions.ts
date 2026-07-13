@@ -15,9 +15,11 @@
  * `retryProvisioning` re-runs the full org-create pipeline idempotently:
  * every scaffolded domain (providers + governance included — a superset of
  * the per-domain catalog sync in `builtin_sync.ts`) plus the same
- * post-scaffold provisioners `afterCreateOrganization` schedules. Gated on
- * developer-settings access like the catalog sync, since it (re)writes
- * capability-bearing config files.
+ * post-scaffold provisioners `afterCreateOrganization` schedules. It then
+ * RE-PROBES: `ok` is earned only when the post-repair probe lists nothing
+ * missing — a repair that couldn't land the files must not toast success
+ * while the banner persists (#2676). Gated on developer-settings access like
+ * the catalog sync, since it (re)writes capability-bearing config files.
  */
 
 import { v } from 'convex/values';
@@ -113,9 +115,23 @@ export const retryProvisioning = action({
       { organizationId: args.organizationId },
     );
 
+    // Honesty check: the status is file-derived, so re-derive it. A domain
+    // can stay missing even when every per-domain seed reported ok (the copy
+    // found nothing it would seed — e.g. a catalog/scaffold disagreement).
+    // Reporting ok here would toast success while the banner persists
+    // (#2676). `null` (probe can't run: env unset) folds to [] — that same
+    // misconfig already made the scaffold return `skipped:true` above.
+    const stillMissing = (await listMissingScaffoldDomains(orgSlug)) ?? [];
+
+    const failedDomains = [
+      ...new Set([
+        ...result.results.filter((r) => !r.ok).map((r) => r.domain),
+        ...stillMissing,
+      ]),
+    ];
     return {
-      ok: result.ok && !result.skipped,
-      failedDomains: result.results.filter((r) => !r.ok).map((r) => r.domain),
+      ok: result.ok && !result.skipped && stillMissing.length === 0,
+      failedDomains,
     };
   },
 });

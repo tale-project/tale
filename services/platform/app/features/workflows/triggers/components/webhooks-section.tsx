@@ -187,7 +187,7 @@ export function WebhooksSection({
                 className="shrink-0"
               >
                 {copiedUrl === row.original.token ? (
-                  <Check className="size-3.5 text-green-500" />
+                  <Check className="text-success size-3.5" />
                 ) : (
                   <Copy className="size-3.5" />
                 )}

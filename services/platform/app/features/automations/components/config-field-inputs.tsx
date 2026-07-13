@@ -13,11 +13,10 @@
  * REQUIRES); this file previously also fed that editor, which is why it's
  * factored out rather than inlined into `form.tsx`.
  */
-import { Checkbox } from '@tale/ui/checkbox';
-import { Input } from '@tale/ui/input';
-import { Textarea } from '@tale/ui/textarea';
-
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import type { AutomationConfigField } from '@/lib/shared/schemas/automation_views';
 
 import type { ConfigFieldText } from '../hooks/use-automation-text';

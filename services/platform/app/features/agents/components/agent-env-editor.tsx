@@ -11,6 +11,8 @@ import {
   EnvVarListEditor,
   type LoadedEnvVar,
 } from '@/app/components/env/env-var-list-editor';
+import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
+import { useRegisterActiveEditor } from '@/app/components/ui/editor';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -49,10 +51,18 @@ export function AgentEnvEditor({
     api.agents.agent_env.deleteAgentEnvVar,
   );
 
+  // Dock Save/Discard in the agent editor's header cluster (AgentNavigation
+  // composes this registered controller with the config-file editor) instead
+  // of an in-content Save button — one save affordance per screen.
+  const { controller, onEditorState } = useEnvEditorController();
+  useRegisterActiveEditor(controller);
+
   return (
     <EnvVarListEditor
       rows={data as LoadedEnvVar[] | undefined}
       isLoading={isLoading}
+      externalSave
+      onEditorState={onEditorState}
       tokenSources={tokenSources}
       onSet={async ({ key, value, isSecret, tokenSourceSlug }) => {
         await setVar({

@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CodeBlock } from '@tale/ui/code-block';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
@@ -370,9 +371,9 @@ export function SkillDetailPanel({
                       defaultValue: 'Technical details',
                     })}
                   </Text>
-                  <pre className="bg-muted text-muted-foreground max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                  <CodeBlock className="max-h-48 overflow-auto whitespace-pre-wrap">
                     {errorMessage}
-                  </pre>
+                  </CodeBlock>
                 </Stack>
               ) : null}
               <div>

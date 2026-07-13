@@ -1,19 +1,21 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { formatDistanceToNow } from 'date-fns';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
+import {
+  formatDurationSeconds,
+  formatSuccessRate,
+} from '@/lib/utils/format/duration';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
-
-import { formatDurationSeconds, formatSuccessRate } from './format-duration';
 
 export interface TopWorkflowRow {
   wfDefinitionId: string | null;
@@ -45,6 +47,7 @@ export function TopWorkflowsTable({
 }: TopWorkflowsTableProps) {
   const navigate = useNavigate();
   const { t } = useT('automations');
+  const { locale, formatNumber } = useFormatNumber();
 
   const handleRowClick = useCallback(
     (row: Row<TopWorkflowRow>) => {
@@ -93,7 +96,11 @@ export function TopWorkflowsTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatSuccessRate(row.original.total, row.original.successRate)}
+            {formatSuccessRate(
+              row.original.total,
+              row.original.successRate,
+              locale,
+            )}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -126,23 +133,16 @@ export function TopWorkflowsTable({
         id: 'lastRun',
         header: t('metrics.table.lastRun'),
         cell: ({ row }) => (
-          <Text as="span" variant="caption">
-            {row.original.lastExecution
-              ? formatDistanceToNow(new Date(row.original.lastExecution), {
-                  addSuffix: true,
-                })
-              : '—'}
-          </Text>
+          <TableDateCell date={row.original.lastExecution} preset="relative" />
         ),
         size: 160,
       },
     ],
-    [t],
+    [t, locale, formatNumber],
   );
 
   return (
-    <Stack gap={3}>
-      <h2 className="text-base font-semibold">{t('metrics.table.title')}</h2>
+    <MetricsSection title={t('metrics.table.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -157,6 +157,6 @@ export function TopWorkflowsTable({
           description: t('metrics.empty.description'),
         }}
       />
-    </Stack>
+    </MetricsSection>
   );
 }

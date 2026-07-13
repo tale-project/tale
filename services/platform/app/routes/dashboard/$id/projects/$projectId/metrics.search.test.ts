@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { Route, searchSchema } from './metrics';
+import { metricsPeriodSearchSchema } from '@/app/components/metrics/metrics-period';
+
+import { Route } from './metrics';
 
 // Regression coverage for the #2647 residual: this tab must NOT override the
 // parent `$projectId` layout's `head`, which already sets the document title
@@ -16,24 +18,11 @@ describe('project metrics route head', () => {
 
 // Regression coverage for #2033: a shared/bookmarked
 // `/projects/$projectId/metrics?period=90` URL is parsed by the router as the
-// JSON number 90, which must not crash the route via SearchParamError.
-describe('project metrics searchSchema', () => {
-  it('coerces numeric period values to the string enum', () => {
-    expect(searchSchema.parse({ period: 90 }).period).toBe('90');
-    expect(searchSchema.parse({ period: 30 }).period).toBe('30');
-    expect(searchSchema.parse({ period: 7 }).period).toBe('7');
-  });
-
-  it('accepts string period values', () => {
-    expect(searchSchema.parse({ period: '90' }).period).toBe('90');
-  });
-
-  it('falls back to the default window for out-of-range values', () => {
-    expect(searchSchema.parse({ period: 999 }).period).toBe('30');
-    expect(searchSchema.parse({ period: 'nonsense' }).period).toBe('30');
-  });
-
-  it('leaves an omitted period undefined', () => {
-    expect(searchSchema.parse({}).period).toBeUndefined();
+// JSON number 90, which must not crash the route via SearchParamError. The
+// coercion behavior itself is covered by `metrics-period.test.ts`; this pins
+// the route to that shared schema so it can't regress to a hand-rolled copy.
+describe('project metrics search validation', () => {
+  it('uses the shared coercing period schema', () => {
+    expect(Route.options.validateSearch).toBe(metricsPeriodSearchSchema);
   });
 });

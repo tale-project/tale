@@ -3,17 +3,20 @@
 /**
  * Personal (per-user) env/secret editor, backed by the `userEnv` store. Renders
  * the SAME shared `EnvVarListEditor` the agent + workflow/automation env editors
- * use, inside the shared env-page chrome (max-w-3xl ContentArea + SectionHeader)
- * — so all three environment surfaces are identical.
+ * use, inside the canonical settings chrome (`SettingsPage` + `SettingsSection`).
+ * Save/Discard docks in the settings header via the active-editor registry —
+ * like every other settings page — instead of an in-content Save button.
  */
-import { SectionHeader } from '@tale/ui/section-header';
-import { Text } from '@tale/ui/text';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import {
   EnvVarListEditor,
   type LoadedEnvVar,
 } from '@/app/components/env/env-var-list-editor';
-import { ContentArea } from '@/app/components/layout/content-area';
+import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
+import { useRegisterActiveEditor } from '@/app/components/ui/editor';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
@@ -32,23 +35,34 @@ function UserEnvSettingsInner({ organizationId }: { organizationId: string }) {
   const { mutateAsync: upsert } = useUpsertMyEnvVar();
   const { mutateAsync: deleteVar } = useDeleteMyEnvVar();
 
+  const { controller, onEditorState } = useEnvEditorController();
+  useRegisterActiveEditor(controller);
+
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('page.title')}
-        description={t('page.description')}
-      />
-      <Text className="text-muted-foreground text-sm">{t('page.note')}</Text>
-      <EnvVarListEditor
-        rows={vars as LoadedEnvVar[] | undefined}
-        isLoading={vars === undefined}
-        onSet={async ({ key, value, isSecret }) => {
-          await upsert({ organizationId, key, value, isSecret });
-        }}
-        onDelete={async (key) => {
-          await deleteVar({ organizationId, key });
-        }}
-      />
-    </ContentArea>
+    <Skeletonize loading={vars === undefined}>
+      <SettingsPage>
+        <SettingsSection
+          title={t('page.title')}
+          description={
+            <>
+              {t('page.description')} {t('page.note')}
+            </>
+          }
+        >
+          <EnvVarListEditor
+            rows={vars as LoadedEnvVar[] | undefined}
+            isLoading={vars === undefined}
+            externalSave
+            onEditorState={onEditorState}
+            onSet={async ({ key, value, isSecret }) => {
+              await upsert({ organizationId, key, value, isSecret });
+            }}
+            onDelete={async (key) => {
+              await deleteVar({ organizationId, key });
+            }}
+          />
+        </SettingsSection>
+      </SettingsPage>
+    </Skeletonize>
   );
 }

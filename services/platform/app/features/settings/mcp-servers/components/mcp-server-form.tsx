@@ -61,21 +61,27 @@ interface FormErrors {
   clientSecret?: string;
 }
 
-const TRANSPORT_OPTIONS = [
-  { value: 'streamable_http', label: 'Streamable HTTP' },
-  { value: 'sse', label: 'SSE' },
-  { value: 'stdio', label: 'stdio' },
+// Option labels resolve through i18n at render time (the module-level arrays
+// used to carry hardcoded English into every locale). 'Streamable HTTP' /
+// 'SSE' / 'stdio' are protocol proper names shared across locales, but they
+// still flow through t() so a locale may annotate them.
+type T = (key: string) => string;
+
+const transportOptions = (t: T) => [
+  { value: 'streamable_http', label: t('form.transportStreamableHttp') },
+  { value: 'sse', label: t('form.transportSse') },
+  { value: 'stdio', label: t('form.transportStdio') },
 ];
 
-const AUTH_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'api_key', label: 'API Key' },
-  { value: 'oauth2', label: 'OAuth 2.0' },
+const authOptions = (t: T) => [
+  { value: 'none', label: t('form.authNone') },
+  { value: 'api_key', label: t('form.apiKey') },
+  { value: 'oauth2', label: t('form.oauth2') },
 ];
 
-const GRANT_TYPE_OPTIONS = [
-  { value: 'client_credentials', label: 'Client credentials' },
-  { value: 'authorization_code', label: 'Authorization code' },
+const grantTypeOptions = (t: T) => [
+  { value: 'client_credentials', label: t('form.grantClientCredentials') },
+  { value: 'authorization_code', label: t('form.grantAuthorizationCode') },
 ];
 
 const TRANSPORT_VALUES = new Set(['stdio', 'sse', 'streamable_http']);
@@ -314,7 +320,7 @@ export function McpServerForm({
           />
           <Select
             label={t('form.transportType')}
-            options={TRANSPORT_OPTIONS}
+            options={transportOptions(t)}
             value={transportType}
             onValueChange={(val) => {
               if (isTransportType(val)) setTransportType(val);
@@ -358,7 +364,7 @@ export function McpServerForm({
         <FormSection label={t('form.authSection')}>
           <Select
             label={t('form.authType')}
-            options={AUTH_OPTIONS}
+            options={authOptions(t)}
             value={authType}
             onValueChange={(val) => {
               if (isAuthType(val)) setAuthType(val);
@@ -382,7 +388,7 @@ export function McpServerForm({
             <Stack gap={3}>
               <Select
                 label={t('oauth2.grantType')}
-                options={GRANT_TYPE_OPTIONS}
+                options={grantTypeOptions(t)}
                 value={grantType}
                 onValueChange={(val) => {
                   if (isGrantType(val)) setGrantType(val);

@@ -101,6 +101,7 @@
     "title": "Zugriff verweigert",
     "integrations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die Integrationseinstellungen zuzugreifen.",
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
+    "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
     "skills": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Skills zu verwalten.",
@@ -123,12 +124,6 @@
       "integration": "Integration",
       "transcription": "Transkription",
       "tts": "Sprachausgabe",
-      "period": {
-        "label": "Zeitraum",
-        "last7Days": "Letzte 7 Tage",
-        "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage"
-      },
       "granularity": {
         "label": "Granularität",
         "daily": "Täglich",
@@ -209,14 +204,6 @@
       "errors": {
         "loadFailed": "Feedback-Metriken konnten nicht geladen werden",
         "unauthorized": "Du hast keinen Zugriff auf diese Seite"
-      },
-      "period": {
-        "label": "Zeitraum",
-        "last24Hours": "Letzte 24 Stunden",
-        "last7Days": "Letzte 7 Tage",
-        "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage",
-        "allTime": "Gesamter Zeitraum"
       },
       "kind": {
         "label": "Typ",
@@ -873,29 +860,10 @@
       "notInProjectDescription": "Füge diese Automatisierung zu diesem Projekt hinzu, um sie hier zu nutzen.",
       "addToThisProject": "Zu diesem Projekt hinzufügen"
     },
-    "board": {
-      "hiddenCards": "{count, plural, one {# Karte ausgeblendet — keine passende Spalte} other {# Karten ausgeblendet — keine passende Spalte}}",
-      "moveTo": "Verschieben nach",
-      "truncated": "Nur die ersten Karten werden angezeigt — die Liste wurde gekürzt."
-    },
-    "chat": {
-      "roleUnavailable": "Diese Automatisierung verknüpft die Rolle „{role}“ noch mit keinem Agenten."
-    },
-    "integrationsTab": {
-      "emptyTitle": "Keine Integrationen erforderlich",
-      "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
-    },
     "metrics": {
-      "link": "Metriken anzeigen",
-      "title": "Workflow-Metriken",
+      "title": "Automatisierungs-Metriken",
       "description": "Nutzungs- und Leistungskennzahlen über alle Automatisierungen.",
       "cappedNotice": "Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.",
-      "period": {
-        "last7Days": "Letzte 7 Tage",
-        "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage",
-        "label": "Zeitraum"
-      },
       "cards": {
         "totalRuns": "Ausführungen gesamt",
         "successRate": "Erfolgsquote",
@@ -928,6 +896,18 @@
         "title": "Keine Workflow-Ausführungen",
         "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt."
       }
+    },
+    "board": {
+      "hiddenCards": "{count, plural, one {# Karte ausgeblendet — keine passende Spalte} other {# Karten ausgeblendet — keine passende Spalte}}",
+      "moveTo": "Verschieben nach",
+      "truncated": "Nur die ersten Karten werden angezeigt — die Liste wurde gekürzt."
+    },
+    "chat": {
+      "roleUnavailable": "Diese Automatisierung verknüpft die Rolle „{role}“ noch mit keinem Agenten."
+    },
+    "integrationsTab": {
+      "emptyTitle": "Keine Integrationen erforderlich",
+      "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
     }
   },
   "changelog": {
@@ -1113,7 +1093,7 @@
     },
     "modelSelector": {
       "label": "Modell auswählen",
-      "searchPlaceholder": "Modelle suchen...",
+      "searchPlaceholder": "Modelle suchen…",
       "noResults": "Keine Modelle gefunden",
       "addModel": "Modell hinzufügen",
       "auto": "Auto",
@@ -1733,6 +1713,12 @@
     "kbFolderChipFilesSkipped": "{resolved}/{count, plural, one {# Datei} other {# Dateien}} — {skipped, plural, one {# nicht indexiert} other {# nicht indexiert}}",
     "embedded": {
       "analyzeAttachments": "Bitte analysiere die angehängten Dateien."
+    },
+    "errors": {
+      "PROJECT_MISMATCH": "Diese Konversation gehört zu einem anderen Projekt.",
+      "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf das Projekt dieser Konversation.",
+      "PROJECT_NOT_FOUND": "Das Projekt dieser Konversation existiert nicht mehr.",
+      "PROJECT_ORG_MISMATCH": "Das Projekt dieser Konversation gehört zu einer anderen Organisation."
     }
   },
   "common": {
@@ -1938,7 +1924,7 @@
     "search": {
       "noResults": "Keine Ergebnisse gefunden",
       "tryAdjusting": "Passe deine Suchkriterien an",
-      "placeholder": "Suchen..."
+      "placeholder": "Suchen…"
     },
     "mentions": {
       "unresolvedTitle": "Erwähnung nicht erkannt",
@@ -1951,7 +1937,9 @@
       "errorLoadingPage": "Beim Laden dieser Seite ist ein Fehler aufgetreten. Du kannst es erneut versuchen oder zu einem anderen Bereich navigieren.",
       "persistsProblem": "Wenn dieses Problem weiterhin besteht,",
       "contactSupport": "kontaktiere den Support",
-      "tryAgain": "Erneut versuchen"
+      "tryAgain": "Erneut versuchen",
+      "showDetails": "Details anzeigen",
+      "hideDetails": "Details ausblenden"
     },
     "executionErrors": {
       "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
@@ -1961,7 +1949,9 @@
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
-      "escape": "Esc"
+      "escape": "Esc",
+      "hintToSave": "zum Speichern,",
+      "hintToCancel": "zum Abbrechen"
     },
     "notFound": {
       "title": "Seite nicht gefunden",
@@ -2215,6 +2205,9 @@
       "high": "Hoch",
       "low": "Niedrig",
       "medium": "Mittel"
+    },
+    "history": {
+      "loadingMore": "Weitere Konversationen werden durchsucht…"
     }
   },
   "contacts": {
@@ -2307,7 +2300,8 @@
     "toSend": "zum Senden",
     "contactInfo": {
       "title": "Kontaktdetails"
-    }
+    },
+    "selectConversation": "Konversation auswählen"
   },
   "documentWriteApproval": {
     "cardTitle": "In Dokumenten speichern",
@@ -2819,16 +2813,16 @@
       "user": "Benutzer",
       "team": "Team",
       "selectUser": "Benutzer auswählen...",
-      "searchUsers": "Benutzer suchen...",
+      "searchUsers": "Benutzer suchen…",
       "noUsersFound": "Keine Benutzer gefunden",
       "selectUserAriaLabel": "Benutzer auswählen",
       "selectTeam": "Team auswählen...",
-      "searchTeams": "Teams suchen...",
+      "searchTeams": "Teams suchen…",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeamAriaLabel": "Team auswählen",
       "apiKey": "API-Schlüssel",
       "selectApiKey": "API-Schlüssel auswählen...",
-      "searchApiKeys": "API-Schlüssel suchen...",
+      "searchApiKeys": "API-Schlüssel suchen…",
       "noApiKeysFound": "Keine API-Schlüssel gefunden",
       "selectApiKeyAriaLabel": "API-Schlüssel auswählen",
       "saved": "Budgetregeln wurden aktualisiert",
@@ -2865,9 +2859,9 @@
       "selectProvider": "Anbieter auswählen...",
       "selectModel": "Modell auswählen...",
       "selectTeam": "Team auswählen...",
-      "searchProviders": "Anbieter suchen...",
-      "searchModels": "Modelle suchen...",
-      "searchTeams": "Teams suchen...",
+      "searchProviders": "Anbieter suchen…",
+      "searchModels": "Modelle suchen…",
+      "searchTeams": "Teams suchen…",
       "noProvidersFound": "Keine Anbieter gefunden",
       "noModelsFound": "Keine Modelle gefunden",
       "noTeamsFound": "Keine Teams gefunden",
@@ -2887,6 +2881,8 @@
       "allowedMimeTypes": "Erlaubte MIME-Typen",
       "maxFileSize": "Maximale Dateigrösse",
       "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",
+      "invalidMaxFileSize": "Die maximale Dateigrösse muss null oder eine positive Zahl sein.",
+      "invalidMaxVolume": "Das maximale Gesamtvolumen muss null oder eine positive Zahl sein.",
       "extensionPlaceholder": "pdf, png, csv",
       "mimeTypePlaceholder": "image/*, application/pdf",
       "mbUnit": "MB",
@@ -2956,7 +2952,9 @@
         "summary": "{tightened} von {total} Änderung(en) verschärfen die Aufbewahrung. Vor dem Anwenden prüfen.",
         "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfe die Betreiberkonfiguration und klicke auf Anwenden, um die Aufbewahrung zu aktivieren.",
         "applyLabel": "Anwenden",
+        "applyingLabel": "Wird angewendet…",
         "rejectLabel": "Ablehnen",
+        "rejectingLabel": "Wird abgelehnt…",
         "detailsLabel": "Details anzeigen",
         "detailsTitle": "Vorgeschlagene Grenzwertänderungen",
         "detailsDescription": "Prüfe die vom Betreiber vorgeschlagenen Aufbewahrungsgrenzen vor dem Anwenden oder Ablehnen.",
@@ -3156,10 +3154,10 @@
         "editor": "Editor",
         "member": "Mitglied"
       },
-      "searchUsers": "Benutzer suchen...",
+      "searchUsers": "Benutzer suchen…",
       "noUsersFound": "Keine Benutzer gefunden",
       "selectUser": "Benutzer auswählen...",
-      "searchTeams": "Teams suchen...",
+      "searchTeams": "Teams suchen…",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeam": "Team auswählen..."
     },
@@ -3554,7 +3552,8 @@
         "restoredToast": "Wiederhergestellt.",
         "failedToast": "Wiederherstellung fehlgeschlagen",
         "failedDescription": "Dieser Datensatz konnte nicht wiederhergestellt werden."
-      }
+      },
+      "emptyTitle": "Papierkorb ist leer"
     },
     "legalHold": {
       "targetTypes": {
@@ -3770,6 +3769,7 @@
       "team": "Team",
       "selectUser": "Benutzer auswählen",
       "selectTeam": "Team auswählen",
+      "selectModels": "Modelle auswählen",
       "searchUsers": "Benutzer suchen",
       "searchTeams": "Teams suchen",
       "noUsersFound": "Keine Benutzer gefunden",
@@ -4040,6 +4040,14 @@
       "automations": "Automatisierungen",
       "projects": "Projekte"
     },
+    "period": {
+      "label": "Zeitraum",
+      "last24Hours": "Letzte 24 Stunden",
+      "last7Days": "Letzte 7 Tage",
+      "last30Days": "Letzte 30 Tage",
+      "last90Days": "Letzte 90 Tage",
+      "allTime": "Gesamter Zeitraum"
+    },
     "projects": {
       "selectLabel": "Projekt",
       "selectPlaceholder": "Projekt auswählen…",
@@ -4209,12 +4217,18 @@
       "displayName": "Anzeigename",
       "description": "Beschreibung",
       "transportType": "Transporttyp",
+      "transportStreamableHttp": "Streamable HTTP",
+      "transportSse": "SSE",
+      "transportStdio": "stdio",
       "url": "URL",
       "command": "Befehl",
       "args": "Argumente",
       "authType": "Methode",
+      "authNone": "Keine",
       "apiKey": "API-Key",
       "oauth2": "OAuth 2.0",
+      "grantClientCredentials": "Client Credentials",
+      "grantAuthorizationCode": "Authorization Code",
       "save": "Server speichern",
       "saving": "Speichern...",
       "cancel": "Abbrechen",
@@ -4946,7 +4960,7 @@
     "library": {
       "title": "Prompt-Bibliothek",
       "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
-      "searchPlaceholder": "Prompts suchen...",
+      "searchPlaceholder": "Prompts suchen…",
       "loading": "Prompts werden geladen...",
       "loadMore": "Mehr laden",
       "loadingMore": "Lädt...",
@@ -5289,6 +5303,7 @@
       "localeDescription": "Die Hauptsprache deiner Organisation.",
       "organizationId": "Organisations-ID",
       "organizationIdDescription": "Die eindeutige Kennung deiner Organisation.",
+      "copyOrganizationId": "Organisations-ID kopieren",
       "membersSectionTitle": "Mitglieder",
       "membersDescription": "Personen, die Zugriff auf diese Organisation haben.",
       "membersEntityLabel": "Mitglieder",
@@ -5458,7 +5473,6 @@
         "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
       },
       "conversationStarters": {
-        "title": "Gesprächseinstiege",
         "description": "Vorgeschlagene Prompts, die Benutzern beim Start einer neuen Konversation mit diesem Agent angezeigt werden. Leer lassen, um keine Vorschläge anzuzeigen.",
         "placeholder": "z. B. Hilf mir, einen Bericht zu schreiben",
         "add": "Einstieg hinzufügen",
@@ -5466,15 +5480,10 @@
         "dragHandle": "Ziehen zum Neuanordnen",
         "moveUp": "Nach oben",
         "moveDown": "Nach unten",
-        "default": "Standard",
-        "untranslated": "Nicht übersetzt",
-        "autoTranslate": "Automatisch übersetzen",
         "translateError": "Automatische Übersetzung fehlgeschlagen"
       },
       "form": {
-        "sectionGeneral": "Allgemein",
         "sectionGeneralDescription": "Grundlegende Informationen über den Agent",
-        "sectionInstructions": "Anweisungen",
         "sectionInstructionsDescription": "Verhalten und Persönlichkeit des Agents definieren",
         "templateVariablesLabel": "Verfügbare Vorlagenvariablen",
         "templateVariablesDescription": "Verwende diese Variablen in deinen Anweisungen – sie werden zur Laufzeit aufgelöst.",
@@ -5499,7 +5508,6 @@
         "skillBindingsCounter": "{count}/{max} gebunden",
         "skillBindingsNoSkillsInOrgDescription": "In dieser Organisation existieren noch keine Skills.",
         "skillBindingsNoSkillsInOrgCta": "In den Skills-Einstellungen anlegen",
-        "sectionKnowledge": "Wissen",
         "sectionKnowledgeDescription": "Zugriff auf die Wissensdatenbank konfigurieren",
         "knowledgeHint": "Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden.",
         "knowledgeHintLink": "Dokumente verwalten",
@@ -5767,7 +5775,6 @@
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
       },
       "env": {
-        "title": "Umgebung & Geheimnisse",
         "description": "Variablen, die eingespeist werden, wenn dieser Agent in einer Sandbox läuft — Workflow-Schritte und externe Ausführungen. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar."
       },
       "automationBadge": "Automatisierung"
@@ -5953,7 +5960,7 @@
         "all": "Alle Integrationen",
         "connected": "Verbunden"
       },
-      "searchPlaceholder": "Integrationen suchen...",
+      "searchPlaceholder": "Integrationen suchen…",
       "badge": {
         "connected": "Verbunden",
         "connect": "Verbinden",
@@ -6243,7 +6250,11 @@
             "s4": "Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das IdP-Signaturzertifikat (PEM) in die Felder oben.",
             "s5": "Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu; weichen die Namen ab, tragen Sie die passenden Attributnamen unter „Erweitert\" ein."
           }
-        }
+        },
+        "disableConfirmTitle": "SSO-Anmeldung deaktivieren?",
+        "disableConfirmDescription": "Mitglieder können sich nicht mehr per SSO anmelden, bis es wieder aktiviert wird. Bestehende Sitzungen bleiben angemeldet.",
+        "removeConfirmTitle": "SSO-Verbindung entfernen?",
+        "removeConfirmDescription": "Die Verbindungskonfiguration wird gelöscht – samt Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort deaktiviert. Das kann nicht rückgängig gemacht werden."
       },
       "noResults": {
         "title": "Keine Ergebnisse gefunden",
@@ -6526,7 +6537,7 @@
       "entityLabelOne": "Schlüssel",
       "createKey": "API-Schlüssel erstellen",
       "createKeySubmit": "Schlüssel erstellen",
-      "searchKeys": "API-Schlüssel suchen...",
+      "searchKeys": "API-Schlüssel suchen…",
       "keyCreated": "API-Schlüssel erstellt",
       "keyCreatedDescription": "Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.",
       "yourApiKey": "Dein API-Schlüssel",
@@ -6981,7 +6992,13 @@
         "open": "Offen",
         "closed": "Geschlossen",
         "spam": "Spam"
-      }
+      },
+      "pickColorAria": "{label} auswählen",
+      "hexValueAria": "Hex-Wert für {label}",
+      "removeImageAria": "{label} entfernen",
+      "imageFallback": "Bild",
+      "resetConfirmTitle": "Branding zurücksetzen?",
+      "resetConfirmDescription": "Logo und Favicons werden gelöscht, die Akzentfarbe wird entfernt. Gelöschte Bilder lassen sich nicht wiederherstellen."
     },
     "dataResidency": {
       "readOnly": {
@@ -7347,12 +7364,6 @@
       "link": "Metriken anzeigen",
       "title": "Aufgaben-Metriken",
       "description": "Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.",
-      "period": {
-        "last7Days": "Letzte 7 Tage",
-        "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage",
-        "label": "Zeitraum"
-      },
       "cappedNotice": "Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen in diesem Zeitraum können zu niedrig ausfallen.",
       "noData": "Keine Daten",
       "noDataDescription": "Metriken erscheinen nach dem ersten täglichen Rollup.",
@@ -8222,8 +8233,16 @@
     "uninstalled": "Agent deinstalliert",
     "status": {
       "enabled": "Aktiviert",
-      "disabled": "Deaktiviert"
-    }
+      "disabled": "Deaktiviert",
+      "available": "Verfügbar"
+    },
+    "error": "Agent konnte nicht aktualisiert werden",
+    "empty": {
+      "title": "Keine Agenten verfügbar",
+      "description": "Der Katalog enthält derzeit keine Agenten zur Installation."
+    },
+    "installedByIntegration": "Installiert durch {integration}",
+    "requiresIntegration": "Erfordert {integration}"
   },
   "runtimes": {
     "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, Cursor).",

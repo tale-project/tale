@@ -863,4 +863,34 @@ describe('provisioning status + repair (#2636)', () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     expect(await listMissingScaffoldDomains('../escape')).toBeNull();
   });
+
+  it('a catalog domain holding only dotfiles/secrets (e.g. .gitkeep) is "nothing to seed from" — never missing, and retry converges (#2676)', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await ensureCatalogDomainDirs();
+    // One genuinely seedable domain...
+    await writeText(catSrc('agents', 'helper.json'), VALID_AGENT_JSON);
+    // ...and domains whose catalog dir holds only entries the scaffold copy
+    // never copies (copyTree skips dotfiles and *.secrets.json). The e2e /
+    // manual fixture catalog ships exactly this: `.gitkeep`-only branding/,
+    // governance/, skills/.
+    await writeText(catSrc('branding', '.gitkeep'), '');
+    await writeText(catSrc('skills', '.gitkeep'), '');
+    await writeText(catSrc('governance', 'sso.secrets.json'), '{"k":"v"}');
+
+    // Probe and copy must agree on "seedable": only `agents` is missing.
+    // Previously branding/skills/governance were reported missing too — and
+    // could never be repaired, so the banner was permanent.
+    expect(await listMissingScaffoldDomains('acme')).toEqual(['agents']);
+
+    // One retry (the repair action's exact semantics) fully converges: the
+    // seedable domain lands and nothing stays missing. Previously the
+    // dotfile-only domains remained "missing" after a "successful" retry.
+    const retry = await scaffoldOrgFromCatalog({
+      orgSlug: 'acme',
+      override: false,
+      cleanFirst: false,
+    });
+    expect(retry.ok).toBe(true);
+    expect(await listMissingScaffoldDomains('acme')).toEqual([]);
+  });
 });

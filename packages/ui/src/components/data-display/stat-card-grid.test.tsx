@@ -39,6 +39,15 @@ describe('StatCardGrid', () => {
       expect(container.firstChild).toHaveClass('md:grid-cols-2');
     });
 
+    it('applies cols=3 as a single column on mobile', () => {
+      const { container } = render(
+        <StatCardGrid cols={3}>
+          <StatCard label="A" value="1" />
+        </StatCardGrid>,
+      );
+      expect(container.firstChild).toHaveClass('grid-cols-1', 'md:grid-cols-3');
+    });
+
     it('spans both columns for colSpan=2', () => {
       const { container } = render(
         <StatCardGrid>
