@@ -3,9 +3,6 @@
   "description": "Import Confluence Cloud pages into Tale's knowledge base.",
   "labels": ["Knowledge"],
   "version": 1,
-  "bundles": {
-    "workflows": ["confluence/sync-pages-from-confluence"]
-  },
   "authMethod": "basic_auth",
   "supportedAuthMethods": ["basic_auth"],
   "secretBindings": ["username", "password"],
