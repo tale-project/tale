@@ -68,6 +68,12 @@ export interface StepProjection {
   node?: ExecutionNodeState;
   /** Parsed `node.outputPreview` JSON, when present and parseable. */
   output?: unknown;
+  /**
+   * Literal artifact name from a document-action definition
+   * (`config.parameters.title` with no `{{…}}` template) — Outcome pending /
+   * skipped slots prefer this over the long step name when the pack authored one.
+   */
+  promisedTitle?: string;
 }
 
 /**

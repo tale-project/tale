@@ -46,6 +46,7 @@ import {
 } from '../lib/file_io';
 import { stripNulls } from '../lib/strip_nulls';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { resolveAgentDisplay } from './config';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -374,6 +375,8 @@ export const listAutomationAgents = action({
   args: {
     organizationId: v.string(),
     automationSlug: v.string(),
+    /** UI locale — resolves `i18n.<locale>.displayName` (and description). */
+    locale: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
@@ -404,11 +407,15 @@ export const listAutomationAgents = action({
         if (!validateAgentName(slug)) return null;
         const result = await readAgentFile(orgSlug, slug);
         if (result.ok) {
+          // Pack agents often keep displayName/description only under `i18n`
+          // (no top-level fields) — resolve them the same way the agent
+          // catalog and router do, or Configuration falls back to the slug.
+          const display = resolveAgentDisplay(result.config, args.locale);
           return {
             name: slug,
             shortName,
-            displayName: result.config.displayName,
-            description: result.config.description,
+            displayName: display.displayName ?? shortName,
+            description: display.description,
             visibleInChat: result.config.visibleInChat,
             primaryBehavior: result.config.primaryBehavior,
             agentKind: result.config.agentKind,
@@ -417,7 +424,7 @@ export const listAutomationAgents = action({
             toolNames: result.config.toolNames,
             integrationBindings: result.config.integrationBindings,
             roleRestriction: result.config.roleRestriction,
-            conversationStarters: result.config.conversationStarters,
+            conversationStarters: display.conversationStarters,
             composerMode: result.config.composerMode,
             isRouter: result.config.isRouter,
             uiConfigurable: result.config.uiConfigurable,

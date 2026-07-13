@@ -38,6 +38,21 @@ describe('resolveAgentDisplay (Auto-router candidate descriptions)', () => {
     ]);
   });
 
+  it('resolves a pack-style Setup Assistant name from i18n.en only', () => {
+    // Mirrors vat-return-desk/setup-assistant.json — displayName lives only
+    // under i18n; Configuration must not fall back to the file slug.
+    const r = resolveAgentDisplay({
+      ...baseConfig,
+      i18n: {
+        en: {
+          displayName: 'Setup Assistant',
+          description: 'Creates and repairs a client setup.',
+        },
+      },
+    });
+    expect(r.displayName).toBe('Setup Assistant');
+  });
+
   it('prefers the requested locale, falling back to en then top level', () => {
     expect(resolveAgentDisplay(i18nOnly, 'de').description).toBe(
       'Übersetzt Dokumente, Text und Bilder zwischen Sprachen.',

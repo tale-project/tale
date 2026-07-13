@@ -2,20 +2,24 @@
 
 /**
  * Outcome strip — promotes steps annotated `ui.params.surface: "outcome"` into
- * a first-class, always-expanded section (peer of Input). Document artifacts
- * open via `DocumentPreviewDialog` (preview first, download from the dialog) —
+ * a first-class, always-expanded section (peer of Input). While a run is in
+ * flight, every outcome step is a promised slot (muted name + pulse); once a
+ * step lands, that row becomes the openable artifact. Document artifacts open
+ * via `DocumentPreviewDialog` (preview first, download from the dialog) —
  * same path as Documents / Project files. Non-document files with a resolved
  * storage URL keep a direct link as a fallback.
  */
 import { Card } from '@tale/ui/card';
 import { Row, VStack } from '@tale/ui/layout';
+import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { PackageCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { MarkdownContent } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useT } from '@/lib/i18n/client';
+import type { PartState } from '@/lib/shared/platform/part_state';
 import { resolveSurface } from '@/lib/shared/platform/render_kinds';
 
 import { parseDocumentArtifact } from '../lib/document-artifact';
@@ -31,6 +35,44 @@ function outcomeSteps(projection: OperatorProjection): StepProjection[] {
 function stepTitle(step: StepProjection): string {
   const doc = parseDocumentArtifact(step.output);
   return doc?.title ?? step.name;
+}
+
+/** Pending/skipped Outcome row label — pack-authored title when present. */
+function slotLabel(step: StepProjection): string {
+  return step.promisedTitle ?? step.name;
+}
+
+/** Step is actively working — show a slot even if projection status lagged. */
+const ACTIVE_PENDING_STATES = new Set<PartState>([
+  'running',
+  'loading',
+  'queued_capacity',
+  'waiting_external',
+  'waiting_human',
+]);
+
+/**
+ * Promised deliverable rows. `skipped` always counts: a run can complete (or
+ * park for operator input) after routing around earlier outcome steps — the
+ * spine marks those `skipped`, but the Outcome lane still names what a later
+ * successful pass will file. `upcoming` / `empty` only while the run is alive
+ * (settled leftovers keep the empty copy).
+ */
+function isPendingSlot(step: StepProjection, runInFlight: boolean): boolean {
+  if (
+    step.partState === 'output_available' ||
+    step.partState === 'output_error'
+  ) {
+    return false;
+  }
+  if (ACTIVE_PENDING_STATES.has(step.partState)) return true;
+  if (step.partState === 'skipped') return true;
+  if (!runInFlight) return false;
+  return step.partState === 'upcoming' || step.partState === 'empty';
+}
+
+function slotShouldPulse(step: StepProjection, runInFlight: boolean): boolean {
+  return runInFlight || ACTIVE_PENDING_STATES.has(step.partState);
 }
 
 type PreviewTarget = {
@@ -49,39 +91,31 @@ type OutcomeEntry =
     }
   | { kind: 'href'; key: string; name: string; url: string };
 
-function entriesForReadySteps(ready: StepProjection[]): {
+function entriesForReadyStep(step: StepProjection): {
   entries: OutcomeEntry[];
-  textOnly: StepProjection[];
+  textOnly: boolean;
 } {
   const entries: OutcomeEntry[] = [];
-  const covered = new Set<string>();
-
-  for (const step of ready) {
-    const doc = parseDocumentArtifact(step.output);
-    if (doc) {
-      covered.add(step.stepSlug);
-      entries.push({
-        kind: 'preview',
-        key: step.stepSlug,
-        name: doc.title,
-        documentId: doc.documentId,
-        fileId: doc.fileId,
-      });
-      continue;
-    }
-    for (const file of step.files ?? []) {
-      covered.add(step.stepSlug);
-      entries.push({
-        kind: 'href',
-        key: `${step.stepSlug}:${file.url}`,
-        name: file.name,
-        url: file.url,
-      });
-    }
+  const doc = parseDocumentArtifact(step.output);
+  if (doc) {
+    entries.push({
+      kind: 'preview',
+      key: step.stepSlug,
+      name: doc.title,
+      documentId: doc.documentId,
+      fileId: doc.fileId,
+    });
+    return { entries, textOnly: false };
   }
-
-  const textOnly = ready.filter((step) => !covered.has(step.stepSlug));
-  return { entries, textOnly };
+  for (const file of step.files ?? []) {
+    entries.push({
+      kind: 'href',
+      key: `${step.stepSlug}:${file.url}`,
+      name: file.name,
+      url: file.url,
+    });
+  }
+  return { entries, textOnly: entries.length === 0 };
 }
 
 const openClassName =
@@ -98,38 +132,101 @@ export function OutcomeStrip({
   // No pack annotation → omit entirely (not an empty card).
   if (steps.length === 0) return null;
 
-  const errors = steps.filter((s) => s.partState === 'output_error');
-  const ready = steps.filter((s) => s.partState === 'output_available');
-  const pending = steps.filter(
-    (s) =>
-      s.partState === 'running' ||
-      s.partState === 'loading' ||
-      s.partState === 'queued_capacity' ||
-      s.partState === 'waiting_external' ||
-      s.partState === 'waiting_human',
-  );
-  // Publish steps often stay `upcoming` until late in the run — still reserve
-  // the Outcome lane while the execution is in flight so operators know where
-  // files will land.
   const runInFlight =
     projection.status === 'running' || projection.status === 'pending';
-  const awaitingFiles =
-    ready.length === 0 &&
-    errors.length === 0 &&
-    (pending.length > 0 || runInFlight);
-  // A settled run with no outcome files/errors keeps the Outcome lane too — it
-  // renders an empty-state placeholder rather than vanishing, so the section is
-  // a stable peer of Input whether or not this run produced anything yet.
-  const noOutputYet = ready.length === 0 && errors.length === 0;
 
-  const { entries, textOnly } = entriesForReadySteps(ready);
+  const rows: ReactNode[] = [];
+  let hasReadyOrError = false;
+  let hasPendingSlot = false;
+
+  for (const step of steps) {
+    if (step.partState === 'output_error') {
+      hasReadyOrError = true;
+      rows.push(
+        <li key={step.stepSlug}>
+          <Text variant="muted" className="text-destructive">
+            {step.node?.error ??
+              t('outcome.failed', {
+                defaultValue: 'This step failed.',
+              })}
+          </Text>
+        </li>,
+      );
+      continue;
+    }
+
+    if (step.partState === 'output_available') {
+      hasReadyOrError = true;
+      const { entries, textOnly } = entriesForReadyStep(step);
+      for (const entry of entries) {
+        rows.push(
+          <li key={entry.key}>
+            {entry.kind === 'preview' ? (
+              <button
+                type="button"
+                className={`${openClassName} border-none bg-transparent p-0 text-left`}
+                onClick={() =>
+                  setPreview({
+                    documentId: entry.documentId,
+                    fileId: entry.fileId,
+                    fileName: entry.name,
+                  })
+                }
+              >
+                {entry.name}
+              </button>
+            ) : (
+              <a
+                href={entry.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={openClassName}
+              >
+                {entry.name}
+              </a>
+            )}
+          </li>,
+        );
+      }
+      if (textOnly) {
+        const summary = pickString(asRecord(step.output), 'summary');
+        rows.push(
+          <li key={step.stepSlug}>
+            {typeof summary === 'string' && summary.trim() !== '' ? (
+              <MarkdownContent content={summary} />
+            ) : (
+              <Text as="span" className="font-medium">
+                {stepTitle(step)}
+              </Text>
+            )}
+          </li>,
+        );
+      }
+      continue;
+    }
+
+    if (isPendingSlot(step, runInFlight)) {
+      hasPendingSlot = true;
+      const pulse = slotShouldPulse(step, runInFlight);
+      rows.push(
+        <li key={step.stepSlug}>
+          <StatusIndicator variant="neutral" pulse={pulse} size="sm">
+            {slotLabel(step)}
+          </StatusIndicator>
+        </li>,
+      );
+    }
+  }
+
+  const showSettledEmpty =
+    !hasReadyOrError && !hasPendingSlot && rows.length === 0;
 
   return (
     // Same chrome as automation BlockFrame / Input — always expanded, never
     // nested under a "Workflow run" disclosure.
     <Card asChild padding="none" shadow="sm">
       <section>
-        <Row gap={3} align="start" justify="between" className="p-5 pb-3">
+        <Row gap={3} align="center" justify="between" className="p-5 pb-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <Row
               gap={0}
@@ -142,78 +239,32 @@ export function OutcomeStrip({
               {t('section.outcome', { defaultValue: 'Outcome' })}
             </Text>
           </div>
+          {hasPendingSlot && (
+            <Text variant="muted" className="shrink-0 text-sm">
+              {t('outcome.pendingHint', {
+                defaultValue: 'Not ready yet.',
+              })}
+            </Text>
+          )}
         </Row>
         <VStack gap={3} className="px-5 pb-5">
-          {noOutputYet && (
+          {showSettledEmpty && (
             <Text variant="muted">
-              {awaitingFiles
-                ? t('outcome.inProgress', {
-                    defaultValue: 'Working — results will appear here.',
-                  })
-                : t('outcome.empty', {
-                    defaultValue:
-                      'No results yet — they will appear here once a run produces them.',
-                  })}
+              {t('outcome.empty', {
+                defaultValue:
+                  'No results yet — they will appear here once a run produces them.',
+              })}
             </Text>
           )}
 
-          {errors.map((step) => (
-            <Text
-              key={step.stepSlug}
-              variant="muted"
-              className="text-destructive"
+          {rows.length > 0 && (
+            <ul
+              className="flex flex-col gap-2"
+              role={hasPendingSlot ? 'status' : undefined}
             >
-              {step.node?.error ??
-                t('outcome.failed', {
-                  defaultValue: 'This step failed.',
-                })}
-            </Text>
-          ))}
-
-          {entries.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {entries.map((entry) => (
-                <li key={entry.key}>
-                  {entry.kind === 'preview' ? (
-                    <button
-                      type="button"
-                      className={`${openClassName} border-none bg-transparent p-0 text-left`}
-                      onClick={() =>
-                        setPreview({
-                          documentId: entry.documentId,
-                          fileId: entry.fileId,
-                          fileName: entry.name,
-                        })
-                      }
-                    >
-                      {entry.name}
-                    </button>
-                  ) : (
-                    <a
-                      href={entry.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={openClassName}
-                    >
-                      {entry.name}
-                    </a>
-                  )}
-                </li>
-              ))}
+              {rows}
             </ul>
           )}
-
-          {textOnly.map((step) => {
-            const summary = pickString(asRecord(step.output), 'summary');
-            if (typeof summary === 'string' && summary.trim() !== '') {
-              return <MarkdownContent key={step.stepSlug} content={summary} />;
-            }
-            return (
-              <Text key={step.stepSlug} as="span" className="font-medium">
-                {stepTitle(step)}
-              </Text>
-            );
-          })}
         </VStack>
 
         <DocumentPreviewDialog
