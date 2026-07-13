@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react';
+import { createRef } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { useRestoreFocus } from './use-restore-focus';
@@ -31,6 +32,30 @@ describe('useRestoreFocus', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('refocuses the fallback when the opener has been removed from the DOM', () => {
+    const trigger = document.createElement('button');
+    const fallback = document.createElement('button');
+    document.body.append(trigger, fallback);
+    trigger.focus();
+
+    const fallbackRef = createRef<HTMLButtonElement>();
+    fallbackRef.current = fallback;
+
+    const { result } = renderHook(
+      ({ open }) => useRestoreFocus(open, fallbackRef),
+      { initialProps: { open: true } },
+    );
+
+    // Opener unmounts (e.g. a menu item that closed its menu on open).
+    trigger.remove();
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(fallback);
   });
 
   it('does not refocus an opener that has been removed from the DOM', () => {

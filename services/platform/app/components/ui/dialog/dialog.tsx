@@ -119,6 +119,11 @@ export interface DialogProps {
   trigger?: React.ReactNode;
   /** Whether to prevent focus restoration when dialog closes (default: false) */
   preventCloseAutoFocus?: boolean;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item). Passed to `useRestoreFocus`.
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -163,12 +168,13 @@ export function Dialog({
   customHeader,
   trigger,
   preventCloseAutoFocus = false,
+  restoreFocusRef,
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
   const isNested = parentDepth > 0;
   // Without a `trigger`, Radix has no element to restore focus to on close, so
   // focus falls to <body> (WCAG 2.4.3). Capture the opener and refocus it.
-  const restoreFocus = useRestoreFocus(open);
+  const restoreFocus = useRestoreFocus(open, restoreFocusRef);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (

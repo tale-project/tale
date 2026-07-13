@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useRef } from 'react';
 
 /**
  * Restores DOM focus to the control that was focused before an overlay opened.
@@ -18,9 +18,15 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
  * does not also run.
  *
  * @param open Whether the overlay is currently open.
+ * @param fallbackRef Optional element to focus when the captured opener has
+ *   been removed from the DOM (e.g. a menu item that unmounts when its
+ *   dropdown closes).
  * @returns An `onCloseAutoFocus` handler to pass to `Dialog.Content`.
  */
-export function useRestoreFocus(open: boolean) {
+export function useRestoreFocus(
+  open: boolean,
+  fallbackRef?: RefObject<HTMLElement | null>,
+) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
@@ -30,14 +36,22 @@ export function useRestoreFocus(open: boolean) {
     }
   }, [open]);
 
-  return useCallback((event: Event) => {
-    const target = previouslyFocused.current;
-    // Only take over from Radix when the opener still exists in the document;
-    // otherwise let Radix's default close behaviour run.
-    if (target && target.isConnected) {
-      event.preventDefault();
-      target.focus();
-    }
-    previouslyFocused.current = null;
-  }, []);
+  return useCallback(
+    (event: Event) => {
+      let target = previouslyFocused.current;
+      // Menu items and other transient openers unmount when their parent
+      // overlay closes; fall back to a stable trigger (e.g. the menu button).
+      if (target && !target.isConnected) {
+        target = fallbackRef?.current ?? null;
+      }
+      // Only take over from Radix when a restore target still exists in the
+      // document; otherwise let Radix's default close behaviour run.
+      if (target && target.isConnected) {
+        event.preventDefault();
+        target.focus();
+      }
+      previouslyFocused.current = null;
+    },
+    [fallbackRef],
+  );
 }

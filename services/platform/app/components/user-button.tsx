@@ -30,6 +30,7 @@ import {
   type ReactNode,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -205,6 +206,7 @@ export function UserButton({
 
   const [signOutDialogOpen, setSignOutDialogOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next);
@@ -602,6 +604,7 @@ export function UserButton({
 
   const triggerContent = (
     <button
+      ref={menuTriggerRef}
       type="button"
       aria-label={
         label ? undefined : (tooltipText ?? t('userButton.manageAccount'))
@@ -639,6 +642,7 @@ export function UserButton({
       description={t('userButton.logOutConfirm.description')}
       confirmText={t('userButton.logOutConfirm.confirm')}
       onConfirm={handleSignOut}
+      restoreFocusRef={menuTriggerRef}
     />
   );
 
