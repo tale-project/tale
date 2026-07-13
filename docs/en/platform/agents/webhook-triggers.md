@@ -17,12 +17,6 @@ This page covers the per-agent webhook surface only. For inbound triggers that r
 
 Open the agent, switch to **Webhooks**, and click **Create webhook**. The dialog shows the new URL once — save it, because the token embedded in the URL acts as the authentication credential. There is no separate API key or header: anyone holding the URL can chat with the agent, so treat it like a secret.
 
-<Note>
-
-Webhooks require a published agent — an unpublished one shows **Publish this agent to enable webhook access** until you publish it.
-
-</Note>
-
 ## Call it
 
 POST a JSON body with a `message` field; the response is the agent's reply:

@@ -17,12 +17,6 @@ Diese Seite deckt nur die Webhook-Oberfläche pro Agent ab. Für eingehende Trig
 
 Öffne den Agent, wechsle zu **Webhook** und klicke auf **Webhook erstellen**. Der Dialog zeigt die neue URL genau einmal — sichere sie, denn das in der URL eingebettete Token wirkt als Zugangsnachweis. Es gibt keinen separaten API-Schlüssel und keine Kopfzeile: wer die URL hält, kann mit dem Agent chatten, also behandle sie wie ein Geheimnis.
 
-<Note>
-
-Webhooks verlangen einen veröffentlichten Agent — ein unveröffentlichter zeigt den Hinweis **Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren**, bis du ihn veröffentlichst.
-
-</Note>
-
 ## Aufrufen
 
 POSTe einen JSON-Body mit einem `message`-Feld; die Antwort ist die Antwort des Agents:

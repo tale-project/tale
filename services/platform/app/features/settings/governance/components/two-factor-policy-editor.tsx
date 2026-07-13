@@ -169,7 +169,9 @@ export function TwoFactorPolicyEditor({
           />
         }
       >
-        <Stack gap={6} className="max-w-2xl">
+        {/* Full section width (not max-w-2xl): matches header toggle edge.
+            Short numeric grace field stays max-w-xs. */}
+        <Stack gap={6}>
           {!enforced && (
             <Text variant="muted" className="text-sm">
               {t('twoFactorPolicy.policyDisabledHint')}
@@ -196,6 +198,7 @@ export function TwoFactorPolicyEditor({
                 min={0}
                 max={30}
                 step={1}
+                wrapperClassName="max-w-xs"
               />
               <Text variant="muted" className="text-xs">
                 {t('twoFactorPolicy.gracePeriodDaysHint')}
