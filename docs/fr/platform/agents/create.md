@@ -16,9 +16,9 @@ Vérifie que deux choses sont en place :
 
 ## Étape 1 — Créer l’agent
 
-Ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**, puis choisis **Vierge** (le menu propose aussi **À partir d'un modèle** et **Téléverser un fichier** pour importer du JSON d’agent). Le dialogue demande quatre choses : un **Nom** — l’identifiant unique utilisé dans les liens et l’API, que tu ne peux plus changer ensuite ; ajoute un `/` pour ranger l’agent dans un dossier, par exemple `marketing/seo-writer` — un **Nom d'affichage** que tes coéquipiers voient dans le chat, une **Description**, et la liste **Modèle**. Le premier modèle est celui par défaut et les suivants sont des fallbacks ; glisse pour réordonner ou ajoutes-en d’autres à tout moment. Clique sur **Continuer** et l’éditeur s’ouvre sur l’onglet **Général**.
+Ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**, puis choisis **Vierge** (le menu propose aussi **À partir d'un modèle** et **Téléverser un fichier** pour importer du JSON d’agent). Le dialogue demande quatre choses : un **Nom** — l’identifiant unique utilisé dans les liens et l’API, que tu ne peux plus changer ensuite ; utilise uniquement des lettres minuscules, des chiffres, des tirets et des underscores, par exemple `seo-writer` — un **Nom d'affichage** que tes coéquipiers voient dans le chat, une **Description**, et la liste **Modèle**. Le premier modèle est celui par défaut et les suivants sont des fallbacks ; glisse pour réordonner ou ajoutes-en d’autres à tout moment. Clique sur **Continuer** et l’éditeur s’ouvre sur l’onglet **Général**.
 
-<Frame caption="La liste des agents — Créer un agent se trouve en haut à droite ; les lignes de dossier viennent des slugs préfixés par un /.">
+<Frame caption="La liste des agents — Créer un agent se trouve en haut à droite.">
 
 ![La liste des agents avec le dossier chat déplié, montrant les lignes Assistant et Automation Assistant avec leurs modèles par défaut et le nombre d’outils.](/images/platform/agents-list-expanded.webp)
 
