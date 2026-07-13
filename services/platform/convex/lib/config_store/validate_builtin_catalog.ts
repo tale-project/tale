@@ -43,7 +43,9 @@ export const validateBuiltinCatalog = internalAction({
       return { ok: false, issueCount: 0, filesValidated: 0 };
     }
 
-    const registryIssues = checkValidatorRegistryComplete();
+    const registryIssues = checkValidatorRegistryComplete({
+      checkCoveringGates: false,
+    });
     const { issues: catalogIssues, filesValidated } = validateConfigDir(
       builtinDir,
       'catalog',

@@ -539,13 +539,24 @@ export function validateConfigDir(
   return { issues, filesValidated };
 }
 
+interface CheckValidatorRegistryCompleteOptions {
+  /** When false, skip repo-relative existence checks for externally-gated
+   *  domains (e.g. `automations`). Domain↔validator mapping checks still run.
+   *  Runtime container images have no vitest sources — callers there pass
+   *  `false`; CI/build gates keep the default `true`. */
+  checkCoveringGates?: boolean;
+}
+
 /**
  * The registry drift guard: every `CONFIG_DOMAINS` entry must declare a
  * validator, every validator must map back to a registered domain, and every
  * externally-gated domain's covering test files must still exist. Returns one
  * human-readable issue per problem; empty = the registry is complete.
  */
-export function checkValidatorRegistryComplete(): string[] {
+export function checkValidatorRegistryComplete(
+  options: CheckValidatorRegistryCompleteOptions = {},
+): string[] {
+  const { checkCoveringGates = true } = options;
   const issues: string[] = [];
 
   for (const domain of CONFIG_DOMAINS) {
@@ -566,6 +577,8 @@ export function checkValidatorRegistryComplete(): string[] {
       );
     }
   }
+
+  if (!checkCoveringGates) return issues;
 
   for (const [name, validator] of Object.entries(DOMAIN_VALIDATORS)) {
     if (validator.kind !== 'external-gate') continue;
