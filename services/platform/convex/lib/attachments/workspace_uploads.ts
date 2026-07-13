@@ -136,9 +136,9 @@ export async function fileAttachmentsIntoWorkspace(
               contentType,
               sha256,
               source: 'user_upload' as const,
-              renderHint: contentType.startsWith('image/')
-                ? ('image' as const)
-                : ('attachment' as const),
+              ...(contentType.startsWith('image/')
+                ? { renderHint: 'image' as const }
+                : {}),
             },
           );
           filed += 1;

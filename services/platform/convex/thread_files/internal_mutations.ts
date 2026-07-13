@@ -111,7 +111,14 @@ export const upsertThreadFile = internalMutation({
         updatedAt: now,
       };
       if (args.sha256 !== undefined) patch.sha256 = args.sha256;
-      if (args.renderHint !== undefined) patch.renderHint = args.renderHint;
+      if (args.source === 'user_upload') {
+        // User uploads infer viewer kind client-side from the path when
+        // `renderHint` is unset. Always patch so a re-upload clears a stale
+        // `'attachment'` hint from older server versions (#2677).
+        patch.renderHint = args.renderHint;
+      } else if (args.renderHint !== undefined) {
+        patch.renderHint = args.renderHint;
+      }
       await ctx.db.patch(existing._id, patch);
       return { id: existing._id, replaced: true, unchanged: false };
     }
