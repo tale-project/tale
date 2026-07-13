@@ -2731,12 +2731,29 @@ export async function generateAgentResponse(
         // Stamp a structured, machine-readable envelope on the error so the
         // chat UI can render an authoritative, localized, provider-specific
         // message instead of regex-guessing the raw provider string.
+        const errorCode = classifyChatErrorCode(error);
         const failedError = encodeChatError({
-          code: classifyChatErrorCode(error),
+          code: errorCode,
           provider,
           model,
           raw: errorMessage || 'Unknown error',
         });
+        // Poisoned catalog/cache rows have set max_tokens to the full context
+        // window; clear that model's cached cap so the next turn uses the
+        // safe default instead of replaying the same failure.
+        if (errorCode === 'output_cap_too_high' && model) {
+          try {
+            await ctx.runMutation(
+              internal.model_catalog.mutations.clearModelMaxOutputTokens,
+              { modelId: model },
+            );
+          } catch (clearErr) {
+            console.warn(
+              '[generateAgentResponse] failed to clear poisoned maxOutputTokens cache:',
+              clearErr,
+            );
+          }
+        }
 
         if (newestAssistant?.status === 'failed') {
           // Already marked as failed (e.g. by SDK's call.fail())

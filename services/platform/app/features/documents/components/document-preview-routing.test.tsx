@@ -61,6 +61,12 @@ vi.mock('./document-preview-text', () => ({
   ),
 }));
 
+vi.mock('./document-preview-markdown', () => ({
+  DocumentPreviewMarkdown: ({ url }: { url: string }) => (
+    <div data-testid="markdown-preview" data-url={url} />
+  ),
+}));
+
 // Track all promises from lazyComponent factories so we can resolve
 // them before running any tests. vi.hoisted runs before vi.mock hoisting.
 const { lazyPromises } = vi.hoisted(() => ({
@@ -170,6 +176,33 @@ describe('DocumentPreview routing', () => {
     );
 
     expect(screen.getByTestId('text-preview')).toBeInTheDocument();
+  });
+
+  it.each(['md', 'mdx'])(
+    'routes .%s files to rendered markdown preview',
+    (ext) => {
+      render(
+        <DocumentPreview
+          url={`https://example.com/report.${ext}`}
+          fileName={`report.${ext}`}
+        />,
+      );
+
+      expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
+      expect(screen.queryByTestId('text-preview')).not.toBeInTheDocument();
+    },
+  );
+
+  it('routes an extension-less title to markdown preview via mimeType', () => {
+    render(
+      <DocumentPreview
+        url="https://example.com/blob"
+        fileName="VAT return report"
+        mimeType="text/markdown"
+      />,
+    );
+
+    expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
   });
 
   it('prefers mimeType over an unhelpful filename', () => {

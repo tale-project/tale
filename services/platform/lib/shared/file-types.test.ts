@@ -455,4 +455,9 @@ describe('upload-accept / preview-support parity (#2380)', () => {
     expect(getDocumentPreviewKind('odt')).toBe('odt');
     expect(getDocumentPreviewKind('ODT')).toBe('odt');
   });
+
+  it('md/mdx route to the markdown renderer', () => {
+    expect(getDocumentPreviewKind('md')).toBe('markdown');
+    expect(getDocumentPreviewKind('MDX')).toBe('markdown');
+  });
 });

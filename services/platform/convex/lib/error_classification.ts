@@ -122,6 +122,22 @@ export function classifyError(error: unknown): ErrorClassification {
     };
   }
 
+  // Output budget filled the whole context window (OpenRouter: "… in the
+  // output") — not a conversation that grew too long. Non-retryable here;
+  // the chat path clears the poisoned maxOutputTokens cache and/or fails over.
+  if (
+    message.includes('in the output') &&
+    (message.includes('context_length') ||
+      message.includes('maximum context length') ||
+      message.includes('context window'))
+  ) {
+    return {
+      shouldRetry: false,
+      reason: 'output_cap_too_high',
+      description: 'Configured max output tokens leave no room for the prompt',
+    };
+  }
+
   // Context length exceeded - needs summarization, not retry
   if (
     message.includes('context_length') ||

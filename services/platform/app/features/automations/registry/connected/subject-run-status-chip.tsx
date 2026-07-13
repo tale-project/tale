@@ -60,5 +60,12 @@ export function SubjectRunStatusChip({
       </Badge>
     );
   }
+  if (data?.state === 'awaiting_input') {
+    return (
+      <Badge variant="blue" dot title={t('runs.awaitingInputHint')}>
+        {t('runs.awaitingInput')}
+      </Badge>
+    );
+  }
   return fallback;
 }

@@ -237,6 +237,17 @@ export const taskDiscussionMessageMetaTable = defineTable({
   ),
   createdAt: v.number(),
   editedAt: v.optional(v.number()),
+  // Optional write-time locale snapshot for workflow-authored comments
+  // (`task.comment` with `bodyI18n`). Canonical English stays in the message
+  // store `body` (and drives `afterMarker` / mention parsing); the UI picks
+  // `bodyByLocale[viewerLocale] ?? body`. Absent on human / single-body posts.
+  bodyByLocale: v.optional(
+    v.object({
+      en: v.string(),
+      de: v.string(),
+      fr: v.string(),
+    }),
+  ),
 })
   .index('by_messageId', ['messageId'])
   .index('by_task', ['taskId', 'createdAt']);

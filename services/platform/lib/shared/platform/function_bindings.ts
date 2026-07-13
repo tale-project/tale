@@ -95,6 +95,11 @@ function collectFromNode(node: unknown, out: CollectedBinding[]): void {
   if (isRec(props.query) && typeof props.query.path === 'string') {
     out.push({ path: props.query.path, mode: 'query' });
   }
+  // Optional visibility gate (`Form` / `Text` / `Alert` `whenQuery`) — a
+  // reactive read like `props.query`, collected so publish allowlists it.
+  if (isRec(props.whenQuery) && typeof props.whenQuery.path === 'string') {
+    out.push({ path: props.whenQuery.path, mode: 'query' });
+  }
   // A list block may cross-reference a second reactive query under `excludeBy`
   // (hide rows already materialized elsewhere); collect it so the cross-ref
   // query is allowlist-checked like any other binding.
@@ -197,6 +202,8 @@ export function validateViewBindings(
  * stay data; the binding hooks resolve them against the live context before the
  * call. Recurses through records + arrays. Whole-string sentinels:
  *  - `$orgId` → the current organization id;
+ *  - `$projectId` → the bound project id (undefined when unbound);
+ *  - `$projectName` → the bound project's display name (undefined until loaded);
  *  - `$selected` / `$selected.<key>` → the selected row, or one of its fields;
  *  - `$result` / `$result.<key>` → the just-resolved action result (used by
  *    `onSuccess` effects to read e.g. a created id).
@@ -214,11 +221,13 @@ export function validateViewBindings(
  *    (state key unset, nothing selected, …) — the `$config:` posture — so
  *    `bindingArgsResolved` gates the call and the block shows its awaiting
  *    placeholder instead of firing a malformed request.
- * Prefix templates (interpolated over the row MERGED WITH config, `{field}`
- * syntax; row fields win a name clash):
+ * Prefix templates (interpolated over the row MERGED WITH config, form input,
+ * and bound ids — `{field}` syntax; later layers win a name clash):
  *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over
- *    `{...config, ...selected}`, so one arg can mix config + row fields (e.g.
- *    `"$tpl:{owner}/{repo}#{number}"` — owner/repo from config, number from the row).
+ *    `{...config, ...selected, ...input, projectId, orgId}`, so one arg can
+ *    mix config + row + form fields (e.g. `"$tpl:{owner}/{repo}#{number}"` —
+ *    owner/repo from config, number from the row; or
+ *    `"$tpl:vatplus:{projectId}:profile.yaml"` from a Form submit).
  */
 export function resolveBindingArgs(
   args: unknown,
@@ -226,6 +235,8 @@ export function resolveBindingArgs(
     organizationId: string;
     /** Bound project id for a project-scoped app; undefined for org-scoped apps. */
     projectId?: string;
+    /** Bound project display name (`$projectName`); undefined until loaded. */
+    projectName?: string;
     selected?: Record<string, unknown>;
     result?: Record<string, unknown>;
     /** The app's per-install config values (`$config:`/template `{key}`). */
@@ -240,17 +251,25 @@ export function resolveBindingArgs(
     lane?: string;
   },
 ): unknown {
-  // Templates can reference both per-install config and the selected row; row
-  // fields win a name clash (they're the more specific, per-item value).
-  const templateScope = { ...ctx.config, ...ctx.selected };
+  // Templates can reference config, the selected row, form input, and the
+  // bound project/org ids. Later layers win a name clash (input is the most
+  // specific per-submit value).
+  const templateScope = {
+    ...ctx.config,
+    ...ctx.selected,
+    ...ctx.input,
+    ...(ctx.projectId !== undefined ? { projectId: ctx.projectId } : {}),
+    ...(ctx.projectName !== undefined ? { projectName: ctx.projectName } : {}),
+    orgId: ctx.organizationId,
+  };
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
-    // Undefined when the app isn't project-scoped: fall through so the literal
-    // `$projectId` passes through (a visible failure rather than a silent
-    // `undefined` into a project-gated query).
-    if (args === '$projectId' && ctx.projectId !== undefined) {
-      return ctx.projectId;
-    }
+    // Unbound `$projectId` resolves to `undefined` (the `$config:` / `$state.`
+    // posture) so `bindingArgsResolved` is false and callers gate the call —
+    // an org-route visit to a project-scoped view shows an empty state instead
+    // of firing Convex with the literal `"$projectId"`.
+    if (args === '$projectId') return ctx.projectId;
+    if (args === '$projectName') return ctx.projectName;
     if (args === '$selected') return ctx.selected;
     if (args.startsWith('$selected.') && ctx.selected) {
       return ctx.selected[args.slice('$selected.'.length)];
@@ -293,13 +312,14 @@ export function resolveBindingArgs(
 
 /**
  * Whether a resolved args tree is fully bound — i.e. holds no `undefined`. A
- * `$config:<key>` (or `$selected.`/`$result.`/`$state.`/`$input.`/`$lane`/
- * `$selection.ids`) reference whose value is absent resolves to `undefined`;
- * a literal/`$orgId`/`$projectId` never does. So an
- * `undefined` anywhere means a binding the live context couldn't satisfy yet —
- * typically an app whose `requires.config` hasn't been filled in. Callers gate
- * the actual call on this so an unconfigured view shows an empty state instead
- * of firing a malformed request (e.g. `listGitHubIssues` missing `owner`).
+ * `$config:<key>` (or `$projectId` / `$selected.` / `$result.` / `$state.` /
+ * `$input.` / `$lane` / `$selection.ids`) reference whose value is absent
+ * resolves to `undefined`; a literal / `$orgId` never does. So an `undefined`
+ * anywhere means a binding the live context couldn't satisfy yet — typically
+ * an app whose `requires.config` hasn't been filled in, or a project-scoped
+ * view opened without a project. Callers gate the actual call on this so an
+ * unconfigured view shows an empty state instead of firing a malformed
+ * request (e.g. `listGitHubIssues` missing `owner`).
  */
 export function bindingArgsResolved(resolved: unknown): boolean {
   if (resolved === undefined) return false;
@@ -328,6 +348,24 @@ export function argsReferenceViewState(args: unknown): boolean {
   if (args !== null && typeof args === 'object') {
     return Object.values(args as Record<string, unknown>).some(
       argsReferenceViewState,
+    );
+  }
+  return false;
+}
+
+/**
+ * Whether an authored args tree references `$projectId` — i.e. the block is
+ * project-scoped. Same scan shape as `argsReferenceViewState`. Bound hooks
+ * report an unbound `$projectId` as `needsConfig`; callers that detect this
+ * sentinel read it as "open from a project" (`BindingStates.needsProject`)
+ * instead of the generic configure prompt.
+ */
+export function argsReferenceProjectId(args: unknown): boolean {
+  if (typeof args === 'string') return args === '$projectId';
+  if (Array.isArray(args)) return args.some(argsReferenceProjectId);
+  if (args !== null && typeof args === 'object') {
+    return Object.values(args as Record<string, unknown>).some(
+      argsReferenceProjectId,
     );
   }
   return false;

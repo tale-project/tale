@@ -41,7 +41,22 @@
     },
     "action": {
       "open": "Ouvrir",
-      "openFile": "Ouvrir {name}"
+      "openFile": "Ouvrir {name}",
+      "technicalDetails": "Détails techniques"
+    },
+    "section": {
+      "outcome": "Résultat",
+      "runDetails": "Détails de l'exécution"
+    },
+    "outcome": {
+      "inProgress": "En cours — les résultats apparaîtront ici.",
+      "failed": "Cette étape a échoué.",
+      "empty": "Pas encore de résultats — ils apparaîtront ici dès qu’un passage en produit."
+    },
+    "artifact": {
+      "filed": "{title} déposé",
+      "updated": "{title} mis à jour",
+      "unchanged": "{title} déjà à jour"
     },
     "verdict": {
       "yes": "Oui",
@@ -74,6 +89,12 @@
         "description": "Le workflow est annulé immédiatement. Les étapes en cours sont abandonnées et l'exécution est marquée comme échouée. Cette action est irréversible.",
         "confirm": "Arrêter l'exécution"
       }
+    },
+    "stage": {
+      "work": "Travail",
+      "deliver": "Livraison",
+      "review": "Revue",
+      "repair": "Réparation"
     }
   },
   "accessDenied": {
@@ -627,7 +648,7 @@
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
       "notInstalledDescription": "Installez cette automatisation pour ajouter ses agents et workflows à votre organisation.",
-      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisissez où vivront ses tâches et ses pages.",
+      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisis où vivront ses tâches et ses pages. Pour un desk client, nomme le projet d'après l'entreprise cliente.",
       "projectLabel": "Projet",
       "projectPlaceholder": "Sélectionner un projet",
       "projectSearchPlaceholder": "Rechercher des projets…",
@@ -703,7 +724,7 @@
       "doneTitle": "{name} est prête",
       "doneNeedsSetupTitle": "Terminer la configuration de {name}",
       "doneNeedsSetup": "Une intégration requise n'est pas encore connectée — connecte-la depuis l'onglet Intégrations de l'automatisation avant qu'elle puisse s'exécuter.",
-      "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
+      "doneAllConnected": "Tout ce dont elle a besoin est connecté. Terminer ouvre le desk de l'automatisation.",
       "doneSomeSkipped": "Tu as ignoré certaines étapes — termine-les à tout moment depuis la liste de configuration de l'automatisation.",
       "doneScheduleVars": "Des variables de planification requises ne sont pas encore définies : {fields}. Définis-les dans l'onglet Déclencheurs de l'automatisation avant qu'elle puisse s'exécuter.",
       "doneBundleScheduleVars": "Ces membres ont encore besoin de variables de planification avant de pouvoir s'exécuter : {members}",
@@ -732,10 +753,24 @@
     "detail": {
       "title": "Détails",
       "activity": "Activité",
-      "run": "Exécution du workflow",
+      "input": "Entrée",
+      "more": "Détails",
+      "comments": "Commentaires",
       "discuss": "Discussion",
-      "openLink": "Ouvrir le lien",
-      "chatPlaceholder": "Pose une question sur cet élément…"
+      "externalRef": "Référence externe",
+      "subjectFolder": "Dossier",
+      "relatedFolder": "Dossier associé",
+      "chatPlaceholder": "Pose une question sur cet élément…",
+      "awaitingHuman": "En attente de toi. Ouvre les fichiers Outcome pour vérifier le résultat, puis Marquer comme terminé — ou Demander des modifications si quelque chose ne va pas.",
+      "markDoneConfirmTitle": "Marquer comme terminé ?",
+      "markDoneConfirmDescription": "Confirme seulement après avoir terminé le suivi humain pour cet élément. Pour changer le résultat, utilise Demander des modifications.",
+      "requestChangesTitle": "Demander des modifications",
+      "requestChangesDescription": "Écris ce qui ne va pas. Ton commentaire part dans la prochaine exécution avant qu'elle démarre — sans feedback, le pipeline ne ferait que relancer à l'identique.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "Que faut-il changer ?",
+      "requestChangesSubmit": "Envoyer et relancer",
+      "requestChangesEmpty": "Écris ce qui doit changer avant de relancer.",
+      "requestChangesStarted": "Modifications demandées — l'exécution démarre"
     },
     "review": {
       "none": "Aucune révision en attente.",
@@ -748,11 +783,14 @@
       "refresh": "Actualiser",
       "error": "Impossible de charger les données : {error}",
       "notConnected": "Cette intégration n'est pas encore connectée. Connecte-la pour charger les données.",
-      "needsConfig": "Configurez cette automatisation pour charger les données.",
+      "needsConfig": "Configure cette automatisation pour charger les données.",
+      "needsProject": "Ouvre cette automatisation depuis un projet lié pour charger les données.",
       "created": "Créé",
       "start": "Démarrer",
       "markDone": "Marquer comme terminé",
+      "requestChanges": "Demander des modifications",
       "merge": "Merger la pull request",
+      "cancel": "Annuler",
       "all": "Tous"
     },
     "agents": {
@@ -810,16 +848,29 @@
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
       "failed": "Échec",
-      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
+      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la.",
+      "awaitingInput": "Réponse requise",
+      "awaitingInputHint": "En attente — le desk t’a posé une question. Déplie la ligne, réponds, puis « Envoyer et continuer ».",
+      "input": {
+        "heading": "Nous avons besoin de ta réponse pour continuer",
+        "placeholder": "Saisis ta réponse…",
+        "submit": "Envoyer et continuer",
+        "submittedToast": "Réponse envoyée — l’exécution reprend là où elle s’était arrêtée.",
+        "rerunFailedToast": "Impossible de relancer l’exécution. Utilise Start sur la ligne."
+      }
     },
     "membership": {
       "boundProjectsTitle": "Projets liés",
-      "boundProjectsDescription": "Exécutez cette automatisation dans des projets spécifiques. Ajoutez un projet pour le lier ou retirez-le pour le délier.",
+      "boundProjectsDescription": "Exécute cette automatisation dans des projets spécifiques. Ajoute un projet pour le lier ou retire-le pour le délier.",
       "boundProjectsPlaceholder": "Lier des projets…",
+      "boundProjectLinksLabel": "Ouvrir les projets liés",
+      "openBoundProject": "Ouvrir dans {name}",
+      "viewNeedsProjectTitle": "Ouvrir depuis un projet",
+      "viewNeedsProjectDescription": "Cette vue a besoin d'un projet. Ouvre-la depuis un projet lié ci-dessous, ou lie-en un sous Configuration.",
       "noProjectsAvailable": "Aucun projet disponible.",
       "saveFailed": "Impossible de mettre à jour les projets de cette automatisation.",
       "notInProjectTitle": "Pas ajoutée à ce projet",
-      "notInProjectDescription": "Ajoutez cette automatisation à ce projet pour l'utiliser ici.",
+      "notInProjectDescription": "Ajoute cette automatisation à ce projet pour l'utiliser ici.",
       "addToThisProject": "Ajouter à ce projet"
     },
     "board": {
@@ -1565,7 +1616,7 @@
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
     "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour commencer à discuter.",
     "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
-    "errorHintOutputCapTooHigh": "Le nombre maximal de tokens en sortie configuré est supérieur à ce que ce modèle prend en charge. Demande à ton administrateur de réduire le nombre maximal de tokens en sortie du modèle.",
+    "errorHintOutputCapTooHigh": "Le plafond de tokens en sortie de ce modèle ne laisse pas de place pour le prompt (ou dépasse ce que le modèle prend en charge). Réessaie — Tale efface automatiquement un plafond mis en cache incorrect — ou demande à ton administrateur de le baisser.",
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
@@ -2523,6 +2574,53 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synchronisé)",
       "uploaded": "Téléversement"
+    },
+    "comparison": {
+      "title": "Comparer des documents",
+      "description": "Choisis deux fichiers pour voir ce qui a changé.",
+      "baseDocument": "Base",
+      "comparisonDocument": "Comparer à",
+      "compareButton": "Comparer",
+      "comparing": "Comparaison…",
+      "compareFailed": "Impossible de comparer les documents",
+      "statsSummary": "Résumé des changements",
+      "statsAdded": "{count} ajouté(s)",
+      "statsDeleted": "{count} supprimé(s)",
+      "statsModified": "{count} modifié(s)",
+      "statsUnchanged": "{count} inchangé(s)",
+      "highDivergence": "Ces versions diffèrent beaucoup — vérifie attentivement.",
+      "resultsTruncated": "Affiche un sous-ensemble des changements.",
+      "noChanges": "Aucune différence trouvée.",
+      "changesList": "Changements",
+      "changeBlockLabel": "Changement {index}",
+      "removedText": "Supprimé",
+      "addedText": "Ajouté",
+      "untitledDocument": "Document sans titre",
+      "upload": "Téléverser",
+      "existing": "Existant",
+      "clearSelection": "Effacer la sélection",
+      "dropOrClick": "Dépose un fichier ici ou clique pour téléverser",
+      "selectDocument": "Sélectionner un document"
+    },
+    "history": {
+      "dialogTitle": "Historique des versions — {name}",
+      "dialogDescription": "Sélectionne deux versions à comparer. Le fichier actuel est listé en premier.",
+      "versionsLabel": "Versions",
+      "currentBadge": "Actuelle",
+      "loading": "Chargement des versions…",
+      "loadFailed": "Impossible de charger l’historique des versions",
+      "empty": "Aucune version stockée pour ce fichier.",
+      "singleVersion": "Seule la version actuelle est stockée — une révision construit l’historique.",
+      "selectTwo": "Sélectionne deux versions",
+      "compareSelected": "Comparer la sélection",
+      "comparing": "Comparaison…",
+      "compareFailed": "Impossible de comparer les versions",
+      "backToList": "Retour aux versions",
+      "versionLabel": "Version du {date}",
+      "selectAsCompare": "Sélectionner pour comparer",
+      "baseSelected": "Base",
+      "compareSelectedBadge": "Comparer",
+      "notFound": "Ce fichier n’a pas encore d’historique de versions."
     }
   },
   "onboarding": {
@@ -5398,6 +5496,8 @@
         "noModelsFound": "Aucun modèle trouvé",
         "removeModel": "Retirer",
         "embeddingModelWarning": "Modèle d'embedding uniquement — non utilisable pour le chat",
+        "modelNotInCatalog": "Absent du catalogue {provider} — ajoute-le dans Paramètres > Fournisseurs, ou choisis un autre modèle.",
+        "modelNotInAnyCatalog": "Absent de tout catalogue de fournisseur — ajoute-le dans Paramètres > Fournisseurs, ou choisis un autre modèle.",
         "viaProvider": "via {provider}",
         "modelSelector": {
           "moveUp": "Déplacer le modèle vers le haut",
@@ -7033,7 +7133,6 @@
       "labels": "Étiquettes",
       "status": "Statut",
       "unassigned": "Non assigné",
-      "id": "ID",
       "author": "Auteur",
       "created": "Créé le"
     },
@@ -7639,7 +7738,8 @@
       "instructions": "Instructions",
       "threads": "Chats",
       "agents": "Agents et modèles",
-      "settings": "Paramètres"
+      "settings": "Paramètres",
+      "automations": "Automatisations"
     },
     "list": {
       "title": "Projets",
@@ -7662,11 +7762,11 @@
     "create": {
       "title": "Créer un projet",
       "nameLabel": "Nom du projet",
-      "namePlaceholder": "par ex. Q2 Sales Hiring",
+      "namePlaceholder": "par ex. Acme SA",
       "keyLabel": "Clé du projet",
-      "keyDescription": "Préfixe des identifiants de tâches (par ex. TAL-1). Fixe — impossible à modifier après la création du projet.",
+      "keyDescription": "Court préfixe pour les identifiants de tâches — lettres et chiffres uniquement (par ex. TAL devient TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optionnel — à quoi sert ce projet ?",
+      "descriptionPlaceholder": "Optionnel — pour un bureau client, utilise le nom de l'entreprise comme nom de projet.",
       "teamLabel": "Équipe propriétaire",
       "teamPlaceholder": "Choisir une équipe (optionnel, par défaut toute l'organisation)",
       "iconLabel": "Icône",
@@ -7738,7 +7838,8 @@
       "folderDeleteConfirm": "Supprimer « {folder} » et tout son contenu ? Les fichiers seront retirés du projet et de l'index de connaissances. Cette action est irréversible.",
       "newSubfolderAction": "Nouveau sous-dossier",
       "uploadFailedTitle": "Échec de l'envoi",
-      "uploadingIndicator": "Envoi en cours…"
+      "uploadingIndicator": "Envoi en cours…",
+      "historyAction": "Historique des versions"
     },
     "threads": {
       "title": "Chats",
@@ -7908,6 +8009,14 @@
     "editor": {
       "slugFallback": "indisponible",
       "slugEditorEmptyLockout": "Une liste vide bloque l'accès au projet pour tous les membres. Ajoute au moins un élément ou repasse à « Tous »."
+    },
+    "automations": {
+      "title": "Automatisations",
+      "description": "Automatisations liées à ce projet.",
+      "emptyTitle": "Aucune automatisation sur ce projet",
+      "emptyDescription": "Installe une automatisation projet depuis le hub Automatisations, puis ajoute ce projet.",
+      "emptyCta": "Parcourir les automatisations",
+      "statusBroken": "À réparer"
     }
   },
   "webdav": {

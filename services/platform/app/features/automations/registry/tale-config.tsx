@@ -30,12 +30,16 @@ import {
   CardTitle,
 } from '@tale/ui/card';
 import { Heading } from '@tale/ui/heading';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
+import type { ReactElement } from 'react';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 
-import { BlockFrame } from './block-frame';
+import { useBlockWhenGate } from '../hooks/use-block-when-gate';
+import { BindingStates, BlockFrame } from './block-frame';
 import {
   agentChatBlock,
   type AgentChatBlockProps,
@@ -80,12 +84,37 @@ type BadgeVariant =
   | 'slate';
 type AlertVariant = 'default' | 'destructive' | 'warning' | 'info';
 
+/** Pack-authored per-locale overrides for presentational string props. */
+type BlockI18n = Record<string, Record<string, string>> | undefined;
+
 interface TaleComponents {
-  Heading: { text: string; level: 1 | 2 | 3 | 4 | 5 | 6 };
-  Text: { text: string; variant: TextVariant };
-  Badge: { text: string; variant: BadgeVariant };
-  Alert: { variant: AlertVariant; title: string; description: string };
-  Card: { title: string; description: string; body: string };
+  Heading: {
+    text: string;
+    level: 1 | 2 | 3 | 4 | 5 | 6;
+    i18n?: BlockI18n;
+  };
+  Text: {
+    text: string;
+    variant: TextVariant;
+    i18n?: BlockI18n;
+    when?: string;
+    whenQuery?: { path: string; args?: unknown };
+  };
+  Badge: { text: string; variant: BadgeVariant; i18n?: BlockI18n };
+  Alert: {
+    variant: AlertVariant;
+    title: string;
+    description: string;
+    i18n?: BlockI18n;
+    when?: string;
+    whenQuery?: { path: string; args?: unknown };
+  };
+  Card: {
+    title: string;
+    description: string;
+    body: string;
+    i18n?: BlockI18n;
+  };
   // Connected blocks: the data (query/columns/actions) is authored as Puck JSON,
   // so the editor fields are optional here (the `<Puck>` editor is Phase 2).
   Collection: Partial<CollectionProps>;
@@ -104,6 +133,120 @@ interface TaleComponents {
 
 const opts = <T extends string | number>(values: readonly T[]) =>
   values.map((v) => ({ label: String(v), value: v }));
+
+/** Resolve a pack-authored presentational string against the active locale. */
+function useLocalizedProp(
+  base: string | undefined,
+  i18n: BlockI18n,
+  prop: string,
+): string | undefined {
+  const { locale } = useLocale();
+  return resolveLocalizedProp(base, i18n, prop, locale);
+}
+
+/** Apply optional `when`/`whenQuery` — hide, show needs-project, or render. */
+function WhenGated({
+  when,
+  whenQuery,
+  children,
+}: {
+  when?: string;
+  whenQuery?: { path: string; args?: unknown };
+  children: ReactElement;
+}): ReactElement | null {
+  const gate = useBlockWhenGate(when, whenQuery);
+  if (gate.decision === 'pending' || gate.decision === 'hide') return null;
+  if (gate.decision === 'needsConfig') {
+    if (gate.needsProject) {
+      return <BindingStates needsProject>{null}</BindingStates>;
+    }
+    return null;
+  }
+  return children;
+}
+
+function LocalizedHeading({
+  text,
+  level,
+  i18n,
+}: TaleComponents['Heading']): ReactElement {
+  const resolved = useLocalizedProp(text, i18n, 'text') ?? text;
+  return <Heading level={level}>{resolved}</Heading>;
+}
+
+function LocalizedText({
+  text,
+  variant,
+  i18n,
+  when,
+  whenQuery,
+}: TaleComponents['Text']): ReactElement | null {
+  const resolved = useLocalizedProp(text, i18n, 'text') ?? text;
+  return (
+    <WhenGated when={when} whenQuery={whenQuery}>
+      <Text variant={variant}>{resolved}</Text>
+    </WhenGated>
+  );
+}
+
+function LocalizedBadge({
+  text,
+  variant,
+  i18n,
+}: TaleComponents['Badge']): ReactElement {
+  const resolved = useLocalizedProp(text, i18n, 'text') ?? text;
+  return <Badge variant={variant}>{resolved}</Badge>;
+}
+
+function LocalizedAlert({
+  variant,
+  title,
+  description,
+  i18n,
+  when,
+  whenQuery,
+}: TaleComponents['Alert']): ReactElement | null {
+  const resolvedTitle = useLocalizedProp(title, i18n, 'title') ?? title;
+  const resolvedDescription =
+    useLocalizedProp(description, i18n, 'description') ?? description;
+  return (
+    <WhenGated when={when} whenQuery={whenQuery}>
+      <Alert
+        variant={variant}
+        title={resolvedTitle}
+        description={resolvedDescription}
+      />
+    </WhenGated>
+  );
+}
+
+function LocalizedCard({
+  title,
+  description,
+  body,
+  i18n,
+}: TaleComponents['Card']): ReactElement {
+  const resolvedTitle = useLocalizedProp(title, i18n, 'title');
+  const resolvedDescription = useLocalizedProp(
+    description,
+    i18n,
+    'description',
+  );
+  const resolvedBody = useLocalizedProp(body, i18n, 'body') ?? body;
+  return (
+    <Card>
+      {(resolvedTitle || resolvedDescription) && (
+        <CardHeader className="pb-3">
+          {resolvedTitle ? <CardTitle>{resolvedTitle}</CardTitle> : null}
+          {resolvedDescription ? (
+            <CardDescription>{resolvedDescription}</CardDescription>
+          ) : null}
+        </CardHeader>
+      )}
+      <CardContent>{resolvedBody}</CardContent>
+    </Card>
+  );
+}
 
 /**
  * The registration chokepoint for CONNECTED (data-bound) blocks: wraps the
@@ -146,6 +289,21 @@ export function registerConnectedBlock<Props extends DefaultComponentProps>(
 }
 
 export const taleConfig: Config<TaleComponents> = {
+  // Stack authored blocks with the same gap the rest of the product uses
+  // between cards. Puck's headless `<Render>` passes a single DropZone as
+  // `children` (not the blocks themselves), so a plain flex gap on the root
+  // never reaches the cards — `[&>div]:contents` dissolves that wrapper so
+  // Text / Alert / Form / Collection become the flex children.
+  root: {
+    // Accept Puck's full root props (id/puck/editMode/children) — a narrow
+    // `{ children }` annotation is a weak type and fails assignability to
+    // `PuckComponent<any>`.
+    render: (props) => (
+      <div className="flex flex-col gap-4 [&>div]:contents">
+        {props.children}
+      </div>
+    ),
+  },
   components: {
     Heading: {
       fields: {
@@ -153,9 +311,8 @@ export const taleConfig: Config<TaleComponents> = {
         level: { type: 'select', options: opts([1, 2, 3, 4, 5, 6] as const) },
       },
       defaultProps: { text: 'Heading', level: 2 },
-      // Display strings are literals rendered verbatim (UI translations are
-      // platform-owned) — same posture as every presentational block below.
-      render: ({ text, level }) => <Heading level={level}>{text}</Heading>,
+      // Pack-authored `i18n.<locale>.text` overrides the English literal.
+      render: (props) => <LocalizedHeading {...props} />,
     },
     Text: {
       fields: {
@@ -175,7 +332,7 @@ export const taleConfig: Config<TaleComponents> = {
         },
       },
       defaultProps: { text: 'Text', variant: 'body' },
-      render: ({ text, variant }) => <Text variant={variant}>{text}</Text>,
+      render: (props) => <LocalizedText {...props} />,
     },
     Badge: {
       fields: {
@@ -194,7 +351,7 @@ export const taleConfig: Config<TaleComponents> = {
         },
       },
       defaultProps: { text: 'Badge', variant: 'slate' },
-      render: ({ text, variant }) => <Badge variant={variant}>{text}</Badge>,
+      render: (props) => <LocalizedBadge {...props} />,
     },
     Alert: {
       fields: {
@@ -206,9 +363,7 @@ export const taleConfig: Config<TaleComponents> = {
         description: { type: 'textarea' },
       },
       defaultProps: { variant: 'info', title: 'Alert', description: '' },
-      render: ({ variant, title, description }) => (
-        <Alert variant={variant} title={title} description={description} />
-      ),
+      render: (props) => <LocalizedAlert {...props} />,
     },
     Card: {
       fields: {
@@ -217,19 +372,7 @@ export const taleConfig: Config<TaleComponents> = {
         body: { type: 'textarea' },
       },
       defaultProps: { title: '', description: '', body: '' },
-      render: ({ title, description, body }) => (
-        <Card>
-          {(title || description) && (
-            <CardHeader className="pb-3">
-              {title ? <CardTitle>{title}</CardTitle> : null}
-              {description ? (
-                <CardDescription>{description}</CardDescription>
-              ) : null}
-            </CardHeader>
-          )}
-          <CardContent>{body}</CardContent>
-        </Card>
-      ),
+      render: (props) => <LocalizedCard {...props} />,
     },
     Collection: registerConnectedBlock<TaleComponents['Collection']>(
       'Collection',

@@ -15,7 +15,7 @@ import { createThread, saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
 import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussions';
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
@@ -869,6 +869,8 @@ export async function postTaskDiscussionMessage(
     actorType: 'user' | 'agent';
     actorId: string;
     body: string;
+    /** Optional write-time locale snapshot (workflow `bodyI18n`). */
+    bodyByLocale?: { en: string; de: string; fr: string };
   },
 ): Promise<{
   messageId: string;
@@ -906,9 +908,16 @@ export async function postTaskDiscussionMessage(
     authorId: args.actorId,
     mentions: mentions.length > 0 ? mentions : undefined,
     createdAt: Date.now(),
+    ...(args.bodyByLocale ? { bodyByLocale: args.bodyByLocale } : {}),
   });
   return { messageId, threadId, mentions };
 }
+
+const bodyByLocaleValidator = v.object({
+  en: v.string(),
+  de: v.string(),
+  fr: v.string(),
+});
 
 export const agentAddComment = internalMutation({
   args: {
@@ -916,6 +925,7 @@ export const agentAddComment = internalMutation({
     actorId: v.string(),
     taskId: v.id('tasks'),
     body: v.string(),
+    bodyByLocale: v.optional(bodyByLocaleValidator),
     attribution: optionalAttribution,
   },
   handler: async (
@@ -932,6 +942,25 @@ export const agentAddComment = internalMutation({
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
       throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
     }
+    let bodyByLocale = args.bodyByLocale;
+    if (bodyByLocale) {
+      const trimmed = {
+        en: bodyByLocale.en.trim(),
+        de: bodyByLocale.de.trim(),
+        fr: bodyByLocale.fr.trim(),
+      };
+      if (
+        trimmed.en.length === 0 ||
+        trimmed.de.length === 0 ||
+        trimmed.fr.length === 0 ||
+        trimmed.en.length > TASK_COMMENT_MAX ||
+        trimmed.de.length > TASK_COMMENT_MAX ||
+        trimmed.fr.length > TASK_COMMENT_MAX
+      ) {
+        throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+      }
+      bodyByLocale = trimmed;
+    }
 
     // Unified surface: the comment is a message in the task's discussion
     // thread, with its author/mentions in the lockstep meta row.
@@ -944,6 +973,7 @@ export const agentAddComment = internalMutation({
         actorType: 'agent',
         actorId: args.actorId,
         body,
+        bodyByLocale,
       },
     );
     // Denormalized count — CRITICAL for the board comment indicator.
@@ -1552,5 +1582,34 @@ export const agentArchiveTask = internalMutation({
       resourceName: task.title,
     });
     return { ok: true };
+  },
+});
+
+/**
+ * Queue a subject-linked workflow start for a newly created task without
+ * blocking the create action. `createTaskFromExternalIssue` returns as soon as
+ * the task row exists so the desk can latch Created; the engine runs on the
+ * next scheduler tick.
+ */
+export const scheduleTaskWorkflowStart = internalMutation({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    workflowSlug: v.string(),
+    userId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.tasks.internal_actions.startWorkflowOnTask,
+      {
+        organizationId: args.organizationId,
+        taskId: args.taskId,
+        workflowSlug: args.workflowSlug,
+        userId: args.userId,
+      },
+    );
+    return null;
   },
 });

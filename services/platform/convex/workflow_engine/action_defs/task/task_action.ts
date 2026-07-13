@@ -13,6 +13,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import { toId } from '../../../lib/type_cast_helpers';
+import { TASK_COMMENT_MAX } from '../../../tasks/helpers';
 import {
   taskActorTypeValidator,
   taskPriorityValidator,
@@ -21,6 +22,17 @@ import {
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 const WORKFLOW_ACTOR_ID = 'workflow';
+
+// Workflow templates interpolate unbounded step output (e.g. an author agent's
+// summary) into comments; a body over the mutation's cap must degrade to a
+// truncated comment, not fail the step and kill the run.
+const TRUNCATION_MARK = '… (truncated)';
+function clampCommentBody(text: string): string {
+  if (text.length <= TASK_COMMENT_MAX) return text;
+  return (
+    text.slice(0, TASK_COMMENT_MAX - TRUNCATION_MARK.length) + TRUNCATION_MARK
+  );
+}
 
 function workflowAttribution(
   variables: Record<string, unknown>,
@@ -84,7 +96,25 @@ type TaskActionParams =
   | {
       operation: 'comment';
       taskId: string;
-      body: string;
+      /** Legacy single-locale body (English / pack default). */
+      body?: string;
+      /** Write-time en/de/fr snapshot; `en` becomes the canonical `body`. */
+      bodyI18n?: { en: string; de: string; fr: string };
+    }
+  | {
+      operation: 'list_comments';
+      taskId: string;
+      /** Keep only these author types (meta `authorType`; workflow-authored
+       *  comments are stored as `agent`). Omit → all authors. */
+      authorTypes?: ('user' | 'agent')[];
+      /** Watermark: return only comments strictly newer than the NEWEST
+       *  comment whose body contains this marker (any author — the marker is
+       *  matched before `authorTypes` filtering, so a workflow-posted anchor
+       *  still consumes user comments). No match → everything. */
+      afterMarker?: string;
+      /** Keep the most recent N after filtering (result stays ascending).
+       *  Non-positive values are ignored. */
+      limit?: number;
     }
   | {
       operation: 'sweep';
@@ -142,7 +172,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
   type: 'task',
   title: 'Task Operation',
   description:
-    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, archive, subtask_progress, list_dependents, list_open_for_assignee, list_open_external, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
+    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, list_comments, archive, subtask_progress, list_dependents, list_open_for_assignee, list_open_external, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('create'),
@@ -169,7 +199,21 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
     v.object({
       operation: v.literal('comment'),
       taskId: v.id('tasks'),
-      body: v.string(),
+      body: v.optional(v.string()),
+      bodyI18n: v.optional(
+        v.object({
+          en: v.string(),
+          de: v.string(),
+          fr: v.string(),
+        }),
+      ),
+    }),
+    v.object({
+      operation: v.literal('list_comments'),
+      taskId: v.id('tasks'),
+      authorTypes: v.optional(v.array(taskActorTypeValidator)),
+      afterMarker: v.optional(v.string()),
+      limit: v.optional(v.number()),
     }),
     v.object({
       operation: v.literal('sweep'),
@@ -406,15 +450,24 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
 
       case 'update_status': {
         if (params.comment !== undefined && params.comment.trim() !== '') {
-          await ctx.runMutation(
-            internal.tasks.internal_mutations.agentAddComment,
-            {
-              organizationId,
-              actorId: WORKFLOW_ACTOR_ID,
-              taskId: toId<'tasks'>(params.taskId),
-              body: params.comment,
-            },
-          );
+          // The ride-along comment is garnish on the status change — clamp it
+          // and log a post failure, never let it block the transition.
+          try {
+            await ctx.runMutation(
+              internal.tasks.internal_mutations.agentAddComment,
+              {
+                organizationId,
+                actorId: WORKFLOW_ACTOR_ID,
+                taskId: toId<'tasks'>(params.taskId),
+                body: clampCommentBody(params.comment.trim()),
+              },
+            );
+          } catch (error) {
+            console.error(
+              '[workflow] task.update_status ride-along comment failed (status change proceeds)',
+              error,
+            );
+          }
         }
         return await ctx.runMutation(
           internal.tasks.internal_mutations.agentUpdateTaskStatus,
@@ -443,16 +496,95 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       }
 
       case 'comment': {
-        return await ctx.runMutation(
-          internal.tasks.internal_mutations.agentAddComment,
-          {
-            organizationId,
-            actorId: WORKFLOW_ACTOR_ID,
-            taskId: toId<'tasks'>(params.taskId),
-            body: params.body,
-            attribution,
-          },
+        // A comment is a NOTIFICATION. Over-long bodies are clamped and every
+        // failure path degrades to `{posted: false}` instead of throwing — a
+        // lost log line must never fail the step and kill the run (a 10k
+        // author summary once burned a whole run this way). Static authoring
+        // mistakes belong to publish-time validation, not a run-time crash.
+        const bodyI18n = params.bodyI18n;
+        const body = clampCommentBody(
+          bodyI18n?.en?.trim() ||
+            (typeof params.body === 'string' ? params.body.trim() : ''),
         );
+        if (!body) {
+          console.warn(
+            '[workflow] task.comment skipped — empty `body` / `bodyI18n.en` (template rendered nothing)',
+          );
+          return { posted: false, error: 'empty body' };
+        }
+        if (bodyI18n) {
+          const de = bodyI18n.de?.trim() ?? '';
+          const fr = bodyI18n.fr?.trim() ?? '';
+          if (!de || !fr) {
+            console.warn(
+              '[workflow] task.comment skipped — `bodyI18n` requires non-empty en, de, and fr',
+            );
+            return { posted: false, error: 'bodyI18n missing a locale' };
+          }
+        }
+        try {
+          const result = await ctx.runMutation(
+            internal.tasks.internal_mutations.agentAddComment,
+            {
+              organizationId,
+              actorId: WORKFLOW_ACTOR_ID,
+              taskId: toId<'tasks'>(params.taskId),
+              body,
+              ...(bodyI18n
+                ? {
+                    bodyByLocale: {
+                      en: clampCommentBody(bodyI18n.en.trim()),
+                      de: clampCommentBody(bodyI18n.de.trim()),
+                      fr: clampCommentBody(bodyI18n.fr.trim()),
+                    },
+                  }
+                : {}),
+              attribution,
+            },
+          );
+          return { posted: true, ...result };
+        } catch (error) {
+          console.error(
+            '[workflow] task.comment failed — run continues without the comment',
+            error,
+          );
+          return {
+            posted: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+
+      case 'list_comments': {
+        const all = await ctx.runQuery(
+          internal.tasks.internal_queries.listTaskDiscussionMessagesInternal,
+          { taskId: toId<'tasks'>(params.taskId), organizationId },
+        );
+        // Order by createdAt, not array order — the message store is
+        // chronological today, but the watermark below compares timestamps
+        // and must not depend on that staying true.
+        let comments = [...all].sort((a, b) => a.createdAt - b.createdAt);
+        if (params.afterMarker) {
+          const marker = params.afterMarker;
+          // Watermark over ALL comments (before the author filter): the
+          // anchor is typically workflow-posted, yet must still consume the
+          // user comments that preceded it.
+          let watermark = -1;
+          for (const m of comments) {
+            if (m.body.includes(marker) && m.createdAt > watermark) {
+              watermark = m.createdAt;
+            }
+          }
+          comments = comments.filter((m) => m.createdAt > watermark);
+        }
+        if (params.authorTypes && params.authorTypes.length > 0) {
+          const allowed = new Set<string>(params.authorTypes);
+          comments = comments.filter((m) => allowed.has(m.authorType));
+        }
+        if (typeof params.limit === 'number' && params.limit > 0) {
+          comments = comments.slice(-params.limit);
+        }
+        return { operation: 'list_comments', comments, count: comments.length };
       }
 
       case 'upsert_external': {

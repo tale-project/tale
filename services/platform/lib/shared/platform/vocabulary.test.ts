@@ -10,7 +10,10 @@ import {
   REVIEW_CARDINALITIES,
   REVIEW_MODES,
   STREAM_ENTRY_KINDS,
+  SURFACES,
   isRenderKind,
+  isSurface,
+  resolveSurface,
 } from './render_kinds';
 import { STEP_MODES, isStepMode } from './step_modes';
 
@@ -60,10 +63,20 @@ describe('platform render-kinds vocabulary', () => {
       STREAM_ENTRY_KINDS,
       REVIEW_MODES,
       REVIEW_CARDINALITIES,
+      SURFACES,
     ]) {
       expect(params.length).toBeGreaterThan(0);
       expect(noDuplicates(params)).toBe(true);
     }
+  });
+
+  it('freezes operator surfaces and degrades unknown values to process', () => {
+    expect([...SURFACES]).toEqual(['outcome', 'process']);
+    expect(isSurface('outcome')).toBe(true);
+    expect(isSurface('nope')).toBe(false);
+    expect(resolveSurface('outcome')).toBe('outcome');
+    expect(resolveSurface(undefined)).toBe('process');
+    expect(resolveSurface('nope')).toBe('process');
   });
 });
 

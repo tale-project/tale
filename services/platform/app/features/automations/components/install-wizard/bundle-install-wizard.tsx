@@ -68,6 +68,7 @@ import {
 } from './bundle-review-overrides-step';
 import { ConnectIntegrationStep } from './connect-integration-step';
 import { ConnectProviderStep } from './connect-provider-step';
+import { firstViewIdFromPreviewEntries } from './first-view-id';
 
 export interface BundleInstallWizardProps {
   open: boolean;
@@ -503,27 +504,37 @@ function BundleInstallWizardBody({
 
   const handleFinish = () => {
     onOpenChange(false);
-    // Land somewhere useful (#2611): a project-scoped bundle's members feed
-    // the bound project's Tasks page, so Finish opens that work surface —
-    // never a hidden member's Editor. Without a project (org-scoped bundle),
-    // fall back to the first member's ORG-level detail page (no single
-    // "bundle page" exists).
-    if (targetProjectId !== undefined) {
-      void navigate({
-        to: '/dashboard/$id/projects/$projectId/tasks',
-        params: { id: organizationId, projectId: targetProjectId },
-      });
-      return;
-    }
+    // No single "bundle page" exists (each member is its own automation) — land
+    // on the first member's detail. Prefer the project-nested URL when a
+    // project was selected (or pre-bound); otherwise the org-level page the
+    // catalog opens. Project-nested detail routes bare-outlet under
+    // Automations chrome (no project-shell padding). Open the first member's
+    // first view tab when it ships views.
     const first = preview[0];
     if (first) {
-      void navigate({
-        to: '/dashboard/$id/automations/$automationSlug',
-        params: {
-          id: organizationId,
-          automationSlug: first.automationSlug,
-        },
-      });
+      const finishProjectId = projectId ?? selectedProjectId;
+      const firstViewId = firstViewIdFromPreviewEntries(first.entries);
+      const search = firstViewId !== undefined ? { tab: firstViewId } : {};
+      if (finishProjectId) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            projectId: finishProjectId,
+            automationSlug: first.automationSlug,
+          },
+          search,
+        });
+      } else {
+        void navigate({
+          to: '/dashboard/$id/automations/$automationSlug',
+          params: {
+            id: organizationId,
+            automationSlug: first.automationSlug,
+          },
+          search,
+        });
+      }
     }
   };
 

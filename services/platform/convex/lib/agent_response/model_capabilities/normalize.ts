@@ -17,6 +17,7 @@ import type {
   ReasoningCapabilityConfig,
 } from '../../../../lib/shared/schemas/providers';
 import { inferPromptCachingMode, inferReasoningKnob } from './infer';
+import { usableMaxOutputTokens } from './sanitize_max_output';
 
 /** The capability fields a catalog sync can populate for one model. */
 export interface NormalizedCapability {
@@ -95,9 +96,14 @@ export function normalizeCatalogModel(
   out.contextWindow =
     positiveInt(m.context_length) ?? positiveInt(m.context_window);
   const topProvider = asRecord(m.top_provider);
-  out.maxOutputTokens =
+  // Drop a catalog "max completion" that equals (or exceeds) the full context
+  // window — OpenRouter has reported that shape for some models, and sending it
+  // as max_tokens makes every request fail (input + output > context).
+  out.maxOutputTokens = usableMaxOutputTokens(
     positiveInt(m.max_output_tokens) ??
-    positiveInt(topProvider?.max_completion_tokens);
+      positiveInt(topProvider?.max_completion_tokens),
+    out.contextWindow,
+  );
 
   const architecture = asRecord(m.architecture);
   const inputModalities = asStringArray(architecture?.input_modalities);

@@ -39,9 +39,24 @@
       "approved": "Approved",
       "changesRequested": "Changes requested"
     },
+    "section": {
+      "outcome": "Outcome",
+      "runDetails": "Run details"
+    },
+    "outcome": {
+      "inProgress": "Working — results will appear here.",
+      "failed": "This step failed.",
+      "empty": "No results yet — they will appear here once a run produces them."
+    },
+    "artifact": {
+      "filed": "Filed {title}",
+      "updated": "Updated {title}",
+      "unchanged": "{title} already up to date"
+    },
     "action": {
       "open": "Open",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "technicalDetails": "Technical details"
     },
     "verdict": {
       "yes": "Yes",
@@ -74,6 +89,12 @@
         "description": "This cancels the workflow immediately. Steps in progress are abandoned and the run is marked failed. This can't be undone.",
         "confirm": "Stop run"
       }
+    },
+    "stage": {
+      "work": "Work",
+      "deliver": "Deliver",
+      "review": "Review",
+      "repair": "Repair"
     }
   },
   "accessDenied": {
@@ -626,7 +647,7 @@
       "setup": "Finish setup",
       "uninstall": "Uninstall",
       "notInstalledDescription": "Install this automation to add its agents and workflows to your organization.",
-      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live.",
+      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live. For a client-facing desk, name the project after the client company.",
       "projectLabel": "Project",
       "projectPlaceholder": "Select a project",
       "projectSearchPlaceholder": "Search projects…",
@@ -702,7 +723,7 @@
       "doneTitle": "{name} is ready",
       "doneNeedsSetupTitle": "Finish setting up {name}",
       "doneNeedsSetup": "A required integration isn't connected yet — connect it from the automation's Integrations tab before it can run.",
-      "doneAllConnected": "Everything it needs is connected.",
+      "doneAllConnected": "Everything it needs is connected. Finish opens the automation's desk.",
       "doneSomeSkipped": "You skipped some steps — finish them anytime from the automation's setup checklist.",
       "doneScheduleVars": "Required schedule variables aren't set yet: {fields}. Set them on the automation's Triggers tab before it can run.",
       "doneBundleScheduleVars": "These members still need schedule variables set before they can run: {members}",
@@ -731,10 +752,24 @@
     "detail": {
       "title": "Details",
       "activity": "Activity",
-      "run": "Workflow run",
+      "input": "Input",
+      "more": "Details",
+      "comments": "Comments",
       "discuss": "Discussion",
-      "openLink": "Open link",
-      "chatPlaceholder": "Ask about this item…"
+      "externalRef": "External reference",
+      "subjectFolder": "Folder",
+      "relatedFolder": "Related folder",
+      "chatPlaceholder": "Ask about this item…",
+      "awaitingHuman": "Waiting on you. Open the Outcome files to check the result, then Mark done — or Request changes if something is wrong.",
+      "markDoneConfirmTitle": "Mark done?",
+      "markDoneConfirmDescription": "Confirm only after you finished the human follow-up for this item. To change the result instead, use Request changes.",
+      "requestChangesTitle": "Request changes",
+      "requestChangesDescription": "Write what is wrong. Your comment goes to the next run before it starts — without feedback the pipeline would only re-run unchanged.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "What should change?",
+      "requestChangesSubmit": "Send and re-run",
+      "requestChangesEmpty": "Write what should change before re-running.",
+      "requestChangesStarted": "Changes requested — the run is starting"
     },
     "review": {
       "none": "No pending reviews.",
@@ -748,10 +783,13 @@
       "error": "Couldn't load data: {error}",
       "notConnected": "This integration isn't connected yet. Connect it to load data.",
       "needsConfig": "Configure this automation to load data.",
+      "needsProject": "Open this automation from a bound project to load data.",
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
+      "requestChanges": "Request changes",
       "merge": "Merge pull request",
+      "cancel": "Cancel",
       "all": "All"
     },
     "agents": {
@@ -809,12 +847,25 @@
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
-      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it.",
+      "awaitingInput": "Needs your input",
+      "awaitingInputHint": "Parked — the desk asked you a question. Expand the row, answer, then Submit & continue.",
+      "input": {
+        "heading": "We need your input to continue",
+        "placeholder": "Type your answer…",
+        "submit": "Submit & continue",
+        "submittedToast": "Answer sent — the run is picking up where it left off.",
+        "rerunFailedToast": "Couldn't restart the run. Use Start on the row to retry."
+      }
     },
     "membership": {
       "boundProjectsTitle": "Bound projects",
       "boundProjectsDescription": "Run this automation in specific projects. Add a project to bind it; remove one to unbind it there.",
       "boundProjectsPlaceholder": "Bind projects…",
+      "boundProjectLinksLabel": "Open bound projects",
+      "openBoundProject": "Open in {name}",
+      "viewNeedsProjectTitle": "Open from a project",
+      "viewNeedsProjectDescription": "This view needs a project. Open it from a bound project below, or bind one under Configuration.",
       "noProjectsAvailable": "No projects available.",
       "saveFailed": "Couldn't update this automation's projects.",
       "notInProjectTitle": "Not added to this project",
@@ -1583,7 +1634,7 @@
     "errorHintCreditExhausted": "The AI provider's credit limit was exceeded. Contact your administrator to add credits.",
     "errorHintMissingApiKey": "No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.",
     "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
-    "errorHintOutputCapTooHigh": "This model's configured max output tokens is higher than the model supports. Ask your administrator to lower the model's Max output tokens setting.",
+    "errorHintOutputCapTooHigh": "This model's max output tokens leave no room for the prompt (or exceed what the model supports). Try again — Tale clears a bad cached cap automatically — or ask an administrator to lower Max output tokens.",
     "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
@@ -2522,6 +2573,53 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synced)",
       "uploaded": "Upload"
+    },
+    "comparison": {
+      "title": "Compare documents",
+      "description": "Pick two files to see what changed between them.",
+      "baseDocument": "Base",
+      "comparisonDocument": "Compare to",
+      "compareButton": "Compare",
+      "comparing": "Comparing…",
+      "compareFailed": "Couldn't compare documents",
+      "statsSummary": "Change summary",
+      "statsAdded": "{count} added",
+      "statsDeleted": "{count} deleted",
+      "statsModified": "{count} modified",
+      "statsUnchanged": "{count} unchanged",
+      "highDivergence": "These versions differ a lot — review carefully.",
+      "resultsTruncated": "Showing a subset of changes.",
+      "noChanges": "No differences found.",
+      "changesList": "Changes",
+      "changeBlockLabel": "Change {index}",
+      "removedText": "Removed",
+      "addedText": "Added",
+      "untitledDocument": "Untitled document",
+      "upload": "Upload",
+      "existing": "Existing",
+      "clearSelection": "Clear selection",
+      "dropOrClick": "Drop a file here or click to upload",
+      "selectDocument": "Select a document"
+    },
+    "history": {
+      "dialogTitle": "Version history — {name}",
+      "dialogDescription": "Select two versions to compare. The current file is listed first.",
+      "versionsLabel": "Versions",
+      "currentBadge": "Current",
+      "loading": "Loading versions…",
+      "loadFailed": "Couldn't load version history",
+      "empty": "No stored versions for this file.",
+      "singleVersion": "Only the current version is stored — revise the file to build history.",
+      "selectTwo": "Select two versions",
+      "compareSelected": "Compare selected",
+      "comparing": "Comparing…",
+      "compareFailed": "Couldn't compare versions",
+      "backToList": "Back to versions",
+      "versionLabel": "Version from {date}",
+      "selectAsCompare": "Select to compare",
+      "baseSelected": "Base",
+      "compareSelectedBadge": "Compare",
+      "notFound": "That file has no version history yet."
     }
   },
   "onboarding": {
@@ -4978,6 +5076,7 @@
       "files": "Knowledge",
       "instructions": "Instructions",
       "threads": "Chats",
+      "automations": "Automations",
       "agents": "Agents & models",
       "settings": "Settings"
     },
@@ -5002,11 +5101,11 @@
     "create": {
       "title": "Create project",
       "nameLabel": "Project name",
-      "namePlaceholder": "e.g. Q2 Sales Hiring",
+      "namePlaceholder": "e.g. Acme AG",
       "keyLabel": "Project key",
-      "keyDescription": "Prefix for task IDs (e.g. TAL-1). Fixed — it can't be changed after the project is created.",
+      "keyDescription": "Short prefix for task IDs — letters and digits only (e.g. TAL becomes TAL-1). Fixed — it can't be changed after the project is created.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optional — what's this project for?",
+      "descriptionPlaceholder": "Optional — for a client desk, use the company name as the project name.",
       "teamLabel": "Owning team",
       "teamPlaceholder": "Select a team (optional, defaults to org-wide)",
       "iconLabel": "Icon",
@@ -5078,7 +5177,8 @@
       "folderDeleteConfirm": "Delete \"{folder}\" and everything inside it? The files are removed from the project and from the knowledge index. This cannot be undone.",
       "newSubfolderAction": "New folder inside",
       "uploadFailedTitle": "Upload failed",
-      "uploadingIndicator": "Uploading…"
+      "uploadingIndicator": "Uploading…",
+      "historyAction": "Version history"
     },
     "threads": {
       "title": "Chats",
@@ -5248,6 +5348,14 @@
     "editor": {
       "slugFallback": "unavailable",
       "slugEditorEmptyLockout": "Empty list locks every member out of this project. Add at least one item or switch back to \"All\"."
+    },
+    "automations": {
+      "title": "Automations",
+      "description": "Automations bound to this project.",
+      "emptyTitle": "No automations on this project",
+      "emptyDescription": "Install a project automation from the Automations hub, then add this project.",
+      "emptyCta": "Browse Automations",
+      "statusBroken": "Needs repair"
     }
   },
   "pwa": {
@@ -5679,6 +5787,8 @@
         "noModelsFound": "No models found",
         "removeModel": "Remove",
         "embeddingModelWarning": "Embedding-only model — not usable for chat",
+        "modelNotInCatalog": "Not in the {provider} catalog — add it under Settings > Providers, or pick another model.",
+        "modelNotInAnyCatalog": "Not in any provider catalog — add it under Settings > Providers, or pick another model.",
         "viaProvider": "via {provider}",
         "modelSelector": {
           "moveUp": "Move model up",
@@ -7314,7 +7424,6 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Unassigned",
-      "id": "ID",
       "author": "Author",
       "created": "Created"
     },

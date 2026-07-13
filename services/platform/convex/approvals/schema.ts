@@ -40,6 +40,12 @@ export const approvalsTable = defineTable({
     // login/2FA) and returns it to resume the same session. resourceId =
     // threadId. metadata carries reason + the single-controller control lease.
     v.literal('external_agent_human_control'),
+    // Operator-input marker: a run parked to ask the operator a question it
+    // answers on the task timeline (comment loop) — NOT via an approval card
+    // (no metadata.fields, nothing renders it). Its only job is to light the
+    // "Needs your input" run indicator; keyed to wfExecutionId so it clears
+    // when a newer run supersedes it. resourceId = String(taskId).
+    v.literal('operator_input'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

@@ -22,7 +22,10 @@ import type { ReactNode } from 'react';
 import { STATUS_VARIANT } from '@/app/components/ui/data-table/cell-kinds';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
 import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -37,6 +40,11 @@ export interface DetailFieldSpec {
   /** Dot-notation path into the record. */
   field: string;
   kind?: 'text' | 'badge' | 'datetime' | 'link' | 'number';
+  /**
+   * Optional display map for `badge` values (same contract as Collection
+   * columns). Unmapped values still render raw — authors opt in per field.
+   */
+  valueLabels?: Record<string, string>;
 }
 
 export interface DetailPanelProps {
@@ -48,6 +56,17 @@ export interface DetailPanelProps {
   cols?: number;
   fields: DetailFieldSpec[];
   actions?: BoundActionSpec[];
+  /**
+   * Dot-path into the loaded record used as the BoundButton `$selected` item.
+   * Use when the query returns an envelope (e.g. `getTask` → `{ task, … }`)
+   * so `when` / `$selected._id` match the flat row Collection actions use.
+   */
+  actionItemField?: string;
+  /**
+   * Extra controls rendered before BoundButton actions (e.g. a feedback-first
+   * Request changes dialog that is not a plain BoundActionSpec).
+   */
+  actionSlot?: ReactNode;
 }
 
 /** Only plain web URLs render as anchors — anything else stays inert text. */
@@ -58,9 +77,11 @@ function isSafeExternalUrl(value: string): boolean {
 function DetailValue({
   value,
   kind,
+  valueLabels,
 }: {
   value: unknown;
   kind: DetailFieldSpec['kind'];
+  valueLabels?: Record<string, string>;
 }) {
   const { locale } = useLocale();
   const { formatDate } = useFormatDate();
@@ -73,7 +94,8 @@ function DetailValue({
         ? String(value)
         : undefined;
     if (!text) return <>—</>;
-    return <Badge variant={STATUS_VARIANT[text] ?? 'slate'}>{text}</Badge>;
+    const label = valueLabels?.[text] ?? text;
+    return <Badge variant={STATUS_VARIANT[text] ?? 'slate'}>{label}</Badge>;
   }
   if (kind === 'datetime') {
     const date =
@@ -85,7 +107,9 @@ function DetailValue({
   }
   if (kind === 'link') {
     if (typeof value !== 'string' || value === '') return <>—</>;
-    if (!isSafeExternalUrl(value)) return <>{value}</>;
+    // Opaque ids (folder / document) are not web links — never dump them as
+    // inert text; callers that need a folder name resolve via getFolder.
+    if (!isSafeExternalUrl(value)) return <>—</>;
     return (
       <a
         href={value}
@@ -117,6 +141,8 @@ export function DetailPanel({
   cols,
   fields,
   actions,
+  actionItemField,
+  actionSlot,
 }: DetailPanelProps) {
   const { t } = useT('automations');
   const { data, isLoading, blocked, needsConfig } = useBoundQuery(
@@ -124,27 +150,44 @@ export function DetailPanel({
     query.args,
   );
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
   const record = isRecord(data) ? data : undefined;
+  const actionItem = (() => {
+    if (!record) return undefined;
+    if (!actionItemField) return record;
+    const nested = getValueAtPath(record, actionItemField);
+    return isRecord(nested) ? nested : record;
+  })();
 
   const items: StatGridItem[] = fields.map((f) => ({
     label: f.labelKey,
     value: (
-      <DetailValue value={getValueAtPath(record, f.field)} kind={f.kind} />
+      <DetailValue
+        value={getValueAtPath(record, f.field)}
+        kind={f.kind}
+        valueLabels={f.valueLabels}
+      />
     ) as ReactNode,
   }));
   const dlCols =
     cols === 1 || cols === 2 || cols === 3 || cols === 4 ? cols : 2;
+  const hasBoundActions = Boolean(actionItem && actions && actions.length > 0);
+  const hasActions = Boolean(actionSlot) || hasBoundActions;
 
   return (
     <BlockFrame
       title={title ?? t('detail.title')}
       icon={Info}
       actions={
-        record && actions && actions.length > 0 ? (
+        hasActions ? (
           <HStack gap={2}>
-            {actions.map((action, i) => (
-              <BoundButton key={i} action={action} item={record} />
-            ))}
+            {actionSlot}
+            {hasBoundActions
+              ? actions?.map((action, i) => (
+                  <BoundButton key={i} action={action} item={actionItem} />
+                ))
+              : null}
           </HStack>
         ) : undefined
       }
@@ -152,7 +195,8 @@ export function DetailPanel({
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
         loading={isLoading && record === undefined}
       >

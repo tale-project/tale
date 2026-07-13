@@ -232,15 +232,15 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
     expect(mimeType).toBe('image/png');
   });
 
-  it('labels a text file (.md) as text/plain instead of octet-stream', async () => {
+  it('labels a markdown file (.md) as text/markdown instead of octet-stream', async () => {
     const t = convexTest(schema, modules);
     const { mimeType, contentType } = await ingest(
       t,
       'practice.md',
       'application/octet-stream',
     );
-    expect(mimeType).toBe('text/plain');
-    expect(contentType).toBe('text/plain');
+    expect(mimeType).toBe('text/markdown');
+    expect(contentType).toBe('text/markdown');
   });
 
   it('leaves an unknown binary extension as octet-stream', async () => {

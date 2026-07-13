@@ -6,6 +6,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
+import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import {
   ChevronDown,
@@ -15,18 +16,21 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  History,
   RotateCcw,
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { DocumentHistoryDialog } from '@/app/features/documents/components/document-history-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useDeleteFolder } from '@/app/features/documents/hooks/mutations';
+import { useDocumentByExternalItemId } from '@/app/features/documents/hooks/queries';
 import {
   iconForPath,
   TreeRowButton,
@@ -56,6 +60,15 @@ import { ProjectCreateFolderDialog } from './project-create-folder-dialog';
 interface ProjectFilesTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
+  /** Deep-link from automation navigate / shareable URL (`?folderId=`). */
+  initialFolderId?: string;
+  /** Deep-link to open the create-folder dialog once (`?createFolder=1`). */
+  openCreateFolder?: boolean;
+  /**
+   * Deep-link to open version history for a document resolved by
+   * `externalItemId` (e.g. `vatplus:{projectId}:transform.py`).
+   */
+  historyExternalItemId?: string;
 }
 
 type ProjectDocumentRow = ReturnType<
@@ -88,9 +101,13 @@ function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
 export function ProjectFilesTab({
   organizationId,
   projectId,
+  initialFolderId,
+  openCreateFolder,
+  historyExternalItemId,
 }: ProjectFilesTabProps) {
   const { t } = useT('projects');
   const { t: tDocuments } = useT('documents');
+  const navigate = useNavigate();
   const { project } = useProject(projectId);
   const { documents, isLoading } = useProjectDocuments(projectId);
   const { folders } = useProjectFolders(projectId);
@@ -116,6 +133,10 @@ export function ProjectFilesTab({
     id: Id<'documents'>;
     title: string;
   } | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<{
+    id: Id<'documents'>;
+    title: string;
+  } | null>(null);
   // Expanded folder ids; the selected folder is the upload target.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [selectedFolderId, setSelectedFolderId] =
@@ -124,6 +145,122 @@ export function ProjectFilesTab({
     parentId?: Id<'folders'>;
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
+  const hydratedFolderIdRef = useRef<string | null>(null);
+  const hydratedCreateFolderRef = useRef(false);
+  const hydratedHistoryRef = useRef<string | null>(null);
+
+  const historyLookup = useDocumentByExternalItemId(historyExternalItemId, {
+    projectId: String(projectId),
+    enabled: Boolean(historyExternalItemId),
+  });
+
+  const syncFolderSearch = useCallback(
+    (folderId: Id<'folders'> | null) => {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/files',
+        params: { id: organizationId, projectId: String(projectId) },
+        search: folderId ? { folderId: String(folderId) } : {},
+        replace: true,
+      });
+    },
+    [navigate, organizationId, projectId],
+  );
+
+  const selectFolder = useCallback(
+    (folderId: Id<'folders'> | null) => {
+      setSelectedFolderId(folderId);
+      syncFolderSearch(folderId);
+    },
+    [syncFolderSearch],
+  );
+
+  // One-shot deep-link hydrate: select + expand the folder (and ancestors)
+  // once folders have loaded and `initialFolderId` matches a real row.
+  useEffect(() => {
+    if (!initialFolderId || folders.length === 0) return;
+    if (hydratedFolderIdRef.current === initialFolderId) return;
+    const match = folders.find((f) => String(f._id) === initialFolderId);
+    if (!match) return;
+    hydratedFolderIdRef.current = initialFolderId;
+    setSelectedFolderId(match._id);
+    const toExpand = new Set<string>();
+    let cursor: ProjectFolderRow | undefined = match;
+    while (cursor) {
+      toExpand.add(String(cursor._id));
+      const parentId: Id<'folders'> | undefined = cursor.parentId;
+      cursor = parentId ? folders.find((f) => f._id === parentId) : undefined;
+    }
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const id of toExpand) next.add(id);
+      return next;
+    });
+  }, [folders, initialFolderId]);
+
+  // One-shot deep-link: open the create-folder dialog at project root, then
+  // strip `createFolder` from the URL so refresh does not re-open it.
+  useEffect(() => {
+    if (!openCreateFolder || hydratedCreateFolderRef.current) return;
+    hydratedCreateFolderRef.current = true;
+    setCreateFolderParent({});
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: organizationId, projectId: String(projectId) },
+      search: initialFolderId ? { folderId: initialFolderId } : {},
+      replace: true,
+    });
+  }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
+
+  // One-shot deep-link: open History for a document resolved by externalItemId
+  // (VAT Setup transform.py), then strip the search param.
+  useEffect(() => {
+    if (!historyExternalItemId) return;
+    if (hydratedHistoryRef.current === historyExternalItemId) return;
+    if (historyLookup.isLoading) return;
+
+    hydratedHistoryRef.current = historyExternalItemId;
+    const resolved = historyLookup.data;
+    if (resolved) {
+      setHistoryDoc({
+        id: resolved.documentId,
+        title: resolved.title ?? t('files.unknownTitle'),
+      });
+      if (resolved.folderId) {
+        setSelectedFolderId(resolved.folderId);
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          next.add(String(resolved.folderId));
+          return next;
+        });
+      }
+    } else {
+      toast({
+        title: tDocuments('history.notFound'),
+        variant: 'destructive',
+      });
+    }
+
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: organizationId, projectId: String(projectId) },
+      search: initialFolderId
+        ? { folderId: initialFolderId }
+        : resolved?.folderId
+          ? { folderId: String(resolved.folderId) }
+          : {},
+      replace: true,
+    });
+  }, [
+    historyExternalItemId,
+    historyLookup.isLoading,
+    historyLookup.data,
+    navigate,
+    organizationId,
+    projectId,
+    initialFolderId,
+    t,
+    tDocuments,
+  ]);
 
   const { childFolders, filesByFolder } = useMemo(
     () => buildTree(folders, documents),
@@ -309,7 +446,7 @@ export function ProjectFilesTab({
     async (folderId: Id<'folders'>) => {
       try {
         await deleteFolder({ folderId });
-        if (selectedFolderId === folderId) setSelectedFolderId(null);
+        if (selectedFolderId === folderId) selectFolder(null);
         toast({
           title: t('files.folderDeleted', { defaultValue: 'Folder deleted' }),
           variant: 'success',
@@ -332,7 +469,7 @@ export function ProjectFilesTab({
         });
       }
     },
-    [deleteFolder, selectedFolderId, t],
+    [deleteFolder, selectFolder, selectedFolderId, t],
   );
 
   const handleRetryIndexing = useCallback(
@@ -429,6 +566,17 @@ export function ProjectFilesTab({
               onClick={openPreview}
             />
           ) : null}
+          {canPreview ? (
+            <IconButton
+              icon={History}
+              variant="ghost"
+              size="sm"
+              aria-label={t('files.historyAction')}
+              onClick={() =>
+                setHistoryDoc({ id: doc._id, title: displayTitle })
+              }
+            />
+          ) : null}
           {failed && canEdit ? (
             <IconButton
               icon={RotateCcw}
@@ -471,7 +619,8 @@ export function ProjectFilesTab({
               onClick={() => {
                 // Click = select as upload target; toggles expansion too so
                 // the target is always visible.
-                setSelectedFolderId(isSelected ? null : folder._id);
+                const next = isSelected ? null : folder._id;
+                selectFolder(next);
                 if (!isExpanded) toggleFolder(id);
                 else if (isSelected) toggleFolder(id);
               }}
@@ -616,6 +765,16 @@ export function ProjectFilesTab({
         }}
         documentId={previewDoc?.id}
         fileName={previewDoc?.title}
+      />
+
+      <DocumentHistoryDialog
+        open={historyDoc !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryDoc(null);
+        }}
+        organizationId={organizationId}
+        documentId={historyDoc?.id ?? null}
+        title={historyDoc?.title}
       />
 
       <ProjectCreateFolderDialog

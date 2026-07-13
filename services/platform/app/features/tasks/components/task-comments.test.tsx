@@ -3,8 +3,24 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TaskComments } from './task-comments';
 
+const localeState = { locale: 'en' };
+
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => localeState,
+}));
+
 vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
+}));
+
+vi.mock('./mention-textarea', () => ({
+  MentionTextarea: (props: { value: string; placeholder?: string }) => (
+    <textarea placeholder={props.placeholder} value={props.value} readOnly />
+  ),
+}));
+
+vi.mock('./mention-trigger-chips', () => ({
+  MentionTriggerChips: () => null,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -14,7 +30,12 @@ vi.mock('../hooks/queries', () => ({
         messageId: 'msg_1',
         authorType: 'agent',
         authorId: 'assistant',
-        body: 'Hello from the agent.',
+        body: '[automated] Return prepared',
+        bodyByLocale: {
+          en: '[automated] Return prepared',
+          de: '[automated] Abrechnung vorbereitet',
+          fr: '[automated] Décompte préparé',
+        },
         createdAt: Date.now(),
       },
       {
@@ -70,6 +91,7 @@ vi.mock('@/lib/i18n/client', () => ({
 
 describe('TaskComments author previews', () => {
   it('shows a preview trigger for agent comment authors', () => {
+    localeState.locale = 'en';
     render(
       <TaskComments
         taskId={'task_1' as never}
@@ -84,5 +106,108 @@ describe('TaskComments author previews', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Israel')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Israel' })).toBeNull();
+  });
+});
+
+describe('TaskComments bodyByLocale', () => {
+  it('renders the body for the active UI locale', () => {
+    localeState.locale = 'de';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+
+    expect(
+      screen.getByText('[automated] Abrechnung vorbereitet'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('[automated] Return prepared')).toBeNull();
+  });
+});
+
+describe('TaskComments order', () => {
+  // The fixture timeline is ascending: msg_1 (automated) then msg_2 (user).
+  const listedBodies = () =>
+    screen
+      .getAllByRole('listitem')
+      .map((li) => li.textContent ?? '')
+      .filter(
+        (text) => text.includes('[automated]') || text.includes('Thanks.'),
+      );
+
+  it('reads as a conversation (oldest first) by default', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+    const bodies = listedBodies();
+    expect(bodies[0]).toContain('[automated] Return prepared');
+    expect(bodies[1]).toContain('Thanks.');
+  });
+
+  it('puts the newest comment first with order="desc" (log surfaces)', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+        order="desc"
+      />,
+    );
+    const bodies = listedBodies();
+    expect(bodies[0]).toContain('Thanks.');
+    expect(bodies[1]).toContain('[automated] Return prepared');
+  });
+});
+
+describe('TaskComments composer position', () => {
+  // The composer sits at the newest end: below an ascending conversation,
+  // above a newest-first log.
+  const composerVsList = (container: HTMLElement) => {
+    const composer = container.querySelector('textarea');
+    const firstItem = container.querySelector('ul li');
+    if (!composer || !firstItem) return 'missing';
+    const pos = composer.compareDocumentPosition(firstItem);
+    // DOCUMENT_POSITION_FOLLOWING (4): the list comes AFTER the composer.
+    return pos & Node.DOCUMENT_POSITION_FOLLOWING
+      ? 'composer-first'
+      : 'list-first';
+  };
+
+  it('renders below the thread by default (asc)', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+      />,
+    );
+    expect(composerVsList(container)).toBe('list-first');
+  });
+
+  it('renders above the thread with order="desc"', () => {
+    localeState.locale = 'en';
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+        order="desc"
+      />,
+    );
+    expect(composerVsList(container)).toBe('composer-first');
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FunctionBinding,
+  argsReferenceProjectId,
   argsReferenceViewState,
   bindingArgsResolved,
   collectViewBindings,
@@ -57,6 +58,17 @@ describe('resolveBindingArgs', () => {
     expect(resolveBindingArgs('$selected', ctx)).toEqual(ctx.selected);
     expect(resolveBindingArgs('$selected._id', ctx)).toBe('t1');
   });
+  it('substitutes $projectName for Form initial prefill', () => {
+    expect(
+      resolveBindingArgs('$projectName', {
+        organizationId: 'org_1',
+        projectName: 'SoftInstall Pro Ltd',
+      }),
+    ).toBe('SoftInstall Pro Ltd');
+    expect(
+      resolveBindingArgs('$projectName', { organizationId: 'org_1' }),
+    ).toBeUndefined();
+  });
   it('recurses through nested records + arrays, leaving literals', () => {
     expect(
       resolveBindingArgs(
@@ -88,10 +100,18 @@ describe('resolveBindingArgs', () => {
       }),
     ).toBe('proj_1');
   });
-  it('leaves $projectId as a literal when no project is bound (org-scoped)', () => {
-    // Fail-visible: an org-scoped app that mis-binds $projectId sends the literal,
-    // not a silent `undefined`, into a project-gated call.
-    expect(resolveBindingArgs('$projectId', ctx)).toBe('$projectId');
+  it('resolves unbound $projectId to undefined so callers gate the call', () => {
+    // Same posture as `$config:` / `$state.`: unresolved → undefined →
+    // `bindingArgsResolved` false → empty state instead of a Convex reject.
+    expect(resolveBindingArgs('$projectId', ctx)).toBeUndefined();
+    expect(
+      bindingArgsResolved(
+        resolveBindingArgs(
+          { organizationId: '$orgId', projectId: '$projectId' },
+          ctx,
+        ),
+      ),
+    ).toBe(false);
   });
   it('interpolates $tpl: row fields into a string ({field} syntax)', () => {
     const tctx = {
@@ -124,6 +144,17 @@ describe('resolveBindingArgs', () => {
       'acme/widgets#42',
     );
   });
+  it('$tpl: includes projectId and form input for Form submits', () => {
+    const ctx = {
+      organizationId: 'org_1',
+      projectId: 'proj_9',
+      input: { vatNumber: 'CHE-1' },
+    };
+    expect(
+      resolveBindingArgs('$tpl:vatplus:{projectId}:profile.yaml', ctx),
+    ).toBe('vatplus:proj_9:profile.yaml');
+    expect(resolveBindingArgs('$tpl:uid={vatNumber}', ctx)).toBe('uid=CHE-1');
+  });
   it('leaves a bare $label: string verbatim — the retired sentinel is no longer recognized', () => {
     // Display strings are literals now (UI translations are platform-owned);
     // `resolveBindingArgs` has no special case for this prefix any more, so a
@@ -143,8 +174,8 @@ describe('resolveBindingArgs', () => {
   });
 
   it('$state.<key> resolves to undefined when unset (gates, not a literal)', () => {
-    // Unlike `$selected.`/`$projectId` (fail-visible literals), an unset state
-    // key must gate the call so the block shows its awaiting placeholder.
+    // Same posture as `$config:` / `$projectId`: an unset state key must gate
+    // the call so the block shows its awaiting placeholder.
     expect(
       resolveBindingArgs('$state.conversationId', {
         organizationId: 'org_1',
@@ -566,6 +597,13 @@ describe('collector covers every binding-bearing schema prop', () => {
                     addAction: { path: 'd/f:addM', mode: 'mutation' },
                   },
                 },
+                {
+                  type: 'Form',
+                  props: {
+                    whenQuery: { path: 'd/f:gateQ' },
+                    submit: { path: 'd/f:submitM', mode: 'mutation' },
+                  },
+                },
               ],
             },
           ],
@@ -591,6 +629,8 @@ describe('collector covers every binding-bearing schema prop', () => {
         'd/f:sourceA',
         'd/f:excludeQ',
         'd/f:addM',
+        'd/f:gateQ',
+        'd/f:submitM',
       ].sort(),
     );
   });
@@ -608,6 +648,21 @@ describe('argsReferenceViewState', () => {
     expect(argsReferenceViewState('state.x')).toBe(false);
     expect(argsReferenceViewState({ a: 42, b: null })).toBe(false);
     expect(argsReferenceViewState(undefined)).toBe(false);
+  });
+});
+
+describe('argsReferenceProjectId', () => {
+  it('detects $projectId at any depth', () => {
+    expect(argsReferenceProjectId('$projectId')).toBe(true);
+    expect(argsReferenceProjectId({ projectId: '$projectId' })).toBe(true);
+    expect(argsReferenceProjectId(['x', { a: '$projectId' }])).toBe(true);
+  });
+
+  it('ignores other sentinels and non-strings', () => {
+    expect(argsReferenceProjectId('$orgId')).toBe(false);
+    expect(argsReferenceProjectId('$state.projectId')).toBe(false);
+    expect(argsReferenceProjectId({ a: 42 })).toBe(false);
+    expect(argsReferenceProjectId(undefined)).toBe(false);
   });
 });
 

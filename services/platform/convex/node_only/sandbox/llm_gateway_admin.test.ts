@@ -219,13 +219,18 @@ describe('provisionProviders', () => {
       'POST /api/providers/deepseek/keys',
     ]);
     const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    // Trailing /v1 stripped — the gateway's openai handler appends it itself.
-    expect(networkConfig.base_url).toBe('https://api.deepseek.com');
+    // Version segment PRESERVED (only a trailing slash is stripped); the path is
+    // pinned to /chat/completions so the gateway builds <base>/chat/completions.
+    expect(networkConfig.base_url).toBe('https://api.deepseek.com/v1');
     expect(w[0]?.body?.custom_provider_config).toEqual({
       base_provider_type: 'openai',
       allowed_requests: {
         chat_completion: true,
         chat_completion_stream: true,
+      },
+      request_path_overrides: {
+        chat_completion: '/chat/completions',
+        chat_completion_stream: '/chat/completions',
       },
     });
     // Key sub-resource is written the same way as for standard providers.
@@ -237,7 +242,34 @@ describe('provisionProviders', () => {
     });
   });
 
-  it('leaves a custom base_url without a trailing /v1 unchanged', async () => {
+  it('preserves a NON-/v1 version path and strips only a trailing slash (BigModel /paas/v4 regression)', async () => {
+    // Regression: BigModel's OpenAI base carries its version in the PATH
+    // (`/api/paas/v4/`). The old `/v1`-strip left it intact and Bifrost's default
+    // `/v1/chat/completions` doubled it → `.../paas/v4/v1/chat/completions` 404
+    // (chat worked, sandbox didn't). Now the version is kept, the trailing slash
+    // dropped, and the path pinned to /chat/completions → `.../paas/v4/chat/completions`.
+    const mod = await loadModule();
+    const calls = stubGateway({ keyExists: false });
+    await mod.provisionProviders(ORG, [
+      {
+        ...CUSTOM,
+        name: 'glm',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+      },
+    ]);
+    const body = writes(calls)[0]?.body as Record<string, unknown>;
+    const networkConfig = body?.network_config as Record<string, unknown>;
+    expect(networkConfig.base_url).toBe('https://open.bigmodel.cn/api/paas/v4');
+    expect(
+      (body?.custom_provider_config as Record<string, unknown>)
+        ?.request_path_overrides,
+    ).toEqual({
+      chat_completion: '/chat/completions',
+      chat_completion_stream: '/chat/completions',
+    });
+  });
+
+  it('leaves a bare-host custom base_url (no version, no trailing slash) unchanged', async () => {
     const mod = await loadModule();
     const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [
@@ -462,7 +494,7 @@ describe('provisionProviders', () => {
     const w = writes(recorded);
     expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
     const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    expect(networkConfig.base_url).toBe('https://proxy.example.com');
+    expect(networkConfig.base_url).toBe('https://proxy.example.com/v1');
   });
 
   it('one failing provider does not abort the reconcile (others still provision)', async () => {

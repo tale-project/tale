@@ -25,7 +25,12 @@ import {
 } from '@/app/components/ui/data-table/cell-kinds';
 import type { columnSpecSchema } from '@/lib/shared/schemas/automation_views';
 
-import { BoundButton, type BoundActionSpec } from './bound-button';
+import {
+  BoundButton,
+  EffectButton,
+  isEffectAction,
+  type RowActionSpec,
+} from './bound-button';
 
 /** One declared column — `z.infer` of the view schema (no runtime twin). */
 export type ColumnSpec = z.infer<typeof columnSpecSchema>;
@@ -50,10 +55,11 @@ const HIDDEN = new Set([
 /**
  * Width for the bound actions column. Wider than `ACTIONS_COLUMN_SIZE` (the
  * icon-only 3-dot trigger) because bound blocks render an in-line labelled
- * `BoundButton` cluster (e.g. "Create task"); a second visible button wraps
- * within the pinned box rather than widening it.
+ * `BoundButton` cluster (e.g. "Start" + "Open Knowledge"). Sized for two `sm`
+ * labelled buttons on one row — wrapping inside the pinned box overflows the
+ * row border and clips into the header divider.
  */
-export const BOUND_ACTIONS_COLUMN_SIZE = 176;
+export const BOUND_ACTIONS_COLUMN_SIZE = 260;
 
 /**
  * Stable `getRowId` for bound rows: `_id`/`id` when present (Convex rows,
@@ -80,8 +86,8 @@ export function useBoundRowIds(): (row: BoundRow) => string {
 export interface BoundColumnsContext {
   /** Loaded rows — used only to infer columns when none are declared. */
   rows: BoundRow[];
-  /** View-config per-row actions, rendered as a `BoundButton` cluster. */
-  actions?: BoundActionSpec[];
+  /** View-config per-row actions, rendered as a BoundButton / EffectButton cluster. */
+  actions?: RowActionSpec[];
   /** Injected per-row action (e.g. subject re-run) merged into the actions
    *  cell; its presence alone makes the actions column appear. */
   rowActions?: {
@@ -93,6 +99,13 @@ export interface BoundColumnsContext {
   rowAccessory?: {
     idField: string;
     render: (subjectId: string, statusBadge: ReactNode) => ReactNode;
+  };
+  /** Gates the whole actions cluster per subject row — lets the connected
+   *  layer suppress it while the row's run awaits operator input (a config
+   *  "Start" there would re-run without the answer). */
+  actionsGate?: {
+    idField: string;
+    render: (subjectId: string, cluster: ReactNode) => ReactNode;
   };
 }
 
@@ -219,21 +232,34 @@ export function buildBoundColumns(
           : undefined;
         const rowActionId =
           typeof rawRowActionId === 'string' ? rawRowActionId : undefined;
+        const cluster = (
+          <>
+            {actions.map((a, ai) =>
+              isEffectAction(a) ? (
+                <EffectButton key={ai} action={a} item={item} />
+              ) : (
+                <BoundButton key={ai} action={a} item={item} />
+              ),
+            )}
+            {ctx.rowActions &&
+              rowActionId !== undefined &&
+              ctx.rowActions.render(rowActionId)}
+          </>
+        );
+        const rawGateId = ctx.actionsGate
+          ? item[ctx.actionsGate.idField]
+          : undefined;
         return (
           // Stop row-click expansion / onRowClick when interacting with actions.
           <Row
             gap={2}
-            align="stretch"
+            align="center"
             justify="end"
-            wrap
             onClick={(e) => e.stopPropagation()}
           >
-            {actions.map((a, ai) => (
-              <BoundButton key={ai} action={a} item={item} />
-            ))}
-            {ctx.rowActions &&
-              rowActionId !== undefined &&
-              ctx.rowActions.render(rowActionId)}
+            {ctx.actionsGate && typeof rawGateId === 'string'
+              ? ctx.actionsGate.render(rawGateId, cluster)
+              : cluster}
           </Row>
         );
       },

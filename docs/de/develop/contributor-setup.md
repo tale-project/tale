@@ -70,7 +70,7 @@ Jeder `convex dev`-Push legt ein neues Function-Bundle unter `services/platform/
 
 `bun run dev` führt Wartung automatisch aus, bevor Convex startet:
 
-- **Prune**, wenn der Modul-Speicher 1.500 Blobs oder 2 GB überschreitet — löscht nur unreferenzierte historische Function-Bundle-Blobs unter `convex_local_storage/modules/` und behält jedes Blob, das das aktuelle Deployment noch lädt (plus bis zu 1.000 neueste unreferenzierte Reste). SQLite-Datenbank, Uploads und Org-Konfig bleiben unberührt. Lassen sich die Live-Referenzen nicht lesen, oder wirken sie leer obwohl noch Blobs auf der Platte liegen, wird der Prune übersprungen statt zu raten.
+- **Prune**, wenn der Modul-Speicher 1.500 Blobs oder 2 GB überschreitet — löscht nur unreferenzierte historische Function-Bundle-Blobs unter `convex_local_storage/modules/` und behält jedes Blob, das das aktuelle Deployment noch lädt (Modul-Source-Packages und ihre Node-`externalPackageId`-Deps-Parents, plus bis zu 1.000 neueste unreferenzierte Reste). SQLite-Datenbank, Uploads und Org-Konfig bleiben unberührt. Lassen sich die Live-Referenzen nicht lesen, oder wirken sie leer obwohl noch Blobs auf der Platte liegen, wird der Prune übersprungen statt zu raten.
 - **Integritätsprüfung** — fehlt ein Live-Modul-Blob schon auf der Platte, stoppt `bun run dev` mit einem klaren Fehler und verweist auf `setup:clean`. Weitermachen würde ein halb totes Backend starten (Chat und Crons scheitern mit undurchsichtigen Serverfehlern).
 - **Snapshot-Export-Artefakte löschen**, wenn die gecachte Convex-Backend-Version nicht mehr zur lokalen Deployment-Konfiguration passt — entfernt `export.zip` und Import/Export-Reste, die einen fehlgeschlagenen Re-Import auslösen können, ohne Dev-Daten zu löschen.
 

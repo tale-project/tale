@@ -54,6 +54,10 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 // The effect applier — captured so onRowClick / addAction effects can be
 // asserted without a router or resource-detail provider.
 const applyEffect = vi.fn();
@@ -489,5 +493,34 @@ describe('Collection — search, row click, add action', () => {
     await waitFor(() =>
       expect(applyEffect).toHaveBeenCalledWith(onSuccess, { taskId: 't9' }),
     );
+  });
+
+  it('renders effect-only addAction and applies the effect without dispatch', async () => {
+    paginatedReturn = paginated({ results: [], status: 'Exhausted' });
+    const effect = {
+      kind: 'navigate' as const,
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: '$orgId', projectId: '$projectId' },
+      search: { createFolder: '1' },
+    };
+
+    render(
+      <Collection
+        query={QUERY}
+        columns={COLUMNS}
+        perPage={50}
+        emptyState={{ titleKey: 'No folders' }}
+        addAction={{
+          label: 'Create quarter folder',
+          effect,
+        }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Create quarter folder' }),
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(applyEffect).toHaveBeenCalledWith(effect, undefined);
   });
 });

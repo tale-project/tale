@@ -10434,6 +10434,32 @@
         },
         "optional": false
       },
+      "bodyByLocale": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "de": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "en": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "fr": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            }
+          }
+        },
+        "optional": true
+      },
       "createdAt": {
         "ft": {
           "type": "number"

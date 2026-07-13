@@ -44,6 +44,11 @@ export const approvalResourceTypeValidator = v.union(
   // External-agent browser handoff: the agent parked its turn to let a human
   // drive the live browser (CAPTCHA/login/2FA); returning control resumes it.
   v.literal('external_agent_human_control'),
+  // Operator-input marker: a run parked to ask the operator a question it
+  // answers on the task timeline (comment loop), not via an approval card.
+  // Lights the "Needs your input" run indicator; keyed to the execution so it
+  // clears when a newer run supersedes it. resourceId = String(taskId).
+  v.literal('operator_input'),
 );
 
 export const approvalItemValidator = v.object({

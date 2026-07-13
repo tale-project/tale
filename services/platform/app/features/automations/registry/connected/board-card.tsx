@@ -43,6 +43,10 @@ import { useBoundAction } from '../../hooks/use-bound-action';
 import { useActionEffect } from '../../runtime/action-effects';
 import { deriveDoneState, type BoundActionSpec } from './bound-button';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
+import {
+  hasTaskCommentFeedback,
+  TaskCommentFeedbackDialog,
+} from './task-comment-feedback-button';
 
 /** Field map from a row to the card anatomy (`boardPropsSchema.card`). */
 export interface BoardCardSpec {
@@ -106,12 +110,33 @@ function CardActionRunner({
   const { dispatch } = useBoundAction(action.path, action.mode);
   const applyEffect = useActionEffect();
   const ranRef = useRef(false);
-  const [confirmOpen, setConfirmOpen] = useState(Boolean(action.confirm));
+  const isFeedback = hasTaskCommentFeedback(action);
+  const needsConfirm = Boolean(action.confirm) && !isFeedback;
+  const [confirmOpen, setConfirmOpen] = useState(needsConfirm);
+  const label = actionLabel(t, action);
+  const confirmSpec = action.confirm;
+  const confirmTitle =
+    typeof confirmSpec === 'object' && confirmSpec.title
+      ? confirmSpec.title
+      : t('confirm', { defaultValue: 'Are you sure?' });
+  const confirmDescription =
+    typeof confirmSpec === 'object' && confirmSpec.description
+      ? confirmSpec.description
+      : label;
 
   const run = useCallback(async () => {
     try {
       const result = await dispatch(action.args, row);
-      applyEffect(action.onSuccess, result, row);
+      const alreadyExists =
+        result !== null &&
+        typeof result === 'object' &&
+        'created' in result &&
+        (result as { created?: unknown }).created === false;
+      const effect =
+        alreadyExists && action.onAlreadyExists
+          ? action.onAlreadyExists
+          : action.onSuccess;
+      applyEffect(effect, result, row);
     } catch (err) {
       // The mutation/action layer (useConvexMutation) already toasts + logs the
       // failure; surface it here too rather than swallowing the rejection.
@@ -122,12 +147,25 @@ function CardActionRunner({
   }, [action, applyEffect, dispatch, onSettled, row]);
 
   useEffect(() => {
-    if (action.confirm || ranRef.current) return;
+    if (needsConfirm || isFeedback || ranRef.current) return;
     ranRef.current = true;
     void run();
-  }, [action.confirm, run]);
+  }, [isFeedback, needsConfirm, run]);
 
-  if (!action.confirm) return null;
+  if (isFeedback) {
+    return (
+      <TaskCommentFeedbackDialog
+        action={action}
+        item={row}
+        open
+        onOpenChange={(open) => {
+          if (!open) onSettled();
+        }}
+      />
+    );
+  }
+
+  if (!needsConfirm) return null;
   return (
     <ConfirmDialog
       open={confirmOpen}
@@ -135,8 +173,8 @@ function CardActionRunner({
         setConfirmOpen(open);
         if (!open) onSettled();
       }}
-      title={t('confirm', { defaultValue: 'Are you sure?' })}
-      description={actionLabel(t, action)}
+      title={confirmTitle}
+      description={confirmDescription}
       variant={action.variant === 'destructive' ? 'destructive' : 'default'}
       onConfirm={() => {
         setConfirmOpen(false);

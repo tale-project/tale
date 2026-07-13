@@ -4,6 +4,7 @@ import {
   humanizeFieldKey,
   resolveAutomationLocale,
   resolveConfigFieldLocale,
+  resolveLocalizedProp,
 } from './resolve-automation-locale';
 
 describe('resolveAutomationLocale', () => {
@@ -97,6 +98,77 @@ describe('humanizeFieldKey', () => {
   });
 });
 
+describe('resolveLocalizedProp', () => {
+  const i18n = {
+    de: { text: 'Deutscher Text' },
+    'de-CH': { text: 'Schweizer Text' },
+    en: { text: 'English text' },
+  };
+
+  it('returns i18n[locale][prop] when present', () => {
+    expect(resolveLocalizedProp('Base', i18n, 'text', 'de')).toBe(
+      'Deutscher Text',
+    );
+  });
+
+  it('narrows de-CH to i18n.de when only de is populated', () => {
+    expect(
+      resolveLocalizedProp(
+        'Base',
+        { de: { text: 'Deutsch' } },
+        'text',
+        'de-CH',
+      ),
+    ).toBe('Deutsch');
+  });
+
+  it('prefers a direct locale match over its narrowed base', () => {
+    expect(resolveLocalizedProp('Base', i18n, 'text', 'de-CH')).toBe(
+      'Schweizer Text',
+    );
+  });
+
+  it('falls back to i18n.en for an unrelated locale', () => {
+    expect(resolveLocalizedProp('Base', i18n, 'text', 'es')).toBe(
+      'English text',
+    );
+  });
+
+  it('falls back to the base literal when i18n has no entry', () => {
+    expect(resolveLocalizedProp('Base literal', undefined, 'text', 'de')).toBe(
+      'Base literal',
+    );
+  });
+
+  it('skips an empty-string override to the next layer', () => {
+    expect(
+      resolveLocalizedProp(
+        'Base',
+        { de: { text: '' }, en: { text: 'English' } },
+        'text',
+        'de',
+      ),
+    ).toBe('English');
+  });
+
+  it('returns undefined when base and i18n are both absent', () => {
+    expect(resolveLocalizedProp(undefined, undefined, 'text', 'de')).toBe(
+      undefined,
+    );
+  });
+
+  it('skips non-string passthrough values and falls through', () => {
+    expect(
+      resolveLocalizedProp(
+        'Base',
+        { de: { text: 42, other: true }, en: { text: 'English' } },
+        'text',
+        'de',
+      ),
+    ).toBe('English');
+  });
+});
+
 describe('resolveConfigFieldLocale', () => {
   const field = {
     key: 'repository',
@@ -121,6 +193,23 @@ describe('resolveConfigFieldLocale', () => {
     expect(result.placeholder).toBe('owner/repo (DE)');
     // No DE override for `help` — falls back to the literal.
     expect(result.help).toBe('Where the desk opens PRs.');
+  });
+
+  it("prefers the field's own i18n over the manifest config map", () => {
+    const withFieldI18n = {
+      ...field,
+      i18n: { de: { label: 'Feld-Label' } },
+    };
+    const manifestI18n = {
+      de: {
+        config: {
+          repository: { label: 'Manifest-Label' },
+        },
+      },
+    };
+    expect(
+      resolveConfigFieldLocale(withFieldI18n, manifestI18n, 'de').label,
+    ).toBe('Feld-Label');
   });
 
   it('falls back to the literal label/placeholder/help with no i18n', () => {

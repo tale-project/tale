@@ -88,6 +88,57 @@ describe('model-catalog normalize → upsert → query round trip', () => {
     expect(cap?.supportsTools).toBe(true);
     expect(cap?.outputCentsPerMillion).toBeGreaterThan(0);
   });
+
+  it('clears a poisoned maxOutputTokens for one modelId', async () => {
+    const t: T = convexTest(schema, modules);
+    await t.mutation(internal.model_catalog.mutations.upsertCapabilities, {
+      source: 'openrouter',
+      fetchedAt: 1,
+      entries: [
+        {
+          modelId: 'z-ai/glm-5.2',
+          contextWindow: 1048576,
+          maxOutputTokens: 1048576,
+        },
+      ],
+    });
+    await t.mutation(
+      internal.model_catalog.mutations.clearModelMaxOutputTokens,
+      { modelId: 'z-ai/glm-5.2' },
+    );
+    const cap = await t.query(
+      internal.model_catalog.queries.getModelCapabilityInternal,
+      { modelId: 'z-ai/glm-5.2' },
+    );
+    expect(cap?.contextWindow).toBe(1048576);
+    expect(cap?.maxOutputTokens).toBeUndefined();
+  });
+
+  it('re-sync without maxOutputTokens clears a prior poisoned value', async () => {
+    const t: T = convexTest(schema, modules);
+    await t.mutation(internal.model_catalog.mutations.upsertCapabilities, {
+      source: 'openrouter',
+      fetchedAt: 1,
+      entries: [
+        {
+          modelId: 'z-ai/glm-5.2',
+          contextWindow: 1048576,
+          maxOutputTokens: 1048576,
+        },
+      ],
+    });
+    await t.mutation(internal.model_catalog.mutations.upsertCapabilities, {
+      source: 'openrouter',
+      fetchedAt: 2,
+      entries: [{ modelId: 'z-ai/glm-5.2', contextWindow: 1048576 }],
+    });
+    const cap = await t.query(
+      internal.model_catalog.queries.getModelCapabilityInternal,
+      { modelId: 'z-ai/glm-5.2' },
+    );
+    expect(cap?.maxOutputTokens).toBeUndefined();
+    expect(cap?.contextWindow).toBe(1048576);
+  });
 });
 
 // A second realistic entry so the list query has something to sort.

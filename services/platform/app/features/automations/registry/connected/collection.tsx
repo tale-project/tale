@@ -29,6 +29,7 @@
  */
 import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row } from '@tale/ui/layout';
 import { ChevronDown, ListChecks } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -39,7 +40,11 @@ import {
 } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
-import { argsReferenceViewState } from '@/lib/shared/platform/function_bindings';
+import {
+  argsReferenceProjectId,
+  argsReferenceViewState,
+} from '@/lib/shared/platform/function_bindings';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -51,13 +56,14 @@ import {
   type ActionEffect,
 } from '../../runtime/action-effects';
 import { BindingStates, BlockFrame } from '../block-frame';
-import { type BoundActionSpec } from './bound-button';
+import { isEffectAction, type RowActionSpec } from './bound-button';
 import {
   buildBoundColumns,
   useBoundRowIds,
   type BoundColumn,
   type BoundRow,
 } from './bound-columns';
+import { SubjectAwaitingInputActions } from './subject-awaiting-input-actions';
 import { SubjectRerunAction } from './subject-rerun-action';
 import { SubjectRun } from './subject-run';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
@@ -94,7 +100,7 @@ export interface CollectionProps {
   /** Columns to show — column specs; if omitted, inferred from the first row
    *  (minus id-like keys). */
   columns?: BoundColumn[];
-  actions?: BoundActionSpec[];
+  actions?: RowActionSpec[];
   /** When set, rows expand to show their workflow run inline (the execution
    *  "about" this subject). Generic — any domain list opts in. */
   subjectType?: string;
@@ -108,9 +114,9 @@ export interface CollectionProps {
   filters?: CollectionFilterSpec[];
   /** Empty-state copy override (title/description literals). */
   emptyState?: CollectionEmptyStateSpec;
-  /** The single primary create affordance — a bound action rendered in the
-   *  table header (the standard add-button placement). */
-  addAction?: BoundActionSpec;
+  /** The single primary create affordance — a bound action OR effect-only
+   *  (e.g. navigate), rendered in the table header. */
+  addAction?: RowActionSpec;
   /** Managed client-side search over the given row fields. */
   search?: CollectionSearchSpec;
   /** Effect applied when a row is clicked (`$selected.*` binds the row). */
@@ -214,34 +220,59 @@ function CollectionFilterBar({
 }
 
 /**
- * Map the view's `addAction` (a bound action) onto the DataTable's standard
- * add-button contract: label via the same rule as `BoundButton`, dispatch +
- * `onSuccess` effect on click. Hook-shaped so it runs unconditionally (the
- * bound hooks are instantiated even when no addAction is declared — same
- * posture as the `excludeBy` query in `ExternalList`). Row-scoped fields
- * (`when`/`doneWhen`/`confirm`) don't apply to a collection-level create.
+ * Map the view's `addAction` (bound call OR effect-only) onto the DataTable's
+ * standard add-button contract: label via the same rule as `BoundButton`,
+ * dispatch + `onSuccess` (bound) or `applyEffect` (effect-only) on click.
+ * Hook-shaped so it runs unconditionally (the bound hooks are instantiated
+ * even when no addAction is declared — same posture as the `excludeBy` query
+ * in `ExternalList`). Row-scoped fields (`when`/`doneWhen`/`confirm`) don't
+ * apply to a collection-level create.
  */
 function useBoundAddAction(
-  spec: BoundActionSpec | undefined,
+  spec: RowActionSpec | undefined,
 ): DataTableAddAction | undefined {
   const { t } = useT('automations');
-  const { dispatch, isPending } = useBoundAction(
-    spec?.path ?? '',
-    spec?.mode ?? 'mutation',
-  );
+  const { locale } = useLocale();
+  const boundPath = spec && !isEffectAction(spec) ? (spec.path ?? '') : '';
+  const boundMode =
+    spec && !isEffectAction(spec) ? (spec.mode ?? 'mutation') : 'mutation';
+  const { dispatch, isPending } = useBoundAction(boundPath, boundMode);
   const applyEffect = useActionEffect();
   if (!spec) return undefined;
-  const label = spec.labelKey
-    ? t(spec.labelKey, { defaultValue: spec.label ?? spec.path })
+  let i18n: Record<string, Record<string, unknown>> | undefined;
+  if ('i18n' in spec && isRecord(spec.i18n)) {
+    const map: Record<string, Record<string, unknown>> = {};
+    for (const [localeKey, props] of Object.entries(spec.i18n)) {
+      if (isRecord(props)) map[localeKey] = props;
+    }
+    i18n = map;
+  }
+  const fallbackLabel = isEffectAction(spec)
+    ? (spec.label ?? spec.labelKey ?? 'Add')
     : (spec.label ?? spec.path);
+  const baseLabel = spec.labelKey
+    ? t(spec.labelKey, { defaultValue: fallbackLabel })
+    : fallbackLabel;
+  const label =
+    resolveLocalizedProp(baseLabel, i18n, 'label', locale) ?? baseLabel;
+  const variant =
+    spec.variant === 'ghost'
+      ? 'ghost'
+      : spec.variant === 'secondary'
+        ? 'secondary'
+        : 'primary';
+  if (isEffectAction(spec)) {
+    return {
+      label,
+      variant,
+      onClick: () => {
+        applyEffect(spec.effect, undefined);
+      },
+    };
+  }
   return {
     label,
-    variant:
-      spec.variant === 'ghost'
-        ? 'ghost'
-        : spec.variant === 'secondary'
-          ? 'secondary'
-          : 'primary',
+    variant,
     disabled: isPending,
     onClick: () => {
       dispatch(spec.args)
@@ -272,8 +303,8 @@ type CollectionDataSource =
 
 /**
  * The shared body: `useListPage` over the normalized data source → the rich
- * `DataTable`, framed by `BlockFrame` + `BindingStates` so the header chrome
- * (title, arg-filter bar) persists across every body state.
+ * `DataTable`, framed by `BlockFrame` + `BindingStates` so the card chrome
+ * (and optional title / arg-filter bar) wraps every body state.
  */
 function CollectionBody({
   title,
@@ -331,6 +362,7 @@ function CollectionBody({
   });
 
   const rows = tableProps.data;
+  const hasDeclaredColumns = Boolean(columns && columns.length > 0);
   const columnDefs = useMemo(
     () =>
       buildBoundColumns(columns, {
@@ -359,13 +391,32 @@ function CollectionBody({
               ),
             }
           : undefined,
+        actionsGate: subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId, cluster) => (
+                <SubjectAwaitingInputActions
+                  subjectType={subjectType}
+                  subjectId={subjectId}
+                  cluster={cluster}
+                />
+              ),
+            }
+          : undefined,
       }),
-    [columns, actions, subjectType, subjectIdField, rows],
+    // When columns are declared, row data churn must not rebuild column defs —
+    // that remounts BoundButton cells and drops in-flight latch state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `rows` when columns declared so BoundButton latch survives query refresh
+    hasDeclaredColumns
+      ? [columns, actions, subjectType, subjectIdField]
+      : [columns, actions, subjectType, subjectIdField, rows],
   );
 
-  // A `$state.` reference the args carry reads as "awaiting selection", not
-  // "needs configuration" — detected on the RAW args (sentinels intact).
+  // A `$state.` / `$projectId` reference the args carry specializes the
+  // generic `needsConfig` empty state — detected on the RAW args.
   const awaitingState = needsConfig && argsReferenceViewState(query.args);
+  const needsProject =
+    needsConfig && !awaitingState && argsReferenceProjectId(query.args);
 
   // The load-more affordance: always for the cursor-paginated path (the footer
   // also signals end-of-stream), and for the single-shot path only while the
@@ -380,13 +431,14 @@ function CollectionBody({
   return (
     <BlockFrame
       title={title}
-      icon={ListChecks}
+      icon={title ? ListChecks : undefined}
       actions={blocked || needsConfig ? undefined : filterBar}
     >
       <BindingStates
         blocked={blocked}
         path={query.path}
-        needsConfig={needsConfig && !awaitingState}
+        needsConfig={needsConfig && !awaitingState && !needsProject}
+        needsProject={needsProject}
         awaitingState={awaitingState}
       >
         <DataTable<BoundRow>
@@ -435,10 +487,20 @@ function CollectionBody({
 
 /** Single-shot reactive read — the original Collection behavior. */
 function CollectionSingle(props: InnerCollectionProps) {
-  const { data, isLoading, blocked, needsConfig } = useBoundQuery(
+  const { data, isLoading, error, blocked, needsConfig } = useBoundQuery(
     props.query.path,
     props.query.args,
   );
+  // Surface a Convex/query failure as a render error so the per-block
+  // ErrorBoundary shows it (and logs `[automation-registry] block "Collection"
+  // crashed`) instead of an empty table that looks like "no quarters".
+  if (error) {
+    throw error instanceof Error
+      ? error
+      : new Error(
+          typeof error === 'string' ? error : 'Collection query failed',
+        );
+  }
   return (
     <CollectionBody
       {...props}

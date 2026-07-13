@@ -41,7 +41,22 @@
     },
     "action": {
       "open": "Öffnen",
-      "openFile": "{name} öffnen"
+      "openFile": "{name} öffnen",
+      "technicalDetails": "Technische Details"
+    },
+    "section": {
+      "outcome": "Ergebnis",
+      "runDetails": "Laufdetails"
+    },
+    "outcome": {
+      "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
+      "failed": "Dieser Schritt ist fehlgeschlagen.",
+      "empty": "Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche erzeugt."
+    },
+    "artifact": {
+      "filed": "{title} abgelegt",
+      "updated": "{title} aktualisiert",
+      "unchanged": "{title} bereits aktuell"
     },
     "verdict": {
       "yes": "Ja",
@@ -74,6 +89,12 @@
         "description": "Damit wird der Workflow sofort abgebrochen. Laufende Schritte werden verworfen und die Ausführung wird als fehlgeschlagen markiert. Das lässt sich nicht rückgängig machen.",
         "confirm": "Ausführung stoppen"
       }
+    },
+    "stage": {
+      "work": "Arbeit",
+      "deliver": "Abliefern",
+      "review": "Prüfung",
+      "repair": "Reparatur"
     }
   },
   "accessDenied": {
@@ -626,7 +647,7 @@
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
       "notInstalledDescription": "Installiere diese Automatisierung, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
-      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
+      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben. Für einen kundenorientierten Desk benenne das Projekt nach dem Kundenunternehmen.",
       "projectLabel": "Projekt",
       "projectPlaceholder": "Projekt auswählen",
       "projectSearchPlaceholder": "Projekte suchen …",
@@ -702,7 +723,7 @@
       "doneTitle": "{name} ist bereit",
       "doneNeedsSetupTitle": "Einrichtung von {name} abschließen",
       "doneNeedsSetup": "Eine erforderliche Integration ist noch nicht verbunden — verbinde sie im Integrationen-Tab der Automatisierung, bevor sie laufen kann.",
-      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
+      "doneAllConnected": "Alles, was sie braucht, ist verbunden. Fertig öffnet den Desk der Automatisierung.",
       "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der Automatisierung abschließen.",
       "doneScheduleVars": "Erforderliche Zeitplan-Variablen sind noch nicht gesetzt: {fields}. Setze sie im Trigger-Tab der Automatisierung, bevor sie laufen kann.",
       "doneBundleScheduleVars": "Diese Mitglieder brauchen noch Zeitplan-Variablen, bevor sie laufen können: {members}",
@@ -731,10 +752,24 @@
     "detail": {
       "title": "Details",
       "activity": "Aktivität",
-      "run": "Workflow-Lauf",
+      "input": "Eingabe",
+      "more": "Details",
+      "comments": "Kommentare",
       "discuss": "Diskussion",
-      "openLink": "Link öffnen",
-      "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…"
+      "externalRef": "Externe Referenz",
+      "subjectFolder": "Ordner",
+      "relatedFolder": "Zugehöriger Ordner",
+      "chatPlaceholder": "Stell eine Frage zu diesem Eintrag…",
+      "awaitingHuman": "Wartet auf dich. Öffne die Outcome-Dateien zum Prüfen, dann Als erledigt markieren — oder Änderungen anfordern, wenn etwas nicht stimmt.",
+      "markDoneConfirmTitle": "Als erledigt markieren?",
+      "markDoneConfirmDescription": "Bestätige erst, wenn du den menschlichen Folgeschritt für diesen Eintrag erledigt hast. Um das Ergebnis zu ändern, nutze Änderungen anfordern.",
+      "requestChangesTitle": "Änderungen anfordern",
+      "requestChangesDescription": "Schreib, was falsch ist. Dein Kommentar geht in den nächsten Lauf, bevor er startet — ohne Feedback würde die Pipeline nur unverändert erneut laufen.",
+      "requestChangesFeedbackLabel": "Feedback",
+      "requestChangesPlaceholder": "Was soll sich ändern?",
+      "requestChangesSubmit": "Senden und erneut ausführen",
+      "requestChangesEmpty": "Schreib, was sich ändern soll, bevor der Lauf startet.",
+      "requestChangesStarted": "Änderungen angefordert — der Lauf startet"
     },
     "review": {
       "none": "Keine ausstehenden Prüfungen.",
@@ -748,10 +783,13 @@
       "error": "Daten konnten nicht geladen werden: {error}",
       "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
       "needsConfig": "Konfiguriere diese Automatisierung, um Daten zu laden.",
+      "needsProject": "Öffne diese Automatisierung in einem gebundenen Projekt, um Daten zu laden.",
       "created": "Erstellt",
       "start": "Starten",
       "markDone": "Als erledigt markieren",
+      "requestChanges": "Änderungen anfordern",
       "merge": "Pull Request mergen",
+      "cancel": "Abbrechen",
       "all": "Alle"
     },
     "agents": {
@@ -809,12 +847,25 @@
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "failed": "Fehlgeschlagen",
-      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
+      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu.",
+      "awaitingInput": "Deine Eingabe nötig",
+      "awaitingInputHint": "Angehalten — der Desk hat dir eine Frage gestellt. Klappe die Zeile auf, antworte und dann „Senden & fortfahren“.",
+      "input": {
+        "heading": "Wir brauchen deine Eingabe, um fortzufahren",
+        "placeholder": "Gib deine Antwort ein …",
+        "submit": "Senden & fortfahren",
+        "submittedToast": "Antwort gesendet — der Lauf macht dort weiter, wo er aufgehört hat.",
+        "rerunFailedToast": "Der Lauf konnte nicht neu gestartet werden. Nutze Start in der Zeile."
+      }
     },
     "membership": {
       "boundProjectsTitle": "Gebundene Projekte",
       "boundProjectsDescription": "Führe diese Automatisierung in bestimmten Projekten aus. Füge ein Projekt hinzu, um es zu binden, oder entferne es, um die Bindung zu lösen.",
       "boundProjectsPlaceholder": "Projekte binden…",
+      "boundProjectLinksLabel": "Gebundene Projekte öffnen",
+      "openBoundProject": "In {name} öffnen",
+      "viewNeedsProjectTitle": "In einem Projekt öffnen",
+      "viewNeedsProjectDescription": "Diese Ansicht braucht ein Projekt. Öffne sie unten in einem gebundenen Projekt, oder binde eines unter Konfiguration.",
       "noProjectsAvailable": "Keine Projekte verfügbar.",
       "saveFailed": "Die Projekte dieser Automatisierung konnten nicht aktualisiert werden.",
       "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
@@ -1564,7 +1615,7 @@
     "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
     "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
     "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
-    "errorHintOutputCapTooHigh": "Die konfigurierten maximalen Ausgabe-Tokens sind höher als dieses Modell unterstützt. Bitte deinen Administrator, die maximalen Ausgabe-Tokens des Modells zu senken.",
+    "errorHintOutputCapTooHigh": "Die maximalen Ausgabe-Tokens dieses Modells lassen keinen Platz für den Prompt (oder liegen über dem, was das Modell unterstützt). Versuche es erneut — Tale löscht einen fehlerhaften Cache-Wert automatisch — oder bitte deinen Administrator, die maximalen Ausgabe-Tokens zu senken.",
     "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
     "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
@@ -2522,6 +2573,53 @@
       "sharePoint": "SharePoint",
       "sharePointSynced": "SharePoint (synchronisiert)",
       "uploaded": "Upload"
+    },
+    "comparison": {
+      "title": "Dokumente vergleichen",
+      "description": "Wähle zwei Dateien, um die Unterschiede zu sehen.",
+      "baseDocument": "Basis",
+      "comparisonDocument": "Vergleichen mit",
+      "compareButton": "Vergleichen",
+      "comparing": "Vergleicht…",
+      "compareFailed": "Dokumente konnten nicht verglichen werden",
+      "statsSummary": "Änderungsübersicht",
+      "statsAdded": "{count} hinzugefügt",
+      "statsDeleted": "{count} gelöscht",
+      "statsModified": "{count} geändert",
+      "statsUnchanged": "{count} unverändert",
+      "highDivergence": "Diese Versionen unterscheiden sich stark — prüfe sorgfältig.",
+      "resultsTruncated": "Zeigt eine Teilmenge der Änderungen.",
+      "noChanges": "Keine Unterschiede gefunden.",
+      "changesList": "Änderungen",
+      "changeBlockLabel": "Änderung {index}",
+      "removedText": "Entfernt",
+      "addedText": "Hinzugefügt",
+      "untitledDocument": "Unbenanntes Dokument",
+      "upload": "Hochladen",
+      "existing": "Vorhanden",
+      "clearSelection": "Auswahl löschen",
+      "dropOrClick": "Datei hier ablegen oder klicken zum Hochladen",
+      "selectDocument": "Dokument auswählen"
+    },
+    "history": {
+      "dialogTitle": "Versionsverlauf — {name}",
+      "dialogDescription": "Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.",
+      "versionsLabel": "Versionen",
+      "currentBadge": "Aktuell",
+      "loading": "Lädt Versionen…",
+      "loadFailed": "Versionsverlauf konnte nicht geladen werden",
+      "empty": "Keine gespeicherten Versionen für diese Datei.",
+      "singleVersion": "Nur die aktuelle Version ist gespeichert — eine Revision baut den Verlauf auf.",
+      "selectTwo": "Zwei Versionen auswählen",
+      "compareSelected": "Auswahl vergleichen",
+      "comparing": "Vergleicht…",
+      "compareFailed": "Versionen konnten nicht verglichen werden",
+      "backToList": "Zurück zu den Versionen",
+      "versionLabel": "Version vom {date}",
+      "selectAsCompare": "Zum Vergleich wählen",
+      "baseSelected": "Basis",
+      "compareSelectedBadge": "Vergleich",
+      "notFound": "Für diese Datei gibt es noch keinen Versionsverlauf."
     }
   },
   "onboarding": {
@@ -5397,6 +5495,8 @@
         "noModelsFound": "Keine Modelle gefunden",
         "removeModel": "Entfernen",
         "embeddingModelWarning": "Nur Embedding-Modell — nicht für Chat nutzbar",
+        "modelNotInCatalog": "Nicht im {provider}-Katalog — füge es unter Einstellungen > Anbieter hinzu, oder wähle ein anderes Modell.",
+        "modelNotInAnyCatalog": "In keinem Anbieter-Katalog — füge es unter Einstellungen > Anbieter hinzu, oder wähle ein anderes Modell.",
         "viaProvider": "über {provider}",
         "modelSelector": {
           "moveUp": "Modell nach oben verschieben",
@@ -7032,7 +7132,6 @@
       "labels": "Labels",
       "status": "Status",
       "unassigned": "Nicht zugewiesen",
-      "id": "ID",
       "author": "Autor",
       "created": "Erstellt"
     },
@@ -7638,7 +7737,8 @@
       "instructions": "Anweisungen",
       "threads": "Chats",
       "agents": "Agenten & Modelle",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "automations": "Automatisierungen"
     },
     "list": {
       "title": "Projekte",
@@ -7661,11 +7761,11 @@
     "create": {
       "title": "Projekt erstellen",
       "nameLabel": "Projektname",
-      "namePlaceholder": "z. B. Q2 Sales Hiring",
+      "namePlaceholder": "z. B. Acme AG",
       "keyLabel": "Projektkürzel",
-      "keyDescription": "Präfix für Aufgaben-IDs (z. B. TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
+      "keyDescription": "Kurzes Präfix für Aufgaben-IDs — nur Buchstaben und Ziffern (z. B. wird aus TAL dann TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
       "descriptionLabel": "Beschreibung",
-      "descriptionPlaceholder": "Optional — wofür ist dieses Projekt?",
+      "descriptionPlaceholder": "Optional — bei einem Kundendesk den Firmennamen als Projektnamen verwenden.",
       "teamLabel": "Verantwortliches Team",
       "teamPlaceholder": "Team auswählen (optional, Standard: organisationsweit)",
       "iconLabel": "Symbol",
@@ -7737,7 +7837,8 @@
       "folderDeleteConfirm": "„{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus dem Projekt und aus dem Wissensindex entfernt. Das lässt sich nicht rückgängig machen.",
       "newSubfolderAction": "Neuer Unterordner",
       "uploadFailedTitle": "Hochladen fehlgeschlagen",
-      "uploadingIndicator": "Wird hochgeladen…"
+      "uploadingIndicator": "Wird hochgeladen…",
+      "historyAction": "Versionsverlauf"
     },
     "threads": {
       "title": "Chats",
@@ -7907,6 +8008,14 @@
     "editor": {
       "slugFallback": "nicht verfügbar",
       "slugEditorEmptyLockout": "Eine leere Liste sperrt jedes Mitglied aus dem Projekt aus. Füge mindestens einen Eintrag hinzu oder wähle wieder „Alle\"."
+    },
+    "automations": {
+      "title": "Automatisierungen",
+      "description": "Automatisierungen, die an dieses Projekt gebunden sind.",
+      "emptyTitle": "Keine Automatisierungen in diesem Projekt",
+      "emptyDescription": "Installiere eine Projekt-Automatisierung im Automatisierungen-Hub und füge dieses Projekt hinzu.",
+      "emptyCta": "Automatisierungen öffnen",
+      "statusBroken": "Reparatur nötig"
     }
   },
   "webdav": {

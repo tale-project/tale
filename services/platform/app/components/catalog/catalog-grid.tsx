@@ -177,7 +177,7 @@ export function CatalogCard({
           onClick={onClick}
           disabled={disabled}
           aria-label={ariaLabel}
-          className="flex h-full w-full flex-col text-left disabled:opacity-50"
+          className="flex h-full w-full cursor-pointer flex-col text-left disabled:cursor-not-allowed disabled:opacity-50"
         >
           {inner}
         </button>

@@ -49,6 +49,32 @@ describe('normalizeCatalogModel (OpenRouter-shaped entries)', () => {
     expect(n?.supportsTools).toBe(true);
   });
 
+  it('maps top_provider.max_completion_tokens to maxOutputTokens', () => {
+    const n = normalizeCatalogModel({
+      id: 'z-ai/glm-5.2',
+      context_length: 1048576,
+      top_provider: {
+        context_length: 101376,
+        max_completion_tokens: 101376,
+      },
+    });
+    expect(n?.contextWindow).toBe(1048576);
+    expect(n?.maxOutputTokens).toBe(101376);
+  });
+
+  it('drops max_completion_tokens that fill the whole context window', () => {
+    const n = normalizeCatalogModel({
+      id: 'z-ai/glm-5.2',
+      context_length: 1048576,
+      top_provider: {
+        context_length: 1048576,
+        max_completion_tokens: 1048576,
+      },
+    });
+    expect(n?.contextWindow).toBe(1048576);
+    expect(n?.maxOutputTokens).toBeUndefined();
+  });
+
   it('returns a near-empty entry for sparse {id} payloads (operator config takes precedence later)', () => {
     const n = normalizeCatalogModel({ id: 'gpt-4o' });
     expect(n).toMatchObject({ modelId: 'gpt-4o' });

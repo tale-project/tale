@@ -677,6 +677,8 @@ const API_DTS_PATH = path.join(here, '../convex/_generated/api.d.ts');
  * Every single-dot .ts module under convex/migrations/ — framework, testing,
  * and versions alike. Mirrors what `convex codegen` lists; two-dot files
  * (tests, testkits, .gen registries) are bundler-skipped and never appear.
+ * `schema.ts` is also omitted — those files are table-def helpers only, and
+ * Convex codegen never puts them in the API map (same as other schema.ts files).
  * Owning the WHOLE subtree makes api.d.ts self-healing after a merge/rebase
  * mangles the generated file's migrations sections.
  */
@@ -690,7 +692,8 @@ function migrationsModuleRels(): string[] {
         walk(full, childRel);
       } else if (
         entry.endsWith('.ts') &&
-        entry.split('.').length === 2 // single-dot: a pushed Convex module
+        entry.split('.').length === 2 && // single-dot: a pushed Convex module
+        entry !== 'schema.ts' // table defs only — convex codegen omits these
       ) {
         out.push(`migrations/${childRel.slice(0, -3)}`);
       }

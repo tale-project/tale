@@ -32,12 +32,18 @@ vi.mock('@/app/hooks/use-format-date', () => ({
   }),
 }));
 
-// BoundButton pulls the Convex dispatch chain — a label-only stub keeps the
-// actions-column assertions about the CLUSTER, not the binding.
+// BoundButton / EffectButton pull the Convex / effect dispatch chain — a
+// label-only stub keeps the actions-column assertions about the CLUSTER, not
+// the binding. `isEffectAction` must match the real discriminator (`path`
+// absent) so rowActionSchema unions still render the right stub.
 vi.mock('./bound-button', () => ({
   BoundButton: ({ action }: { action: { label?: string } }) => (
     <button type="button">{action.label}</button>
   ),
+  EffectButton: ({ action }: { action: { label?: string } }) => (
+    <button type="button">{action.label}</button>
+  ),
+  isEffectAction: (action: { path?: string }) => action.path === undefined,
 }));
 
 const ROW: BoundRow = {

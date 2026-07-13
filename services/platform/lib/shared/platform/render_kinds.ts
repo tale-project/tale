@@ -54,6 +54,26 @@ export type ReviewMode = (typeof REVIEW_MODES)[number];
 
 export const REVIEW_CARDINALITIES = ['one', 'many'] as const;
 
+/**
+ * Which operator surface a step feeds. `outcome` steps are promoted into the
+ * run's Outcome strip; everything else is `process` (the secondary step list).
+ * Unknown values degrade to `process` at the renderer — never throw.
+ */
+export const SURFACES = ['outcome', 'process'] as const;
+type Surface = (typeof SURFACES)[number];
+
+const SURFACE_SET = new Set<string>(SURFACES);
+
+export function isSurface(value: string): value is Surface {
+  return SURFACE_SET.has(value);
+}
+
+/** Resolve a pack-authored surface string; unknown / absent → `process`. */
+export function resolveSurface(value: string | undefined): Surface {
+  if (value !== undefined && isSurface(value)) return value;
+  return 'process';
+}
+
 export type RenderInteraction = 'read_only' | 'actionable';
 
 /**

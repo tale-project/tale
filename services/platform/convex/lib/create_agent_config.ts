@@ -3,6 +3,7 @@ import type { Agent } from '@convex-dev/agent';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
 import type { ToolName } from '../agent_tools/tool_registry';
+import { usableMaxOutputTokens } from './agent_response/model_capabilities/sanitize_max_output';
 import { createDebugLog } from './debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
@@ -41,6 +42,13 @@ export function createAgentConfig(opts: {
    * treated as "omit" for the same reason as `maxTokens`.
    */
   modelMaxOutputTokens?: number;
+  /**
+   * Per-model context window from `modelData.contextWindow`. When present,
+   * a modelMaxOutputTokens that leaves no room for the prompt (cap ≥ window)
+   * is ignored so we fall through to the safe 32768 default instead of
+   * sending a request that OpenRouter rejects as context-length exceeded.
+   */
+  modelContextWindow?: number;
   instructions: string;
   convexToolNames?: ToolName[];
   /** Additional tools to merge (e.g., dynamic json_output tool) */
@@ -103,12 +111,19 @@ export function createAgentConfig(opts: {
   // `max_tokens: 0` to OpenAI/OpenRouter generates zero tokens, not
   // unlimited. Callers that want no cap pass `undefined`; `0` is the
   // documented sentinel and routed to the same omit-the-field branch.
+  //
+  // A model cap that equals/exceeds the context window is also treated as
+  // "omit" (then the 32768 default applies): catalogs have reported that
+  // shape, and sending it as max_tokens fails every request.
+  const usableModelMax = usableMaxOutputTokens(
+    opts.modelMaxOutputTokens,
+    opts.modelContextWindow,
+  );
   const resolvedMax =
     typeof opts.maxTokens === 'number' && opts.maxTokens > 0
       ? opts.maxTokens
-      : typeof opts.modelMaxOutputTokens === 'number' &&
-          opts.modelMaxOutputTokens > 0
-        ? opts.modelMaxOutputTokens
+      : typeof usableModelMax === 'number' && usableModelMax > 0
+        ? usableModelMax
         : opts.maxTokens === 0 || opts.modelMaxOutputTokens === 0
           ? undefined
           : 32768;

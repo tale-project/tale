@@ -20,6 +20,10 @@ import {
   type ActionEffect,
   useActionEffect,
 } from '../../runtime/action-effects';
+import {
+  hasTaskCommentFeedback,
+  TaskCommentFeedbackButton,
+} from './task-comment-feedback-button';
 
 // The action-spec shape is a `z.infer` re-export of `boundActionSchema`
 // (`lib/shared/schemas/automation_views.ts`) — one source of truth, no schema↔runtime
@@ -70,7 +74,78 @@ export function deriveDoneState(
   return { done: justRan || doneByRow, latchesOnRun };
 }
 
+/**
+ * Session latch for consume-once actions. Collection rebuilds column cells when
+ * the bound query refreshes after a create, which remounts `BoundButton` and
+ * would wipe React `useState` — keep the latch in module memory keyed by
+ * `path` + stable row id so "Created" survives that remount for the tab.
+ */
+const sessionDoneLatches = new Set<string>();
+
+/** Stable row key for the session latch (`_id` / `id`); undefined → no latch. */
+export function sessionLatchRowKey(
+  item: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!item) return undefined;
+  const id = item._id ?? item.id;
+  if (typeof id === 'string' && id.length > 0) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return undefined;
+}
+
+export function sessionLatchKey(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): string | undefined {
+  const rowKey = sessionLatchRowKey(item);
+  return rowKey === undefined ? undefined : `${path}::${rowKey}`;
+}
+
+/** Test helper — clear latches between cases. */
+export function clearSessionDoneLatches(): void {
+  sessionDoneLatches.clear();
+}
+
+/** Record a row+path as done for this tab session (before onSuccess side effects). */
+export function markSessionDoneLatched(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): boolean {
+  const key = sessionLatchKey(path, item);
+  if (key === undefined) return false;
+  sessionDoneLatches.add(key);
+  return true;
+}
+
+/** Whether this row+path was latched done this session (survives remount). */
+export function isSessionDoneLatched(
+  path: string,
+  item: Record<string, unknown> | undefined,
+): boolean {
+  const key = sessionLatchKey(path, item);
+  return key !== undefined && sessionDoneLatches.has(key);
+}
+
 export function BoundButton({
+  action,
+  item,
+  size = 'sm',
+}: {
+  action: BoundActionSpec;
+  item?: Record<string, unknown>;
+  size?: 'sm' | 'default';
+}) {
+  // Feedback-first actions (Request changes) own their own hooks — early
+  // return before this component's hooks so rules-of-hooks stay clean.
+  if (hasTaskCommentFeedback(action)) {
+    return (
+      <TaskCommentFeedbackButton action={action} item={item} size={size} />
+    );
+  }
+  return <DispatchBoundButton action={action} item={item} size={size} />;
+}
+
+function DispatchBoundButton({
   action,
   item,
   size = 'sm',
@@ -84,7 +159,12 @@ export function BoundButton({
   const applyEffect = useActionEffect();
   // Consume-once feedback: a successful run leaves the row "done" for the session,
   // even when the row carries no persistent signal (e.g. a GitHub issue → task).
-  const [justRan, setJustRan] = useState(false);
+  const sessionDone = isSessionDoneLatched(action.path, item);
+  // Local bump so this instance re-renders when it sets the latch; sessionDone
+  // is also read every render so a remount after latch (before local state) still
+  // shows the done label.
+  const [localDone, setLocalDone] = useState(false);
+  const justRan = sessionDone || localDone;
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (item && action.when && !evaluateWhen(action.when, item)) return null;
@@ -106,12 +186,38 @@ export function BoundButton({
     );
   }
 
+  const confirmSpec = action.confirm;
+  const confirmTitle =
+    typeof confirmSpec === 'object' && confirmSpec.title
+      ? t(confirmSpec.title, { defaultValue: confirmSpec.title })
+      : t('confirm', { defaultValue: 'Are you sure?' });
+  const confirmDescription =
+    typeof confirmSpec === 'object' && confirmSpec.description
+      ? t(confirmSpec.description, { defaultValue: confirmSpec.description })
+      : label;
+
   const run = async () => {
     try {
       const result = await dispatch(action.args, item);
-      applyEffect(action.onSuccess, result, item);
-      // Only consume-once actions (those declaring a done label) latch to done.
-      if (latchesOnRun) setJustRan(true);
+      // Idempotent creates may return `created: false` — prefer onAlreadyExists
+      // when declared so a re-click doesn't re-open the same detail.
+      const alreadyExists =
+        result !== null &&
+        typeof result === 'object' &&
+        'created' in result &&
+        (result as { created?: unknown }).created === false;
+      const effect =
+        alreadyExists && action.onAlreadyExists
+          ? action.onAlreadyExists
+          : action.onSuccess;
+      // Latch before onSuccess — toast/openDetail/setState can synchronously
+      // re-render Collection and remount this button; session memory must be
+      // set first so the new instance reads "Created".
+      if (latchesOnRun && !alreadyExists) {
+        markSessionDoneLatched(action.path, item);
+        setLocalDone(true);
+      }
+      applyEffect(effect, result, item);
     } catch (err) {
       // The mutation/action layer (useConvexMutation) already toasts + logs the
       // failure; surface it here too rather than swallowing the rejection.
@@ -139,8 +245,8 @@ export function BoundButton({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title={t('confirm', { defaultValue: 'Are you sure?' })}
-          description={label}
+          title={confirmTitle}
+          description={confirmDescription}
           variant={action.variant === 'destructive' ? 'destructive' : 'default'}
           onConfirm={() => {
             setConfirmOpen(false);

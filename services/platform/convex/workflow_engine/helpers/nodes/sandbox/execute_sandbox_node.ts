@@ -214,6 +214,9 @@ export async function executeSandboxNode(
             script: run.script,
             language: run.language,
             ...(run.params !== undefined && { params: run.params }),
+            ...(run.useSkills !== undefined && {
+              useSkills: run.useSkills,
+            }),
             inputs,
             ...(config.output !== undefined && { output: config.output }),
             ...(config.timeoutMs !== undefined && {

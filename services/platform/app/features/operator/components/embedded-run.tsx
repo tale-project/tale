@@ -8,14 +8,18 @@
  * justification for the step `ui` config / render-kinds: how a step renders when
  * fused into a domain surface. Given just `{organizationId, executionId}`.
  *
- * A terminal run also offers a **Re-run**: a failed run is terminal and cannot be
- * resumed, so this starts a fresh, subject-linked run (copying the original's
- * input). Because the new run carries the same subject, the surrounding
- * `SubjectRun` swaps to it reactively.
+ * A terminal **failed** run also offers a **Re-run** (`showRerun`, default on):
+ * a failed run cannot be resumed, so this starts a fresh, subject-linked run
+ * (copying the original's input). Successful completed runs never show it. A
+ * surface that owns its own re-run verb passes `showRerun={false}` — the
+ * subject-linked desk expand view does, because its Start / Request changes own
+ * intentional re-runs, so a user-cancelled (terminal-failed) run isn't offered a
+ * second anonymous retry right next to Start.
  *
- * A still-running run offers a **Stop**: a confirmed cancel of the underlying
- * workflow (abandons in-progress steps, marks the run failed). This is the only
- * user-facing way to halt a runaway run from where runs are actually viewed.
+ * A still-running run can offer a **Stop** when `showStop` is true: a confirmed
+ * cancel of the underlying workflow. Subject-linked desk expand views leave
+ * Stop off — the desk **Cancel** action (`cancelTaskWorkflow`) owns halting
+ * the run so Start / Cancel stay one clean pair.
  */
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -34,10 +38,6 @@ import { useExecutionProjection } from '../hooks/use-execution-projection';
 import { mapExecutionError } from '../lib/map-execution-error';
 import { OperatorView } from './operator-view';
 import { RerunButton } from './rerun-button';
-
-/** Terminal execution states — a re-run is offered only once a run has settled
- * (a still-running run is left alone; the concurrency guard refuses a second). */
-const TERMINAL_STATUSES = new Set(['completed', 'failed']);
 
 /** In-flight states — a Stop is offered only here, mirroring the backend
  * `cancelExecution` guard (it rejects any non-running/pending status). */
@@ -93,9 +93,27 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
 export function EmbeddedRun({
   organizationId,
   executionId,
+  showStop = false,
+  showRerun = true,
+  beforeDetails,
 }: {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
+  /**
+   * Opt-in Stop control. Subject-linked desk expand views leave this off —
+   * desk Cancel (`cancelTaskWorkflow`) owns halting the run. Surfaces that
+   * have no Cancel verb can pass `true`.
+   */
+  showStop?: boolean;
+  /**
+   * Show the Re-run button on a failed run. Subject-linked desk expand views
+   * pass `false`: their Start / Request changes own intentional re-runs, so a
+   * user-cancelled or failed run must not also offer a second anonymous retry.
+   */
+  showRerun?: boolean;
+  /** Passed through to `OperatorView`: domain content rendered between the
+   *  outcome and the collapsed "Run details". */
+  beforeDetails?: React.ReactNode;
 }) {
   const { projection, isLoading, error } = useExecutionProjection({
     organizationId,
@@ -104,20 +122,23 @@ export function EmbeddedRun({
 
   if (error) return <Text variant="error">{error.message}</Text>;
   if (!projection) return isLoading ? <SkeletonText lines={4} /> : null;
-  const showRerun = TERMINAL_STATUSES.has(projection.status);
-  const showStop = RUNNING_STATUSES.has(projection.status);
+  /** Failed executions only, and only where the surface doesn't own its own
+   *  re-run verb (subject-linked desk views pass showRerun=false — their Start
+   *  owns it, so a user-cancelled run isn't offered a redundant retry). */
+  const rerunVisible = showRerun && projection.status === 'failed';
+  const stopVisible = showStop && RUNNING_STATUSES.has(projection.status);
   return (
     <Stack gap={3}>
-      {(showRerun || showStop) && (
+      {(rerunVisible || stopVisible) && (
         <Row gap={0} align="stretch" justify="end">
-          {showRerun ? (
+          {rerunVisible ? (
             <RerunButton executionId={executionId} />
           ) : (
             <StopButton executionId={executionId} />
           )}
         </Row>
       )}
-      <OperatorView projection={projection} />
+      <OperatorView projection={projection} beforeDetails={beforeDetails} />
     </Stack>
   );
 }

@@ -37,6 +37,7 @@ const MIME_TYPES = {
 
   // Text
   PLAIN: 'text/plain',
+  MARKDOWN: 'text/markdown',
 
   // Audio
   MP3: 'audio/mpeg',
@@ -261,6 +262,8 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   xlsx: MIME_TYPES.XLSX,
   csv: MIME_TYPES.CSV,
   txt: MIME_TYPES.PLAIN,
+  md: MIME_TYPES.MARKDOWN,
+  mdx: MIME_TYPES.MARKDOWN,
 };
 
 const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
@@ -278,6 +281,7 @@ const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
   [MIME_TYPES.XLSX]: 'xlsx',
   [MIME_TYPES.CSV]: 'csv',
   [MIME_TYPES.PLAIN]: 'txt',
+  [MIME_TYPES.MARKDOWN]: 'md',
   [MIME_TYPES.MP3]: 'mp3',
   [MIME_TYPES.WAV]: 'wav',
   [MIME_TYPES.M4A]: 'm4a',
@@ -565,8 +569,14 @@ export const CHAT_MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-/** Max file IDs per batch URL query */
-export const MAX_BATCH_FILE_IDS = 10;
+/**
+ * Fail-loud ceiling for `getFileUrls` unique ids — Convex allows ~1000
+ * concurrent IO ops per function. This is a safety rail, not a product batch
+ * size: callers may resolve every harvested storage id in one query (same as
+ * documents `batchGetStorageUrls`). Do **not** confuse with
+ * `CHAT_MAX_FILE_COUNT` (upload attachments per message only).
+ */
+export const MAX_FILE_URL_IDS = 1000;
 
 // ---------------------------------------------------------------------------
 // Attachment cap validation (shared by every server-side attachment gate)
@@ -804,14 +814,22 @@ export function mimeToExtension(mime: string): string | undefined {
  * formats. Text-based files are decided separately via `isTextBasedFile`
  * (extension + MIME + known filenames), so they are not listed here.
  */
-type DocumentPreviewKind = 'pdf' | 'docx' | 'odt' | 'xlsx' | 'image';
+type DocumentPreviewKind =
+  | 'pdf'
+  | 'docx'
+  | 'odt'
+  | 'xlsx'
+  | 'image'
+  | 'markdown';
 
 /**
  * Extension (lowercase, no dot) → preview renderer. The single source of
- * truth for which binary formats the preview supports — `DocumentPreview`
- * routes off this map, and `file-types.test.ts` checks it against
- * {@link DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS} so the upload-accept and
+ * truth for which formats the preview supports with a dedicated renderer —
+ * `DocumentPreview` routes off this map, and `file-types.test.ts` checks it
+ * against {@link DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS} so the upload-accept and
  * preview-support lists cannot drift apart silently (issue #2380).
+ * Text-based files without a dedicated kind still fall through to the
+ * generic text/source preview via `isTextBasedFile`.
  */
 const PREVIEW_KIND_BY_EXTENSION: Readonly<Record<string, DocumentPreviewKind>> =
   {
@@ -830,6 +848,8 @@ const PREVIEW_KIND_BY_EXTENSION: Readonly<Record<string, DocumentPreviewKind>> =
     bmp: 'image',
     ico: 'image',
     avif: 'image',
+    md: 'markdown',
+    mdx: 'markdown',
   };
 
 /**

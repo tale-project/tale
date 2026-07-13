@@ -580,7 +580,6 @@ function EditTaskBody({
                   body={task.description}
                   organizationId={task.organizationId}
                   projectId={task.projectId}
-                  className="whitespace-pre-wrap"
                 />
               ) : (
                 <Text as="p" variant="muted">

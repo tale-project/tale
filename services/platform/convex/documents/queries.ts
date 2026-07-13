@@ -15,6 +15,8 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { isActiveDocument } from './_helpers';
 import { canReadDocument, hasKnowledgeHubDocumentAccess } from './access';
+import { findDocumentByExternalId } from './find_document_by_external_id';
+import { listDocumentVersionsForDoc } from './list_document_versions';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
 import { searchDocumentsForMention as searchDocumentsForMentionHelper } from './search_documents_for_mention';
 import { transformDocumentsBatch } from './transform_to_document_item';
@@ -157,6 +159,131 @@ export const searchDocumentsForMention = query({
       userTeamIds,
       projectId,
     });
+  },
+});
+
+const documentVersionValidator = v.object({
+  storageId: v.id('_storage'),
+  createdAt: v.number(),
+  isCurrent: v.boolean(),
+  fileName: v.optional(v.string()),
+  size: v.optional(v.number()),
+  contentType: v.optional(v.string()),
+});
+
+/**
+ * Version history for a document: current blob + prior `historyFiles` with
+ * timestamps from `fileMetadata`. Same access contract as `getDocumentById`
+ * (org membership + `canReadDocument`, including project-scoped files).
+ */
+export const listDocumentVersions = query({
+  args: {
+    documentId: v.id('documents'),
+    organizationId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      documentId: v.id('documents'),
+      title: v.optional(v.string()),
+      versions: v.array(documentVersionValidator),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const doc = await ctx.db.get(args.documentId);
+    if (
+      !doc ||
+      !isActiveDocument(doc) ||
+      !isActiveOrg(doc.organizationId, args.organizationId)
+    ) {
+      return null;
+    }
+
+    try {
+      await getOrganizationMember(ctx, doc.organizationId, authUser);
+    } catch {
+      return null;
+    }
+
+    const canRead = await canReadDocument(ctx, doc, {
+      userId: authUser.userId,
+      organizationId: args.organizationId,
+    });
+    if (!canRead) return null;
+
+    const versions = await listDocumentVersionsForDoc(ctx, doc);
+    return {
+      documentId: doc._id,
+      title: doc.title,
+      versions,
+    };
+  },
+});
+
+/**
+ * Resolve a document by stable `externalItemId` (e.g. VAT Setup
+ * `vatplus:{projectId}:transform.py`) for deep-links into version history.
+ * Optional `projectId` scopes the match to that project's files.
+ */
+export const getDocumentByExternalItemId = query({
+  args: {
+    organizationId: v.string(),
+    externalItemId: v.string(),
+    projectId: v.optional(v.id('projects')),
+  },
+  returns: v.union(
+    v.object({
+      documentId: v.id('documents'),
+      title: v.optional(v.string()),
+      folderId: v.optional(v.id('folders')),
+      hasHistory: v.boolean(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const externalItemId = args.externalItemId.trim();
+    if (!externalItemId) return null;
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return null;
+    }
+
+    const doc = await findDocumentByExternalId(ctx, {
+      organizationId: args.organizationId,
+      externalItemId,
+    });
+    if (
+      !doc ||
+      !isActiveDocument(doc) ||
+      !isActiveOrg(doc.organizationId, args.organizationId)
+    ) {
+      return null;
+    }
+
+    if (args.projectId !== undefined && doc.projectId !== args.projectId) {
+      return null;
+    }
+
+    const canRead = await canReadDocument(ctx, doc, {
+      userId: authUser.userId,
+      organizationId: args.organizationId,
+    });
+    if (!canRead) return null;
+
+    return {
+      documentId: doc._id,
+      title: doc.title,
+      folderId: doc.folderId,
+      hasHistory: (doc.historyFiles?.length ?? 0) > 0,
+    };
   },
 });
 

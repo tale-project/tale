@@ -64,6 +64,17 @@ vi.mock('@/app/features/documents/hooks/mutations', () => ({
   useCreateFolder: () => ({ mutateAsync: createFolderMutateAsync }),
 }));
 
+vi.mock('@/app/features/documents/hooks/queries', () => ({
+  useDocumentByExternalItemId: () => ({
+    data: undefined,
+    isLoading: false,
+  }),
+  useDocumentVersions: () => ({
+    data: undefined,
+    isLoading: false,
+  }),
+}));
+
 // FormDialog (inside ProjectCreateFolderDialog) reads the org id off the
 // router params; the component tree here renders without a router.
 vi.mock('@/app/hooks/use-organization-id', () => ({
@@ -83,6 +94,12 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),
+}));
+
+const mockNavigate = vi.fn();
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => mockNavigate,
 }));
 
 // The real preview dialog self-fetches the document/URL through Convex; stub it
@@ -107,9 +124,14 @@ vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
 
 const PROJECT_ID = 'proj-1' as Id<'projects'>;
 
-function renderTab() {
+function renderTab(initialFolderId?: string, openCreateFolder?: boolean) {
   return render(
-    <ProjectFilesTab organizationId="org-1" projectId={PROJECT_ID} />,
+    <ProjectFilesTab
+      organizationId="org-1"
+      projectId={PROJECT_ID}
+      initialFolderId={initialFolderId}
+      openCreateFolder={openCreateFolder}
+    />,
   );
 }
 
@@ -258,6 +280,22 @@ describe('ProjectFilesTab', () => {
     expect(within(dialog).getByLabelText(/folder name/i)).toBeInTheDocument();
   });
 
+  it('opens the create-folder dialog from openCreateFolder deep-link', async () => {
+    renderTab(undefined, true);
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create folder',
+    });
+    expect(within(dialog).getByLabelText(/folder name/i)).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/$id/projects/$projectId/files',
+        search: {},
+        replace: true,
+      }),
+    );
+  });
+
   it('creates the folder scoped to the project', async () => {
     const { user } = renderTab();
 
@@ -315,5 +353,58 @@ describe('ProjectFilesTab', () => {
     expect(
       screen.getByRole('treeitem', { name: 'Reports' }),
     ).toBeInTheDocument();
+  });
+
+  // Deep-link hydrate: `?folderId=` selects + expands the target (and
+  // ancestors) once folders load; clicking a folder syncs the URL.
+  it('hydrates selection and expands ancestors from initialFolderId', async () => {
+    foldersFixture = [
+      { _id: 'folder-root' as Id<'folders'>, name: 'Root' },
+      {
+        _id: 'folder-child' as Id<'folders'>,
+        name: 'Child',
+        parentId: 'folder-root' as Id<'folders'>,
+      },
+    ];
+    documentsFixture = [
+      makeDoc({
+        _id: 'doc-nested' as Id<'documents'>,
+        title: 'Nested.pdf',
+        folderId: 'folder-child' as Id<'folders'>,
+      }),
+    ];
+    renderTab('folder-child');
+
+    await waitFor(() => {
+      expect(screen.getByRole('treeitem', { name: 'Root' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      expect(screen.getByRole('treeitem', { name: 'Child' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+    expect(
+      await screen.findByRole('treeitem', { name: 'Nested.pdf' }),
+    ).toBeInTheDocument();
+    // Selected folder is the upload target — drop-zone copy names it.
+    expect(screen.getByText(/Add file to "Child"/i)).toBeInTheDocument();
+  });
+
+  it('syncs folderId into the URL when a folder is selected', async () => {
+    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('treeitem', { name: 'Reports' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/$id/projects/$projectId/files',
+        params: { id: 'org-1', projectId: PROJECT_ID },
+        search: { folderId: 'folder-1' },
+        replace: true,
+      }),
+    );
   });
 });

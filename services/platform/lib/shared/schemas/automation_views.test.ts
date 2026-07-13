@@ -229,6 +229,92 @@ describe('automationViewSchema — tabbed shell', () => {
   });
 });
 
+describe('automationViewSchema — pack-authored i18n', () => {
+  it('accepts view/tab/block/field i18n maps and round-trips them', () => {
+    const view = {
+      id: 'desk',
+      title: 'VAT desk',
+      description: 'Quarterly VAT work.',
+      i18n: {
+        de: { title: 'MwSt-Desk', description: 'Quartalsweise MwSt-Arbeit.' },
+        fr: { title: 'Bureau TVA' },
+      },
+      tabs: [
+        {
+          id: 'overview',
+          label: 'Overview',
+          i18n: { de: { label: 'Übersicht' } },
+          data: {
+            root: { props: {} },
+            content: [
+              {
+                type: 'Text',
+                props: {
+                  text: 'Welcome',
+                  variant: 'body',
+                  i18n: { de: { text: 'Willkommen' } },
+                },
+              },
+              {
+                type: 'Alert',
+                props: {
+                  variant: 'info',
+                  title: 'Note',
+                  description: 'Read this.',
+                  i18n: {
+                    de: { title: 'Hinweis', description: 'Lies das.' },
+                  },
+                },
+              },
+              {
+                type: 'Form',
+                props: {
+                  title: 'Setup',
+                  i18n: { de: { title: 'Einrichtung' } },
+                  fields: [
+                    {
+                      key: 'period',
+                      type: 'string',
+                      label: 'Period',
+                      help: 'Tax period',
+                      i18n: {
+                        de: { label: 'Periode', help: 'Steuerperiode' },
+                      },
+                    },
+                  ],
+                  submit: {
+                    path: 'vat/mutations:save',
+                    mode: 'mutation',
+                    label: 'Save',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const res = automationViewSchema.safeParse(view);
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    expect(res.data.i18n?.de?.title).toBe('MwSt-Desk');
+    expect(res.data.tabs?.[0]?.i18n?.de?.label).toBe('Übersicht');
+    const textNode = res.data.tabs?.[0]?.data?.content.find(
+      (n) => n.type === 'Text',
+    );
+    expect(textNode?.props).toMatchObject({
+      i18n: { de: { text: 'Willkommen' } },
+    });
+    const formNode = res.data.tabs?.[0]?.data?.content.find(
+      (n) => n.type === 'Form',
+    );
+    expect(formNode?.type).toBe('Form');
+    if (formNode?.type === 'Form') {
+      expect(formNode.props.fields[0]?.i18n?.de?.label).toBe('Periode');
+    }
+  });
+});
+
 describe('shared fragments', () => {
   it('functionPathSchema accepts reference paths and rejects malformed ones', () => {
     expect(
@@ -264,7 +350,10 @@ describe('shared fragments', () => {
       path: 'tasks/public_actions:createTaskFromExternalIssue',
       mode: 'action',
       args: { title: '$selected.title' },
-      confirm: true,
+      confirm: {
+        title: 'Create this task?',
+        description: 'A new task is created from the selected issue.',
+      },
       when: 'status == open',
       variant: 'primary',
       onSuccess: {
@@ -272,11 +361,39 @@ describe('shared fragments', () => {
         subjectType: 'task',
         id: '$result.taskId',
       },
+      onAlreadyExists: {
+        kind: 'toast',
+        titleKey: 'list.created',
+      },
       doneWhen: 'created == true',
       doneLabelKey: 'list.created',
       doneLabel: 'Created',
     });
     expect(res.success, res.error?.message).toBe(true);
+    // Boolean confirm remains valid (platform default copy).
+    expect(
+      boundActionSchema.safeParse({
+        path: 'tasks/public_actions:createTaskFromExternalIssue',
+        mode: 'action',
+        confirm: true,
+      }).success,
+    ).toBe(true);
+    // Feedback-first Request changes gate.
+    expect(
+      boundActionSchema.safeParse({
+        path: 'tasks/public_actions:startTaskWorkflow',
+        mode: 'action',
+        feedback: { as: 'taskComment' },
+        args: { taskId: '$selected._id' },
+      }).success,
+    ).toBe(true);
+    expect(
+      boundActionSchema.safeParse({
+        path: 'tasks/public_actions:startTaskWorkflow',
+        mode: 'action',
+        feedback: { as: 'other' },
+      }).success,
+    ).toBe(false);
   });
 
   it('actionEffectSchema admits the v2 toast/setState kinds', () => {
@@ -296,6 +413,14 @@ describe('shared fragments', () => {
         kind: 'navigate',
         to: '/dashboard/$id/tasks',
         params: { id: '$orgId' },
+      }).success,
+    ).toBe(true);
+    expect(
+      actionEffectSchema.safeParse({
+        kind: 'navigate',
+        to: '/dashboard/$id/projects/$projectId/files',
+        params: { id: '$orgId', projectId: '$result.projectId' },
+        search: { folderId: '$result.folderId' },
       }).success,
     ).toBe(true);
   });

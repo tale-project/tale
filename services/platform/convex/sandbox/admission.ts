@@ -405,6 +405,49 @@ export const deleteAdmissionTicket = internalMutation({
   },
 });
 
+/** Drop ALL of an execution's admission tickets the instant it goes terminal —
+ * the event-driven twin of the slot-release wake, scheduled by
+ * `handleWorkflowComplete` beside the execution's session teardown. The per-step
+ * `deleteAdmissionTicket` above only fires when a step actually RUNS; a step
+ * parked on `awaitEvent` for capacity that is then CANCELLED (or an execution
+ * that fails while a later step's ticket is still `waiting`) never reaches it, so
+ * its ticket would linger until the staleness-gated reaper culls it — one stale
+ * window + cron tick later, long enough to wedge the org's FIFO head behind a
+ * dead ticket. Clearing it here on the terminal edge (and waking the live waiters
+ * behind it) removes that latency; the reaper stays a pure backstop. Idempotent —
+ * no matching tickets is a no-op. */
+export const dropAdmissionTicketsForExecution = internalMutation({
+  args: { organizationId: v.string(), wfExecutionId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (!args.organizationId || !args.wfExecutionId) return null;
+    let dropped = 0;
+    // kind is the single 'session' discriminator; a waiter holds no slot, so the
+    // scan is bounded by the org's (small, capped) queue depth, not table size.
+    for (const status of ['waiting', 'admitted'] as const) {
+      for await (const t of ctx.db
+        .query('sandboxAdmissionTickets')
+        .withIndex('by_org_kind_status_createdAt', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('kind', 'session')
+            .eq('status', status),
+        )) {
+        if (t.source === 'workflow' && t.wfExecutionId === args.wfExecutionId) {
+          await ctx.db.delete(t._id);
+          dropped += 1;
+        }
+      }
+    }
+    // Deleting a dead FIFO head must let the live waiters behind it advance —
+    // the wake self-caps at the open-slot count, so `dropped` is an upper bound.
+    if (dropped > 0) {
+      await scheduleCapacityWake(ctx, args.organizationId, 'session', dropped);
+    }
+    return null;
+  },
+});
+
 /** Per-tick scan bound. Workflow tickets are no longer staleness-refreshed (they
  * have no heartbeat), so they ALL fall in the stale range and get walked every
  * run; cap the scan so one busy org can't blow the mutation's read budget —

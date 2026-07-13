@@ -49,6 +49,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
+import { inferContentType } from '../../agent_tools/files/_shared';
 import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
 import { resolveAutomationAssetPathChecked } from '../../automations/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
@@ -106,6 +107,7 @@ import {
 } from './resume_rotation';
 import { runAgentInSessionImpl } from './run_agent';
 import { runAndHarvestInSession } from './session_exec';
+import { collectStageSkillFiles } from './stage_skills';
 import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
@@ -319,12 +321,18 @@ async function loadAgentTokenBindings(
  * minimal summary if the agent omitted the file, so "mandatory" never discards
  * an otherwise-good run on a technicality. Best-effort; a harvest failure leaves
  * the outputs empty rather than throwing.
+ *
+ * Each stored blob ALSO gets a `fileMetadata` row — same contract as
+ * `session_exec`'s harvest. Without it, a later `document.create` that
+ * resolves the storage id fails with "File metadata not found". Metadata
+ * write is best-effort so a metadata failure cannot fail the whole harvest.
  */
-async function harvestSandboxOutput(
+export async function harvestSandboxOutput(
   ctx: ActionCtx,
   sessionId: string,
   collectDir: string,
   fallbackFinalText: string | undefined,
+  organizationId: string,
 ): Promise<{
   outputFileIds: string[];
   outputFiles: { name: string; storageId: string }[];
@@ -341,16 +349,37 @@ async function harvestSandboxOutput(
     const entries = await sessionListFiles(sessionId, collectDir);
     for (const entry of entries ?? []) {
       if (entry.type !== 'file') continue;
-      const file = await sessionReadFile(
-        sessionId,
-        `${collectDir}/${entry.name}`,
-      );
+      const filePath = `${collectDir}/${entry.name}`;
+      const file = await sessionReadFile(sessionId, filePath);
       if (!file) continue;
+      // Spawner often returns generic octet-stream; fall back to extension so
+      // the Blob has a non-empty type (self-hosted storage rejects type-less
+      // uploads) and fileMetadata gets a usable contentType.
+      const contentType =
+        file.contentType && file.contentType !== 'application/octet-stream'
+          ? file.contentType
+          : inferContentType(filePath);
       const storageId = await ctx.storage.store(
-        new Blob([file.bytes], { type: file.contentType }),
+        new Blob([file.bytes], { type: contentType }),
       );
       outputFileIds.push(storageId);
       outputFiles.push({ name: entry.name, storageId });
+      try {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
+            storageId: storageId as Id<'_storage'>,
+            fileName: entry.name,
+            contentType,
+            size: file.bytes.byteLength,
+            source: 'agent',
+          },
+        );
+      } catch (metaErr) {
+        console.warn('[runSandboxAgent] saveFileMetadata failed:', metaErr);
+      }
       if (entry.name === 'summary.md') {
         summary = new TextDecoder().decode(file.bytes);
       }
@@ -571,6 +600,12 @@ export const runSandboxScript = internalAction({
       v.literal('bash'),
     ),
     params: v.optional(v.record(v.string(), v.any())),
+    // Org-skill subtrees to make available at /user/code/skills/<slug>/ before
+    // the run (see stage_skills.ts) — read live from org/skills each run, so a
+    // thin frozen entry can import the skill's modules + read its on-disk tables.
+    useSkills: v.optional(
+      v.array(v.object({ slug: v.string(), include: v.array(v.string()) })),
+    ),
     inputs: inputArgValidator,
     output: outputArgValidator,
     timeoutMs: v.optional(v.number()),
@@ -666,6 +701,22 @@ export const runSandboxScript = internalAction({
           path: 'code/params.json',
           url: await storeAsUrl(JSON.stringify(args.params)),
         });
+      }
+
+      // Stage requested org-skill subtrees (engine code + data tables + schema)
+      // under /user/code/skills/<slug>/ so a thin frozen entry imports them and
+      // reads their on-disk tables — the multi-file analog of the single entry.
+      // Read live from org/skills each run (no rebuild). Fail the step here,
+      // BEFORE reserving a slot, if a skill is missing or the subtree blows the
+      // cap, so a broken pack surfaces loudly instead of truncating silently.
+      if (args.useSkills && args.useSkills.length > 0) {
+        try {
+          stageInputs.push(
+            ...(await collectStageSkillFiles(orgSlug, args.useSkills)),
+          );
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
       }
 
       // Reserve + create the ephemeral workflow-run session — the SAME session
@@ -1072,6 +1123,7 @@ export const runSandboxAgent = internalAction({
         sessionId,
         collectDir,
         undefined,
+        args.organizationId,
       );
       if (preserveSessionAfterStep) {
         try {
@@ -1132,6 +1184,10 @@ export const runSandboxAgent = internalAction({
               ...(args.workflowSlug !== undefined && {
                 workflowSlug: args.workflowSlug,
               }),
+              // Dedup key: a capacity re-entry (or durable hand-off) for the
+              // same step re-acquires the SAME run row instead of leaking a
+              // duplicate + counter increment each wake.
+              stepSlug: args.stepSlug,
               guardContext: 'task_run',
               ...(agentConfig.budget !== undefined && {
                 budget: agentConfig.budget,
@@ -1982,6 +2038,7 @@ export const runSandboxAgent = internalAction({
           sessionId,
           collectDir,
           result.finalText,
+          args.organizationId,
         );
 
       // FORCE THE HANDOFF: a run that finished clean but skipped summary.md gets
@@ -2039,6 +2096,7 @@ export const runSandboxAgent = internalAction({
               sessionId,
               collectDir,
               result.finalText,
+              args.organizationId,
             ));
         } catch (reentryErr) {
           console.warn(

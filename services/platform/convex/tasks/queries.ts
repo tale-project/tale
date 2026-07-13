@@ -265,6 +265,13 @@ const taskDiscussionMessageValidator = v.object({
   mentions: v.optional(
     v.array(v.object({ type: taskActorTypeValidator, id: v.string() })),
   ),
+  bodyByLocale: v.optional(
+    v.object({
+      en: v.string(),
+      de: v.string(),
+      fr: v.string(),
+    }),
+  ),
 });
 
 const activityRowValidator = v.object({

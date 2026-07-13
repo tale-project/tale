@@ -339,12 +339,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // Vision polyfill (managed, text-only model): the `tale-vision-read-hook`
       // PreToolUse hook (registered globally in managed-settings.json) fires on
       // every Read but self-gates on TALE_VISION_MODEL — set here ONLY for a
-      // text-only agent. When an image is Read, the hook transcribes it via the
-      // gateway's vision model with the SESSION KEY (no provider key enters the
-      // container; the VK is scoped to also allow visionModel) and denies the
-      // native read, feeding the extracted TEXT back to the model — so an image
-      // from ANY source (attachment, download, saved screenshot) never reaches
-      // the text-only model. (Images returned INLINE by an MCP tool bypass hooks
+      // text-only agent. Rasters → gateway visionModel + deny native read.
+      // PDFs → always deny (pdftotext when possible; else guide pdftoppm→PNG→
+      // image path) so Claude Code never injects `file` blocks that 400
+      // text-only providers. Session VK scoped to visionModel; no provider key
+      // in the container. (Images returned INLINE by an MCP tool bypass hooks
       // and are not covered.) Env, not MCP: the hook subprocess inherits it.
       env.TALE_GATEWAY_URL = spec.gateway.baseUrl;
       env.TALE_GATEWAY_TOKEN = spec.gateway.token;

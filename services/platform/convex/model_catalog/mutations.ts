@@ -37,6 +37,10 @@ const capabilityEntry = v.object({
 /**
  * Upsert a batch of normalized capability rows (one sync chunk). Keyed by
  * `modelId`; the latest fetch wins. `source`/`fetchedAt` stamp provenance.
+ *
+ * Optional capability fields omitted by the new fetch are explicitly cleared
+ * (`undefined` in a Convex patch deletes the field) so a previously-poisoned
+ * `maxOutputTokens` cannot stick after a re-sync that no longer reports one.
  */
 export const upsertCapabilities = internalMutation({
   args: {
@@ -51,12 +55,47 @@ export const upsertCapabilities = internalMutation({
         .query('modelCapabilityCache')
         .withIndex('by_modelId', (q) => q.eq('modelId', e.modelId))
         .first();
-      const row = { ...e, source: args.source, fetchedAt: args.fetchedAt };
+      const row = {
+        ...e,
+        source: args.source,
+        fetchedAt: args.fetchedAt,
+        // Always present so a missing value clears a stale prior write.
+        maxOutputTokens: e.maxOutputTokens,
+        contextWindow: e.contextWindow,
+        inputCentsPerMillion: e.inputCentsPerMillion,
+        outputCentsPerMillion: e.outputCentsPerMillion,
+        supportsTools: e.supportsTools,
+        supportsVision: e.supportsVision,
+        reasoning: e.reasoning,
+        promptCaching: e.promptCaching,
+      };
       if (existing) {
         await ctx.db.patch(existing._id, row);
       } else {
         await ctx.db.insert('modelCapabilityCache', row);
       }
+    }
+    return null;
+  },
+});
+
+/**
+ * Drop a poisoned per-model `maxOutputTokens` from the capability cache.
+ * Used when a chat turn fails because the cached output cap filled the whole
+ * context window (OpenRouter: "… in the output") — clearing lets the next
+ * turn fall back to createAgentConfig's safe default instead of re-sending
+ * the same broken max_tokens.
+ */
+export const clearModelMaxOutputTokens = internalMutation({
+  args: { modelId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('modelCapabilityCache')
+      .withIndex('by_modelId', (q) => q.eq('modelId', args.modelId))
+      .first();
+    if (existing?.maxOutputTokens != null) {
+      await ctx.db.patch(existing._id, { maxOutputTokens: undefined });
     }
     return null;
   },

@@ -425,9 +425,10 @@ COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrat
 
 # Vision polyfill for a TEXT-ONLY managed agent. `tale-vision-read-hook` is a
 # PreToolUse(Read) hook (registered in managed-settings.json, self-gated on
-# TALE_VISION_MODEL) that transcribes any image the agent reads via the
-# transcriber and denies the native read — so the image never reaches the
-# text-only model. `tale-vision-transcribe` relays the image to the platform LLM
+# TALE_VISION_MODEL) that (1) transcribes raster Reads via the transcriber and
+# (2) denies native PDF Reads — pdftotext when the PDF has text, else guide
+# pdftoppm → Read PNG (image path). Native PDF/`file` blocks 400 on text-only
+# models (DeepSeek). `tale-vision-transcribe` relays images to the platform LLM
 # gateway's vision model using the session virtual key (no provider key enters
 # the container). See services/platform/lib/agent-adapters/claude-code/adapter.ts.
 COPY services/sandbox-runtime/tale-vision-transcribe /usr/local/bin/tale-vision-transcribe

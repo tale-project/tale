@@ -2,6 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { deriveRunIndicator } from '../../lib/shared/platform/run_capacity';
+import * as ApprovalsHelpers from '../approvals/helpers';
 import { queryWithRLS } from '../lib/rls';
 import { TERMINAL_STATUSES } from '../tasks/helpers';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
@@ -121,7 +122,12 @@ export const getSubjectRunIndicator = queryWithRLS({
     subjectId: v.string(),
   },
   returns: v.object({
-    state: v.union(v.literal('parked'), v.literal('failed'), v.null()),
+    state: v.union(
+      v.literal('parked'),
+      v.literal('failed'),
+      v.literal('awaiting_input'),
+      v.null(),
+    ),
     failedExecutionId: v.union(v.id('wfExecutions'), v.null()),
   }),
   handler: async (ctx, args) => {
@@ -151,11 +157,131 @@ export const getSubjectRunIndicator = queryWithRLS({
       )
       .order('desc')
       .first();
-    const state = deriveRunIndicator(row);
+    let state: 'parked' | 'failed' | 'awaiting_input' | null =
+      deriveRunIndicator(row);
+    // A run that ended by asking the operator for a decision leaves a pending
+    // human-input / review approval keyed to that execution — surface it as
+    // "awaiting input" so a parked-for-input row reads distinctly from a fresh
+    // To do. Keyed to the execution, it clears on its own once a newer run (the
+    // operator's reply) supersedes this one.
+    if (state === null && row) {
+      const pending = await ApprovalsHelpers.listPendingApprovalsForExecution(
+        ctx,
+        row._id,
+      );
+      if (
+        pending.some(
+          (a) =>
+            a.resourceType === 'operator_input' ||
+            a.resourceType === 'human_input_request' ||
+            a.resourceType === 'task_review',
+        )
+      ) {
+        state = 'awaiting_input';
+      }
+    }
     return {
       state,
       failedExecutionId: state === 'failed' && row ? row._id : null,
     };
+  },
+});
+
+/**
+ * Coerce an approval's `metadata.questions` into a clean `string[]`. The value
+ * is written by whatever workflow parked the run: a whole-value `{{…}}` template
+ * injects the raw array, but a stringified array or an array of `{prompt}` objects
+ * are equally plausible from other automations — accept all three so the answer
+ * panel is robust to how the marker was authored, never leaking `[object Object]`.
+ */
+function normalizeInputQuestions(raw: unknown): string[] {
+  const toLine = (q: unknown): string => {
+    if (typeof q === 'string') return q.trim();
+    if (typeof q === 'object' && q !== null && 'prompt' in q) {
+      const prompt: unknown = q.prompt;
+      return typeof prompt === 'string' ? prompt.trim() : '';
+    }
+    return '';
+  };
+  if (Array.isArray(raw)) return raw.map(toLine).filter(Boolean);
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return [];
+    try {
+      const parsed: unknown = JSON.parse(s);
+      if (Array.isArray(parsed)) return parsed.map(toLine).filter(Boolean);
+    } catch {
+      // Not JSON — a single free-text question line.
+    }
+    return [s];
+  }
+  return [];
+}
+
+/**
+ * The pending human-input request on a subject's latest run — the data behind the
+ * inline answer panel. When a run parked by minting a human-input marker
+ * (`operator_input` / `human_input_request` / `task_review`), returns that run's id
+ * and the question(s) the marker carried in `metadata.questions`, so a row can render
+ * the ask inline and let the operator answer in place instead of hunting through the
+ * task thread. Returns `null` for a resolved subject, a run with no such pending
+ * marker, or a marker that carried no questions.
+ *
+ * Kept separate from `getSubjectRunIndicator` (a tiny state flag polled per visible
+ * row): the heavier question payload loads only when a component actually mounts the
+ * panel. Like the indicator, this is platform code over org-RLS-gated execution data.
+ */
+export const getSubjectInputRequest = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    subjectType: v.string(),
+    subjectId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      executionId: v.id('wfExecutions'),
+      questions: v.array(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // A resolved task has no open question to answer — mirror the indicator's guard.
+    if (args.subjectType === 'task') {
+      const taskId = ctx.db.normalizeId('tasks', args.subjectId);
+      const task = taskId ? await ctx.db.get(taskId) : null;
+      if (
+        task &&
+        task.organizationId === args.organizationId &&
+        TERMINAL_STATUSES.has(task.status)
+      ) {
+        return null;
+      }
+    }
+    const row = await ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org_subject', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectType', args.subjectType)
+          .eq('subjectId', args.subjectId),
+      )
+      .order('desc')
+      .first();
+    if (!row) return null;
+    const pending = await ApprovalsHelpers.listPendingApprovalsForExecution(
+      ctx,
+      row._id,
+    );
+    const marker = pending.find(
+      (a) =>
+        a.resourceType === 'operator_input' ||
+        a.resourceType === 'human_input_request' ||
+        a.resourceType === 'task_review',
+    );
+    if (!marker) return null;
+    const questions = normalizeInputQuestions(marker.metadata?.['questions']);
+    if (questions.length === 0) return null;
+    return { executionId: row._id, questions };
   },
 });
 

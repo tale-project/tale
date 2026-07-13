@@ -236,7 +236,7 @@ describe('AutomationInstallWizard', () => {
     ).not.toBeInTheDocument();
   });
 
-  it("Finish lands on the bound project's Tasks page for a project-scoped install (#2611)", async () => {
+  it("Finish lands on the bound project's automation desk for a project-scoped install", async () => {
     withNoIntegrations();
     const { user } = renderWizard([], {
       scope: 'project',
@@ -250,8 +250,13 @@ describe('AutomationInstallWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Finish' }));
 
     expect(navigateSpy).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/tasks',
-      params: { id: 'org_1', projectId: 'proj_1' },
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      params: {
+        id: 'org_1',
+        projectId: 'proj_1',
+        automationSlug: 'issue-desk',
+      },
+      search: {},
     });
   });
 
@@ -268,6 +273,7 @@ describe('AutomationInstallWizard', () => {
     expect(navigateSpy).toHaveBeenCalledWith({
       to: '/dashboard/$id/automations/$automationSlug',
       params: { id: 'org_1', automationSlug: 'issue-desk' },
+      search: {},
     });
   });
 

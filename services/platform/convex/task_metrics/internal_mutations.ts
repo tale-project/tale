@@ -187,6 +187,9 @@ export const startTaskAgentRun = internalMutation({
     trigger: taskAgentRunTriggerValidator,
     wfExecutionId: v.optional(v.id('wfExecutions')),
     workflowSlug: v.optional(v.string()),
+    // Workflow step that dispatched this run — with wfExecutionId, the dedup
+    // key for the idempotent re-acquire below.
+    stepSlug: v.optional(v.string()),
     threadId: v.optional(v.string()),
     // Guardrail inputs from the caller's agent config (this mutation cannot
     // read agent JSON files). The admission re-check below is AUTHORITATIVE —
@@ -218,6 +221,29 @@ export const startTaskAgentRun = internalMutation({
       return { started: false, reason: 'TASK_NOT_FOUND' };
     }
 
+    // Idempotent re-acquire. A workflow sandbox step that parked on capacity
+    // and re-entered (or a DURABLE run handing off across the 10-min action
+    // ceiling) calls this again for the SAME (wfExecutionId, stepSlug). Reuse
+    // the existing `running` row instead of minting a duplicate and
+    // re-incrementing the concurrency counters — the duplication that leaks the
+    // `agentRunCounters` semaphore until the org cap wedges EVERY run. The slot
+    // was granted on first entry, so skip the admission verdict too. Bounded:
+    // an execution has a handful of runs across its life.
+    if (args.wfExecutionId && args.stepSlug) {
+      for await (const existing of ctx.db
+        .query('taskAgentRuns')
+        .withIndex('by_wfExecution', (q) =>
+          q.eq('wfExecutionId', args.wfExecutionId),
+        )) {
+        if (
+          existing.status === 'running' &&
+          existing.stepSlug === args.stepSlug
+        ) {
+          return { started: true, runId: existing._id };
+        }
+      }
+    }
+
     const guardArgs: CheckAgentRunArgs = {
       organizationId: args.organizationId,
       agentSlug: args.agentSlug,
@@ -240,6 +266,7 @@ export const startTaskAgentRun = internalMutation({
       trigger: args.trigger,
       wfExecutionId: args.wfExecutionId,
       workflowSlug: args.workflowSlug,
+      stepSlug: args.stepSlug,
       threadId: args.threadId,
       status: 'running',
       inputTokens: 0,
@@ -375,6 +402,47 @@ export const finalizeTaskAgentRun = internalMutation({
       error: args.error,
     });
     return null;
+  },
+});
+
+/**
+ * Finalize every still-`running` taskAgentRun for one execution — the terminal-
+ * edge cleanup scheduled by `handleWorkflowComplete`. A workflow that completes
+ * normally finalizes each run through its own path, but a CANCELLED (or
+ * hard-failed) workflow tears down without running it, orphaning the `running`
+ * rows so their counter decrement never fires — and the stuck-run sweep only
+ * reclaims them an hour later (`RUN_STUCK_AFTER_MS`). Draining them here on the
+ * terminal edge is the task-metrics twin of `dropAdmissionTicketsForExecution`.
+ * Idempotent via `finalizeRun`'s status guard; bounded by the execution's run
+ * count. With `startTaskAgentRun`'s dedup there is now at most one `running` row
+ * per (execution, step), so this drains a small, exact set.
+ */
+export const finalizeRunsForExecution = internalMutation({
+  args: {
+    wfExecutionId: v.id('wfExecutions'),
+    status: taskAgentRunStatusValidator,
+    outcome: v.optional(taskAgentRunOutcomeValidator),
+    error: v.optional(v.string()),
+  },
+  returns: v.object({ finalized: v.number() }),
+  handler: async (ctx, args) => {
+    const status = args.status;
+    if (status === 'running') return { finalized: 0 };
+    let finalized = 0;
+    for await (const run of ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_wfExecution', (q) =>
+        q.eq('wfExecutionId', args.wfExecutionId),
+      )) {
+      if (run.status !== 'running') continue;
+      await finalizeRun(ctx, run, {
+        status,
+        outcome: args.outcome,
+        error: args.error,
+      });
+      finalized += 1;
+    }
+    return { finalized };
   },
 });
 

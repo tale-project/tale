@@ -389,7 +389,7 @@ describe('BundleInstallWizard', () => {
     expect(screen.queryByText('Email is ready')).not.toBeInTheDocument();
   });
 
-  it("Finish lands on the bound project's Tasks page for a project-scoped bundle install (#2611)", async () => {
+  it("Finish lands on the bound project's automation desk for a project-scoped bundle install", async () => {
     const { user } = renderWizard({ scope: 'project', projectId: 'proj_1' });
 
     await screen.findByText('Ready to install Email (2 automations).');
@@ -399,8 +399,13 @@ describe('BundleInstallWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Finish' }));
 
     expect(navigateSpy).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/tasks',
-      params: { id: 'org_1', projectId: 'proj_1' },
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      params: {
+        id: 'org_1',
+        projectId: 'proj_1',
+        automationSlug: 'reply-gmail-emails',
+      },
+      search: {},
     });
   });
 });

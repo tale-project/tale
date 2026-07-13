@@ -8,7 +8,11 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
-import { hasKnowledgeHubFolderAccess } from './access';
+import {
+  checkProjectFolderAccess,
+  hasKnowledgeHubFolderAccess,
+  isProjectScopedFolder,
+} from './access';
 import { findFolderByPath } from './find_folder_by_path';
 import { searchFoldersForMention as searchFoldersForMentionHelper } from './search_folders_for_mention';
 
@@ -89,8 +93,18 @@ export const getFolder = query({
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
 
-    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
-    if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) return null;
+    // Hub folders use team visibility; project folders use the owning
+    // project's read matrix (VAT desk quarters / Setup are project-scoped).
+    if (isProjectScopedFolder(folder)) {
+      const access = await checkProjectFolderAccess(ctx, folder, {
+        userId: authUser.userId,
+        organizationId: args.organizationId,
+      });
+      if (!access?.canRead) return null;
+    } else {
+      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+      if (!hasKnowledgeHubFolderAccess(folder, userTeamIds)) return null;
+    }
 
     return {
       _id: folder._id,
@@ -98,6 +112,7 @@ export const getFolder = query({
       teamId: folder.teamId,
       parentId: folder.parentId,
       organizationId: folder.organizationId,
+      projectId: folder.projectId,
     };
   },
 });

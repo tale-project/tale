@@ -33,7 +33,23 @@
       "choice": "Option wählen"
     },
     "action": {
-      "open": "Öffnen"
+      "open": "Öffnen",
+      "openFile": "{name} öffnen",
+      "technicalDetails": "Technische Details"
+    },
+    "section": {
+      "outcome": "Ergebnis",
+      "runDetails": "Laufdetails"
+    },
+    "outcome": {
+      "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
+      "failed": "Dieser Schritt ist fehlgeschlagen.",
+      "empty": "Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche erzeugt."
+    },
+    "artifact": {
+      "filed": "{title} abgelegt",
+      "updated": "{title} aktualisiert",
+      "unchanged": "{title} bereits aktuell"
     },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",

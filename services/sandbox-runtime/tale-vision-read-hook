@@ -1,17 +1,20 @@
 #!/bin/bash
-# tale-vision-read-hook — PreToolUse(Read) hook. For a TEXT-ONLY managed agent
-# (TALE_VISION_MODEL set on the exec env), intercept a Read of an image file:
-# transcribe it via the gateway vision model and DENY the native read, handing
-# the extracted TEXT back to the model. This stops the image from ever reaching
-# the text-only model (which 404s on image input) — regardless of where the
-# image came from (chat attachment, download, a screenshot the agent saved).
-# A no-op (allow) for every non-text-only agent and every non-image read.
+# tale-vision-read-hook — PreToolUse(Read) hook for TEXT-ONLY managed agents
+# (armed when TALE_VISION_MODEL is set on the exec env).
 #
-# Registered in /etc/claude-code/managed-settings.json (PreToolUse: Read). It
-# self-gates on TALE_VISION_MODEL, which the platform (adapter.ts) sets ONLY for
-# a text-only managed agent, so it costs one fast process spawn on other agents'
-# reads and nothing more. It must NEVER break a normal read: it always exits 0
-# and steers only via the emitted JSON (permissionDecision), never the exit code.
+# Goals:
+#   1. Images (png/jpg/…) never reach the text-only model — transcribe via the
+#      gateway vision model and DENY the native read.
+#   2. PDFs never reach the text-only model as Claude Code `file` content
+#      blocks (DeepSeek and other text-only providers 400 on `file` /
+#      `image_url`). Instead: extract text with pdftotext when present; when
+#      the PDF is scan-only / hybrid, tell the agent to pdftoppm → Read PNGs
+#      (which then hit the image path above).
+#
+# A no-op (allow) for every non-text-only agent and every non-image/non-PDF
+# read. Registered in /etc/claude-code/managed-settings.json (PreToolUse: Read).
+# It must NEVER break a normal read: always exits 0 and steers only via the
+# emitted JSON (permissionDecision), never the exit code.
 #
 # Known gap: an image returned INLINE by an MCP tool (e.g. a Playwright
 # screenshot handed back as a vision block) bypasses hooks entirely — it is in
@@ -27,8 +30,50 @@ payload=$(cat)
 file_path=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2> /dev/null) || exit 0
 [ -n "$file_path" ] || exit 0
 
-# Only the raster formats Claude Code would load as a vision block. Anything else
-# (text, pdf, svg, …) is read natively as usual.
+emit_deny() {
+  # $1 = reason string (may be multi-line)
+  jq -cn --arg r "$1" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $r
+    }
+  }'
+  exit 0
+}
+
+# --- PDF: never allow Claude Code's native document/`file` read on text-only
+# models. Prefer pdftotext for text/hybrid PDFs; guide rasterize for scans.
+case "${file_path,,}" in
+  *.pdf)
+    extracted=""
+    if command -v pdftotext >/dev/null 2>&1; then
+      # -layout keeps columns; -  writes to stdout. Failure → treat as no text.
+      extracted=$(pdftotext -layout "$file_path" - 2>/dev/null || true)
+    fi
+    # Collapse whitespace to judge "has real text" (scanned PDFs are empty or
+    # near-empty; a few form-feed/page markers don't count).
+    compact=$(printf '%s' "$extracted" | tr -d '[:space:]')
+    raster_hint="If any page is a scan or the text above looks incomplete, rasterize then Read the PNGs (the image path is vision-polyfilled):
+
+  pdftoppm -png -r 150 \"$file_path\" /tmp/pdfpage
+  # then Read /tmp/pdfpage-1.png, /tmp/pdfpage-2.png, …
+
+Do NOT Read the .pdf again with the Read tool — native PDF reads inject unsupported content blocks into text-only models."
+
+    if [ "${#compact}" -ge 40 ]; then
+      # Cap reason size so a huge text PDF doesn't blow the hook payload.
+      body=$(printf '%s' "$extracted" | head -c 120000)
+      emit_deny "[Your own model cannot ingest PDF file blocks. Extracted text from this PDF via pdftotext follows. ${raster_hint}]
+
+$body"
+    else
+      emit_deny "[Your own model cannot ingest PDF file blocks, and pdftotext found little or no text (likely a scan or image-only PDF). ${raster_hint}]"
+    fi
+    ;;
+esac
+
+# --- Raster images: transcribe via gateway vision model.
 case "${file_path,,}" in
   *.png | *.jpg | *.jpeg | *.gif | *.webp | *.bmp) ;;
   *) exit 0 ;;
@@ -49,11 +94,4 @@ else
   reason="[Your own model cannot see images, and the vision model could not read this image: ${out:-unknown error}. Do not assume its contents.]"
 fi
 
-jq -cn --arg r "$reason" '{
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse",
-    permissionDecision: "deny",
-    permissionDecisionReason: $r
-  }
-}'
-exit 0
+emit_deny "$reason"

@@ -356,15 +356,38 @@
       }
     },
     {
+      "id": "z-ai/glm-5.2",
+      "displayName": "GLM 5.2",
+      "description": "Z.ai GLM 5.2 flagship, 1M context",
+      "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "qualityScore": 0.86,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 101376,
+      "cost": {
+        "inputCentsPerMillion": 90,
+        "outputCentsPerMillion": 308
+      },
+      "providerOptions": {
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
+      }
+    },
+    {
       "id": "z-ai/glm-5.1",
       "displayName": "GLM 5.1",
       "description": "Z.ai GLM 5.1 flagship, 202K context",
       "tags": ["chat"],
+      "hidden": true,
       "reasoning": {
         "knob": "effort"
       },
       "qualityScore": 0.84,
       "contextWindow": 202752,
+      "maxOutputTokens": 128000,
       "cost": {
         "inputCentsPerMillion": 98,
         "outputCentsPerMillion": 308
@@ -397,7 +420,8 @@
       "description": "Multimodal Z.ai GLM 5 Turbo",
       "tags": ["chat", "vision"],
       "qualityScore": 0.76,
-      "contextWindow": 131072,
+      "contextWindow": 202752,
+      "maxOutputTokens": 131072,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
@@ -899,6 +923,9 @@
         "qwen/qwen3-embedding-8b": {
           "description": "Qwen-Text-Embedding-Modell für semantische Suche"
         },
+        "z-ai/glm-5.2": {
+          "description": "Z.ai-GLM-5.2-Flaggschiff, 1M Kontext"
+        },
         "z-ai/glm-5.1": {
           "description": "Z.ai-GLM-5.1-Flaggschiff, 202K Kontext"
         },
@@ -1056,6 +1083,9 @@
         },
         "qwen/qwen3-embedding-8b": {
           "description": "Modèle d'embedding texte Qwen pour la recherche sémantique"
+        },
+        "z-ai/glm-5.2": {
+          "description": "Modèle phare Z.ai GLM 5.2, contexte 1M"
         },
         "z-ai/glm-5.1": {
           "description": "Modèle phare Z.ai GLM 5.1, contexte 202K"

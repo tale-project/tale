@@ -114,9 +114,10 @@ interface ColumnMeta {
 
 /**
  * The single primary "create" affordance for a collection. Rendered in the
- * header at a fixed size + placement AND synthesized into the empty-state CTA,
- * so the add-item button is declared once and never drifts between the toolbar
- * and the empty state. Prefer this over the raw `actionMenu` slot.
+ * header at a fixed size + placement when the table has rows or toolbar
+ * chrome; when the table is initially empty with no search/filters, the same
+ * control is synthesized into the empty-state CTA so the create button sits
+ * with the empty copy. Prefer this over the raw `actionMenu` slot.
  */
 export interface DataTableAddAction {
   /** Button label, e.g. "New customer". */
@@ -534,23 +535,17 @@ export function DataTable<TData, TValue = unknown>({
   // header content); otherwise `addAction` renders at the default (h-9) size and
   // the standard right-aligned placement so every list's add button looks the
   // same — and lines up with the h-9 search/filter controls in the same toolbar.
-  const primaryAction =
-    actionMenu ??
-    (addAction ? (
-      <DataTableActionMenu
-        label={addAction.label}
-        icon={addAction.icon}
-        onClick={addAction.onClick}
-        href={addAction.href}
-        menuItems={addAction.menuItems}
-        disabled={addAction.disabled}
-        variant={addAction.variant ?? 'primary'}
-      />
-    ) : null);
-
-  // Empty states are intentionally button-less (icon + title + description only):
-  // the create affordance lives in the toolbar (with search/filters) or in a
-  // parent SettingsSection.action when the list has no toolbar chrome.
+  const addActionControl = addAction ? (
+    <DataTableActionMenu
+      label={addAction.label}
+      icon={addAction.icon}
+      onClick={addAction.onClick}
+      href={addAction.href}
+      menuItems={addAction.menuItems}
+      disabled={addAction.disabled}
+      variant={addAction.variant ?? 'primary'}
+    />
+  ) : null;
 
   const hasToolbarChrome =
     !!search ||
@@ -558,12 +553,21 @@ export function DataTable<TData, TValue = unknown>({
     !!dateRange ||
     !!filtersContent;
 
+  // Initial empty with no search/filters: park `addAction` in the empty-state
+  // body and skip a lone toolbar button above an empty grid. Keep it in the
+  // header when toolbar chrome already exists, when `actionMenu` owns the
+  // slot, or once rows are present.
+  const emptyHostsAddAction =
+    tableBodyState === 'empty' &&
+    !!addActionControl &&
+    !actionMenu &&
+    !hasToolbarChrome;
+  const primaryAction =
+    actionMenu ?? (emptyHostsAddAction ? null : addActionControl);
+
   // Render the toolbar row when there is search/filter chrome — or when the
   // caller passed a primary action with nowhere else to live. A lone primary
-  // action ideally belongs on SettingsSection.action, but hiding the toolbar
-  // for action-only tables silently removes their only create affordance
-  // (token sources, API keys, teams, automation triggers); hide it only once
-  // a table has been migrated off `addAction`/`actionMenu`.
+  // action on an empty table moves into the empty state (above).
   const hasHeader = hasToolbarChrome || !!primaryAction;
 
   // Build the header content
@@ -719,44 +723,49 @@ export function DataTable<TData, TValue = unknown>({
         style={{ minWidth: `max(100%, ${tableMinWidth})` }}
       >
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
-        <TableHeader sticky={stickyLayout}>
-          {table.getHeaderGroups().map((headerGroup) => (
-            // No `bg-muted` here — `TableHeader` paints the fill on the header
-            // cells so the wrapper's rounded corners aren't squared off by a
-            // full-width row background.
-            <TableRow key={headerGroup.id}>
-              {enableExpanding && <TableHead className="w-[3rem]" />}
-              {headerGroup.headers.map((headerCell) => {
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-                const meta = headerCell.column.columnDef.meta as
-                  | ColumnMeta
-                  | undefined;
-                const id = headerCell.column.id;
-                const size = headerCell.column.getSize();
-                const utility = isUtilityCol(id, meta?.isAction);
-                const content = headerCell.isPlaceholder
-                  ? null
-                  : flexRender(
-                      headerCell.column.columnDef.header,
-                      headerCell.getContext(),
-                    );
-                return (
-                  <TableHead
-                    key={headerCell.id}
-                    className={cn(
-                      'text-sm font-medium',
-                      utility && 'p-0',
-                      meta?.className,
-                    )}
-                    style={cellWidthStyle(id, size, meta?.isAction)}
-                  >
-                    {utility ? utilityCellBox(id, size, content) : content}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
+        {/* Hide column headers on the initial empty state — an empty grid with
+            a lone "Quarter folder" header reads as a broken table; the empty
+            copy (+ optional create CTA) is the whole surface. */}
+        {tableBodyState !== 'empty' && tableBodyState !== 'idle-empty' ? (
+          <TableHeader sticky={stickyLayout}>
+            {table.getHeaderGroups().map((headerGroup) => (
+              // No `bg-muted` here — `TableHeader` paints the fill on the header
+              // cells so the wrapper's rounded corners aren't squared off by a
+              // full-width row background.
+              <TableRow key={headerGroup.id}>
+                {enableExpanding && <TableHead className="w-[3rem]" />}
+                {headerGroup.headers.map((headerCell) => {
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                  const meta = headerCell.column.columnDef.meta as
+                    | ColumnMeta
+                    | undefined;
+                  const id = headerCell.column.id;
+                  const size = headerCell.column.getSize();
+                  const utility = isUtilityCol(id, meta?.isAction);
+                  const content = headerCell.isPlaceholder
+                    ? null
+                    : flexRender(
+                        headerCell.column.columnDef.header,
+                        headerCell.getContext(),
+                      );
+                  return (
+                    <TableHead
+                      key={headerCell.id}
+                      className={cn(
+                        'text-sm font-medium',
+                        utility && 'p-0',
+                        meta?.className,
+                      )}
+                      style={cellWidthStyle(id, size, meta?.isAction)}
+                    >
+                      {utility ? utilityCellBox(id, size, content) : content}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+        ) : null}
         <TableBody>
           {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
             // Skeleton rows — count-loading uses 3 placeholder rows,
@@ -963,6 +972,7 @@ export function DataTable<TData, TValue = unknown>({
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
                     headingLevel={emptyState?.headingLevel}
+                    action={emptyHostsAddAction ? addActionControl : undefined}
                   />
                 </div>
               </TableCell>
@@ -1013,22 +1023,39 @@ export function DataTable<TData, TValue = unknown>({
                     aria-selected={row.getIsSelected() || undefined}
                     onMouseEnter={() => onRowMouseEnter?.(row)}
                     onClick={() => {
-                      if (enableExpanding) {
-                        row.toggleExpanded();
-                      }
+                      // When both expand and onRowClick are armed, the chevron
+                      // owns expand (see cell below) and the row body opens the
+                      // detail/navigate path — never both from one click.
+                      // Expand-only tables still toggle from the row body.
                       if (rowClickable) {
                         onRowClick?.(row);
+                      } else if (enableExpanding) {
+                        row.toggleExpanded();
                       }
                     }}
                   >
                     {enableExpanding && (
-                      <TableCell className="w-[3rem]">
-                        <ChevronRight
-                          className={cn(
-                            'size-4 text-muted-foreground transition-transform duration-200',
-                            isExpanded && 'rotate-90',
-                          )}
-                        />
+                      <TableCell className="w-[3rem] p-0">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={
+                            isExpanded ? 'Collapse row' : 'Expand row'
+                          }
+                          className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            row.toggleExpanded();
+                          }}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform duration-200',
+                              isExpanded && 'rotate-90',
+                            )}
+                            aria-hidden
+                          />
+                        </button>
                       </TableCell>
                     )}
                     {row.getVisibleCells().map((cell) => {
@@ -1060,7 +1087,12 @@ export function DataTable<TData, TValue = unknown>({
                     <TableRow className="border-0" data-no-hover>
                       <TableCell colSpan={columns.length + 1} className="p-0">
                         <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
-                          <div className="bg-muted/20 px-4 pb-2">
+                          {/* min-w-0: a grid item's min-width:auto would let
+                              unbreakable content (mono transcripts, long ids)
+                              inflate the panel past the cell, where the card's
+                              overflow-hidden clips it. Constrain and scroll
+                              locally instead. */}
+                          <div className="bg-muted/20 min-w-0 overflow-x-auto px-4 pb-2">
                             {renderExpandedRow(row)}
                           </div>
                         </div>
