@@ -129,7 +129,9 @@ export function SandboxQuotaEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            <Stack gap={6} className="max-w-2xl">
+            {/* Full section width (not max-w-2xl): Discard/Save must share
+                the section right edge with sibling Policies & limits actions. */}
+            <Stack gap={6}>
               <div>
                 <Input
                   label={t('sandboxQuota.maxSessions')}
@@ -137,6 +139,7 @@ export function SandboxQuotaEditor({
                   min={1}
                   max={500}
                   step={1}
+                  wrapperClassName="max-w-xs"
                   errorMessage={errors.maxSessionsPerOrg?.message}
                   {...register('maxSessionsPerOrg', { valueAsNumber: true })}
                 />

@@ -677,17 +677,21 @@ export function AutomationsGrid({
   }
 
   if (!hasAutomations) {
+    // EmptyState already uses flex-1 + justify-center; the page stack must
+    // fill the pane (see automations/index) so the copy sits in the middle
+    // of the area below the Installed/All tabs — not pinned under the header.
     return (
       <EmptyState
         icon={LayoutGrid}
         title={t('empty.title')}
         description={t('empty.description')}
+        className="min-h-0"
       />
     );
   }
 
   return (
-    <Stack gap={4}>
+    <Stack gap={4} className="min-h-0 flex-1">
       <CatalogToolbar
         search={{
           value: searchQuery,
@@ -702,6 +706,7 @@ export function AutomationsGrid({
             icon={LayoutGrid}
             title={t('noResults.title')}
             description={t('noResults.description')}
+            className="min-h-0"
           />
         ) : (
           // The Installed tab with nothing installed yet — the All tab sits
@@ -710,6 +715,7 @@ export function AutomationsGrid({
             icon={LayoutGrid}
             title={t('empty.title')}
             description={t('empty.description')}
+            className="min-h-0"
           />
         )
       ) : hasFolders ? (

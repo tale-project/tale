@@ -51,7 +51,7 @@ function AutomationsIndexPage() {
   });
 
   return (
-    <Stack gap={6} className="p-4">
+    <Stack gap={6} className="min-h-0 flex-1 p-4">
       <AutomationsGrid
         organizationId={organizationId}
         tab={tab ?? DEFAULT_AUTOMATIONS_TAB}

@@ -410,6 +410,20 @@ describe('ChatInput disabled composer (missing API key)', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
   });
 
+  it('hides textarea glyphs when a draft sits under the disabled overlay', () => {
+    // Regression: a conversation-starter fill (or restored draft) left real
+    // text in the disabled textarea while the absolute "No API key…" overlay
+    // painted on top — the two stacked and read as garbled overlap.
+    renderDisabledForMissingApiKey({
+      value: 'Help me write a clear, professional email',
+    });
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toBeDisabled();
+    expect(textarea).toHaveClass('text-transparent');
+    expect(screen.getByText(NO_API_KEY_MESSAGE)).toBeInTheDocument();
+  });
+
   it('shows the actionable Settings link for an admin', () => {
     mockCan.mockReturnValue(true);
     renderDisabledForMissingApiKey();

@@ -251,7 +251,10 @@ export function UploadPolicyEditor({
               disabled={!canManage || editor.isLoading}
               className="contents"
             >
-              <Stack gap={6} className="max-w-2xl">
+              {/* Full section width (not max-w-2xl): Discard/Save must share
+                  the right edge with the section action toggle and sibling
+                  sections (e.g. Retention Edit) on Policies & limits. */}
+              <Stack gap={6}>
                 <Stack gap={4}>
                   <Grid md={2}>
                     <Input
