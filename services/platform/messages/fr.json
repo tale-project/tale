@@ -49,7 +49,6 @@
       "runDetails": "Détails de l'exécution"
     },
     "outcome": {
-      "inProgress": "En cours — les résultats apparaîtront ici.",
       "pendingHint": "Pas encore prêts.",
       "failed": "Cette étape a échoué.",
       "empty": "Pas encore de résultats — ils apparaîtront ici dès qu’un passage en produit."

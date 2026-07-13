@@ -42,7 +42,6 @@
       "runDetails": "Laufdetails"
     },
     "outcome": {
-      "inProgress": "Arbeitet — Ergebnisse erscheinen hier.",
       "pendingHint": "Noch nicht fertig.",
       "failed": "Dieser Schritt ist fehlgeschlagen.",
       "empty": "Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche erzeugt."

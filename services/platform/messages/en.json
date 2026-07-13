@@ -44,7 +44,6 @@
       "runDetails": "Run details"
     },
     "outcome": {
-      "inProgress": "Working — results will appear here.",
       "pendingHint": "Not ready yet.",
       "failed": "This step failed.",
       "empty": "No results yet — they will appear here once a run produces them."
