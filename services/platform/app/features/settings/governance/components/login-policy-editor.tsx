@@ -217,7 +217,10 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            <Stack gap={6} className="max-w-2xl">
+            {/* Full section width (not max-w-2xl): Discard/Save and fields
+                share the right edge with section header toggles on Security
+                & Monitoring. */}
+            <Stack gap={6}>
               {enabled && (
                 <Stack gap={4}>
                   <div>
@@ -227,6 +230,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                       min={1}
                       max={50}
                       step={1}
+                      wrapperClassName="max-w-xs"
                       errorMessage={errors.maxAttempts?.message}
                       {...register('maxAttempts', { valueAsNumber: true })}
                     />

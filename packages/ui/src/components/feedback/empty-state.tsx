@@ -39,7 +39,10 @@ export function EmptyState({
       )}
     >
       {Icon && (
-        <Icon className="text-muted-foreground mb-4 size-5" aria-hidden />
+        // 24px matches the platform empty-state spec (Conversations, Documents
+        // search, etc.). size-5 (20px) read as a muted ornament next to the
+        // title once these states are vertically centered in a full pane.
+        <Icon className="text-muted-foreground mb-4 size-6" aria-hidden />
       )}
       <Heading level={headingLevel} size="sm">
         {title}

@@ -884,6 +884,50 @@
     "integrationsTab": {
       "emptyTitle": "Keine Integrationen erforderlich",
       "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
+    },
+    "metrics": {
+      "link": "Metriken anzeigen",
+      "title": "Workflow-Metriken",
+      "description": "Nutzungs- und Leistungskennzahlen über alle Automatisierungen.",
+      "cappedNotice": "Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.",
+      "period": {
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage",
+        "label": "Zeitraum"
+      },
+      "cards": {
+        "totalRuns": "Ausführungen gesamt",
+        "successRate": "Erfolgsquote",
+        "avgDuration": "Ø Dauer",
+        "failedRuns": "Fehlgeschlagen"
+      },
+      "chart": {
+        "trendTitle": "Ausführungen im Zeitverlauf",
+        "trendTooltip": "Anzahl der Workflow-Ausführungen im gewählten Zeitraum",
+        "statusTitle": "Statusverteilung",
+        "statusTooltip": "Verteilung der Workflow-Ergebnisse",
+        "totalLabel": "Gesamt",
+        "noData": "Keine Daten",
+        "noDataDescription": "Führe einen Workflow aus, um die Verteilung zu sehen",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "running": "Läuft",
+        "pending": "Ausstehend"
+      },
+      "table": {
+        "title": "Top-Workflows",
+        "workflow": "Workflow",
+        "runs": "Ausführungen",
+        "successRate": "Erfolgsquote",
+        "avgDuration": "Ø Dauer",
+        "failed": "Fehlgeschlagen",
+        "lastRun": "Letzte Ausführung"
+      },
+      "empty": {
+        "title": "Keine Workflow-Ausführungen",
+        "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt."
+      }
     }
   },
   "changelog": {

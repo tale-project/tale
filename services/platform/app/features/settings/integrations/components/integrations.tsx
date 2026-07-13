@@ -156,6 +156,7 @@ export function Integrations({
           icon={Search}
           title={t('integrations.noResults.title')}
           description={t('integrations.noResults.description')}
+          className="min-h-0"
         />
       );
     }
@@ -165,6 +166,7 @@ export function Integrations({
           icon={Unplug}
           title={t('integrations.empty.connectedTitle')}
           description={t('integrations.empty.connectedDescription')}
+          className="min-h-0"
         />
       );
     }
@@ -186,9 +188,11 @@ export function Integrations({
   }, [initialSlug, integrations, onInitialSlugConsumed]);
 
   return (
-    <Stack gap={0} className="pb-8">
+    // Fill the settings pane so EmptyState (flex-1 + justify-center) sits in
+    // the middle of the area below the tabs/search — same fix as Automations.
+    <Stack gap={0} className="min-h-0 flex-1 pb-8">
       <CatalogToolbar
-        className="mb-4"
+        className="mb-4 shrink-0"
         tabs={{ items: tabItems, value: tab, onValueChange: onTabChange }}
         search={{
           value: searchQuery,

@@ -164,7 +164,9 @@ export function SessionIdleTimeoutEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            <Stack gap={6} className="max-w-2xl">
+            {/* Full section width (not max-w-2xl): Discard/Save share the
+                section toggle's right edge. Minutes field stays max-w-xs. */}
+            <Stack gap={6}>
               {enabled && (
                 <div>
                   <Input
@@ -173,6 +175,7 @@ export function SessionIdleTimeoutEditor({
                     min={SESSION_IDLE_TIMEOUT_MIN_MINUTES}
                     max={SESSION_IDLE_TIMEOUT_MAX_MINUTES}
                     step={1}
+                    wrapperClassName="max-w-xs"
                     errorMessage={errors.idleTimeoutMinutes?.message}
                     {...register('idleTimeoutMinutes', { valueAsNumber: true })}
                   />

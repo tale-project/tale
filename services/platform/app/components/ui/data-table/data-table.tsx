@@ -720,7 +720,15 @@ export function DataTable<TData, TValue = unknown>({
         // `max(100%, …)` so the table still fills a wide container (preserving
         // the primitive's `min-w-full`) while gaining a content-based floor that
         // forces horizontal scroll on narrow viewports instead of squashing.
-        style={{ minWidth: `max(100%, ${tableMinWidth})` }}
+        // Initial empty (no headers, no rows) must NOT inherit the column-size
+        // floor — otherwise a 7-column table (~1050px default) scrolls
+        // horizontally inside a max-w-3xl settings pane with nothing to reveal.
+        style={{
+          minWidth:
+            tableBodyState === 'empty' || tableBodyState === 'idle-empty'
+              ? '100%'
+              : `max(100%, ${tableMinWidth})`,
+        }}
       >
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         {/* Hide column headers on the initial empty state — an empty grid with
@@ -959,14 +967,13 @@ export function DataTable<TData, TValue = unknown>({
               </TableRow>
             ))
           ) : tableBodyState === 'empty' ? (
-            // Initial empty state — no data and no filters active. The cell
-            // wraps the empty state in a viewport-sized, sticky container so
-            // it stays centered even when the table overflows horizontally
-            // (common on narrow viewports where many columns push the table
-            // wider than the scroll viewport).
+            // Initial empty state — no data and no filters active. Table
+            // minWidth is 100% in this state (no column-size floor), so a
+            // plain `w-full` keeps the empty copy inside the bordered frame
+            // without a phantom horizontal scrollbar.
             <TableRow data-no-hover>
               <TableCell colSpan={colSpan} className="p-0">
-                <div className="sticky left-0 w-screen max-w-full p-4">
+                <div className="w-full p-4">
                   <DataTableEmptyState
                     icon={emptyState?.icon}
                     title={emptyState?.title ?? ''}
@@ -978,7 +985,10 @@ export function DataTable<TData, TValue = unknown>({
               </TableCell>
             </TableRow>
           ) : tableBodyState === 'filtered-empty' ? (
-            // Filtered empty state — filters applied but no matching rows
+            // Filtered empty state — filters applied but no matching rows.
+            // Headers stay visible and the table may still be wider than the
+            // viewport, so stick the empty copy to the left edge of the
+            // scrollport (not the full table width).
             <TableRow data-no-hover>
               <TableCell colSpan={colSpan} className="p-0">
                 <div className="sticky left-0 w-screen max-w-full p-4">

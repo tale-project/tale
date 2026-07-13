@@ -167,10 +167,11 @@ function IntegrationsPage() {
   };
 
   return (
-    <SettingsPage>
+    <SettingsPage fitToContainer>
       <SettingsSection
         title={tNav('integrations')}
         description={tSettings('integrations.pageSubtitle')}
+        className="min-h-0 flex-1"
       >
         <Integrations
           organizationId={organizationId}
