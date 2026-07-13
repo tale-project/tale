@@ -16,7 +16,17 @@ export function isParkedOnCapacity(
 ): boolean {
   if (!execution) return false;
   if (execution.awaitingCapacityStepSlug === undefined) return false;
-  return execution.status === 'running' || execution.status === 'pending';
+  return isActiveExecutionStatus(execution.status);
+}
+
+/**
+ * An execution that is still doing work — scheduled (`pending`) or `running`.
+ * The one definition of "active" shared by the capacity indicator above and
+ * the UI surfaces that change behaviour while a subject's run is in flight
+ * (e.g. the task comment composer's "this run won't see new comments" hint).
+ */
+export function isActiveExecutionStatus(status: string): boolean {
+  return status === 'running' || status === 'pending';
 }
 
 /**

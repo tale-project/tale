@@ -755,6 +755,7 @@
       "input": "Input",
       "more": "Details",
       "comments": "Comments",
+      "commentsDuringRun": "A run is in progress and won't see new comments. For feedback the automation should act on, comment after the run finishes.",
       "discuss": "Discussion",
       "externalRef": "External reference",
       "subjectFolder": "Folder",

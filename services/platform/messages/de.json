@@ -755,6 +755,7 @@
       "input": "Eingabe",
       "more": "Details",
       "comments": "Kommentare",
+      "commentsDuringRun": "Ein Lauf ist gerade aktiv und sieht neue Kommentare nicht. Schreib Feedback, auf das die Automatisierung reagieren soll, erst nach Ende des Laufs.",
       "discuss": "Diskussion",
       "externalRef": "Externe Referenz",
       "subjectFolder": "Ordner",

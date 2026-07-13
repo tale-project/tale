@@ -125,6 +125,16 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   }),
 }));
 
+// The comments section subscribes to the subject's latest run to warn the
+// composer while it is active; tests flip the status per case.
+let latestRunReturn: { data: unknown; isLoading: boolean } = {
+  data: null,
+  isLoading: false,
+};
+vi.mock('@/app/hooks/use-convex-query', () => ({
+  useConvexQuery: () => latestRunReturn,
+}));
+
 // The chat section is gated on the automation's cast — the runtime context
 // supplies `roles`; tests flip it to cover mapped and unmapped automations.
 let runtimeRoles: Record<string, string> | undefined = {
@@ -204,6 +214,7 @@ afterEach(() => {
   taskCommentsCalls.length = 0;
   useTaskCalls.length = 0;
   runtimeRoles = { implementer: 'desk/helper' };
+  latestRunReturn = { data: null, isLoading: false };
 });
 
 describe('ResourceDetail — task subject composition', () => {
@@ -301,6 +312,32 @@ describe('ResourceDetail — task subject composition', () => {
     openDetail({ subjectType: 'task', id: 'task123' });
 
     expect(screen.getByText('automations.binding.empty')).toBeInTheDocument();
+  });
+
+  it('warns at the comment composer while the subject run is active', () => {
+    activityReturn = bound({ data: [] });
+    latestRunReturn = {
+      data: { executionId: 'exec1', status: 'running', startedAt: 1 },
+      isLoading: false,
+    };
+
+    openDetail({ subjectType: 'task', id: 'task123' });
+
+    expect(taskCommentsCalls[0]).toMatchObject({
+      composerHint: 'automations.detail.commentsDuringRun',
+    });
+  });
+
+  it('passes no composer hint once the run settled', () => {
+    activityReturn = bound({ data: [] });
+    latestRunReturn = {
+      data: { executionId: 'exec1', status: 'completed', startedAt: 1 },
+      isLoading: false,
+    };
+
+    openDetail({ subjectType: 'task', id: 'task123' });
+
+    expect(taskCommentsCalls[0]?.composerHint).toBeUndefined();
   });
 });
 
