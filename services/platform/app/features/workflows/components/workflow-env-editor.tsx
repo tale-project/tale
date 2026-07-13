@@ -9,6 +9,7 @@
  */
 import {
   EnvVarListEditor,
+  type EnvEditorState,
   type LoadedEnvVar,
 } from '@/app/components/env/env-var-list-editor';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -21,12 +22,19 @@ export interface WorkflowEnvEditorProps {
   workflowSlug: string;
   /** '' / omitted = workflow-level; a step slug = that step only. */
   stepSlug?: string;
+  /** Forwarded to `EnvVarListEditor` — hides the inline Save so the host can
+   *  dock Save/Discard in its header cluster (see `useEnvEditorController`). */
+  externalSave?: boolean;
+  /** Forwarded to `EnvVarListEditor`; required with `externalSave`. */
+  onEditorState?: (state: EnvEditorState) => void;
 }
 
 export function WorkflowEnvEditor({
   organizationId,
   workflowSlug,
   stepSlug = '',
+  externalSave,
+  onEditorState,
 }: WorkflowEnvEditorProps) {
   const { data, isLoading } = useConvexQuery(
     api.workflows.workflow_env.listWorkflowEnv,
@@ -43,6 +51,8 @@ export function WorkflowEnvEditor({
     <EnvVarListEditor
       rows={data as LoadedEnvVar[] | undefined}
       isLoading={isLoading}
+      externalSave={externalSave}
+      onEditorState={onEditorState}
       onSet={async ({ key, value, isSecret }) => {
         await setVar({
           organizationId,

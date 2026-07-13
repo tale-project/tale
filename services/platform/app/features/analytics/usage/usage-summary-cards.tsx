@@ -5,8 +5,8 @@ import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { Info } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 /** Prior equal-length window totals (from the query's `previousSummary`). */
 interface PreviousSummary {
@@ -32,6 +32,7 @@ export function UsageSummaryCards({
   previous,
 }: UsageSummaryCardsProps) {
   const { t } = useT('analytics');
+  const { formatNumber, formatCostCents } = useFormatNumber();
 
   return (
     <StatCardGrid>

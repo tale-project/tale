@@ -539,13 +539,33 @@ export function validateConfigDir(
   return { issues, filesValidated };
 }
 
+interface RegistryCheckOptions {
+  /**
+   * Also verify that every externally-gated domain's covering test files
+   * still exist on disk. This half of the check is checkout-bound — test
+   * files live only in a repo checkout and are never bundled into a shipped
+   * image — so the runtime action turns it off (#2675: with it on, every
+   * healthy container boot reported the `automations` gates as "gone"). The
+   * vitest gate and the build-time CLI gate keep the default (on), which is
+   * what still catches a covering test being deleted or moved without
+   * updating `DOMAIN_VALIDATORS`.
+   */
+  checkCoveringGates?: boolean;
+  /** Root the covering-gate paths resolve against — injectable for tests. */
+  repoRoot?: string;
+}
+
 /**
  * The registry drift guard: every `CONFIG_DOMAINS` entry must declare a
- * validator, every validator must map back to a registered domain, and every
- * externally-gated domain's covering test files must still exist. Returns one
- * human-readable issue per problem; empty = the registry is complete.
+ * validator, every validator must map back to a registered domain, and (in
+ * checkout contexts — see `RegistryCheckOptions`) every externally-gated
+ * domain's covering test files must still exist. Returns one human-readable
+ * issue per problem; empty = the registry is complete.
  */
-export function checkValidatorRegistryComplete(): string[] {
+export function checkValidatorRegistryComplete(
+  options: RegistryCheckOptions = {},
+): string[] {
+  const { checkCoveringGates = true, repoRoot = REPO_ROOT } = options;
   const issues: string[] = [];
 
   for (const domain of CONFIG_DOMAINS) {
@@ -567,14 +587,16 @@ export function checkValidatorRegistryComplete(): string[] {
     }
   }
 
-  for (const [name, validator] of Object.entries(DOMAIN_VALIDATORS)) {
-    if (validator.kind !== 'external-gate') continue;
-    for (const rel of validator.coveredBy) {
-      if (!existsSync(join(REPO_ROOT, rel))) {
-        issues.push(
-          `${name}: covering gate ${rel} is gone — restore it or fold the ` +
-            'domain into this suite',
-        );
+  if (checkCoveringGates) {
+    for (const [name, validator] of Object.entries(DOMAIN_VALIDATORS)) {
+      if (validator.kind !== 'external-gate') continue;
+      for (const rel of validator.coveredBy) {
+        if (!existsSync(join(repoRoot, rel))) {
+          issues.push(
+            `${name}: covering gate ${rel} is gone — restore it or fold the ` +
+              'domain into this suite',
+          );
+        }
       }
     }
   }

@@ -9,8 +9,10 @@ import { useT } from '@/lib/i18n/client';
 export interface DiffEntry {
   category: string;
   field: 'min' | 'max';
-  from: number;
-  to: number;
+  /** `null` = the category was not bounded in the applied snapshot. */
+  from: number | null;
+  /** `null` = the proposal no longer bounds the category. */
+  to: number | null;
   direction: 'tighten' | 'loosen';
 }
 
@@ -87,8 +89,10 @@ export function RetentionBoundsDetailsDrawer({
                     {
                       category: d.category,
                       field: d.field,
-                      from: d.from,
-                      to: d.to,
+                      // `null` marks an unbounded side (category added to /
+                      // removed from the enforced set) — show it as "—".
+                      from: d.from ?? '—',
+                      to: d.to ?? '—',
                       direction: d.direction,
                     },
                   )}

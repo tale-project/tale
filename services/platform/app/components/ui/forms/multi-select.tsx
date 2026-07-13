@@ -101,6 +101,12 @@ export interface MultiSelectProps {
    */
   removeChipLabel?: (option: MultiSelectOption) => string;
   /**
+   * Optional action element rendered on the right side of each option row
+   * (mirrors `SearchableSelect`'s `optionAction`). The element must stop
+   * click propagation itself so activating it doesn't toggle the option.
+   */
+  optionAction?: (option: MultiSelectOption) => ReactNode;
+  /**
    * Render the popover as a Radix modal layer. Required when the select sits
    * inside a modal Dialog: the dialog's scroll lock swallows wheel events over
    * the (portaled) popover, so a long option list won't wheel-scroll. A modal
@@ -165,6 +171,7 @@ function MultiSelectBase({
   'aria-label': ariaLabel,
   filterFn,
   removeChipLabel,
+  optionAction,
   modal = false,
 }: MultiSelectProps) {
   const instanceId = useId();
@@ -451,6 +458,7 @@ function MultiSelectBase({
                 isHighlighted={highlightedIndex === index}
                 onToggle={handleToggle}
                 onMouseEnter={setHighlightedIndex}
+                action={optionAction?.(option)}
               />
             ))}
 
@@ -523,6 +531,7 @@ function MultiSelectOptionItem({
   isHighlighted,
   onToggle,
   onMouseEnter,
+  action,
 }: {
   option: MultiSelectOption;
   index: number;
@@ -531,6 +540,7 @@ function MultiSelectOptionItem({
   isHighlighted: boolean;
   onToggle: (value: string) => void;
   onMouseEnter: (index: number) => void;
+  action?: ReactNode;
 }) {
   const showDescription = Boolean(option.description);
 
@@ -580,6 +590,7 @@ function MultiSelectOptionItem({
           </Text>
         )}
       </div>
+      {action}
     </div>
   );
 }

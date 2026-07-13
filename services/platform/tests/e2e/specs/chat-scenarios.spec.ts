@@ -1,9 +1,14 @@
+import type { Page } from '@playwright/test';
+
 import {
   CANNED_ERROR_MESSAGE,
+  CANNED_FILE_WRITE_ACK,
   CANNED_HUMAN_INPUT_ACK,
   CANNED_HUMAN_INPUT_FIELD_LABEL,
   CANNED_HUMAN_INPUT_QUESTION,
   CANNED_NEXT_STEPS_ITEMS,
+  CANNED_PLAN_ACK,
+  CANNED_PLAN_TODOS,
   CANNED_REASONING,
   CANNED_REASONING_ANSWER,
   CANNED_REPLY,
@@ -342,4 +347,72 @@ test('error: surfaces the provider-failure UI when the generation call returns 5
   // URL even though the generation failed. Delete it only if it exists.
   const threadId = /\/chat\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
   if (threadId) await deleteThreadById(page, threadId);
+});
+
+// The right-hand workspace panel is a shared tablist host (`chat-panel.tsx`):
+// each pane publishes a `role="tab"` (accessible name = its `ariaLabel`) and
+// its body renders in a `role="tabpanel"`. Panes `useAutoOpen` when they gain
+// content, but auto-open can race the assertion, so click the tab defensively —
+// clicking the already-active tab is a no-op.
+async function openWorkspaceTab(page: Page, tabName: string): Promise<void> {
+  const tab = page.getByRole('tab', { name: tabName });
+  await expect(tab).toBeVisible({ timeout: TIMEOUT.REPLY });
+  await tab.click();
+}
+
+test('file-write: the canvas pane renders workspace files the mock wrote (#2688)', async ({
+  page,
+  org,
+}) => {
+  const { organizationId } = org;
+  const message = `${MOCK_TRIGGERS.fileWrite} produce deliverables ${Date.now().toString(36)}`;
+
+  await page.goto(chatUrl(organizationId));
+  const threadId = await sendNewThreadMessage(page, message);
+
+  // The mock emits `file_write` tool calls (which execute server-side, no
+  // sandbox), the agent loops, and the resume turn streams the plain-text ack —
+  // proof the files were written and the turn completed.
+  await expect(page.getByText(CANNED_FILE_WRITE_ACK).first()).toBeVisible({
+    timeout: TIMEOUT.REPLY,
+  });
+
+  // The canvas pane registered a tab (proof it has files); open it. Its file
+  // explorer is a `role="tree"` labelled "Canvas" (`canvas-file-tree.tsx`),
+  // grouped by source; the written markdown deliverable is one of its rows.
+  await openWorkspaceTab(page, t('chat.canvas.stripOpen'));
+  const canvasTree = page.getByRole('tree', { name: t('chat.canvas.title') });
+  await expect(canvasTree).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(canvasTree.getByText('report.md')).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+
+  await deleteThreadById(page, threadId);
+});
+
+test('plan: the research-plan pane renders the todos the mock seeded (#2688)', async ({
+  page,
+  org,
+}) => {
+  const { organizationId } = org;
+  const message = `${MOCK_TRIGGERS.plan} outline the work ${Date.now().toString(36)}`;
+
+  await page.goto(chatUrl(organizationId));
+  const threadId = await sendNewThreadMessage(page, message);
+
+  // The mock emits one `update_todos` call (executes server-side), then acks.
+  await expect(page.getByText(CANNED_PLAN_ACK).first()).toBeVisible({
+    timeout: TIMEOUT.REPLY,
+  });
+
+  // The plan pane registered a tab; open it and assert the seeded todos list.
+  await openWorkspaceTab(page, t('todoList.stripOpen'));
+  const planPanel = page.getByRole('tabpanel');
+  for (const todo of CANNED_PLAN_TODOS) {
+    await expect(planPanel.getByText(todo.content).first()).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+  }
+
+  await deleteThreadById(page, threadId);
 });

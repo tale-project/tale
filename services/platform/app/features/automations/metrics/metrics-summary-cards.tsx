@@ -4,10 +4,12 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { type ReactNode } from 'react';
 
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
-
-import { formatDurationSeconds, formatSuccessRate } from './format-duration';
+import {
+  formatDurationSeconds,
+  formatSuccessRate,
+} from '@/lib/utils/format/duration';
 
 /** Prior equal-length window totals (from the query's `previousSummary`). */
 interface PreviousSummary {
@@ -37,7 +39,8 @@ export function MetricsSummaryCards({
   previous,
 }: MetricsSummaryCardsProps) {
   const { t } = useT('automations');
-  const successRateDisplay = formatSuccessRate(total, successRate);
+  const { locale, formatNumber } = useFormatNumber();
+  const successRateDisplay = formatSuccessRate(total, successRate, locale);
 
   return (
     <StatCardGrid>

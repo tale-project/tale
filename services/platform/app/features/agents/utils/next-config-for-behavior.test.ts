@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 import { agentJsonSchema } from '@/lib/shared/schemas/agents';
+import { canonicalizeAgentConfig } from '@/lib/shared/utils/canonicalize-config';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { nextConfigForBehavior } from './next-config-for-behavior';
 
@@ -91,6 +93,53 @@ describe('nextConfigForBehavior', () => {
     expect(merged.agentKind).toBeUndefined();
     expect(merged.authMode).toBeUndefined();
     expect(agentJsonSchema.safeParse(merged).success).toBe(true);
+  });
+
+  // Regression: reverting the agent type in the same session must be a no-op
+  // — the switch away clears behavior-scoped fields, and without the saved
+  // snapshot the way back could not restore them, silently dropping bound
+  // tools/workflows and leaving the editor permanently dirty.
+  it('chat → external → chat with the saved snapshot restores cleared bindings (canonical no-op)', () => {
+    const away = applyPatch(
+      chatWithLoopConfig,
+      nextConfigForBehavior(chatWithLoopConfig, 'external-agent'),
+    );
+    const back = applyPatch(
+      away,
+      nextConfigForBehavior(away, 'chat', chatWithLoopConfig),
+    );
+
+    expect(back.toolNames).toEqual(chatWithLoopConfig.toolNames);
+    expect(back.workflows).toEqual(chatWithLoopConfig.workflows);
+    expect(agentJsonSchema.safeParse(back).success).toBe(true);
+    expect(
+      structuralEqual(
+        canonicalizeAgentConfig(back),
+        canonicalizeAgentConfig(chatWithLoopConfig),
+      ),
+    ).toBe(true);
+  });
+
+  it('external → chat → external with the saved snapshot restores the runtime fields (canonical no-op)', () => {
+    const away = applyPatch(
+      externalAgentConfig,
+      nextConfigForBehavior(externalAgentConfig, 'chat'),
+    );
+    const back = applyPatch(
+      away,
+      nextConfigForBehavior(away, 'external-agent', externalAgentConfig),
+    );
+
+    expect(back.agentKind).toBe(externalAgentConfig.agentKind);
+    expect(back.authMode).toBe(externalAgentConfig.authMode);
+    expect(back.nativeWebTools).toBe(externalAgentConfig.nativeWebTools);
+    expect(agentJsonSchema.safeParse(back).success).toBe(true);
+    expect(
+      structuralEqual(
+        canonicalizeAgentConfig(back),
+        canonicalizeAgentConfig(externalAgentConfig),
+      ),
+    ).toBe(true);
   });
 
   it('documents the byo-external(no model) → chat trap: the ≥1-model rule now bites', () => {

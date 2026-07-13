@@ -23,6 +23,11 @@ defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
   allowlistDisplayPath: 'services/platform/lib/i18n/keys-dynamic.txt',
   modes: {
+    // Referenced-but-missing keys (raw-key rendering, the #2414 bug class).
+    // Report during rollout: the known dangling refs are fixed, but flip to
+    // `enforce` only once the in-flight settings/agents rework lands (its
+    // half-edited states would otherwise fail unrelated PRs).
+    'usage-missing': 'report',
     'pronouns-formal': 'report',
     'terminology-loanword': 'report',
     'terminology-half-compound': 'report',

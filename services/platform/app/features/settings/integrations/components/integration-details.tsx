@@ -64,10 +64,7 @@ function SqlQueryCopyButton({ query }: { query: string }) {
       aria-label={tCommon('actions.copy')}
     >
       {copied ? (
-        <Check
-          className="size-3 text-green-600 dark:text-green-400"
-          aria-hidden="true"
-        />
+        <Check className="text-success size-3" aria-hidden="true" />
       ) : (
         <Copy className="text-muted-foreground size-3" aria-hidden="true" />
       )}

@@ -191,7 +191,7 @@ export function ApiKeyCreateDialog({
                 aria-label={tCommon('actions.copy')}
               >
                 {copied ? (
-                  <Check className="size-4 text-green-500" />
+                  <Check className="text-success size-4" />
                 ) : (
                   <Copy className="size-4" />
                 )}

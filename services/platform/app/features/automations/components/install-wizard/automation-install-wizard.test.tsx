@@ -121,12 +121,16 @@ function withNoIntegrations() {
 
 function renderWizard(
   requiredIntegrations: string[] = ['github'],
-  options: { scope?: 'org' | 'project'; projectId?: string } = {},
+  options: {
+    scope?: 'org' | 'project';
+    projectId?: string;
+    onOpenChange?: (open: boolean) => void;
+  } = {},
 ) {
   return render(
     <AutomationInstallWizard
       open
-      onOpenChange={() => {}}
+      onOpenChange={options.onOpenChange ?? (() => {})}
       organizationId="org_1"
       automationSlug="issue-desk"
       automationName="Issue Desk"
@@ -236,11 +240,13 @@ describe('AutomationInstallWizard', () => {
     ).not.toBeInTheDocument();
   });
 
-  it("Finish lands on the bound project's automation desk for a project-scoped install", async () => {
+  it('Finish closes the wizard without navigating away — installing must not redirect', async () => {
     withNoIntegrations();
+    const onOpenChange = vi.fn();
     const { user } = renderWizard([], {
       scope: 'project',
       projectId: 'proj_1',
+      onOpenChange,
     });
 
     await screen.findByText('Ready to install Issue Desk.');
@@ -249,32 +255,8 @@ describe('AutomationInstallWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Finish' }));
 
-    expect(navigateSpy).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-      params: {
-        id: 'org_1',
-        projectId: 'proj_1',
-        automationSlug: 'issue-desk',
-      },
-      search: {},
-    });
-  });
-
-  it('Finish lands on the automation detail page for an org-scoped install', async () => {
-    withNoIntegrations();
-    const { user } = renderWizard([]);
-
-    await screen.findByText('Ready to install Issue Desk.');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText('Issue Desk is ready');
-
-    await user.click(screen.getByRole('button', { name: 'Finish' }));
-
-    expect(navigateSpy).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations/$automationSlug',
-      params: { id: 'org_1', automationSlug: 'issue-desk' },
-      search: {},
-    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('after install, walks a BYO agent through mode choice then secrets', async () => {

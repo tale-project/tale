@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest';
 import type { ComponentType } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
 import { cleanup, render, screen } from '@/tests/utils/render';
 
 // `RunCodePolicyRoute` is created via `createFileRoute(...)`; stub the factory
@@ -17,6 +22,9 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
+  // EditorActions (the header Save cluster harness) imports the module-level
+  // toast for its failure path.
+  toast: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -81,12 +89,30 @@ function nodeAllow() {
   return screen.getByLabelText('Node allow list');
 }
 
+// The page docks Save/Discard in the settings header via the active-editor
+// registry (no in-content Save button). Mirror the layout: render the route
+// inside an ActiveEditorProvider with an EditorActions cluster reading it.
+function HeaderCluster() {
+  const controller = useActiveEditor();
+  if (!controller) return null;
+  return <EditorActions controller={controller} entityKind="settings" />;
+}
+
+function renderWithHeader() {
+  return render(
+    <ActiveEditorProvider>
+      <HeaderCluster />
+      <RunCodePolicyRoute />
+    </ActiveEditorProvider>,
+  );
+}
+
 describe('RunCodePolicyRoute', () => {
   it('renders the saved server values on the first loaded render', () => {
     // Regression for #2023: the form used to copy server state into `useState`
     // via `useEffect`, briefly showing the `denylist` / empty-string defaults.
     // It now reads `savedDraft` directly, so the server values are present.
-    render(<RunCodePolicyRoute />);
+    renderWithHeader();
 
     expect(pythonAllow()).toHaveValue('numpy\npandas');
     expect(nodeAllow()).toHaveValue('lodash');
@@ -96,7 +122,7 @@ describe('RunCodePolicyRoute', () => {
   });
 
   it('overrides only the edited field; other fields still mirror server state', async () => {
-    const { user } = render(<RunCodePolicyRoute />);
+    const { user } = renderWithHeader();
 
     const field = pythonAllow();
     await user.clear(field);
@@ -122,7 +148,7 @@ describe('RunCodePolicyRoute', () => {
       };
     });
 
-    const { user } = render(<RunCodePolicyRoute />);
+    const { user } = renderWithHeader();
 
     await user.clear(pythonAllow());
     await user.type(pythonAllow(), 'requests');
@@ -139,7 +165,7 @@ describe('RunCodePolicyRoute', () => {
   it('preserves the user edits when the save fails', async () => {
     mutation.mutateAsync = vi.fn().mockRejectedValue(new Error('save failed'));
 
-    const { user } = render(<RunCodePolicyRoute />);
+    const { user } = renderWithHeader();
 
     await user.clear(pythonAllow());
     await user.type(pythonAllow(), 'requests');

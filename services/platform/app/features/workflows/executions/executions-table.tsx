@@ -17,6 +17,7 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
+import { formatDurationSeconds } from '@/lib/utils/format/duration';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
@@ -25,7 +26,6 @@ import {
   useListExecutions,
   useSearchExecution,
 } from '../hooks/queries';
-import { formatDurationSeconds } from '../utils/format-duration';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
@@ -239,6 +239,7 @@ export function ExecutionsTable({
               variant="ghost"
               size="icon"
               title={tCommon('actions.copy')}
+              aria-label={tCommon('actions.copy')}
               className="p-1"
               onClick={(e) => {
                 e.stopPropagation();
@@ -320,6 +321,7 @@ export function ExecutionsTable({
               variant="ghost"
               size="icon-sm"
               title={tWorkflows('executions.viewOnCanvas')}
+              aria-label={tWorkflows('executions.viewOnCanvas')}
             >
               <Link
                 to="/dashboard/$id/workflows/$workflowId"

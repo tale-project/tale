@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -299,14 +300,7 @@ function PasswordPromptDialog({
         if (!submitting && password) onSubmit(password);
       }}
     >
-      {warning && (
-        <Text
-          role="status"
-          className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
-        >
-          {warning}
-        </Text>
-      )}
+      {warning && <Alert variant="warning" description={warning} />}
       <Input
         id="two-factor-password"
         type="password"
@@ -360,6 +354,8 @@ function VerifyTotpDialog({
       }}
     >
       <VStack gap={4} align="center" className="w-full min-w-0">
+        {/* Literal bg-white on purpose: the QR must sit on a light surface in
+            BOTH themes for scanner contrast — never theme this. */}
         <div className="rounded-md border bg-white p-3">
           <QRCodeSVG value={qrURI} size={180} level="M" />
         </div>

@@ -4,8 +4,6 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { type ReactNode } from 'react';
 
-import { cn } from '@/lib/utils/cn';
-
 interface MetricsLayoutProps {
   /** Page/section title. */
   title: string;
@@ -59,9 +57,7 @@ export function MetricsLayout({
       </div>
 
       {filters}
-      {notice ? (
-        <div className={cn('flex flex-col gap-3')}>{notice}</div>
-      ) : null}
+      {notice ? <div className="flex flex-col gap-3">{notice}</div> : null}
 
       {children}
     </Stack>

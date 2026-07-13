@@ -5,11 +5,11 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
 
 import type { FeedbackModelBucket } from './types';
 
@@ -19,30 +19,13 @@ interface TopModelsFeedbackTableProps {
   onSelectModel: (model: string, provider: string) => void;
 }
 
-function formatPercent(
-  positive: number,
-  total: number,
-  locale: string,
-): string {
-  if (total === 0) return '—';
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: 'percent',
-      maximumFractionDigits: 1,
-    }).format(positive / total);
-  } catch {
-    return `${Math.round((positive / total) * 100)}%`;
-  }
-}
-
 export function TopModelsFeedbackTable({
   rows,
   isLoading,
   onSelectModel,
 }: TopModelsFeedbackTableProps) {
   const { t } = useT('analytics');
-  const { i18n: i18nCtx } = useTranslation();
-  const locale = i18nCtx.language;
+  const { formatNumber, formatPercentShare } = useFormatNumber();
 
   const handleRowClick = useCallback(
     (row: Row<FeedbackModelBucket>) => {
@@ -77,7 +60,7 @@ export function TopModelsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.positive, locale)}
+            {formatNumber(row.original.positive)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -91,7 +74,7 @@ export function TopModelsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.negative, locale)}
+            {formatNumber(row.original.negative)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -105,20 +88,17 @@ export function TopModelsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatPercent(row.original.positive, row.original.total, locale)}
+            {formatPercentShare(row.original.positive, row.original.total)}
           </div>
         ),
         meta: { align: 'right' as const },
       },
     ],
-    [t, locale],
+    [t, formatNumber, formatPercentShare],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('feedback.tables.topModels.title')}
-      </Text>
+    <MetricsSection title={t('feedback.tables.topModels.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -132,6 +112,6 @@ export function TopModelsFeedbackTable({
           description: t('feedback.tables.topModels.emptyDescription'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

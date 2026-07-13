@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Row, Stack } from '@tale/ui/layout';
+import { Card } from '@tale/ui/card';
+import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -286,93 +287,85 @@ function RuleDialog({
       submitText={t('budgets.confirm')}
     >
       <Stack gap={4}>
-        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
+        <Select
+          label={t('budgets.scope')}
+          options={SCOPE_OPTIONS}
+          value={draft.scope}
+          onValueChange={(value: string) => {
+            if (isScopeValue(value)) {
+              updateDraft({ scope: value });
+            }
+          }}
+          disabled={cannotManage}
+        />
+
+        {draft.scope === 'role' && (
           <Select
-            label={t('budgets.scope')}
-            options={SCOPE_OPTIONS}
-            value={draft.scope}
-            onValueChange={(value: string) => {
-              if (isScopeValue(value)) {
-                updateDraft({ scope: value });
-              }
-            }}
+            label={t('budgets.role')}
+            options={ROLE_OPTIONS}
+            value={draft.scopeId ?? ''}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
+            error={showTargetError}
           />
+        )}
 
-          {draft.scope === 'role' && (
-            <Select
-              label={t('budgets.role')}
-              options={ROLE_OPTIONS}
-              value={draft.scopeId ?? ''}
-              onValueChange={(value) => updateDraft({ scopeId: value })}
-              disabled={cannotManage}
-              error={showTargetError}
-            />
-          )}
-
-          {draft.scope === 'user' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('budgets.user')}
-                placeholder={t('budgets.selectUser')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={memberOptions}
-                searchPlaceholder={t('budgets.searchUsers')}
-                emptyText={t('budgets.noUsersFound')}
-                aria-label={t('budgets.selectUserAriaLabel')}
-                error={showTargetError}
-              />
-            </div>
-          )}
-
-          {draft.scope === 'team' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('budgets.team')}
-                placeholder={t('budgets.selectTeam')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={teamOptions}
-                searchPlaceholder={t('budgets.searchTeams')}
-                emptyText={t('budgets.noTeamsFound')}
-                aria-label={t('budgets.selectTeamAriaLabel')}
-                error={showTargetError}
-              />
-            </div>
-          )}
-
-          {draft.scope === 'apiKey' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('budgets.apiKey')}
-                placeholder={t('budgets.selectApiKey')}
-                disabled={cannotManage}
-                value={draft.apiKeyId ?? null}
-                onValueChange={(value) => updateDraft({ apiKeyId: value })}
-                options={apiKeyOptions}
-                searchPlaceholder={t('budgets.searchApiKeys')}
-                emptyText={t('budgets.noApiKeysFound')}
-                aria-label={t('budgets.selectApiKeyAriaLabel')}
-                error={showTargetError}
-              />
-            </div>
-          )}
-
-          <Select
-            label={t('budgets.period')}
-            options={PERIOD_OPTIONS}
-            value={draft.period}
-            onValueChange={(value: string) => {
-              if (isPeriodValue(value)) {
-                updateDraft({ period: value });
-              }
-            }}
+        {draft.scope === 'user' && (
+          <SearchableSelect
+            label={t('budgets.user')}
+            placeholder={t('budgets.selectUser')}
             disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={memberOptions}
+            searchPlaceholder={t('budgets.searchUsers')}
+            emptyText={t('budgets.noUsersFound')}
+            aria-label={t('budgets.selectUserAriaLabel')}
+            error={showTargetError}
           />
-        </Row>
+        )}
+
+        {draft.scope === 'team' && (
+          <SearchableSelect
+            label={t('budgets.team')}
+            placeholder={t('budgets.selectTeam')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={teamOptions}
+            searchPlaceholder={t('budgets.searchTeams')}
+            emptyText={t('budgets.noTeamsFound')}
+            aria-label={t('budgets.selectTeamAriaLabel')}
+            error={showTargetError}
+          />
+        )}
+
+        {draft.scope === 'apiKey' && (
+          <SearchableSelect
+            label={t('budgets.apiKey')}
+            placeholder={t('budgets.selectApiKey')}
+            disabled={cannotManage}
+            value={draft.apiKeyId ?? null}
+            onValueChange={(value) => updateDraft({ apiKeyId: value })}
+            options={apiKeyOptions}
+            searchPlaceholder={t('budgets.searchApiKeys')}
+            emptyText={t('budgets.noApiKeysFound')}
+            aria-label={t('budgets.selectApiKeyAriaLabel')}
+            error={showTargetError}
+          />
+        )}
+
+        <Select
+          label={t('budgets.period')}
+          options={PERIOD_OPTIONS}
+          value={draft.period}
+          onValueChange={(value: string) => {
+            if (isPeriodValue(value)) {
+              updateDraft({ period: value });
+            }
+          }}
+          disabled={cannotManage}
+        />
 
         {showTargetError && errors.scopeId && (
           <FieldError message={errors.scopeId} />
@@ -696,7 +689,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
             {t('budgets.overrideHint')}
           </Text>
 
-          <div className="border-border overflow-hidden rounded-lg border">
+          <Card padding="none" className="overflow-hidden">
             <Table>
               <TableCaption className="sr-only">
                 {t('budgets.title')}
@@ -830,7 +823,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                 )}
               </TableBody>
             </Table>
-          </div>
+          </Card>
         </Stack>
 
         <RuleDialog

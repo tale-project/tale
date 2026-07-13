@@ -1,9 +1,9 @@
-import { SectionHeader } from '@tale/ui/section-header';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { AgentEnvEditor } from '@/app/features/agents/components/agent-env-editor';
+import { AgentTabContent } from '@/app/features/agents/components/agent-tab-content';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -23,14 +23,15 @@ function EnvironmentTab() {
   const { id: organizationId, agentId } = Route.useParams();
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.env.title')}
-        description={t('agents.env.description')}
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {t('agents.env.description')}
+      </Text>
       <FormSection>
         <AgentEnvEditor organizationId={organizationId} agentSlug={agentId} />
       </FormSection>
-    </ContentArea>
+    </AgentTabContent>
   );
 }

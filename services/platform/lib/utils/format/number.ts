@@ -102,6 +102,36 @@ export function formatCostCents(
 }
 
 /**
+ * Format a part-of-total share as a percentage, or an em dash when there is
+ * no total to share (0/0 is "no data", not "0%"). The single home for the
+ * sentiment/positive-share rendering used across the metrics tables.
+ *
+ * @param part - The counted subset (e.g. positive ratings)
+ * @param total - The whole (e.g. all ratings)
+ * @param locale - The locale to use (defaults to app default locale)
+ *
+ * @example
+ * formatPercentShare(3, 4) // "75%" (en)
+ * formatPercentShare(1, 3, 'de') // "33,3 %"
+ * formatPercentShare(0, 0) // "—"
+ */
+export function formatPercentShare(
+  part: number,
+  total: number,
+  locale: string = defaultLocale,
+): string {
+  if (total === 0) return '—';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'percent',
+      maximumFractionDigits: 1,
+    }).format(part / total);
+  } catch {
+    return `${Math.round((part / total) * 100)}%`;
+  }
+}
+
+/**
  * Format a duration in milliseconds
  *
  * @param ms - Duration in milliseconds

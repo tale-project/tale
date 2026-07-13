@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -236,16 +238,15 @@ export function TrashPage({ organizationId }: Props) {
 
         <Skeletonize loading={loading} label={t('trash.title', 'Trash')}>
           {!loading && rows.length === 0 ? (
-            <div className="border-border rounded-md border p-8 text-center">
-              <Text className="text-muted-foreground text-sm">
-                {t(
-                  'trash.empty',
-                  'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
-                )}
-              </Text>
-            </div>
+            <EmptyState
+              title={t('trash.emptyTitle', 'Trash is empty')}
+              description={t(
+                'trash.empty',
+                'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
+              )}
+            />
           ) : (
-            <div className="border-border overflow-hidden rounded-md border">
+            <Card padding="none" className="overflow-hidden">
               <Table className="min-w-[44rem]">
                 <TableHeader>
                   <TableRow>
@@ -334,8 +335,8 @@ export function TrashPage({ organizationId }: Props) {
                             <span
                               className={
                                 row.status === 'expired'
-                                  ? 'rounded bg-orange-500/15 px-2 py-0.5 text-xs text-orange-600'
-                                  : 'rounded bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-700'
+                                  ? 'rounded bg-orange-500/20 px-2 py-0.5 text-xs text-orange-700 dark:text-orange-300'
+                                  : 'rounded bg-yellow-500/20 px-2 py-0.5 text-xs text-yellow-700 dark:text-yellow-300'
                               }
                             >
                               {t(`trash.status.${row.status}`, row.status)}
@@ -400,7 +401,7 @@ export function TrashPage({ organizationId }: Props) {
                   )}
                 </Row>
               )}
-            </div>
+            </Card>
           )}
         </Skeletonize>
       </SettingsSection>

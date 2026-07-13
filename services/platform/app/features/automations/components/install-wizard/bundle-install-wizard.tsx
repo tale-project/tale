@@ -68,7 +68,6 @@ import {
 } from './bundle-review-overrides-step';
 import { ConnectIntegrationStep } from './connect-integration-step';
 import { ConnectProviderStep } from './connect-provider-step';
-import { firstViewIdFromPreviewEntries } from './first-view-id';
 
 export interface BundleInstallWizardProps {
   open: boolean;
@@ -502,40 +501,11 @@ function BundleInstallWizardBody({
       });
   };
 
+  // Finish only closes the wizard — installing must never yank the operator
+  // away from where they were working. The Done step offers explicit links
+  // (e.g. `openTriggers`) for anyone who wants to jump into an automation.
   const handleFinish = () => {
     onOpenChange(false);
-    // No single "bundle page" exists (each member is its own automation) — land
-    // on the first member's detail. Prefer the project-nested URL when a
-    // project was selected (or pre-bound); otherwise the org-level page the
-    // catalog opens. Project-nested detail routes bare-outlet under
-    // Automations chrome (no project-shell padding). Open the first member's
-    // first view tab when it ships views.
-    const first = preview[0];
-    if (first) {
-      const finishProjectId = projectId ?? selectedProjectId;
-      const firstViewId = firstViewIdFromPreviewEntries(first.entries);
-      const search = firstViewId !== undefined ? { tab: firstViewId } : {};
-      if (finishProjectId) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-          params: {
-            id: organizationId,
-            projectId: finishProjectId,
-            automationSlug: first.automationSlug,
-          },
-          search,
-        });
-      } else {
-        void navigate({
-          to: '/dashboard/$id/automations/$automationSlug',
-          params: {
-            id: organizationId,
-            automationSlug: first.automationSlug,
-          },
-          search,
-        });
-      }
-    }
   };
 
   // Deep link into the first gap member's Triggers tab (`?tab=triggers`),

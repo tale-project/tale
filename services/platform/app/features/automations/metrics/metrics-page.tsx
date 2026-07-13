@@ -3,10 +3,13 @@
 import { Alert } from '@tale/ui/alert';
 import { Grid } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
-import { useMemo } from 'react';
 
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@/app/components/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -16,12 +19,10 @@ import { MetricsSummaryCards } from './metrics-summary-cards';
 import { StatusBreakdown } from './status-breakdown';
 import { TopWorkflowsTable } from './top-workflows-table';
 
-export type PeriodDays = 7 | 30 | 90;
-
 interface WorkflowMetricsPageProps {
   organizationId: string;
-  periodDays: PeriodDays;
-  onChangePeriod: (period: PeriodDays) => void;
+  periodDays: MetricsPeriodDays;
+  onChangePeriod: (period: MetricsPeriodDays) => void;
 }
 
 export function WorkflowMetricsPage({
@@ -36,32 +37,19 @@ export function WorkflowMetricsPage({
     { organizationId, periodDays },
   );
 
-  const periodOptions = useMemo(
-    () => [
-      { value: '7', label: t('metrics.period.last7Days') },
-      { value: '30', label: t('metrics.period.last30Days') },
-      { value: '90', label: t('metrics.period.last90Days') },
-    ],
-    [t],
-  );
-
   const summary = data?.summary;
   const series = data?.series ?? [];
   const topWorkflows = data?.topWorkflows ?? [];
 
   return (
     <MetricsLayout
+      as="h3"
       title={t('metrics.title')}
       description={t('metrics.description')}
       toolbar={
-        <MetricSelect
-          aria-label={t('metrics.period.label')}
-          options={periodOptions}
+        <MetricsPeriodSelect
           value={String(periodDays)}
-          onValueChange={(v) => {
-            const next = Number(v);
-            if (next === 7 || next === 30 || next === 90) onChangePeriod(next);
-          }}
+          onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
         />
       }
       notice={

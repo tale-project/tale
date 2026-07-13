@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
@@ -270,7 +271,9 @@ export function McpServerPanel({
                   </Badge>
                   {server.authType !== 'none' && (
                     <Badge variant="outline">
-                      {server.authType === 'api_key' ? 'API Key' : 'OAuth 2.0'}
+                      {server.authType === 'api_key'
+                        ? t('form.apiKey')
+                        : t('form.oauth2')}
                     </Badge>
                   )}
                 </HStack>
@@ -314,13 +317,13 @@ export function McpServerPanel({
                   role="status"
                   className={`rounded-lg border p-3 ${
                     testResult.success
-                      ? 'border-green-500/30 bg-green-500/10'
+                      ? 'border-success/30 bg-success/10'
                       : 'border-destructive/30 bg-destructive/10'
                   }`}
                 >
                   <HStack gap={2} align="center">
                     {testResult.success ? (
-                      <CheckCircle2 className="size-4 text-green-600" />
+                      <CheckCircle2 className="text-success size-4" />
                     ) : (
                       <ShieldAlert className="text-destructive size-4" />
                     )}
@@ -340,10 +343,7 @@ export function McpServerPanel({
                 {discoveredTools.length > 0 ? (
                   <Stack gap={2}>
                     {discoveredTools.map((tool) => (
-                      <div
-                        key={tool.name}
-                        className="border-border rounded-lg border p-3"
-                      >
+                      <Card padding="sm" key={tool.name}>
                         <HStack justify="between" align="start">
                           <HStack gap={2} align="center">
                             <Wrench className="text-muted-foreground size-4 shrink-0" />
@@ -367,7 +367,7 @@ export function McpServerPanel({
                             </Badge>
                           )}
                         </HStack>
-                      </div>
+                      </Card>
                     ))}
                   </Stack>
                 ) : (

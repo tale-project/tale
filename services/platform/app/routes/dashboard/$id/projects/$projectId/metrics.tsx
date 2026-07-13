@@ -1,24 +1,17 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { ChevronLeft } from 'lucide-react';
 import { useCallback } from 'react';
-import { z } from 'zod';
 
-import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { ContentArea } from '@/app/components/layout/content-area';
 import {
-  ProjectMetricsPage,
-  type PeriodDays,
-} from '@/app/features/tasks/components/project-metrics-page';
-
-export const searchSchema = z.object({
-  // The router parses a bare `?period=90` as the JSON number 90, which fails a
-  // plain string enum and crashes the page (issue #2033). Coerce to a string
-  // first, then fall back to the default window for any out-of-range value so a
-  // shared/bookmarked URL never renders the error boundary.
-  period: z.coerce
-    .string()
-    .pipe(z.enum(['7', '30', '90']))
-    .catch('30')
-    .optional(),
-});
+  metricsPeriodSearchSchema,
+  metricsPeriodToParam,
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@/app/components/metrics/metrics-period';
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { ProjectMetricsPage } from '@/app/features/tasks/components/project-metrics-page';
+import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/metrics',
@@ -28,7 +21,7 @@ export const Route = createFileRoute(
   // project's own name (#2647). Overriding it with the generic
   // `seo('projects')` — the *list* page's title — defeated that per-project
   // title on this one tab.
-  validateSearch: searchSchema,
+  validateSearch: metricsPeriodSearchSchema,
   component: ProjectMetricsRoute,
 });
 
@@ -38,17 +31,16 @@ function ProjectMetricsRoute() {
   const { id: organizationId, projectId } = Route.useParams();
   const { period } = Route.useSearch();
   const navigate = useNavigate();
+  const { t } = useT('tasks');
 
-  const periodDays: PeriodDays = period === '7' ? 7 : period === '90' ? 90 : 30;
+  const periodDays: MetricsPeriodDays = parseMetricsPeriodDays(period);
 
   const handleChangePeriod = useCallback(
-    (next: PeriodDays) => {
-      const periodParam: '7' | '30' | '90' =
-        next === 7 ? '7' : next === 90 ? '90' : '30';
+    (next: MetricsPeriodDays) => {
       void navigate({
         to: '/dashboard/$id/projects/$projectId/metrics',
         params: { id: organizationId, projectId },
-        search: { period: periodParam },
+        search: { period: metricsPeriodToParam(next) },
         replace: true,
       });
     },
@@ -56,11 +48,22 @@ function ProjectMetricsRoute() {
   );
 
   return (
-    <ProjectMetricsPage
-      organizationId={organizationId}
-      projectId={asProjectId(projectId)}
-      periodDays={periodDays}
-      onChangePeriod={handleChangePeriod}
-    />
+    <ContentArea gap={4} className="py-4">
+      {/* Metrics is a sub-view of Tasks (no tab of its own), so lead with a
+          back link to the tasks list — otherwise there's no way back. */}
+      <Link
+        to="/dashboard/$id/projects/$projectId/tasks"
+        params={{ id: organizationId, projectId }}
+        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
+      >
+        <ChevronLeft className="size-4" aria-hidden="true" />
+        {t('title')}
+      </Link>
+      <ProjectMetricsPage
+        projectId={asProjectId(projectId)}
+        periodDays={periodDays}
+        onChangePeriod={handleChangePeriod}
+      />
+    </ContentArea>
   );
 }

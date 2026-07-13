@@ -22,7 +22,7 @@ const EMPTY_STYLE: CSSProperties = {};
  *  and stays legible in both themes. */
 const LABEL_VARIANT_CLASSES: Record<FlowEdgeLabelVariant, string> = {
   positive: 'border-success text-success',
-  negative: 'border-warning text-amber-700 dark:text-amber-300',
+  negative: 'border-warning text-warning',
   neutral: 'border-muted-foreground/50 text-muted-foreground',
 };
 

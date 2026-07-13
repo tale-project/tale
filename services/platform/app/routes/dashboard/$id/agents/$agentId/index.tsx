@@ -1,21 +1,20 @@
 import { PageSection } from '@tale/ui/page-section';
-import { SectionHeader } from '@tale/ui/section-header';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { Info } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { AgentTabContent } from '@/app/features/agents/components/agent-tab-content';
 import {
   useUpdateAgentBindings,
   useUpdateAgentSharing,
@@ -30,6 +29,7 @@ import {
 } from '@/app/features/agents/utils/next-config-for-behavior';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { listProductAgentSlugs } from '@/lib/agent-adapters/registry';
@@ -83,7 +83,7 @@ function GeneralTab() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { id: organizationId, agentId: agentSlug } = Route.useParams();
-  const { config, updateConfig } = useAgentConfig();
+  const { config, updateConfig, initialConfig } = useAgentConfig();
   // Inline error for the required display name — schema-level (any locale
   // counts), so it only shows when NO locale carries a name (#2665).
   const { fieldErrors } = useAgentValidation(config);
@@ -131,13 +131,17 @@ function GeneralTab() {
       const existingI18n = config.i18n ?? {};
       const existingOverrides = existingI18n[editingLocale] ?? {};
       const next = { ...existingOverrides };
+      // Store the live input verbatim — empty string included. Mapping
+      // empty→undefined here made the cleared state unrepresentable: the
+      // display fell back to the legacy top-level value mid-edit, so a
+      // select-all+delete snapped back and retyped text concatenated
+      // (#2678). Empties are normalized away at the write boundary instead
+      // (normalizeAgentConfig I-2 strips them on save).
       if ('displayName' in patch) {
-        const v = patch.displayName?.trim();
-        next.displayName = v ? patch.displayName : undefined;
+        next.displayName = patch.displayName;
       }
       if ('description' in patch) {
-        const v = patch.description?.trim();
-        next.description = v ? patch.description : undefined;
+        next.description = patch.description;
       }
       // Server-side `normalizeAgentConfig` enforces the legacy-retirement
       // invariant (I-1) at the write boundary, so the UI just writes the
@@ -407,10 +411,14 @@ function GeneralTab() {
   const confirmTypeSwitch = useCallback(() => {
     if (!pendingBehavior) return;
     // Functional form so the cleanup reads the latest config (it keeps an
-    // existing agentKind when re-entering External).
-    updateConfig((prev) => nextConfigForBehavior(prev, pendingBehavior));
+    // existing agentKind when re-entering External). Passing the saved
+    // snapshot makes an unsaved round-trip restore what the switch away
+    // cleared instead of leaving the editor dirty with dropped bindings.
+    updateConfig((prev) =>
+      nextConfigForBehavior(prev, pendingBehavior, initialConfig),
+    );
     setPendingBehavior(null);
-  }, [pendingBehavior, updateConfig]);
+  }, [pendingBehavior, updateConfig, initialConfig]);
 
   const handleAgentKindChange = useCallback(
     (value: string) => {
@@ -492,11 +500,12 @@ function GeneralTab() {
   }, [t, taskBoardHint]);
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.form.sectionGeneral')}
-        description={t('agents.form.sectionGeneralDescription')}
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {t('agents.form.sectionGeneralDescription')}
+      </Text>
 
       <PageSection
         title={
@@ -513,6 +522,10 @@ function GeneralTab() {
             value={primaryBehavior}
             onValueChange={handleTypeSelect}
             options={agentTypeOptions}
+            // The visible group label is the PageSection title above (via
+            // InfoTooltipLabel, no linkable id), so name the radiogroup with
+            // the same string — same i18n key, can't drift (#2682).
+            aria-label={t('agents.form.agentType.sectionTitle')}
           />
         </FormSection>
         {isExternalAgent && (
@@ -529,7 +542,7 @@ function GeneralTab() {
       </PageSection>
 
       <FormSection>
-        <Switch
+        <SettingsToggleRow
           checked={config.visibleInChat === true}
           onCheckedChange={handleVisibilityChange}
           label={t('agents.general.visibleInChat')}
@@ -648,6 +661,6 @@ function GeneralTab() {
         confirmText={t('agents.form.agentType.switchConfirm')}
         onConfirm={confirmTypeSwitch}
       />
-    </ContentArea>
+    </AgentTabContent>
   );
 }

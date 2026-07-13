@@ -154,11 +154,13 @@ function hasAnyRetentionFeatureEnabled(config: unknown): boolean {
   return false;
 }
 
-interface BoundDiffEntry {
+export interface BoundDiffEntry {
   category: string;
   field: 'min' | 'max';
-  from: number;
-  to: number;
+  /** `null` = the category was not bounded in the applied snapshot. */
+  from: number | null;
+  /** `null` = the proposal no longer bounds the category. */
+  to: number | null;
   direction: 'tighten' | 'loosen';
 }
 
@@ -173,8 +175,16 @@ interface ImpactEntry {
  * Per-category diff between two `AppliedBoundsByCategory` snapshots.
  * `tighten` = floor raised OR ceiling lowered; `loosen` = the reverse.
  * Identical values are omitted.
+ *
+ * A category present on only one side is a real change too — the hash
+ * includes it, so the banner fires; omitting it here produced the
+ * "0 of 0 change(s)" empty proposal (e.g. after a release ships a new
+ * retention category that the org's applied snapshot predates). Newly
+ * bounded = `tighten` with `from: null`; no longer bounded = `loosen`
+ * with `to: null`. Exported for tests: an empty diff must imply an
+ * unchanged hash.
  */
-function diffBounds(
+export function diffBounds(
   from: AppliedBoundsByCategory | null,
   to: AppliedBoundsByCategory,
 ): BoundDiffEntry[] {
@@ -182,25 +192,63 @@ function diffBounds(
   for (const cat of RETENTION_CATEGORIES) {
     const a = from?.[cat];
     const b = to[cat];
-    if (!b) continue;
-    const fromMin = a?.min ?? b.min;
-    const fromMax = a?.max ?? b.max;
-    if (b.min !== fromMin) {
+    if (!a && !b) continue;
+    if (!b) {
+      // `a` is defined here: dropping an enforced floor + ceiling loosens.
+      out.push(
+        {
+          category: cat,
+          field: 'min',
+          from: a?.min ?? null,
+          to: null,
+          direction: 'loosen',
+        },
+        {
+          category: cat,
+          field: 'max',
+          from: a?.max ?? null,
+          to: null,
+          direction: 'loosen',
+        },
+      );
+      continue;
+    }
+    if (!a) {
+      // Enforcing bounds where none were applied before tightens.
+      out.push(
+        {
+          category: cat,
+          field: 'min',
+          from: null,
+          to: b.min,
+          direction: 'tighten',
+        },
+        {
+          category: cat,
+          field: 'max',
+          from: null,
+          to: b.max,
+          direction: 'tighten',
+        },
+      );
+      continue;
+    }
+    if (b.min !== a.min) {
       out.push({
         category: cat,
         field: 'min',
-        from: fromMin,
+        from: a.min,
         to: b.min,
-        direction: b.min > fromMin ? 'tighten' : 'loosen',
+        direction: b.min > a.min ? 'tighten' : 'loosen',
       });
     }
-    if (b.max !== fromMax) {
+    if (b.max !== a.max) {
       out.push({
         category: cat,
         field: 'max',
-        from: fromMax,
+        from: a.max,
         to: b.max,
-        direction: b.max < fromMax ? 'tighten' : 'loosen',
+        direction: b.max < a.max ? 'tighten' : 'loosen',
       });
     }
   }
@@ -241,8 +289,8 @@ const boundsRecordValidator = v.record(
 const diffEntryValidator = v.object({
   category: v.string(),
   field: v.union(v.literal('min'), v.literal('max')),
-  from: v.number(),
-  to: v.number(),
+  from: v.union(v.number(), v.null()),
+  to: v.union(v.number(), v.null()),
   direction: v.union(v.literal('tighten'), v.literal('loosen')),
 });
 

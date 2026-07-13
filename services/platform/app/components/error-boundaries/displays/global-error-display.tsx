@@ -49,7 +49,10 @@ function useFallbackTranslator() {
           return t('errors.persistsProblem');
         case 'contactSupport':
           return t('errors.contactSupport');
-        // No translation key for the show/hide toggle yet — fall through.
+        case 'showDetails':
+          return t('errors.showDetails');
+        case 'hideDetails':
+          return t('errors.hideDetails');
         default:
           return FALLBACK_TEXT[key];
       }

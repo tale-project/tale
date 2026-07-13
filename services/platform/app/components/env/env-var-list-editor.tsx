@@ -63,11 +63,34 @@ interface Row {
   tokenSourceSlug?: string;
 }
 
+/**
+ * Controller-shaped snapshot reported to hosts in external-save mode — the
+ * bridge `useEnvEditorController` turns this into an `EditorController` so
+ * env surfaces share the unified header Save/Discard cluster.
+ */
+export interface EnvEditorState {
+  isDirty: boolean;
+  isSaving: boolean;
+  isLoading: boolean;
+  save: () => Promise<void>;
+  reset: () => void;
+}
+
 export interface EnvVarListEditorProps {
   rows: readonly LoadedEnvVar[] | undefined;
   isLoading: boolean;
   /** Disable while a parent operation is in flight. */
   disabled?: boolean;
+  /**
+   * External-save mode: hides the inline bottom Save button so the host can
+   * dock Save/Discard in its header cluster instead (via
+   * `useEnvEditorController` + `useRegisterActiveEditor`/`composeEditors`).
+   * In this mode a key-validation failure THROWS its localized message
+   * (EditorActions owns the failure toast) instead of toasting here.
+   */
+  externalSave?: boolean;
+  /** Reports controller state upward; required for `externalSave` hosts. */
+  onEditorState?: (state: EnvEditorState) => void;
   /** Every row is a secret — hides the per-row Secret toggle and defaults new
    *  rows to secret. For write-only stores (e.g. project secrets) where a
    *  plaintext value never makes sense. */
@@ -129,6 +152,8 @@ export function EnvVarListEditor({
   rows,
   isLoading,
   disabled = false,
+  externalSave = false,
+  onEditorState,
   forceSecret = false,
   tokenSources,
   onSet,
@@ -263,11 +288,15 @@ export function EnvVarListEditor({
     const keys = active.map((r) => r.key.trim());
     for (const k of keys) {
       if (!ENV_KEY_RE.test(k)) {
+        // External mode: throw so the header cluster's EditorActions surfaces
+        // the failure (and doesn't flash "Saved" on a resolved promise).
+        if (externalSave) throw new Error(t('badKey', { key: k }));
         toast({ title: t('badKey', { key: k }), variant: 'destructive' });
         return;
       }
     }
     if (new Set(keys).size !== keys.length) {
+      if (externalSave) throw new Error(t('dupKey'));
       toast({ title: t('dupKey'), variant: 'destructive' });
       return;
     }
@@ -304,6 +333,9 @@ export function EnvVarListEditor({
       setIsDirty(false);
       toast({ title: t('saved'), variant: 'success' });
     } catch (err) {
+      // External mode: rethrow so EditorActions owns the (single) failure
+      // toast; inline mode keeps the local toast.
+      if (externalSave) throw err;
       toast({
         title: t('saveError'),
         description: err instanceof Error ? err.message : String(err),
@@ -313,6 +345,36 @@ export function EnvVarListEditor({
       setSaving(false);
     }
   };
+
+  // Discard: restore the last loaded snapshot and drop the dirty guard so the
+  // next reactive server update re-snapshots normally.
+  const reset = (): void => {
+    dirty.current = false;
+    setIsDirty(false);
+    setLocalRows(loadedRows.current);
+  };
+
+  // Report controller state to an external-save host. Callbacks go through
+  // refs so their identity is stable while always invoking the latest closure
+  // (mirrors useFormEditor's registry contract); the effect fires only on
+  // state changes, never on plain re-renders.
+  const onEditorStateRef = useRef(onEditorState);
+  onEditorStateRef.current = onEditorState;
+  const saveRef = useRef(onSave);
+  saveRef.current = onSave;
+  const resetRef = useRef(reset);
+  resetRef.current = reset;
+  useEffect(() => {
+    onEditorStateRef.current?.({
+      isDirty,
+      isSaving: saving,
+      isLoading,
+      save: () => saveRef.current(),
+      reset: () => {
+        resetRef.current();
+      },
+    });
+  }, [isDirty, saving, isLoading]);
 
   const busy = saving || disabled;
 
@@ -489,9 +551,11 @@ export function EnvVarListEditor({
           <Plus className="size-4" />
           {t('add')}
         </Button>
-        <Button onClick={() => void onSave()} disabled={busy || !isDirty}>
-          {saving ? t('saving') : t('save')}
-        </Button>
+        {!externalSave && (
+          <Button onClick={() => void onSave()} disabled={busy || !isDirty}>
+            {saving ? t('saving') : t('save')}
+          </Button>
+        )}
       </HStack>
       <DeleteDialog
         open={pendingRemove !== null}

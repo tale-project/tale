@@ -41,7 +41,7 @@ function isMessages(v: unknown): v is Messages {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function readJson(file: string): Messages {
+export function readJson(file: string): Messages {
   const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (!isMessages(raw)) {
     throw new Error(
@@ -51,7 +51,7 @@ function readJson(file: string): Messages {
   return raw;
 }
 
-function flatten(
+export function flatten(
   obj: Messages,
   prefix = '',
   out = new Set<string>(),
@@ -67,7 +67,7 @@ function flatten(
   return out;
 }
 
-function loadAllowlist(allowlistPath: string): string[] {
+export function loadAllowlist(allowlistPath: string): string[] {
   if (!fs.existsSync(allowlistPath)) return [];
   return fs
     .readFileSync(allowlistPath, 'utf8')
@@ -92,7 +92,7 @@ const PRUNE_DIRS = new Set([
   'fixtures',
 ]);
 
-function walk(dir: string, out: string[] = []): string[] {
+export function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
@@ -109,13 +109,13 @@ function walk(dir: string, out: string[] = []): string[] {
 
 // `const { t: tVendors } = useT('vendors')` or `useTranslation('vendors')` —
 // captures alias name and namespace. Falls back to `t` when no alias is given.
-const T_DESTRUCTURE_RE =
+export const T_DESTRUCTURE_RE =
   /\{\s*t(?:\s*:\s*(\w+))?\s*\}\s*=\s*use(?:T|Translation)\(\s*(?:\[\s*)?['"`]([\w.-]+)['"`]/g;
 
 // `useTranslation(['ns1', 'ns2'])` — array of namespaces.
-const USE_TRANSLATION_ARRAY_RE =
+export const USE_TRANSLATION_ARRAY_RE =
   /\{\s*t(?:\s*:\s*(\w+))?\s*\}\s*=\s*useTranslation\(\s*\[([^\]]+)\]/g;
-const ARRAY_NAMES_RE = /['"`]([\w.-]+)['"`]/g;
+export const ARRAY_NAMES_RE = /['"`]([\w.-]+)['"`]/g;
 
 // `i18n.t('full.key')` — bypasses the namespace machinery entirely.
 const I18N_T_RE = /\bi18n\.t\(\s*['"`]([\w.-]+)['"`]/g;

@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button, LinkButton } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { CodeBlock } from '@tale/ui/code-block';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
@@ -30,9 +31,9 @@ interface RuntimeRow {
 }
 
 const STATUS_BADGE: Record<RuntimeRow['status'], string> = {
-  active: 'text-green-600 dark:text-green-400 border-green-500/40',
-  degraded: 'text-amber-600 dark:text-amber-400 border-amber-500/40',
-  offline: 'text-red-600 dark:text-red-400 border-red-500/40',
+  active: 'text-success border-success/40',
+  degraded: 'text-warning border-warning/40',
+  offline: 'text-destructive border-destructive/40',
 };
 
 const CLI_INSTALL_COMMAND =
@@ -181,55 +182,60 @@ export function RuntimesSettings({
                   ? 'degraded'
                   : 'active';
               return (
-                <li
-                  key={daemonId}
-                  className="border-border flex flex-col gap-2 rounded-lg border p-3"
-                >
-                  <Row gap={2} wrap>
-                    <Text as="h3" variant="label" className="min-w-0 truncate">
-                      {first?.name || daemonId}
-                    </Text>
-                    <Badge
-                      variant="outline"
-                      className={cn('text-[10px]', STATUS_BADGE[worst])}
-                    >
-                      {t(`status.${worst}`)}
-                    </Badge>
-                    <Text
-                      as="span"
-                      variant="muted"
-                      className="ml-auto shrink-0 text-xs"
-                    >
-                      {t('list.lastSeen', {
-                        age: formatRelative(
-                          new Date(
-                            Math.max(...adapters.map((a) => a.lastHeartbeatAt)),
+                <Card asChild padding="sm" key={daemonId}>
+                  <li className="flex flex-col gap-2">
+                    <Row gap={2} wrap>
+                      <Text
+                        as="h3"
+                        variant="label"
+                        className="min-w-0 truncate"
+                      >
+                        {first?.name || daemonId}
+                      </Text>
+                      <Badge
+                        variant="outline"
+                        className={cn('text-[10px]', STATUS_BADGE[worst])}
+                      >
+                        {t(`status.${worst}`)}
+                      </Badge>
+                      <Text
+                        as="span"
+                        variant="muted"
+                        className="ml-auto shrink-0 text-xs"
+                      >
+                        {t('list.lastSeen', {
+                          age: formatRelative(
+                            new Date(
+                              Math.max(
+                                ...adapters.map((a) => a.lastHeartbeatAt),
+                              ),
+                            ),
                           ),
-                        ),
-                      })}
+                        })}
+                      </Text>
+                    </Row>
+                    <Text as="p" variant="muted" className="font-mono text-xs">
+                      {daemonId}
                     </Text>
-                  </Row>
-                  <Text as="p" variant="muted" className="font-mono text-xs">
-                    {daemonId}
-                  </Text>
-                  <ul className="flex flex-wrap gap-1.5">
-                    {adapters.map((adapter) => (
-                      <li key={adapter.adapterType}>
-                        <Badge variant="outline" className="text-[10px]">
-                          {adapter.adapterType}
-                          {adapter.version ? ` · ${adapter.version}` : ''}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                  {first?.workspaceKeys && first.workspaceKeys.length > 0 && (
-                    <Text as="p" variant="muted" className="text-xs">
-                      {t('list.workspaces', {
-                        keys: first.workspaceKeys.join(', '),
-                      })}
-                    </Text>
-                  )}
-                </li>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {adapters.map((adapter) => (
+                        <li key={adapter.adapterType}>
+                          <Badge variant="outline" className="text-[10px]">
+                            {adapter.adapterType}
+                            {adapter.version ? ` · ${adapter.version}` : ''}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                    {first?.workspaceKeys && first.workspaceKeys.length > 0 && (
+                      <Text as="p" variant="muted" className="text-xs">
+                        {t('list.workspaces', {
+                          keys: first.workspaceKeys.join(', '),
+                        })}
+                      </Text>
+                    )}
+                  </li>
+                </Card>
               );
             })}
           </Stack>

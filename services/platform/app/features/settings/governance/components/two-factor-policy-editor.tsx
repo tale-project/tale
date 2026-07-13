@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -204,7 +205,7 @@ export function TwoFactorPolicyEditor({
                 {t('twoFactorPolicy.gracePeriodDaysHint')}
               </Text>
 
-              <Switch
+              <SettingsToggleRow
                 label={t('twoFactorPolicy.exemptSsoUsers')}
                 description={t('twoFactorPolicy.exemptSsoUsersHint')}
                 checked={exemptSsoUsers}

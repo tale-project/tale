@@ -13,6 +13,8 @@ interface MetricSelectProps {
   value: string;
   onValueChange: (value: string) => void;
   'aria-label': string;
+  /** Shown while no option is selected (e.g. an entity picker). */
+  placeholder?: string;
   /** Trigger width — defaults to `w-36`; widen for long labels. */
   widthClassName?: string;
 }
@@ -27,6 +29,7 @@ export function MetricSelect({
   value,
   onValueChange,
   'aria-label': ariaLabel,
+  placeholder,
   widthClassName = 'w-36',
 }: MetricSelectProps) {
   return (
@@ -36,6 +39,7 @@ export function MetricSelect({
         value={value}
         onValueChange={onValueChange}
         aria-label={ariaLabel}
+        placeholder={placeholder}
       />
     </div>
   );

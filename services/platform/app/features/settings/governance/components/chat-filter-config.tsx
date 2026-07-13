@@ -359,6 +359,7 @@ export function ChatFilterConfigView({
                 checked={preferNonStreaming}
                 disabled={cannotManage}
                 onCheckedChange={handlePreferNonStreaming}
+                aria-label={t('contentSafety.preferNonStreaming')}
               />
             </FormSection>
 
@@ -674,62 +675,64 @@ function CategoryList({
           {t('contentSafety.categoriesEmpty')}
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('contentSafety.columnLabel')}</TableHead>
-              <TableHead>{t('contentSafety.columnMode')}</TableHead>
-              <TableHead>{t('contentSafety.columnEnabled')}</TableHead>
-              <TableHead>{t('contentSafety.columnWords')}</TableHead>
-              <TableHead>{t('contentSafety.columnPatterns')}</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.map((category, index) => (
-              <TableRow key={category.id}>
-                <TableCell>{category.label}</TableCell>
-                <TableCell className="capitalize">{category.mode}</TableCell>
-                <TableCell>
-                  <Switch
-                    checked={category.enabled}
-                    disabled={disabled}
-                    aria-label={t('contentSafety.enableAria', {
-                      label: category.label,
-                    })}
-                    onCheckedChange={(next) => onToggleEnabled(index, next)}
-                  />
-                </TableCell>
-                <TableCell>{category.words.length}</TableCell>
-                <TableCell>{category.patterns.length}</TableCell>
-                <TableCell>
-                  <Row gap={1} align="stretch" justify="end">
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      icon={Pencil}
-                      aria-label={t('contentSafety.editAria', {
-                        label: category.label,
-                      })}
-                      disabled={disabled}
-                      onClick={() => onEdit(index)}
-                    />
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      icon={Trash2}
-                      aria-label={t('contentSafety.deleteAria', {
-                        label: category.label,
-                      })}
-                      disabled={disabled}
-                      onClick={() => onDelete(index)}
-                    />
-                  </Row>
-                </TableCell>
+        <div className="border-border overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('contentSafety.columnLabel')}</TableHead>
+                <TableHead>{t('contentSafety.columnMode')}</TableHead>
+                <TableHead>{t('contentSafety.columnEnabled')}</TableHead>
+                <TableHead>{t('contentSafety.columnWords')}</TableHead>
+                <TableHead>{t('contentSafety.columnPatterns')}</TableHead>
+                <TableHead />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {categories.map((category, index) => (
+                <TableRow key={category.id}>
+                  <TableCell>{category.label}</TableCell>
+                  <TableCell className="capitalize">{category.mode}</TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={category.enabled}
+                      disabled={disabled}
+                      aria-label={t('contentSafety.enableAria', {
+                        label: category.label,
+                      })}
+                      onCheckedChange={(next) => onToggleEnabled(index, next)}
+                    />
+                  </TableCell>
+                  <TableCell>{category.words.length}</TableCell>
+                  <TableCell>{category.patterns.length}</TableCell>
+                  <TableCell>
+                    <Row gap={1} align="stretch" justify="end">
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        icon={Pencil}
+                        aria-label={t('contentSafety.editAria', {
+                          label: category.label,
+                        })}
+                        disabled={disabled}
+                        onClick={() => onEdit(index)}
+                      />
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        icon={Trash2}
+                        aria-label={t('contentSafety.deleteAria', {
+                          label: category.label,
+                        })}
+                        disabled={disabled}
+                        onClick={() => onDelete(index)}
+                      />
+                    </Row>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
       <div>
         <Button

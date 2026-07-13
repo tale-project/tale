@@ -66,7 +66,7 @@ vi.mock('@/lib/i18n/client', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'modelSelector.label': 'Select model',
-        'modelSelector.searchPlaceholder': 'Search models...',
+        'modelSelector.searchPlaceholder': 'Search models…',
         'modelSelector.noResults': 'No models found',
         'modelSelector.auto': 'Auto',
         'modelSelector.noModelsAvailable': 'No models available',

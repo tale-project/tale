@@ -251,15 +251,15 @@ function ProbeResultRow({
       </Text>
     );
   } else if (result?.ok && result.warning) {
-    icon = <CircleAlert className="size-4 shrink-0 text-yellow-600" />;
+    icon = <CircleAlert className="text-warning size-4 shrink-0" />;
     detail = (
-      <Text className="truncate text-xs text-yellow-700" title={result.warning}>
+      <Text className="text-warning truncate text-xs" title={result.warning}>
         {result.warning} ·{' '}
         {t('providers.testLatency', { latencyMs: result.latencyMs })}
       </Text>
     );
   } else if (result?.ok) {
-    icon = <Check className="size-4 shrink-0 text-green-600" />;
+    icon = <Check className="text-success size-4 shrink-0" />;
     detail = (
       <Text className="text-muted-foreground text-xs">
         {t('providers.testLatency', { latencyMs: result.latencyMs })}

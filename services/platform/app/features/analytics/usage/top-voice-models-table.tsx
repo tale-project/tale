@@ -6,9 +6,10 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopVoiceModelRow {
   provider: string;
@@ -30,6 +31,7 @@ export function TopVoiceModelsTable({
   onSelectModel,
 }: TopVoiceModelsTableProps) {
   const { t } = useT('analytics');
+  const { formatNumber, formatCostCents } = useFormatNumber();
 
   const handleRowClick = useCallback(
     (row: Row<TopVoiceModelRow>) => {
@@ -100,14 +102,11 @@ export function TopVoiceModelsTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t],
+    [t, formatNumber, formatCostCents],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('usage.tables.topVoiceModels.title')}
-      </Text>
+    <MetricsSection title={t('usage.tables.topVoiceModels.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -121,6 +120,6 @@ export function TopVoiceModelsTable({
           description: t('usage.emptyVoiceModels.description'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

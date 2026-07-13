@@ -17,10 +17,14 @@ export const Route = createFileRoute(
  * chain `flex-1 min-h-0` up to the project shell's `PageLayout` and have the
  * workflow canvas fill the available height; every other tab renders at its
  * natural height inside this same box.
+ *
+ * No padding here: `AutomationPage` pads each tab itself (its `ContentArea`
+ * wrappers), exactly like the org-level layout — an extra `p-4` would double
+ * every tab's padding (view/desk tabs, Configuration, Triggers, …).
  */
 function ProjectAutomationLayout() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
       <Outlet />
     </div>
   );

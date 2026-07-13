@@ -113,12 +113,14 @@ const JSON_VIEWER_THEME = {
   base07: 'hsl(var(--foreground))',
   base08: 'hsl(var(--foreground))',
   base09: 'hsl(var(--destructive))',
-  base0A: 'rgba(70, 70, 230, 1)',
-  base0B: 'rgba(70, 70, 230, 1)',
-  base0C: 'rgba(70, 70, 230, 1)',
-  base0D: 'rgba(70, 70, 230, 1)',
-  base0E: 'rgba(70, 70, 230, 1)',
-  base0F: 'rgba(70, 70, 230, 1)',
+  // One themed accent for all value types (the literal rgba it replaces never
+  // switched with the theme; --primary resolves per theme like base00-09).
+  base0A: 'hsl(var(--primary))',
+  base0B: 'hsl(var(--primary))',
+  base0C: 'hsl(var(--primary))',
+  base0D: 'hsl(var(--primary))',
+  base0E: 'hsl(var(--primary))',
+  base0F: 'hsl(var(--primary))',
 };
 
 interface JsonViewerDisplayProps {
@@ -536,18 +538,17 @@ function JsonInputBase({
           className="flex items-center justify-between"
         >
           <div>
-            Press{' '}
             <kbd className="bg-muted rounded px-1 py-0.5 text-xs">
               {t('keyboardShortcuts.ctrlEnter')}
             </kbd>{' '}
-            to save,{' '}
+            {t('keyboardShortcuts.hintToSave')}{' '}
             <kbd className="bg-muted rounded px-1 py-0.5 text-xs">
               {t('keyboardShortcuts.escape')}
             </kbd>{' '}
-            to cancel
+            {t('keyboardShortcuts.hintToCancel')}
           </div>
           {editing.isDirty && (
-            <span className="font-medium text-amber-600">
+            <span className="text-warning font-medium">
               {t('unsavedChanges.title')}
             </span>
           )}

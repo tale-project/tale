@@ -13,9 +13,13 @@ Six roles cover almost every team Tale ships to. Admins and Owners read this pag
 
 </Frame>
 
-## A worked invite
+## Adding a member
 
-To add a person to your organisation, open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. The new member receives an email link valid for 24 hours and lands in the default role you pick — change the role on the form before sending if they should not be a Member. The default applies the moment they accept the invite; promoting later is a one-click change in the same Members section.
+To add a person to your organisation, open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Fill in their **Name**, **Email**, and **Role**, and set a **Password** — Tale does not send an email invite, so a password is required to create a new account. (If the email already belongs to a Tale account, no password is asked: the person signs in with their existing credentials and is simply added to this organisation.)
+
+On **Add member**, Tale shows the new sign-in credentials **once**, with the reminder to save them now because they won't be shown again. Relay them to the new member out of band — there is no reset email. Anyone who later forgets their password contacts an admin, who can set a new one from the same Members section.
+
+Pick the role on the form before you submit; promoting or changing it later is a one-click change in the same Members section.
 
 ## The six roles
 

@@ -101,6 +101,7 @@
     "title": "Access denied",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
+    "automations": "You need Admin or Developer permissions to access automations.",
     "organization": "You need Admin permissions to access organization settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
     "skills": "You need Admin or Developer permissions to manage skills.",
@@ -123,12 +124,6 @@
       "integration": "Integration",
       "transcription": "Transcription",
       "tts": "Voice output",
-      "period": {
-        "label": "Period",
-        "last7Days": "Last 7 days",
-        "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days"
-      },
       "granularity": {
         "label": "Granularity",
         "daily": "Daily",
@@ -209,14 +204,6 @@
       "errors": {
         "loadFailed": "Couldn't load feedback metrics",
         "unauthorized": "You don't have access to this page"
-      },
-      "period": {
-        "label": "Period",
-        "last24Hours": "Last 24 hours",
-        "last7Days": "Last 7 days",
-        "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days",
-        "allTime": "All time"
       },
       "kind": {
         "label": "Type",
@@ -873,29 +860,10 @@
       "notInProjectDescription": "Add this automation to this project to use it here.",
       "addToThisProject": "Add to this project"
     },
-    "board": {
-      "hiddenCards": "{count, plural, one {# card hidden — no matching lane} other {# cards hidden — no matching lane}}",
-      "moveTo": "Move to",
-      "truncated": "Showing the first cards only — the list was truncated."
-    },
-    "chat": {
-      "roleUnavailable": "This automation doesn't map the “{role}” role to an agent yet."
-    },
-    "integrationsTab": {
-      "emptyTitle": "No integrations required",
-      "emptyDescription": "This automation runs without any connected integration."
-    },
     "metrics": {
-      "link": "Metrics",
       "title": "Automation Metrics",
       "description": "Usage and performance KPIs across your automations.",
       "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
-      "period": {
-        "last7Days": "Last 7 days",
-        "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days",
-        "label": "Period"
-      },
       "cards": {
         "totalRuns": "Total runs",
         "successRate": "Success rate",
@@ -928,6 +896,18 @@
         "title": "No workflow runs",
         "description": "No workflows have run in the selected period."
       }
+    },
+    "board": {
+      "hiddenCards": "{count, plural, one {# card hidden — no matching lane} other {# cards hidden — no matching lane}}",
+      "moveTo": "Move to",
+      "truncated": "Showing the first cards only — the list was truncated."
+    },
+    "chat": {
+      "roleUnavailable": "This automation doesn't map the “{role}” role to an agent yet."
+    },
+    "integrationsTab": {
+      "emptyTitle": "No integrations required",
+      "emptyDescription": "This automation runs without any connected integration."
     }
   },
   "changelog": {
@@ -1113,7 +1093,7 @@
     },
     "modelSelector": {
       "label": "Select model",
-      "searchPlaceholder": "Search models...",
+      "searchPlaceholder": "Search models…",
       "noResults": "No models found",
       "addModel": "Add model",
       "auto": "Auto",
@@ -1733,6 +1713,12 @@
     "kbFolderChipFilesSkipped": "{resolved}/{count, plural, one {# file} other {# files}} — {skipped, plural, one {# not indexed} other {# not indexed}}",
     "embedded": {
       "analyzeAttachments": "Please analyze the attached files."
+    },
+    "errors": {
+      "PROJECT_MISMATCH": "This conversation belongs to a different project.",
+      "PROJECT_FORBIDDEN": "You don't have access to this conversation's project.",
+      "PROJECT_NOT_FOUND": "This conversation's project no longer exists.",
+      "PROJECT_ORG_MISMATCH": "This conversation's project belongs to a different organization."
     }
   },
   "common": {
@@ -1938,7 +1924,7 @@
     "search": {
       "noResults": "No results found",
       "tryAdjusting": "Try adjusting your search criteria",
-      "placeholder": "Search..."
+      "placeholder": "Search…"
     },
     "mentions": {
       "unresolvedTitle": "Mention not recognized",
@@ -1951,7 +1937,9 @@
       "errorLoadingPage": "An error occurred while loading this page. You can try again or navigate to another section.",
       "persistsProblem": "If this problem persists, please",
       "contactSupport": "contact support",
-      "tryAgain": "Try again"
+      "tryAgain": "Try again",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details"
     },
     "executionErrors": {
       "unauthenticated": "You're not signed in. Refresh the page and try again.",
@@ -1961,7 +1949,9 @@
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
-      "escape": "Esc"
+      "escape": "Esc",
+      "hintToSave": "to save,",
+      "hintToCancel": "to cancel"
     },
     "notFound": {
       "title": "Page not found",
@@ -2215,6 +2205,9 @@
       "high": "High",
       "low": "Low",
       "medium": "Medium"
+    },
+    "history": {
+      "loadingMore": "Searching more conversations…"
     }
   },
   "contacts": {
@@ -2307,7 +2300,8 @@
     "toSend": "to send",
     "contactInfo": {
       "title": "Contact details"
-    }
+    },
+    "selectConversation": "Select conversation"
   },
   "documentWriteApproval": {
     "cardTitle": "Save to documents",
@@ -2819,16 +2813,16 @@
       "user": "User",
       "team": "Team",
       "selectUser": "Select user...",
-      "searchUsers": "Search users...",
+      "searchUsers": "Search users…",
       "noUsersFound": "No users found",
       "selectUserAriaLabel": "Select user",
       "selectTeam": "Select team...",
-      "searchTeams": "Search teams...",
+      "searchTeams": "Search teams…",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
       "apiKey": "API key",
       "selectApiKey": "Select API key...",
-      "searchApiKeys": "Search API keys...",
+      "searchApiKeys": "Search API keys…",
       "noApiKeysFound": "No API keys found",
       "selectApiKeyAriaLabel": "Select API key",
       "saved": "Budget rules have been updated",
@@ -2865,9 +2859,9 @@
       "selectProvider": "Select provider...",
       "selectModel": "Select model...",
       "selectTeam": "Select team...",
-      "searchProviders": "Search providers...",
-      "searchModels": "Search models...",
-      "searchTeams": "Search teams...",
+      "searchProviders": "Search providers…",
+      "searchModels": "Search models…",
+      "searchTeams": "Search teams…",
       "noProvidersFound": "No providers found",
       "noModelsFound": "No models found",
       "noTeamsFound": "No teams found",
@@ -2887,6 +2881,8 @@
       "allowedMimeTypes": "Allowed MIME types",
       "maxFileSize": "Maximum file size",
       "maxVolumePerUser": "Maximum total volume per user",
+      "invalidMaxFileSize": "Maximum file size must be zero or a positive number.",
+      "invalidMaxVolume": "Maximum total volume must be zero or a positive number.",
       "extensionPlaceholder": "pdf, png, csv",
       "mimeTypePlaceholder": "image/*, application/pdf",
       "mbUnit": "MB",
@@ -2956,7 +2952,9 @@
         "summary": "{tightened} of {total} change(s) tighten retention. Review before applying.",
         "firstApplyDescription": "No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.",
         "applyLabel": "Apply",
+        "applyingLabel": "Applying…",
         "rejectLabel": "Reject",
+        "rejectingLabel": "Rejecting…",
         "detailsLabel": "View details",
         "detailsTitle": "Proposed bound changes",
         "detailsDescription": "Review the operator-proposed retention bound changes before applying or rejecting.",
@@ -3156,10 +3154,10 @@
         "editor": "Editor",
         "member": "Member"
       },
-      "searchUsers": "Search users...",
+      "searchUsers": "Search users…",
       "noUsersFound": "No users found",
       "selectUser": "Select user...",
-      "searchTeams": "Search teams...",
+      "searchTeams": "Search teams…",
       "noTeamsFound": "No teams found",
       "selectTeam": "Select team..."
     },
@@ -3554,7 +3552,8 @@
         "restoredToast": "Restored.",
         "failedToast": "Failed to restore",
         "failedDescription": "Failed to restore this record."
-      }
+      },
+      "emptyTitle": "Trash is empty"
     },
     "legalHold": {
       "targetTypes": {
@@ -3770,6 +3769,7 @@
       "team": "Team",
       "selectUser": "Select user",
       "selectTeam": "Select team",
+      "selectModels": "Select models",
       "searchUsers": "Search users",
       "searchTeams": "Search teams",
       "noUsersFound": "No users found",
@@ -4040,6 +4040,14 @@
       "automations": "Automations",
       "projects": "Projects"
     },
+    "period": {
+      "label": "Period",
+      "last24Hours": "Last 24 hours",
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days",
+      "allTime": "All time"
+    },
     "projects": {
       "selectLabel": "Project",
       "selectPlaceholder": "Select a project…",
@@ -4209,12 +4217,18 @@
       "displayName": "Display name",
       "description": "Description",
       "transportType": "Transport type",
+      "transportStreamableHttp": "Streamable HTTP",
+      "transportSse": "SSE",
+      "transportStdio": "stdio",
       "url": "URL",
       "command": "Command",
       "args": "Arguments",
       "authType": "Method",
+      "authNone": "None",
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
+      "grantClientCredentials": "Client credentials",
+      "grantAuthorizationCode": "Authorization code",
       "save": "Save server",
       "saving": "Saving...",
       "cancel": "Cancel",
@@ -4946,7 +4960,7 @@
     "library": {
       "title": "Prompt library",
       "description": "Browse, save, and share prompt templates.",
-      "searchPlaceholder": "Search prompts...",
+      "searchPlaceholder": "Search prompts…",
       "loading": "Loading prompts...",
       "loadMore": "Load more",
       "loadingMore": "Loading...",
@@ -5581,6 +5595,7 @@
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
       "organizationIdDescription": "The unique identifier for your organization.",
+      "copyOrganizationId": "Copy organization ID",
       "membersSectionTitle": "Members",
       "membersDescription": "People who have access to this organization.",
       "membersEntityLabel": "members",
@@ -5750,7 +5765,6 @@
         "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
       },
       "conversationStarters": {
-        "title": "Conversation starters",
         "description": "Suggested prompts shown to users when they start a new conversation with this agent. Leave empty to show no suggestions.",
         "placeholder": "e.g. Help me write a report",
         "add": "Add starter",
@@ -5758,15 +5772,10 @@
         "dragHandle": "Drag to reorder",
         "moveUp": "Move up",
         "moveDown": "Move down",
-        "default": "default",
-        "untranslated": "untranslated",
-        "autoTranslate": "Auto-translate",
         "translateError": "Failed to auto-translate"
       },
       "form": {
-        "sectionGeneral": "General",
         "sectionGeneralDescription": "Basic information about the agent",
-        "sectionInstructions": "Instructions",
         "sectionInstructionsDescription": "Define the agent's behavior and personality",
         "templateVariablesLabel": "Available template variables",
         "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
@@ -5791,7 +5800,6 @@
         "skillBindingsCounter": "{count}/{max} bound",
         "skillBindingsNoSkillsInOrgDescription": "No skills exist in this organization yet.",
         "skillBindingsNoSkillsInOrgCta": "Create one in Skills settings",
-        "sectionKnowledge": "Knowledge",
         "sectionKnowledgeDescription": "Configure access to the knowledge base",
         "knowledgeHint": "The knowledge base searches documents uploaded to your organization.",
         "knowledgeHintLink": "Manage documents",
@@ -6059,7 +6067,6 @@
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
       },
       "env": {
-        "title": "Environment & secrets",
         "description": "Variables injected when this agent runs in a sandbox — workflow steps and external runs. Mark a value as a secret to encrypt it; secrets are write-only."
       },
       "automationBadge": "Automation"
@@ -6245,7 +6252,7 @@
         "all": "All integrations",
         "connected": "Connected"
       },
-      "searchPlaceholder": "Search integrations...",
+      "searchPlaceholder": "Search integrations…",
       "badge": {
         "connected": "Connected",
         "connect": "Connect",
@@ -6535,7 +6542,11 @@
             "s4": "Copy the IdP entity ID, the IdP single sign-on URL, and the IdP signing certificate (PEM) into the fields above.",
             "s5": "Map the email, name, and group attributes in your IdP; if their names differ, set the matching attribute names under Advanced."
           }
-        }
+        },
+        "disableConfirmTitle": "Disable SSO sign-in?",
+        "disableConfirmDescription": "Members can no longer sign in with SSO until it is enabled again. Active sessions stay signed in.",
+        "removeConfirmTitle": "Remove SSO connection?",
+        "removeConfirmDescription": "This deletes the connection configuration, including client credentials and role mappings, and turns SSO sign-in off immediately. This can’t be undone."
       },
       "noResults": {
         "title": "No results found",
@@ -6818,7 +6829,7 @@
       "entityLabelOne": "key",
       "createKey": "Create API key",
       "createKeySubmit": "Create key",
-      "searchKeys": "Search API keys...",
+      "searchKeys": "Search API keys…",
       "keyCreated": "API key created",
       "keyCreatedDescription": "Make sure to copy your API key now. You won't be able to see it again.",
       "yourApiKey": "Your API key",
@@ -7273,7 +7284,13 @@
         "open": "Open",
         "closed": "Closed",
         "spam": "Spam"
-      }
+      },
+      "pickColorAria": "Pick {label}",
+      "hexValueAria": "{label} hex value",
+      "removeImageAria": "Remove {label}",
+      "imageFallback": "image",
+      "resetConfirmTitle": "Reset branding?",
+      "resetConfirmDescription": "This deletes the uploaded logo and favicons and clears the accent color. Removed images can’t be restored."
     },
     "dataResidency": {
       "readOnly": {
@@ -7639,12 +7656,6 @@
       "link": "Metrics",
       "title": "Task Metrics",
       "description": "Delivery, intervention, and cost KPIs for this project's tasks.",
-      "period": {
-        "last7Days": "Last 7 days",
-        "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days",
-        "label": "Period"
-      },
       "cappedNotice": "Some days hit the rollup scan cap — totals in this window may undercount.",
       "noData": "No data",
       "noDataDescription": "Metrics appear after the first daily rollup.",
@@ -8222,8 +8233,16 @@
     "uninstalled": "Agent uninstalled",
     "status": {
       "enabled": "Enabled",
-      "disabled": "Disabled"
-    }
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "error": "Couldn't update the agent",
+    "empty": {
+      "title": "No agents available",
+      "description": "The catalog has no agents to install right now."
+    },
+    "installedByIntegration": "Installed by {integration}",
+    "requiresIntegration": "Requires {integration}"
   },
   "runtimes": {
     "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, Cursor).",

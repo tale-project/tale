@@ -14,6 +14,7 @@ import {
   HeaderBreadcrumbs,
 } from '@/app/components/layout/header-breadcrumbs';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -290,24 +291,29 @@ function AgentDetailLayout() {
 
   return (
     <AgentConfigProvider agentName={agentId} initialConfig={agentConfig}>
-      <PageLayout
-        header={
-          <>
-            {breadcrumb}
-            <AgentNavigation
-              organizationId={organizationId}
-              agentId={agentId}
-              onSaved={() => {
-                void refetch();
-              }}
-            />
-          </>
-        }
-        organizationId={organizationId}
-        className="relative"
-      >
-        <Outlet />
-      </PageLayout>
+      {/* Active-editor registry: side-table editors (the Environment tab's
+          env/secret list) register here and AgentNavigation composes them into
+          the ONE header Save/Discard cluster — no per-tab save buttons. */}
+      <ActiveEditorProvider>
+        <PageLayout
+          header={
+            <>
+              {breadcrumb}
+              <AgentNavigation
+                organizationId={organizationId}
+                agentId={agentId}
+                onSaved={() => {
+                  void refetch();
+                }}
+              />
+            </>
+          }
+          organizationId={organizationId}
+          className="relative"
+        >
+          <Outlet />
+        </PageLayout>
+      </ActiveEditorProvider>
     </AgentConfigProvider>
   );
 }

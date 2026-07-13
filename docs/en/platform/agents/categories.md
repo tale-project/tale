@@ -3,7 +3,7 @@ title: Agent folders
 description: How agents are grouped — folders derived from the agent's id, how automation-installed agents file themselves, and where the permission boundary actually lives.
 ---
 
-Agents are grouped by folders, and a folder comes from the agent's id: name an agent `marketing/seo-writer` and it files under a `marketing` folder wherever agents are listed. Folders are an organisational sorting tool, not a permission boundary — who can use an agent is the **Access** section on its **General** page, unchanged by where it is filed.
+Agents are grouped by folders, and a folder comes from the agent's id: an agent whose id is `github/pull-request-reviewer` files under a `github` folder wherever agents are listed. Folders are an organisational sorting tool, not a permission boundary — who can use an agent is the **Access** section on its **General** page, unchanged by where it is filed.
 
 <Frame caption="The agents list with the chat folder expanded — the folder is the slug's prefix, the rows are its agents.">
 
@@ -13,7 +13,7 @@ Agents are grouped by folders, and a folder comes from the agent's id: name an a
 
 ## File an agent into a folder
 
-The folder is set where the agent's id is set: the **Name** field in the create dialog. The id must be lowercase letters, numbers, hyphens, and underscores, with a `/` separating the folder from the agent — and it can't change later, so pick the folder when you create the agent. The display name is independent; rename the agent freely without moving it.
+Foldered ids come from the platform, not the create dialog. The dialog's **Name** field takes a flat id — lowercase letters, numbers, hyphens, and underscores, no `/` — so an agent you create there lands unfiled at the top level. The folder prefix (`chat/`, `github/`) is reserved for agents the platform ships or installs: builtins arrive pre-filed, and installing an [automation](/platform/automations/concepts) files its agents under the folder their id names. An id can't change later, so the folder is fixed when the agent is created. The display name is independent; rename the agent freely without moving it.
 
 In the **Agents** list, folders render as collapsed rows with an agent count — click one to expand it, and the breadcrumb tracks where you are. The builtin agents ship pre-filed: the general assistants under `chat`, the GitHub agents under `github`.
 

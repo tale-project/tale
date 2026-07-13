@@ -14,7 +14,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.label': 'Select agent',
         'agentSelector.defaultAgent': 'Default agent',
         'agentSelector.viewDetails': 'View agent details',
-        'agentSelector.searchPlaceholder': 'Search agents...',
+        'agentSelector.searchPlaceholder': 'Search agents…',
         'agentSelector.noResults': 'No agents found',
         'agentSelector.auto': 'Auto',
         'agentSelector.autoDescription':

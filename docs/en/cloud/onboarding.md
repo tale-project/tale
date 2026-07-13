@@ -51,7 +51,7 @@ The first user becomes the org's **Owner** automatically. You can see your role 
 
 <Step title="Invite the first admin">
 
-Open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Enter the admin's email and assign the **Admin** role. The invitee receives an email with a magic link; they sign up and land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — invite a second admin before doing anything that requires it.
+Open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Enter the admin's name and email, assign the **Admin** role, and set a password — Tale creates the account directly and shows the sign-in credentials once, so save them and relay them to the new admin out of band (there is no invite email). They land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — add a second admin before doing anything that requires it.
 
 For the role matrix (who can do what), see [Members and roles](/platform/admin/members-and-roles).
 
