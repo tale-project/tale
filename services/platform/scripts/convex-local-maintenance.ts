@@ -171,9 +171,16 @@ export function formatModuleIntegrityError(missing: readonly string[]): string {
     `Local Convex module storage is incomplete: ${missing.length} live ` +
     `function-bundle blob(s) referenced by the deployment are missing on disk` +
     (sample ? ` (e.g. ${sample}${more})` : '') +
-    '. Automatic prune cannot repair this. Stop other Convex processes, then ' +
-    'run `bun run setup:clean` (type `delete local convex`) and `bun run dev` ' +
-    'to bootstrap a fresh deployment.'
+    '. Automatic prune cannot repair this — the bundle bytes are gone, so the ' +
+    'deployment must be rebuilt. To rebuild WITHOUT losing local data, export ' +
+    'it first (the backend still starts): run ' +
+    '`bun run --filter @tale/platform convex:dev` (this bypasses the check) ' +
+    'and, in another terminal, `cd services/platform && npx convex export ' +
+    '--path convex-backup.zip`. Then reset and restore: `bun run setup:clean` ' +
+    '(type `delete local convex`), `bun run dev`, then `cd services/platform && ' +
+    'npx convex import --replace-all convex-backup.zip`. See contributor-setup ' +
+    '(resetting local Convex dev data). Running setup:clean without exporting ' +
+    'first permanently discards every local table, upload, and function.'
   );
 }
 
