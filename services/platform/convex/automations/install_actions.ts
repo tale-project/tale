@@ -51,19 +51,25 @@ import {
 import { startInputSchemaOf } from './schedule_variables';
 
 /**
- * Register an automation's single INLINE workflow: the install record only.
+ * Register an automation's single INLINE workflow: the install record, plus —
+ * for an ORG-scoped automation — its declared event subscriptions.
  *
  * The workflow lives in the automation's `automation.json` `workflow` field —
  * its slug IS the automation slug — so there is no file to read: the parsed
- * manifest already carries it. Automation workflows are deliberately NOT given
- * org-global event subscriptions. An automation is an internally-scoped scenario,
- * so its workflow must run only from within the automation's own scope (its view
- * actions / its per-workflow webhook) — never off an org-wide `task.*`/`*.*`
- * event that other automations and channels also emit, which would cross-fire it
- * on unrelated tasks. (Schedules are time-based and per-workflow, not org-global
- * fan-out, so they remain — provisioned by `syncAutomationSchedules` once the
- * bindings are known.) A declared event trigger is therefore a misconfiguration
- * we ignore loudly rather than leak.
+ * manifest already carries it.
+ *
+ * Event triggers are scope-gated. An org-scoped automation (the task-ops /
+ * mention-dispatch packs, inbound-message notify) exists precisely to react to
+ * org-wide events, so its declared `triggers.events` are provisioned
+ * CREATE-IF-ABSENT — an org's later edit or deactivation always wins, and
+ * `processEvent`'s ownership arbitration (`isSubscriptionAllowedForTask`)
+ * keeps it off other automations' tasks. A PROJECT-scoped automation is an
+ * internally-scoped scenario: its workflow runs from its own surface (view
+ * actions, schedules, its per-workflow webhook), never off an org-wide event
+ * that would cross-fire it on unrelated projects — a declared event trigger
+ * there is a misconfiguration we ignore loudly rather than leak. (Schedules
+ * are per-workflow either way — reconciled by `syncAutomationSchedules` once
+ * the bindings are known.)
  */
 async function registerInlineWorkflow(
   ctx: ActionCtx,
@@ -71,6 +77,7 @@ async function registerInlineWorkflow(
   automationSlug: string,
   workflow: WorkflowJsonConfig,
   installedBy: string,
+  scope: 'org' | 'project',
 ): Promise<void> {
   const content = serializeWorkflowJson(workflow);
   await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
@@ -81,11 +88,23 @@ async function registerInlineWorkflow(
     automationSlug,
   });
   const declaredEvents = workflow.triggers?.events ?? [];
-  if (declaredEvents.length > 0) {
+  if (declaredEvents.length === 0) return;
+  if (scope === 'project') {
     console.warn(
-      `[automation-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by automation "${automationSlug}"'s workflow: automation workflows are scoped and must not subscribe to org-global events`,
+      `[automation-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by project-scoped automation "${automationSlug}"'s workflow: project automations must not subscribe to org-global events`,
     );
+    return;
   }
+  await ctx.runMutation(
+    internal.workflows.provision_defaults_mutations
+      .provisionDeclaredWorkflowTriggers,
+    {
+      organizationId,
+      workflowSlug: automationSlug,
+      events: declaredEvents,
+      activate: true,
+    },
+  );
 }
 
 /**
@@ -343,6 +362,7 @@ export async function ensureOrgResources(
       automationSlug,
       workflow,
       installedBy,
+      automationScope(manifest),
     );
   }
 

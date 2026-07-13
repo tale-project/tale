@@ -1,17 +1,19 @@
 'use node';
 
 /**
- * Provision the default task-ops workflow pack to EXISTING organizations
- * (new orgs get it from the org-creation hook). Idempotent — per-workflow
+ * Provision the out-of-the-box automations to EXISTING organizations (new
+ * orgs get them from the org-creation hook). Idempotent — per-automation
  * `wfDefaultProvisions` rows make re-runs no-ops, and orgs that uninstalled
- * or deactivated a pack workflow are never re-provisioned behind their back.
+ * an autoInstall automation or deactivated its triggers are never
+ * re-provisioned behind their back.
  *
- * Two entry points:
- *  - `provisionTaskOpsPackAllOrgs` — registered in `provisioning.ts:provisionAll`,
- *    which the deploy entrypoint executes: the pack comes PREINSTALLED with
- *    active triggers for every org on every deploy, no rollout step.
- *  - `provisionTaskOpsPack` — single-org ops tool:
- *    bunx convex run provisioning/provision_task_ops_pack:provisionTaskOpsPack \
+ * Two entry points (mirrors `provision_default_agents.ts`):
+ *  - `provisionDefaultAutomationsAllOrgs` — registered in
+ *    `provisioning.ts:provisionAll`, which the deploy entrypoint executes:
+ *    the packs come PREINSTALLED with active triggers for every org on every
+ *    deploy, no rollout step.
+ *  - `provisionDefaultAutomations` — single-org ops tool:
+ *    bunx convex run provisioning/provision_default_automations:provisionDefaultAutomations \
  *      '{ "organizationId": "<org-id>", "orgSlug": "<org-slug>" }'
  */
 
@@ -22,7 +24,7 @@ import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 
-export const provisionTaskOpsPack = internalAction({
+export const provisionDefaultAutomations = internalAction({
   args: {
     organizationId: v.string(),
     orgSlug: v.string(),
@@ -37,10 +39,11 @@ export const provisionTaskOpsPack = internalAction({
     args,
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
     const result = await ctx.runAction(
-      internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
+      internal.automations.provision_defaults
+        .syncDefaultAutomationInstallations,
       { organizationId: args.organizationId, orgSlug: args.orgSlug },
     );
-    console.log('[TaskOpsProvision] migration run', {
+    console.log('[AutomationProvision] migration run', {
       organizationId: args.organizationId,
       ...result,
     });
@@ -48,7 +51,7 @@ export const provisionTaskOpsPack = internalAction({
   },
 });
 
-export const provisionTaskOpsPackAllOrgs = internalAction({
+export const provisionDefaultAutomationsAllOrgs = internalAction({
   args: {},
   returns: v.object({
     orgs: v.number(),
@@ -69,12 +72,12 @@ export const provisionTaskOpsPackAllOrgs = internalAction({
     while (!isDone) {
       if (pages++ >= MAX_PAGES) {
         throw new Error(
-          `provisionTaskOpsPackAllOrgs: pagination did not terminate within ${MAX_PAGES} pages`,
+          `provisionDefaultAutomationsAllOrgs: pagination did not terminate within ${MAX_PAGES} pages`,
         );
       }
       if (prevCursor !== undefined && cursor === prevCursor) {
         throw new Error(
-          'provisionTaskOpsPackAllOrgs: pagination cursor did not advance',
+          'provisionDefaultAutomationsAllOrgs: pagination cursor did not advance',
         );
       }
       prevCursor = cursor;
@@ -107,21 +110,21 @@ export const provisionTaskOpsPackAllOrgs = internalAction({
     for (const org of orgs.sort((a, b) => a.slug.localeCompare(b.slug))) {
       try {
         const result = await ctx.runAction(
-          internal.workflows.provision_defaults
-            .syncDefaultWorkflowInstallations,
+          internal.automations.provision_defaults
+            .syncDefaultAutomationInstallations,
           { organizationId: org.id, orgSlug: org.slug },
         );
         provisioned += result.provisioned;
       } catch (error) {
         // One broken org must not block the fleet; the next deploy retries.
         failedOrgs += 1;
-        console.error('[TaskOpsProvision] org provisioning failed', {
+        console.error('[AutomationProvision] org provisioning failed', {
           orgSlug: org.slug,
           error: error instanceof Error ? error.message : String(error),
         });
       }
     }
-    console.log('[TaskOpsProvision] all-orgs run', {
+    console.log('[AutomationProvision] all-orgs run', {
       orgs: orgs.length,
       provisioned,
       failedOrgs,

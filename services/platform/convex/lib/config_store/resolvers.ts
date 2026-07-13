@@ -22,7 +22,6 @@ import { resolvePromptsDir } from '../../prompts/file_utils';
 import { resolveProvidersDir } from '../../providers/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
 import { resolveTokenSourcesDir } from '../../token_sources/file_utils';
-import { resolveWorkflowsDir } from '../../workflows/file_utils';
 
 export type DomainDirResolver = (orgSlug: string) => string;
 
@@ -33,7 +32,6 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   providers: resolveProvidersDir,
   integrations: resolveIntegrationsDir,
   'token-sources': resolveTokenSourcesDir,
-  workflows: resolveWorkflowsDir,
   skills: resolveSkillsDir,
   branding: resolveBrandingDir,
   governance: resolveGovernanceDir,

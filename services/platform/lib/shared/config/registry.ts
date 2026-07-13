@@ -37,7 +37,7 @@ import {
  * On-disk shape of a domain's catalog/data dir:
  *  - `flat`        — one file per item, no subdirs (providers, prompts, governance).
  *  - `bundle`      — one dir per item (skills, integrations).
- *  - `tree`        — arbitrary nested files (agents, workflows, branding + images/).
+ *  - `tree`        — arbitrary nested files (agents, branding + images/).
  *  - `single-file` — exactly one file for the whole area (retention). Nested in
  *                    a parent domain dir rather than scaffolded on its own.
  */
@@ -47,7 +47,7 @@ export type ConfigLayout = 'flat' | 'bundle' | 'tree' | 'single-file';
  * Scaffold/override copy semantics (mirrors the historical `DOMAINS.kind`):
  *  - `flat`   — per-file atomicWrite; user-added files + secrets + `.history/` survive (providers/prompts/governance).
  *  - `bundle` — per-item dir replace (staging + atomic rename); domain-root siblings survive (skills/integrations).
- *  - `tree`   — per-file overwrite recursing into subdirs, no rm; user-only folders survive (agents/workflows/branding).
+ *  - `tree`   — per-file overwrite recursing into subdirs, no rm; user-only folders survive (agents/branding).
  */
 export type ScaffoldKind = 'flat' | 'bundle' | 'tree';
 
@@ -70,7 +70,8 @@ export type ReadContext = 'node-direct' | 'v8-action' | 'v8-sync';
  *                         is a user-editable DB row (prompts → `promptTemplates`).
  *  - `runtime-state`    — the file holds the definition (source of truth); the
  *                         DB holds only per-org runtime state, never the config
- *                         (workflows → `wfInstallations` + trigger rows).
+ *                         (automations → `automationInstallations` + their inline
+ *                         workflows' `wfInstallations` + trigger rows).
  */
 export type ConfigDataModel = 'config' | 'seeded-user-data' | 'runtime-state';
 
@@ -203,21 +204,6 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       eventType: 'token-sources',
       emitsFor: JSON_ONLY,
       slugFromRest: (rest) => stripJson(rest[0]),
-    },
-  },
-  // Workflow DEFINITION is the file (source of truth); `wfInstallations` +
-  // trigger rows are per-org runtime state, not config.
-  {
-    name: 'workflows',
-    layout: 'tree',
-    readContext: 'node-direct',
-    dataModel: 'runtime-state',
-    scaffoldKind: 'tree',
-    // <org>/workflows/[folder/]<name>.json — slug is the path without extension
-    watcher: {
-      eventType: 'workflows',
-      emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => stripJson(rest.join('/')),
     },
   },
   {
