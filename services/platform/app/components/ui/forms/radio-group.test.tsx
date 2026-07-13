@@ -185,6 +185,22 @@ describe('RadioGroup', () => {
       expect(screen.getByRole('radiogroup')).toHaveAttribute('aria-labelledby');
     });
 
+    it('uses external aria-labelledby when label prop is absent', () => {
+      render(
+        <>
+          <span id="external-label">External label</span>
+          <RadioGroup
+            aria-labelledby="external-label"
+            options={[{ value: 'a', label: 'A' }]}
+          />
+        </>,
+      );
+      expect(screen.getByRole('radiogroup')).toHaveAttribute(
+        'aria-labelledby',
+        'external-label',
+      );
+    });
+
     it('sets aria-describedby when description is provided', () => {
       render(
         <RadioGroup

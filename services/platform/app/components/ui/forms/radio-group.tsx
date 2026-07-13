@@ -46,6 +46,8 @@ export const RadioGroup = forwardRef<
       options,
       columns = 1,
       children,
+      'aria-labelledby': ariaLabelledBy,
+      'aria-describedby': ariaDescribedBy,
       ...props
     },
     ref,
@@ -73,8 +75,8 @@ export const RadioGroup = forwardRef<
           {...props}
           ref={ref}
           required={required}
-          aria-labelledby={label ? `${id}-label` : undefined}
-          aria-describedby={description ? descriptionId : undefined}
+          aria-labelledby={label ? `${id}-label` : ariaLabelledBy}
+          aria-describedby={description ? descriptionId : ariaDescribedBy}
         >
           {options
             ? options.map((option) => (

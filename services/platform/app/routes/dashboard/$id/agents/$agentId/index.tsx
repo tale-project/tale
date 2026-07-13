@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { Info } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -57,14 +57,16 @@ function InfoTooltipLabel({
   info,
   moreInfoLabel,
   className,
+  id,
 }: {
   label: string;
   info: ReactNode;
   moreInfoLabel: string;
   className?: string;
+  id?: string;
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-1', className)}>
+    <span id={id} className={cn('inline-flex items-center gap-1', className)}>
       {label}
       <Tooltip content={info}>
         <button
@@ -80,6 +82,7 @@ function InfoTooltipLabel({
 }
 
 function GeneralTab() {
+  const agentTypeLabelId = useId();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { id: organizationId, agentId: agentSlug } = Route.useParams();
@@ -510,6 +513,7 @@ function GeneralTab() {
       <PageSection
         title={
           <InfoTooltipLabel
+            id={agentTypeLabelId}
             label={t('agents.form.agentType.sectionTitle')}
             info={agentTypeInfo}
             moreInfoLabel={tCommon('aria.moreInfo')}
@@ -519,6 +523,7 @@ function GeneralTab() {
       >
         <FormSection>
           <RadioGroup
+            aria-labelledby={agentTypeLabelId}
             value={primaryBehavior}
             onValueChange={handleTypeSelect}
             options={agentTypeOptions}
