@@ -16,9 +16,9 @@ Make sure two things are in place:
 
 ## Step 1 — Create the agent
 
-Open **Agents** in the sidebar and click **Create agent**, then pick **Blank** (the menu also offers **From template** and **Upload file** for importing agent JSON). The dialog asks for four things: a **Name** — the unique id used in links and the API, which you can't change later; add a `/` to file the agent in a folder, e.g. `marketing/seo-writer` — a **Display name** teammates see in chat, a **Description**, and the **Model** list. The first model is the default and the rest are fallbacks; drag to reorder or add more anytime. Click **Continue** and the editor opens on the **General** tab.
+Open **Agents** in the sidebar and click **Create agent**, then pick **Blank** (the menu also offers **From template** and **Upload file** for importing agent JSON). The dialog asks for four things: a **Name** — the unique id used in links and the API, which you can't change later — use lowercase letters, numbers, hyphens, and underscores only, e.g. `seo-writer` — a **Display name** teammates see in chat, a **Description**, and the **Model** list. The first model is the default and the rest are fallbacks; drag to reorder or add more anytime. Click **Continue** and the editor opens on the **General** tab.
 
-<Frame caption="The agents list — Create agent sits top right; the folder rows come from slugs with a / prefix.">
+<Frame caption="The agents list — Create agent sits top right.">
 
 ![The agents list with the chat folder expanded, showing the Assistant and Automation Assistant rows with their default models and tool counts.](/images/platform/agents-list-expanded.webp)
 
