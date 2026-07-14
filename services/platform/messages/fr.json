@@ -918,6 +918,7 @@
       "uploading": "téléversement…",
       "uploadFailed": "échec du téléversement",
       "more": "+{count} de plus",
+      "showLess": "Afficher moins",
       "drop": "Déposez les fichiers ici, ou",
       "deleteFile": "Supprimer {name}",
       "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."

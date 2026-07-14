@@ -12,6 +12,8 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { toId } from '../lib/type_cast_helpers';
+import { parseYamlMap } from './parse_yaml_map';
 import { serializeYamlMap, YamlMapError } from './serialize_yaml_map';
 
 function extractExtension(fileName: string): string {
@@ -245,5 +247,58 @@ export const ensureProjectTextDocument = action({
       action: upserted.action,
       ...(args.seedSkillFiles !== undefined && { seededSkillFiles }),
     };
+  },
+});
+
+/**
+ * Read a project folder's flat-YAML text file back into a `{key: value}` map —
+ * the read twin of `ensureProjectTextDocument`, so a Form can pre-fill its
+ * fields from the file it writes (e.g. the FX-policy panel reflecting the
+ * actual `Setup/fx-policy.yaml`, whether the panel or a manual upload wrote
+ * it). Reads the stored blob directly (no RAG dependency) and parses the flat
+ * map. Returns `{}` when the folder/file does not exist or the caller cannot
+ * read the project — a form then falls back to its declared defaults.
+ */
+export const readProjectTextValues = action({
+  args: {
+    organizationId: v.string(),
+    projectId: v.id('projects'),
+    folderName: v.string(),
+    fileName: v.string(),
+  },
+  returns: v.record(v.string(), v.string()),
+  handler: async (ctx, args): Promise<Record<string, string>> => {
+    const { userId } = await requireOrgMembershipById(ctx, args.organizationId);
+    const fileName = validateFileName(args.fileName);
+
+    const folderId = await ctx.runQuery(
+      internal.folders.internal_queries.findProjectRootFolder,
+      {
+        organizationId: args.organizationId,
+        projectId: args.projectId,
+        name: args.folderName,
+        userId,
+      },
+    );
+    if (!folderId) return {};
+
+    // Project-scoped listing (document.list stays hub-blind without projectId)
+    // — find the file by its title in the resolved folder.
+    const listed = await ctx.runQuery(
+      internal.documents.internal_queries.listForAgent,
+      {
+        organizationId: args.organizationId,
+        userId,
+        folderId,
+        projectId: args.projectId,
+        limit: 50,
+      },
+    );
+    const hit = listed.documents.find((d) => d.title === fileName);
+    if (!hit?.fileId) return {};
+
+    const blob = await ctx.storage.get(toId<'_storage'>(hit.fileId));
+    if (!blob) return {};
+    return parseYamlMap(await blob.text());
   },
 });

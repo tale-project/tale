@@ -918,6 +918,7 @@
       "uploading": "uploading…",
       "uploadFailed": "upload failed",
       "more": "+{count} more",
+      "showLess": "Show less",
       "drop": "Drop files here, or",
       "deleteFile": "Delete {name}",
       "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."

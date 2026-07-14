@@ -156,6 +156,39 @@ describe('Form — rendering and initial values', () => {
     );
   });
 
+  it('seeds fields from initialQuery, overriding the initial default', async () => {
+    // The read action returns the file's saved value; it wins over `initial`
+    // so the panel reflects what was actually saved (not a stale default).
+    dispatch.mockResolvedValueOnce({ method: 'daily_sell' });
+    render(
+      <Form
+        fields={[
+          {
+            key: 'method',
+            type: 'select',
+            options: [
+              { value: 'estv_monthly', label: 'Monthly' },
+              { value: 'daily_sell', label: 'Daily' },
+            ],
+          },
+        ]}
+        initial={{ method: 'estv_monthly' }}
+        initialQuery={{
+          path: 'documents/public_actions:readProjectTextValues',
+          args: { folderName: 'Setup' },
+        }}
+        submit={SUBMIT}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('select')).toHaveAttribute(
+        'data-value',
+        'daily_sell',
+      ),
+    );
+  });
+
   it('renders field help as an accessible description', () => {
     render(
       <Form
