@@ -96,6 +96,7 @@ export const listForAgent = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
+    folderId: v.optional(v.string()),
     folderPath: v.optional(v.string()),
     extension: v.optional(v.string()),
     teamId: v.optional(v.string()),

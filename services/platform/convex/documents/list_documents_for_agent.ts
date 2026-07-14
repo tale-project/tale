@@ -16,6 +16,7 @@ import {
   fuzzyMatchTitle,
   levenshteinDistance,
 } from '../lib/fuzzy_match';
+import { toId } from '../lib/type_cast_helpers';
 import { isActiveDocument } from './_helpers';
 import { hasKnowledgeHubDocumentAccess } from './access';
 
@@ -46,6 +47,9 @@ export async function listDocumentsForAgent(
   args: {
     organizationId: string;
     userTeamIds: string[];
+    /** Exact folder id — wins over `folderPath` (no fuzzy resolution). The
+     *  base query is org-keyed, so a foreign org's folder id matches nothing. */
+    folderId?: string;
     folderPath?: string;
     extension?: string;
     teamId?: string;
@@ -85,7 +89,12 @@ export async function listDocumentsForAgent(
   let folderIds: Id<'folders'>[] | undefined;
   let folderIdSet: Set<string> | undefined;
   let folderWarning: string | null = null;
-  if (args.folderPath) {
+  if (args.folderId) {
+    // Exact id from the caller (e.g. a workflow step holding a task's
+    // folderId) — no fuzzy resolution, and `folderPath` is ignored.
+    folderIds = [toId<'folders'>(args.folderId)];
+    folderIdSet = new Set<string>([args.folderId]);
+  } else if (args.folderPath) {
     const resolved = await resolveFolderPathFuzzy(
       ctx,
       args.organizationId,

@@ -328,6 +328,55 @@ describe('listDocumentsForAgent', () => {
       expect(result.documents[0]?.folderPath).toBe('contracts');
     });
 
+    it('filters by exact folderId, ignoring folderPath fuzz', async () => {
+      const ctx = createMockCtx(
+        {
+          f_a: { name: 'quarter', organizationId: 'org1', parentId: undefined },
+          f_b: {
+            name: 'quarter2',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [
+          makeDoc({ _id: 'doc1', folderId: 'f_a', title: 'inv.pdf' }),
+          makeDoc({ _id: 'doc2', folderId: 'f_b', title: 'other.pdf' }),
+          makeDoc({ _id: 'doc3', folderId: undefined, title: 'root.pdf' }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderId: 'f_a',
+        // Ignored when folderId is set — exact id wins over fuzzy paths.
+        folderPath: 'quarter2',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
+    });
+
+    it('returns empty for a folderId holding no documents', async () => {
+      const ctx = createMockCtx(
+        {
+          f_empty: {
+            name: 'empty',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: undefined })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderId: 'f_empty',
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.totalCount).toBe(0);
+    });
+
     it('returns empty for non-existent folderPath', async () => {
       const ctx = createMockCtx({}, [makeDoc({ _id: 'doc1' })]);
 

@@ -157,6 +157,8 @@ type DocumentActionParams =
     }
   | {
       operation: 'list';
+      /** Exact folder id — wins over `folderPath` (no fuzzy resolution). */
+      folderId?: string;
       folderPath?: string;
       extension?: string;
     }
@@ -269,6 +271,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     }),
     v.object({
       operation: v.literal('list'),
+      folderId: v.optional(v.string()),
       folderPath: v.optional(v.string()),
       extension: v.optional(v.string()),
     }),
@@ -837,6 +840,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             {
               organizationId,
               userId,
+              folderId: params.folderId,
               folderPath: params.folderPath,
               extension: params.extension,
               limit: MAX_LIMIT,
