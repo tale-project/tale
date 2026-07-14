@@ -17,6 +17,7 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
   isAllowedDocumentUpload,
+  isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
@@ -373,6 +374,12 @@ export function DocumentUploadDialog({
                 bytesLoaded={tracked.bytesLoaded}
                 bytesTotal={tracked.bytesTotal}
                 error={tracked.error}
+                notIndexable={
+                  !isRagIndexableFile(
+                    tracked.file.name,
+                    resolveFileType(tracked.file.name, tracked.file.type),
+                  )
+                }
                 onRetry={() => handleRetryFile(tracked.id)}
                 onRemove={
                   tracked.status === 'pending' || tracked.status === 'completed'

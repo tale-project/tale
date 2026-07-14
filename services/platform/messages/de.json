@@ -2523,6 +2523,7 @@
       "rateLimited": "Zu viele Uploads auf einmal. Warte einen Moment und versuche es erneut.",
       "fileTooLargeLimit": "Datei überschreitet das Limit von {limit}.",
       "uploadTimedOut": "Zeitüberschreitung beim Upload. Prüfe deine Verbindung und versuche es erneut.",
+      "storedButNotIndexed": "Gespeichert und herunterladbar, aber nicht für die Suche indexiert (Altformat).",
       "filesCompletedSummary": "{completed} von {total} Dateien abgeschlossen",
       "filesCompletedWithFailures": "{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen",
       "selectTeams": "Teams zuweisen",

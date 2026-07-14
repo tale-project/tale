@@ -2523,6 +2523,7 @@
       "rateLimited": "Trop de téléversements à la fois. Patiente un instant et réessaie.",
       "fileTooLargeLimit": "Le fichier dépasse la limite de {limit}.",
       "uploadTimedOut": "Délai de téléversement dépassé. Vérifie ta connexion et réessaie.",
+      "storedButNotIndexed": "Stocké et téléchargeable, mais non indexé pour la recherche (ancien format).",
       "filesCompletedSummary": "{completed} sur {total} fichiers terminés",
       "filesCompletedWithFailures": "{completed} sur {total} fichiers terminés · {failed} échoués",
       "selectTeams": "Assigner aux équipes",
