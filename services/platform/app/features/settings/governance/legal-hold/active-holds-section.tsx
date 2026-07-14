@@ -114,35 +114,51 @@ export function ActiveHoldsSection({
       {
         accessorKey: 'reason',
         header: t('legalHold.columns.reason'),
+        // `truncate` is overflow:hidden + ellipsis, and neither does anything to
+        // an INLINE span — so a long reason painted straight over the Matter,
+        // Placed by and Placed columns. The min-w-0 block wrapper is what gives
+        // the ellipsis a box to clip against (same shape as the target cell).
         cell: ({ row }) => (
-          <Text as="span" truncate title={row.original.reason}>
-            {row.original.reason}
-          </Text>
+          <Stack gap={0} className="min-w-0">
+            <Text as="span" truncate title={row.original.reason}>
+              {row.original.reason}
+            </Text>
+          </Stack>
         ),
         size: 130,
       },
       {
         accessorKey: 'matterName',
         header: t('legalHold.columns.matter'),
-        cell: ({ row }) =>
-          row.original.matterName ? (
-            <Text as="span" variant="muted" truncate>
-              {row.original.matterName}
-            </Text>
-          ) : (
-            <Text as="span" variant="muted">
-              —
-            </Text>
-          ),
+        cell: ({ row }) => (
+          <Stack gap={0} className="min-w-0">
+            {row.original.matterName ? (
+              <Text
+                as="span"
+                variant="muted"
+                truncate
+                title={row.original.matterName}
+              >
+                {row.original.matterName}
+              </Text>
+            ) : (
+              <Text as="span" variant="muted">
+                —
+              </Text>
+            )}
+          </Stack>
+        ),
         size: 120,
       },
       {
         accessorKey: 'placedByName',
         header: t('legalHold.columns.placedBy'),
         cell: ({ row }) => (
-          <Text as="span" truncate>
-            {row.original.placedByName}
-          </Text>
+          <Stack gap={0} className="min-w-0">
+            <Text as="span" truncate title={row.original.placedByName}>
+              {row.original.placedByName}
+            </Text>
+          </Stack>
         ),
         size: 130,
       },
