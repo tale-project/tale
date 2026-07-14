@@ -39,6 +39,8 @@ Das Löschen eines Ordners löscht jede Datei und jeden Unterordner darin endgü
 
 **Neu indexieren** (Zeilenmenü) lässt die Pipeline erneut über die gespeicherte Datei laufen — der richtige Zug nach einem Indexierungsfehler oder wenn ein Dokument **Neuindexierung nötig** zeigt. **Löschen** entfernt das Dokument und seine indexierten Chunks; die Bestätigung sagt es unumwunden — die Aktion lässt sich nicht rückgängig machen. Dieselbe Datei erneut hochzuladen bringt den Inhalt als frisches Dokument zurück.
 
+Jedes Dokument zeigt einen Status: **In Warteschlange** (wartet — eine ausgelastete Organisation indexiert einige Dateien gleichzeitig, der Rest reiht sich ein), **Wird indexiert**, **Indexiert**, **Fehlgeschlagen** oder **Nicht unterstützt** (ein Altformat wie `.doc`/`.ppt`/`.xls`, das sich problemlos speichern und herunterladen lässt, aber keinen Text-Extraktor hat und daher nie für die Suche indexiert wird). Ein durch ein Zeitlimit oder einen Backend-Neustart unterbrochener Indexierungsvorgang erholt sich innerhalb weniger Minuten von selbst — er wird wiederholt oder als **Fehlgeschlagen** mit Wiederholen-Option markiert, nie steckengelassen. Wenn deine Organisation ein Speicher-Kontingent pro Nutzer durchsetzt, zählen fehlgeschlagene und nicht unterstützte Dateien weiterhin dagegen, bis sie gelöscht werden — Platz schaffen heißt also, nicht mehr benötigte Dateien zu entfernen.
+
 Ein Klick auf ein Dokument öffnet die Vorschau, mit einer Seitenleiste für Größe, Quelle, RAG-Status, Teams, hochladende Person und Änderungsdatum — der schnellste Weg zu prüfen, worauf ein Zitat wirklich zeigt.
 
 ## Dokumente gegenüber strukturierten Daten
