@@ -109,13 +109,15 @@ afterEach(async () => {
 
 describe('listCatalogAutomations', () => {
   it('projects the summary fields of a valid catalog manifest', async () => {
+    // Filed under `github/` — the slug IS the path, so the projection's `folder`
+    // is DERIVED from it (there is no `folder` manifest field any more), and the
+    // catalog walk must reach a manifest two dirs down.
     await writeAutomation(
-      'issue-desk',
+      'github/issue-desk',
       JSON.stringify({
         name: 'Issue Desk',
         description: 'Triage and reconcile GitHub issues.',
         icon: 'inbox',
-        folder: 'github/issues',
         i18n: { de: { name: 'Issue-Schreibtisch' } },
         scope: 'project',
         workflow: { name: 'Reconcile', steps: [] },
@@ -137,15 +139,15 @@ describe('listCatalogAutomations', () => {
     expect(mockRequireOrgMembershipById).toHaveBeenCalledWith(ctx, 'org_test');
     expect(automations).toEqual([
       {
-        slug: 'issue-desk',
+        slug: 'github/issue-desk',
         name: 'Issue Desk',
         description: 'Triage and reconcile GitHub issues.',
         scope: 'project',
         icon: 'inbox',
-        folder: 'github/issues',
+        folder: 'github',
         i18n: { de: { name: 'Issue-Schreibtisch' } },
         kind: 'automation',
-        workflows: ['issue-desk'],
+        workflows: ['github/issue-desk'],
         agents: ['triager'],
         skills: [],
         functions: [
@@ -209,6 +211,9 @@ describe('listCatalogAutomations', () => {
         description: '',
         // Absent manifest `scope` resolves to the org-level back-compat default.
         scope: 'org',
+        // A root-level automation has no parent folder — it groups under the
+        // trailing "General" section.
+        folder: '',
         kind: 'automation',
         workflows: [],
         agents: [],
@@ -221,7 +226,6 @@ describe('listCatalogAutomations', () => {
     // No optional keys leak onto the summary when the manifest omits them.
     const [entry] = automations as Array<Record<string, unknown>>;
     expect(entry).not.toHaveProperty('icon');
-    expect(entry).not.toHaveProperty('folder');
     expect(entry).not.toHaveProperty('i18n');
   });
 

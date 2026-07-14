@@ -17,7 +17,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const WORKFLOW_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/automations/reply-imap-emails/automation.json',
+    '../../../../builtin-configs/automations/imap-smtp/reply-emails/automation.json',
     import.meta.url,
   ),
 );

@@ -31,15 +31,19 @@ export function agentSlugFromFileName(relativePath: string): string {
 }
 
 /**
- * An agent identity. Either a flat GLOBAL name (`coder`) or an app-owned
- * COMPOSITE `<automationSlug>/<name>` (`issue-desk/desk-coordinator`). The composite
- * carries its owning app so the slug stays a globally-unique, self-describing
- * identity; app-owned agents live under the app's bundle, invisible to the
- * global agent surfaces. At most one `/`, each segment validated independently
- * (so `..`/absolute paths can never slip through into a resolved path).
+ * An agent identity. Either a flat GLOBAL name (`coder`) or an automation-owned
+ * COMPOSITE `<automationSlug>/<name>` (`github/create-pull-requests/pr-creator`).
+ * The composite carries its owning automation so the slug stays a globally-unique,
+ * self-describing identity; automation-owned agents live under the automation's
+ * bundle, invisible to the global agent surfaces.
+ *
+ * An automation slug is ITSELF a path, so the split is on the LAST `/`: everything
+ * before it is the automation slug, the final segment is the agent name. Each side
+ * is validated independently (so `..`/absolute paths can never slip through into a
+ * resolved path).
  */
 export function validateAgentName(name: string): boolean {
-  const slash = name.indexOf('/');
+  const slash = name.lastIndexOf('/');
   if (slash === -1) return AGENT_NAME_REGEX.test(name);
   const automationSlug = name.slice(0, slash);
   const rest = name.slice(slash + 1);

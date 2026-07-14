@@ -22,6 +22,11 @@
 import type { z } from 'zod/v4';
 
 import {
+  AUTOMATION_MANIFEST_FILENAME,
+  BUNDLE_MANIFEST_FILENAME,
+  MAX_AUTOMATION_SLUG_DEPTH,
+} from '../schemas/automations';
+import {
   ssoConnectionFileSchema,
   SSO_CONFIG_DOMAIN,
   SSO_CONNECTION_KEY,
@@ -121,6 +126,18 @@ export interface ConfigDomain {
    * scaffolder skips the domain rather than failing on a missing catalog dir.
    */
   readonly scaffoldKind?: ScaffoldKind;
+  /**
+   * Present iff this domain's bundles may NEST (today: automations, whose slug
+   * IS its path — `automations/gmail/reply-emails/`). A dir carrying one of
+   * `markers` IS a bundle and the walk stops there (its `agents/`, `views/` are
+   * bundle content); a dir carrying none is a GROUP dir and is descended into,
+   * up to `maxDepth`. Absent ⇒ bundles are exactly one level deep (skills,
+   * integrations) and the scaffolder reads a single dir level.
+   */
+  readonly nestedBundles?: {
+    readonly markers: readonly string[];
+    readonly maxDepth: number;
+  };
   /** Present iff `readContext === 'v8-sync'`. */
   readonly v8Sync?: V8SyncSpec;
   /** Present iff dev edits to this domain need a frontend SSE invalidation. */
@@ -295,6 +312,10 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
     readContext: 'node-direct',
     dataModel: 'runtime-state',
     scaffoldKind: 'bundle',
+    nestedBundles: {
+      markers: [AUTOMATION_MANIFEST_FILENAME, BUNDLE_MANIFEST_FILENAME],
+      maxDepth: MAX_AUTOMATION_SLUG_DEPTH,
+    },
   },
 ];
 

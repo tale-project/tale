@@ -24,7 +24,7 @@ import type { WorkflowStep } from '../../lib/shared/schemas/workflows';
 
 const PACK_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/automations/run-assigned-task/automation.json',
+    '../../../../builtin-configs/automations/projects/tasks/run-assigned/automation.json',
     import.meta.url,
   ),
 );

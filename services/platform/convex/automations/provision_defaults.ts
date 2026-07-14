@@ -22,7 +22,7 @@
  * automation now.
  */
 
-import { readdir } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 
 import { v } from 'convex/values';
 
@@ -30,7 +30,7 @@ import { automationScope } from '../../lib/shared/schemas/automations';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { serializeJson, sha256 } from '../lib/file_io';
-import { resolveAutomationsDir } from './file_utils';
+import { listAutomationSlugs, resolveAutomationsDir } from './file_utils';
 import { ensureOrgResources, prepareInstallAs } from './install_actions';
 import { readBundleManifest } from './install_fs';
 
@@ -54,12 +54,14 @@ export const syncDefaultAutomationInstallations = internalAction({
   ): Promise<{ provisioned: number; skipped: number; failed: number }> => {
     const attempt = args.attempt ?? 1;
 
+    const automationsDir = resolveAutomationsDir(args.orgSlug);
     let slugs: string[];
     try {
-      const entries = await readdir(resolveAutomationsDir(args.orgSlug), {
-        withFileTypes: true,
-      });
-      slugs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+      // `stat` first: the walk below reports a MISSING tree as "no automations",
+      // but here that means the scaffold has not copied it yet — which must
+      // retry, not conclude there is nothing to provision.
+      await stat(automationsDir);
+      slugs = await listAutomationSlugs(automationsDir, 'AutomationProvision');
     } catch {
       // Scaffold may still be copying the catalog — retry a bounded number
       // of times, then give up quietly (the deploy-time sweep re-runs).

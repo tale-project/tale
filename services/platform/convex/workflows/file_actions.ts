@@ -21,7 +21,10 @@ import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
-import { isValidAutomationSlug } from '../../lib/shared/schemas/automations';
+import {
+  automationParentFolder,
+  isValidAutomationSlug,
+} from '../../lib/shared/schemas/automations';
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
@@ -29,7 +32,6 @@ import { type ActionCtx, action, internalAction } from '../_generated/server';
 import {
   type InstalledAutomationDisplay,
   readInstalledAutomationDisplays,
-  readInstalledAutomationFolders,
   resolveAutomationWorkflowHistoryDir,
 } from '../automations/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -308,15 +310,16 @@ export const listWorkflows = action({
       orgSlug,
     );
     const slugs = inline.map((e) => e.slug);
-    const appFolders = await readInstalledAutomationFolders(orgSlug, slugs);
     const appDisplays = await readInstalledAutomationDisplays(orgSlug, slugs);
 
     const results = await Promise.all(
       inline.map(({ slug, owner }) =>
+        // An inline workflow's slug IS its automation's slug (a path), so it
+        // groups under the same folder the automation does — its parent path.
         projectWorkflow(
           slug,
           owner,
-          appFolders.get(slug),
+          automationParentFolder(slug),
           appDisplays.get(slug),
         ),
       ),

@@ -7,7 +7,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const WORKFLOW_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/automations/notify-members-on-inbound-message/automation.json',
+    '../../../../builtin-configs/automations/conversations/notify-members-on-inbound-messages/automation.json',
     import.meta.url,
   ),
 );

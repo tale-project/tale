@@ -25,7 +25,6 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { readInstalledAutomationFolders } from '../automations/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -314,10 +313,6 @@ export const listAgents = action({
         .listAutomationInstallationsInternal,
       { organizationId: args.organizationId },
     );
-    const appFolders = await readInstalledAutomationFolders(
-      orgSlug,
-      automationSlugs,
-    );
     const appResults = (
       await Promise.all(
         automationSlugs.map(async (app) => {
@@ -340,12 +335,10 @@ export const listAgents = action({
               seen.add(slug);
               const result = await readAgentFile(orgSlug, slug);
               if (result.ok) {
-                return toAgentRow(
-                  slug,
-                  result.config,
-                  appFolders.get(app) ?? app,
-                  app,
-                );
+                // The agent lives INSIDE its automation's bundle, so the folder
+                // it groups under IS the automation's slug — which is itself a
+                // path now (`github/create-pull-requests`).
+                return toAgentRow(slug, result.config, app, app);
               }
               return {
                 name: slug,

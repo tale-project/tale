@@ -155,7 +155,7 @@ dashboard URL (`/dashboard/AbCd…/chat`).
   and add it under Settings → Organization, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
 - **Sample upload artifacts** — an automation-bundle zip (zip a copy of
-  `builtin-configs/automations/create-github-pr`) for automations F14, an integration config package
+  `builtin-configs/automations/github/create-pull-requests`) for automations F14, an integration config package
   (zip a copy of `builtin-configs/integrations/tavily`) for integrations F12,
   and a skill bundle for settings F15.
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox

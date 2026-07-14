@@ -25,7 +25,7 @@ const workflowReadArgs = z.discriminatedUnion('operation', [
     workflowSlug: z
       .string()
       .describe(
-        'The workflow slug — the owning automation\'s slug (e.g., "reply-imap-emails"). Use list_all to find available slugs.',
+        "The workflow slug — the owning automation's slug, a '/'-separated path (e.g., \"imap-smtp/reply-emails\"). Use list_all to find available slugs.",
       ),
   }),
   z.object({
@@ -46,7 +46,7 @@ OPERATIONS:
 BEST PRACTICES:
 • Use 'list_all' to get an overview of all workflows in the organization.
 • Use 'get_structure' when you have a workflow slug and need to inspect or modify it.
-• Workflow slugs are flat, lowercase with hyphens/underscores (e.g., "conversation-sync", "reply-imap-emails").
+• A workflow slug IS its automation's slug: a '/'-separated path of lowercase, hyphenated segments naming where the automation is filed (e.g., "imap-smtp/reply-emails", "projects/tasks/run-assigned").
 • Each workflow definition contains all steps inline — there are no separate step records.`,
     inputSchema: workflowReadArgs,
     execute: async (

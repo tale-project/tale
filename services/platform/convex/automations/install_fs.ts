@@ -34,6 +34,7 @@ import { pathsOverlap, writeFileFromCatalog } from '../organizations/scaffold';
 import {
   isBundleDir,
   resolveAutomationDir,
+  resolveAutomationsDir,
   resolveBundleManifestPath,
   resolveCatalogAutomationDir,
   resolveManifestFilePath,
@@ -388,6 +389,13 @@ export async function uninstallAutomationFiles(
     await rm(orgAutomationDir, { recursive: true }).catch((err) => {
       if (errnoCode(err) !== 'ENOENT') throw err;
     });
+    // A slug is a path, so removing `automations/gmail/reply-emails` can leave
+    // an empty `gmail/` group dir behind — which the catalog walk would then
+    // report as a group with nothing in it. Prune back up to the domain root.
+    await pruneEmptyDirs(
+      path.dirname(orgAutomationDir),
+      resolveAutomationsDir(orgSlug),
+    );
   }
 }
 

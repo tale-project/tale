@@ -1,8 +1,9 @@
 /**
  * Mechanical loop-safety assertions over the task-ops automation pack — the
- * hidden `autoInstall` automations whose manifests file under the
- * `projects/tasks/` display folder
- * (`builtin-configs/automations/<slug>/automation.json`, inline `workflow`).
+ * hidden `autoInstall` automations that LIVE under `projects/tasks/`
+ * (`builtin-configs/automations/projects/tasks/<name>/automation.json`, inline
+ * `workflow`) — an automation's slug is the path it lives at, so the folder IS
+ * the pack.
  *
  * The pack is a set of automations that trigger each other through task
  * events; left unchecked, that is a feedback amplifier. These tests assert —
@@ -24,7 +25,7 @@
  *  the subgraph of UNGATED edges must be acyclic.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,7 +45,8 @@ interface Step {
 }
 
 interface PackWorkflow {
-  file: string;
+  /** The automation's slug — its path under `automations/`. */
+  slug: string;
   workflowId: string;
   events: Array<{ eventType: string; eventFilter?: Record<string, string> }>;
   schedules: Array<{ cron: string }>;
@@ -61,28 +63,28 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+/** Every automation in the catalog tree — a dir carrying a manifest, at any depth. */
+function collectSlugs(dir: string, prefix = ''): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (!entry.isDirectory()) return [];
+    const abs = path.join(dir, entry.name);
+    const slug = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+    // A bundle dir (`bundle.json`) is not a pack member and has no inline
+    // workflow, so only `automation.json` marks a leaf worth loading here.
+    return existsSync(path.join(abs, 'automation.json'))
+      ? [slug]
+      : collectSlugs(abs, slug);
+  });
+}
+
 function loadPack(): PackWorkflow[] {
-  const packSlugs = readdirSync(AUTOMATIONS_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .filter((slug) => {
-      const manifestPath = path.join(AUTOMATIONS_DIR, slug, 'automation.json');
-      try {
-        const manifest: unknown = JSON.parse(
-          readFileSync(manifestPath, 'utf-8'),
-        );
-        return (
-          isRecord(manifest) &&
-          typeof manifest.folder === 'string' &&
-          manifest.folder.startsWith('projects/tasks/')
-        );
-      } catch {
-        return false; // bundle dirs carry bundle.json instead
-      }
-    });
+  // The pack IS the `projects/tasks/` folder: an automation's slug is the path
+  // it lives at, so membership is a slug prefix — no `folder` field to consult.
+  const packSlugs = collectSlugs(AUTOMATIONS_DIR).filter((slug) =>
+    slug.startsWith('projects/tasks/'),
+  );
   expect(packSlugs.length).toBeGreaterThanOrEqual(11);
   return packSlugs.map((slug) => {
-    const file = `${slug}.json`;
     const manifest: unknown = JSON.parse(
       readFileSync(
         path.join(AUTOMATIONS_DIR, slug, 'automation.json'),
@@ -107,7 +109,7 @@ function loadPack(): PackWorkflow[] {
       ? asString(doc.config.variables.workflowId)
       : '';
     return {
-      file,
+      slug,
       workflowId,
       events: doc.triggers?.events ?? [],
       schedules: doc.triggers?.schedules ?? [],
@@ -168,28 +170,28 @@ describe('task-ops pack: structure', () => {
   it('every workflow is pack-tagged, auto-installable, and uniquely identified', () => {
     const ids = new Set<string>();
     for (const wf of pack) {
-      expect(wf.workflowId, `${wf.file} workflowId`).toMatch(/^tasks_/);
-      expect(ids.has(wf.workflowId), `${wf.file} duplicate id`).toBe(false);
+      expect(wf.workflowId, `${wf.slug} workflowId`).toMatch(/^tasks_/);
+      expect(ids.has(wf.workflowId), `${wf.slug} duplicate id`).toBe(false);
       ids.add(wf.workflowId);
       expect(
         wf.events.length + wf.schedules.length,
-        `${wf.file} must declare a trigger`,
+        `${wf.slug} must declare a trigger`,
       ).toBeGreaterThan(0);
     }
   });
 
   it('every nextSteps target exists and every workflow has start + output', () => {
     for (const wf of pack) {
-      expect(wf.bySlug.has('start'), `${wf.file} start`).toBe(true);
+      expect(wf.bySlug.has('start'), `${wf.slug} start`).toBe(true);
       expect(
         wf.steps.some((s) => s.stepType === 'output'),
-        `${wf.file} output`,
+        `${wf.slug} output`,
       ).toBe(true);
       for (const step of wf.steps) {
         for (const [port, target] of Object.entries(step.nextSteps)) {
           expect(
             wf.bySlug.has(target),
-            `${wf.file}: ${step.stepSlug}.${port} -> ${target} (missing)`,
+            `${wf.slug}: ${step.stepSlug}.${port} -> ${target} (missing)`,
           ).toBe(true);
         }
       }
@@ -212,7 +214,7 @@ describe('task-ops pack: structure', () => {
             s.stepType === 'condition' &&
             asString(s.config.expression).includes(`(${root} | length) > 0`),
         );
-        expect(guarded, `${wf.file}: loop ${step.stepSlug} unguarded`).toBe(
+        expect(guarded, `${wf.slug}: loop ${step.stepSlug} unguarded`).toBe(
           true,
         );
       }
@@ -227,7 +229,7 @@ describe('task-ops pack: loop-safety invariants', () => {
         const action = actionOp(step);
         if (action?.type !== 'task' || action.op !== 'update_status') continue;
         if (actionParams(step).status === 'done') {
-          expect(wf.file).toBe('review-completed-work.json');
+          expect(wf.slug).toBe('projects/tasks/review-completed-work');
         }
       }
     }
@@ -258,7 +260,7 @@ describe('task-ops pack: loop-safety invariants', () => {
       );
       expect(
         guardSlugs.size,
-        `${wf.file} must guard workflow-actor comments`,
+        `${wf.slug} must guard workflow-actor comments`,
       ).toBeGreaterThan(0);
 
       const reached = new Set<string>();
@@ -277,7 +279,7 @@ describe('task-ops pack: loop-safety invariants', () => {
         if (action?.type === 'agent' && action.op === 'run_on_task') {
           expect(
             reached.has(step.stepSlug),
-            `${wf.file}: ${step.stepSlug} reachable without actor guard`,
+            `${wf.slug}: ${step.stepSlug} reachable without actor guard`,
           ).toBe(false);
         }
       }
@@ -302,7 +304,7 @@ describe('task-ops pack: loop-safety invariants', () => {
             );
             expect(
               localized.startsWith('[automated]'),
-              `${wf.file}: ${step.stepSlug} bodyI18n.${locale} must start with [automated]`,
+              `${wf.slug}: ${step.stepSlug} bodyI18n.${locale} must start with [automated]`,
             ).toBe(true);
           }
           continue;
@@ -310,7 +312,7 @@ describe('task-ops pack: loop-safety invariants', () => {
         const body = asString(params.body);
         expect(
           body.startsWith('[automated]'),
-          `${wf.file}: ${step.stepSlug} comment must start with [automated]`,
+          `${wf.slug}: ${step.stepSlug} comment must start with [automated]`,
         ).toBe(true);
       }
     }
@@ -418,7 +420,7 @@ describe('task-ops pack: loop-safety invariants', () => {
       for (const emission of emissions) {
         for (const to of pack) {
           if (subscribes(to, emission)) {
-            edges.push({ from: from.file, to: to.file, gated: emission.gated });
+            edges.push({ from: from.slug, to: to.slug, gated: emission.gated });
           }
         }
       }
@@ -433,7 +435,7 @@ describe('task-ops pack: loop-safety invariants', () => {
           );
         })
       ) {
-        edges.push({ from: from.file, to: GUARDRAILS, gated: false });
+        edges.push({ from: from.slug, to: GUARDRAILS, gated: false });
       }
     }
     // …and those guardrail events are gated by construction (once per
@@ -446,7 +448,7 @@ describe('task-ops pack: loop-safety invariants', () => {
             e.eventType === 'agent.budget_exceeded',
         )
       ) {
-        edges.push({ from: GUARDRAILS, to: to.file, gated: true });
+        edges.push({ from: GUARDRAILS, to: to.slug, gated: true });
       }
     }
 

@@ -16,9 +16,14 @@ defineMigrationTest({
   modules: buildModules(import.meta.glob('../../../../**/*.*s'), DIR),
 
   async seed(ctx) {
+    // A workflow whose slug genuinely MOVES (`…/enforce-task-slas` →
+    // `…/enforce-slas`). Most pack automations keep their folder and a few map
+    // onto themselves, so seeding an identity-mapped slug would make the
+    // assertions below vacuous — the row would look "remapped" without the
+    // migration doing anything.
     await ctx.db.insert('wfSchedules', {
       organizationId: 'org_1',
-      workflowSlug: 'projects/tasks/sweep-stale-work',
+      workflowSlug: 'projects/tasks/enforce-task-slas',
       cronExpression: '0 * * * *',
       timezone: 'UTC',
       isActive: true,
@@ -46,7 +51,7 @@ defineMigrationTest({
     );
     expect(rows).toHaveLength(2);
     const bySlug = new Map(rows.map((r) => [r.workflowSlug, r]));
-    const remapped = bySlug.get('sweep-stale-work');
+    const remapped = bySlug.get('projects/tasks/enforce-slas');
     expect(
       remapped,
       'mapped row remapped to the automation slug',
@@ -55,6 +60,6 @@ defineMigrationTest({
       bySlug.get('org-custom-workflow'),
       'unmapped row untouched',
     ).toBeDefined();
-    expect(bySlug.has('projects/tasks/sweep-stale-work')).toBe(false);
+    expect(bySlug.has('projects/tasks/enforce-task-slas')).toBe(false);
   },
 });

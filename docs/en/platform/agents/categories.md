@@ -3,7 +3,7 @@ title: Agent folders
 description: How agents are grouped — folders derived from the agent's id, how automation-installed agents file themselves, and where the permission boundary actually lives.
 ---
 
-Agents are grouped by folders, and a folder comes from the agent's id: an agent whose id is `review-github-pr/pr-reviewer` files under a `review-github-pr` folder wherever agents are listed. Folders are an organisational sorting tool, not a permission boundary — who can use an agent is the **Access** section on its **General** page, unchanged by where it is filed.
+Agents are grouped by folders, and a folder comes from the agent's id: an agent whose id is `github/review-pull-requests/pr-reviewer` files under a `github/review-pull-requests` folder wherever agents are listed. Folders are an organisational sorting tool, not a permission boundary — who can use an agent is the **Access** section on its **General** page, unchanged by where it is filed.
 
 <Frame caption="The agents list with the chat folder expanded — the folder is the slug's prefix, the rows are its agents.">
 
@@ -13,7 +13,7 @@ Agents are grouped by folders, and a folder comes from the agent's id: an agent 
 
 ## File an agent into a folder
 
-Foldered ids come from the platform, not the create dialog. The dialog's **Name** field takes a flat id — lowercase letters, numbers, hyphens, and underscores, no `/` — so an agent you create there lands unfiled at the top level. The folder prefix (`chat/`, `review-github-pr/`) is reserved for agents the platform ships or installs: builtins arrive pre-filed, and installing an [automation](/platform/automations/concepts) files its agents under the folder their id names. An id can't change later, so the folder is fixed when the agent is created. The display name is independent; rename the agent freely without moving it.
+Foldered ids come from the platform, not the create dialog. The dialog's **Name** field takes a flat id — lowercase letters, numbers, hyphens, and underscores, no `/` — so an agent you create there lands unfiled at the top level. The folder prefix (`chat/`, `github/review-pull-requests/`) is reserved for agents the platform ships or installs: builtins arrive pre-filed, and installing an [automation](/platform/automations/concepts) files its agents under the folder their id names. An id can't change later, so the folder is fixed when the agent is created. The display name is independent; rename the agent freely without moving it.
 
 In the **Agents** list, folders render as collapsed rows with an agent count — click one to expand it, and the breadcrumb tracks where you are. The builtin agents ship pre-filed: the general assistants under `chat`; automation-installed agents file under their automation's folder.
 

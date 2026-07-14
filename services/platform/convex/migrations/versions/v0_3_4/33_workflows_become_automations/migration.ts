@@ -10,12 +10,17 @@
  *   1. re-seeds the automations domain from the builtin catalog
  *      (`seedDomain(…, override: true)` — the scaffold primitive: builtin-named
  *      bundles are refreshed, org-authored ones untouched), delivering the 21
- *      new automation dirs and the reworked `reply-*-emails` manifests that
- *      now embed their mail-sync workflow;
+ *      new automation dirs and the reworked `<provider>/reply-emails` manifests
+ *      that now embed their mail-sync workflow;
  *   2. wraps every ORG-AUTHORED standalone workflow file (a slug outside the
  *      builtin map) into a minimal org automation
- *      (`automations/<flattened-slug>/automation.json` with the definition
- *      inline), so user-authored work survives the tree removal in 35.
+ *      (`automations/<slug>/automation.json` with the definition inline), so
+ *      user-authored work survives the tree removal in 35.
+ *
+ * An automation slug is a PATH (it IS the dir the automation lives at), so both
+ * halves land FOLDERED: the builtin catalog seeds `automations/gmail/
+ * reply-emails/`, and an org's `workflows/ops/nightly.json` becomes
+ * `automations/ops/nightly/` rather than a flattened root-level dir.
  *
  * `up` only ADDS/refreshes files under `automations/`; the `workflows/` tree
  * is still present (35 removes it) and row remaps follow in 36–40. `down`
@@ -23,6 +28,10 @@
  */
 
 import { getConfigDomain } from '../../../../../lib/shared/config/registry';
+import {
+  isValidAutomationSlug,
+  MAX_AUTOMATION_SLUG_DEPTH,
+} from '../../../../../lib/shared/schemas/automations';
 import { workflowJsonSchema } from '../../../../../lib/shared/schemas/workflows';
 import { resolveAutomationManifestPath } from '../../../../automations/file_utils';
 import { resolveAutomationsDir } from '../../../../automations/file_utils';
@@ -31,9 +40,29 @@ import { seedDomain } from '../../../../organizations/scaffold';
 import { defineNodeMigration } from '../../../framework/define';
 import { WORKFLOW_TO_AUTOMATION } from './mapping';
 
-/** Flatten a foldered standalone slug into a valid automation slug. */
-export function flattenWorkflowSlug(slug: string): string {
-  return slug.replaceAll('/', '-').replaceAll('_', '-');
+/**
+ * Convert an org-authored standalone workflow slug into the automation slug that
+ * now carries it. An automation slug is a PATH, so the workflow's folders are
+ * KEPT (`ops/nightly/sync_files` → `ops/nightly/sync-files`) — the automation
+ * lands where its author filed the workflow instead of being flattened into a
+ * root-level `ops-nightly-sync-files`.
+ *
+ * Only the alphabet differs: a workflow segment may carry `_` and trail in `-`,
+ * an automation segment may not, and the path is capped at
+ * {@link MAX_AUTOMATION_SLUG_DEPTH} segments (a deeper one folds its tail into
+ * the leaf). The result is validated by the caller before anything is written.
+ */
+export function workflowSlugToAutomationSlug(slug: string): string {
+  const segments = slug
+    .split('/')
+    .map((segment) =>
+      segment.replaceAll('_', '-').replace(/-+/g, '-').replace(/-+$/, ''),
+    );
+  if (segments.length <= MAX_AUTOMATION_SLUG_DEPTH) return segments.join('/');
+  return [
+    ...segments.slice(0, MAX_AUTOMATION_SLUG_DEPTH - 1),
+    segments.slice(MAX_AUTOMATION_SLUG_DEPTH - 1).join('-'),
+  ].join('/');
 }
 
 export const migration = defineNodeMigration({
@@ -77,10 +106,10 @@ export const migration = defineNodeMigration({
     }
 
     // Wrap org-authored standalone workflows (slugs the builtin map does not
-    // know) into minimal org automations. Idempotent: an existing manifest at
-    // the flattened slug is never overwritten — on a replayed org the wrap is
-    // a no-op, and a genuine collision with an org automation is surfaced
-    // instead of clobbered.
+    // know) into minimal org automations, at the SAME path the workflow was
+    // filed under. Idempotent: an existing manifest at that slug is never
+    // overwritten — on a replayed org the wrap is a no-op, and a genuine
+    // collision with an org automation is surfaced instead of clobbered.
     let files: { relativePath: string; content: string }[] = [];
     try {
       files = await listCatalogArea('workflows', org.slug, {
@@ -100,7 +129,13 @@ export const migration = defineNodeMigration({
         );
         continue;
       }
-      const automationSlug = flattenWorkflowSlug(slug);
+      const automationSlug = workflowSlugToAutomationSlug(slug);
+      if (!isValidAutomationSlug(automationSlug)) {
+        console.warn(
+          `[${helpers.migrationId}] ${org.slug}: "${slug}" has no valid automation path — left to the snapshot`,
+        );
+        continue;
+      }
       const manifestPath = resolveAutomationManifestPath(
         org.slug,
         automationSlug,

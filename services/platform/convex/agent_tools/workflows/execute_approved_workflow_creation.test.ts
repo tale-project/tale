@@ -209,12 +209,45 @@ describe('executeApprovedWorkflowCreation', () => {
     expect(resultCall?.[1].executionError).toMatch(/already exists/);
   });
 
-  it('refuses an invalid (foldered) workflow slug', async () => {
+  it('files a FOLDERED slug as a nested automation (the slug IS the path)', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({
       metadata: {
         workflowName: 'Foldered',
         workflowSlug: 'shopify/sync-customers',
+        workflowConfig: {},
+        stepsConfig: [
+          {
+            stepSlug: 'start',
+            name: 'Start',
+            stepType: 'start',
+            config: {},
+            nextSteps: {},
+          },
+        ],
+      },
+    });
+    const ctx = createMockCtx(approval);
+
+    const result = await handler(ctx, {
+      approvalId: 'approval-1',
+      approvedBy: 'user-1',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.workflowSlug).toBe('shopify/sync-customers');
+    const { atomicWrite } = await import('../../lib/file_io');
+    expect(vi.mocked(atomicWrite).mock.calls.at(-1)?.[0]).toBe(
+      '/nonexistent-test-config/default/automations/shopify/sync-customers/automation.json',
+    );
+  });
+
+  it('refuses a malformed workflow slug', async () => {
+    const handler = await getHandler();
+    const approval = createMockApproval({
+      metadata: {
+        workflowName: 'Bad',
+        workflowSlug: 'Shopify/../escape',
         workflowConfig: {},
         stepsConfig: [
           {

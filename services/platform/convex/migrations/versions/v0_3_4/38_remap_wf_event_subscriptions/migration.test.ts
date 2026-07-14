@@ -44,7 +44,7 @@ defineMigrationTest({
     );
     expect(rows).toHaveLength(2);
     const bySlug = new Map(rows.map((r) => [r.workflowSlug, r]));
-    const remapped = bySlug.get('run-assigned-task');
+    const remapped = bySlug.get('projects/tasks/run-assigned');
     expect(
       remapped,
       'mapped row remapped to the automation slug',

@@ -26,6 +26,7 @@ import {
   MAX_AUTOMATION_BUNDLE_FILE_BYTES,
   MAX_AUTOMATION_BUNDLE_TOTAL_BYTES,
   automationManifestSchema,
+  automationParentFolder,
   automationScope,
   type BundleManifest,
   bundleManifestSchema,
@@ -38,7 +39,6 @@ import { action, internalAction } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
-  errnoCode,
   readFileBufferSafe,
   readFileSafe,
   serializeJson,
@@ -47,6 +47,7 @@ import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import {
   isBundleDir,
+  listAutomationSlugs,
   resolveAutomationDir,
   resolveAutomationsDir,
   resolveBundleManifestPath,
@@ -67,10 +68,12 @@ interface CatalogRow {
 }
 
 /**
- * Enumerate the valid automation-slug subdirs of `dir` and parse each one's
- * manifest: a BUNDLE (`bundle.json`) via the strict `bundleManifestSchema`, an
- * ordinary automation (`automation.json`) via `automationManifestSchema`.
- * Reads its bundled `icon.svg` as a data URI.
+ * Enumerate every automation under `dir` — at ANY depth, via the shared
+ * {@link listAutomationSlugs} walk (a nested slug like `gmail/reply-emails`
+ * lives two dirs down; a group dir like `gmail/` is not itself an automation) —
+ * and parse each one's manifest: a BUNDLE (`bundle.json`) via the strict
+ * `bundleManifestSchema`, an ordinary automation (`automation.json`) via
+ * `automationManifestSchema`. Reads its bundled `icon.svg` as a data URI.
  * Malformed manifests are skipped with a console warning (never fail the whole
  * list — the discovery posture); a missing `dir` yields an empty list.
  * `includeHidden` controls whether a `hidden: true` automation (a bundle
@@ -84,19 +87,10 @@ async function collectCatalogRows(
     label: string;
   },
 ): Promise<CatalogRow[]> {
-  let slugs: string[];
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    slugs = entries
-      .filter((e) => e.isDirectory() && isValidAutomationSlug(e.name))
-      .map((e) => e.name);
-  } catch (err) {
-    if (errnoCode(err) === 'ENOENT') return [];
-    throw err;
-  }
+  const slugs = await listAutomationSlugs(dir, opts.label);
 
   const rows: CatalogRow[] = [];
-  for (const slug of slugs.sort()) {
+  for (const slug of slugs) {
     const slugDir = path.join(dir, slug);
     let manifest: AutomationManifest | BundleManifest;
     try {
@@ -164,9 +158,11 @@ function buildCatalogEntry(
     scope: automationScope(manifest),
     ...(manifest.icon !== undefined && { icon: manifest.icon }),
     ...(iconUrl !== undefined && { iconUrl }),
-    // Display folder ('/'-separated) — the hub groups its catalog sections
-    // by this, same as the agents/workflows folder-grouped lists.
-    ...(manifest.folder !== undefined && { folder: manifest.folder }),
+    // The folder is DERIVED from the slug — the automation `gmail/reply-emails`
+    // lives in `gmail`. The hub groups its catalog sections by this, same as the
+    // agents/workflows folder-grouped lists; a root-level automation reports ''
+    // and lands in the trailing "General" section.
+    folder: automationParentFolder(slug),
     // Catalog chips (literal display strings, e.g. "GitHub") — rendered on
     // the hub card and the automation details header, before install.
     ...(manifest.labels !== undefined && { labels: manifest.labels }),
@@ -445,7 +441,7 @@ export const listCatalogAutomationsForAssistant = internalAction({
           name: manifest.name,
           description: manifest.description ?? '',
           hidden: false,
-          folder: manifest.folder,
+          folder: automationParentFolder(slug),
           labels: manifest.labels ?? [],
           requiredIntegrations: [],
           workflows: [],
@@ -461,7 +457,7 @@ export const listCatalogAutomationsForAssistant = internalAction({
         name: manifest.name,
         description: manifest.description ?? '',
         hidden: manifest.hidden === true,
-        folder: manifest.folder,
+        folder: automationParentFolder(slug),
         labels: manifest.labels ?? [],
         requiredIntegrations: manifest.requires?.integrations ?? [],
         workflows: manifest.workflow ? [slug] : [],
@@ -580,7 +576,14 @@ export const exportAutomation = action({
     }
 
     const dataBase64 = await zip.generateAsync({ type: 'base64' });
-    return { ok: true as const, filename: `${args.slug}.zip`, dataBase64 };
+    // A slug is a path — flatten it for the download name (`gmail/reply-emails`
+    // → `gmail-reply-emails.zip`); the zip's INNER wrapper keeps the real path,
+    // which is what the importer reads the slug back from.
+    return {
+      ok: true as const,
+      filename: `${args.slug.replaceAll('/', '-')}.zip`,
+      dataBase64,
+    };
   },
 });
 

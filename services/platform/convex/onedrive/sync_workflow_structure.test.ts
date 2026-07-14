@@ -15,7 +15,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const MANIFEST_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/automations/sync-onedrive-files/automation.json',
+    '../../../../builtin-configs/automations/onedrive/sync-files/automation.json',
     import.meta.url,
   ),
 );

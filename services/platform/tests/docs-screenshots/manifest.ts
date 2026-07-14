@@ -519,7 +519,8 @@ export const SHOTS: readonly Shot[] = [
     // triage automation renders the same editor every automation gets).
     name: 'automation-editor-canvas',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=editor',
+    route:
+      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=editor',
     // The AI editor panel opens by default on the editor tab — never click
     // the toolbar toggle here, it would CLOSE it. Wait for the graph, then
     // gate on the open panel's title so both are in frame.
@@ -537,7 +538,7 @@ export const SHOTS: readonly Shot[] = [
     name: 'automation-configuration',
     section: 'platform',
     route:
-      '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=configuration',
+      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=configuration',
     // Wait for the variables editor to render its loaded JSON, not the
     // loading skeleton.
     readyWhen: (page) => page.getByText('workflowId').first(),
@@ -547,7 +548,8 @@ export const SHOTS: readonly Shot[] = [
     // event subscription row.
     name: 'automation-triggers',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=triggers',
+    route:
+      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=triggers',
     prepare: async (page) => {
       await page
         .getByRole('button', { name: t('workflows.triggers.events.title') })
@@ -562,7 +564,7 @@ export const SHOTS: readonly Shot[] = [
     name: 'automation-executions',
     section: 'platform',
     route:
-      '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=executions',
+      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=executions',
     readyWhen: (page) =>
       page.getByText(t('workflows.steps.execution.status.failed')).first(),
   },

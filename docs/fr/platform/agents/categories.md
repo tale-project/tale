@@ -3,7 +3,7 @@ title: Dossiers d’agents
 description: Comment les agents se regroupent — des dossiers dérivés de l’identifiant de l’agent, comment les agents installés par une automatisation se rangent, et où vit vraiment la frontière de permission.
 ---
 
-Les agents se regroupent par dossiers, et un dossier vient de l’identifiant de l’agent : un agent dont l’identifiant est `review-github-pr/pr-reviewer` se range sous un dossier `review-github-pr` partout où les agents sont listés. Les dossiers sont un outil de rangement, pas une frontière de permission — qui peut utiliser un agent relève de la section **Accès** de sa page **Général**, inchangée par l’endroit où il est rangé.
+Les agents se regroupent par dossiers, et un dossier vient de l’identifiant de l’agent : un agent dont l’identifiant est `github/review-pull-requests/pr-reviewer` se range sous un dossier `github/review-pull-requests` partout où les agents sont listés. Les dossiers sont un outil de rangement, pas une frontière de permission — qui peut utiliser un agent relève de la section **Accès** de sa page **Général**, inchangée par l’endroit où il est rangé.
 
 <Frame caption="La liste des agents avec le dossier chat déplié — le dossier est le préfixe du slug, les lignes sont ses agents.">
 
@@ -13,7 +13,7 @@ Les agents se regroupent par dossiers, et un dossier vient de l’identifiant de
 
 ## Ranger un agent dans un dossier
 
-Les identifiants avec dossier viennent de la plateforme, pas du dialogue de création. Le champ **Nom** du dialogue prend un identifiant plat — minuscules, chiffres, traits d’union et tirets bas, sans `/` —, si bien qu’un agent créé là atterrit non rangé, au niveau supérieur. Le préfixe de dossier (`chat/`, `review-github-pr/`) est réservé aux agents que la plateforme fournit ou installe : les builtins arrivent déjà rangés, et l’installation d’une [automatisation](/fr/platform/automations/concepts) range ses agents dans le dossier que leur identifiant nomme. Un identifiant ne change plus ensuite, le dossier est donc fixé à la création. Le nom d’affichage est indépendant ; renomme l’agent librement sans le déplacer.
+Les identifiants avec dossier viennent de la plateforme, pas du dialogue de création. Le champ **Nom** du dialogue prend un identifiant plat — minuscules, chiffres, traits d’union et tirets bas, sans `/` —, si bien qu’un agent créé là atterrit non rangé, au niveau supérieur. Le préfixe de dossier (`chat/`, `github/review-pull-requests/`) est réservé aux agents que la plateforme fournit ou installe : les builtins arrivent déjà rangés, et l’installation d’une [automatisation](/fr/platform/automations/concepts) range ses agents dans le dossier que leur identifiant nomme. Un identifiant ne change plus ensuite, le dossier est donc fixé à la création. Le nom d’affichage est indépendant ; renomme l’agent librement sans le déplacer.
 
 Dans la liste **Agents**, les dossiers s’affichent comme des lignes repliées avec un compte d’agents — clique sur l’une d’elles pour la déplier, et le fil d’Ariane suit où tu es. Les agents intégrés arrivent pré-rangés : les assistants généralistes sous `chat` ; les agents installés avec une automation se rangent dans le dossier de leur automation.
 
