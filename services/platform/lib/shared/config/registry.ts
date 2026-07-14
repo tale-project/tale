@@ -128,7 +128,7 @@ export interface ConfigDomain {
   readonly scaffoldKind?: ScaffoldKind;
   /**
    * Present iff this domain's bundles may NEST (today: automations, whose slug
-   * IS its path — `automations/gmail/reply-emails/`). A dir carrying one of
+   * IS its path — `automations/gmail/sync-emails/`). A dir carrying one of
    * `markers` IS a bundle and the walk stops there (its `agents/`, `views/` are
    * bundle content); a dir carrying none is a GROUP dir and is descended into,
    * up to `maxDepth`. Absent ⇒ bundles are exactly one level deep (skills,

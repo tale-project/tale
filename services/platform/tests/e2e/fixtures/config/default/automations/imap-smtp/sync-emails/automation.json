@@ -1,13 +1,13 @@
 {
-  "name": "Reply to emails via SMTP/IMAP",
+  "name": "Sync emails via SMTP/IMAP",
   "description": "Read, triage, and reply to your organization's email conversations via SMTP/IMAP.",
   "i18n": {
     "de": {
-      "name": "Auf E-Mails über SMTP/IMAP antworten",
+      "name": "E-Mails über SMTP/IMAP synchronisieren",
       "description": "Lies, sortiere und beantworte die E-Mail-Konversationen deiner Organisation über SMTP/IMAP."
     },
     "fr": {
-      "name": "Répondre aux e-mails via SMTP/IMAP",
+      "name": "Synchroniser les e-mails via SMTP/IMAP",
       "description": "Lis, trie et réponds aux conversations e-mail de ton organisation via SMTP/IMAP."
     }
   },

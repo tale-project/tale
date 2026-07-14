@@ -35,16 +35,16 @@ defineMigrationTest({
     // 41 must leave it alone.
     await ctx.db.insert('wfInstallations', {
       organizationId: orgs[0].id,
-      workflowSlug: 'imap-smtp/reply-emails',
+      workflowSlug: 'imap-smtp/sync-emails',
       installedAt: EPOCH,
       installedBy: 'integration:imap_smtp',
       contentHash: 'hash-imap',
-      automationSlug: 'imap-smtp/reply-emails',
+      automationSlug: 'imap-smtp/sync-emails',
     });
     await ctx.db.insert('automationInstallations', {
       organizationId: orgs[0].id,
-      automationSlug: 'imap-smtp/reply-emails',
-      automationName: 'Reply to emails via SMTP/IMAP',
+      automationSlug: 'imap-smtp/sync-emails',
+      automationName: 'Sync emails via SMTP/IMAP',
       installedAt: EPOCH,
       installedBy: 'user_1',
       status: 'active',
@@ -67,7 +67,7 @@ defineMigrationTest({
     );
     expect(bySlug.get('projects/tasks/run-assigned')?.status).toBe('active');
     // The pre-existing human/migration-02 install is untouched.
-    expect(bySlug.get('imap-smtp/reply-emails')?.installedBy).toBe('user_1');
+    expect(bySlug.get('imap-smtp/sync-emails')?.installedBy).toBe('user_1');
     // No row invented for a mapped automation whose workflow was never live.
     expect(bySlug.has('shopify/sync-products')).toBe(false);
   },

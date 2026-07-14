@@ -162,16 +162,16 @@ describe('listCatalogAutomations', () => {
 
   it('projects the bundled icon.svg as a data URI and the manifest labels', async () => {
     await writeAutomation(
-      'reply-gmail-emails',
+      'gmail/sync-emails',
       JSON.stringify({
-        name: 'Reply to Gmail emails',
+        name: 'Sync Gmail emails',
         icon: 'mail',
         labels: ['Email', 'Gmail'],
         requires: { integrations: ['gmail'] },
       }),
     );
     await writeFile(
-      path.join(catalogRoot, 'automations', 'reply-gmail-emails', 'icon.svg'),
+      path.join(catalogRoot, 'automations', 'gmail/sync-emails', 'icon.svg'),
       '<svg></svg>',
       'utf8',
     );
@@ -182,7 +182,7 @@ describe('listCatalogAutomations', () => {
 
     expect(automations).toHaveLength(1);
     expect(automations[0]).toMatchObject({
-      slug: 'reply-gmail-emails',
+      slug: 'gmail/sync-emails',
       labels: ['Email', 'Gmail'],
       iconUrl: `data:image/svg+xml;base64,${Buffer.from('<svg></svg>').toString('base64')}`,
     });
@@ -302,7 +302,7 @@ describe('listCatalogAutomations', () => {
       'email-bundle',
       JSON.stringify({
         name: 'Email',
-        bundle: { members: ['reply-gmail-emails', 'reply-outlook-emails'] },
+        bundle: { members: ['gmail/sync-emails', 'outlook/sync-emails'] },
       }),
     );
     await writeAutomation(
@@ -317,7 +317,7 @@ describe('listCatalogAutomations', () => {
     const plain = automations.find((a) => a.slug === 'plain-automation');
     expect(bundle).toMatchObject({
       kind: 'bundle',
-      members: ['reply-gmail-emails', 'reply-outlook-emails'],
+      members: ['gmail/sync-emails', 'outlook/sync-emails'],
     });
     expect(plain).toMatchObject({ kind: 'automation' });
     expect(plain).not.toHaveProperty('members');
@@ -373,7 +373,7 @@ describe('listCatalogAutomationsForAssistant', () => {
       'email-bundle',
       JSON.stringify({
         name: 'Email',
-        bundle: { members: ['reply-gmail-emails'] },
+        bundle: { members: ['gmail/sync-emails'] },
       }),
     );
 
@@ -383,7 +383,7 @@ describe('listCatalogAutomationsForAssistant', () => {
     expect(automations).toEqual([
       expect.objectContaining({
         kind: 'bundle',
-        members: ['reply-gmail-emails'],
+        members: ['gmail/sync-emails'],
       }),
     ]);
   });
@@ -392,34 +392,34 @@ describe('listCatalogAutomationsForAssistant', () => {
 describe('getAutomationSummariesBySlug', () => {
   it('returns name + description for HIDDEN slugs, gated by org membership only', async () => {
     await writeAutomation(
-      'reply-gmail-emails',
+      'gmail/sync-emails',
       JSON.stringify({
-        name: 'Reply to Gmail emails',
+        name: 'Sync Gmail emails',
         description: 'Read, triage, and reply to Gmail.',
         hidden: true,
         requires: { integrations: ['gmail'] },
       }),
     );
     await writeAutomation(
-      'reply-outlook-emails',
+      'outlook/sync-emails',
       JSON.stringify({ name: 'Outlook' }),
     );
 
     const summaries = await getSummariesHandler(ctx, {
       organizationId: 'org_test',
-      slugs: ['reply-gmail-emails', 'reply-outlook-emails'],
+      slugs: ['gmail/sync-emails', 'outlook/sync-emails'],
     } as never);
 
     expect(mockRequireOrgMembershipById).toHaveBeenCalledWith(ctx, 'org_test');
     expect(summaries).toEqual([
       {
-        slug: 'reply-gmail-emails',
-        name: 'Reply to Gmail emails',
+        slug: 'gmail/sync-emails',
+        name: 'Sync Gmail emails',
         description: 'Read, triage, and reply to Gmail.',
         requiredIntegrations: ['gmail'],
       },
       {
-        slug: 'reply-outlook-emails',
+        slug: 'outlook/sync-emails',
         name: 'Outlook',
         description: '',
         requiredIntegrations: [],
@@ -429,18 +429,18 @@ describe('getAutomationSummariesBySlug', () => {
 
   it('skips an unresolvable slug rather than failing the whole batch', async () => {
     await writeAutomation(
-      'reply-gmail-emails',
+      'gmail/sync-emails',
       JSON.stringify({ name: 'Gmail' }),
     );
 
     const summaries = await getSummariesHandler(ctx, {
       organizationId: 'org_test',
-      slugs: ['reply-gmail-emails', 'does-not-exist'],
+      slugs: ['gmail/sync-emails', 'does-not-exist'],
     } as never);
 
     expect(summaries).toEqual([
       {
-        slug: 'reply-gmail-emails',
+        slug: 'gmail/sync-emails',
         name: 'Gmail',
         description: '',
         requiredIntegrations: [],

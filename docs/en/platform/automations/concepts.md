@@ -37,7 +37,7 @@ A bundle groups several automations that only make sense installed together. [Re
 
 ## Putting it together — two combinations
 
-**Reply to Gmail emails** combines the smallest possible set: one integration (Gmail) and one builtin view (Inbox) — no agent, no workflow. Connect Gmail, and the Inbox tab is the whole automation.
+**Sync Gmail emails** combines the smallest possible set: one integration (Gmail) and one builtin view (Inbox) — no agent, no workflow. Connect Gmail, and the Inbox tab is the whole automation.
 
 **Resolve GitHub issues** combines nearly every piece at once: one integration (GitHub), two agents (a PR creator and a PR reviewer, each owned by one of its four hidden members), four workflows, and no builtin view — it works through the project's existing Board and Backlog instead of a page of its own. Installing the bundle wires all four in one aggregated wizard, bound to the project you pick.
 

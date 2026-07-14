@@ -69,7 +69,7 @@ interface CatalogRow {
 
 /**
  * Enumerate every automation under `dir` — at ANY depth, via the shared
- * {@link listAutomationSlugs} walk (a nested slug like `gmail/reply-emails`
+ * {@link listAutomationSlugs} walk (a nested slug like `gmail/sync-emails`
  * lives two dirs down; a group dir like `gmail/` is not itself an automation) —
  * and parse each one's manifest: a BUNDLE (`bundle.json`) via the strict
  * `bundleManifestSchema`, an ordinary automation (`automation.json`) via
@@ -158,7 +158,7 @@ function buildCatalogEntry(
     scope: automationScope(manifest),
     ...(manifest.icon !== undefined && { icon: manifest.icon }),
     ...(iconUrl !== undefined && { iconUrl }),
-    // The folder is DERIVED from the slug — the automation `gmail/reply-emails`
+    // The folder is DERIVED from the slug — the automation `gmail/sync-emails`
     // lives in `gmail`. The hub groups its catalog sections by this, same as the
     // agents/workflows folder-grouped lists; a root-level automation reports ''
     // and lands in the trailing "General" section.
@@ -576,7 +576,7 @@ export const exportAutomation = action({
     }
 
     const dataBase64 = await zip.generateAsync({ type: 'base64' });
-    // A slug is a path — flatten it for the download name (`gmail/reply-emails`
+    // A slug is a path — flatten it for the download name (`gmail/sync-emails`
     // → `gmail-reply-emails.zip`); the zip's INNER wrapper keeps the real path,
     // which is what the importer reads the slug back from.
     return {

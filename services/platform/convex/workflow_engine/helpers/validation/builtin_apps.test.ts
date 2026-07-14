@@ -147,7 +147,7 @@ it('discovers every builtin automation bundle in the catalog tree', () => {
   expect(automationSlugs.length).toBeGreaterThan(0);
   expect(automationSlugs.length).toBe(countManifests(AUTOMATIONS_DIR));
   // Sanity: the walk reaches nested slugs, not just the group dirs above them.
-  expect(automationSlugs).toContain('gmail/reply-emails');
+  expect(automationSlugs).toContain('gmail/sync-emails');
   expect(automationSlugs).toContain('projects/tasks/run-assigned');
 });
 

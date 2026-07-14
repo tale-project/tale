@@ -72,7 +72,7 @@ which walks the deployed `$TALE_CONFIG_BUILTIN_DIR` and logs any issue loudly wi
 - **Fixtures track builtins byte-for-byte.** A builtin app-bundle refresh re-syncs its pinned
   copies in both fixture trees (enforced by `convex/apps/fixture_bundle_drift.test.ts` — its header
   documents the one allowed `issue-desk-qa` rename transform). The three email inbox bundles
-  (`reply-outlook-emails`, `reply-gmail-emails`, `reply-imap-emails`) are one product per provider — an edit to one must
+  (`outlook/sync-emails`, `gmail/sync-emails`, `imap-smtp/sync-emails`) are one product per provider — an edit to one must
   hit all three (enforced by `convex/apps/email_bundle_parity.test.ts`).
 - **Unknown-file posture matches the loaders.** Flat/tree domains are STRICT — only `*.json`
   (+ `*.secrets.json` sidecars); any other file would be invisible at runtime, so the gate rejects

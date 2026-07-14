@@ -13,7 +13,7 @@
  *   plus its four hidden member automations (`github/triage-issues`,
  *   `github/sync-issues`, `github/create-pull-requests`,
  *   `github/review-pull-requests`), the three email inbox automations
- *   (`outlook/reply-emails`, `gmail/reply-emails`, `imap-smtp/reply-emails`) — all as
+ *   (`outlook/sync-emails`, `gmail/sync-emails`, `imap-smtp/sync-emails`) — all as
  *   BYTE-IDENTICAL copies of `builtin-configs/automations/<slug>/` — and
  *   `github/create-pull-requests-qa`: the private-upload variant the manual
  *   guide's F14 case uses (the same bundle under a renamed LEAF;
@@ -64,9 +64,9 @@ const MIRRORED_SLUGS = [
   'github/sync-issues',
   'github/create-pull-requests',
   'github/review-pull-requests',
-  'outlook/reply-emails',
-  'gmail/reply-emails',
-  'imap-smtp/reply-emails',
+  'outlook/sync-emails',
+  'gmail/sync-emails',
+  'imap-smtp/sync-emails',
 ] as const;
 
 /** Every file under `dir`, as sorted POSIX-relative paths. */

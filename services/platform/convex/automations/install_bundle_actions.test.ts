@@ -112,15 +112,15 @@ function manifestsBySlug(manifests: Record<string, unknown>) {
 
 const ORG_BUNDLE = {
   name: 'Email',
-  bundle: { members: ['reply-gmail-emails', 'reply-outlook-emails'] },
+  bundle: { members: ['gmail/sync-emails', 'outlook/sync-emails'] },
 };
 const GMAIL_MEMBER = {
-  name: 'Reply to Gmail emails',
+  name: 'Sync Gmail emails',
   hidden: true,
   requires: { integrations: ['gmail'] },
 };
 const OUTLOOK_MEMBER = {
-  name: 'Reply to Outlook emails',
+  name: 'Sync Outlook emails',
   hidden: true,
   requires: { integrations: ['outlook'] },
 };
@@ -164,8 +164,8 @@ describe('previewBundleInstall', () => {
   it('returns one preflight entry per member, in declared order', async () => {
     manifestsBySlug({
       'email-bundle': ORG_BUNDLE,
-      'reply-gmail-emails': GMAIL_MEMBER,
-      'reply-outlook-emails': OUTLOOK_MEMBER,
+      'gmail/sync-emails': GMAIL_MEMBER,
+      'outlook/sync-emails': OUTLOOK_MEMBER,
     });
     mockDiffAutomationInstall.mockImplementation(
       (_orgSlug: string, slug: string) =>
@@ -176,7 +176,7 @@ describe('previewBundleInstall', () => {
             kind: 'manifest',
             status: 'create',
           },
-          ...(slug === 'reply-outlook-emails'
+          ...(slug === 'outlook/sync-emails'
             ? [
                 {
                   domain: 'integrations',
@@ -202,16 +202,16 @@ describe('previewBundleInstall', () => {
     }>;
 
     expect(result.map((r) => r.automationSlug)).toEqual([
-      'reply-gmail-emails',
-      'reply-outlook-emails',
+      'gmail/sync-emails',
+      'outlook/sync-emails',
     ]);
     expect(result[0]).toMatchObject({
-      automationName: 'Reply to Gmail emails',
+      automationName: 'Sync Gmail emails',
       requiredIntegrations: ['gmail'],
       overrides: [],
     });
     expect(result[1]).toMatchObject({
-      automationName: 'Reply to Outlook emails',
+      automationName: 'Sync Outlook emails',
       requiredIntegrations: ['outlook'],
       overrides: ['integrations:outlook/definition.json'],
     });
@@ -232,10 +232,10 @@ describe('previewBundleInstall', () => {
     manifestsBySlug({
       'email-bundle': {
         name: 'Email',
-        bundle: { members: ['reply-gmail-emails', 'ghost-member'] },
+        bundle: { members: ['gmail/sync-emails', 'ghost-member'] },
       },
-      // reply-gmail-emails is NOT hidden — a bundle-shape violation.
-      'reply-gmail-emails': { name: 'Reply to Gmail emails' },
+      // gmail/sync-emails is NOT hidden — a bundle-shape violation.
+      'gmail/sync-emails': { name: 'Sync Gmail emails' },
     });
     const ctx = createMockCtx();
     await expect(
@@ -274,8 +274,8 @@ describe('installBundle', () => {
   beforeEach(() => {
     manifestsBySlug({
       'email-bundle': ORG_BUNDLE,
-      'reply-gmail-emails': GMAIL_MEMBER,
-      'reply-outlook-emails': OUTLOOK_MEMBER,
+      'gmail/sync-emails': GMAIL_MEMBER,
+      'outlook/sync-emails': OUTLOOK_MEMBER,
     });
   });
 
@@ -310,14 +310,14 @@ describe('installBundle', () => {
     expect(result.ok).toBe(true);
     expect(result.members).toEqual([
       {
-        automationSlug: 'reply-gmail-emails',
+        automationSlug: 'gmail/sync-emails',
         ok: true,
         workflows: 1,
         agents: 1,
         resources: 2,
       },
       {
-        automationSlug: 'reply-outlook-emails',
+        automationSlug: 'outlook/sync-emails',
         ok: true,
         workflows: 1,
         agents: 1,
@@ -326,19 +326,19 @@ describe('installBundle', () => {
     ]);
     // Declared order, not sorted.
     expect(mockPrepareInstallAs.mock.calls.map((c) => c[1])).toEqual([
-      'reply-gmail-emails',
-      'reply-outlook-emails',
+      'gmail/sync-emails',
+      'outlook/sync-emails',
     ]);
   });
 
   it('installs cleanly when two members require the same integration (no dedup conflict)', async () => {
     manifestsBySlug({
       'email-bundle': ORG_BUNDLE,
-      'reply-gmail-emails': {
+      'gmail/sync-emails': {
         ...GMAIL_MEMBER,
         requires: { integrations: ['shared-smtp'] },
       },
-      'reply-outlook-emails': {
+      'outlook/sync-emails': {
         ...OUTLOOK_MEMBER,
         requires: { integrations: ['shared-smtp'] },
       },
@@ -363,7 +363,7 @@ describe('installBundle', () => {
   it('namespaces confirmedOverridesByAutomation per member — one member confirmed does not confirm its sibling', async () => {
     mockAssertOverridesConfirmed.mockImplementation(
       (_orgSlug: string, automationSlug: string, confirmed?: string[]) => {
-        if (automationSlug === 'reply-outlook-emails' && !confirmed?.length) {
+        if (automationSlug === 'outlook/sync-emails' && !confirmed?.length) {
           throw new ConvexError({
             code: 'AUTOMATION_INSTALL_OVERRIDES',
             message: 'unconfirmed override',
@@ -380,7 +380,7 @@ describe('installBundle', () => {
         organizationId: 'org-123',
         bundleSlug: 'email-bundle',
         confirmedOverridesByAutomation: {
-          'reply-gmail-emails': ['integrations:gmail/definition.json'],
+          'gmail/sync-emails': ['integrations:gmail/definition.json'],
         },
       } as never,
     )) as {
@@ -391,11 +391,11 @@ describe('installBundle', () => {
     expect(result.ok).toBe(false);
     expect(result.members).toEqual([
       expect.objectContaining({
-        automationSlug: 'reply-gmail-emails',
+        automationSlug: 'gmail/sync-emails',
         ok: true,
       }),
       expect.objectContaining({
-        automationSlug: 'reply-outlook-emails',
+        automationSlug: 'outlook/sync-emails',
         ok: false,
       }),
     ]);
@@ -404,7 +404,7 @@ describe('installBundle', () => {
   it('reports a member failure without stopping the rest (not transactional)', async () => {
     mockEnsureOrgResources.mockImplementation(
       (_ctx: unknown, _orgId: string, automationSlug: string) => {
-        if (automationSlug === 'reply-gmail-emails') {
+        if (automationSlug === 'gmail/sync-emails') {
           return Promise.reject(new Error('disk full'));
         }
         return Promise.resolve({ workflows: 1, agents: 1, resources: 2 });
@@ -422,12 +422,12 @@ describe('installBundle', () => {
 
     expect(result.ok).toBe(false);
     expect(result.members[0]).toMatchObject({
-      automationSlug: 'reply-gmail-emails',
+      automationSlug: 'gmail/sync-emails',
       ok: false,
       error: 'disk full',
     });
     expect(result.members[1]).toMatchObject({
-      automationSlug: 'reply-outlook-emails',
+      automationSlug: 'outlook/sync-emails',
       ok: true,
     });
   });

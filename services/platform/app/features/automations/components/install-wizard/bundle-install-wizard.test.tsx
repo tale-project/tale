@@ -117,8 +117,8 @@ function withNoIntegrations() {
 
 function memberPreview(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    automationSlug: 'reply-gmail-emails',
-    automationName: 'Reply to Gmail emails',
+    automationSlug: 'gmail/sync-emails',
+    automationName: 'Sync Gmail emails',
     requiredIntegrations: [] as string[],
     entries: [] as unknown[],
     overrides: [] as string[],
@@ -153,12 +153,12 @@ describe('BundleInstallWizard', () => {
     scheduleReadinessByAutomation.value = {};
     previewHolder.value = [
       memberPreview({
-        automationSlug: 'reply-gmail-emails',
-        automationName: 'Reply to Gmail emails',
+        automationSlug: 'gmail/sync-emails',
+        automationName: 'Sync Gmail emails',
       }),
       memberPreview({
-        automationSlug: 'reply-outlook-emails',
-        automationName: 'Reply to Outlook emails',
+        automationSlug: 'outlook/sync-emails',
+        automationName: 'Sync Outlook emails',
       }),
     ];
     previewBundleSpy.mockImplementation(async () => previewHolder.value);
@@ -183,11 +183,11 @@ describe('BundleInstallWizard', () => {
   it("feeds useRequiredIntegrations the deduped union of every member's requires.integrations", async () => {
     previewHolder.value = [
       memberPreview({
-        automationSlug: 'reply-gmail-emails',
+        automationSlug: 'gmail/sync-emails',
         requiredIntegrations: ['gmail', 'shared-smtp'],
       }),
       memberPreview({
-        automationSlug: 'reply-outlook-emails',
+        automationSlug: 'outlook/sync-emails',
         requiredIntegrations: ['outlook', 'shared-smtp'],
       }),
     ];
@@ -204,8 +204,8 @@ describe('BundleInstallWizard', () => {
   it('groups the override review by member and gates Next on confirming EACH one separately', async () => {
     previewHolder.value = [
       memberPreview({
-        automationSlug: 'reply-gmail-emails',
-        automationName: 'Reply to Gmail emails',
+        automationSlug: 'gmail/sync-emails',
+        automationName: 'Sync Gmail emails',
         entries: [
           {
             domain: 'integrations',
@@ -218,8 +218,8 @@ describe('BundleInstallWizard', () => {
         overrides: ['integrations:gmail/definition.json'],
       }),
       memberPreview({
-        automationSlug: 'reply-outlook-emails',
-        automationName: 'Reply to Outlook emails',
+        automationSlug: 'outlook/sync-emails',
+        automationName: 'Sync Outlook emails',
         entries: [
           {
             domain: 'integrations',
@@ -237,8 +237,8 @@ describe('BundleInstallWizard', () => {
     expect(
       await screen.findByText('Installing overwrites existing files'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
-    expect(screen.getByText('Reply to Outlook emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Outlook emails')).toBeInTheDocument();
     expect(screen.getByText('gmail/definition.json')).toBeInTheDocument();
     expect(screen.getByText('outlook/definition.json')).toBeInTheDocument();
 
@@ -260,17 +260,17 @@ describe('BundleInstallWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(installSpy).toHaveBeenCalledWith('email-bundle', undefined, {
-      'reply-gmail-emails': ['integrations:gmail/definition.json'],
-      'reply-outlook-emails': ['integrations:outlook/definition.json'],
+      'gmail/sync-emails': ['integrations:gmail/definition.json'],
+      'outlook/sync-emails': ['integrations:outlook/definition.json'],
     });
   });
 
   it('shows a review section only for members that have overrides', async () => {
     previewHolder.value = [
-      // reply-gmail-emails: a real override → gets a review section.
+      // gmail/sync-emails: a real override → gets a review section.
       memberPreview({
-        automationSlug: 'reply-gmail-emails',
-        automationName: 'Reply to Gmail emails',
+        automationSlug: 'gmail/sync-emails',
+        automationName: 'Sync Gmail emails',
         entries: [
           {
             domain: 'integrations',
@@ -282,10 +282,10 @@ describe('BundleInstallWizard', () => {
         ],
         overrides: ['integrations:gmail/definition.json'],
       }),
-      // reply-outlook-emails: nothing to overwrite → never appears in the review step.
+      // outlook/sync-emails: nothing to overwrite → never appears in the review step.
       memberPreview({
-        automationSlug: 'reply-outlook-emails',
-        automationName: 'Reply to Outlook emails',
+        automationSlug: 'outlook/sync-emails',
+        automationName: 'Sync Outlook emails',
         entries: [],
         overrides: [],
       }),
@@ -293,12 +293,10 @@ describe('BundleInstallWizard', () => {
     renderWizard();
 
     await screen.findByText('Installing overwrites existing files');
-    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
     expect(screen.getByText('gmail/definition.json')).toBeInTheDocument();
-    // reply-outlook-emails never gets a section — it has no overrides.
-    expect(
-      screen.queryByText('Reply to Outlook emails'),
-    ).not.toBeInTheDocument();
+    // outlook/sync-emails never gets a section — it has no overrides.
+    expect(screen.queryByText('Sync Outlook emails')).not.toBeInTheDocument();
     // A single member's checkbox.
     expect(
       screen.getAllByRole('checkbox', {
@@ -309,10 +307,10 @@ describe('BundleInstallWizard', () => {
 
   it("concatenates each member's agent readiness after install (globally-unique <member>/<name> slugs)", async () => {
     agentReadinessByAutomation.value = {
-      'reply-gmail-emails': {
+      'gmail/sync-emails': {
         agents: [
           {
-            agentSlug: 'reply-gmail-emails/replier',
+            agentSlug: 'gmail/sync-emails/replier',
             shortName: 'replier',
             displayName: 'Gmail Replier',
             mode: 'external-byo',
@@ -324,10 +322,10 @@ describe('BundleInstallWizard', () => {
           },
         ],
       },
-      'reply-outlook-emails': {
+      'outlook/sync-emails': {
         agents: [
           {
-            agentSlug: 'reply-outlook-emails/replier',
+            agentSlug: 'outlook/sync-emails/replier',
             shortName: 'replier',
             displayName: 'Outlook Replier',
             mode: 'external-byo',
@@ -359,7 +357,7 @@ describe('BundleInstallWizard', () => {
 
   it('names the members that still need schedule variables set, instead of claiming ready (#2611)', async () => {
     scheduleReadinessByAutomation.value = {
-      'reply-gmail-emails': {
+      'gmail/sync-emails': {
         required: ['owner', 'repo'],
         schedules: [
           {
@@ -380,7 +378,7 @@ describe('BundleInstallWizard', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'These members still need schedule variables set before they can run: Reply to Gmail emails (owner, repo)',
+        'These members still need schedule variables set before they can run: Sync Gmail emails (owner, repo)',
       ),
     ).toBeInTheDocument();
     expect(

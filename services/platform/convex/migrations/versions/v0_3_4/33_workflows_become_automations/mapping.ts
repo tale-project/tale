@@ -51,9 +51,9 @@ export const WORKFLOW_TO_AUTOMATION: Readonly<Record<string, string>> = {
   'conversations/notify-members-on-inbound-message':
     'conversations/notify-members-on-inbound-messages',
   // Email syncs folded INLINE into the existing reply automations.
-  'gmail/sync-emails-from-gmail': 'gmail/reply-emails',
-  'outlook/sync-emails-from-outlook': 'outlook/reply-emails',
-  'imap_smtp/sync-emails-from-imap_smtp': 'imap-smtp/reply-emails',
+  'gmail/sync-emails-from-gmail': 'gmail/sync-emails',
+  'outlook/sync-emails-from-outlook': 'outlook/sync-emails',
+  'imap_smtp/sync-emails-from-imap_smtp': 'imap-smtp/sync-emails',
 };
 
 /** Inverse of {@link WORKFLOW_TO_AUTOMATION}, for the bijective `down`s. */

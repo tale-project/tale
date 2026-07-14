@@ -353,7 +353,7 @@ export async function copyTreeVerbatim(
 
 /**
  * Every BUNDLE under a bundle-domain's catalog dir, as paths relative to it
- * (`my-skill`, or `gmail/reply-emails` for a nesting domain).
+ * (`my-skill`, or `gmail/sync-emails` for a nesting domain).
  *
  * A domain that declares `nestedBundles` (automations) is walked to its bundle
  * ROOTS — a dir carrying one of the domain's manifest markers IS a bundle and

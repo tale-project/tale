@@ -17,8 +17,8 @@ import { t } from '../helpers/i18n';
 /**
  * Email automations + the org-level Inbox. Conversations render on the
  * standalone `/dashboard/$id/conversations/$status` surface (titled "Inbox");
- * the three org-scoped email automations (`outlook/reply-emails` /
- * `gmail/reply-emails` / `imap-smtp/reply-emails`) are its GATE: their manifests
+ * the three org-scoped email automations (`outlook/sync-emails` /
+ * `gmail/sync-emails` / `imap-smtp/sync-emails`) are its GATE: their manifests
  * declare `builtinViews: [{ id: 'inbox' }]`, and the sidebar entry, mobile
  * tab, and route guard all show the Inbox only while at least one of them is
  * INSTALLED (`useInboxAvailability` — seeded org-dir files alone don't count).
@@ -29,11 +29,11 @@ import { t } from '../helpers/i18n';
  * fixture bundles the hermetic stack scaffolds into every worker org.
  */
 
-const OUTLOOK_SLUG = 'outlook/reply-emails';
+const OUTLOOK_SLUG = 'outlook/sync-emails';
 const EMAIL_AUTOMATION_SLUGS = [
   OUTLOOK_SLUG,
-  'gmail/reply-emails',
-  'imap-smtp/reply-emails',
+  'gmail/sync-emails',
+  'imap-smtp/sync-emails',
 ] as const;
 
 const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
@@ -108,8 +108,8 @@ test.describe('email automations: hub catalog', () => {
         .first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    // One card per email integration: Reply to Outlook emails / Reply to
-    // Gmail emails / Reply to emails via SMTP/IMAP. The card title is the
+    // One card per email integration: Sync Outlook emails / Reply to
+    // Gmail emails / Sync emails via SMTP/IMAP. The card title is the
     // manifest name (read from the fixture bundle, so a rename flows
     // through); install state is deliberately NOT asserted here — sibling
     // tests install/uninstall.

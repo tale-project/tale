@@ -8,7 +8,7 @@
  * at its root, whose PATH is the automation slug — exactly the layout a user gets
  * by zipping their `my-automation/` directory, and what the folder-picker path
  * builds client-side. Since a slug is a path, that wrapper may itself be nested
- * (`gmail/reply-emails/automation.json` → slug `gmail/reply-emails`), so the root
+ * (`gmail/sync-emails/automation.json` → slug `gmail/sync-emails`), so the root
  * is found by locating the manifest ({@link detectBundleRoot}), never by assuming
  * the first path segment. Everything else (views/, agents/, scripts/,
  * integrations/) is carried verbatim under the automation dir.
@@ -87,7 +87,7 @@ function detectSingleTopLevelFolder(names: string[]): string | null {
  * slash, or null when the zip has none or its entries don't all live inside it.
  *
  * The root's PATH is the slug, so a nested slug arrives inside a nested wrapper
- * (`gmail/reply-emails/automation.json` → `gmail/reply-emails/`): the root cannot
+ * (`gmail/sync-emails/automation.json` → `gmail/sync-emails/`): the root cannot
  * be assumed to be the first path segment. Ancestor DIR entries of the root
  * (`gmail/`) are part of that wrapper and tolerated; anything else outside the
  * root — a stray file, a second bundle — disqualifies the zip. A manifest at the
@@ -154,7 +154,7 @@ export async function parseAutomationBundleZip(
   if (!stripPrefix) {
     throw new ConvexError({
       code: 'MISSING_WRAPPER_FOLDER',
-      message: `Bundle must sit inside a folder carrying its ${AUTOMATION_MANIFEST_FILENAME} (that folder's path becomes the automation slug — nest it to file the automation, e.g. "gmail/reply-emails/").`,
+      message: `Bundle must sit inside a folder carrying its ${AUTOMATION_MANIFEST_FILENAME} (that folder's path becomes the automation slug — nest it to file the automation, e.g. "gmail/sync-emails/").`,
     });
   }
   const slug = stripPrefix.slice(0, -1); // strip trailing '/'

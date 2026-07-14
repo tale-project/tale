@@ -11,15 +11,15 @@ Tale ships automations out of the box: three that turn a mailbox into a shared i
 
 </Frame>
 
-## Reply to Gmail, Outlook, and email over IMAP
+## Sync Gmail, Outlook, and email over IMAP
 
-**Reply to Gmail emails**, **Reply to Outlook emails**, and **Reply to emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, each installs the same channel-agnostic **Inbox** builtin view, and each carries the mail-sync workflow that pulls the mailbox into conversations on a schedule (every six hours out of the box — tighten it on the automation's **Triggers** tab). An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
+**Sync Gmail emails**, **Sync Outlook emails**, and **Sync emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, each installs the same channel-agnostic **Inbox** builtin view, and each carries the mail-sync workflow that pulls the mailbox into conversations on a schedule (every six hours out of the box — tighten it on the automation's **Triggers** tab). An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
 
-| Automation                    | Requires  | Mailbox                                |
-| ----------------------------- | --------- | -------------------------------------- |
-| Reply to Gmail emails         | Gmail     | A Gmail mailbox                        |
-| Reply to Outlook emails       | Outlook   | A Microsoft Outlook mailbox            |
-| Reply to emails via SMTP/IMAP | IMAP/SMTP | Any private mailbox over IMAP and SMTP |
+| Automation                | Requires  | Mailbox                                |
+| ------------------------- | --------- | -------------------------------------- |
+| Sync Gmail emails         | Gmail     | A Gmail mailbox                        |
+| Sync Outlook emails       | Outlook   | A Microsoft Outlook mailbox            |
+| Sync emails via SMTP/IMAP | IMAP/SMTP | Any private mailbox over IMAP and SMTP |
 
 ## The Inbox tab
 

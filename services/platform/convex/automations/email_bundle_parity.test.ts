@@ -38,21 +38,21 @@ interface EmailBundle {
 
 const BUNDLES: EmailBundle[] = [
   {
-    slug: 'outlook/reply-emails',
+    slug: 'outlook/sync-emails',
     integration: 'outlook',
-    name: 'Reply to Outlook emails',
+    name: 'Sync Outlook emails',
     label: 'Outlook',
   },
   {
-    slug: 'gmail/reply-emails',
+    slug: 'gmail/sync-emails',
     integration: 'gmail',
-    name: 'Reply to Gmail emails',
+    name: 'Sync Gmail emails',
     label: 'Gmail',
   },
   {
-    slug: 'imap-smtp/reply-emails',
+    slug: 'imap-smtp/sync-emails',
     integration: 'imap_smtp',
-    name: 'Reply to emails via SMTP/IMAP',
+    name: 'Sync emails via SMTP/IMAP',
     label: 'IMAP',
   },
 ];

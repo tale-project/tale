@@ -285,8 +285,8 @@ export async function resolveAutomationAssetPathChecked(
  * path.
  *
  * The boundary CANNOT be found lexically: a slug is a path, so
- * `pack://gmail/reply-emails/scripts/run.ts` is the automation
- * `gmail/reply-emails` + asset `scripts/run.ts`, not the automation `gmail` + a
+ * `pack://gmail/sync-emails/scripts/run.ts` is the automation
+ * `gmail/sync-emails` + asset `scripts/run.ts`, not the automation `gmail` + a
  * `reply-emails/…` asset. It is resolved against the org's installed tree
  * instead — the LONGEST leading path that carries a manifest is the automation,
  * the remainder is the asset. Returns null when no prefix resolves to an

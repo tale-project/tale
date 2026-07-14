@@ -348,7 +348,7 @@ export const ALL_META: readonly MigrationMeta[] = [
     numericId: 2,
     slug: "install_email_apps",
     title: "Install the email inbox apps for orgs with active email credentials",
-    description: "For each org with an ACTIVE integrationCredentials row for outlook, gmail, or imap_smtp, installs the matching email inbox app (outlook/reply-emails / gmail/reply-emails / imap-smtp/reply-emails) via installAutomationInternal with the installedBy marker 'migration:v0_2_90_install_email_apps', so the org keeps an inbox UI when the built-in Conversations pages are removed. Already-installed apps are skipped; a failed install is logged and skipped. down uninstalls only the rows carrying the marker.",
+    description: "For each org with an ACTIVE integrationCredentials row for outlook, gmail, or imap_smtp, installs the matching email inbox app (outlook/sync-emails / gmail/sync-emails / imap-smtp/sync-emails) via installAutomationInternal with the installedBy marker 'migration:v0_2_90_install_email_apps', so the org keeps an inbox UI when the built-in Conversations pages are removed. Already-installed apps are skipped; a failed install is logged and skipped. down uninstalls only the rows carrying the marker.",
     kind: 'node',
     reversible: true,
     destructive: false,

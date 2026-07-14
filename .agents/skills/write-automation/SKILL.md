@@ -24,7 +24,7 @@ addressed as `<slug>/<name>` — they never join the org's global agent roster o
 ```text
 <slug>/                     the dir PATH is the automation's slug — kebab-case segments,
                              '/'-separated, ≤4 segments, ≤128 chars. The path is where the
-                             automation is FILED: `gmail/reply-emails` lives in the `gmail`
+                             automation is FILED: `gmail/sync-emails` lives in the `gmail`
                              folder; a bare `my-automation` sits at the root.
   automation.json           the manifest — the bundle's whole contract (name/description +
                              an inline i18n block translate it; see Translations below)

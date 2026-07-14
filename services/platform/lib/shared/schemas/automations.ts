@@ -261,7 +261,7 @@ export function automationScope(
 /**
  * The folder an item groups under: its parent path (`''` at the root). ONE rule
  * for every folder-grouped list, because the slug IS the path — the automation
- * `gmail/reply-emails` groups under `gmail`, and its agent
+ * `gmail/sync-emails` groups under `gmail`, and its agent
  * `github/create-pull-requests/pr-creator` groups under the automation
  * `github/create-pull-requests`. Replaces the retired cosmetic `folder` manifest
  * field: a folder is derived from where the thing lives, never declared beside it.
@@ -272,7 +272,7 @@ export function automationParentFolder(slugOrPath: string): string {
 }
 
 /**
- * Automation slug — a '/'-separated PATH of kebab segments (`gmail/reply-emails`,
+ * Automation slug — a '/'-separated PATH of kebab segments (`gmail/sync-emails`,
  * `projects/tasks/run-assigned`). The slug IS the automation's location: its dir
  * under the built-in catalog, its dir in an org tree, and (via
  * {@link automationParentFolder}) the folder it groups under. Each segment uses the

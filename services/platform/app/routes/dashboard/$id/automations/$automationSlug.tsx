@@ -8,7 +8,7 @@ import {
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug',
 )({
-  // An automation slug is a PATH (`gmail/reply-emails`) but a route param is ONE
+  // An automation slug is a PATH (`gmail/sync-emails`) but a route param is ONE
   // segment, so it travels the URL `__`-encoded. Declaring the codec on the route
   // that OWNS the param means every link to this route or any of its children is
   // encoded by the router, and every `useParams()` below it reads the real slug —

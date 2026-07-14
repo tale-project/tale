@@ -21,9 +21,9 @@ vi.mock('@convex-dev/agent', () => ({
 
 const CATALOG = [
   {
-    slug: 'reply-gmail-emails',
+    slug: 'gmail/sync-emails',
     kind: 'automation' as const,
-    name: 'Reply to Gmail emails',
+    name: 'Sync Gmail emails',
     description: 'Read, triage, and reply to Gmail.',
     hidden: true,
     labels: ['Email', 'Gmail'],
@@ -43,7 +43,7 @@ const CATALOG = [
     workflows: [],
     agents: [],
     skills: [],
-    members: ['reply-gmail-emails', 'reply-outlook-emails'],
+    members: ['gmail/sync-emails', 'outlook/sync-emails'],
   },
   {
     slug: 'issue-desk',
@@ -85,11 +85,11 @@ describe('automation_search tool handler', () => {
     expect(result.total).toBe(3);
     expect(
       result.automations.map((a: { slug: string }) => a.slug).sort(),
-    ).toEqual(['email-bundle', 'reply-gmail-emails', 'issue-desk'].sort());
+    ).toEqual(['email-bundle', 'gmail/sync-emails', 'issue-desk'].sort());
     // Hidden bundle members are visible to the assistant.
     expect(
       result.automations.find(
-        (a: { slug: string }) => a.slug === 'reply-gmail-emails',
+        (a: { slug: string }) => a.slug === 'gmail/sync-emails',
       ),
     ).toMatchObject({ hidden: true });
   });
@@ -123,25 +123,25 @@ describe('automation_search tool handler', () => {
       query: 'reply to gmail',
     });
     expect(byDescription.automations).toEqual([
-      expect.objectContaining({ slug: 'reply-gmail-emails' }),
+      expect.objectContaining({ slug: 'gmail/sync-emails' }),
     ]);
   });
 
   it('get: returns the full parsed manifest for a slug', async () => {
     const handler = await getHandler();
-    const manifest = { name: 'Reply to Gmail emails', hidden: true };
+    const manifest = { name: 'Sync Gmail emails', hidden: true };
     const ctx = createMockCtx({
       runAction: vi.fn().mockResolvedValue(manifest),
     });
 
     const result = await handler(ctx, {
       operation: 'get',
-      slug: 'reply-gmail-emails',
+      slug: 'gmail/sync-emails',
     });
 
     expect(result).toEqual({
       operation: 'get',
-      slug: 'reply-gmail-emails',
+      slug: 'gmail/sync-emails',
       manifest,
     });
   });

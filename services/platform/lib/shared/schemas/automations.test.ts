@@ -58,7 +58,7 @@ describe('automationManifestSchema — labels', () => {
 
 describe('automationParentFolder — the folder is derived, never declared', () => {
   it('returns the parent path of a nested slug', () => {
-    expect(automationParentFolder('gmail/reply-emails')).toBe('gmail');
+    expect(automationParentFolder('gmail/sync-emails')).toBe('gmail');
     expect(automationParentFolder('projects/tasks/run-assigned')).toBe(
       'projects/tasks',
     );
@@ -128,7 +128,7 @@ describe('isValidAutomationSlug — the slug is a PATH', () => {
   });
 
   it('accepts nested paths up to the depth cap', () => {
-    expect(isValidAutomationSlug('gmail/reply-emails')).toBe(true);
+    expect(isValidAutomationSlug('gmail/sync-emails')).toBe(true);
     expect(isValidAutomationSlug('projects/tasks/run-assigned')).toBe(true);
     expect(isValidAutomationSlug('a/b/c/d')).toBe(true);
   });

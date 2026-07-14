@@ -580,7 +580,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       slug: 'email-bundle',
       name: 'Email',
       kind: 'bundle',
-      members: ['reply-gmail-emails', 'reply-outlook-emails'],
+      members: ['gmail/sync-emails', 'outlook/sync-emails'],
       ...overrides,
     });
   }
@@ -615,7 +615,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     });
     // A member has its own install row — the bundle itself still has none.
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
     ]);
 
     const { user } = renderAllTab(<AutomationsGrid organizationId="org_1" />);
@@ -637,7 +637,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
     ]);
 
     renderAllTab(<AutomationsGrid organizationId="org_1" />);
@@ -657,8 +657,8 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
-      ['reply-outlook-emails', installState('reply-outlook-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
+      ['outlook/sync-emails', installState('outlook/sync-emails')],
     ]);
 
     renderAllTab(<AutomationsGrid organizationId="org_1" />);
@@ -696,8 +696,8 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     useAutomationsMock.mockReturnValue({
       automations: [
         automationSummary({
-          slug: 'reply-gmail-emails',
-          name: 'Reply to Gmail emails',
+          slug: 'gmail/sync-emails',
+          name: 'Sync Gmail emails',
         }),
       ],
       isLoading: false,
@@ -709,12 +709,12 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
     ]);
 
     render(<AutomationsGrid organizationId="org_1" />);
 
-    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
     expect(screen.queryByText('Email')).not.toBeInTheDocument();
   });
 
@@ -724,8 +724,8 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     useAutomationsMock.mockReturnValue({
       automations: [
         automationSummary({
-          slug: 'reply-gmail-emails',
-          name: 'Reply to Gmail emails',
+          slug: 'gmail/sync-emails',
+          name: 'Sync Gmail emails',
         }),
       ],
       isLoading: false,
@@ -737,12 +737,12 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
     ]);
 
     render(<AutomationsGrid organizationId="org_1" />);
 
-    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
     expect(screen.queryByText('Custom')).not.toBeInTheDocument();
   });
 
@@ -753,8 +753,8 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
     useAutomationsMock.mockReturnValue({
       automations: [
         automationSummary({
-          slug: 'reply-gmail-emails',
-          name: 'Reply to Gmail emails',
+          slug: 'gmail/sync-emails',
+          name: 'Sync Gmail emails',
         }),
       ],
       isLoading: false,
@@ -766,7 +766,7 @@ describe('AutomationsGrid bundle cards (kind: bundle)', () => {
       error: null,
     });
     mockInstallStates = new Map([
-      ['reply-gmail-emails', installState('reply-gmail-emails')],
+      ['gmail/sync-emails', installState('gmail/sync-emails')],
     ]);
 
     render(<AutomationsGrid organizationId="org_1" />);

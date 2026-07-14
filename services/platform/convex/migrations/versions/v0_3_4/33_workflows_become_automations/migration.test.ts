@@ -25,7 +25,7 @@ const REAL_BUILTIN = fileURLToPath(
 );
 const MINI_CATALOG = mkdtempSync(path.join(tmpdir(), 'wf33-catalog-'));
 mkdirSync(path.join(MINI_CATALOG, 'automations'), { recursive: true });
-for (const slug of ['projects/tasks/run-assigned', 'gmail/reply-emails']) {
+for (const slug of ['projects/tasks/run-assigned', 'gmail/sync-emails']) {
   cpSync(
     path.join(REAL_BUILTIN, 'automations', slug),
     path.join(MINI_CATALOG, 'automations', slug),
@@ -103,7 +103,7 @@ defineMigrationTest({
       ),
     ).not.toBeNull();
     const gmail = await readFileSafe(
-      path.join(autoDir, 'gmail/reply-emails', 'automation.json'),
+      path.join(autoDir, 'gmail/sync-emails', 'automation.json'),
     );
     expect(gmail).not.toBeNull();
     expect(JSON.parse(gmail ?? '{}')).toHaveProperty('workflow');
