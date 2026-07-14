@@ -173,4 +173,12 @@ export const fileMetadataTable = defineTable({
   // `'skipped'` / unset and an unindexed scan was paying for those on
   // every tick (round-2 M2). Indexing on the status field plus
   // `_creationTime` lets the cron iterate the tiny live set directly.
-  .index('by_transcriptionStatus', ['transcriptionStatus']);
+  .index('by_transcriptionStatus', ['transcriptionStatus'])
+  // RAG watchdog sweep: the `recoverStuckRagIndexing` cron runs every 5
+  // minutes and only cares about rows still in flight (`'queued'` /
+  // `'running'`). Same rationale as `by_transcriptionStatus` — index on
+  // the status field so the cron iterates only the tiny live set instead
+  // of scanning the whole table (which is dominated by `'completed'` /
+  // terminal rows) every tick. `_creationTime` is the implicit trailing
+  // key, giving age-ordered iteration for free.
+  .index('by_ragStatus', ['ragStatus']);

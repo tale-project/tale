@@ -94,17 +94,30 @@ export const filterStorageIdsByCallerOrg = internalQuery({
   },
   // Returns one entry per authorized storage id with its organizationId so
   // callers can group by org (e.g., RAG endpoints are now org-scoped and
-  // accept one org_slug per request).
+  // accept one org_slug per request). `ragStatus` is included so the poller
+  // can skip rows that are already terminal — in particular it must NOT
+  // re-flip a `'failed'` row back to `'running'` when the knowledge corpus
+  // still reports `processing` for an orphaned (watchdog-failed) document.
   returns: v.array(
     v.object({
       storageId: v.id('_storage'),
       organizationId: v.string(),
+      ragStatus: v.optional(
+        v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+          v.literal('unsupported'),
+        ),
+      ),
     }),
   ),
   async handler(ctx, args) {
     const allowed: Array<{
       storageId: (typeof args.storageIds)[number];
       organizationId: string;
+      ragStatus?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
     }> = [];
     const orgMembershipCache = new Map<string, boolean>();
     for (const storageId of args.storageIds) {
@@ -130,7 +143,13 @@ export const filterStorageIdsByCallerOrg = internalQuery({
         isMember = (result?.page?.length ?? 0) > 0;
         orgMembershipCache.set(orgId, isMember);
       }
-      if (isMember) allowed.push({ storageId, organizationId: orgId });
+      if (isMember) {
+        allowed.push({
+          storageId,
+          organizationId: orgId,
+          ...(meta.ragStatus !== undefined && { ragStatus: meta.ragStatus }),
+        });
+      }
     }
     return allowed;
   },
@@ -181,6 +200,63 @@ export const lookupVideoLinkSources = internalQuery({
       out.push(entry);
     }
     return out;
+  },
+});
+
+/**
+ * RAG watchdog candidates: fileMetadata rows still in flight (`'queued'` or
+ * `'running'`) whose age exceeds the caller-supplied cutoff. Convex hard-kills
+ * an action at the 30-min ceiling WITHOUT running its catch block, so a large
+ * or backend-restart-interrupted indexing job leaves the row stuck at
+ * `'running'` (or `'queued'`, if the scheduled `uploadFileToRag` never ran)
+ * forever — the server poller's own timeout can die with it. This feeds
+ * `recoverStuckRagIndexing`, which reconciles each candidate against the
+ * knowledge corpus before failing it.
+ *
+ * Age clock is `ragQueuedAt ?? _creationTime`: `ragQueuedAt` is stamped on
+ * every (re-)queue and preserved through the `'running'` phase, so a fresh
+ * retry of an old row resets the clock and is not swept prematurely (the same
+ * hazard `transcriptionStartedAt` guards for transcriptions). Legacy rows
+ * without `ragQueuedAt` fall back to `_creationTime`.
+ *
+ * Iterates the `by_ragStatus` index so the scan touches only the (normally
+ * tiny) in-flight set, and stops at `limit` candidates so one mass-stuck
+ * incident can't make a single tick unbounded — the next tick drains the rest.
+ */
+export const listStuckRagCandidates = internalQuery({
+  args: {
+    staleBeforeMs: v.number(),
+    limit: v.number(),
+  },
+  returns: v.array(
+    v.object({
+      storageId: v.id('_storage'),
+      organizationId: v.string(),
+      ragStatus: v.union(v.literal('queued'), v.literal('running')),
+    }),
+  ),
+  async handler(ctx, args) {
+    const results: Array<{
+      storageId: Doc<'fileMetadata'>['storageId'];
+      organizationId: string;
+      ragStatus: 'queued' | 'running';
+    }> = [];
+    for (const status of ['running', 'queued'] as const) {
+      for await (const row of ctx.db
+        .query('fileMetadata')
+        .withIndex('by_ragStatus', (q) => q.eq('ragStatus', status))) {
+        const clock = row.ragQueuedAt ?? row._creationTime;
+        if (clock < args.staleBeforeMs) {
+          results.push({
+            storageId: row.storageId,
+            organizationId: row.organizationId,
+            ragStatus: status,
+          });
+          if (results.length >= args.limit) return results;
+        }
+      }
+    }
+    return results;
   },
 });
 
