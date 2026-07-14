@@ -865,7 +865,7 @@ export interface FileRoutesByFullPath {
   '/2fa': typeof Auth2faRoute;
   '/log-in': typeof AuthLogInRoute;
   '/sign-up': typeof AuthSignUpRoute;
-  '/dashboard/$id': typeof DashboardIdRouteWithChildren;
+  '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren;
   '/dashboard/changelog': typeof DashboardChangelogRoute;
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
   '/dashboard/switching': typeof DashboardSwitchingRoute;

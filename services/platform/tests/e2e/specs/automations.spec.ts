@@ -23,18 +23,25 @@ function appsHubUrl(organizationId: string): string {
   return `/dashboard/${organizationId}/automations`;
 }
 
-test('automations hub shows the auto-installed packs on a fresh org', async ({
+/** The seeded fixture automation (`fixtures/config/default/automations/test/`),
+ *  hidden + autoInstall — the hermetic catalog's stand-in for the shipped packs. */
+const SEEDED_AUTOMATION_NAME = 'Test workflow';
+
+test('automations hub shows the auto-installed automation on a fresh org', async ({
   page,
   org,
 }) => {
-  // A fresh org is never durably empty any more: the out-of-the-box packs
-  // (task ops, mentions, OneDrive sync) install via the default-automation
-  // provisioner ~10s after org creation, so the Installed tab fills itself.
-  // Asserting a pack card here also proves the autoInstall pipeline e2e —
-  // the generous timeout absorbs the provisioner's head-start delay.
+  // A fresh org is never durably empty any more: the default-automation
+  // provisioner installs every `autoInstall` manifest shortly after org
+  // creation (in production the task-ops packs; in this hermetic catalog the
+  // seeded `test` automation). Its card proves the autoInstall pipeline
+  // end to end — the Installed tab lists hidden automations too, and the
+  // generous timeout absorbs the provisioner's head-start delay.
   await page.goto(appsHubUrl(org.organizationId));
+  // The card is an overlay button; its 3-dots menu carries the name too, so
+  // take the first match rather than asserting a strict single element.
   await expect(
-    page.getByRole('button', { name: 'Run assigned tasks' }),
+    page.getByRole('button', { name: SEEDED_AUTOMATION_NAME }).first(),
   ).toBeVisible({ timeout: 60_000 });
 });
 

@@ -92,6 +92,13 @@ test.describe.serial('workflow editor', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
+    // WAIT for the save to land before reloading. The tab's Save performs two
+    // sequential server actions — the automation's identity, then its inline
+    // workflow's runtime config — and a reload mid-flight would abort the
+    // second one. The form resets to clean (Save disabled) only once both
+    // resolve, so that is the settle signal.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+
     // Assert the persisted FIELD value after reload (not the transient toast):
     // the edited backoff must rehydrate from the backend file.
     const reloadedBackoff = page.getByLabel(

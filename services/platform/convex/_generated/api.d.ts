@@ -1242,8 +1242,8 @@ import type * as providers_secret_resolver from "../providers/secret_resolver.js
 import type * as providers_validators from "../providers/validators.js";
 import type * as provisioning from "../provisioning.js";
 import type * as provisioning_provision_default_agents from "../provisioning/provision_default_agents.js";
-import type * as provisioning_provision_default_prompts from "../provisioning/provision_default_prompts.js";
 import type * as provisioning_provision_default_automations from "../provisioning/provision_default_automations.js";
+import type * as provisioning_provision_default_prompts from "../provisioning/provision_default_prompts.js";
 import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.js";
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as rag_documents from "../rag/documents.js";
@@ -2985,8 +2985,8 @@ declare const fullApi: ApiFromModules<{
   "providers/validators": typeof providers_validators;
   provisioning: typeof provisioning;
   "provisioning/provision_default_agents": typeof provisioning_provision_default_agents;
-  "provisioning/provision_default_prompts": typeof provisioning_provision_default_prompts;
   "provisioning/provision_default_automations": typeof provisioning_provision_default_automations;
+  "provisioning/provision_default_prompts": typeof provisioning_provision_default_prompts;
   "provisioning/seed_dev_user": typeof provisioning_seed_dev_user;
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "rag/documents": typeof rag_documents;
