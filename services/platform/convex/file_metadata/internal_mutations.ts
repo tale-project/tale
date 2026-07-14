@@ -250,10 +250,11 @@ export const updateFileRagStatus = internalMutation({
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
 
-    // A terminal transition frees a per-org indexing slot — promote any parked
-    // jobs so a capped backlog drains as jobs finish.
+    // A terminal transition frees an indexing slot — fairly promote parked jobs
+    // (oldest-first across orgs, still per-org-capped) so the shared global
+    // budget drains as jobs finish.
     if (isTerminal) {
-      await promoteQueuedRagJobs(ctx, metadata.organizationId);
+      await promoteQueuedRagJobs(ctx);
     }
 
     // Sync ocrApplied to linked document so the list view can show it

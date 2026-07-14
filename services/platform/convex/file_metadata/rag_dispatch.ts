@@ -11,9 +11,20 @@ type MutationCtx = GenericMutationCtx<DataModel>;
  * knowledge-db pool (default max 10 connections); an unbounded batch of large
  * uploads saturated the pool and pushed single jobs past Convex's 30-min action
  * ceiling — the root of the "larger files didn't work consistently" report.
- * 3 keeps a healthy margin under the pool while draining a backlog steadily.
+ * The per-org cap isolates tenants: one org's backlog never touches another's
+ * slots or parked queue.
  */
 export const MAX_CONCURRENT_RAG_INDEXING_PER_ORG = 3;
+
+/**
+ * Max file-indexing jobs across ALL orgs at once. The knowledge-db pool is
+ * shared per deployment, so the per-org cap alone doesn't bound total load —
+ * N orgs × the per-org cap can exceed the pool. This global ceiling sits under
+ * the default pool max (10), leaving headroom for RAG search + status polls,
+ * and promotion is fair (oldest-first, still per-org-capped) so a busy org
+ * can't starve a quiet one for the shared budget.
+ */
+export const MAX_CONCURRENT_RAG_INDEXING_GLOBAL = 8;
 
 /**
  * Count an org's in-flight file-indexing jobs: rows that are `'running'`, plus
@@ -49,6 +60,35 @@ async function countRagInFlight(
     if (row.ragParked !== true) {
       inFlight += 1;
       if (inFlight >= MAX_CONCURRENT_RAG_INDEXING_PER_ORG) return inFlight;
+    }
+  }
+  return inFlight;
+}
+
+/**
+ * Count in-flight file-indexing jobs across ALL orgs — `'running'` rows plus
+ * dispatched (non-parked) `'queued'` rows — via the `by_ragStatus` index.
+ * Short-circuits at the global cap.
+ */
+async function countGlobalRagInFlight(
+  ctx: MutationCtx,
+  excludeStorageId?: Id<'_storage'>,
+): Promise<number> {
+  let inFlight = 0;
+  for await (const row of ctx.db
+    .query('fileMetadata')
+    .withIndex('by_ragStatus', (q) => q.eq('ragStatus', 'running'))) {
+    if (row.storageId === excludeStorageId) continue;
+    inFlight += 1;
+    if (inFlight >= MAX_CONCURRENT_RAG_INDEXING_GLOBAL) return inFlight;
+  }
+  for await (const row of ctx.db
+    .query('fileMetadata')
+    .withIndex('by_ragStatus', (q) => q.eq('ragStatus', 'queued'))) {
+    if (row.storageId === excludeStorageId) continue;
+    if (row.ragParked !== true) {
+      inFlight += 1;
+      if (inFlight >= MAX_CONCURRENT_RAG_INDEXING_GLOBAL) return inFlight;
     }
   }
   return inFlight;
@@ -91,8 +131,21 @@ export async function maybeDispatchRagIndexing(
     .first();
   if (!row || row.ragStatus !== 'queued') return;
 
-  const inFlight = await countRagInFlight(ctx, row.organizationId, storageId);
-  if (inFlight < MAX_CONCURRENT_RAG_INDEXING_PER_ORG) {
+  // Dispatch only when BOTH the org's slots and the shared global budget have
+  // room; otherwise park and let the fair promoter pick it up.
+  const orgInFlight = await countRagInFlight(
+    ctx,
+    row.organizationId,
+    storageId,
+  );
+  const globalInFlight =
+    orgInFlight < MAX_CONCURRENT_RAG_INDEXING_PER_ORG
+      ? await countGlobalRagInFlight(ctx, storageId)
+      : MAX_CONCURRENT_RAG_INDEXING_GLOBAL;
+  if (
+    orgInFlight < MAX_CONCURRENT_RAG_INDEXING_PER_ORG &&
+    globalInFlight < MAX_CONCURRENT_RAG_INDEXING_GLOBAL
+  ) {
     await dispatchRow(ctx, row);
   } else if (row.ragParked !== true) {
     await ctx.db.patch(row._id, { ragParked: true });
@@ -100,31 +153,45 @@ export async function maybeDispatchRagIndexing(
 }
 
 /**
- * Promote parked jobs for an org until the cap is reached. Called on every
- * terminal RAG transition (a completion/failure frees a slot) so a parked
- * backlog drains as jobs finish. The watchdog also reaches this path — when it
- * fails a stuck dispatched job it calls the terminal mutation, which promotes —
- * so a parked row can never be stranded while any job is in flight.
+ * Promote parked jobs across ALL orgs when slots free, called on every terminal
+ * RAG transition. Fairness: it walks parked rows oldest-first (the `by_ragStatus`
+ * index is ordered by `_creationTime`) and dispatches each whose org is still
+ * under its per-org cap, up to the global cap — so the shared budget is shared
+ * FIFO across tenants while no single org can take more than its per-org share.
+ * Because a job failed by the watchdog is a terminal transition too, a parked
+ * row can never be stranded while any job is in flight.
+ *
+ * Single scan pass: per-org in-flight counts are computed once (lazily) and
+ * tracked as dispatches are projected, and rows are dispatched after the scan
+ * so iteration is never mutated mid-flight.
  */
-export async function promoteQueuedRagJobs(
-  ctx: MutationCtx,
-  organizationId: string,
-): Promise<void> {
-  let inFlight = await countRagInFlight(ctx, organizationId);
-  while (inFlight < MAX_CONCURRENT_RAG_INDEXING_PER_ORG) {
-    let next: Doc<'fileMetadata'> | null = null;
-    for await (const row of ctx.db
-      .query('fileMetadata')
-      .withIndex('by_organizationId_and_ragStatus_and_documentId', (q) =>
-        q.eq('organizationId', organizationId).eq('ragStatus', 'queued'),
-      )) {
-      if (row.ragParked === true) {
-        next = row;
-        break;
-      }
+export async function promoteQueuedRagJobs(ctx: MutationCtx): Promise<void> {
+  let globalInFlight = await countGlobalRagInFlight(ctx);
+  if (globalInFlight >= MAX_CONCURRENT_RAG_INDEXING_GLOBAL) return;
+
+  const orgProjected = new Map<string, number>();
+  const toDispatch: Doc<'fileMetadata'>[] = [];
+  for await (const row of ctx.db
+    .query('fileMetadata')
+    .withIndex('by_ragStatus', (q) => q.eq('ragStatus', 'queued'))) {
+    if (globalInFlight >= MAX_CONCURRENT_RAG_INDEXING_GLOBAL) break;
+    if (row.ragParked !== true) continue;
+
+    let orgCount = orgProjected.get(row.organizationId);
+    if (orgCount === undefined) {
+      orgCount = await countRagInFlight(ctx, row.organizationId);
     }
-    if (!next) return;
-    await dispatchRow(ctx, next);
-    inFlight += 1;
+    if (orgCount < MAX_CONCURRENT_RAG_INDEXING_PER_ORG) {
+      toDispatch.push(row);
+      orgProjected.set(row.organizationId, orgCount + 1);
+      globalInFlight += 1;
+    } else {
+      // Remember the cap-hit so the org's later parked rows skip the recount.
+      orgProjected.set(row.organizationId, orgCount);
+    }
+  }
+
+  for (const row of toDispatch) {
+    await dispatchRow(ctx, row);
   }
 }
