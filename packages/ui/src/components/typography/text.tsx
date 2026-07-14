@@ -10,7 +10,7 @@ import {
 
 import { cn } from '../../lib/cn';
 
-const textVariants = cva('', {
+export const textVariants = cva('', {
   variants: {
     variant: {
       /** Standard body text — text-sm text-foreground */
@@ -40,7 +40,9 @@ const textVariants = cva('', {
   },
 });
 
-type TextVariant = NonNullable<VariantProps<typeof textVariants>['variant']>;
+export type TextVariant = NonNullable<
+  VariantProps<typeof textVariants>['variant']
+>;
 type TextElement = 'p' | 'span' | 'div' | 'label' | 'h3';
 
 interface TextProps extends HTMLAttributes<HTMLElement> {

@@ -84,6 +84,7 @@ import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
+import { PackMarkdown } from './pack-markdown';
 import { ProjectScopedViewGate } from './project-scoped-view-gate';
 
 /**
@@ -538,7 +539,9 @@ function InstalledAutomationBody({
     );
     const viewBody = (
       <VStack gap={4}>
-        {viewDescription && <Text variant="muted">{viewDescription}</Text>}
+        {viewDescription && (
+          <PackMarkdown text={viewDescription} variant="muted" />
+        )}
         <ViewBody view={view} />
       </VStack>
     );
