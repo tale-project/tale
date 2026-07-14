@@ -5,6 +5,7 @@ import {
   classifyYtDlpStderr,
   cookiesFlagsFromEnv,
   impersonateFlagsFromEnv,
+  pluginDirFlagsFromEnv,
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
@@ -197,5 +198,52 @@ describe('sanitizeStderr', () => {
     expect(sanitizeStderr('cmd --cookies /secrets/jar.txt')).toContain(
       '--cookies <redacted>',
     );
+  });
+});
+
+describe('pooled session support', () => {
+  it("prefers a session's cookie jar over the env path", () => {
+    const flags = cookiesFlagsFromEnv(
+      { VIDEO_INGEST_COOKIES_FILE: '/env/jar.txt' },
+      { cookiesFile: '/job/cookies.txt' },
+    );
+    expect(flags).toEqual(['--cookies', '/job/cookies.txt']);
+  });
+
+  it("threads a session's visitor_data + po_token into the youtube arg", () => {
+    const flags = youtubeExtractorArgsFromEnv(
+      {},
+      { visitorData: 'VD123', poToken: 'mweb.gvs+TOK' },
+    );
+    expect(flags).toContain(
+      'youtube:player_client=default,tv_simply;po_token=mweb.gvs+TOK;visitor_data=VD123',
+    );
+  });
+
+  it('composes the full anti-bot flag set with a session', () => {
+    const flags = buildAntiBotFlags(
+      { VIDEO_INGEST_PROXY_URL: 'socks5h://p:1' },
+      { cookiesFile: '/job/c.txt', visitorData: 'VD' },
+    );
+    expect(flags).toEqual(
+      expect.arrayContaining([
+        '--proxy',
+        'socks5h://p:1',
+        '--cookies',
+        '/job/c.txt',
+        'youtube:player_client=default,tv_simply;visitor_data=VD',
+      ]),
+    );
+  });
+});
+
+describe('pluginDirFlagsFromEnv', () => {
+  it('is empty by default and set when configured', () => {
+    expect(pluginDirFlagsFromEnv({})).toEqual([]);
+    expect(
+      pluginDirFlagsFromEnv({
+        VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/etc/yt-dlp/plugins',
+      }),
+    ).toEqual(['--plugin-dirs', '/etc/yt-dlp/plugins']);
   });
 });

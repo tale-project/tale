@@ -29,6 +29,7 @@ import {
   automationUploadClaimTable,
   automationUploadIntentTable,
 } from './automations/schema';
+import { browserSessionsTable } from './browser_sessions/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -307,6 +308,7 @@ export default defineSchema({
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,
+  browserSessions: browserSessionsTable,
   webdavAppPasswords: webdavAppPasswordsTable,
   webdavLocks: webdavLocksTable,
   websites: websitesTable,
