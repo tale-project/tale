@@ -28,3 +28,26 @@ export const getMemberRole = internalQuery({
     return result?.page?.[0]?.role ?? null;
   },
 });
+
+/**
+ * A member's role read from the local `memberMirror` (the hot-path membership
+ * cache), on a raw ctx. Exists so an RLS-wrapped mutation — whose `ctx.db`
+ * cannot read `memberMirror` (it's filtered) — can still resolve the caller's
+ * role via `ctx.runQuery`. Returns null on a mirror miss.
+ */
+export const getMirrorMemberRole = internalQuery({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('memberMirror')
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+      )
+      .first();
+    return row?.role ?? null;
+  },
+});

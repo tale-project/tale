@@ -41,6 +41,11 @@ const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 export interface ComposeEmailConversationArgs {
   organizationId: string;
   contactId: Id<'contacts'>;
+  /**
+   * Default owner for the new thread (the non-admin composer). Resolved by the
+   * RLS mutation and passed as data — this raw-ctx helper can't see auth.
+   */
+  assigneeUserId?: string;
   integrationName: string;
   subject: string;
   content: string;
@@ -110,6 +115,7 @@ export async function composeEmailConversation(
     {
       organizationId: args.organizationId,
       contactId: args.contactId,
+      assigneeUserId: args.assigneeUserId,
       subject,
       status: 'open',
       channel: 'email',

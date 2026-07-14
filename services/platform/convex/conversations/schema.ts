@@ -16,6 +16,10 @@ export const conversationsTable = defineTable({
   // teardown is operator-run, so upgrading deployments — and the container
   // e2e's 0.2.84 world — can still carry rows with this field at push time).
   customerId: v.optional(v.string()),
+  // The internal member who owns this conversation (Better Auth userId). Human
+  // members only — notifications only ever target a user. Absent ⇒ unassigned,
+  // and message/assignment notifications fall back to org admins.
+  assigneeUserId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(
@@ -44,6 +48,7 @@ export const conversationsTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_priority', ['organizationId', 'priority'])
   .index('by_organizationId_and_contactId', ['organizationId', 'contactId'])
+  .index('by_organizationId_and_assignee', ['organizationId', 'assigneeUserId'])
   .index('by_organizationId_and_direction', ['organizationId', 'direction'])
   .index('by_organizationId_and_channel', ['organizationId', 'channel'])
   .index('by_organizationId_and_type', ['organizationId', 'type'])

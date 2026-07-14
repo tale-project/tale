@@ -2,7 +2,9 @@ import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { mutationWithRLS } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { composeEmailConversation as composeEmailConversationHelper } from './compose_email_conversation';
 import * as ConversationsHelpers from './helpers';
 import {
@@ -124,8 +126,31 @@ export const composeEmailConversation = mutationWithRLS({
     conversationId: v.id('conversations'),
     messageId: v.id('conversationMessages'),
   }),
-  handler: async (ctx, args) => {
-    return await composeEmailConversationHelper(ctx, args);
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    conversationId: Id<'conversations'>;
+    messageId: Id<'conversationMessages'>;
+  }> => {
+    // Default-assign a NON-ADMIN starter as the owner; admin/owner-started
+    // threads stay unassigned (→ admin fallback until an admin assigns).
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    // Resolve the starter's role from the member mirror via an internal query —
+    // this RLS-wrapped ctx can't read `memberMirror` directly (it's filtered),
+    // so the read runs on a raw ctx. A non-admin starter becomes the default
+    // owner; owner/admin-started threads stay unassigned (→ admin fallback until
+    // an admin assigns). Unknown role ⇒ treat as non-admin (assign the starter).
+    const role = await ctx.runQuery(
+      internal.members.internal_queries.getMirrorMemberRole,
+      { organizationId: args.organizationId, userId: authUser.userId },
+    );
+    const isAdmin = role === 'owner' || role === 'admin';
+    return await composeEmailConversationHelper(ctx, {
+      ...args,
+      assigneeUserId: isAdmin ? undefined : authUser.userId,
+    });
   },
 });
 

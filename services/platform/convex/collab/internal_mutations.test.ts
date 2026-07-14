@@ -103,3 +103,64 @@ describe('notifyFromAutomation', () => {
     expect(result.notified).toBe(0);
   });
 });
+
+describe('notifyFromAutomation — conversation_assignee audience', () => {
+  it('notifies the conversation owner when assigned', async () => {
+    const t = convexTest(schema, modules);
+    const conversationId = await t.run((ctx) =>
+      ctx.db.insert('conversations', {
+        organizationId: ORG,
+        assigneeUserId: RECIPIENT,
+        status: 'open',
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'conversation_assignee',
+        conversationId,
+        type: 'conversation_message',
+        titleKey: 'conversationInboundMessage',
+        bodyKey: 'conversationInboundMessageBody',
+      },
+    );
+
+    expect(result.notified).toBe(1);
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('userNotifications')
+        .withIndex('by_user_org_created', (q) =>
+          q.eq('userId', RECIPIENT).eq('organizationId', ORG),
+        )
+        .collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.type).toBe('conversation_message');
+  });
+
+  it('notifies no one when the conversation is unassigned (admin fallback is the workflow branch)', async () => {
+    const t = convexTest(schema, modules);
+    const conversationId = await t.run((ctx) =>
+      ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'conversation_assignee',
+        conversationId,
+        type: 'conversation_message',
+        titleKey: 'conversationInboundMessage',
+        bodyKey: 'conversationInboundMessageBody',
+      },
+    );
+
+    expect(result.notified).toBe(0);
+  });
+});

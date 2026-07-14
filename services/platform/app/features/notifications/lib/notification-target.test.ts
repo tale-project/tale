@@ -54,6 +54,52 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  it('builds a conversation deep-link when conversationId is present', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: {
+          conversationId: 'conv_abc',
+          conversationStatus: 'open',
+          subject: 'Re: invoice',
+        },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/conversations/$status',
+      params: { id: ORG, status: 'open' },
+      search: { conversation: 'conv_abc' },
+    });
+  });
+
+  it('defaults the conversation status segment to open when unspecified', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { conversationId: 'conv_def' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/conversations/$status',
+      params: { id: ORG, status: 'open' },
+      search: { conversation: 'conv_def' },
+    });
+  });
+
+  it('carries a non-open conversation status into the URL segment', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { conversationId: 'conv_ghi', conversationStatus: 'closed' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/conversations/$status',
+      params: { id: ORG, status: 'closed' },
+      search: { conversation: 'conv_ghi' },
+    });
+  });
+
   it('falls back to the project when taskId is missing but projectId is present', () => {
     expect(
       personalNotificationTarget({

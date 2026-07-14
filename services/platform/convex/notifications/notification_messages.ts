@@ -252,6 +252,8 @@ export const ACTIONABLE_INBOX_KEYS = [
   'taskReviewRequestedBodyNoAgent',
   'agentEscalation',
   'agentEscalationBody',
+  'conversationInboundMessage',
+  'conversationInboundMessageBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -271,6 +273,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
     agentEscalation: 'Agent escalation',
     agentEscalationBody: '{agent} escalated: {reason}',
+    conversationInboundMessage: 'New conversation message',
+    conversationInboundMessageBody:
+      'From {sender}: "{subject}" — open your Inbox to reply.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -289,6 +294,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
     agentEscalation: 'Agenten-Eskalation',
     agentEscalationBody: '{agent} hat eskaliert: {reason}',
+    conversationInboundMessage: 'Neue Konversationsnachricht',
+    conversationInboundMessageBody:
+      'Von {sender}: "{subject}" — öffne deine Inbox, um zu antworten.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -307,6 +315,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
     agentEscalation: "Escalade d'agent",
     agentEscalationBody: '{agent} a escaladé : {reason}',
+    conversationInboundMessage: 'Nouveau message de conversation',
+    conversationInboundMessageBody:
+      'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',

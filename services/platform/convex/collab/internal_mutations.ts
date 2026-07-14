@@ -47,6 +47,7 @@ const audienceValidator = v.union(
   v.literal('project_creator'),
   v.literal('org_admins'),
   v.literal('org_members'),
+  v.literal('conversation_assignee'),
 );
 
 async function orgAdminUserIds(
@@ -165,6 +166,13 @@ export const notifyFromAutomation = internalMutation({
       case 'task_assignee':
         if (task?.assigneeType === 'user' && task.assigneeId) {
           recipients = [task.assigneeId];
+        }
+        break;
+      case 'conversation_assignee':
+        // Human owner only (schema stores a Better Auth userId). Unassigned ⇒
+        // no recipients here; the workflow routes the admin fallback instead.
+        if (conversation?.assigneeUserId) {
+          recipients = [conversation.assigneeUserId];
         }
         break;
       case 'task_subscribers':

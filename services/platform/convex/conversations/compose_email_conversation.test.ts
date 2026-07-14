@@ -42,13 +42,14 @@ async function seedMember(
   t: T,
   userId: string,
   organizationId: string,
+  role = 'editor',
 ): Promise<void> {
   await t.run(async (ctx) => {
     await ctx.db.insert('memberMirror', {
       memberId: `m_${userId}`,
       userId,
       organizationId,
-      role: 'editor',
+      role,
       createdAt: 0,
     });
   });
@@ -143,6 +144,45 @@ describe('composeEmailConversation', () => {
 
     const stored = await t.run((ctx) => ctx.db.get(conversationId));
     expect(typeof stored?.lastMessageAt).toBe('number');
+  });
+
+  it('default-assigns a non-admin composer as the conversation owner', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, EDITOR, ORG); // editor = non-admin
+    const contactId = await seedContact(t, ORG, 'jane@acme.test');
+
+    const { conversationId } = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.conversations.mutations.composeEmailConversation, {
+        organizationId: ORG,
+        contactId,
+        integrationName: 'outlook',
+        subject: 'Project kickoff',
+        content: '<p>Hi</p>',
+      });
+
+    const conversation = await t.run((ctx) => ctx.db.get(conversationId));
+    expect(conversation?.assigneeUserId).toBe(EDITOR);
+  });
+
+  it('leaves an admin-composed conversation unassigned (admins assign deliberately)', async () => {
+    const t = convexTest(schema, modules);
+    const ADMIN = 'user_compose_admin';
+    await seedMember(t, ADMIN, ORG, 'admin');
+    const contactId = await seedContact(t, ORG, 'jane@acme.test');
+
+    const { conversationId } = await t
+      .withIdentity({ subject: ADMIN })
+      .mutation(api.conversations.mutations.composeEmailConversation, {
+        organizationId: ORG,
+        contactId,
+        integrationName: 'outlook',
+        subject: 'Project kickoff',
+        content: '<p>Hi</p>',
+      });
+
+    const conversation = await t.run((ctx) => ctx.db.get(conversationId));
+    expect(conversation?.assigneeUserId).toBeUndefined();
   });
 
   it('sends from a chosen sender (dynamic-sender) and stamps it on the thread', async () => {
