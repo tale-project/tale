@@ -280,7 +280,10 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
       { cause: err },
     );
   }
-  await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
+  // Scoped to table cells: the desk's markdown-rendered description also
+  // contains a literal `_setup` (as inline code), which a page-wide
+  // getByText would now match — the assertion is about the PERIODS ROWS.
+  await expect(page.getByRole('cell', { name: '_setup' })).toHaveCount(0);
   const acmePeriodRow = page.getByRole('row').filter({ hasText: acmePeriod });
   await expect(acmePeriodRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
@@ -369,7 +372,10 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
     timeout: TIMEOUT.FIRST_PAINT,
   });
   await expect(page.getByText(acmePeriod, { exact: true })).toHaveCount(0);
-  await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
+  // Scoped to table cells: the desk's markdown-rendered description also
+  // contains a literal `_setup` (as inline code), which a page-wide
+  // getByText would now match — the assertion is about the PERIODS ROWS.
+  await expect(page.getByRole('cell', { name: '_setup' })).toHaveCount(0);
 
   // Start on Beta → Jobs shows Beta's task only.
   const betaRow = page.getByRole('row').filter({ hasText: betaPeriod });
