@@ -175,6 +175,9 @@ export function useDocumentUpload(options: UploadOptions) {
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
   );
+  const { mutateAsync: deleteRejectedUploadBlob } = useConvexMutation(
+    api.files.mutations.deleteRejectedUploadBlob,
+  );
 
   const updateFileStatus = useCallback(
     (fileId: string, updates: Partial<TrackedFile>) => {
@@ -213,6 +216,11 @@ export function useDocumentUpload(options: UploadOptions) {
 
       updateFileStatus(fileId, { status: 'uploading' });
 
+      // Track the committed blob so a later document-creation failure can
+      // reclaim it (the blob is committed before createDocumentFromUpload,
+      // which cannot delete it itself — a throwing mutation rolls back its
+      // own storage.delete).
+      let uploadedStorageId: string | undefined;
       try {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
@@ -237,6 +245,7 @@ export function useDocumentUpload(options: UploadOptions) {
             });
           },
         );
+        uploadedStorageId = storageId;
 
         // Create document records — one per team, or one org-wide. Each
         // mutation is raced against a deadline + the abort signal so a wedged
@@ -314,6 +323,23 @@ export function useDocumentUpload(options: UploadOptions) {
           return false;
         }
 
+        // The blob was committed but the document was not created (policy
+        // rejection, oversize, unsupported type, a wedged create). Reclaim the
+        // orphaned blob so it doesn't silently consume storage — best-effort,
+        // never let a cleanup failure mask the original error.
+        if (uploadedStorageId) {
+          try {
+            await deleteRejectedUploadBlob({
+              storageId: toId<'_storage'>(uploadedStorageId),
+            });
+          } catch (cleanupError) {
+            console.warn(
+              'Failed to reclaim rejected upload blob:',
+              cleanupError,
+            );
+          }
+        }
+
         // A stalled transfer / wedged mutation is a distinct, actionable
         // failure — surface it as such rather than the generic "check your
         // connection". Crucially the loop still advances and the `finally`
@@ -336,6 +362,7 @@ export function useDocumentUpload(options: UploadOptions) {
     [
       generateUploadUrl,
       createDocumentFromUpload,
+      deleteRejectedUploadBlob,
       options.organizationId,
       updateFileStatus,
       t,
