@@ -7,7 +7,7 @@ Ein MCP-Server ist ein externer Prozess, der Tales Agents über das Model Contex
 
 <Frame caption="Das Formular MCP-Server hinzufügen — eine Verbindung und eine Authentifizierungsmethode sind die ganze Registrierung.">
 
-![Der Dialog MCP-Server hinzufügen unter Einstellungen API MCP mit Feldern für Name, Anzeigename und Beschreibung, einer Transporttyp-Auswahl auf Streamable HTTP, einem URL-Feld und einer Authentifizierungsmethode auf Keine.](/images/platform/settings-mcp-add-dialog.webp)
+![Der Dialog MCP-Server hinzufügen unter Einstellungen API MCP, ausgefüllt für einen Server für Support-Tickets — Anzeigename Support Tickets, eine einzeilige Beschreibung, Streamable HTTP als Transporttyp, die Server-URL und Keine als Authentifizierungsmethode — über der MCP-Seite, auf der bereits ein Server Internal Wiki registriert ist.](/images/platform/settings-mcp-add-dialog.webp)
 
 </Frame>
 

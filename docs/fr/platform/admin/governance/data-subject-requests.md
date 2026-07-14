@@ -7,7 +7,7 @@ Demandes des personnes concernées est le workflow que Tale livre pour honorer l
 
 <Frame caption="Gouvernance > Demandes des personnes concernées — la politique de gouvernance DSAR (fenêtre d’attente, double approbation, limite quotidienne), au-dessus de la liste des reçus de demandes avec Déposer une demande.">
 
-![La page de gouvernance Demandes des personnes concernées montrant les champs de fenêtre d’attente, de bascule de double approbation et de limite quotidienne, au-dessus d’un tableau vide de demandes d’effacement avec un bouton Déposer une demande.](/images/platform/governance-data-subject-requests.webp)
+![La page de gouvernance Demandes des personnes concernées montrant les champs de fenêtre d’attente, de bascule de double approbation et de limite quotidienne, au-dessus d’un tableau de demandes d’effacement qui porte une demande en attente — personne concernée Jordan Blake, code de motif Consentement retiré, 24 h avant exécution et 29 jours restants sur son SLA — à côté d’un bouton Déposer une demande.](/images/platform/governance-data-subject-requests.webp)
 
 </Frame>
 

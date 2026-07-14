@@ -5,9 +5,9 @@ description: Settings > AI providers is where Admins connect the OpenAI-compatib
 
 Settings > AI providers is the surface where Tale meets the models it serves. A fresh org ships with one provider connected — **OpenRouter**, whose single key reaches chat, vision, embedding, transcription, speech, and image models — and Admins add, edit, or retire providers from here. Every reply Tale streams is routed through a model resolved on this page; touching it changes what the rest of the product can do.
 
-<Frame caption="Settings > AI providers — the connected providers, each with its credential status and model list.">
+<Frame caption="Settings > AI providers — the connected providers, each with its base URL and the size of its model list.">
 
-![The AI providers settings page showing the OpenRouter provider entry with its model list.](/images/get-started/settings-providers.webp)
+![The AI providers settings page listing one connected provider, OpenRouter, with its base URL and a count of 52 models, beside an Add provider button and the model-catalog sync controls.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

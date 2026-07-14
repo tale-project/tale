@@ -7,7 +7,7 @@ Run-code policy is the surface where you decide which Python and Node packages t
 
 <Frame caption="Governance > Run-code packages — the default-mode radiogroup above the Python and Node allow and deny lists.">
 
-![The Run-code policy governance page showing the Denylist and Allowlist mode radiogroup above the Python allow and deny list text areas.](/images/platform/governance-run-code-policy.webp)
+![The Run-code policy governance page with Allowlist picked in the default-mode radiogroup, above a Python allow list holding pandas, numpy, scipy, and scikit-learn, a Python deny list holding paramiko, fabric, pexpect, and scapy, and a Node allow list holding axios, date-fns, dayjs, and lodash.](/images/platform/governance-run-code-policy.webp)
 
 </Frame>
 

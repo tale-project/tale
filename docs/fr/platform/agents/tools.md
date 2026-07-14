@@ -5,9 +5,9 @@ description: Les permissions outil par outil qu’un agent porte au-delà de la 
 
 Les outils sont ce qu’un agent peut faire au-delà de produire du texte. Le modèle choisit quel outil appeler dans la liste que l’auteur de l’agent a accordée ; Tale exécute l’outil, rend le résultat, et le modèle continue. L’onglet **Outils** de l’agent est cette liste — un catalogue interrogeable d’interrupteurs par outil, groupés en cartes de catégorie.
 
-<Frame caption="L’onglet Outils — le mode de recherche web en haut, puis le catalogue d’outils interrogeable, groupé par catégorie.">
+<Frame caption="Le catalogue d’outils — une carte par catégorie, chacune comptant combien de ses outils l’agent a reçus.">
 
-![L’onglet Outils de l’éditeur d’agent montrant les quatre modes de recherche web et le catalogue d’outils groupé sous des catégories comme les clients, les produits, les fournisseurs et les connaissances.](/images/platform/agent-editor-tools.webp)
+![L’onglet Outils de l’éditeur d’agent, défilé jusqu’aux cartes de catégorie, avec Connaissances à trois outils cochés sur quatre et Fichiers à sept sur sept, tandis que Conversations, Discussions, Analytique et Tâches et projets n’ont rien d’accordé.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

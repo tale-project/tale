@@ -46,7 +46,7 @@ Wechsle zum Tab **Wissen**. Wähle einen **Abrufmodus** — **Tool** lässt den 
 
 <Frame caption="Der Wissen-Tab — Abrufmodus, Dokument-Scopes und die indizierten Organisationsdokumente.">
 
-![Der Wissen-Tab des Agenten-Editors mit den Abrufmodus-Optionen, den Schaltern für Team- und Organisationsdokumente und drei indizierten Organisationsdokumenten.](/images/platform/agent-editor-knowledge.webp)
+![Der Wissen-Tab des Agenten-Editors mit Tool als gewähltem Abrufmodus, eingeschalteten Schaltern für Team- und Organisationsdokumente und der Liste der Organisationsdokumente, in der jede Datei ein Abzeichen Indexiert trägt.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 
@@ -54,9 +54,9 @@ Wechsle zum Tab **Wissen**. Wähle einen **Abrufmodus** — **Tool** lässt den 
 
 Wechsle zum Tab **Tools**. Tools sind einzelne Checkboxen, gruppiert nach Kategorie — Kunden, Produkte, Dateien, Workflows und mehr — plus einer Auswahl für den **Websuche**-Modus ganz oben. Gewähre, was der Agent braucht, und lass den Rest aus; jeder Schalter weitet die Vertrauensgrenze.
 
-<Frame caption="Der Tools-Tab — eine Checkliste pro Tool nach Kategorie, mit dem Websuche-Modus obenauf.">
+<Frame caption="Der Tools-Tab — eine Checkliste pro Tool, gruppiert in Kategorie-Karten, von denen jede zählt, was sie gewährt hat.">
 
-![Der Tools-Tab des Agenten-Editors mit den Websuche-Modus-Optionen und Checkboxen pro Tool, gruppiert unter Kunden, Produkte, Lieferanten und Wissen.](/images/platform/agent-editor-tools.webp)
+![Der Tools-Tab des Agenten-Editors, gescrollt zu den Kategorie-Karten, mit Wissen bei drei von vier angehakten Tools und Dateien bei sieben von sieben, während Konversationen, Diskussionen, Analysen und Aufgaben & Projekte nichts gewährt bekommen haben.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

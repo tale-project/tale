@@ -28,7 +28,7 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
 <table>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Der Arena-Modus lässt zwei Modelle denselben Prompt nebeneinander beantworten" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Aufgaben-Board eines Projekts, dessen Karten Agents übernehmen" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Aufgaben-Board eines Projekts mit Karten in allen sechs Spalten, von Backlog bis Cancelled" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="Der Agent-Editor bündelt Anweisungen, Wissen, Tools und Modell" width="100%"></a></td>
   </tr>
   <tr>
@@ -37,8 +37,8 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
     <td align="center"><sub><b>Agents</b> — Anweisungen, Wissen, Tools und Modell als eine Einheit</sub></td>
   </tr>
   <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Canvas des Workflow-Editors mit den typisierten Schritten einer laufenden Automatisierung" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Der Integrationskatalog mit Slack, GitHub, Gmail, Teams und mehr" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Canvas des Workflow-Editors mit den typisierten, verzweigten Schritten einer Automatisierung" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Der Integrationskatalog mit Confluence, GitHub, Gmail, Google Drive, Shopify und mehr" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Inhaltsfilter, PII-Erkennung und Moderations-Provider" width="100%"></a></td>
   </tr>
   <tr>

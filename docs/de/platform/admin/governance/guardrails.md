@@ -7,7 +7,7 @@ Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, 
 
 <Frame caption="Governance > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
 
-![Die Governance-Seite Guardrails zeigt drei Status-Karten für Inhaltssicherheit, PII-Erkennung und Moderationsanbieter — alle deaktiviert — über einer leeren Tabelle der letzten Ereignisse.](/images/platform/governance-guardrails.webp)
+![Die Governance-Seite Guardrails zeigt drei Status-Karten — Inhaltssicherheit greift auf Ein- und Ausgabe über zwei Kategorien, die PII-Erkennung läuft im Modus mask über vier eingebaute Muster, und der Moderationsanbieter steht auf Deaktiviert, ohne konfigurierte externe API — über dem Feed der letzten Ereignisse, der noch keine Ereignisse meldet.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

@@ -7,7 +7,7 @@ Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitgl
 
 <Frame caption="Governance > Richtlinien & Limits — die Tabelle der Budget-Regeln über der Upload-Richtlinie und den Aufbewahrungs-Kontrollen.">
 
-![Die Governance-Seite Richtlinien und Limits zeigt eine leere Tabelle der Budget-Regeln über den Feldern der Upload-Richtlinie für erlaubte Dateitypen, Größen und Volumen.](/images/platform/governance-policies-limits.webp)
+![Die Governance-Seite Richtlinien und Limits zeigt drei monatliche Budget-Regeln — eine für die gesamte Organisation, eine als Default für alle Benutzer und eine für die Rolle developer, jede mit Obergrenzen für Tokens, Kosten und Anfragen — über den Feldern der Upload-Richtlinie für erlaubte Dateitypen, Größen und Volumen.](/images/platform/governance-policies-limits.webp)
 
 </Frame>
 

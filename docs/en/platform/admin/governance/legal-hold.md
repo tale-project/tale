@@ -7,7 +7,7 @@ Legal hold is the mechanism Tale ships for preserving evidence under litigation 
 
 <Frame caption="Governance > Legal hold — the active-holds table with the Place legal hold action above the dual-control release-requests queue.">
 
-![The Legal hold governance page showing an empty active-holds table with a Place legal hold button above the empty release-requests queue.](/images/platform/governance-legal-hold.webp)
+![The Legal hold governance page showing one active hold — a User hold on marta.vogel, placed by Alex Rivera under the Northstar contract matter — beside a Place legal hold button, above the Pending approval and Approved release-request queues, both reading No release requests.](/images/platform/governance-legal-hold.webp)
 
 </Frame>
 

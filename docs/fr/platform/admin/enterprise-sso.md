@@ -9,7 +9,7 @@ Tale parle quatre protocoles : **OIDC**, **OAuth2** simple, **SAML 2.0** pour la
 
 <Frame caption="Paramètres > SSO d’entreprise — le sélecteur de protocole et les champs de connexion sur une page ; l’URL de redirection à enregistrer dans l’IdP, prête à copier.">
 
-![La page de paramètres SSO d’entreprise montrant le menu Protocole réglé sur Microsoft Entra ID, les champs nom d’affichage et domaine e-mail, et la section connexion avec l’URL de redirection, l’URL d’émetteur, l’ID client et les scopes.](/images/platform/settings-enterprise-sso.webp)
+![La page de paramètres SSO d’entreprise avec le menu Protocole réglé sur Microsoft Entra ID et un nom d’affichage assorti, puis une section connexion qui porte l’URL de redirection à enregistrer, une URL d’émetteur et un ID client repris de l’enregistrement d’application, un secret client vide et les scopes demandés.](/images/platform/settings-enterprise-sso.webp)
 
 </Frame>
 

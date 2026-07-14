@@ -5,9 +5,9 @@ description: Einstellungen > KI-Anbieter ist der Ort, an dem Admins die OpenAI-k
 
 Einstellungen > KI-Anbieter ist die Oberfläche, an der Tale auf die Modelle trifft, die es bedient. Eine frische Organisation bringt einen verbundenen Anbieter mit — **OpenRouter**, dessen einzelner Key Chat-, Vision-, Embedding-, Transkriptions-, Sprach- und Bildmodelle erreicht — und Admins fügen von hier Anbieter hinzu, bearbeiten oder mustern sie aus. Jede Antwort, die Tale streamt, wird über ein auf dieser Seite aufgelöstes Modell geroutet; sie anzufassen ändert, was der Rest des Produkts kann.
 
-<Frame caption="Einstellungen > KI-Anbieter — die verbundenen Anbieter, jeder mit seinem Anmeldedaten-Status und seiner Modell-Liste.">
+<Frame caption="Einstellungen > KI-Anbieter — die verbundenen Anbieter, jeder mit seiner Basis-URL und dem Umfang seiner Modell-Liste.">
 
-![Die KI-Anbieter-Einstellungsseite mit dem OpenRouter-Anbieter-Eintrag und seiner Modell-Liste.](/images/get-started/settings-providers.webp)
+![Die KI-Anbieter-Einstellungsseite listet einen verbundenen Anbieter, OpenRouter, mit seiner Basis-URL und 52 Modellen, neben der Schaltfläche Anbieter hinzufügen und den Sync-Steuerungen des Modellkatalogs.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

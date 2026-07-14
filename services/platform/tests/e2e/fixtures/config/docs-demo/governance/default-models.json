@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "scope": "default",
+      "providerName": "openrouter",
+      "modelId": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "scope": "role",
+      "scopeId": "developer",
+      "providerName": "openrouter",
+      "modelId": "anthropic/claude-opus-4.8"
+    },
+    {
+      "scope": "role",
+      "scopeId": "member",
+      "providerName": "openrouter",
+      "modelId": "anthropic/claude-haiku-4.5"
+    }
+  ]
+}

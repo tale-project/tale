@@ -7,7 +7,7 @@ An MCP server is an external process that exposes tools to Tale's agents over th
 
 <Frame caption="The Add MCP server form — a connection and an authentication method are the whole registration.">
 
-![The Add MCP server dialog under Settings API MCP with fields for name, display name, description, a transport type selector showing Streamable HTTP, a URL field, and an authentication method set to None.](/images/platform/settings-mcp-add-dialog.webp)
+![The Add MCP server dialog under Settings API MCP, filled in for a support-tickets server — display name Support Tickets, a one-line description, Streamable HTTP as the transport type, the server URL, and an authentication method of None — over the MCP page, where an Internal Wiki server is already registered.](/images/platform/settings-mcp-add-dialog.webp)
 
 </Frame>
 

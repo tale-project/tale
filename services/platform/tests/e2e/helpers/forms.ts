@@ -18,3 +18,19 @@ export async function reloadAndSettle(
   await page.reload();
   await expect(anchor).toBeVisible({ timeout: TIMEOUT.NAV });
 }
+
+/**
+ * Match a form control by the START of its label.
+ *
+ * The shared `Input` folds its required marker into the control's accessible
+ * name, so a required "Name" field is announced as `Namerequired`. That breaks
+ * both obvious locators: `getByLabel('Name', { exact: true })` never matches,
+ * and a loose `getByLabel('Name')` is ambiguous the moment the same form also
+ * has a "Display name". Anchoring the label is the only form that survives both.
+ *
+ * Pass the label through `t()` — never a hardcoded English literal.
+ */
+export function labelStart(label: string): RegExp {
+  const escaped = label.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  return new RegExp(`^${escaped}`);
+}

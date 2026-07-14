@@ -15,7 +15,7 @@ Si tu arrives du démarrage rapide, ton organisation existe déjà — passe dir
 
 <Frame caption="L’étape espace de travail de l’assistant de création.">
 
-![L’assistant de création d’organisation montrant le champ du nom de l’organisation à son étape espace de travail.](/images/get-started/org-create-wizard.webp)
+![L’assistant de création d’organisation à son étape espace de travail, avec Northlight Labs saisi dans le champ Nom de l’organisation et le bouton Suivant actif.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -27,7 +27,7 @@ Rien ne répond tant qu’aucun fournisseur n’est connecté. Si tu as sauté l
 
 <Frame caption="Un fournisseur connecté avec son catalogue de modèles.">
 
-![La page des paramètres des fournisseurs d’IA montrant l’entrée du fournisseur OpenRouter.](/images/get-started/settings-providers.webp)
+![La page des paramètres des fournisseurs d’IA listant un seul fournisseur connecté, OpenRouter, avec son URL de base et ses 52 modèles.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

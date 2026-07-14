@@ -7,9 +7,9 @@ Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, 
 
 Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft funktioniert und wie die Team-Grenze mit den rollenbasierten Berechtigungen aus [Mitglieder und Rollen](/de/platform/admin/members-and-roles) zusammenspielt. Lies sie einmal, wenn du die Teams der Organisation aufsetzt; komm wieder, wenn du umorganisierst.
 
-<Frame caption="Einstellungen > Teams, bevor ein Team existiert — die leere Tabelle mit der Aktion Team erstellen.">
+<Frame caption="Einstellungen > Teams — jedes Team der Organisation mit seiner Mitgliederzahl, neben der Aktion Team erstellen.">
 
-![Die Teams-Einstellungsseite mit einer leeren Team-Tabelle, einer Schaltfläche Team erstellen und dem Hinweis, dass noch keine Teams existieren.](/images/platform/settings-teams.webp)
+![Die Teams-Einstellungsseite listet drei Teams — Growth, Platform engineering und Customer success —, jedes mit einem Mitglied und dem Zeitpunkt, an dem es hinzugefügt wurde, neben der Schaltfläche Team erstellen.](/images/platform/settings-teams.webp)
 
 </Frame>
 

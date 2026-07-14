@@ -7,7 +7,7 @@ Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von
 
 <Frame caption="Governance > Anfragen betroffener Personen — die DSAR-Governance-Richtlinie (Cooling-off-Fenster, Vier-Augen-Freigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
 
-![Die Governance-Seite Anfragen betroffener Personen zeigt das Cooling-off-Fenster, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer leeren Tabelle der Löschungs-Anfragen mit einer Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
+![Die Governance-Seite Anfragen betroffener Personen zeigt das Cooling-off-Fenster, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer Tabelle der Löschungs-Anfragen mit einer offenen Anfrage — betroffene Person Jordan Blake, Begründungs-Code Einwilligung widerrufen, noch 24 Stunden bis zur Ausführung und 29 Tage SLA-Frist —, daneben die Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
 
 </Frame>
 

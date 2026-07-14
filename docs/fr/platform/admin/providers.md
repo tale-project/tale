@@ -5,9 +5,9 @@ description: Paramètres > Fournisseurs IA est l’endroit où les Administrateu
 
 Paramètres > Fournisseurs IA est la surface où Tale rencontre les modèles qu’il sert. Une organisation toute neuve embarque un fournisseur connecté — **OpenRouter**, dont l’unique clé atteint les modèles de chat, vision, embedding, transcription, voix et image — et les Administrateurs ajoutent, éditent ou retirent des fournisseurs depuis ici. Chaque réponse que Tale diffuse est routée via un modèle résolu sur cette page ; y toucher change ce que le reste du produit peut faire.
 
-<Frame caption="Paramètres > Fournisseurs IA — les fournisseurs connectés, chacun avec son statut d’identifiant et sa liste de modèles.">
+<Frame caption="Paramètres > Fournisseurs IA — les fournisseurs connectés, chacun avec son URL de base et la taille de sa liste de modèles.">
 
-![La page de paramètres Fournisseurs IA montrant l’entrée du fournisseur OpenRouter avec sa liste de modèles.](/images/get-started/settings-providers.webp)
+![La page de paramètres Fournisseurs IA listant un seul fournisseur connecté, OpenRouter, avec son URL de base et ses 52 modèles, à côté d’un bouton Ajouter un fournisseur et des contrôles de synchronisation du catalogue de modèles.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

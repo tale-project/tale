@@ -9,7 +9,7 @@ Les clés listées ici sont différentes des jetons de session par utilisateur q
 
 <Frame caption="Paramètres > Clés API — là où les clés sont créées, rotées et révoquées.">
 
-![La page de paramètres des clés API REST avec un bouton Créer une clé API au-dessus de la liste des clés.](/images/get-started/settings-api-keys.webp)
+![La page de paramètres des clés API REST listant deux clés dont chacune n’affiche que son préfixe, sa date d’ajout et la mention Jamais utilisée, à côté d’un bouton Créer une clé API.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

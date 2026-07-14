@@ -7,7 +7,7 @@ WebDAV transforme le magasin de documents de Tale en un dossier distant que tu m
 
 <Frame caption="Paramètres > API > WebDAV — les détails de connexion préremplis en haut, le générateur de mots de passe applicatifs en dessous.">
 
-![La page des paramètres WebDAV montrant une URL de connexion, un champ de nom d’utilisateur avec l’e-mail du compte, une explication indiquant que le mot de passe est un mot de passe applicatif généré, et un tableau de mots de passe applicatifs vide avec un bouton Générer.](/images/platform/settings-webdav.webp)
+![La page des paramètres WebDAV montrant une URL de connexion, un champ de nom d’utilisateur avec l’e-mail du compte, une explication indiquant que le mot de passe est un mot de passe applicatif généré, et un tableau de mots de passe applicatifs qui tient deux entrées — Design workstation et MacBook Pro, chacune avec son seul préfixe et sa date de création — à côté d’un bouton Générer.](/images/platform/settings-webdav.webp)
 
 </Frame>
 

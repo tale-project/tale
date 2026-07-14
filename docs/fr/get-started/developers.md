@@ -15,7 +15,7 @@ Pour obtenir un identifiant que tes scripts peuvent porter, ouvre **Paramètres 
 
 <Frame caption="Les paramètres de l’API REST — les clés se créent et se révoquent ici.">
 
-![La page des paramètres des clés API REST avec un bouton Créer une clé API et une liste de clés vide.](/images/get-started/settings-api-keys.webp)
+![La page des paramètres des clés API REST listant deux clés — Production ingest et CI pipeline — dont chacune n’affiche que son préfixe, sa date d’ajout et la mention Jamais utilisée, à côté d’un bouton Créer une clé API.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

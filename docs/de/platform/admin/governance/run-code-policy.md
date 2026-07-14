@@ -7,7 +7,7 @@ Run-code-Richtlinie ist die Oberfläche, auf der du entscheidest, welche Python-
 
 <Frame caption="Governance > Run-code-Pakete — die Radiogruppe für den Standardmodus über den Zulassungs- und Sperrlisten für Python und Node.">
 
-![Die Governance-Seite Run-code-Richtlinie zeigt die Radiogruppe für die Modi Sperrliste und Zulassungsliste über den Textfeldern der Python-Zulassungs- und -Sperrliste.](/images/platform/governance-run-code-policy.webp)
+![Die Governance-Seite Run-code-Richtlinie mit Zulassungsliste als gewähltem Standardmodus, darunter eine Python-Zulassungsliste mit pandas, numpy, scipy und scikit-learn, eine Python-Sperrliste mit paramiko, fabric, pexpect und scapy sowie eine Node-Zulassungsliste mit axios, date-fns, dayjs und lodash.](/images/platform/governance-run-code-policy.webp)
 
 </Frame>
 

@@ -7,7 +7,7 @@ Politique run-code est la surface où tu décides quels paquets Python et Node l
 
 <Frame caption="Gouvernance > Paquets run-code — le groupe d’options du mode par défaut, au-dessus des listes d’autorisation et de blocage Python et Node.">
 
-![La page de gouvernance Politique run-code montrant le groupe d’options des modes Liste de blocage et Liste d’autorisation, au-dessus des zones de texte des listes d’autorisation et de blocage Python.](/images/platform/governance-run-code-policy.webp)
+![La page de gouvernance Politique run-code avec Liste d’autorisation coché dans le groupe d’options du mode par défaut, au-dessus d’une liste d’autorisation Python qui tient pandas, numpy, scipy et scikit-learn, d’une liste de blocage Python qui tient paramiko, fabric, pexpect et scapy, et d’une liste d’autorisation Node qui tient axios, date-fns, dayjs et lodash.](/images/platform/governance-run-code-policy.webp)
 
 </Frame>
 

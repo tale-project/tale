@@ -7,9 +7,9 @@ Une équipe est un groupe nommé de membres qui partage l’accès aux agents, p
 
 Cette page est la référence pour ce qu’une équipe possède, comment marche l’appartenance, et comment la frontière équipe interagit avec les permissions basées sur les rôles documentées sous [Membres et rôles](/fr/platform/admin/members-and-roles). Lis-la une fois quand tu mets les équipes de l’org en place ; reviens quand tu réorganises.
 
-<Frame caption="Paramètres > Équipes avant qu’aucune équipe n’existe — la table vide avec l’action Créer une équipe.">
+<Frame caption="Paramètres > Équipes — chaque équipe de l’organisation avec son nombre de membres, à côté de l’action Créer une équipe.">
 
-![La page de paramètres Équipes montrant une table d’équipes vide, un bouton Créer une équipe et un message indiquant qu’aucune équipe n’existe encore.](/images/platform/settings-teams.webp)
+![La page de paramètres Équipes listant trois équipes — Growth, Platform engineering et Customer success — chacune avec un membre et la date de son ajout, à côté d’un bouton Créer une équipe.](/images/platform/settings-teams.webp)
 
 </Frame>
 

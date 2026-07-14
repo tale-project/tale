@@ -7,7 +7,7 @@ Inhalte und Modelle ist die Oberfläche, auf der du entscheidest, welche LLMs di
 
 <Frame caption="Governance > Inhalte & Modelle — der verpflichtende System-Prompt-Präfix und -Suffix über den Default-Modell-Regeln pro Bereich.">
 
-![Die Governance-Seite Inhalte und Modelle zeigt die Felder für den verpflichtenden System-Prompt-Präfix und -Suffix über einer leeren Tabelle der Default-Modell-Regeln.](/images/platform/governance-content-models.webp)
+![Die Governance-Seite Inhalte und Modelle zeigt die Felder für den verpflichtenden System-Prompt-Präfix und -Suffix, gefüllt mit den Hausregeln der Organisation, über einer Tabelle mit drei Default-Modell-Regeln — einem Default für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt.](/images/platform/governance-content-models.webp)
 
 </Frame>
 

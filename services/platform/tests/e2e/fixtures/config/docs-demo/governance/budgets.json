@@ -1,0 +1,30 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "scope": "org",
+      "period": "monthly",
+      "maxTokens": 120000000,
+      "maxCostCents": 250000,
+      "maxRequests": 200000,
+      "warningThresholdPercent": 80
+    },
+    {
+      "scope": "default",
+      "period": "monthly",
+      "maxTokens": 2000000,
+      "maxCostCents": 5000,
+      "maxRequests": 5000,
+      "warningThresholdPercent": 80
+    },
+    {
+      "scope": "role",
+      "scopeId": "developer",
+      "period": "monthly",
+      "maxTokens": 8000000,
+      "maxCostCents": 20000,
+      "maxRequests": 20000,
+      "warningThresholdPercent": 90
+    }
+  ]
+}

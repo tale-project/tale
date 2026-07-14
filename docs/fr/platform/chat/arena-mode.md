@@ -13,7 +13,7 @@ Ouvre le menu plus du composeur et choisis **Mode Arène** — le composeur fait
 
 <Frame caption="Le même prompt traité par deux modèles, avec la rangée de verdict en dessous.">
 
-![Le Mode Arène avec le même prompt diffusé dans deux colonnes coiffées de modèles différents, et quatre boutons de verdict en dessous.](/images/platform/chat-arena-split.webp)
+![Le Mode Arène avec un prompt de checklist de lancement traité dans deux colonnes — à gauche, Claude Haiku 4.5 rend une liste numérotée de cinq étapes, à droite, Claude Sonnet 4.6 regroupe le même travail sous des titres et ajoute les risques à signaler — au-dessus des boutons de verdict A est meilleur, B est meilleur, Égalité et Les deux sont mauvais.](/images/platform/chat-arena-split.webp)
 
 </Frame>
 

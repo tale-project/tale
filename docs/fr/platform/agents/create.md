@@ -46,7 +46,7 @@ Passe à l’onglet **Base de connaissances**. Choisis un **Mode de récupérati
 
 <Frame caption="L’onglet Base de connaissances — le mode de récupération, les portées de documents et les documents d’organisation indexés.">
 
-![L’onglet Base de connaissances de l’éditeur d’agent montrant les options du mode de récupération, les interrupteurs des documents d’équipe et d’organisation, et trois documents d’organisation indexés.](/images/platform/agent-editor-knowledge.webp)
+![L’onglet Base de connaissances de l’éditeur d’agent avec Outil choisi comme mode de récupération, les interrupteurs des documents d’équipe et d’organisation tous deux actifs, et la liste des documents de l’organisation où chaque fichier porte un badge Indexé.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 
@@ -54,9 +54,9 @@ Passe à l’onglet **Base de connaissances**. Choisis un **Mode de récupérati
 
 Passe à l’onglet **Outils**. Les outils sont des cases à cocher individuelles groupées par catégorie — clients, produits, fichiers, workflows et plus — plus un sélecteur de mode **Recherche web** en haut. Accorde ce dont l’agent a besoin et laisse le reste éteint ; chaque case cochée élargit la frontière de confiance.
 
-<Frame caption="L’onglet Outils — une liste de cases par outil, groupée par catégorie, avec le mode de recherche web en haut.">
+<Frame caption="L’onglet Outils — une liste de cases par outil, groupée en cartes de catégorie, chacune comptant ce qu’elle a accordé.">
 
-![L’onglet Outils de l’éditeur d’agent montrant les options du mode de recherche web et des cases à cocher par outil groupées sous les catégories des clients, des produits, des fournisseurs et des connaissances.](/images/platform/agent-editor-tools.webp)
+![L’onglet Outils de l’éditeur d’agent, défilé jusqu’aux cartes de catégorie, avec Connaissances à trois outils cochés sur quatre et Fichiers à sept sur sept, tandis que Conversations, Discussions, Analytique et Tâches et projets n’ont rien d’accordé.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

@@ -5,9 +5,9 @@ description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung 
 
 Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das Modell entscheidet, welches Tool es aus der Liste aufruft, die der Autor des Agents gewährt hat; Tale führt das Tool aus, reicht das Ergebnis zurück, und das Modell macht weiter. Der Tab **Tools** des Agents ist diese Liste — ein durchsuchbarer Katalog mit Schaltern pro Tool, gruppiert in Kategorie-Karten.
 
-<Frame caption="Der Tools-Tab — oben der Websuche-Modus, dann der durchsuchbare Tool-Katalog, gruppiert nach Kategorie.">
+<Frame caption="Der Tool-Katalog — eine Karte pro Kategorie, jede mit der Zahl der Tools, die der Agent gewährt bekommen hat.">
 
-![Der Tools-Tab des Agenten-Editors mit den vier Websuche-Modi und dem Tool-Katalog, gruppiert unter Kategorien wie Kunden, Produkte, Lieferanten und Wissen.](/images/platform/agent-editor-tools.webp)
+![Der Tools-Tab des Agenten-Editors, gescrollt zu den Kategorie-Karten, mit Wissen bei drei von vier angehakten Tools und Dateien bei sieben von sieben, während Konversationen, Diskussionen, Analysen und Aufgaben & Projekte nichts gewährt bekommen haben.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

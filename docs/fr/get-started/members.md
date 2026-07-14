@@ -41,7 +41,7 @@ Ouvre **Projets** dans la barre latérale. Un projet regroupe tout ce qui touche
 
 <Frame caption="Le tableau des tâches d’un projet — glisse les cartes entre les colonnes.">
 
-![Un tableau de tâches de projet intitulé « Website relaunch » avec cinq cartes dans la colonne Backlog et des colonnes To do, In progress, In review et Done vides.](/images/platform/projects-task-board.webp)
+![Un tableau de tâches de projet intitulé « Website relaunch » avec sept cartes réparties à une ou deux par colonne sur Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

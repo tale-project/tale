@@ -9,7 +9,7 @@ Tale spricht vier Protokolle: **OIDC**, einfaches **OAuth2**, **SAML 2.0** für 
 
 <Frame caption="Einstellungen > Enterprise-SSO — Protokoll-Auswähler und Anmeldefelder auf einer Seite; die Redirect-URL zum Registrieren im IdP steht bereit zum Kopieren.">
 
-![Die Einstellungsseite Enterprise-SSO zeigt das Protokoll-Dropdown auf Microsoft Entra ID, die Felder für Anzeigename und E-Mail-Domain sowie den Anmeldebereich mit Redirect-URL, Issuer-URL, Client-ID und Scopes.](/images/platform/settings-enterprise-sso.webp)
+![Die Einstellungsseite Enterprise-SSO mit dem Protokoll-Dropdown auf Microsoft Entra ID und passendem Anzeigename, dazu ein Anmeldebereich mit der zu registrierenden Redirect-URL, einer Issuer-URL und einer Client-ID aus der App-Registrierung, einem leeren Client-Secret und den angeforderten Scopes.](/images/platform/settings-enterprise-sso.webp)
 
 </Frame>
 

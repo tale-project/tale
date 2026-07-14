@@ -5,9 +5,9 @@ description: The per-workflow run history — every execution with its status, t
 
 Execution logs are the run history of a single workflow. Every time a trigger fires, Tale opens an execution record and writes to it as the run progresses — status, timing, the input the run received, and what every step consumed and produced. The **Executions** tab is the debugging surface every other automations page points at when something went wrong.
 
-<Frame caption="The Executions tab — one row per run; the red status badges are where a debugging session starts.">
+<Frame caption="The Executions tab — one row per run; the single red badge among the green ones is where a debugging session starts.">
 
-![The Executions tab of an automation listing twelve runs, each with an execution ID, a Failed status badge, a start timestamp, a duration, and an event trigger source.](/images/platform/automation-executions.webp)
+![The Executions tab of an automation listing twelve runs — eleven with a green Completed badge and one with a red Failed badge — each with an execution ID, a start timestamp, a duration, and event as its trigger source.](/images/platform/automation-executions.webp)
 
 </Frame>
 

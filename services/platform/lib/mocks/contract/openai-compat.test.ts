@@ -9,6 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
+import { DEMO_PROJECTS } from '../../../tests/docs-screenshots/demo-content';
 import { startGateway, type GatewayHandle } from '../gateway';
 import {
   CANNED_ERROR_MESSAGE,
@@ -197,6 +198,52 @@ describe('chat/completions override', () => {
     expect(body.choices[0].message.content).toBe(CANNED_REPLY);
   });
 
+  test('the same docs phrase answers differently per model (Arena Mode)', async () => {
+    // Arena Mode streams ONE prompt into two model columns; byte-identical text
+    // in both reads as staged. The columns default to the assistant's first two
+    // supported models (Claude Haiku 4.5, then Claude Sonnet 4.6).
+    const prompt = 'Draft a launch checklist for the website relaunch project';
+    const replyFor = async (model: string) => {
+      const res = await post('/v1/chat/completions', {
+        model,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const body = await readJson(res);
+      return body.choices[0].message.content as string;
+    };
+    const columnA = await replyFor('anthropic/claude-haiku-4.5');
+    const columnB = await replyFor('anthropic/claude-sonnet-4.6');
+    expect(columnA).not.toBe(columnB);
+    // Both must carry the phrase the docs capture waits for in each column
+    // (`chat-arena-split` in tests/docs-screenshots/manifest.ts), exactly once.
+    for (const reply of [columnA, columnB]) {
+      expect(reply.match(/launch-blocking ones/g)).toHaveLength(1);
+    }
+    // An unscripted model keeps the entry's default reply — the same prompt is
+    // also seeded as a normal chat thread, whose model is picked by auto-routing.
+    const fallback = await replyFor('some/other-model');
+    expect(fallback).not.toBe(columnA);
+    expect(fallback).not.toBe(columnB);
+    expect(fallback).toContain('launch-blocking ones');
+  });
+
+  test('every model variant opens with its default reply first line', () => {
+    // The docs seeder verifies a seeded thread by the first line of the DEFAULT
+    // reply (`seed-demo-org.ts` → `expectedReply`) and deletes any thread that
+    // does not show it. The seeded chat's model is auto-routed, so a VARIANT can
+    // be what renders there — a variant with its own opener would make the
+    // seeder re-create that thread on every run.
+    for (const entry of DOCS_REPLIES) {
+      const opener = entry.reply.split('\n')[0];
+      for (const variant of entry.byModel ?? []) {
+        expect(
+          variant.reply.split('\n')[0],
+          `${entry.match} → ${variant.model}`,
+        ).toBe(opener);
+      }
+    }
+  });
+
   test('non-stream call keeps the canned reply when the message carries a streaming-chat trigger', async () => {
     // Thread-title generation is a non-streamed `generateText` call whose
     // prompt is the user's first message. When that message triggers a
@@ -213,6 +260,111 @@ describe('chat/completions override', () => {
     const body = await readJson(res);
     expect(body.choices[0].message.content).toBe(CANNED_REPLY);
     expect(body.choices[0].message.content).not.toContain('[[NEXT_STEPS]]');
+  });
+});
+
+describe('task-triage structured output (the docs Executions log)', () => {
+  // The `score` step of the auto-installed `projects__tasks__triage-unassigned`
+  // automation is a `generateObject` call whose schema REQUIRES
+  // {slug, confidence, reason} — the blanket `{}` the mock returns for `json*`
+  // requests fails that validation, which failed EVERY run of it. Its prompt
+  // (the automation's `score.config.userPrompt`) renders the candidates under
+  // this exact heading, which is what the mock recognises.
+  const triagePrompt = (title: string) =>
+    [
+      `Task title: ${title}`,
+      '',
+      'Task description:',
+      '',
+      'Labels: []',
+      '',
+      'Candidates (slug, description, isManager, preferred):',
+      '[{"slug":"assistant","description":"General assistant","isManager":false,"preferred":false}]',
+    ].join('\n');
+
+  const scoreFor = async (title: string) => {
+    const res = await post('/v1/chat/completions', {
+      model: 'anthropic/claude-haiku-4.5',
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'score', schema: {} },
+      },
+      messages: [{ role: 'user', content: triagePrompt(title) }],
+    });
+    const body = await readJson(res);
+    return JSON.parse(body.choices[0].message.content);
+  };
+
+  /**
+   * Every task the docs seeder creates. Only its `todo` tasks reach the scoring
+   * step (the automation's guard), but ALL of them are pinned here: a seeded
+   * task with no script scores `{}` and turns its run red the moment someone
+   * flips its status to `todo`.
+   */
+  const SEEDED_TASKS = DEMO_PROJECTS.flatMap((project) =>
+    project.tasks.map((task) => task.title),
+  );
+  /** The ONE task scripted to fail: the red badge the docs page debugs from. */
+  const FAILING_TASK = 'Prepare the rollback plan';
+  /** The automation's auto-assign bar (`score.confidence >= 0.7`). */
+  const AUTO_ASSIGN_BAR = 0.7;
+
+  test('every other seeded task scores a schema-conforming object', async () => {
+    const scored = SEEDED_TASKS.filter((title) => title !== FAILING_TASK);
+    expect(scored).toHaveLength(SEEDED_TASKS.length - 1);
+    for (const title of scored) {
+      const score = await scoreFor(title);
+      // `assistant` is auto-installed, so the downstream `assign` action
+      // resolves a live candidate and the run reaches `done`.
+      expect(score.slug, title).toBe('assistant');
+      expect(typeof score.reason, title).toBe('string');
+      expect(score.confidence, title).toBeGreaterThan(0);
+      expect(score.confidence, title).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('auto-assignment happens — but never on the captured board', async () => {
+    const assigned: string[] = [];
+    for (const title of SEEDED_TASKS) {
+      const score = await scoreFor(title);
+      if ((score.confidence ?? 0) >= AUTO_ASSIGN_BAR) assigned.push(title);
+    }
+    // The assign action must stay exercised: its "Auto-assigned" comment and
+    // completed assign step are what the automation docs show.
+    expect(assigned.length).toBeGreaterThan(0);
+    // ...but never for a task on the board the docs shoot (`projects-task-board`
+    // captures DEMO_PROJECTS[0]). Assignment acks the task into `in_progress`
+    // (`agents/run_agent_on_task.ts`), pulling the card out of the To do column
+    // the seeder tuned. Below the bar the run only comments — and still
+    // completes.
+    const capturedBoardTodo = DEMO_PROJECTS[0].tasks
+      .filter((task) => task.status === 'todo')
+      .map((task) => task.title);
+    for (const title of capturedBoardTodo)
+      expect(assigned).not.toContain(title);
+  });
+
+  test('exactly one seeded task returns a non-conforming score', async () => {
+    const nonConforming: string[] = [];
+    for (const title of SEEDED_TASKS) {
+      const score = await scoreFor(title);
+      if (score.confidence === undefined) nonConforming.push(title);
+    }
+    expect(nonConforming).toEqual([FAILING_TASK]);
+  });
+
+  test('the reasons are task-specific, never copy-pasted', async () => {
+    const reasons: string[] = [];
+    for (const title of SEEDED_TASKS)
+      reasons.push((await scoreFor(title)).reason);
+    expect(new Set(reasons).size).toBe(SEEDED_TASKS.length);
+  });
+
+  test('an unscripted task keeps the `{}` fallback', async () => {
+    // Tasks created by the e2e suite must keep failing their triage run exactly
+    // as they do today — this script must never start assigning agents there.
+    const score = await scoreFor('Investigate the flaky checkout spec');
+    expect(score).toEqual({});
   });
 });
 

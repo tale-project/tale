@@ -7,7 +7,7 @@ Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (
 
 <Frame caption="Governance > Data subject requests — the DSAR governance policy (cooling-off window, dual approval, daily limit) above the request receipts list with File request.">
 
-![The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above an empty erasure-requests table with a File request button.](/images/platform/governance-data-subject-requests.webp)
+![The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above an erasure-requests table with one pending request — subject Jordan Blake, reason code consent withdrawn, 24 hours until execution and 29 days left on its SLA — beside a File request button.](/images/platform/governance-data-subject-requests.webp)
 
 </Frame>
 

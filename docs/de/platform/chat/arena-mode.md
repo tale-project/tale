@@ -13,7 +13,7 @@ Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war �
 
 <Frame caption="Dasselbe Prompt, von zwei Modellen beantwortet, mit der Bewertungszeile darunter.">
 
-![Der Arena-Modus zeigt dasselbe Prompt in zwei Spalten mit unterschiedlichen Modellen im Kopf und darunter vier Bewertungs-Knöpfe.](/images/platform/chat-arena-split.webp)
+![Der Arena-Modus mit einem Prompt für eine Launch-Checkliste, beantwortet in zwei Spalten — links liefert Claude Haiku 4.5 eine nummerierte Liste aus fünf Schritten, rechts gruppiert Claude Sonnet 4.6 dieselbe Arbeit unter Überschriften und ergänzt die Risiken, die eine Erwähnung wert sind — über den Bewertungs-Knöpfen A ist besser, B ist besser, Unentschieden und Beide schlecht.](/images/platform/chat-arena-split.webp)
 
 </Frame>
 

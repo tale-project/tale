@@ -7,7 +7,7 @@ Conservation légale est le mécanisme que Tale livre pour préserver des preuve
 
 <Frame caption="Gouvernance > Conservation légale — le tableau des holds actifs avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
 
-![La page de gouvernance Conservation légale montrant un tableau de holds actifs vide avec un bouton Placer une conservation légale, au-dessus de la file vide des demandes de levée.](/images/platform/governance-legal-hold.webp)
+![La page de gouvernance Conservation légale montrant un hold actif — de type Utilisateur sur marta.vogel, placé par Alex Rivera au titre de l’affaire Northstar contract — à côté d’un bouton Placer une conservation légale, au-dessus des deux files de demandes de levée, Approbation en attente et Approuvées, qui n’affichent aucune demande.](/images/platform/governance-legal-hold.webp)
 
 </Frame>
 

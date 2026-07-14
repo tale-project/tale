@@ -15,7 +15,7 @@ Kommst du aus dem Quickstart, existiert deine Organisation schon — spring zum 
 
 <Frame caption="Der Arbeitsbereichs-Schritt des Erstellungsassistenten.">
 
-![Der Assistent zum Erstellen einer Organisation mit dem Feld für den Organisationsnamen auf seinem Arbeitsbereichs-Schritt.](/images/get-started/org-create-wizard.webp)
+![Der Assistent zum Erstellen einer Organisation auf seinem Arbeitsbereichs-Schritt, mit Northlight Labs im Feld Organisationsname und aktivem Knopf Weiter.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -27,7 +27,7 @@ Nichts antwortet, solange kein Anbieter verbunden ist. Hast du den Anbieter-Schr
 
 <Frame caption="Ein verbundener Anbieter mit seinem Modellkatalog.">
 
-![Die Einstellungsseite für KI-Anbieter mit dem OpenRouter-Anbietereintrag.](/images/get-started/settings-providers.webp)
+![Die Einstellungsseite für KI-Anbieter listet einen verbundenen Anbieter, OpenRouter, mit seiner Basis-URL und 52 Modellen.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

@@ -5,9 +5,9 @@ description: L’onglet Base de connaissances de l’agent — le mode de récup
 
 Les connaissances sont ce qu’un agent peut récupérer et citer au moment de répondre. Sans elles l’agent est générique ; avec elles il répond depuis tes documents et cite d’où vient la réponse. L’onglet **Base de connaissances** de l’agent contrôle deux choses : _comment_ l’agent récupère (le mode de récupération) et _ce qui_ est dans la portée (quels documents).
 
-<Frame caption="L’onglet Base de connaissances — le mode de récupération au-dessus, les portées de documents et les téléversements de l’agent en dessous.">
+<Frame caption="L’onglet Base de connaissances — le mode de récupération au-dessus, les portées de documents et ce que chacune tient en dessous.">
 
-![L’onglet Base de connaissances de l’éditeur d’agent montrant les quatre modes de récupération, les interrupteurs des documents d’équipe et d’organisation, trois documents d’organisation indexés et la zone de téléversement des documents de l’agent.](/images/platform/agent-editor-knowledge.webp)
+![L’onglet Base de connaissances de l’éditeur d’agent avec Outil choisi parmi les quatre modes de récupération, les interrupteurs des documents d’équipe et d’organisation tous deux actifs, un encadré de documents d’équipe indiquant qu’aucun document n’a été trouvé pour cette équipe, et la liste des documents de l’organisation où chaque fichier porte un badge Indexé.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 

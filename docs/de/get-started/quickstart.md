@@ -47,9 +47,9 @@ Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://t
 
 Klicke in der Sidebar auf **Neuer Chat**. Der Composer am unteren Bildschirmrand ist der Ort, an dem alles beginnt: links die Agent-Auswahl, daneben die Modell-Auswahl und rechts das Nachrichtenfeld mit dem Senden-Knopf. Wartet der Composer mit vorausgewähltem **Assistent** und **Auto**, bist du bereit zu senden.
 
-<Frame caption="Der Composer — Agent-Auswahl, Modell-Auswahl, Nachrichtenfeld.">
+<Frame caption="Der Composer — oben das Nachrichtenfeld, darunter die Agent- und die Modell-Auswahl und der Senden-Knopf.">
 
-![Die Composer-Leiste des Chats mit Agent-Auswahl, Modell-Auswahl und Senden-Knopf.](/images/platform/chat-composer.webp)
+![Der leere Chat-Composer, dessen Platzhalter zu einer Frage nach Kontakten, Produkten oder Dokumenten einlädt, über einer Werkzeugleiste mit den Knöpfen für Anhang und Prompt-Bibliothek, der Agent- und der Modell-Auswahl sowie den Knöpfen für Stummschaltung, Mikrofon und Senden.](/images/platform/chat-composer.webp)
 
 </Frame>
 

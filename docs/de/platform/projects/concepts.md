@@ -7,7 +7,7 @@ Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben diesel
 
 <Frame caption="Der Tab Allgemein — Identität, Freigabe und die Statistik-Leiste sind die Eingangstür des Projekts.">
 
-![Der Tab Allgemein des Projekts Website-Relaunch mit den Feldern für Name und Beschreibung, dem Freigabe-Bereich und einer Statistik-Leiste, die zwei Dateien und zwei Chats zählt.](/images/platform/project-general-tab.webp)
+![Der Tab Allgemein des Projekts Website-Relaunch mit den Feldern für Name und Beschreibung, dem Freigabe-Bereich, in dem Organisationsweit als verantwortliches Team steht, und einer Statistik-Leiste, die zwei Dateien, keine Chats und Organisationsweit zeigt.](/images/platform/project-general-tab.webp)
 
 </Frame>
 

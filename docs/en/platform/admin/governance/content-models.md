@@ -7,7 +7,7 @@ Content and models is the surface where you decide which LLMs the people in your
 
 <Frame caption="Governance > Content & Models — the mandatory system-prompt prefix and suffix above the per-scope default-model rules.">
 
-![The Content and Models governance page showing the mandatory system-prompt prefix and suffix fields above an empty default-models rule table.](/images/platform/governance-content-models.webp)
+![The Content and Models governance page showing the mandatory system-prompt prefix and suffix fields filled with the org's house rules, above a default-models table carrying three rules: a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model.](/images/platform/governance-content-models.webp)
 
 </Frame>
 
