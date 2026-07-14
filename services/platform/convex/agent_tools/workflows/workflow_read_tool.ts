@@ -25,7 +25,7 @@ const workflowReadArgs = z.discriminatedUnion('operation', [
     workflowSlug: z
       .string()
       .describe(
-        'The workflow slug (e.g., "conversation-sync" or "general/my-workflow"). Use list_all to find available slugs.',
+        'The workflow slug — the owning automation\'s slug (e.g., "reply-imap-emails"). Use list_all to find available slugs.',
       ),
   }),
   z.object({
@@ -37,7 +37,7 @@ export const workflowReadTool: ToolDefinition = {
   name: 'workflow_read',
   availability: 'any',
   tool: createTool({
-    description: `Workflow read tool for retrieving workflow information from file-based workflow definitions.
+    description: `Workflow read tool for retrieving workflow information. A workflow lives inline in its owning automation's manifest — its slug IS the automation's slug.
 
 OPERATIONS:
 • 'get_structure': Get the complete structure of a workflow including all steps and configuration. Use this to understand the current workflow before making modifications. Takes a workflowSlug parameter.
@@ -46,8 +46,8 @@ OPERATIONS:
 BEST PRACTICES:
 • Use 'list_all' to get an overview of all workflows in the organization.
 • Use 'get_structure' when you have a workflow slug and need to inspect or modify it.
-• Workflow slugs are lowercase with hyphens/underscores (e.g., "conversation-sync", "general/my-workflow").
-• Each workflow file contains all steps inline — there are no separate step records.`,
+• Workflow slugs are flat, lowercase with hyphens/underscores (e.g., "conversation-sync", "reply-imap-emails").
+• Each workflow definition contains all steps inline — there are no separate step records.`,
     inputSchema: workflowReadArgs,
     execute: async (
       ctx: ToolCtx,

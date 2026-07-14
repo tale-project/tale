@@ -13,9 +13,13 @@ Sechs Rollen decken nahezu jedes Team ab, an das Tale ausgeliefert wird. Admins 
 
 </Frame>
 
-## Eine durchgespielte Einladung
+## Ein Mitglied hinzufügen
 
-Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klick auf **Mitglied hinzufügen**. Das neue Mitglied erhält einen E-Mail-Link, der 24 Stunden gültig ist, und landet in der Standardrolle, die du auswählst — ändere die Rolle vor dem Senden im Formular, falls sie nicht Mitglied werden soll. Der Default greift, sobald die Person die Einladung annimmt; eine Hochstufung später ist eine Ein-Klick-Änderung im selben Mitglieder-Abschnitt.
+Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klick auf **Mitglied hinzufügen**. Trag **Name**, **E-Mail** und **Rolle** ein und vergib ein **Passwort** — Tale verschickt keine Einladungs-E-Mail, deshalb ist ein Passwort erforderlich, um ein neues Konto zu erstellen. (Gehört die E-Mail bereits zu einem Tale-Konto, wird kein Passwort verlangt: die Person meldet sich mit ihren bestehenden Zugangsdaten an und wird einfach dieser Organisation hinzugefügt.)
+
+Beim **Mitglied hinzufügen** zeigt Tale die neuen Zugangsdaten **einmalig** an, mit dem Hinweis, sie jetzt zu speichern — sie werden nicht erneut angezeigt. Gib sie dem neuen Mitglied auf einem anderen Weg weiter; es gibt keine Reset-E-Mail. Wer sein Passwort später vergisst, wendet sich an einen Admin, der im selben Mitglieder-Abschnitt ein neues setzen kann.
+
+Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder zu ändern ist eine Ein-Klick-Änderung im selben Mitglieder-Abschnitt.
 
 ## Die sechs Rollen
 

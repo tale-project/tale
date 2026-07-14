@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Row, Stack } from '@tale/ui/layout';
+import { Card } from '@tale/ui/card';
+import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -203,61 +204,55 @@ function RuleDialog({
       isValid={isValid}
     >
       <Stack gap={4}>
-        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
+        <Select
+          label={t('featureFlags.scope')}
+          options={scopeOptions}
+          value={draft.scope}
+          onValueChange={(value: string) => {
+            if (isScopeValue(value)) {
+              updateDraft({ scope: value });
+            }
+          }}
+          disabled={cannotManage}
+        />
+
+        {draft.scope === 'role' && (
           <Select
-            label={t('featureFlags.scope')}
-            options={scopeOptions}
-            value={draft.scope}
-            onValueChange={(value: string) => {
-              if (isScopeValue(value)) {
-                updateDraft({ scope: value });
-              }
-            }}
+            label={t('featureFlags.role')}
+            options={roleOptions}
+            value={draft.scopeId ?? ''}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
           />
+        )}
 
-          {draft.scope === 'role' && (
-            <Select
-              label={t('featureFlags.role')}
-              options={roleOptions}
-              value={draft.scopeId ?? ''}
-              onValueChange={(value) => updateDraft({ scopeId: value })}
-              disabled={cannotManage}
-            />
-          )}
+        {draft.scope === 'user' && (
+          <SearchableSelect
+            label={t('featureFlags.scopeLabels.user')}
+            placeholder={t('featureFlags.selectUser')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={memberOptions}
+            searchPlaceholder={t('featureFlags.searchUsers')}
+            emptyText={t('featureFlags.noUsersFound')}
+            aria-label={t('featureFlags.selectUser')}
+          />
+        )}
 
-          {draft.scope === 'user' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('featureFlags.scopeLabels.user')}
-                placeholder={t('featureFlags.selectUser')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={memberOptions}
-                searchPlaceholder={t('featureFlags.searchUsers')}
-                emptyText={t('featureFlags.noUsersFound')}
-                aria-label={t('featureFlags.selectUser')}
-              />
-            </div>
-          )}
-
-          {draft.scope === 'team' && (
-            <div className="min-w-[14rem] flex-2">
-              <SearchableSelect
-                label={t('featureFlags.scopeLabels.team')}
-                placeholder={t('featureFlags.selectTeam')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={teamOptions}
-                searchPlaceholder={t('featureFlags.searchTeams')}
-                emptyText={t('featureFlags.noTeamsFound')}
-                aria-label={t('featureFlags.selectTeam')}
-              />
-            </div>
-          )}
-        </Row>
+        {draft.scope === 'team' && (
+          <SearchableSelect
+            label={t('featureFlags.scopeLabels.team')}
+            placeholder={t('featureFlags.selectTeam')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={teamOptions}
+            searchPlaceholder={t('featureFlags.searchTeams')}
+            emptyText={t('featureFlags.noTeamsFound')}
+            aria-label={t('featureFlags.selectTeam')}
+          />
+        )}
 
         <Stack gap={3}>
           <Switch
@@ -513,7 +508,7 @@ export function FeatureFlagsEditor({
           </Button>
         }
       >
-        <div className="border-border overflow-hidden rounded-lg border">
+        <Card padding="none" className="overflow-hidden">
           <Table aria-label={t('featureFlags.title')}>
             <TableCaption className="sr-only">
               {t('featureFlags.title')}
@@ -641,7 +636,7 @@ export function FeatureFlagsEditor({
               )}
             </TableBody>
           </Table>
-        </div>
+        </Card>
 
         <RuleDialog
           open={dialogOpen}

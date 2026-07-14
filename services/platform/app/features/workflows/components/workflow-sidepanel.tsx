@@ -15,7 +15,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { structuralEqual } from '@/lib/utils/structural-equal';
-import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 import {
   getStepIcon,
@@ -266,7 +265,7 @@ export function WorkflowSidePanel({
       <PanelHeader variant="compact" className="gap-3">
         {showTestPanel ? (
           <>
-            <div className="rounded-lg border bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <div className="border-success/30 bg-success/10 text-success rounded-lg border p-2">
               <TestTubeDiagonal className="size-4" />
             </div>
             <div className="flex-1">
@@ -308,6 +307,7 @@ export function WorkflowSidePanel({
             className="size-8"
             onClick={onClose}
             title={t('sidePanel.close')}
+            aria-label={t('sidePanel.close')}
           >
             <X className="size-4" />
           </Button>
@@ -333,7 +333,7 @@ export function WorkflowSidePanel({
           warnings={warnings}
           stepOptions={stepOptions}
           organizationId={organizationId}
-          workflowSlug={workflowId ? urlParamToSlug(workflowId) : undefined}
+          workflowSlug={workflowId}
         />
       ) : null}
     </Stack>

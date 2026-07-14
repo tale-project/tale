@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { UserButton } from './user-button';
 
@@ -18,6 +18,10 @@ vi.mock('@/lib/i18n/client', () => ({
         'userButton.defaultName': 'User',
         'userButton.documentation': 'Documentation',
         'userButton.logOut': 'Log out',
+        'userButton.logOutConfirm.title': 'Log out',
+        'userButton.logOutConfirm.description':
+          'Are you sure you want to log out?',
+        'userButton.logOutConfirm.confirm': 'Log out',
         'userButton.manageAccount': 'Manage account',
         'userButton.toast.signOutFailed': 'Sign out failed',
         'userButton.language': 'Language',
@@ -32,6 +36,8 @@ vi.mock('@/lib/i18n/client', () => ({
         'languages.en': 'English',
         'languages.de': 'Deutsch',
         'languages.fr': 'Français',
+        // common.actions.* (ConfirmDialog cancel button)
+        'actions.cancel': 'Cancel',
       };
       return translations[key] ?? key;
     },
@@ -361,6 +367,26 @@ describe('UserButton', () => {
       expect(
         within(menu).getByRole('menuitem', { name: 'Log out' }),
       ).toBeInTheDocument();
+    });
+
+    it('restores focus to the menu trigger after cancelling sign out', async () => {
+      const result = render(<UserButton />);
+      const trigger = screen.getByRole('button', { name: 'Manage account' });
+      await result.user.click(trigger);
+      const menu = await screen.findByRole('menu');
+
+      await result.user.click(
+        within(menu).getByRole('menuitem', { name: 'Log out' }),
+      );
+
+      const dialog = await screen.findByRole('dialog', { name: 'Log out' });
+      expect(dialog).toBeInTheDocument();
+
+      await result.user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(trigger);
+      });
     });
   });
 

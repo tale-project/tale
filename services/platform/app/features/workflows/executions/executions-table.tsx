@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, startOfDay, endOfDay } from 'date-fns';
 import { Copy, Check, Workflow } from 'lucide-react';
@@ -17,7 +17,7 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
-import { slugToUrlParam } from '@/lib/utils/workflow-slug';
+import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import {
   useApproxExecutionCount,
@@ -25,12 +25,10 @@ import {
   useListExecutions,
   useSearchExecution,
 } from '../hooks/queries';
-import { formatDurationSeconds } from '../utils/format-duration';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
   workflowId: string;
-  organizationId: string;
   searchTerm?: string;
   status?: string[];
   triggeredBy?: string;
@@ -122,7 +120,6 @@ const ExecutionDetails = memo(function ExecutionDetails({
 
 export function ExecutionsTable({
   workflowId,
-  organizationId,
   searchTerm,
   status,
   triggeredBy,
@@ -224,6 +221,24 @@ export function ExecutionsTable({
     [tCommon, tTables],
   );
 
+  // "View on canvas": switch the hosting automation page to its Editor tab
+  // with this run selected (`?tab=editor&execution=`) — the same prev-merging
+  // updater as the filter handlers below, so the host route's own params
+  // survive and the action works on both the org and project automation routes.
+  const handleViewOnCanvas = useCallback(
+    (executionId: string) => {
+      void navigate({
+        to: location.pathname,
+        search: (prev) => ({
+          ...prev,
+          tab: 'editor',
+          execution: executionId,
+        }),
+      });
+    },
+    [navigate, location.pathname],
+  );
+
   const columns = useMemo<ColumnDef<Execution>[]>(
     () => [
       {
@@ -239,6 +254,7 @@ export function ExecutionsTable({
               variant="ghost"
               size="icon"
               title={tCommon('actions.copy')}
+              aria-label={tCommon('actions.copy')}
               className="p-1"
               onClick={(e) => {
                 e.stopPropagation();
@@ -310,28 +326,24 @@ export function ExecutionsTable({
         meta: { isAction: true },
         // The row's inline JSON detail is the only affordance the list used to
         // offer; the per-node canvas run view was reachable only by
-        // hand-editing `?execution=` (#2347). Link each row to the canvas with
-        // that param set, reusing the same mechanism the tester panel writes.
-        // `stopPropagation` keeps the click from also toggling the JSON row.
+        // hand-editing `?execution=` (#2347). Each row switches the hosting
+        // automation page to its Editor tab with that param set — the same URL
+        // state the tester panel writes; the automation's search schema
+        // declares both keys. `stopPropagation` keeps the click from also
+        // toggling the JSON row.
         cell: ({ row }) => (
           <HStack justify="end">
             <Button
-              asChild
               variant="ghost"
               size="icon-sm"
               title={tWorkflows('executions.viewOnCanvas')}
+              aria-label={tWorkflows('executions.viewOnCanvas')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewOnCanvas(row.original._id);
+              }}
             >
-              <Link
-                to="/dashboard/$id/workflows/$workflowId"
-                params={{
-                  id: organizationId,
-                  workflowId: slugToUrlParam(workflowId),
-                }}
-                search={{ execution: row.original._id }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Workflow className="size-4" aria-hidden="true" />
-              </Link>
+              <Workflow className="size-4" aria-hidden="true" />
             </Button>
           </HStack>
         ),
@@ -346,16 +358,15 @@ export function ExecutionsTable({
       tTables,
       tCommon,
       tWorkflows,
-      organizationId,
-      workflowId,
+      handleViewOnCanvas,
     ],
   );
 
-  // Filter changes stay on whichever route hosts this table (the standalone
-  // workflow's Executions tab, or an automation detail's Executions tab) and
-  // only touch the filter keys — `to: location.pathname` + a `prev`-merging
-  // search updater instead of a hardcoded route, so a host page's own params
-  // (e.g. the automation page's `?tab=`) survive the filter change (#2427).
+  // Filter changes stay on whichever route hosts this table (the org or
+  // project automation detail's Executions tab) and only touch the filter
+  // keys — `to: location.pathname` + a `prev`-merging search updater instead
+  // of a hardcoded route, so the host page's own params (e.g. the automation
+  // page's `?tab=`) survive the filter change (#2427).
   const handleSearchChange = (value: string) => {
     void navigate({
       to: location.pathname,

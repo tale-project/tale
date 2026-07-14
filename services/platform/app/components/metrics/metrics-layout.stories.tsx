@@ -11,11 +11,13 @@ import { TrendBarChart } from './charts';
 import { MetricSelect } from './metric-select';
 import { MetricsFilterChips } from './metrics-filter-chips';
 import { MetricsLayout } from './metrics-layout';
+import { MetricsSection } from './metrics-section';
 
 /**
  * The canonical metrics-page anatomy: header (title + description + toolbar) →
- * filter chips → notices → KPI row → chart(s) → tables. Every metrics surface
- * renders this same shell.
+ * filter chips → notices → KPI row → chart(s) → titled sections (tables).
+ * Every metrics surface renders this same shell; non-chart bodies sit in a
+ * `MetricsSection` so the section headings match everywhere.
  */
 const meta: Meta<typeof MetricsLayout> = {
   title: 'Metrics/MetricsLayout',
@@ -107,6 +109,12 @@ export const FullAnatomy: Story = {
           xTickFormatter={(d) => d.slice(5)}
         />
       </ChartCard>
+
+      <MetricsSection title="Top workflows">
+        <div className="border-border text-muted-foreground flex h-32 items-center justify-center rounded-lg border border-dashed text-sm">
+          DataTable
+        </div>
+      </MetricsSection>
     </MetricsLayout>
   ),
 };

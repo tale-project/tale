@@ -14,6 +14,7 @@ import {
 import { Controller } from 'react-hook-form';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
   useRegisterActiveEditor,
@@ -226,6 +227,8 @@ export function BrandingForm({
     ],
   );
 
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
   // Clear branding wipes the form fields AND deletes the uploaded image
   // blobs. Distinct from the per-row Discard which only reverts unsaved
   // edits — clearing is a destructive, server-mutating action.
@@ -354,13 +357,29 @@ export function BrandingForm({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => void handleClearBranding()}
+              onClick={() => setConfirmClearOpen(true)}
             >
               {tCommon('actions.reset')}
             </Button>
           </HStack>
         )}
       </Stack>
+
+      {/* Clearing is destructive (deletes the uploaded logo + favicon blobs
+          server-side), so it confirms first like every other destructive
+          settings action. */}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        onOpenChange={setConfirmClearOpen}
+        variant="destructive"
+        title={t('branding.resetConfirmTitle')}
+        description={t('branding.resetConfirmDescription')}
+        confirmText={tCommon('actions.reset')}
+        onConfirm={async () => {
+          await handleClearBranding();
+          setConfirmClearOpen(false);
+        }}
+      />
     </Form>
   );
 }

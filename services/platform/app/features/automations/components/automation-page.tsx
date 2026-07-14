@@ -31,11 +31,13 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, UserPen, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
 import { ContentArea } from '@/app/components/layout/content-area';
 import {
   ActiveEditorProvider,
   EditorActions,
   useActiveEditor,
+  useRegisterActiveEditor,
 } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import type { TabNavigationItem } from '@/app/components/ui/navigation/tab-navigation';
@@ -431,7 +433,6 @@ function InstalledAutomationBody({
   blockedIntegrations: string[];
 }) {
   const { t } = useT('automations');
-  const { t: tWorkflows } = useT('workflows');
   const { locale } = useLocale();
   const display = useAutomationDisplay()(automation);
   const ability = useAbility();
@@ -577,12 +578,7 @@ function InstalledAutomationBody({
           {
             value: EXECUTIONS_TAB,
             label: t('tabs.executions'),
-            content: (
-              <ExecutionsTable
-                workflowId={workflowSlug}
-                organizationId={organizationId}
-              />
-            ),
+            content: <ExecutionsTable workflowId={workflowSlug} />,
           },
         ]
       : []),
@@ -612,20 +608,13 @@ function InstalledAutomationBody({
             label: t('tabs.environment'),
             // Its own tab, mirroring the Agent settings Environment tab: the
             // same SectionHeader + FormSection chrome, the workflow's env editor
-            // (moved out of the Configuration form).
+            // (moved out of the Configuration form). Own component so its
+            // controller can register into the tab strip's Save/Discard cluster.
             content: (
-              <>
-                <SectionHeader
-                  title={tWorkflows('configuration.env')}
-                  description={tWorkflows('configuration.envHelp')}
-                />
-                <FormSection>
-                  <WorkflowEnvEditor
-                    organizationId={organizationId}
-                    workflowSlug={workflowSlug}
-                  />
-                </FormSection>
-              </>
+              <AutomationEnvironmentTab
+                organizationId={organizationId}
+                workflowSlug={workflowSlug}
+              />
             ),
           },
         ]
@@ -692,7 +681,11 @@ function InstalledAutomationBody({
     dirtyKeys:
       item.value === CONFIGURATION_TAB
         ? CONFIGURATION_TAB_DIRTY_KEYS
-        : undefined,
+        : item.value === ENVIRONMENT_TAB
+          ? // The env editor's controller reports 'environment' while its
+            // side-table draft is dirty (useEnvEditorController).
+            ['environment']
+          : undefined,
   }));
 
   // The tab strip's trailing slot holds only the Finish-setup button (the AI
@@ -1201,5 +1194,40 @@ export function AutomationPage({
       status={state.status}
       blockedIntegrations={state.blockedIntegrations}
     />
+  );
+}
+
+/**
+ * Environment tab body. Its own component (hook rules) so the env editor's
+ * controller registers in the active-editor registry only while this tab is
+ * mounted — the tab strip's `EditorActions` cluster then drives Save/Discard,
+ * replacing the editor's in-content Save button.
+ */
+function AutomationEnvironmentTab({
+  organizationId,
+  workflowSlug,
+}: {
+  organizationId: string;
+  workflowSlug: string;
+}) {
+  const { t: tWorkflows } = useT('workflows');
+  const { controller, onEditorState } = useEnvEditorController();
+  useRegisterActiveEditor(controller);
+
+  return (
+    <>
+      <SectionHeader
+        title={tWorkflows('configuration.env')}
+        description={tWorkflows('configuration.envHelp')}
+      />
+      <FormSection>
+        <WorkflowEnvEditor
+          organizationId={organizationId}
+          workflowSlug={workflowSlug}
+          externalSave
+          onEditorState={onEditorState}
+        />
+      </FormSection>
+    </>
   );
 }

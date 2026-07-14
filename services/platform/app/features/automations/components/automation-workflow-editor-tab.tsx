@@ -7,8 +7,8 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 /**
  * The automation detail page's "Editor" tab — the automation's workflow
- * (`manifest.workflows[0]`), rendered with the SAME components the standalone
- * `/dashboard/$id/workflows/$workflowId` route uses: `WorkflowConfigProvider`
+ * (`manifest.workflows[0]`), rendered from the shared workflow-editor
+ * components: `WorkflowConfigProvider`
  * + `WorkflowSteps` (the canvas) + `WorkflowSidePanel` (step config / test
  * run) + `WorkflowAIChatPanel` (the canvas assistant). The Graph ⇄
  * Specification mode toggle (W5b) lives in the canvas's bottom-center toolbar

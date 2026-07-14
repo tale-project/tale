@@ -1,3 +1,5 @@
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
@@ -8,10 +10,7 @@ import {
   parseMetricsPeriodDays,
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
-import {
-  WorkflowMetricsPage,
-  type PeriodDays,
-} from '@/app/features/automations/metrics/metrics-page';
+import { WorkflowMetricsPage } from '@/app/features/automations/metrics/metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -32,7 +31,7 @@ function AutomationsMetricsRoute() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
-  const periodDays: PeriodDays = parseMetricsPeriodDays(period);
+  const periodDays: MetricsPeriodDays = parseMetricsPeriodDays(period);
 
   const handleChangePeriod = useCallback(
     (next: MetricsPeriodDays) => {
@@ -47,7 +46,13 @@ function AutomationsMetricsRoute() {
   );
 
   if (abilityLoading) {
-    return <div className="p-4" />;
+    return (
+      <Skeletonize loading className="p-4">
+        <SkeletonBox fullWidth>
+          <div className="h-9 w-full rounded-md" />
+        </SkeletonBox>
+      </Skeletonize>
+    );
   }
 
   if (ability.cannot('read', 'wfDefinitions')) {

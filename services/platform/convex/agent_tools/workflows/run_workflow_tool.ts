@@ -64,7 +64,7 @@ export const runWorkflowTool = {
 This tool creates an approval card rendered separately by the UI. The user must click "Run Workflow" to confirm execution; the workflow will NOT start until approved. When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).
 
 **PARAMETERS:**
-• workflowSlug (required): The workflow file slug (e.g., "conversation-sync")
+• workflowSlug (required): The workflow slug — the owning automation's slug (e.g., "conversation-sync")
 • parameters (optional): JSON string of input variables for the workflow
 
 **EXAMPLE:**

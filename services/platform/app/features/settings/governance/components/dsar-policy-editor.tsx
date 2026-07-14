@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -9,8 +10,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Input } from '@/app/components/ui/forms/input';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DsarGovernanceConfig } from '@/lib/shared/schemas/governance';
@@ -249,22 +250,13 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           </PendingFieldWrap>
 
           <PendingFieldWrap pending={pendingFields.requireDualApproval} t={t}>
-            <Row gap={3} align="start" justify="between">
-              <div className="flex flex-col gap-0.5">
-                <Text as="span" className="text-sm font-medium">
-                  {t('dsarPolicy.requireDualApproval.label')}
-                </Text>
-                <Text as="span" variant="muted" className="text-xs">
-                  {t('dsarPolicy.requireDualApproval.description')}
-                </Text>
-              </div>
-              <Switch
-                checked={data?.config.requireDualApproval ?? false}
-                onCheckedChange={handleDualApprovalToggle}
-                disabled={readOnly}
-                aria-label={t('dsarPolicy.requireDualApproval.label')}
-              />
-            </Row>
+            <SettingsToggleRow
+              label={t('dsarPolicy.requireDualApproval.label')}
+              description={t('dsarPolicy.requireDualApproval.description')}
+              checked={data?.config.requireDualApproval ?? false}
+              onCheckedChange={handleDualApprovalToggle}
+              disabled={readOnly}
+            />
           </PendingFieldWrap>
 
           <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
@@ -356,57 +348,55 @@ function PendingChangeBanner({
     });
   }
   return (
-    <Stack
-      role="status"
-      gap={2}
-      className="text-foreground rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
-    >
-      <Row gap={2} align="start">
-        <AlertTriangle
-          className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
-          aria-hidden="true"
-        />
-        <Stack gap={1}>
-          <Text as="span" className="font-medium">
-            {t('dsarPolicy.pendingBanner.title')}
-          </Text>
-          <Text as="span" variant="muted" className="text-xs">
-            {t('dsarPolicy.pendingBanner.description', {
-              name: pending.proposedByEmail
-                ? `${pending.proposedByEmail} (${pending.proposedBy})`
-                : pending.proposedBy,
-            })}
-          </Text>
-          <Text as="span" variant="muted" className="text-xs">
-            <TableDateCell date={pending.effectiveAt} />
-          </Text>
-          {diffs.length > 0 && (
-            <ul className="mt-1 flex flex-col gap-0.5 text-xs">
-              {diffs.map((d) => (
-                <li key={d.label}>
-                  <Text as="span" variant="muted">
-                    {d.label}:{' '}
-                  </Text>
-                  <Text as="span">
-                    {d.from} → {d.to}
-                  </Text>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Stack>
-      </Row>
-      <Row gap={0} align="stretch" justify="end">
-        <Button
-          type="button"
-          variant="destructive"
-          icon={Ban}
-          onClick={onCancel}
-          disabled={cancelDisabled}
-        >
-          {t('dsarPolicy.pendingBanner.cancel')}
-        </Button>
-      </Row>
-    </Stack>
+    <Alert variant="warning" className="text-sm">
+      <Stack gap={2}>
+        <Row gap={2} align="start">
+          <AlertTriangle
+            className="text-warning mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <Stack gap={1}>
+            <Text as="span" className="font-medium">
+              {t('dsarPolicy.pendingBanner.title')}
+            </Text>
+            <Text as="span" variant="muted" className="text-xs">
+              {t('dsarPolicy.pendingBanner.description', {
+                name: pending.proposedByEmail
+                  ? `${pending.proposedByEmail} (${pending.proposedBy})`
+                  : pending.proposedBy,
+              })}
+            </Text>
+            <Text as="span" variant="muted" className="text-xs">
+              <TableDateCell date={pending.effectiveAt} />
+            </Text>
+            {diffs.length > 0 && (
+              <ul className="mt-1 flex flex-col gap-0.5 text-xs">
+                {diffs.map((d) => (
+                  <li key={d.label}>
+                    <Text as="span" variant="muted">
+                      {d.label}:{' '}
+                    </Text>
+                    <Text as="span">
+                      {d.from} → {d.to}
+                    </Text>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Stack>
+        </Row>
+        <Row gap={0} align="stretch" justify="end">
+          <Button
+            type="button"
+            variant="destructive"
+            icon={Ban}
+            onClick={onCancel}
+            disabled={cancelDisabled}
+          >
+            {t('dsarPolicy.pendingBanner.cancel')}
+          </Button>
+        </Row>
+      </Stack>
+    </Alert>
   );
 }

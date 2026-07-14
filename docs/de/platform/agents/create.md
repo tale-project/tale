@@ -16,9 +16,9 @@ Stell sicher, dass zwei Dinge stehen:
 
 ## Schritt 1 — Den Agent erstellen
 
-Öffne **Agenten** in der Seitenleiste und klicke auf **Agent erstellen**, dann wähle **Leer** (das Menü bietet auch **Aus Vorlage** und **Datei hochladen** für den Import von Agent-JSON). Der Dialog fragt nach vier Dingen: einem **Name** — der eindeutigen Id für Links und die API, die du später nicht ändern kannst; füge ein `/` ein, um den Agent in einem Ordner abzulegen, z. B. `marketing/seo-writer` —, einem **Anzeigename**, den Teamkollegen im Chat sehen, einer **Beschreibung** und der **Modell**-Liste. Das erste Modell ist der Standard, der Rest sind Fallbacks; zieh zum Umsortieren oder ergänze jederzeit weitere. Klicke auf **Weiter**, und der Editor öffnet sich auf dem Tab **Allgemein**.
+Öffne **Agenten** in der Seitenleiste und klicke auf **Agent erstellen**, dann wähle **Leer** (das Menü bietet auch **Aus Vorlage** und **Datei hochladen** für den Import von Agent-JSON). Der Dialog fragt nach vier Dingen: einem **Name** — der eindeutigen Id für Links und die API, die du später nicht ändern kannst; nutze nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche, z. B. `seo-writer` —, einem **Anzeigename**, den Teamkollegen im Chat sehen, einer **Beschreibung** und der **Modell**-Liste. Das erste Modell ist der Standard, der Rest sind Fallbacks; zieh zum Umsortieren oder ergänze jederzeit weitere. Klicke auf **Weiter**, und der Editor öffnet sich auf dem Tab **Allgemein**.
 
-<Frame caption="Die Agentenliste — Agent erstellen sitzt oben rechts; die Ordnerzeilen entstehen aus Slugs mit einem /-Präfix.">
+<Frame caption="Die Agentenliste — Agent erstellen sitzt oben rechts.">
 
 ![Die Agentenliste mit ausgeklapptem chat-Ordner, die die Zeilen Assistant und Automation Assistant mit ihren Standardmodellen und Tool-Anzahlen zeigt.](/images/platform/agents-list-expanded.webp)
 

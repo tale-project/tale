@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -169,7 +170,9 @@ export function TwoFactorPolicyEditor({
           />
         }
       >
-        <Stack gap={6} className="max-w-2xl">
+        {/* Full section width (not max-w-2xl): matches header toggle edge.
+            Short numeric grace field stays max-w-xs. */}
+        <Stack gap={6}>
           {!enforced && (
             <Text variant="muted" className="text-sm">
               {t('twoFactorPolicy.policyDisabledHint')}
@@ -196,12 +199,13 @@ export function TwoFactorPolicyEditor({
                 min={0}
                 max={30}
                 step={1}
+                wrapperClassName="max-w-xs"
               />
               <Text variant="muted" className="text-xs">
                 {t('twoFactorPolicy.gracePeriodDaysHint')}
               </Text>
 
-              <Switch
+              <SettingsToggleRow
                 label={t('twoFactorPolicy.exemptSsoUsers')}
                 description={t('twoFactorPolicy.exemptSsoUsersHint')}
                 checked={exemptSsoUsers}

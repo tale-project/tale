@@ -56,7 +56,7 @@ Use when no template or reference presentation is available.
 
 ### Before Starting
 
-- **Respect the configured corporate identity first**: If a "Corporate Identity (Presentation Branding)" section is present in your context, it defines the org's brand color, accent color, and logo. Use those as the DEFAULT theme — they REPLACE the sample palettes below — and place the logo as directed there. Only depart from them when the user explicitly asks for a different style.
+- **Respect the configured corporate identity first**: If a "Corporate Identity (Presentation Branding)" section is present in your context, it defines the org's accent color and logo. Use those as the DEFAULT theme — they REPLACE the sample palettes below — and place the logo as directed there. Only depart from them when the user explicitly asks for a different style.
 - **Pick a bold, content-informed color palette** (when no corporate identity is configured, or the user opts out of it): The palette should feel designed for THIS topic. If swapping your colors into a completely different presentation would still "work," you haven't made specific enough choices.
 - **Dominance over equality**: One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight.
 - **Dark/light contrast**: Dark backgrounds for title + conclusion slides, light for content ("sandwich" structure). Or commit to dark throughout for a premium feel.

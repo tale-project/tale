@@ -17,12 +17,6 @@ Cette page couvre la seule surface webhook par agent. Pour les déclencheurs ent
 
 Ouvre l’agent, passe à **Webhooks** et clique sur **Créer un webhook**. Le dialogue montre la nouvelle URL une seule fois — mets-la de côté, parce que le token embarqué dans l’URL fait office d’identifiant d’authentification. Il n’y a ni clé API séparée ni en-tête : quiconque détient l’URL peut chatter avec l’agent, donc traite-la comme un secret.
 
-<Note>
-
-Les webhooks demandent un agent publié — un agent non publié affiche **Publie cet agent pour activer l'accès par webhook** jusqu’à sa publication.
-
-</Note>
-
 ## L’appeler
 
 Envoie un POST avec un corps JSON portant un champ `message` ; la réponse est celle de l’agent :

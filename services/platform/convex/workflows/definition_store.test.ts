@@ -84,7 +84,7 @@ describe('resolveInlineWorkflowOwner', () => {
   });
 });
 
-describe('readWorkflowDefinition — inline vs file', () => {
+describe('readWorkflowDefinition — inline-only', () => {
   it('serves the inline workflow with a stable canonical hash', async () => {
     await seedInlineAutomation('create-github-pr', WORKFLOW);
     const a = await readWorkflowDefinition(ORG, 'create-github-pr');
@@ -95,17 +95,11 @@ describe('readWorkflowDefinition — inline vs file', () => {
     expect(a.hash).toBe(b.hash);
   });
 
-  it('falls back to a standalone global file', async () => {
-    const dir = path.join(configRoot, ORG, 'workflows');
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      path.join(dir, 'my-workflow.json'),
-      JSON.stringify({ version: 'standalone-1', steps: [] }),
-    );
+  it('a slug with no inline-owning automation reads as not-found (no file fallback)', async () => {
     const res = await readWorkflowDefinition(ORG, 'my-workflow');
-    expect(res.ok).toBe(true);
-    if (!res.ok) throw new Error('expected ok');
-    expect(res.config.version).toBe('standalone-1');
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('expected not-found');
+    expect(res.error).toBe('not_found');
   });
 });
 
@@ -155,15 +149,12 @@ describe('writeWorkflowDefinition — inline write-back', () => {
     expect(after).toContain('3.0.0');
   });
 
-  it('writes a standalone file for a non-automation slug', async () => {
-    await writeWorkflowDefinition(ORG, 'my-workflow', {
-      version: 'fresh-1',
-      steps: [],
-    });
-    const written = await readFile(
-      path.join(configRoot, ORG, 'workflows', 'my-workflow.json'),
-      'utf-8',
-    );
-    expect(written).toContain('fresh-1');
+  it('refuses a slug with no inline-owning automation (no file fallback)', async () => {
+    await expect(
+      writeWorkflowDefinition(ORG, 'my-workflow', {
+        version: 'fresh-1',
+        steps: [],
+      }),
+    ).rejects.toThrow(/no installed automation of that slug/);
   });
 });

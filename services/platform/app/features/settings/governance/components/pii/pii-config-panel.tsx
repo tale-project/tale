@@ -6,7 +6,7 @@
  *
  * Sections, top to bottom:
  *
- *   1. Mode — segmented radio (`tokenize` / `mask` / `block`) with a
+ *   1. Mode — radio group (`tokenize` / `mask` / `block`) with a
  *      one-line description of what each mode does.
  *   2. Patterns — checkbox row per built-in detector (`email`, `phone`,
  *      …). Translated labels come from the `piiTypes` namespace shipped
@@ -38,6 +38,7 @@ import type { TFunction } from 'i18next';
 import { Plus, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { useT } from '@/lib/i18n/client';
 import { BUILT_IN_PATTERN_NAMES } from '@/lib/pii/patterns/names';
 import type { PiiCustomPattern } from '@/lib/pii/schemas/config';
@@ -211,58 +212,38 @@ function ModeSection({
     value: PiiConfigPanelMode;
     label: string;
     description: string;
+    disabled: boolean;
   }> = [
     {
       value: 'tokenize',
       label: tPiiConfigPanel('modeTokenize'),
       description: tPiiConfigPanel('modeTokenizeDesc'),
+      disabled,
     },
     {
       value: 'mask',
       label: tPiiConfigPanel('modeMask'),
       description: tPiiConfigPanel('modeMaskDesc'),
+      disabled,
     },
     {
       value: 'block',
       label: tPiiConfigPanel('modeBlock'),
       description: tPiiConfigPanel('modeBlockDesc'),
+      disabled,
     },
   ];
-  const active = items.find((i) => i.value === value.mode);
   return (
     <Section title={tPiiConfigPanel('modeLabel')}>
-      <div
-        role="radiogroup"
+      <RadioGroup
         aria-label={tPiiConfigPanel('modeLabel')}
-        className="inline-flex w-fit rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] p-0.5"
-      >
-        {items.map((item) => {
-          const isActive = item.value === value.mode;
-          return (
-            <button
-              key={item.value}
-              type="button"
-              role="radio"
-              aria-checked={isActive}
-              disabled={disabled}
-              onClick={() => onChange({ ...value, mode: item.value })}
-              className={cn(
-                'rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                isActive
-                  ? 'bg-[color:var(--color-accent-base)] text-[color:var(--color-accent-fg)] shadow-sm'
-                  : 'text-[color:var(--color-fg-muted)] hover:text-[color:var(--color-fg-base)]',
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-      {active && (
-        <p className="text-xs text-[color:var(--color-fg-muted)]">
-          {active.description}
-        </p>
-      )}
+        value={value.mode}
+        onValueChange={(mode) => {
+          const item = items.find((i) => i.value === mode);
+          if (item) onChange({ ...value, mode: item.value });
+        }}
+        options={items}
+      />
     </Section>
   );
 }

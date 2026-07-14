@@ -35,6 +35,21 @@ vi.mock('../../organizations/resolve_org_slug', () => ({
   resolveOrgSlug: vi.fn().mockResolvedValue('default'),
 }));
 
+// `internal_actions.ts` imports the automation install pipeline for the
+// CREATION executor; stub those modules so loading it here doesn't register
+// real Convex actions against the minimal `_generated/server` mock above.
+vi.mock('../../automations/install_actions', () => ({
+  prepareInstallAs: vi.fn(),
+  ensureOrgResources: vi.fn(),
+}));
+vi.mock('../../automations/install_fs', () => ({
+  automationExistsInBuiltinCatalog: vi.fn(),
+}));
+vi.mock('../../automations/file_utils', () => ({
+  resolveAutomationDir: vi.fn(),
+  resolveAutomationManifestPath: vi.fn(),
+}));
+
 const MOCK_WORKFLOW_CONFIG = {
   name: 'Test Workflow',
   description: 'test',

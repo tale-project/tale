@@ -62,7 +62,6 @@ import {
   tokenSourceSchema,
   tokenSourceSecretsSchema,
 } from '../schemas/token_sources';
-import { workflowJsonSchema } from '../schemas/workflows';
 import { CONFIG_DOMAINS } from './registry';
 
 /** This module's own repo-root, used only to check that an externally-gated
@@ -195,7 +194,7 @@ function walkFlat(
 }
 
 /**
- * Tree layout: arbitrary nested `*.json` (agents, workflows). The loaders
+ * Tree layout: arbitrary nested `*.json` (agents). The loaders
  * recurse for `*.json` only; any other file in the shipped catalog fails.
  */
 function walkJsonTree(
@@ -396,16 +395,6 @@ const DOMAIN_VALIDATORS: Record<string, DomainValidator> = {
         secretsSchema: tokenSourceSecretsSchema,
       }),
   },
-  // Schema-only, matching the load path: the file catalog is parsed with
-  // `workflowJsonSchema` (`convex/workflows/file_utils.ts`) and is never
-  // publish-gated — `validateWorkflowDefinition` runs only on the agent-tool
-  // create/save (publish) path, and several shipped builtins predate its
-  // stricter reference/port lints while running fine. App-BUNDLED workflows
-  // DO pass full definition validation in the builtin_apps gate.
-  workflows: {
-    kind: 'walk',
-    validateDir: (dir) => walkJsonTree(dir, '', workflowJsonSchema),
-  },
   skills: { kind: 'walk', validateDir: validateSkillsDir },
   branding: { kind: 'walk', validateDir: validateBrandingDir },
   governance: { kind: 'walk', validateDir: validateGovernanceDir },
@@ -452,8 +441,6 @@ export function domainCatalogFileSchema(
       return fileName.endsWith('.secrets.json')
         ? tokenSourceSecretsSchema
         : tokenSourceSchema;
-    case 'workflows':
-      return workflowJsonSchema;
     case 'branding':
       return fileName === 'branding.json' ? brandingJsonSchema : undefined;
     case 'integrations':
@@ -539,13 +526,33 @@ export function validateConfigDir(
   return { issues, filesValidated };
 }
 
+interface RegistryCheckOptions {
+  /**
+   * Also verify that every externally-gated domain's covering test files
+   * still exist on disk. This half of the check is checkout-bound — test
+   * files live only in a repo checkout and are never bundled into a shipped
+   * image — so the runtime action turns it off (#2675: with it on, every
+   * healthy container boot reported the `automations` gates as "gone"). The
+   * vitest gate and the build-time CLI gate keep the default (on), which is
+   * what still catches a covering test being deleted or moved without
+   * updating `DOMAIN_VALIDATORS`.
+   */
+  checkCoveringGates?: boolean;
+  /** Root the covering-gate paths resolve against — injectable for tests. */
+  repoRoot?: string;
+}
+
 /**
  * The registry drift guard: every `CONFIG_DOMAINS` entry must declare a
- * validator, every validator must map back to a registered domain, and every
- * externally-gated domain's covering test files must still exist. Returns one
- * human-readable issue per problem; empty = the registry is complete.
+ * validator, every validator must map back to a registered domain, and (in
+ * checkout contexts — see `RegistryCheckOptions`) every externally-gated
+ * domain's covering test files must still exist. Returns one human-readable
+ * issue per problem; empty = the registry is complete.
  */
-export function checkValidatorRegistryComplete(): string[] {
+export function checkValidatorRegistryComplete(
+  options: RegistryCheckOptions = {},
+): string[] {
+  const { checkCoveringGates = true, repoRoot = REPO_ROOT } = options;
   const issues: string[] = [];
 
   for (const domain of CONFIG_DOMAINS) {
@@ -567,14 +574,16 @@ export function checkValidatorRegistryComplete(): string[] {
     }
   }
 
-  for (const [name, validator] of Object.entries(DOMAIN_VALIDATORS)) {
-    if (validator.kind !== 'external-gate') continue;
-    for (const rel of validator.coveredBy) {
-      if (!existsSync(join(REPO_ROOT, rel))) {
-        issues.push(
-          `${name}: covering gate ${rel} is gone — restore it or fold the ` +
-            'domain into this suite',
-        );
+  if (checkCoveringGates) {
+    for (const [name, validator] of Object.entries(DOMAIN_VALIDATORS)) {
+      if (validator.kind !== 'external-gate') continue;
+      for (const rel of validator.coveredBy) {
+        if (!existsSync(join(repoRoot, rel))) {
+          issues.push(
+            `${name}: covering gate ${rel} is gone — restore it or fold the ` +
+              'domain into this suite',
+          );
+        }
       }
     }
   }

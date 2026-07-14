@@ -154,6 +154,24 @@ describe('DataTable loading states', () => {
 
       expect(screen.getByText('Nothing here')).toBeInTheDocument();
     });
+
+    it('does not force a column-size minWidth that would scroll an empty table', () => {
+      const { container } = render(
+        <DataTable
+          columns={columns}
+          data={[]}
+          approxRowCount={0}
+          emptyState={{ title: 'No items found' }}
+        />,
+      );
+
+      const table = container.querySelector('table');
+      expect(table).not.toBeNull();
+      // Content-based floor is for data/skeleton only — empty stays at 100% so
+      // Sandboxes (and other wide-column settings tables) don't show a lonely
+      // horizontal scrollbar under the empty state.
+      expect(table).toHaveStyle({ minWidth: '100%' });
+    });
   });
 
   describe('filtered-empty state (active filters + no data)', () => {

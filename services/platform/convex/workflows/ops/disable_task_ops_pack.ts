@@ -6,9 +6,9 @@
  *      per-org JSON file (source of truth) + re-syncs the cache — the run-agent
  *      action refuses at its first statement, so even already in-flight workflow
  *      executions cannot start new agent runs;
- *   2. flips `isActive: false` on every trigger row of `tasks/`-prefixed
- *      workflows, so the minutely scanner and event fan-out stop starting
- *      executions at the source.
+ *   2. flips `isActive: false` on every trigger row of the task-ops pack
+ *      automations ({@link TASK_OPS_PACK_SLUGS}), so the minutely scanner and
+ *      event fan-out stop starting executions at the source.
  *
  * The policy write is filesystem I/O, so these are Convex actions (not
  * mutations); the trigger flip + audit run in `applyTaskOpsTriggers` (a
@@ -31,17 +31,38 @@ import {
 } from '../../_generated/server';
 import { createAuditLog } from '../../audit_logs/helpers';
 
-export const TASK_OPS_PACK_PREFIX = 'tasks/';
+/**
+ * The task-ops pack: the auto-installed `folder: "tasks"` / `"discussions"`
+ * automations under `builtin-configs/automations/` (each carries its workflow
+ * inline; workflowSlug === automationSlug). The kill switch targets exactly
+ * these — adding a pack automation means adding its slug here.
+ */
+export const TASK_OPS_PACK_SLUGS: readonly string[] = [
+  'run-assigned-task',
+  'triage-unassigned-tasks',
+  'react-to-task-mention',
+  'review-completed-work',
+  'sweep-stale-work',
+  'start-queued-work',
+  'archive-closed-tasks',
+  'enforce-task-slas',
+  'unblock-dependent-tasks',
+  'roll-up-completed-subtasks',
+  'remind-pending-reviewers',
+  'react-to-discussion-mention',
+];
 
+/** The pack slugs actually installed in this org (trigger rows key on them). */
 export async function listPackSlugs(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<string[]> {
+  const pack = new Set(TASK_OPS_PACK_SLUGS);
   const slugs: string[] = [];
   for await (const row of ctx.db
     .query('wfInstallations')
     .withIndex('by_org', (q) => q.eq('organizationId', organizationId))) {
-    if (row.workflowSlug.startsWith(TASK_OPS_PACK_PREFIX)) {
+    if (pack.has(row.workflowSlug)) {
       slugs.push(row.workflowSlug);
     }
   }

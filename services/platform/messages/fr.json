@@ -101,6 +101,7 @@
     "title": "Accès refusé",
     "integrations": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux paramètres d'intégrations.",
     "apiKeys": "Tu dois disposer des permissions Admin ou Développeur pour gérer les clés API.",
+    "automations": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux automatisations.",
     "organization": "Tu dois disposer des permissions Admin pour accéder aux paramètres de l'organisation.",
     "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents.",
     "skills": "Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.",
@@ -123,12 +124,6 @@
       "integration": "Intégration",
       "transcription": "Transcription",
       "tts": "Sortie vocale",
-      "period": {
-        "label": "Période",
-        "last7Days": "7 derniers jours",
-        "last30Days": "30 derniers jours",
-        "last90Days": "90 derniers jours"
-      },
       "granularity": {
         "label": "Granularité",
         "daily": "Quotidien",
@@ -145,8 +140,7 @@
         "totalRequests": "Requêtes totales",
         "totalTokens": "Tokens totaux",
         "totalCost": "Coût total",
-        "activeUsers": "Utilisateurs actifs",
-        "tokens": {}
+        "activeUsers": "Utilisateurs actifs"
       },
       "chart": {
         "inputTokens": "Entrée",
@@ -210,14 +204,6 @@
       "errors": {
         "loadFailed": "Impossible de charger les métriques de retour",
         "unauthorized": "Tu n'as pas accès à cette page"
-      },
-      "period": {
-        "label": "Période",
-        "last24Hours": "Dernières 24 heures",
-        "last7Days": "7 derniers jours",
-        "last30Days": "30 derniers jours",
-        "last90Days": "90 derniers jours",
-        "allTime": "Tout l'historique"
       },
       "kind": {
         "label": "Type",
@@ -874,6 +860,43 @@
       "notInProjectDescription": "Ajoute cette automatisation à ce projet pour l'utiliser ici.",
       "addToThisProject": "Ajouter à ce projet"
     },
+    "metrics": {
+      "title": "Métriques des automatisations",
+      "description": "Indicateurs d'utilisation et de performance de tes automatisations.",
+      "cappedNotice": "Affichage des 5 000 exécutions les plus récentes sur cette période. Les exécutions plus anciennes ne sont pas incluses dans ces totaux.",
+      "cards": {
+        "totalRuns": "Exécutions totales",
+        "successRate": "Taux de réussite",
+        "avgDuration": "Durée moyenne",
+        "failedRuns": "Échecs"
+      },
+      "chart": {
+        "trendTitle": "Exécutions dans le temps",
+        "trendTooltip": "Nombre d'exécutions de workflows sur la période sélectionnée",
+        "statusTitle": "Répartition par statut",
+        "statusTooltip": "Distribution des résultats d'exécution des workflows",
+        "totalLabel": "Total",
+        "noData": "Aucune donnée",
+        "noDataDescription": "Exécute un workflow pour voir la répartition",
+        "completed": "Terminées",
+        "failed": "Échouées",
+        "running": "En cours",
+        "pending": "En attente"
+      },
+      "table": {
+        "title": "Top workflows",
+        "workflow": "Workflow",
+        "runs": "Exécutions",
+        "successRate": "Taux de réussite",
+        "avgDuration": "Durée moyenne",
+        "failed": "Échecs",
+        "lastRun": "Dernière exécution"
+      },
+      "empty": {
+        "title": "Aucune exécution",
+        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée."
+      }
+    },
     "board": {
       "hiddenCards": "{count, plural, one {# carte masquée — aucune colonne correspondante} other {# cartes masquées — aucune colonne correspondante}}",
       "moveTo": "Déplacer vers",
@@ -1070,7 +1093,7 @@
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
-      "searchPlaceholder": "Rechercher des modèles...",
+      "searchPlaceholder": "Rechercher des modèles…",
       "noResults": "Aucun modèle trouvé",
       "addModel": "Ajouter un modèle",
       "auto": "Auto",
@@ -1690,6 +1713,12 @@
     "kbFolderChipFilesSkipped": "{resolved}/{count, plural, one {# fichier} other {# fichiers}} — {skipped, plural, one {# non indexé} other {# non indexés}}",
     "embedded": {
       "analyzeAttachments": "Merci d'analyser les fichiers joints."
+    },
+    "errors": {
+      "PROJECT_MISMATCH": "Cette conversation appartient à un autre projet.",
+      "PROJECT_FORBIDDEN": "Tu n'as pas accès au projet de cette conversation.",
+      "PROJECT_NOT_FOUND": "Le projet de cette conversation n'existe plus.",
+      "PROJECT_ORG_MISMATCH": "Le projet de cette conversation appartient à une autre organisation."
     }
   },
   "common": {
@@ -1876,7 +1905,6 @@
       "skipToContent": "Aller au contenu principal",
       "mainNavigation": "Navigation principale",
       "projectsNavigation": "Navigation des projets",
-      "workflowNavigation": "Navigation du workflow",
       "sortAscending": "trié par ordre croissant",
       "sortDescending": "trié par ordre décroissant",
       "sortAvailable": "tri disponible",
@@ -1895,7 +1923,7 @@
     "search": {
       "noResults": "Aucun résultat trouvé",
       "tryAdjusting": "Essaie d'ajuster tes critères de recherche",
-      "placeholder": "Rechercher..."
+      "placeholder": "Rechercher…"
     },
     "mentions": {
       "unresolvedTitle": "Mention non reconnue",
@@ -1908,7 +1936,9 @@
       "errorLoadingPage": "Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.",
       "persistsProblem": "Si ce problème persiste, merci de",
       "contactSupport": "contacter le support",
-      "tryAgain": "Réessayer"
+      "tryAgain": "Réessayer",
+      "showDetails": "Afficher les détails",
+      "hideDetails": "Masquer les détails"
     },
     "executionErrors": {
       "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
@@ -1918,7 +1948,9 @@
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Entrée",
-      "escape": "Échap"
+      "escape": "Échap",
+      "hintToSave": "pour enregistrer,",
+      "hintToCancel": "pour annuler"
     },
     "notFound": {
       "title": "Page introuvable",
@@ -2172,6 +2204,9 @@
       "high": "Haute",
       "low": "Basse",
       "medium": "Moyenne"
+    },
+    "history": {
+      "loadingMore": "Recherche d'autres conversations…"
     }
   },
   "contacts": {
@@ -2264,7 +2299,8 @@
     "toSend": "pour envoyer",
     "contactInfo": {
       "title": "Détails du contact"
-    }
+    },
+    "selectConversation": "Sélectionner la conversation"
   },
   "documentWriteApproval": {
     "cardTitle": "Enregistrer dans les documents",
@@ -2776,16 +2812,16 @@
       "user": "Utilisateur",
       "team": "Équipe",
       "selectUser": "Sélectionner un utilisateur...",
-      "searchUsers": "Rechercher des utilisateurs...",
+      "searchUsers": "Rechercher des utilisateurs…",
       "noUsersFound": "Aucun utilisateur trouvé",
       "selectUserAriaLabel": "Sélectionner un utilisateur",
       "selectTeam": "Sélectionner une équipe...",
-      "searchTeams": "Rechercher des équipes...",
+      "searchTeams": "Rechercher des équipes…",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
       "apiKey": "Clé API",
       "selectApiKey": "Sélectionner une clé API...",
-      "searchApiKeys": "Rechercher des clés API...",
+      "searchApiKeys": "Rechercher des clés API…",
       "noApiKeysFound": "Aucune clé API trouvée",
       "selectApiKeyAriaLabel": "Sélectionner une clé API",
       "saved": "Les règles de budget ont été mises à jour",
@@ -2822,9 +2858,9 @@
       "selectProvider": "Sélectionner un fournisseur...",
       "selectModel": "Sélectionner un modèle...",
       "selectTeam": "Sélectionner une équipe...",
-      "searchProviders": "Rechercher des fournisseurs...",
-      "searchModels": "Rechercher des modèles...",
-      "searchTeams": "Rechercher des équipes...",
+      "searchProviders": "Rechercher des fournisseurs…",
+      "searchModels": "Rechercher des modèles…",
+      "searchTeams": "Rechercher des équipes…",
       "noProvidersFound": "Aucun fournisseur trouvé",
       "noModelsFound": "Aucun modèle trouvé",
       "noTeamsFound": "Aucune équipe trouvée",
@@ -2844,6 +2880,8 @@
       "allowedMimeTypes": "Types MIME autorisés",
       "maxFileSize": "Taille maximale de fichier",
       "maxVolumePerUser": "Volume total maximum par utilisateur",
+      "invalidMaxFileSize": "La taille maximale de fichier doit être zéro ou un nombre positif.",
+      "invalidMaxVolume": "Le volume total maximum doit être zéro ou un nombre positif.",
       "extensionPlaceholder": "pdf, png, csv",
       "mimeTypePlaceholder": "image/*, application/pdf",
       "mbUnit": "Mo",
@@ -2913,7 +2951,9 @@
         "summary": "{tightened} modification(s) sur {total} resserrent la rétention. À examiner avant d'appliquer.",
         "firstApplyDescription": "Aucune limite n'a encore été appliquée pour cette organisation. Examine la configuration de l'opérateur et clique sur Appliquer pour activer la rétention.",
         "applyLabel": "Appliquer",
+        "applyingLabel": "Application en cours…",
         "rejectLabel": "Refuser",
+        "rejectingLabel": "Refus en cours…",
         "detailsLabel": "Voir les détails",
         "detailsTitle": "Modifications de limites proposées",
         "detailsDescription": "Vérifie les limites de rétention proposées par l'opérateur avant d'appliquer ou de refuser.",
@@ -3113,10 +3153,10 @@
         "editor": "Éditeur",
         "member": "Membre"
       },
-      "searchUsers": "Rechercher des utilisateurs...",
+      "searchUsers": "Rechercher des utilisateurs…",
       "noUsersFound": "Aucun utilisateur trouvé",
       "selectUser": "Sélectionner un utilisateur...",
-      "searchTeams": "Rechercher des équipes...",
+      "searchTeams": "Rechercher des équipes…",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeam": "Sélectionner une équipe..."
     },
@@ -3511,7 +3551,8 @@
         "restoredToast": "Restauré.",
         "failedToast": "Échec de la restauration",
         "failedDescription": "Échec de la restauration de cet enregistrement."
-      }
+      },
+      "emptyTitle": "La corbeille est vide"
     },
     "legalHold": {
       "targetTypes": {
@@ -3727,6 +3768,7 @@
       "team": "Équipe",
       "selectUser": "Sélectionner un utilisateur",
       "selectTeam": "Sélectionner une équipe",
+      "selectModels": "Sélectionner des modèles",
       "searchUsers": "Rechercher des utilisateurs",
       "searchTeams": "Rechercher des équipes",
       "noUsersFound": "Aucun utilisateur trouvé",
@@ -3997,6 +4039,14 @@
       "automations": "Automatisations",
       "projects": "Projets"
     },
+    "period": {
+      "label": "Période",
+      "last24Hours": "Dernières 24 heures",
+      "last7Days": "7 derniers jours",
+      "last30Days": "30 derniers jours",
+      "last90Days": "90 derniers jours",
+      "allTime": "Tout l'historique"
+    },
     "projects": {
       "selectLabel": "Projet",
       "selectPlaceholder": "Sélectionner un projet…",
@@ -4166,12 +4216,18 @@
       "displayName": "Nom d'affichage",
       "description": "Description",
       "transportType": "Type de transport",
+      "transportStreamableHttp": "HTTP en continu (streamable)",
+      "transportSse": "SSE",
+      "transportStdio": "stdio",
       "url": "URL",
       "command": "Commande",
       "args": "Arguments",
       "authType": "Méthode",
+      "authNone": "Aucune",
       "apiKey": "Clé API",
       "oauth2": "OAuth 2.0",
+      "grantClientCredentials": "Identifiants client (client credentials)",
+      "grantAuthorizationCode": "Code d’autorisation",
       "save": "Enregistrer le serveur",
       "saving": "Enregistrement...",
       "cancel": "Annuler",
@@ -4533,10 +4589,6 @@
       "automationAlerts": {
         "label": "Alertes d'automatisation",
         "description": "Échecs, avertissements de budget et runtimes hors ligne."
-      },
-      "digest": {
-        "label": "Résumé",
-        "description": "Résumé périodique de l'activité de la workforce."
       },
       "conversationMessages": {
         "label": "Messages de conversation",
@@ -4903,7 +4955,7 @@
     "library": {
       "title": "Bibliothèque de prompts",
       "description": "Parcours, enregistre et partage des modèles de prompts.",
-      "searchPlaceholder": "Rechercher des prompts...",
+      "searchPlaceholder": "Rechercher des prompts…",
       "loading": "Chargement des prompts...",
       "loadMore": "Charger plus",
       "loadingMore": "Chargement...",
@@ -5246,6 +5298,7 @@
       "localeDescription": "La langue principale de ton organisation.",
       "organizationId": "ID de l'organisation",
       "organizationIdDescription": "L'identifiant unique de ton organisation.",
+      "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersSectionTitle": "Membres",
       "membersDescription": "Personnes ayant accès à cette organisation.",
       "membersEntityLabel": "membres",
@@ -5415,7 +5468,6 @@
         "timeoutMinutesHelp": "Durée maximale d'exécution de l'agent par message. Augmente pour les tâches impliquant de nombreuses opérations sur les fichiers ou des délégations à des sous-agents."
       },
       "conversationStarters": {
-        "title": "Amorces de conversation",
         "description": "Suggestions affichées aux utilisateurs lorsqu'ils démarrent une nouvelle conversation avec cet agent. Laisse vide pour ne pas afficher de suggestions.",
         "placeholder": "ex. Aide-moi à rédiger un rapport",
         "add": "Ajouter une amorce",
@@ -5423,15 +5475,10 @@
         "dragHandle": "Glisser pour réorganiser",
         "moveUp": "Déplacer vers le haut",
         "moveDown": "Déplacer vers le bas",
-        "default": "par défaut",
-        "untranslated": "non traduit",
-        "autoTranslate": "Traduction automatique",
         "translateError": "Échec de la traduction automatique"
       },
       "form": {
-        "sectionGeneral": "Général",
         "sectionGeneralDescription": "Informations de base sur l'agent",
-        "sectionInstructions": "Instructions",
         "sectionInstructionsDescription": "Définis le comportement et la personnalité de l'agent",
         "templateVariablesLabel": "Variables de modèle disponibles",
         "templateVariablesDescription": "Utilise ces variables dans tes instructions — elles seront résolues à l'exécution.",
@@ -5456,7 +5503,6 @@
         "skillBindingsCounter": "{count}/{max} liés",
         "skillBindingsNoSkillsInOrgDescription": "Aucun skill n'existe encore dans cette organisation.",
         "skillBindingsNoSkillsInOrgCta": "En créer un dans les paramètres Skills",
-        "sectionKnowledge": "Base de connaissances",
         "sectionKnowledgeDescription": "Configure l'accès à la base de connaissances",
         "knowledgeHint": "La base de connaissances recherche dans les documents téléversés dans ton organisation.",
         "knowledgeHintLink": "Gérer les documents",
@@ -5724,7 +5770,6 @@
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
       },
       "env": {
-        "title": "Environnement et secrets",
         "description": "Variables injectées lorsque cet agent s'exécute dans une sandbox — étapes de workflow et exécutions externes. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule."
       },
       "automationBadge": "Automatisation"
@@ -5910,7 +5955,7 @@
         "all": "Toutes les intégrations",
         "connected": "Connectées"
       },
-      "searchPlaceholder": "Rechercher des intégrations...",
+      "searchPlaceholder": "Rechercher des intégrations…",
       "badge": {
         "connected": "Connectée",
         "connect": "Connecter",
@@ -6200,7 +6245,11 @@
             "s4": "Copiez l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de signature de l'IdP (PEM) dans les champs ci-dessus.",
             "s5": "Mappez les attributs e-mail, nom et groupe dans votre IdP ; si leurs noms diffèrent, indiquez les noms d'attributs correspondants sous « Avancé »."
           }
-        }
+        },
+        "disableConfirmTitle": "Désactiver la connexion SSO ?",
+        "disableConfirmDescription": "Les membres ne pourront plus se connecter via SSO tant qu’elle n’est pas réactivée. Les sessions actives restent ouvertes.",
+        "removeConfirmTitle": "Supprimer la connexion SSO ?",
+        "removeConfirmDescription": "La configuration de la connexion est supprimée – identifiants client et correspondances de rôles compris. La connexion SSO est désactivée immédiatement. Cette action est irréversible."
       },
       "noResults": {
         "title": "Aucun résultat trouvé",
@@ -6483,7 +6532,7 @@
       "entityLabelOne": "clé",
       "createKey": "Créer une clé API",
       "createKeySubmit": "Créer la clé",
-      "searchKeys": "Rechercher des clés API...",
+      "searchKeys": "Rechercher des clés API…",
       "keyCreated": "Clé API créée",
       "keyCreatedDescription": "Assure-toi de copier ta clé API maintenant. Tu ne pourras plus la voir ensuite.",
       "yourApiKey": "Ta clé API",
@@ -6938,7 +6987,13 @@
         "open": "Ouvert",
         "closed": "Fermé",
         "spam": "Spam"
-      }
+      },
+      "pickColorAria": "Choisir {label}",
+      "hexValueAria": "Valeur hexadécimale de {label}",
+      "removeImageAria": "Supprimer {label}",
+      "imageFallback": "l’image",
+      "resetConfirmTitle": "Réinitialiser l’identité visuelle ?",
+      "resetConfirmDescription": "Le logo et les favicons téléversés sont supprimés et la couleur d’accent est effacée. Les images supprimées ne peuvent pas être restaurées."
     },
     "dataResidency": {
       "readOnly": {
@@ -7304,12 +7359,6 @@
       "link": "Voir les métriques",
       "title": "Métriques des tâches",
       "description": "Indicateurs de livraison, d'intervention et de coût pour les tâches de ce projet.",
-      "period": {
-        "last7Days": "7 derniers jours",
-        "last30Days": "30 derniers jours",
-        "last90Days": "90 derniers jours",
-        "label": "Période"
-      },
       "cappedNotice": "Certains jours ont atteint la limite de scan du rollup — les totaux de cette période peuvent être sous-estimés.",
       "noData": "Aucune donnée",
       "noDataDescription": "Les métriques apparaissent après le premier rollup quotidien.",
@@ -8141,9 +8190,7 @@
   },
   "agentCatalog": {
     "folders": {
-      "workforce": "Effectif",
       "chat": "Chat",
-      "github": "GitHub",
       "general": "Général"
     },
     "loadError": {
@@ -8179,8 +8226,16 @@
     "uninstalled": "Agent désinstallé",
     "status": {
       "enabled": "Activé",
-      "disabled": "Désactivé"
-    }
+      "disabled": "Désactivé",
+      "available": "Disponible"
+    },
+    "error": "Impossible de mettre à jour l'agent",
+    "empty": {
+      "title": "Aucun agent disponible",
+      "description": "Le catalogue ne propose aucun agent à installer pour le moment."
+    },
+    "installedByIntegration": "Installé par {integration}",
+    "requiresIntegration": "Nécessite {integration}"
   },
   "runtimes": {
     "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, Cursor).",
@@ -8280,8 +8335,6 @@
     "dupKey": "Nom de variable en double — chaque NOM doit être unique."
   },
   "workflows": {
-    "title": "Workflows",
-    "notFound": "Workflow introuvable : {{slug}}",
     "aria": {
       "openNamed": "Ouvrir {name}",
       "openLoop": "Ouvrir la boucle"
@@ -8290,23 +8343,10 @@
       "noSteps": "Aucune étape de workflow à afficher",
       "createStepsHint": "Crée des étapes pour voir l'aperçu du workflow, ou utilise l'assistant IA pour t'aider à démarrer."
     },
-    "navigation": {
-      "editor": "Éditeur",
-      "history": "Historique",
-      "openAssistant": "Ouvrir l'assistant IA"
-    },
     "history": {
-      "empty": "Aucune entrée d'historique",
-      "diffTitle": "Comparer les modifications",
-      "diffDescription": "Examine les différences avant de restaurer l'instantané du {date}",
-      "restore": "Restaurer",
-      "noDifferences": "Aucune différence trouvée",
-      "loadFailed": "Échec du chargement de l'historique",
-      "restoreSuccess": "Version restaurée avec succès",
-      "restoreFailed": "Échec de la restauration de la version"
+      "noDifferences": "Aucune différence trouvée"
     },
     "configuration": {
-      "title": "Configuration",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Temps d'exécution maximum en millisecondes",
       "maxRetries": "Nombre max de tentatives",
@@ -8322,7 +8362,6 @@
       "envHelp": "Variables injectées dans chaque étape sandbox de ce workflow. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule. Une étape peut les remplacer."
     },
     "triggers": {
-      "title": "Déclencheurs",
       "errors": {
         "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
         "invalidSlug": "L'identifiant de ce workflow est invalide.",
@@ -8462,7 +8501,6 @@
       }
     },
     "executions": {
-      "title": "Exécutions",
       "entityLabel": "exécutions",
       "entityLabelOne": "exécution",
       "searchPlaceholder": "Rechercher par ID d'exécution",

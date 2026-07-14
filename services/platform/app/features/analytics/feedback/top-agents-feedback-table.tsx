@@ -4,13 +4,13 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
-import { formatNumber } from '@/lib/utils/format/number';
 
 import { UNATTRIBUTED_AGENT_SLUG, type FeedbackAgentBucket } from './types';
 
@@ -21,22 +21,6 @@ interface TopAgentsFeedbackTableProps {
   organizationId: string;
 }
 
-function formatPercent(
-  positive: number,
-  total: number,
-  locale: string,
-): string {
-  if (total === 0) return '—';
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: 'percent',
-      maximumFractionDigits: 1,
-    }).format(positive / total);
-  } catch {
-    return `${Math.round((positive / total) * 100)}%`;
-  }
-}
-
 export function TopAgentsFeedbackTable({
   rows,
   isLoading,
@@ -45,8 +29,7 @@ export function TopAgentsFeedbackTable({
 }: TopAgentsFeedbackTableProps) {
   const { t } = useT('analytics');
   const { agents } = useListAgents(organizationId);
-  const { i18n: i18nCtx } = useTranslation();
-  const locale = i18nCtx.language;
+  const { locale, formatNumber, formatPercentShare } = useFormatNumber();
 
   const displayNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -120,7 +103,7 @@ export function TopAgentsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.positive, locale)}
+            {formatNumber(row.original.positive)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -134,7 +117,7 @@ export function TopAgentsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.negative, locale)}
+            {formatNumber(row.original.negative)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -148,20 +131,17 @@ export function TopAgentsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatPercent(row.original.positive, row.original.total, locale)}
+            {formatPercentShare(row.original.positive, row.original.total)}
           </div>
         ),
         meta: { align: 'right' as const },
       },
     ],
-    [t, resolveName, locale],
+    [t, resolveName, formatNumber, formatPercentShare],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('feedback.tables.topAgents.title')}
-      </Text>
+    <MetricsSection title={t('feedback.tables.topAgents.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -176,6 +156,6 @@ export function TopAgentsFeedbackTable({
           description: t('feedback.tables.topAgents.emptyDescription'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

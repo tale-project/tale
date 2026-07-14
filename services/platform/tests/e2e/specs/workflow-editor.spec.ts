@@ -6,7 +6,8 @@ import { SEEDED_WORKFLOW_NAME } from '../helpers/seed';
 
 /**
  * Workflow EDITOR depth against the seeded `test` workflow (installed into
- * every worker org from `fixtures/config/default/workflows/test.json`): open
+ * every worker org from `fixtures/config/default/automations/test/` — a
+ * hidden autoInstall automation whose inline workflow the editor tab renders): open
  * the editor via deep link, edit+save+persist its config, run it via the
  * tester, and fire it via a webhook trigger. The standalone list/catalog/
  * creation surface was removed, so the detail pages are reached by direct
@@ -32,7 +33,9 @@ test.describe.serial('workflow editor', () => {
     org,
   }) => {
     const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/workflows/${workflowSlug}`);
+    await page.goto(
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=editor`,
+    );
 
     // The bottom-center canvas toolbar carries the add-step and test controls —
     // a stable signal the flow editor (not a skeleton) mounted. The shared
@@ -60,7 +63,7 @@ test.describe.serial('workflow editor', () => {
   }) => {
     const { organizationId } = org;
     await page.goto(
-      `/dashboard/${organizationId}/workflows/${workflowSlug}/configuration`,
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=configuration`,
     );
 
     // The Configuration tab owns the workflow's RUNTIME settings only —
@@ -83,11 +86,18 @@ test.describe.serial('workflow editor', () => {
     // "Save" button — an unscoped name match would resolve to two elements.
     const save = page
       .getByRole('navigation', {
-        name: t('common.aria.workflowNavigation'),
+        name: t('automations.tabs.ariaLabel'),
       })
       .getByRole('button', { name: t('common.actions.save'), exact: true });
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
+
+    // WAIT for the save to land before reloading. The tab's Save performs two
+    // sequential server actions — the automation's identity, then its inline
+    // workflow's runtime config — and a reload mid-flight would abort the
+    // second one. The form resets to clean (Save disabled) only once both
+    // resolve, so that is the settle signal.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 
     // Assert the persisted FIELD value after reload (not the transient toast):
     // the edited backoff must rehydrate from the backend file.
@@ -103,7 +113,9 @@ test.describe.serial('workflow editor', () => {
 
   test('runs via the tester and lists the run', async ({ page, org }) => {
     const { organizationId } = org;
-    await page.goto(`/dashboard/${organizationId}/workflows/${workflowSlug}`);
+    await page.goto(
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=editor`,
+    );
 
     const openTester = page.getByRole('button', {
       name: t('workflows.steps.toolbar.testWorkflow'),
@@ -133,7 +145,7 @@ test.describe.serial('workflow editor', () => {
     // The Executions tab must now list the run. Body rows live in a rowgroup
     // separate from the header, so scope the count to the last rowgroup.
     await page.goto(
-      `/dashboard/${organizationId}/workflows/${workflowSlug}/executions`,
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=executions`,
     );
     const bodyRows = page.getByRole('rowgroup').last().getByRole('row');
     await expect(bodyRows.first()).toBeVisible({ timeout: TIMEOUT.EXECUTION });
@@ -143,7 +155,7 @@ test.describe.serial('workflow editor', () => {
   test('webhook trigger fires an execution', async ({ page, org }) => {
     const { organizationId } = org;
     await page.goto(
-      `/dashboard/${organizationId}/workflows/${workflowSlug}/triggers`,
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=triggers`,
     );
 
     // The Webhooks section is a CollapsibleSection that defaults CLOSED when the
@@ -188,7 +200,7 @@ test.describe.serial('workflow editor', () => {
     // The webhook-triggered run must appear on the Executions tab. The tester
     // run from the previous step is also listed, so assert >=1 row resolves.
     await page.goto(
-      `/dashboard/${organizationId}/workflows/${workflowSlug}/executions`,
+      `/dashboard/${organizationId}/automations/${workflowSlug}?tab=executions`,
     );
     const bodyRows = page.getByRole('rowgroup').last().getByRole('row');
     await expect(bodyRows.first()).toBeVisible({ timeout: TIMEOUT.EXECUTION });

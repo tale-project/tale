@@ -1,12 +1,11 @@
 'use client';
 
-import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
-import { useTranslation } from 'react-i18next';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
 
 import type { ArenaVerdict } from './types';
 
@@ -27,7 +26,7 @@ type ArenaSummaryCell = {
 
 export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
   const { t: tAnalytics } = useT('analytics');
-  const { i18n } = useTranslation();
+  const { formatNumber } = useFormatNumber();
   const loading = useSkeleton();
 
   // Loaded-and-empty: no arena votes → nothing to summarize. While LOADING we
@@ -45,36 +44,16 @@ export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
   ];
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {tAnalytics('feedback.arena.title')}
-      </Text>
-      <div className="border-border grid grid-cols-1 overflow-hidden rounded-lg border sm:grid-cols-3">
-        {cells.map((cell, idx) => (
-          <div
+    <MetricsSection title={tAnalytics('feedback.arena.title')}>
+      <StatCardGrid cols={3}>
+        {cells.map((cell) => (
+          <StatCard
             key={cell.key}
-            className={
-              'flex flex-col gap-1 px-5 py-6 ' +
-              (idx === cells.length - 1
-                ? ''
-                : 'border-border border-b sm:border-r sm:border-b-0')
-            }
-          >
-            <Text className="text-muted-foreground text-sm">
-              {tAnalytics(`feedback.arena.cells.${cell.key}`)}
-            </Text>
-            <Text className="text-foreground font-mono text-2xl font-semibold">
-              {loading ? (
-                <SkeletonBox>
-                  <span className="my-0.5 inline-block h-7 w-16" />
-                </SkeletonBox>
-              ) : (
-                formatNumber(cell.count, i18n.language)
-              )}
-            </Text>
-          </div>
+            label={tAnalytics(`feedback.arena.cells.${cell.key}`)}
+            value={formatNumber(cell.count)}
+          />
         ))}
-      </div>
-    </div>
+      </StatCardGrid>
+    </MetricsSection>
   );
 }

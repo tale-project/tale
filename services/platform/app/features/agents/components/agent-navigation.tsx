@@ -7,6 +7,8 @@ import { useCallback, useMemo, useState } from 'react';
 
 import {
   EditorActions,
+  useActiveEditor,
+  useComposedEditor,
   useRegisterDirtySource,
   type EditorController,
 } from '@/app/components/ui/editor';
@@ -27,6 +29,11 @@ import { normalizeAgentConfig } from '@/lib/shared/utils/normalize-agent-config'
 import { changedKeys } from '@/lib/utils/structural-equal';
 
 import { useOrganization } from '../../organization/hooks/queries';
+import {
+  useRestoreFromHistory,
+  useSaveAgent,
+  useSnapshotToHistory,
+} from '../hooks/mutations';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentValidation } from '../hooks/use-agent-validation';
 import { HistoryDiffDialog } from './history-diff-dialog';
@@ -89,9 +96,10 @@ const AGENT_TAB_DIRTY_KEYS = {
   ],
   conversationStarters: ['conversationStarters'],
   webhook: [],
-  // Env/secrets live in the `agentEnv` side-table, not the agent file — so this
-  // tab never lights the config dirty-dot.
-  environment: [],
+  // Env/secrets live in the `agentEnv` side-table, not the agent file — the
+  // Environment tab's editor registers itself in the active-editor registry
+  // and reports the 'environment' dirty key, which this entry matches.
+  environment: ['environment'],
 } as const;
 
 function computeDirtyKeys(
@@ -134,19 +142,19 @@ export function AgentNavigation({
   const { data: organization } = useOrganization(organizationId);
   const orgDefaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
-  const snapshotAction = useConvexAction(
-    api.agents.file_actions.snapshotToHistory,
-  );
-  const saveAction = useConvexAction(api.agents.file_actions.saveAgent);
+  // Use the shared mutation hooks so a successful save/restore invalidates
+  // `['config','agents',organizationId]` — chat's ModelSelector reads
+  // supportedModels from that cached list (`staleTime: Infinity`), and the
+  // raw action path left it stale after Instructions edits.
+  const snapshotAction = useSnapshotToHistory();
+  const saveAction = useSaveAgent();
   const listHistoryAction = useConvexAction(
     api.agents.file_actions.listHistory,
   );
   const readHistoryAction = useConvexAction(
     api.agents.file_actions.readHistoryEntry,
   );
-  const restoreAction = useConvexAction(
-    api.agents.file_actions.restoreFromHistory,
-  );
+  const restoreAction = useRestoreFromHistory();
 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [, setIsLoadingHistory] = useState(false);
@@ -299,7 +307,7 @@ export function AgentNavigation({
 
   // Build an `EditorController` from the legacy context so `EditorActions`
   // (and any future per-tab consumers) get the unified shape.
-  const editorController: EditorController = useMemo(
+  const configController: EditorController = useMemo(
     () => ({
       isDirty,
       isSaving,
@@ -310,6 +318,16 @@ export function AgentNavigation({
       reset: resetConfig,
     }),
     [doSave, dirtyKeys, isDirty, isSaving, isValid, resetConfig],
+  );
+
+  // Side-table editors (the Environment tab's env/secret list) register in the
+  // active-editor registry; composing them here keeps ONE header Save/Discard
+  // cluster driving both the agent file and whatever side-table editor is
+  // mounted — no per-tab save buttons.
+  const registeredEditor = useActiveEditor();
+  const editorController = useComposedEditor(
+    configController,
+    registeredEditor,
   );
 
   // Register with the page-level DirtyBlockerProvider so the unsaved-changes
@@ -452,7 +470,9 @@ export function AgentNavigation({
         items={navigationItems}
         standalone={false}
         ariaLabel={tCommon('aria.agentsNavigation')}
-        dirtyKeys={dirtyKeys}
+        // Composed keys: config-file diffs + any registered side-table editor
+        // (e.g. 'environment'), so every tab's dirty dot has one source.
+        dirtyKeys={editorController.dirtyKeys}
       >
         <EditorActions
           controller={editorController}

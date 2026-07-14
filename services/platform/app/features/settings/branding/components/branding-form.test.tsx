@@ -1,18 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import {
   ActiveEditorProvider,
   useActiveEditor,
 } from '@/app/components/ui/editor';
+import { render, screen } from '@/tests/utils/render';
 
 // Mock next-intl
 vi.mock('next-intl', () => ({
@@ -97,9 +92,9 @@ describe('BrandingForm', () => {
   it('renders the editable branding fields (no app-name / text-logo)', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(screen.getByText('branding.logo')).toBeInTheDocument();
-    expect(screen.getByText('branding.favicon')).toBeInTheDocument();
-    expect(screen.getByText('branding.accentColor')).toBeInTheDocument();
+    expect(screen.getByText('Logo')).toBeInTheDocument();
+    expect(screen.getByText('Favicon')).toBeInTheDocument();
+    expect(screen.getByText('Accent color')).toBeInTheDocument();
 
     // App name and text logo are no longer editable — the chrome follows the
     // organization's name. The brand color was dropped for the single accent
@@ -143,20 +138,26 @@ describe('BrandingForm', () => {
   it('renders favicon upload fields with light and dark labels', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(screen.getByText('branding.light')).toBeInTheDocument();
-    expect(screen.getByText('branding.dark')).toBeInTheDocument();
+    expect(screen.getByText('Light')).toBeInTheDocument();
+    expect(screen.getByText('Dark')).toBeInTheDocument();
   });
 
   it('renders logo description text', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(screen.getByText('branding.logoDescription')).toBeInTheDocument();
+    expect(
+      screen.getByText('Upload your organization logo'),
+    ).toBeInTheDocument();
   });
 
   it('renders favicon description text', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(screen.getByText('branding.faviconDescription')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Generated from your logo if left empty. 64 x 64 pixels.',
+      ),
+    ).toBeInTheDocument();
   });
 
   // Regression: the accent-color control is not a `register`ed RHF field — it
@@ -181,7 +182,7 @@ describe('BrandingForm', () => {
 
     expect(screen.getByTestId('dirty')).toHaveTextContent('no');
 
-    const hexInput = screen.getByLabelText('branding.accentColor hex value');
+    const hexInput = screen.getByLabelText('Accent color hex value');
     fireEvent.change(hexInput, { target: { value: '00FF00' } });
 
     expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
@@ -195,7 +196,7 @@ describe('BrandingForm', () => {
       </ActiveEditorProvider>,
     );
 
-    const hexInput = screen.getByLabelText('branding.accentColor hex value');
+    const hexInput = screen.getByLabelText('Accent color hex value');
     fireEvent.change(hexInput, { target: { value: '00FF00' } });
     expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
 

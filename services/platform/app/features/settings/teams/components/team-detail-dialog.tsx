@@ -1,7 +1,7 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -11,6 +11,7 @@ import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useT } from '@/lib/i18n/client';
+import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
 import { useTeamMembers, type Team } from '../hooks/queries';
 import { TeamEditDialog } from './team-edit-dialog';
@@ -100,15 +101,14 @@ function TeamDetailDialogContent({
               </Text>
             </Stack>
           ) : (
-            <div className="border-border overflow-hidden rounded-lg border">
-              {teamMembers.map((member: TeamDetailMember, index: number) => (
+            <Card
+              padding="none"
+              className="divide-border divide-y overflow-hidden"
+            >
+              {teamMembers.map((member: TeamDetailMember) => (
                 <div
                   key={member._id}
-                  className={`flex items-center gap-3 px-3 py-2.5 ${
-                    index < teamMembers.length - 1
-                      ? 'border-border border-b'
-                      : ''
-                  }`}
+                  className="flex items-center gap-3 px-3 py-2.5"
                 >
                   <Row
                     gap={0}
@@ -135,12 +135,18 @@ function TeamDetailDialogContent({
                         </Text>
                       )}
                   </Stack>
-                  <Badge variant="outline" className="shrink-0 capitalize">
+                  {/* Same colored role chip as the members table — one role-chip
+                      treatment across Organization and Teams. */}
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-1 text-xs font-medium capitalize ${getRoleBadgeClasses(
+                      member.role,
+                    )}`}
+                  >
                     {member.role}
-                  </Badge>
+                  </span>
                 </div>
               ))}
-            </div>
+            </Card>
           )}
         </Stack>
       </Dialog>

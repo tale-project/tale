@@ -19,7 +19,7 @@ export const metricsPeriodSearchSchema = z.object({
 });
 
 export function parseMetricsPeriodDays(
-  period: '7' | '30' | '90' | undefined,
+  period: string | undefined,
   defaultPeriod: MetricsPeriodDays = 30,
 ): MetricsPeriodDays {
   if (period === '7') return 7;

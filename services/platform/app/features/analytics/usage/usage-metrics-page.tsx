@@ -12,6 +12,11 @@ import {
   type MetricsFilterChip,
 } from '@/app/components/metrics/metrics-filter-chips';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@/app/components/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -31,8 +36,8 @@ export interface UsageMetricsPageProps {
   organizationId: string;
   /** Controlled period (e.g. from the route's `?period=`); when provided with
    *  `onChangePeriod`, the page defers period state to the caller. */
-  periodDays?: 7 | 30 | 90;
-  onChangePeriod?: (period: 7 | 30 | 90) => void;
+  periodDays?: MetricsPeriodDays;
+  onChangePeriod?: (period: MetricsPeriodDays) => void;
 }
 
 type UsageMetricsData =
@@ -45,7 +50,7 @@ interface UsageMetricsPageViewProps {
    *  enclosing `<Skeletonize>` — cards/chart/tables stand in at full height). */
   data: UsageMetricsData;
   isLoading: boolean;
-  periodDays: 7 | 30 | 90;
+  periodDays: MetricsPeriodDays;
   granularity: UsageGranularity;
   metric: UsageMetric;
   agentSlug: string | undefined;
@@ -88,14 +93,6 @@ export function UsageMetricsPageView({
 }: UsageMetricsPageViewProps) {
   const { t } = useT('analytics');
 
-  const periodOptions = useMemo(
-    () => [
-      { value: '7', label: t('usage.period.last7Days') },
-      { value: '30', label: t('usage.period.last30Days') },
-      { value: '90', label: t('usage.period.last90Days') },
-    ],
-    [t],
-  );
   const granularityOptions = useMemo(
     () => [
       { value: 'daily', label: t('usage.granularity.daily') },
@@ -147,9 +144,7 @@ export function UsageMetricsPageView({
       description={t('usage.description')}
       toolbar={
         <>
-          <MetricSelect
-            aria-label={t('usage.period.label')}
-            options={periodOptions}
+          <MetricsPeriodSelect
             value={String(periodDays)}
             onValueChange={onPeriod}
           />
@@ -234,7 +229,8 @@ export function UsageMetricsPage({
 }: UsageMetricsPageProps) {
   const { t } = useT('analytics');
 
-  const [internalPeriodDays, setInternalPeriodDays] = useState<7 | 30 | 90>(30);
+  const [internalPeriodDays, setInternalPeriodDays] =
+    useState<MetricsPeriodDays>(30);
   const periodDays = periodDaysProp ?? internalPeriodDays;
   const [granularity, setGranularity] = useState<UsageGranularity>('daily');
   const [metric, setMetric] = useState<UsageMetric>('tokens');
@@ -257,9 +253,7 @@ export function UsageMetricsPage({
 
   const handlePeriod = useCallback(
     (v: string) => {
-      let next: 7 | 30 | 90 = 30;
-      if (v === '7') next = 7;
-      else if (v === '90') next = 90;
+      const next = parseMetricsPeriodDays(v);
       if (onChangePeriod) onChangePeriod(next);
       else setInternalPeriodDays(next);
     },

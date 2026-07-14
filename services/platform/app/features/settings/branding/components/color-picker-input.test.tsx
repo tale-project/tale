@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, fireEvent } from '@/tests/utils/render';
 
 import { ColorPickerInput } from './color-picker-input';
 
@@ -136,7 +136,7 @@ describe('ColorPickerInput', () => {
       />,
     );
 
-    const swatch = screen.getByLabelText('Pick color');
+    const swatch = screen.getByLabelText('Pick Color');
     expect(swatch).toHaveStyle({ backgroundColor: '#FF0000' });
   });
 
@@ -153,12 +153,12 @@ describe('ColorPickerInput', () => {
     // An invalid/unset value falls back to the muted "empty slot" fill (a
     // class, not an inline color) so it doesn't read as an invisible white
     // block on the white field.
-    const swatch = screen.getByLabelText('Pick color');
+    const swatch = screen.getByLabelText('Pick Color');
     expect(swatch).toHaveClass('bg-muted');
     expect(swatch).not.toHaveStyle({ backgroundColor: '#FFFFFF' });
   });
 
-  it('associates label with input via id', () => {
+  it('gives the hex input an accessible name carrying the label', () => {
     render(
       <ColorPickerInput
         value="#000000"
@@ -168,8 +168,11 @@ describe('ColorPickerInput', () => {
       />,
     );
 
-    const label = screen.getByText('Accent color');
-    expect(label).toHaveAttribute('for', 'accent');
+    // SettingsRow labels the row; the input itself carries a localized
+    // aria-label interpolating the field label.
+    expect(
+      screen.getByRole('textbox', { name: /Accent color/ }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

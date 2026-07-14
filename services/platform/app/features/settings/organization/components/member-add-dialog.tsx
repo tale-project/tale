@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { ConvexError } from 'convex/values';
@@ -19,7 +20,10 @@ import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/quer
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
+import {
+  createOptionalPasswordSchema,
+  isPasswordValid,
+} from '@/lib/shared/schemas/password';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import { useCreateMember } from '../hooks/mutations';
@@ -127,6 +131,19 @@ export function AddMemberDialog({
     }
   }, [emailBelongsToExistingUser, password, setValue]);
 
+  // Proactive-validation parity with the sibling password forms (#2687): a
+  // brand-new email cannot be created without a password, so keep submit
+  // disabled until the typed password satisfies the policy instead of letting
+  // the click bounce off the backend's PASSWORD_REQUIRED error. An existing
+  // user's credentials are reused, so that path stays gated by the schema
+  // alone. This lives outside the Zod schema because the existing-user flag
+  // flips asynchronously (debounced lookup) without an input event, which
+  // would leave a schema-derived `isValid` stale; the PASSWORD_REQUIRED
+  // handler below remains the backstop for that lookup race.
+  const canSubmit =
+    formState.isValid &&
+    (emailBelongsToExistingUser || isPasswordValid(password, policy));
+
   const onSubmit = async (data: AddMemberFormData) => {
     try {
       const result = await createMember({
@@ -214,7 +231,7 @@ export function AddMemberDialog({
         submitText={tDialogs('addMember.title')}
         submittingText={tCommon('actions.adding')}
         isSubmitting={isSubmitting}
-        isValid={formState.isValid}
+        isValid={canSubmit}
         onSubmit={handleSubmit(onSubmit)}
       >
         <Input
@@ -263,9 +280,10 @@ export function AddMemberDialog({
         />
 
         {emailBelongsToExistingUser ? (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
-            {tDialogs('addMember.existingUserHint')}
-          </div>
+          <Alert
+            variant="info"
+            description={tDialogs('addMember.existingUserHint')}
+          />
         ) : (
           <FormSection>
             <Input
@@ -296,14 +314,16 @@ export function AddMemberDialog({
       >
         <Stack gap={4}>
           {isExistingUser ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
-              {tDialogs('memberAdded.existingUserNotice')}
-            </div>
+            <Alert
+              variant="info"
+              description={tDialogs('memberAdded.existingUserNotice')}
+            />
           ) : (
             <>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
-                {tDialogs('memberAdded.credentialsWarning')}
-              </div>
+              <Alert
+                variant="warning"
+                description={tDialogs('memberAdded.credentialsWarning')}
+              />
 
               {credentials && (
                 <Stack gap={4}>

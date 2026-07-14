@@ -128,7 +128,7 @@ function memberPreview(overrides: Partial<Record<string, unknown>> = {}) {
 
 function renderWizard(
   overrides: Partial<
-    Pick<BundleInstallWizardProps, 'scope' | 'projectId'>
+    Pick<BundleInstallWizardProps, 'scope' | 'projectId' | 'onOpenChange'>
   > = {},
 ) {
   return render(
@@ -389,8 +389,13 @@ describe('BundleInstallWizard', () => {
     expect(screen.queryByText('Email is ready')).not.toBeInTheDocument();
   });
 
-  it("Finish lands on the bound project's automation desk for a project-scoped bundle install", async () => {
-    const { user } = renderWizard({ scope: 'project', projectId: 'proj_1' });
+  it('Finish closes the wizard without navigating away — installing must not redirect', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = renderWizard({
+      scope: 'project',
+      projectId: 'proj_1',
+      onOpenChange,
+    });
 
     await screen.findByText('Ready to install Email (2 automations).');
     await user.click(screen.getByRole('button', { name: 'Next' }));
@@ -398,14 +403,7 @@ describe('BundleInstallWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Finish' }));
 
-    expect(navigateSpy).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-      params: {
-        id: 'org_1',
-        projectId: 'proj_1',
-        automationSlug: 'reply-gmail-emails',
-      },
-      search: {},
-    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 });

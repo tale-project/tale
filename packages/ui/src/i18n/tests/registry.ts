@@ -38,12 +38,14 @@ import { terminologyLoanword } from './checks/terminology-loanword';
 import { terminologyUiLabel } from './checks/terminology-ui-label';
 import type { Check } from './checks/types';
 import { usage } from './checks/usage';
+import { usageMissing } from './checks/usage-missing';
 import { voiceDrift } from './checks/voice-drift';
 import { voiceStrikes } from './checks/voice-strikes';
 
 export const CHECKS: ReadonlyArray<Check> = [
   parity,
   usage,
+  usageMissing,
   pronounsFormal,
   terminologyLoanword,
   terminologyHalfCompound,

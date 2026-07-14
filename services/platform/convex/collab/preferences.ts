@@ -28,6 +28,9 @@ const prefsValidator = v.object({
   taskReview: v.optional(v.boolean()),
   escalation: v.optional(v.boolean()),
   automationAlerts: v.optional(v.boolean()),
+  // RETIRED — the workforce digest emitter and its Settings toggle are gone;
+  // accepted + returned only while stored rows drain (0.3.5 ships the strip
+  // migration and drops it here and from the table schema).
   digest: v.optional(v.boolean()),
   conversationMessages: v.optional(v.boolean()),
   actionableEmail: v.optional(v.boolean()),

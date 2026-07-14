@@ -27,15 +27,14 @@ vi.mock('../_generated/api', () => ({
         syncDefaultAgentInstallations: 'syncDefaultAgentInstallations',
       },
     },
-    workflows: {
-      provision_defaults: {
-        syncDefaultWorkflowInstallations: 'syncDefaultWorkflowInstallations',
-      },
-    },
     automations: {
       install_mutations: {
         listAutomationInstallationsInternal:
           'listAutomationInstallationsInternal',
+      },
+      provision_defaults: {
+        syncDefaultAutomationInstallations:
+          'syncDefaultAutomationInstallations',
       },
     },
   },
@@ -76,12 +75,7 @@ type ActionConfig = {
     ctx: never,
     args: {
       organizationId: string;
-      domain:
-        | 'agents'
-        | 'workflows'
-        | 'integrations'
-        | 'automations'
-        | 'skills';
+      domain: 'agents' | 'integrations' | 'automations' | 'skills';
     },
   ) => Promise<{ updated: number; backedUp: number }>;
 };
@@ -158,7 +152,7 @@ function orgDst(...parts: string[]): string {
   return path.join(configRoot, 'acme', ...parts);
 }
 
-describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
+describe('syncDomainFromBuiltin — tree domains (agents)', () => {
   it('overwrites changed builtin agents, backs the previous version into the entry history, and counts', async () => {
     await writeText(
       catSrc('agents', 'chat', 'assistant.json'),
@@ -271,39 +265,6 @@ describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
     );
     expect(existsSync(orgDst('agents', '.history', 'other', '1.json'))).toBe(
       true,
-    );
-  });
-
-  it('backs a changed workflow into the flattened-slug history and schedules the workflow provisioner', async () => {
-    await writeText(
-      catSrc('workflows', 'github', 'sync.json'),
-      '{"name":"new"}',
-    );
-    await writeText(
-      orgDst('workflows', 'github', 'sync.json'),
-      '{"name":"old"}',
-    );
-
-    const ctx = createMockCtx();
-    const result = await syncHandler(ctx as never, {
-      organizationId: 'org1',
-      domain: 'workflows',
-    });
-
-    expect(result).toEqual({ updated: 1, backedUp: 1 });
-    expect(
-      await readFile(orgDst('workflows', 'github', 'sync.json'), 'utf-8'),
-    ).toBe('{"name":"new"}');
-    const historyDir = orgDst('workflows', '.history', 'github__sync');
-    const entries = await readdir(historyDir);
-    expect(entries).toHaveLength(1);
-    expect(
-      await readFile(path.join(historyDir, entries[0] ?? ''), 'utf-8'),
-    ).toBe('{"name":"old"}');
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
-      0,
-      'syncDefaultWorkflowInstallations',
-      { organizationId: 'org1', orgSlug: 'acme' },
     );
   });
 });
@@ -456,6 +417,15 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/automations/ski
     expect(mockPrepareInstall).toHaveBeenCalledTimes(1);
     expect(mockPrepareInstall).toHaveBeenCalledWith(ctx, 'org1', 'issue-desk');
     expect(mockEnsureOrgResources).toHaveBeenCalledTimes(1);
+
+    // A resync can also DELIVER new autoInstall packs: whenever any bundle
+    // changed, the default-automation provisioner is scheduled after the
+    // reinstall pass (same hook the org-create flow uses).
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultAutomationInstallations',
+      { organizationId: 'org1', orgSlug: 'acme' },
+    );
   });
 
   it('automations sync: refreshes a changed bundle from the catalog', async () => {
@@ -486,6 +456,24 @@ describe('syncDomainFromBuiltin — bundle domains (integrations/automations/ski
         'utf-8',
       ),
     ).toBe('{"v":"new"}');
+    // Post-resync provisioning hook: scheduled because a bundle changed.
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultAutomationInstallations',
+      { organizationId: 'org1', orgSlug: 'acme' },
+    );
+
+    // Second run: everything already in sync (updated === 0) — the
+    // provisioner is NOT re-scheduled (unlike the agents domain, which
+    // doubles as install-row recovery).
+    const ctx2 = createMockCtx();
+    ctx2.runQuery.mockResolvedValue(['issue-desk']);
+    const second = await syncHandler(ctx2 as never, {
+      organizationId: 'org1',
+      domain: 'automations',
+    });
+    expect(second).toEqual({ updated: 0, backedUp: 0 });
+    expect(ctx2.scheduler.runAfter).not.toHaveBeenCalled();
   });
 
   it('a failing app reinstall does not fail the sync of the files', async () => {

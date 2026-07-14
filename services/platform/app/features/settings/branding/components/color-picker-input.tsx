@@ -6,6 +6,8 @@ import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useRef } from 'react';
 
+import { SettingsRow } from '@/app/features/settings/components/settings-row';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface ColorPickerInputProps {
@@ -21,6 +23,7 @@ export function ColorPickerInput({
   label,
   id,
 }: ColorPickerInputProps) {
+  const { t } = useT('settings');
   const colorInputRef = useRef<HTMLInputElement>(null);
 
   const handleSwatchClick = useCallback(() => {
@@ -65,7 +68,7 @@ export function ColorPickerInput({
   const control = (
     <div
       className={cn(
-        'border-border flex items-center overflow-clip rounded-md border shadow-xs',
+        'border-border flex h-9 items-center overflow-clip rounded-md border shadow-xs',
       )}
     >
       <button
@@ -78,7 +81,7 @@ export function ColorPickerInput({
           !isValidHex && 'bg-muted',
         )}
         style={isValidHex ? { backgroundColor: value } : undefined}
-        aria-label={`Pick ${label.toLowerCase()}`}
+        aria-label={t('branding.pickColorAria', { label })}
       />
       <input
         ref={colorInputRef}
@@ -101,21 +104,15 @@ export function ColorPickerInput({
           maxLength={8}
           placeholder="6366F1"
           className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
-          aria-label={`${label} hex value`}
+          aria-label={t('branding.hexValueAria', { label })}
         />
       </Row>
     </div>
   );
 
   return (
-    <Row gap={0} align="stretch" justify="between">
-      <label
-        htmlFor={id}
-        className="text-foreground text-sm leading-5 font-medium"
-      >
-        {label}
-      </label>
+    <SettingsRow label={label}>
       {loading ? <SkeletonBox>{control}</SkeletonBox> : control}
-    </Row>
+    </SettingsRow>
   );
 }

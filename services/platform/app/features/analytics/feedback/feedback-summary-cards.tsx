@@ -5,11 +5,10 @@ import { useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
-import { useTranslation } from 'react-i18next';
 
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { formatNumber } from '@/lib/utils/format/number';
 
 interface FeedbackSummaryCardsProps {
   helpful: number;
@@ -20,23 +19,6 @@ interface FeedbackSummaryCardsProps {
   previous?: { positive: number; negative: number; total: number };
 }
 
-function formatPercent(
-  positive: number,
-  total: number,
-  locale: string,
-): string {
-  if (total === 0) return '—';
-  const ratio = positive / total;
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: 'percent',
-      maximumFractionDigits: 1,
-    }).format(ratio);
-  } catch {
-    return `${Math.round(ratio * 100)}%`;
-  }
-}
-
 export function FeedbackSummaryCards({
   helpful,
   notHelpful,
@@ -44,12 +26,12 @@ export function FeedbackSummaryCards({
   previous,
 }: FeedbackSummaryCardsProps) {
   const { t } = useT('analytics');
-  const { i18n } = useTranslation();
+  const { formatNumber, formatPercentShare } = useFormatNumber();
   const loading = useSkeleton();
   const total = helpful + notHelpful;
   const positivePct = total === 0 ? 0 : helpful / total;
   const negativePct = total === 0 ? 0 : notHelpful / total;
-  const sentimentLabel = formatPercent(helpful, total, i18n.language);
+  const sentimentLabel = formatPercentShare(helpful, total);
 
   // Sentiment delta compares the positive share across windows (higher = good).
   const prevTotal = previous ? previous.positive + previous.negative : 0;
@@ -78,8 +60,8 @@ export function FeedbackSummaryCards({
                 ? t('feedback.cards.sentimentCapped')
                 : t('feedback.cards.sentimentAriaLabel', {
                     pct: sentimentLabel,
-                    helpful: formatNumber(helpful, i18n.language),
-                    total: formatNumber(total, i18n.language),
+                    helpful: formatNumber(helpful),
+                    total: formatNumber(total),
                   })
             }
           >
@@ -96,8 +78,8 @@ export function FeedbackSummaryCards({
           {!loading && !capped && total > 0 ? (
             <Text variant="caption">
               {t('feedback.cards.sentimentDenominator', {
-                helpful: formatNumber(helpful, i18n.language),
-                total: formatNumber(total, i18n.language),
+                helpful: formatNumber(helpful),
+                total: formatNumber(total),
               })}
             </Text>
           ) : null}
@@ -121,11 +103,11 @@ export function FeedbackSummaryCards({
             aria-hidden="true"
           >
             <div
-              className="absolute inset-y-0 left-0 bg-emerald-500"
+              className="bg-chart-success absolute inset-y-0 left-0"
               style={{ width: `${positivePct * 100}%` }}
             />
             <div
-              className="absolute inset-y-0 bg-rose-500"
+              className="bg-chart-failure absolute inset-y-0"
               style={{
                 left: `${positivePct * 100}%`,
                 width: `${negativePct * 100}%`,
@@ -136,8 +118,8 @@ export function FeedbackSummaryCards({
       </div>
       <StatCard
         label={t('feedback.cards.helpful')}
-        value={formatNumber(helpful, i18n.language)}
-        valueClassName="text-emerald-600 dark:text-emerald-400"
+        value={formatNumber(helpful)}
+        valueClassName="text-chart-success"
       >
         <div className="mt-0.5">
           <TrendIndicator value={helpful} previous={previous?.positive} />
@@ -145,8 +127,8 @@ export function FeedbackSummaryCards({
       </StatCard>
       <StatCard
         label={t('feedback.cards.notHelpful')}
-        value={formatNumber(notHelpful, i18n.language)}
-        valueClassName="text-rose-600 dark:text-rose-400"
+        value={formatNumber(notHelpful)}
+        valueClassName="text-chart-failure"
       >
         <div className="mt-0.5">
           <TrendIndicator

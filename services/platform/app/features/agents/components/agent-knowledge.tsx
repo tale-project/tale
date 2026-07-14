@@ -1,22 +1,21 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
 import { Row } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { toast } from '@/app/hooks/use-toast';
 import type { KnowledgeFile } from '@/convex/agents/schema';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -28,6 +27,7 @@ import { useRemoveKnowledgeFile } from '../hooks/mutations';
 import { useAgentBinding } from '../hooks/queries';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentFileUpload } from '../hooks/use-agent-file-upload';
+import { AgentTabContent } from './agent-tab-content';
 
 interface AgentKnowledgeProps {
   organizationId: string;
@@ -236,24 +236,21 @@ export function AgentKnowledge({
   );
 
   return (
-    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
-      <SectionHeader
-        title={t('agents.form.sectionKnowledge')}
-        description={
-          <>
-            {t('agents.form.sectionKnowledgeDescription')}
-            {'. '}
-            {t('agents.form.knowledgeHint')}{' '}
-            <Link
-              to="/dashboard/$id/documents"
-              params={{ id: organizationId }}
-              className="text-primary hover:underline"
-            >
-              {t('agents.form.knowledgeHintLink')}
-            </Link>
-          </>
-        }
-      />
+    <AgentTabContent>
+      {/* No tab-level heading — the tab strip already names the tab (the same
+          no-page-title rule as settings pages); the description leads alone. */}
+      <Text variant="muted" className="text-sm">
+        {t('agents.form.sectionKnowledgeDescription')}
+        {'. '}
+        {t('agents.form.knowledgeHint')}{' '}
+        <Link
+          to="/dashboard/$id/documents"
+          params={{ id: organizationId }}
+          className="text-primary hover:underline"
+        >
+          {t('agents.form.knowledgeHintLink')}
+        </Link>
+      </Text>
 
       <RadioGroup
         label={t('agents.knowledge.retrievalMode')}
@@ -268,7 +265,7 @@ export function AgentKnowledge({
 
       {isEnabled && (
         <>
-          <Switch
+          <SettingsToggleRow
             checked={includeTeamKnowledge}
             onCheckedChange={(checked) =>
               updateConfig({ includeTeamKnowledge: checked })
@@ -285,11 +282,11 @@ export function AgentKnowledge({
               title={t('agents.knowledge.teamDocuments')}
               gap={3}
             >
-              <div className="divide-y rounded-lg border">
+              <Card padding="none" className="divide-y overflow-hidden">
                 {teamDocuments.map((doc) => (
                   <DocumentRow key={doc.id} doc={doc} />
                 ))}
-              </div>
+              </Card>
             </PageSection>
           )}
 
@@ -301,7 +298,7 @@ export function AgentKnowledge({
               </EmptyPlaceholder>
             )}
 
-          <Switch
+          <SettingsToggleRow
             checked={includeOrgKnowledge}
             onCheckedChange={(checked) =>
               updateConfig({ includeOrgKnowledge: checked })
@@ -318,11 +315,11 @@ export function AgentKnowledge({
               title={t('agents.knowledge.orgDocuments')}
               gap={3}
             >
-              <div className="divide-y rounded-lg border">
+              <Card padding="none" className="divide-y overflow-hidden">
                 {orgDocuments.map((doc) => (
                   <DocumentRow key={doc.id} doc={doc} />
                 ))}
-              </div>
+              </Card>
             </PageSection>
           )}
 
@@ -343,7 +340,7 @@ export function AgentKnowledge({
             gap={3}
           >
             {knowledgeFiles.length > 0 && (
-              <div className="divide-y rounded-lg border">
+              <Card padding="none" className="divide-y overflow-hidden">
                 {knowledgeFiles.map((file: KnowledgeFile) => (
                   <AgentFileRow
                     key={file.fileId}
@@ -352,7 +349,7 @@ export function AgentKnowledge({
                     isReadOnly={false}
                   />
                 ))}
-              </div>
+              </Card>
             )}
 
             {knowledgeFiles.length === 0 && (
@@ -386,6 +383,6 @@ export function AgentKnowledge({
           </PageSection>
         </>
       )}
-    </ContentArea>
+    </AgentTabContent>
   );
 }

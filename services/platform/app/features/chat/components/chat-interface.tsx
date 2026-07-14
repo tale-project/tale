@@ -1313,7 +1313,14 @@ export function ChatInterface({
                 isAgentLoading={isAgentLoading}
                 agentName={effectiveAgent?.displayName}
                 conversationStarters={effectiveAgent?.conversationStarters}
-                onSuggestionClick={setInputValue}
+                onSuggestionClick={(starter) => {
+                  // Starters fill the composer; when the composer is hard-
+                  // disabled for a missing API key the fill would sit under
+                  // the absolute reason overlay and double-print. Skip until
+                  // a key exists (the Open-provider-settings CTA is the path).
+                  if (missingKeyBlocked) return;
+                  setInputValue(starter);
+                }}
               />
             )}
 

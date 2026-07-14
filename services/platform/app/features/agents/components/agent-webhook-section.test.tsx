@@ -45,6 +45,8 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 // Resolved from messages/en.json (settings.agents.webhook.*) — the exact t()
 // keys the E2E asserted.
 const TITLE = 'Webhooks';
+const DESCRIPTION =
+  'Create unique URLs to chat with this agent from external systems.';
 const CREATE_BUTTON = 'Create webhook';
 const EMPTY_TITLE = 'No webhooks yet';
 const COPY_URL = 'Copy webhook URL';
@@ -72,16 +74,17 @@ afterEach(() => {
 });
 
 describe('AgentWebhookSection', () => {
-  it('renders the section heading, create affordance, and empty state', async () => {
+  it('renders the description lead-in, create affordance, and empty state', async () => {
     const { container } = render(
       <AgentWebhookSection organizationId="org-1" agentSlug="e2e-editor" />,
     );
 
-    // Primary section heading (SectionHeader defaults to h2 — matches the E2E's
-    // `level: 2`).
+    // No tab-level heading — the tab strip names the tab (settings
+    // no-page-title rule); the description leads the content instead.
     expect(
-      screen.getByRole('heading', { name: TITLE, level: 2 }),
-    ).toBeInTheDocument();
+      screen.queryByRole('heading', { name: TITLE, level: 2 }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(DESCRIPTION)).toBeInTheDocument();
 
     // The create affordance.
     expect(

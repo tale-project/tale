@@ -24,14 +24,10 @@
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
  *     flat: per-file atomicWrite (providers/prompts/governance —
  *     governance also carries the `retention.json` bounds catalog as a
- *     flat file); dir-bundle (skills/integrations/apps): a staged copy
- *     atomic-renamed over `<per-bundle>` (`replaceBundleDir`) — for the
- *     `apps` domain specifically, an installed app's `workflows/` subtree is
- *     write-once (an installed workflow is user-owned/editable), so it's
- *     overlaid back onto the fresh copy before the rename (see
- *     `keepInstalledWorkflows`); tree (agents/workflows/branding): per-file
- *     overwrite recursing into subdirs (agents chat/github folders, workflows
- *     per-provider folders, user-only folders / images preserved).
+ *     flat file); dir-bundle (skills/integrations/automations): a staged
+ *     copy atomic-renamed over `<per-bundle>` (`replaceBundleDir`); tree
+ *     (agents/branding): per-file overwrite recursing into subdirs
+ *     (agent folders, user-only folders / images preserved).
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
  * one tree under org-first), guarded by validateOrgSlug + verifyPathWithinBase
@@ -122,6 +118,41 @@ async function dirHasFiles(dir: string): Promise<boolean> {
   } catch (err) {
     if (errnoCode(err) !== 'ENOENT') {
       console.warn('[scaffold.dirHasFiles] readdir failed:', dir, err);
+    }
+    return false;
+  }
+}
+
+/**
+ * Source-side companion to {@link dirHasFiles}: does this CATALOG dir contain
+ * anything the scaffold copy would actually seed? Mirrors {@link copyTree}'s
+ * name-level source filters exactly — dotfiles (`.gitkeep`, `.history/`, tmp
+ * orphans), `SKIP_DIR_NAMES`, and `*.secrets.json` are never copied, so they
+ * must not count as seedable either. Without this, a catalog domain holding
+ * only a `.gitkeep` (the e2e/manual fixture catalog ships three) is reported
+ * missing forever: the probe sees "content", the copy seeds nothing, and the
+ * provisioning banner + retry loop can never converge (#2676).
+ *
+ * Deliberately NOT used for target-side checks: a target holding only
+ * `.history/` is *occupied* (see {@link seedDomain}'s override:false skip),
+ * and the probe's target side must agree with that skip. Deeper type-level
+ * mismatches (symlink-only or subdir-only sources a specific scaffoldKind
+ * would skip) stay out of scope here — `retryProvisioning`'s post-repair
+ * re-probe reports those honestly instead.
+ */
+async function dirHasSeedableEntries(dir: string): Promise<boolean> {
+  try {
+    const entries = await readdir(dir);
+    return entries.some(
+      (n) => !n.startsWith('.') && !SKIP_DIR_NAMES.has(n) && !shouldSkipFile(n),
+    );
+  } catch (err) {
+    if (errnoCode(err) !== 'ENOENT') {
+      console.warn(
+        '[scaffold.dirHasSeedableEntries] readdir failed:',
+        dir,
+        err,
+      );
     }
     return false;
   }
@@ -291,11 +322,9 @@ export async function copyTree(
  * Copy `sourceDir` into `targetDir` verbatim — unlike {@link copyTree}, this
  * keeps `*.secrets.json` and any `.history/` trail (dotfiles included): its
  * job is to preserve everything a destructive bundle replace would otherwise
- * destroy. Skips symlinks (never dereference). Shared by the per-domain admin
+ * destroy. Skips symlinks (never dereference). Used by the per-domain admin
  * sync's bundle backup (`organizations/builtin_sync.ts`, org bundle → its
- * `.history/` backup) and {@link keepInstalledWorkflows} (org `workflows/` →
- * the freshly-staged copy) — same "copy everything as-is" primitive, two
- * directions.
+ * `.history/` backup).
  */
 export async function copyTreeVerbatim(
   sourceDir: string,
@@ -858,11 +887,14 @@ export async function scaffoldOrgFromCatalog(args: {
 
 /**
  * Derived provisioning status for one org: the scaffold-covered domains whose
- * builtin catalog dir HAS files while the org's dir has none — i.e. the
- * org-create seed would have copied something but demonstrably didn't (the
+ * builtin catalog dir HAS seedable files while the org's dir has none — i.e.
+ * the org-create seed would have copied something but demonstrably didn't (the
  * failure mode a crashed/skipped `scaffoldNewOrganization` leaves behind).
- * Deliberately file-derived rather than persisted: no schema change, and the
- * signal self-heals the moment a retry (or any reseed) lands the files.
+ * "Seedable" mirrors what the copy actually copies (`dirHasSeedableEntries`):
+ * a catalog dir holding only dotfiles/secrets seeds nothing, so it is never
+ * reported missing (#2676). Deliberately file-derived rather than persisted:
+ * no schema change, and the signal self-heals the moment a retry (or any
+ * reseed) lands the files.
  *
  * Returns `null` when the probe cannot run (config root or builtin catalog
  * env unset) — callers must treat that as "unknown", not "unprovisioned",
@@ -883,8 +915,12 @@ export async function listMissingScaffoldDomains(
   for (const domain of CONFIG_DOMAINS) {
     if (!domain.scaffoldKind) continue; // not catalog-scaffolded (e.g. sso)
     const sourceDir = path.join(catalogRoot, domain.name);
-    if (!(await dirHasFiles(sourceDir))) continue; // nothing to seed from
+    // Source side: only entries the copy would seed count (#2676).
+    if (!(await dirHasSeedableEntries(sourceDir))) continue; // nothing to seed from
     const targetDir = resolveDomainDir(domain.name, orgSlug);
+    // Target side: `dirHasFiles` on purpose — it must agree with
+    // `seedDomain`'s override:false occupied-skip (a `.history/`-only target
+    // is occupied, not missing, or retry could never clear it).
     if (!(await dirHasFiles(targetDir))) missing.push(domain.name);
   }
   return missing;

@@ -103,11 +103,25 @@ const AGENT_SET_ARRAY_FIELDS = [
 ] as const;
 
 /**
- * Canonicalize an agent config: sort the set-like string arrays. Does not
- * touch ordered arrays. Pure — returns a new object.
+ * Canonicalize an agent config: sort the set-like string arrays and drop an
+ * explicit `primaryBehavior: 'chat'` (the field is optional and every reader
+ * resolves it as `config.primaryBehavior ?? 'chat'`, so the absent key and the
+ * explicit default are the same effective config). Without this, the agent-type
+ * switcher writing the resolved literal back reads as a permanent unsaved
+ * change on legacy agents whose file never carried the key. Does not touch
+ * ordered arrays. Pure — returns a new object.
  */
 export function canonicalizeAgentConfig<T extends object>(config: T): T {
-  return sortStringArrayFields(config, AGENT_SET_ARRAY_FIELDS);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- record reflection over a known object
+  const next = sortStringArrayFields(config, AGENT_SET_ARRAY_FIELDS) as Record<
+    string,
+    unknown
+  >;
+  if (next.primaryBehavior === 'chat') {
+    delete next.primaryBehavior;
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same shape minus a redundant default
+  return next as T;
 }
 
 /**

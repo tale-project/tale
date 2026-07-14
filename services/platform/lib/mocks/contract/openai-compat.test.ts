@@ -111,6 +111,55 @@ describe('chat/completions override', () => {
     expect(text).toContain('"finish_reason":"tool_calls"');
   });
 
+  test('file-write trigger emits file_write tool calls, then acks on resume (#2688)', async () => {
+    const first = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content: 'e2e:filewrite go' }],
+    });
+    const firstText = await first.text();
+    expect(firstText).toContain('file_write');
+    expect(firstText).toContain('/user/output/report.md');
+    expect(firstText).toContain('"finish_reason":"tool_calls"');
+
+    // Resume turn (a tool result is now in the conversation) streams the
+    // plain-text ack instead of re-emitting the tool calls.
+    const resume = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [
+        { role: 'user', content: 'e2e:filewrite go' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_e2e_fw_0',
+              type: 'function',
+              function: { name: 'file_write', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', content: '{"ok":true}' },
+      ],
+    });
+    const resumeText = await resume.text();
+    expect(resumeText).not.toContain('"finish_reason":"tool_calls"');
+    expect(resumeText).toContain('Canvas');
+  });
+
+  test('plan trigger emits an update_todos tool call (#2688)', async () => {
+    const res = await post('/v1/chat/completions', {
+      model: 'm',
+      stream: true,
+      messages: [{ role: 'user', content: 'e2e:plan go' }],
+    });
+    const text = await res.text();
+    expect(text).toContain('update_todos');
+    expect(text).toContain('in_progress');
+    expect(text).toContain('"finish_reason":"tool_calls"');
+  });
+
   test('docs phrase streams its scripted reply (reasoning first)', async () => {
     const scripted = DOCS_REPLIES.find((entry) => entry.reasoning);
     if (!scripted) throw new Error('expected a docs reply with reasoning');

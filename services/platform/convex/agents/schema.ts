@@ -123,14 +123,15 @@ export const autoRouteCacheTable = defineTable({
  * (`listAgentsForOrg`) joins this table and filters to installed && enabled, so
  * the router, @mention resolution, and the org-chart reads all gate for free.
  *
- *  - INSTALLED      = a row exists (provisioned by autoInstall, an integration
- *                     bundle, or an explicit user/manager-agent install).
+ *  - INSTALLED      = a row exists (provisioned by autoInstall or an explicit
+ *                     user/manager-agent install).
  *  - ENABLED        = `enabled !== false`; a disabled row keeps the agent's
  *                     config but removes it as a routing/mention/assignment
  *                     candidate.
  *  - `installedBy`  = 'system' | a userId | 'integration:<slug>' (provenance).
- *  - `bundledBy`    = the integration slug that installed it (cascade key;
- *                     `by_org_bundledBy` finds everything to cascade-disable).
+ *  - `bundledBy`    = RETIRED — was the integration slug that auto-installed
+ *                     this row, for the disconnect cascade to find via
+ *                     `by_org_bundledBy`. No longer written or read.
  *  - `disabledReason` = why a disabled row is off — `integration_disabled`
  *                     (cascade; re-enabled only by reconnect) vs `user`
  *                     (explicit; never resurrected by a cascade).
@@ -145,6 +146,11 @@ export const agentInstallationsTable = defineTable({
   disabledReason: v.optional(
     v.union(v.literal('integration_disabled'), v.literal('user')),
   ),
+  // RETIRED — the integration-bundles auto-install/cascade mechanism that
+  // wrote and read this field was removed (see convex/integrations/cascade.ts,
+  // credential_mutations.ts). No longer written or read in live code; the
+  // field (and `by_org_bundledBy` below) stay until the migration draining
+  // existing rows ships, then drop both.
   bundledBy: v.optional(v.string()),
   // Set iff this agent belongs to an installed app (composite slug
   // `<automationSlug>/<name>`). The recorded, authoritative owner — stamped at app

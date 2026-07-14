@@ -22,7 +22,7 @@ export function validateAgentSlug(slug: string): boolean {
  * Fallback slug for a legacy file that carries no explicit `slug` field — the
  * file basename without extension. Only used when `config.slug` is absent;
  * authored agents always set `slug` so identity survives file moves/renames.
- * "github/pull-request-reviewer.json" → "pull-request-reviewer"
+ * "chat/integration-assistant.json" → "integration-assistant"
  */
 export function agentSlugFromFileName(relativePath: string): string {
   const base =

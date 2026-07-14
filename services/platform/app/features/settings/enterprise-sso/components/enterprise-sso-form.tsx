@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
@@ -17,6 +18,7 @@ import {
 } from 'react-hook-form';
 import { z } from 'zod';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
   useRegisterActiveEditor,
@@ -210,6 +212,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const regenScim = useRegenerateScimToken();
   const disableScim = useDisableScim();
   const revealClientId = useRevealOidcClientId();
+
+  // Disable/Remove are destructive (org-wide sign-in impact) — both confirm
+  // through a dialog before firing; this holds which one is pending.
+  const [pendingAction, setPendingAction] = useState<
+    'disable' | 'remove' | null
+  >(null);
 
   const [scimToken, setScimToken] = useState<string | null>(null);
   // The stored client id, revealed on demand (the read view omits it). Held in
@@ -930,73 +938,72 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   {/* Import IdP metadata (#2652): parse the federation-metadata
                       XML (by URL or upload) server-side and prefill the three
                       fields below — they stay editable as the review step. */}
-                  <Stack
-                    gap={3}
-                    className="border-border rounded-md border p-3"
-                  >
-                    <Stack gap={1}>
-                      <Text variant="label" className="text-sm">
-                        {t('integrations.enterpriseSso.metadata.title')}
-                      </Text>
-                      <Text variant="muted" className="text-xs">
-                        {t('integrations.enterpriseSso.metadata.help')}
-                      </Text>
-                    </Stack>
-                    <Row gap={2} align="end" wrap>
-                      <Input
-                        id="saml-metadata-url"
-                        label={t(
-                          'integrations.enterpriseSso.metadata.urlLabel',
-                        )}
-                        placeholder="https://idp.example.com/federationmetadata.xml"
-                        value={metadataUrl}
-                        onChange={(e) => setMetadataUrl(e.target.value)}
-                        wrapperClassName="min-w-0 flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={
-                          !isHttpUrl(metadataUrl.trim()) ||
-                          parseMetadata.isPending
-                        }
-                        onClick={() =>
-                          void importMetadata({ url: metadataUrl.trim() })
-                        }
-                      >
-                        {parseMetadata.isPending && (
-                          <Loader2 className="size-4 animate-spin" />
-                        )}
-                        {t('integrations.enterpriseSso.metadata.importUrl')}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={parseMetadata.isPending}
-                        onClick={() => metadataFileRef.current?.click()}
-                      >
-                        {t('integrations.enterpriseSso.metadata.uploadXml')}
-                      </Button>
-                      {/* Hidden picker; the visible button above carries the
+                  <Card padding="sm">
+                    <Stack gap={3}>
+                      <Stack gap={1}>
+                        <Text variant="label" className="text-sm">
+                          {t('integrations.enterpriseSso.metadata.title')}
+                        </Text>
+                        <Text variant="muted" className="text-xs">
+                          {t('integrations.enterpriseSso.metadata.help')}
+                        </Text>
+                      </Stack>
+                      <Row gap={2} align="end" wrap>
+                        <Input
+                          id="saml-metadata-url"
+                          label={t(
+                            'integrations.enterpriseSso.metadata.urlLabel',
+                          )}
+                          placeholder="https://idp.example.com/federationmetadata.xml"
+                          value={metadataUrl}
+                          onChange={(e) => setMetadataUrl(e.target.value)}
+                          wrapperClassName="min-w-0 flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={
+                            !isHttpUrl(metadataUrl.trim()) ||
+                            parseMetadata.isPending
+                          }
+                          onClick={() =>
+                            void importMetadata({ url: metadataUrl.trim() })
+                          }
+                        >
+                          {parseMetadata.isPending && (
+                            <Loader2 className="size-4 animate-spin" />
+                          )}
+                          {t('integrations.enterpriseSso.metadata.importUrl')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={parseMetadata.isPending}
+                          onClick={() => metadataFileRef.current?.click()}
+                        >
+                          {t('integrations.enterpriseSso.metadata.uploadXml')}
+                        </Button>
+                        {/* Hidden picker; the visible button above carries the
                           accessible name. */}
-                      <input
-                        ref={metadataFileRef}
-                        type="file"
-                        accept=".xml,text/xml,application/samlmetadata+xml"
-                        className="hidden"
-                        tabIndex={-1}
-                        aria-hidden="true"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          // Allow re-selecting the same file after a fix.
-                          e.target.value = '';
-                          if (file) void handleMetadataFile(file);
-                        }}
-                      />
-                    </Row>
-                  </Stack>
+                        <input
+                          ref={metadataFileRef}
+                          type="file"
+                          accept=".xml,text/xml,application/samlmetadata+xml"
+                          className="hidden"
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            // Allow re-selecting the same file after a fix.
+                            e.target.value = '';
+                            if (file) void handleMetadataFile(file);
+                          }}
+                        />
+                      </Row>
+                    </Stack>
+                  </Card>
                   <Input
                     id="saml-entity"
                     label={t('integrations.enterpriseSso.idpEntityIdLabel')}
@@ -1216,16 +1223,19 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           </SettingsSection>
 
           {/* Inline actions: Disable / Remove (left) + Test (right). Save and
-              Discard live in the settings page header (via the active editor). */}
+              Discard live in the settings page header (via the active editor).
+              Both left actions are destructive-weight and confirm first —
+              Disable turns SSO sign-in off org-wide; Remove wipes the
+              connection entirely. */}
           <HStack justify="between" align="center" className="pt-2">
             <HStack gap={2}>
               {connected && (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
                   disabled={!canEdit}
-                  onClick={() => disableSso.mutateAsync({ organizationId })}
+                  onClick={() => setPendingAction('disable')}
                 >
                   {t('integrations.enterpriseSso.disable')}
                 </Button>
@@ -1233,13 +1243,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               {config?.configured && (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
                   disabled={!canEdit}
-                  onClick={async () => {
-                    await removeSso.mutateAsync({ organizationId });
-                    revealedRef.current = false;
-                  }}
+                  onClick={() => setPendingAction('remove')}
                 >
                   {t('integrations.enterpriseSso.remove')}
                 </Button>
@@ -1262,6 +1269,39 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           </HStack>
         </Stack>
       </fieldset>
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+        variant="destructive"
+        title={
+          pendingAction === 'remove'
+            ? t('integrations.enterpriseSso.removeConfirmTitle')
+            : t('integrations.enterpriseSso.disableConfirmTitle')
+        }
+        description={
+          pendingAction === 'remove'
+            ? t('integrations.enterpriseSso.removeConfirmDescription')
+            : t('integrations.enterpriseSso.disableConfirmDescription')
+        }
+        confirmText={
+          pendingAction === 'remove'
+            ? t('integrations.enterpriseSso.remove')
+            : t('integrations.enterpriseSso.disable')
+        }
+        isLoading={disableSso.isPending || removeSso.isPending}
+        onConfirm={async () => {
+          if (pendingAction === 'remove') {
+            await removeSso.mutateAsync({ organizationId });
+            revealedRef.current = false;
+          } else if (pendingAction === 'disable') {
+            await disableSso.mutateAsync({ organizationId });
+          }
+          setPendingAction(null);
+        }}
+      />
     </form>
   );
 }
@@ -1336,41 +1376,43 @@ function RoleMappingRulesEditor({
   }));
 
   return (
-    <Stack gap={3} className="border-border rounded-md border p-3">
-      <Text variant="muted" className="text-sm">
-        {t('integrations.enterpriseSso.roleMapping.help')}
-      </Text>
-      {fields.length === 0 ? (
+    <Card padding="sm">
+      <Stack gap={3}>
         <Text variant="muted" className="text-sm">
-          {t('integrations.enterpriseSso.roleMapping.empty')}
+          {t('integrations.enterpriseSso.roleMapping.help')}
         </Text>
-      ) : (
-        <Stack gap={3}>
-          {fields.map((field, index) => (
-            <RoleMappingRuleRow
-              key={field.id}
-              control={control}
-              index={index}
-              sourceOptions={sourceOptions}
-              roleOptions={roleOptions}
-              onRemove={() => remove(index)}
-            />
-          ))}
-        </Stack>
-      )}
-      <HStack>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() =>
-            append({ source: 'group', pattern: '', targetRole: 'member' })
-          }
-        >
-          {t('integrations.enterpriseSso.roleMapping.addRule')}
-        </Button>
-      </HStack>
-    </Stack>
+        {fields.length === 0 ? (
+          <Text variant="muted" className="text-sm">
+            {t('integrations.enterpriseSso.roleMapping.empty')}
+          </Text>
+        ) : (
+          <Stack gap={3}>
+            {fields.map((field, index) => (
+              <RoleMappingRuleRow
+                key={field.id}
+                control={control}
+                index={index}
+                sourceOptions={sourceOptions}
+                roleOptions={roleOptions}
+                onRemove={() => remove(index)}
+              />
+            ))}
+          </Stack>
+        )}
+        <HStack>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              append({ source: 'group', pattern: '', targetRole: 'member' })
+            }
+          >
+            {t('integrations.enterpriseSso.roleMapping.addRule')}
+          </Button>
+        </HStack>
+      </Stack>
+    </Card>
   );
 }
 
@@ -1394,85 +1436,87 @@ function RoleMappingRuleRow({
   });
 
   return (
-    <Stack gap={2} className="border-border rounded-md border p-3">
-      <Row gap={2} align="end" wrap>
-        <Controller
-          control={control}
-          name={`roleMappingRules.${index}.source`}
-          render={({ field }) => (
-            <Select
-              id={`role-rule-source-${index}`}
-              label={t('integrations.enterpriseSso.roleMapping.sourceLabel')}
-              value={field.value ?? 'group'}
-              onValueChange={(value) => {
-                const next = narrowStringUnion<RoleRuleSource>(
-                  value,
-                  ROLE_RULE_SOURCES,
-                );
-                if (next) field.onChange(next);
-              }}
-              options={sourceOptions}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name={`roleMappingRules.${index}.pattern`}
-          render={({ field }) => (
-            <Input
-              id={`role-rule-pattern-${index}`}
-              label={t('integrations.enterpriseSso.roleMapping.patternLabel')}
-              name={field.name}
-              value={field.value ?? ''}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name={`roleMappingRules.${index}.targetRole`}
-          render={({ field }) => (
-            <Select
-              id={`role-rule-target-${index}`}
-              label={t(
-                'integrations.enterpriseSso.roleMapping.targetRoleLabel',
-              )}
-              value={field.value ?? 'member'}
-              onValueChange={(value) => {
-                const next = narrowStringUnion<PlatformRole>(
-                  value,
-                  ROLE_RULE_TARGETS,
-                );
-                if (next) field.onChange(next);
-              }}
-              options={roleOptions}
-            />
-          )}
-        />
-        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-          {t('integrations.enterpriseSso.roleMapping.removeRule')}
-        </Button>
-      </Row>
-      {source === 'claim' && (
-        <Controller
-          control={control}
-          name={`roleMappingRules.${index}.claim`}
-          render={({ field }) => (
-            <Input
-              id={`role-rule-claim-${index}`}
-              label={t('integrations.enterpriseSso.roleMapping.claimLabel')}
-              description={t(
-                'integrations.enterpriseSso.roleMapping.claimHelp',
-              )}
-              name={field.name}
-              value={field.value ?? ''}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-            />
-          )}
-        />
-      )}
-    </Stack>
+    <Card padding="sm">
+      <Stack gap={2}>
+        <Row gap={2} align="end" wrap>
+          <Controller
+            control={control}
+            name={`roleMappingRules.${index}.source`}
+            render={({ field }) => (
+              <Select
+                id={`role-rule-source-${index}`}
+                label={t('integrations.enterpriseSso.roleMapping.sourceLabel')}
+                value={field.value ?? 'group'}
+                onValueChange={(value) => {
+                  const next = narrowStringUnion<RoleRuleSource>(
+                    value,
+                    ROLE_RULE_SOURCES,
+                  );
+                  if (next) field.onChange(next);
+                }}
+                options={sourceOptions}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name={`roleMappingRules.${index}.pattern`}
+            render={({ field }) => (
+              <Input
+                id={`role-rule-pattern-${index}`}
+                label={t('integrations.enterpriseSso.roleMapping.patternLabel')}
+                name={field.name}
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name={`roleMappingRules.${index}.targetRole`}
+            render={({ field }) => (
+              <Select
+                id={`role-rule-target-${index}`}
+                label={t(
+                  'integrations.enterpriseSso.roleMapping.targetRoleLabel',
+                )}
+                value={field.value ?? 'member'}
+                onValueChange={(value) => {
+                  const next = narrowStringUnion<PlatformRole>(
+                    value,
+                    ROLE_RULE_TARGETS,
+                  );
+                  if (next) field.onChange(next);
+                }}
+                options={roleOptions}
+              />
+            )}
+          />
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+            {t('integrations.enterpriseSso.roleMapping.removeRule')}
+          </Button>
+        </Row>
+        {source === 'claim' && (
+          <Controller
+            control={control}
+            name={`roleMappingRules.${index}.claim`}
+            render={({ field }) => (
+              <Input
+                id={`role-rule-claim-${index}`}
+                label={t('integrations.enterpriseSso.roleMapping.claimLabel')}
+                description={t(
+                  'integrations.enterpriseSso.roleMapping.claimHelp',
+                )}
+                name={field.name}
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+        )}
+      </Stack>
+    </Card>
   );
 }

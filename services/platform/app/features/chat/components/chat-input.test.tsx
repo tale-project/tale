@@ -410,6 +410,20 @@ describe('ChatInput disabled composer (missing API key)', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
   });
 
+  it('hides textarea glyphs when a draft sits under the disabled overlay', () => {
+    // Regression: a conversation-starter fill (or restored draft) left real
+    // text in the disabled textarea while the absolute "No API key…" overlay
+    // painted on top — the two stacked and read as garbled overlap.
+    renderDisabledForMissingApiKey({
+      value: 'Help me write a clear, professional email',
+    });
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toBeDisabled();
+    expect(textarea).toHaveClass('text-transparent');
+    expect(screen.getByText(NO_API_KEY_MESSAGE)).toBeInTheDocument();
+  });
+
   it('shows the actionable Settings link for an admin', () => {
     mockCan.mockReturnValue(true);
     renderDisabledForMissingApiKey();
@@ -432,5 +446,58 @@ describe('ChatInput disabled composer (missing API key)', () => {
     expect(
       screen.queryByRole('link', { name: 'Open provider settings' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+const ARCHIVED_CHAT_COPY =
+  'This chat is archived. Unarchive it to continue the conversation.';
+const LOCKED_DISCUSSION_COPY = 'This discussion is locked';
+
+function renderDisabledComposer(
+  overrides?: Partial<Parameters<typeof ChatInput>[0]>,
+) {
+  return render(
+    <ChatInput
+      organizationId="org-1"
+      value=""
+      onChange={vi.fn()}
+      onSendMessage={vi.fn()}
+      attachments={[]}
+      uploadingFiles={[]}
+      uploadFiles={vi.fn()}
+      removeAttachment={vi.fn()}
+      clearAttachments={vi.fn(() => [])}
+      variant="assistant"
+      disabled
+      {...overrides}
+    />,
+  );
+}
+
+// #2680 regression: locking a discussion used to reuse `disabledReason=
+// "archived"`, so the composer explained itself with CHAT's archived copy
+// ("This chat is archived…") instead of the discussions locked notice. The
+// dedicated `'locked'` reason renders the caller-supplied `disabledMessage`
+// (the caller owns that copy — ChatInput has no discussions vocabulary),
+// while `'archived'` keeps chat's fixed wording byte-identical.
+describe('ChatInput disabled composer (archived vs locked)', () => {
+  it('keeps chat\'s fixed copy for disabledReason="archived"', () => {
+    renderDisabledComposer({ disabledReason: 'archived' });
+
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByText(ARCHIVED_CHAT_COPY)).toBeInTheDocument();
+  });
+
+  it('renders the caller-supplied message for disabledReason="locked"', () => {
+    renderDisabledComposer({
+      disabledReason: 'locked',
+      disabledMessage: LOCKED_DISCUSSION_COPY,
+    });
+
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByText(LOCKED_DISCUSSION_COPY)).toBeInTheDocument();
+    // Neither chat's archived copy nor the no-agents fallback may leak in.
+    expect(screen.queryByText(ARCHIVED_CHAT_COPY)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No agents available/)).not.toBeInTheDocument();
   });
 });

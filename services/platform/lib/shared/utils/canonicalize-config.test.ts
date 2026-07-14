@@ -66,6 +66,20 @@ describe('canonicalizeAgentConfig', () => {
     canonicalizeAgentConfig(input);
     expect(input.toolNames).toEqual(['b', 'a']);
   });
+
+  // Regression: the agent-type switcher writes the resolved literal back
+  // (`primaryBehavior: 'chat'`) while legacy files omit the optional key —
+  // the two are the same effective config (every reader does `?? 'chat'`),
+  // so an explicit default must not read as an unsaved change on revert.
+  it("drops an explicit primaryBehavior 'chat' so it equals the absent key", () => {
+    expect(canonicalizeAgentConfig({ primaryBehavior: 'chat' })).toEqual({});
+  });
+
+  it('keeps a non-default primaryBehavior', () => {
+    expect(
+      canonicalizeAgentConfig({ primaryBehavior: 'external-agent' }),
+    ).toEqual({ primaryBehavior: 'external-agent' });
+  });
 });
 
 describe('canonicalizeWorkflowConfig', () => {

@@ -4,13 +4,15 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { resolveHistoryDir, resolveWorkflowFilePath } from './file_utils';
+import { resolveAutomationWorkflowHistoryDir } from '../automations/file_utils';
+import { resolveWorkflowFilePath } from './file_utils';
 
-// Workflow files are FILE-based ONLY for standalone org workflows under
-// `org/workflows/` — a foldered slug like `general/…` is just a nested dir.
-// An automation's single workflow lives INLINE in its `automation.json`
-// (resolved/persisted via `definition_store.ts`), never as a file, so path
-// resolution is global-only: there is no automation branch.
+// A workflow lives INLINE in its automation's `automation.json` (resolved and
+// persisted via `definition_store.ts`) and its edit history under the
+// automation's own `.history/`. `resolveWorkflowFilePath` survives ONLY for
+// the pre-cutover migration chain (v0_3_4/06, /30), which still operates on
+// org trees that carry a legacy `workflows/` dir mid-upgrade — these tests pin
+// that legacy path shape so the chain keeps replaying correctly.
 let configRoot: string;
 let prev: string | undefined;
 
@@ -26,27 +28,37 @@ afterEach(async () => {
   await rm(configRoot, { recursive: true, force: true });
 });
 
-const globalWorkflowsDir = (): string =>
+const legacyWorkflowsDir = (): string =>
   path.join(configRoot, 'default', 'workflows');
 
-describe('workflow path resolution (global org/workflows/ only)', () => {
+describe('legacy workflow path resolution (migration-chain only)', () => {
   it('a foldered slug resolves under org/workflows/ preserving the folder', () => {
     expect(
       resolveWorkflowFilePath('default', 'general/conversation-sync'),
     ).toBe(
-      path.join(globalWorkflowsDir(), 'general', 'conversation-sync.json'),
+      path.join(legacyWorkflowsDir(), 'general', 'conversation-sync.json'),
     );
   });
 
   it('a flat (single-segment) slug resolves directly under org/workflows/', () => {
     expect(resolveWorkflowFilePath('default', 'my-workflow')).toBe(
-      path.join(globalWorkflowsDir(), 'my-workflow.json'),
+      path.join(legacyWorkflowsDir(), 'my-workflow.json'),
     );
   });
+});
 
-  it('the history dir uses the flattened slug under org/workflows/.history', () => {
-    expect(resolveHistoryDir('default', 'general/conversation-sync')).toBe(
-      path.join(globalWorkflowsDir(), '.history', 'general__conversation-sync'),
+describe('inline workflow history (the automation owns it)', () => {
+  it("nests under the automation's own dir", () => {
+    expect(
+      resolveAutomationWorkflowHistoryDir('default', 'sync-shopify-products'),
+    ).toBe(
+      path.join(
+        configRoot,
+        'default',
+        'automations',
+        'sync-shopify-products',
+        '.history',
+      ),
     );
   });
 });

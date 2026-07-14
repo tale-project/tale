@@ -121,18 +121,18 @@ const VALID_PROVIDER_JSON =
   '{"displayName":"Test Provider","baseUrl":"https://api.example.com/v1","models":[{"id":"test/model-1","displayName":"Test Model 1","tags":["chat"]}]}';
 
 describe('scaffoldNewOrganization (org-first)', () => {
-  it('seeds workflows from the catalog into the org-first target', async () => {
+  it('seeds nested agent folders from the catalog into the org-first target', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
-      catSrc('workflows', 'shopify', 'sync.json'),
-      '{"name":"sync"}',
+      catSrc('agents', 'shopify', 'sync.json'),
+      validAgentJson('sync'),
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(
-      existsSync(orgDst('acme', 'workflows', 'shopify', 'sync.json')),
-    ).toBe(true);
+    expect(existsSync(orgDst('acme', 'agents', 'shopify', 'sync.json'))).toBe(
+      true,
+    );
   });
 
   it('skips (warns, never throws or copies) a catalog file that fails its domain schema, while sibling files still seed', async () => {
@@ -222,7 +222,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('flat domains never recurse into catalog subdirs (defense if the catalog ever ships one)', async () => {
     // `agents` became a TREE domain (chat/ github/ folders) so it
-    // recurses by design — see the workflows recursion test above. This guards
+    // recurses by design — see the nested-agent-folders test above. This guards
     // the still-flat domains (providers/prompts/governance) against an
     // unexpected subdir leaking cross-tenant content.
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
@@ -244,15 +244,15 @@ describe('scaffoldNewOrganization (org-first)', () => {
     const evilFile = path.join(evilPayloadDir, 'payload.json');
     await writeFile(evilFile, '{"name":"escaped"}', 'utf-8');
 
-    await mkdir(catSrc('workflows'), { recursive: true });
-    await symlink(evilFile, path.join(catSrc('workflows'), 'evil.json'));
-    await writeText(catSrc('workflows', 'legit.json'), '{"name":"legit"}');
+    await mkdir(catSrc('agents'), { recursive: true });
+    await symlink(evilFile, path.join(catSrc('agents'), 'evil.json'));
+    await writeText(catSrc('agents', 'legit.json'), VALID_AGENT_JSON);
 
     try {
       await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-      expect(existsSync(orgDst('acme', 'workflows', 'evil.json'))).toBe(false);
-      expect(existsSync(orgDst('acme', 'workflows', 'legit.json'))).toBe(true);
+      expect(existsSync(orgDst('acme', 'agents', 'evil.json'))).toBe(false);
+      expect(existsSync(orgDst('acme', 'agents', 'legit.json'))).toBe(true);
     } finally {
       await rm(evilPayloadDir, { recursive: true, force: true });
     }
@@ -278,51 +278,51 @@ describe('scaffoldNewOrganization (org-first)', () => {
 
   it('is per-domain idempotent: a domain dir that already has files is skipped (override:false)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
+    await writeText(catSrc('agents', 'shipped.json'), VALID_AGENT_JSON);
     // Pre-existing org content — scaffold must not overwrite without override.
     await writeText(
-      orgDst('acme', 'workflows', 'existing.json'),
+      orgDst('acme', 'agents', 'existing.json'),
       '{"name":"existing"}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
     expect(
-      await readFile(orgDst('acme', 'workflows', 'existing.json'), 'utf-8'),
+      await readFile(orgDst('acme', 'agents', 'existing.json'), 'utf-8'),
     ).toBe('{"name":"existing"}');
-    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(false);
   });
 
   it('treats a target containing only .history/ as occupied (no re-seed on top of user edit trail)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
+    await writeText(catSrc('agents', 'shipped.json'), VALID_AGENT_JSON);
     await writeText(
-      orgDst('acme', 'workflows', '.history', 'old.json'),
+      orgDst('acme', 'agents', '.history', 'old.json'),
       '{"snapshot":1}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(false);
-    expect(
-      existsSync(orgDst('acme', 'workflows', '.history', 'old.json')),
-    ).toBe(true);
+    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'agents', '.history', 'old.json'))).toBe(
+      true,
+    );
   });
 
   it('ignores atomicWrite tmp orphans so a crashed scaffold can retry', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
+    await writeText(catSrc('agents', 'shipped.json'), VALID_AGENT_JSON);
     // Simulate the residue a prior crashed scaffold would leave behind:
     // atomicWrite uses `.<basename>.<ts>.<uuid>.tmp` and cleans up on
     // success, but a crash mid-write leaves the tmp orphan in place.
     await writeText(
-      orgDst('acme', 'workflows', '.shipped.json.1700000000000.deadbeef.tmp'),
+      orgDst('acme', 'agents', '.shipped.json.1700000000000.deadbeef.tmp'),
       'partial',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(true);
   });
 
   it('logs error when TALE_CONFIG_BUILTIN_DIR points at a missing path (deploy misconfig)', async () => {
@@ -340,7 +340,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
             m.includes('does not exist'),
         ),
       ).toBe(true);
-      expect(existsSync(orgDst('acme', 'workflows'))).toBe(false);
+      expect(existsSync(orgDst('acme', 'agents'))).toBe(false);
     } finally {
       errSpy.mockRestore();
     }
@@ -455,32 +455,29 @@ describe('scaffoldNewOrganization (org-first)', () => {
     ).toBe('{"v":"new"}');
   });
 
-  it('override:true for workflows preserves user-only folders', async () => {
+  it('override:true for a tree domain preserves user-only folders', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
-      catSrc('workflows', 'shopify', 'sync.json'),
-      '{"name":"new"}',
+      catSrc('agents', 'shopify', 'sync.json'),
+      validAgentJson('new'),
     );
 
     await writeText(
-      orgDst('acme', 'workflows', 'shopify', 'sync.json'),
+      orgDst('acme', 'agents', 'shopify', 'sync.json'),
       '{"name":"old"}',
     );
     await writeText(
-      orgDst('acme', 'workflows', 'my-folder', 'custom.json'),
+      orgDst('acme', 'agents', 'my-folder', 'custom.json'),
       '{"name":"custom"}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme', override: true });
 
     expect(
-      await readFile(
-        orgDst('acme', 'workflows', 'shopify', 'sync.json'),
-        'utf-8',
-      ),
-    ).toBe('{"name":"new"}');
+      await readFile(orgDst('acme', 'agents', 'shopify', 'sync.json'), 'utf-8'),
+    ).toBe(validAgentJson('new'));
     expect(
-      existsSync(orgDst('acme', 'workflows', 'my-folder', 'custom.json')),
+      existsSync(orgDst('acme', 'agents', 'my-folder', 'custom.json')),
     ).toBe(true);
   });
 
@@ -508,7 +505,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     // The built-in catalog is REQUIRED — scaffold must refuse rather than fall
     // back to any org's live dir (the old `resolve('default')` fallback is gone).
     await writeText(
-      orgDst('acme', 'workflows', 'shopify', 'sync.json'),
+      orgDst('acme', 'agents', 'shopify', 'sync.json'),
       '{"name":"existing"}',
     );
 
@@ -519,10 +516,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     expect(result.results).toEqual([]);
     // Pre-existing org content is untouched — the refusal happens before any seed.
     expect(
-      await readFile(
-        orgDst('acme', 'workflows', 'shopify', 'sync.json'),
-        'utf-8',
-      ),
+      await readFile(orgDst('acme', 'agents', 'shopify', 'sync.json'), 'utf-8'),
     ).toBe('{"name":"existing"}');
   });
 
@@ -585,7 +579,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
     // expected directory with a regular file — the scaffolder's
     // per-domain copy will fail and the strict gate aggregates it.
     await writeText(catSrc('agents'), 'not-a-directory');
-    await writeText(catSrc('workflows', 'general', 'a.json'), '{"ok":true}');
+    await writeText(catSrc('branding', 'general', 'a.json'), '{"ok":true}');
 
     let threw: Error | null = null;
     try {
@@ -608,7 +602,7 @@ describe('scaffoldNewOrganization (org-first)', () => {
   it('non-strict aggregates failures into result without throwing', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(catSrc('agents'), 'not-a-directory');
-    await writeText(catSrc('workflows', 'general', 'a.json'), '{"ok":true}');
+    await writeText(catSrc('branding', 'general', 'a.json'), '{"ok":true}');
 
     const result = await scaffoldHandler({} as never, {
       orgSlug: 'acme',
@@ -776,8 +770,8 @@ describe('provisioning status + repair (#2636)', () => {
     await writeText(catSrc('governance', 'retention.json'), RETENTION_JSON);
     await writeText(catSrc('agents', 'helper.json'), VALID_AGENT_JSON);
     await writeText(
-      catSrc('workflows', 'shopify', 'sync.json'),
-      '{"name":"sync"}',
+      catSrc('agents', 'shopify', 'sync.json'),
+      validAgentJson('sync'),
     );
 
     // Simulate the org-create failure mode (#2631): `org.create` succeeded
@@ -799,7 +793,6 @@ describe('provisioning status + repair (#2636)', () => {
     expect(await listMissingScaffoldDomains('acme')).toEqual([
       'agents',
       'providers',
-      'workflows',
       'governance',
     ]);
 
@@ -818,9 +811,9 @@ describe('provisioning status + repair (#2636)', () => {
       true,
     );
     expect(existsSync(orgDst('acme', 'agents', 'helper.json'))).toBe(true);
-    expect(
-      existsSync(orgDst('acme', 'workflows', 'shopify', 'sync.json')),
-    ).toBe(true);
+    expect(existsSync(orgDst('acme', 'agents', 'shopify', 'sync.json'))).toBe(
+      true,
+    );
 
     // ...and the status self-clears: fully provisioned.
     expect(await listMissingScaffoldDomains('acme')).toEqual([]);
@@ -862,5 +855,35 @@ describe('provisioning status + repair (#2636)', () => {
     // Invalid slug: refuse to probe rather than path-join it.
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     expect(await listMissingScaffoldDomains('../escape')).toBeNull();
+  });
+
+  it('a catalog domain holding only dotfiles/secrets (e.g. .gitkeep) is "nothing to seed from" — never missing, and retry converges (#2676)', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await ensureCatalogDomainDirs();
+    // One genuinely seedable domain...
+    await writeText(catSrc('agents', 'helper.json'), VALID_AGENT_JSON);
+    // ...and domains whose catalog dir holds only entries the scaffold copy
+    // never copies (copyTree skips dotfiles and *.secrets.json). The e2e /
+    // manual fixture catalog ships exactly this: `.gitkeep`-only branding/,
+    // governance/, skills/.
+    await writeText(catSrc('branding', '.gitkeep'), '');
+    await writeText(catSrc('skills', '.gitkeep'), '');
+    await writeText(catSrc('governance', 'sso.secrets.json'), '{"k":"v"}');
+
+    // Probe and copy must agree on "seedable": only `agents` is missing.
+    // Previously branding/skills/governance were reported missing too — and
+    // could never be repaired, so the banner was permanent.
+    expect(await listMissingScaffoldDomains('acme')).toEqual(['agents']);
+
+    // One retry (the repair action's exact semantics) fully converges: the
+    // seedable domain lands and nothing stays missing. Previously the
+    // dotfile-only domains remained "missing" after a "successful" retry.
+    const retry = await scaffoldOrgFromCatalog({
+      orgSlug: 'acme',
+      override: false,
+      cleanFirst: false,
+    });
+    expect(retry.ok).toBe(true);
+    expect(await listMissingScaffoldDomains('acme')).toEqual([]);
   });
 });

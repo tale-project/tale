@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   importFiles as importFilesImpl,
   type ImportItem,
@@ -72,16 +73,19 @@ export const importFiles = action({
     }
 
     if (args.importType === 'sync') {
-      const engine = await ctx.runAction(
-        internal.onedrive.ensure_sync_workflow.ensureSyncWorkflowEngine,
-        { organizationId: args.organizationId },
+      // Ongoing sync is driven by the `sync-onedrive-files` autoInstall
+      // automation, provisioned at org-create / deploy / catalog resync. A
+      // sync import is the moment the engine must exist, so re-run the
+      // idempotent default-automation provisioner as a belt-and-braces for
+      // orgs whose provisioning sweep has not landed yet (a completed or
+      // org-uninstalled provision is a no-op — the org's choice wins).
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      await ctx.scheduler.runAfter(
+        0,
+        internal.automations.provision_defaults
+          .syncDefaultAutomationInstallations,
+        { organizationId: args.organizationId, orgSlug },
       );
-      if (!engine.success) {
-        console.warn('[onedrive import] sync workflow engine not ready', {
-          organizationId: args.organizationId,
-          error: engine.error,
-        });
-      }
     }
 
     return await importFilesImpl(

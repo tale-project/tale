@@ -17,7 +17,7 @@
   },
   "hidden": true,
   "icon": "refresh-cw",
-  "folder": "github/issues",
+  "folder": "github/sync-issues",
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {

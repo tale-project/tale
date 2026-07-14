@@ -222,9 +222,9 @@ export function IntegrationPanel({
           <HStack justify="between" align="center" gap={2}>
             <Button
               type="button"
+              variant="secondary"
               onClick={() => setConfirmDisconnect(true)}
               disabled={manage.busy}
-              className="flex-1"
             >
               {manage.isSubmitting ? (
                 <HStack gap={2} align="center">

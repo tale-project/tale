@@ -25,6 +25,10 @@ import { migration as n0_3_4_06 } from '../versions/v0_3_4/06_remove_retired_tas
 import { migration as n0_3_4_11 } from '../versions/v0_3_4/11_retire_issue_desk/migration';
 import { migration as n0_3_4_21 } from '../versions/v0_3_4/21_branding_single_accent_color/migration';
 import { migration as n0_3_4_30 } from '../versions/v0_3_4/30_run_assigned_task_admission_gate/migration';
+import { migration as n0_3_4_33 } from '../versions/v0_3_4/33_workflows_become_automations/migration';
+import { migration as n0_3_4_34 } from '../versions/v0_3_4/34_retire_github_pack_agents/migration';
+import { migration as n0_3_4_35 } from '../versions/v0_3_4/35_remove_standalone_workflow_files/migration';
+import { migration as n0_3_4_41 } from '../versions/v0_3_4/41_create_pack_automation_installs/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
@@ -41,4 +45,8 @@ export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
   "0.3.4/11_retire_issue_desk": composeNode(requireMeta("0.3.4/11_retire_issue_desk"), n0_3_4_11),
   "0.3.4/21_branding_single_accent_color": composeNode(requireMeta("0.3.4/21_branding_single_accent_color"), n0_3_4_21),
   "0.3.4/30_run_assigned_task_admission_gate": composeNode(requireMeta("0.3.4/30_run_assigned_task_admission_gate"), n0_3_4_30),
+  "0.3.4/33_workflows_become_automations": composeNode(requireMeta("0.3.4/33_workflows_become_automations"), n0_3_4_33),
+  "0.3.4/34_retire_github_pack_agents": composeNode(requireMeta("0.3.4/34_retire_github_pack_agents"), n0_3_4_34),
+  "0.3.4/35_remove_standalone_workflow_files": composeNode(requireMeta("0.3.4/35_remove_standalone_workflow_files"), n0_3_4_35),
+  "0.3.4/41_create_pack_automation_installs": composeNode(requireMeta("0.3.4/41_create_pack_automation_installs"), n0_3_4_41),
 };

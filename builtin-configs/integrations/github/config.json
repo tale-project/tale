@@ -3,13 +3,6 @@
   "description": "Manage repositories, issues, and pull requests on GitHub.",
   "labels": ["Developer"],
   "version": 1,
-  "bundles": {
-    "agents": ["pull-request-reviewer", "issue-triager"],
-    "workflows": [
-      "github/sync-issues-from-github",
-      "github/review-pull-request-in-github"
-    ]
-  },
   "authMethod": "bearer_token",
   "supportedAuthMethods": ["bearer_token"],
   "secretBindings": ["accessToken"],

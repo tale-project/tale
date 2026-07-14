@@ -4,11 +4,11 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Swords } from 'lucide-react';
 import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
 
 import type { FeedbackMatchupBucket } from './types';
 
@@ -22,8 +22,7 @@ export function TopMatchupsFeedbackTable({
   isLoading,
 }: TopMatchupsFeedbackTableProps) {
   const { t } = useT('analytics');
-  const { i18n: i18nCtx } = useTranslation();
-  const locale = i18nCtx.language;
+  const { formatNumber } = useFormatNumber();
 
   const columns = useMemo<ColumnDef<FeedbackMatchupBucket>[]>(
     () => [
@@ -54,9 +53,9 @@ export function TopMatchupsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.leftWins, locale)}
+            {formatNumber(row.original.leftWins)}
             <span className="text-muted-foreground mx-1">–</span>
-            {formatNumber(row.original.rightWins, locale)}
+            {formatNumber(row.original.rightWins)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -70,7 +69,7 @@ export function TopMatchupsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.ties, locale)}
+            {formatNumber(row.original.ties)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -84,7 +83,7 @@ export function TopMatchupsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.bothBad, locale)}
+            {formatNumber(row.original.bothBad)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -98,20 +97,17 @@ export function TopMatchupsFeedbackTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatNumber(row.original.total, locale)}
+            {formatNumber(row.original.total)}
           </div>
         ),
         meta: { align: 'right' as const },
       },
     ],
-    [t, locale],
+    [t, formatNumber],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('feedback.tables.topMatchups.title')}
-      </Text>
+    <MetricsSection title={t('feedback.tables.topMatchups.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -124,6 +120,6 @@ export function TopMatchupsFeedbackTable({
           description: t('feedback.tables.topMatchups.emptyDescription'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

@@ -64,8 +64,9 @@ function bearer(token: string): Record<string, string> {
 }
 
 // Whole-tree module map + per-test token KDF make this suite boot-heavy;
-// under a loaded CI worker the default 5s per-test budget is not enough.
-describe('SCIM bearer-token auth', { timeout: 30_000 }, () => {
+// under a loaded CI worker the default 5s per-test budget is not enough
+// (and the migration-chain suites' full-tree module globs load workers further).
+describe('SCIM bearer-token auth', { timeout: 60_000 }, () => {
   it('rejects a request with no Authorization header (401)', async () => {
     const t = convexTest(schema, modules);
     await seedConnection(t);
@@ -119,7 +120,7 @@ describe('SCIM bearer-token auth', { timeout: 30_000 }, () => {
   });
 });
 
-describe('SCIM discovery endpoints', { timeout: 30_000 }, () => {
+describe('SCIM discovery endpoints', { timeout: 60_000 }, () => {
   it('serves ServiceProviderConfig advertising patch + filter support', async () => {
     const t = convexTest(schema, modules);
     await seedConnection(t);

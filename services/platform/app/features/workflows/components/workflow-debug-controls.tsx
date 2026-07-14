@@ -72,7 +72,7 @@ export function WorkflowDebugControls({
         </HStack>
 
         {currentStepName && (
-          <Text className="text-xs text-amber-700 dark:text-amber-300">
+          <Text className="text-warning text-xs">
             {t('tester.debug.pausedAt', { step: currentStepName })}
           </Text>
         )}

@@ -40,7 +40,7 @@ const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 /** Per-domain config dirs each org (and the template) holds. */
 export const ORG_DOMAIN_DIRS = [
   'agents',
-  'workflows',
+  'automations',
   'integrations',
   'branding',
   'providers',

@@ -11,11 +11,9 @@ import { Sparkline } from '@tale/ui/sparkline';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
-import { Link } from '@tanstack/react-router';
-import { AlertTriangle, BarChart3, ChevronLeft } from 'lucide-react';
-import { useMemo } from 'react';
+import { AlertTriangle, BarChart3 } from 'lucide-react';
+import { type ReactNode } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import {
   seriesToLegend,
   TrendAreaChart,
@@ -23,15 +21,17 @@ import {
   TrendLineChart,
   type ChartSeries,
 } from '@/app/components/metrics/charts';
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@/app/components/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { formatCostCents } from '@/lib/utils/format/number';
-
-export type PeriodDays = 7 | 30 | 90;
 
 interface ProjectMetricsDay {
   dateKey: string;
@@ -125,12 +125,15 @@ function shortDay(dateKey: string): string {
 }
 
 interface ProjectMetricsPageProps {
-  organizationId: string;
   projectId: Id<'projects'>;
-  periodDays: PeriodDays;
-  onChangePeriod: (period: PeriodDays) => void;
-  /** When false, omit the back link to the tasks list (e.g. Settings → Metrics). */
-  showBackLink?: boolean;
+  periodDays: MetricsPeriodDays;
+  onChangePeriod: (period: MetricsPeriodDays) => void;
+  /** Heading element — `h2` standalone (project sub-view), `h3` inside a
+   *  settings tab that already owns the page heading. */
+  as?: 'h2' | 'h3';
+  /** Extra toolbar controls rendered before the period select (e.g. the
+   *  project picker on Settings → Metrics → Projects). */
+  toolbarStart?: ReactNode;
 }
 
 /**
@@ -140,15 +143,18 @@ interface ProjectMetricsPageProps {
  * created-vs-completed throughput, the cycle-time trend, agent-vs-human
  * completions, and daily spend. Reads only the per-project daily rollups; all
  * charts share the chart-theme tokens (theme-aware in dark mode).
+ * Padding-agnostic like every metrics page — the host route owns the outer
+ * container and any surrounding chrome (back link, picker).
  */
 export function ProjectMetricsPage({
-  organizationId,
   projectId,
   periodDays,
   onChangePeriod,
-  showBackLink = true,
+  as,
+  toolbarStart,
 }: ProjectMetricsPageProps) {
   const { t } = useT('tasks');
+  const { formatCostCents } = useFormatNumber();
 
   const { data, isLoading } = useConvexQuery(
     api.task_metrics.queries.getProjectTaskMetrics,
@@ -157,15 +163,6 @@ export function ProjectMetricsPage({
   // The query returns v.any(); the shape is owned by getProjectTaskMetrics.
   const daily: ProjectMetricsDay[] = data?.daily ?? [];
   const previousDaily: ProjectMetricsDay[] = data?.previousDaily ?? [];
-
-  const periodOptions = useMemo(
-    () => [
-      { value: '7', label: t('metrics.period.last7Days') },
-      { value: '30', label: t('metrics.period.last30Days') },
-      { value: '90', label: t('metrics.period.last90Days') },
-    ],
-    [t],
-  );
 
   const totals = reduceTotals(daily);
   const prev = reduceTotals(previousDaily);
@@ -254,247 +251,229 @@ export function ProjectMetricsPage({
   ];
 
   return (
-    <ContentArea gap={6} className="py-4">
-      <Skeletonize loading={isLoading} className="flex flex-col gap-4">
-        {/* Metrics is a sub-view of Tasks (no tab of its own), so lead with a
-            back link to the tasks list — otherwise there's no way back. */}
-        {showBackLink ? (
-          <Link
-            to="/dashboard/$id/projects/$projectId/tasks"
-            params={{ id: organizationId, projectId }}
-            className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            {t('title')}
-          </Link>
-        ) : null}
-        <MetricsLayout
-          title={t('metrics.title')}
-          description={t('metrics.description')}
-          toolbar={
-            <MetricSelect
-              aria-label={t('metrics.period.label')}
-              options={periodOptions}
+    <Skeletonize loading={isLoading} label={t('metrics.title')}>
+      <MetricsLayout
+        as={as}
+        title={t('metrics.title')}
+        description={t('metrics.description')}
+        toolbar={
+          <>
+            {toolbarStart}
+            <MetricsPeriodSelect
               value={String(periodDays)}
-              onValueChange={(v) => {
-                const next = Number(v);
-                if (next === 7 || next === 30 || next === 90)
-                  onChangePeriod(next);
-              }}
+              onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
             />
-          }
-          notice={
-            !isLoading && totals.capped ? (
-              <Alert
-                variant="warning"
-                icon={AlertTriangle}
-                title={t('metrics.cappedNotice')}
+          </>
+        }
+        notice={
+          !isLoading && totals.capped ? (
+            <Alert
+              variant="warning"
+              icon={AlertTriangle}
+              title={t('metrics.cappedNotice')}
+            />
+          ) : undefined
+        }
+      >
+        <StatCardGrid cols={4}>
+          <StatCard
+            label={t('metrics.completed', { days: periodDays })}
+            value={String(totals.completed)}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.completed}
+                previous={prev.completed}
               />
-            ) : undefined
-          }
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.completedDetail', {
+                    agent: totals.agent,
+                    human: totals.human,
+                  })}
+                </Text>
+              </SkeletonBox>
+              {daily.length > 1 ? (
+                <Sparkline
+                  data={daily.map((day) => day.tasksCompleted)}
+                  filled
+                  color="var(--color-chart-success)"
+                  className="mt-1"
+                />
+              ) : null}
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.cycleTime')}
+            value={cycleHours !== undefined ? `${cycleHours.toFixed(1)}h` : '—'}
+          >
+            <Stack gap={1} className="mt-0.5">
+              {cycleHours !== undefined ? (
+                <TrendIndicator
+                  value={cycleHours}
+                  previous={prevCycleHours}
+                  inverted
+                />
+              ) : null}
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.created', { count: totals.created })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.intervention')}
+            value={`${interventionRate}%`}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={interventionRate}
+                previous={prevInterventionRate}
+                inverted
+              />
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.interventionDetail', {
+                    changes: totals.changes,
+                    escalations: totals.escalations,
+                  })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.cost', { days: periodDays })}
+            value={formatCostCents(totals.cost)}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.cost}
+                previous={prev.cost}
+                inverted
+              />
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.costDetail', {
+                    runs: totals.runs,
+                    failed: totals.failed,
+                  })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+        </StatCardGrid>
+
+        <ChartCard
+          title={t('metrics.cumulativeFlow')}
+          bodyClassName="h-52"
+          loading={isLoading}
+          isEmpty={noDays}
+          emptyIcon={BarChart3}
+          emptyTitle={emptyTitle}
+          emptyDescription={emptyDescription}
+          legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
         >
-          <StatCardGrid cols={4}>
-            <StatCard
-              label={t('metrics.completed', { days: periodDays })}
-              value={String(totals.completed)}
-            >
-              <Stack gap={1} className="mt-0.5">
-                <TrendIndicator
-                  value={totals.completed}
-                  previous={prev.completed}
-                />
-                <SkeletonBox>
-                  <Text as="p" variant="muted" className="text-xs">
-                    {t('metrics.completedDetail', {
-                      agent: totals.agent,
-                      human: totals.human,
-                    })}
-                  </Text>
-                </SkeletonBox>
-                {daily.length > 1 ? (
-                  <Sparkline
-                    data={daily.map((day) => day.tasksCompleted)}
-                    filled
-                    color="var(--color-chart-success)"
-                    className="mt-1"
-                  />
-                ) : null}
-              </Stack>
-            </StatCard>
+          <TrendAreaChart
+            data={flowData}
+            series={flowSeries}
+            xKey="dateKey"
+            xTickFormatter={shortDay}
+          />
+        </ChartCard>
 
-            <StatCard
-              label={t('metrics.cycleTime')}
-              value={
-                cycleHours !== undefined ? `${cycleHours.toFixed(1)}h` : '—'
-              }
-            >
-              <Stack gap={1} className="mt-0.5">
-                {cycleHours !== undefined ? (
-                  <TrendIndicator
-                    value={cycleHours}
-                    previous={prevCycleHours}
-                    inverted
-                  />
-                ) : null}
-                <SkeletonBox>
-                  <Text as="p" variant="muted" className="text-xs">
-                    {t('metrics.created', { count: totals.created })}
-                  </Text>
-                </SkeletonBox>
-              </Stack>
-            </StatCard>
-
-            <StatCard
-              label={t('metrics.intervention')}
-              value={`${interventionRate}%`}
-            >
-              <Stack gap={1} className="mt-0.5">
-                <TrendIndicator
-                  value={interventionRate}
-                  previous={prevInterventionRate}
-                  inverted
-                />
-                <SkeletonBox>
-                  <Text as="p" variant="muted" className="text-xs">
-                    {t('metrics.interventionDetail', {
-                      changes: totals.changes,
-                      escalations: totals.escalations,
-                    })}
-                  </Text>
-                </SkeletonBox>
-              </Stack>
-            </StatCard>
-
-            <StatCard
-              label={t('metrics.cost', { days: periodDays })}
-              value={formatCostCents(totals.cost)}
-            >
-              <Stack gap={1} className="mt-0.5">
-                <TrendIndicator
-                  value={totals.cost}
-                  previous={prev.cost}
-                  inverted
-                />
-                <SkeletonBox>
-                  <Text as="p" variant="muted" className="text-xs">
-                    {t('metrics.costDetail', {
-                      runs: totals.runs,
-                      failed: totals.failed,
-                    })}
-                  </Text>
-                </SkeletonBox>
-              </Stack>
-            </StatCard>
-          </StatCardGrid>
-
+        <Grid lg={2}>
           <ChartCard
-            title={t('metrics.cumulativeFlow')}
-            bodyClassName="h-52"
+            title={t('metrics.throughput')}
+            bodyClassName="h-44"
             loading={isLoading}
             isEmpty={noDays}
             emptyIcon={BarChart3}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
-            legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
+            legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
           >
-            <TrendAreaChart
-              data={flowData}
-              series={flowSeries}
+            <TrendBarChart
+              data={throughputData}
+              series={throughputSeries}
               xKey="dateKey"
               xTickFormatter={shortDay}
             />
           </ChartCard>
 
-          <Grid lg={2}>
-            <ChartCard
-              title={t('metrics.throughput')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noDays}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
-              legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
-            >
-              <TrendBarChart
-                data={throughputData}
-                series={throughputSeries}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-              />
-            </ChartCard>
+          <ChartCard
+            title={t('metrics.cycleTimeTrend')}
+            bodyClassName="h-44"
+            loading={isLoading}
+            isEmpty={noCycleTimes}
+            emptyIcon={BarChart3}
+            emptyTitle={emptyTitle}
+            emptyDescription={emptyDescription}
+          >
+            <TrendLineChart
+              data={cycleTimeData}
+              series={[
+                {
+                  key: 'hours',
+                  label: t('metrics.cycleHoursLabel'),
+                  color: getChartSeriesColor(3),
+                },
+              ]}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+              valueFormatter={(v) => `${v.toFixed(1)}h`}
+            />
+          </ChartCard>
+        </Grid>
 
-            <ChartCard
-              title={t('metrics.cycleTimeTrend')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noCycleTimes}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
-            >
-              <TrendLineChart
-                data={cycleTimeData}
-                series={[
-                  {
-                    key: 'hours',
-                    label: t('metrics.cycleHoursLabel'),
-                    color: getChartSeriesColor(3),
-                  },
-                ]}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-                valueFormatter={(v) => `${v.toFixed(1)}h`}
-              />
-            </ChartCard>
-          </Grid>
+        <Grid lg={2}>
+          <ChartCard
+            title={t('metrics.agentVsHuman')}
+            bodyClassName="h-44"
+            loading={isLoading}
+            isEmpty={noDays}
+            emptyIcon={BarChart3}
+            emptyTitle={emptyTitle}
+            emptyDescription={emptyDescription}
+            legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
+          >
+            <TrendBarChart
+              data={completionsData}
+              series={completionsSeries}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+            />
+          </ChartCard>
 
-          <Grid lg={2}>
-            <ChartCard
-              title={t('metrics.agentVsHuman')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noDays}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
-              legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
-            >
-              <TrendBarChart
-                data={completionsData}
-                series={completionsSeries}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-              />
-            </ChartCard>
-
-            <ChartCard
-              title={t('metrics.costTrend')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noDays}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
-            >
-              <TrendBarChart
-                data={costData}
-                series={[
-                  {
-                    key: 'cost',
-                    label: t('metrics.costLabel'),
-                    color: CHART_COLORS.warning,
-                  },
-                ]}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-                allowDecimals
-                valueFormatter={(v) => formatCostCents(v * 100)}
-              />
-            </ChartCard>
-          </Grid>
-        </MetricsLayout>
-      </Skeletonize>
-    </ContentArea>
+          <ChartCard
+            title={t('metrics.costTrend')}
+            bodyClassName="h-44"
+            loading={isLoading}
+            isEmpty={noDays}
+            emptyIcon={BarChart3}
+            emptyTitle={emptyTitle}
+            emptyDescription={emptyDescription}
+          >
+            <TrendBarChart
+              data={costData}
+              series={[
+                {
+                  key: 'cost',
+                  label: t('metrics.costLabel'),
+                  color: CHART_COLORS.warning,
+                },
+              ]}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+              allowDecimals
+              valueFormatter={(v) => formatCostCents(v * 100)}
+            />
+          </ChartCard>
+        </Grid>
+      </MetricsLayout>
+    </Skeletonize>
   );
 }

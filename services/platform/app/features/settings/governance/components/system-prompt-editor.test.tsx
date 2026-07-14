@@ -61,6 +61,22 @@ describe('SystemPromptEditor', () => {
       render(<SystemPromptEditor organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+
+    it('spans the full settings section so Discard/Save share the Add-rule edge', () => {
+      // Regression: a max-w-2xl wrap left the textareas and action cluster
+      // narrower than Default Models (+ Add rule) on the same Content & models
+      // page, so the right edges didn't line up.
+      setLoaded();
+      const { container } = render(
+        <SystemPromptEditor organizationId="org-1" />,
+      );
+      const form = container.querySelector('form');
+      expect(form).not.toBeNull();
+      expect(form?.querySelector('.max-w-2xl')).toBeNull();
+      expect(
+        screen.getByRole('button', { name: /discard/i }).closest('.ml-auto'),
+      ).not.toBeNull();
+    });
   });
 
   describe('loading state (skeletonized)', () => {

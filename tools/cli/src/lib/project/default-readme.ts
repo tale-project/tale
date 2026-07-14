@@ -20,16 +20,18 @@ export const DEFAULT_README_RELPATH = join('default', 'README.md');
 export const DEFAULT_README_CONTENT = `# Your organization's configuration
 
 This directory is your organization's file-based configuration — agents,
-workflows, integrations, providers, skills, and branding as plain files.
+automations, integrations, providers, skills, and branding as plain files.
 \`tale dev\` bind-mounts it into the running instance and hot-reloads your
 edits.
 
 ## Catalog vs. active
 
-A file on disk is a catalog entry, not an active install. Agents and
-workflows marked \`"metadata": { "autoInstall": true }\` are live on a new
-organization; everything else stays available in the in-app catalog until
-you install it there (or set \`autoInstall\` yourself).
+A file on disk is a catalog entry, not an active install. Agents marked
+\`"metadata": { "autoInstall": true }\` and automations marked
+\`"autoInstall": true\` in their manifest are live on a new organization;
+everything else stays available in the in-app catalog until you install it
+there (or set \`autoInstall\` yourself). An automation's workflow lives
+inline in its \`automation.json\` — there are no standalone workflow files.
 
 ## Editing
 

@@ -68,6 +68,7 @@ import {
 import {
   wfDefaultProvisionsTable,
   wfInstallationsTable,
+  workflowEnvTable,
 } from '../../workflows/schema';
 import {
   wfEventSubscriptionsTable,
@@ -254,6 +255,7 @@ export const worldSchema = defineSchema({
   wfSchedules: wfSchedulesTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfInstallations: wfInstallationsTable,
+  workflowEnv: workflowEnvTable,
   wfDefaultProvisions: wfDefaultProvisionsTable,
 
   // --- 0.2.89 ---------------------------------------------------------------

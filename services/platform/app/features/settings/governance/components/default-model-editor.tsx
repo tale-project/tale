@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -268,49 +269,41 @@ function RuleDialog({
       submitText={t('defaultModels.confirm')}
     >
       <Stack gap={4}>
-        <HStack gap={3} align="end">
-          <div className="flex-1">
-            <Select
-              label={t('defaultModels.scope')}
-              options={SCOPE_OPTIONS}
-              value={draft.scope}
-              onValueChange={(value: string) => {
-                if (isScopeValue(value)) {
-                  updateDraft({ scope: value });
-                }
-              }}
-              disabled={cannotManage}
-            />
-          </div>
+        <Select
+          label={t('defaultModels.scope')}
+          options={SCOPE_OPTIONS}
+          value={draft.scope}
+          onValueChange={(value: string) => {
+            if (isScopeValue(value)) {
+              updateDraft({ scope: value });
+            }
+          }}
+          disabled={cannotManage}
+        />
 
-          {draft.scope === 'role' && (
-            <div className="flex-1">
-              <Select
-                label={t('defaultModels.role')}
-                options={ROLE_OPTIONS}
-                value={draft.scopeId ?? ''}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                disabled={cannotManage}
-              />
-            </div>
-          )}
+        {draft.scope === 'role' && (
+          <Select
+            label={t('defaultModels.role')}
+            options={ROLE_OPTIONS}
+            value={draft.scopeId ?? ''}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            disabled={cannotManage}
+          />
+        )}
 
-          {draft.scope === 'team' && (
-            <div className="flex-1">
-              <SearchableSelect
-                label={t('defaultModels.target')}
-                placeholder={t('defaultModels.selectTeam')}
-                disabled={cannotManage}
-                value={draft.scopeId ?? null}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                options={teamOptions}
-                searchPlaceholder={t('defaultModels.searchTeams')}
-                emptyText={t('defaultModels.noTeamsFound')}
-                aria-label={t('defaultModels.target')}
-              />
-            </div>
-          )}
-        </HStack>
+        {draft.scope === 'team' && (
+          <SearchableSelect
+            label={t('defaultModels.target')}
+            placeholder={t('defaultModels.selectTeam')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={teamOptions}
+            searchPlaceholder={t('defaultModels.searchTeams')}
+            emptyText={t('defaultModels.noTeamsFound')}
+            aria-label={t('defaultModels.target')}
+          />
+        )}
 
         <SearchableSelect
           label={t('defaultModels.provider')}
@@ -588,7 +581,7 @@ export function DefaultModelEditor({
           </Button>
         }
       >
-        <div className="border-border overflow-hidden rounded-lg border">
+        <Card padding="none" className="overflow-hidden">
           <Table>
             <TableCaption className="sr-only">
               {t('defaultModels.title')}
@@ -688,7 +681,7 @@ export function DefaultModelEditor({
               )}
             </TableBody>
           </Table>
-        </div>
+        </Card>
 
         <RuleDialog
           open={dialogOpen}

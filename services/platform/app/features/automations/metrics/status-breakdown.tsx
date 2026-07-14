@@ -10,8 +10,8 @@ import {
   segmentsToLegend,
   type DonutSegment,
 } from '@/app/components/metrics/charts';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatNumber } from '@/lib/utils/format/number';
 
 interface StatusBreakdownProps {
   completed: number;
@@ -27,6 +27,7 @@ export function StatusBreakdown({
   pending,
 }: StatusBreakdownProps) {
   const { t } = useT('automations');
+  const { formatNumber } = useFormatNumber();
   // Include pending so the donut center agrees with the "Total runs" KPI, which
   // counts every in-window run regardless of status.
   const total = completed + failed + running + pending;

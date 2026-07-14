@@ -16,12 +16,12 @@ import {
   TrendBarChart,
   type ChartSeries,
 } from '@/app/components/metrics/charts';
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import {
   MetricsFilterChips,
   type MetricsFilterChip,
 } from '@/app/components/metrics/metrics-filter-chips';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
+import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -127,17 +127,6 @@ export function FeedbackMetricsPageView({
 }: FeedbackMetricsPageViewProps) {
   const { t } = useT('analytics');
 
-  const periodOptions = useMemo(
-    () => [
-      { value: '1', label: t('feedback.period.last24Hours') },
-      { value: '7', label: t('feedback.period.last7Days') },
-      { value: '30', label: t('feedback.period.last30Days') },
-      { value: '90', label: t('feedback.period.last90Days') },
-      { value: 'all', label: t('feedback.period.allTime') },
-    ],
-    [t],
-  );
-
   const kindOptions = useMemo(
     () => [
       { value: 'all', label: t('feedback.kind.all') },
@@ -193,9 +182,8 @@ export function FeedbackMetricsPageView({
       title={t('feedback.title')}
       description={t('feedback.description')}
       toolbar={
-        <MetricSelect
-          aria-label={t('feedback.period.label')}
-          options={periodOptions}
+        <MetricsPeriodSelect
+          periods={['1', '7', '30', '90', 'all']}
           value={period}
           onValueChange={onChangePeriod}
         />

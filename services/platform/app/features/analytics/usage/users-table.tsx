@@ -5,9 +5,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface UserRow {
   userId: string;
@@ -27,6 +28,7 @@ interface UsersTableProps {
 
 export function UsersTable({ rows, isLoading }: UsersTableProps) {
   const { t } = useT('analytics');
+  const { formatNumber, formatCostCents } = useFormatNumber();
 
   // Column sizes double as the table's min-width floor (DataTable sums them).
   // Keep the total ≤ 940px so the table fits the settings content column on
@@ -114,14 +116,11 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
         size: 130,
       },
     ],
-    [t],
+    [t, formatNumber, formatCostCents],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('usage.tables.users.title')}
-      </Text>
+    <MetricsSection title={t('usage.tables.users.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -134,6 +133,6 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           description: t('usage.empty.description'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

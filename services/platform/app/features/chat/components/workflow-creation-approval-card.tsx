@@ -31,7 +31,6 @@ import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
-import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
@@ -464,12 +463,12 @@ function WorkflowCreationApprovalCardComponent({
             </HStack>
             {metadata.createdWorkflowSlug && (
               <Link
-                to="/dashboard/$id/workflows/$workflowId"
+                to="/dashboard/$id/automations/$automationSlug"
                 params={{
                   id: organizationId,
-                  workflowId: slugToUrlParam(
-                    metadata.createdWorkflowSlug ?? '',
-                  ),
+                  // The created workflow lives inline in an org automation of
+                  // the SAME slug — its editor is the automation's Editor tab.
+                  automationSlug: metadata.createdWorkflowSlug,
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

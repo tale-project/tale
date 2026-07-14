@@ -8,12 +8,9 @@ import { Text } from '@tale/ui/text';
 import { memo, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import {
-  getFileExtensionLower,
-  isTextBasedFile,
-} from '@/lib/utils/text-file-types';
 
 import { useThreadFileContent } from '../hooks/use-thread-file-content';
+import { resolveRenderKind } from '../utils/resolve-render-kind';
 import { AttachmentViewer } from '../viewers/attachment-viewer';
 import { CodeFileViewer } from '../viewers/code-file-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
@@ -33,52 +30,6 @@ interface FileViewerRouterProps {
    * a "Writing…" placeholder until the file lands.
    */
   liveEncoding?: 'utf-8' | 'base64';
-}
-
-type RenderKind =
-  | 'image'
-  | 'attachment'
-  | 'html'
-  | 'svg'
-  | 'mermaid'
-  | 'markdown'
-  | 'code';
-
-const IMAGE_EXTS = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'ico',
-  'avif',
-]);
-
-function resolveKind(
-  hint: string | undefined,
-  path: string,
-  contentType: string | undefined,
-): RenderKind {
-  if (
-    hint === 'image' ||
-    hint === 'attachment' ||
-    hint === 'html' ||
-    hint === 'svg' ||
-    hint === 'mermaid' ||
-    hint === 'markdown' ||
-    hint === 'code'
-  ) {
-    return hint;
-  }
-  const ext = getFileExtensionLower(path);
-  if (IMAGE_EXTS.has(ext) || contentType?.startsWith('image/')) return 'image';
-  if (ext === 'html' || ext === 'htm') return 'html';
-  if (ext === 'svg') return 'svg';
-  if (ext === 'mmd' || ext === 'mermaid') return 'mermaid';
-  if (ext === 'md' || ext === 'mdx' || ext === 'markdown') return 'markdown';
-  if (!isTextBasedFile(path, contentType)) return 'attachment';
-  return 'code';
 }
 
 function FileViewerRouterComponent({
@@ -161,7 +112,7 @@ function FileViewerRouterComponent({
         </Stack>
       );
     }
-    const kind = resolveKind(undefined, path, undefined);
+    const kind = resolveRenderKind(undefined, path, undefined);
     const text = renderContent ?? '';
     if (
       kind === 'html' ||
@@ -192,7 +143,7 @@ function FileViewerRouterComponent({
     );
   }
 
-  const kind = resolveKind(result.renderHint, path, result.contentType);
+  const kind = resolveRenderKind(result.renderHint, path, result.contentType);
 
   if (result.status === 'error' && result.error === 'too_large' && result.url) {
     return (

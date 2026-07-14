@@ -4,10 +4,11 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
+import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import {
   isDirectApiSlug,
@@ -17,7 +18,6 @@ import {
   isTtsSlug,
 } from '@/lib/shared/constants/usage';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
-import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopAgentRow {
   agentSlug: string;
@@ -41,8 +41,7 @@ export function TopAgentsTable({
 }: TopAgentsTableProps) {
   const { t } = useT('analytics');
   const { agents } = useListAgents(organizationId);
-  const { i18n: i18nCtx } = useTranslation();
-  const locale = i18nCtx.language;
+  const { locale, formatNumber, formatCostCents } = useFormatNumber();
 
   const displayNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -154,14 +153,11 @@ export function TopAgentsTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, resolveName],
+    [t, resolveName, formatNumber, formatCostCents],
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {t('usage.tables.topAgents.title')}
-      </Text>
+    <MetricsSection title={t('usage.tables.topAgents.title')}>
       <DataTable
         columns={columns}
         data={rows}
@@ -176,6 +172,6 @@ export function TopAgentsTable({
           description: t('usage.empty.description'),
         }}
       />
-    </div>
+    </MetricsSection>
   );
 }

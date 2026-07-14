@@ -156,7 +156,12 @@ async function ensureDeskInCatalog(
   await expect(listed).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 }
 
-/** First-time install: wizard picks the project and Finish lands on its desk. */
+/**
+ * First-time install: the wizard picks the project and Finish closes the
+ * wizard in place — install no longer redirects anywhere
+ * (`walkInstallWizard` already asserts the close). Reaching the desk is an
+ * explicit navigation.
+ */
 async function installIntoProject(
   page: Page,
   organizationId: string,
@@ -179,14 +184,8 @@ async function installIntoProject(
   await expect(wizard).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await walkInstallWizard(wizard, { projectName });
 
-  await page.waitForURL(
-    new RegExp(
-      `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}`,
-    ),
-    { timeout: TIMEOUT.NAV },
-  );
-  // Finish lands on the automation shell; the desk view is a tab, not the
-  // default Editor (developers see Editor first).
+  // The desk view is a tab, not the default Editor (developers see Editor
+  // first).
   await page.goto(
     `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}?tab=desk`,
   );

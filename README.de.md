@@ -25,7 +25,30 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
 
 ---
 
-<a href="https://tale.dev/docs/de"><img src=".github/assets/readme-hero.webp" alt="Die Tale-Plattform — der Arena-Modus lässt zwei Modelle denselben Prompt nebeneinander beantworten" width="100%"></a>
+<table>
+  <tr>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Der Arena-Modus lässt zwei Modelle denselben Prompt nebeneinander beantworten" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Aufgaben-Board eines Projekts, dessen Karten Agents übernehmen" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="Der Agent-Editor bündelt Anweisungen, Wissen, Tools und Modell" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Chat & Arena</b> — ein Prompt, zwei Modelle nebeneinander</sub></td>
+    <td align="center"><sub><b>Aufgaben</b> — eine Karte läuft los, sobald du sie einem Agent zuweist</sub></td>
+    <td align="center"><sub><b>Agents</b> — Anweisungen, Wissen, Tools und Modell als eine Einheit</sub></td>
+  </tr>
+  <tr>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Canvas des Workflow-Editors mit den typisierten Schritten einer laufenden Automatisierung" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Der Integrationskatalog mit Slack, GitHub, Gmail, Teams und mehr" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Inhaltsfilter, PII-Erkennung und Moderations-Provider" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Workflow-Editor</b> — typisierte Schritte, Zeitpläne und Genehmigungstore</sub></td>
+    <td align="center"><sub><b>Integrationen</b> — Slack, Gmail, GitHub, MCP-Server und mehr</sub></td>
+    <td align="center"><sub><b>Governance</b> — Guardrails, PII-Filter, Audit-Trail, Ausgabenlimits</sub></td>
+  </tr>
+</table>
+
+<p align="center"><a href="SCREENSHOTS.md"><b>Die ganze Screenshot-Galerie ansehen →</b></a></p>
 
 Tale ist eine selbstgehostete Open-Source-Plattform, die KI-Agents orchestriert. Sie verbindet die Agents und CLIs, die dein Team bereits nutzt, bündelt ihr Wissen in einer gemeinsamen, kontrollierten Wissensdatenbank und lässt Automatisierungen mit menschlicher Genehmigung laufen — auf deiner eigenen Infrastruktur oder in einer verwalteten Cloud. Tale ist kein weiteres Chat-UI, sondern die Orchestrierungs-, Wissens- und Governance-Schicht über den Agents, die du schon einsetzt. Alles steht unter MIT-Lizenz, und die kostenlose Community-Edition bringt denselben Funktionsumfang mit.
 

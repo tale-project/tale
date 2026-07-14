@@ -22,8 +22,8 @@ function ApiRestPage() {
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
-  // Not `narrow`: the keys table's column floor (~676px) doesn't fit the
-  // 544px column — table-dominated pages take the full content width.
+  // Standard SettingsPage measure (max-w-3xl): the keys table's ~676px column
+  // floor fits it; the table stays non-sticky per #2381.
   return (
     <SettingsPage>
       <SettingsSection

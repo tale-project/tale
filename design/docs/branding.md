@@ -31,7 +31,8 @@ not a code change:
   reference for what an admin can change.
 
 Per Tale's boundaries, org branding is **files, not tables** — never add a branding column to Convex.
-Docs even allow a per-instance brand-colour override in its `locals.css`.
+(The docs site intentionally has no per-instance colour override — its `locals.css` keeps docs,
+platform, and web on the single shared scheme.)
 
 ## What is NOT shared
 

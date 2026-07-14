@@ -292,6 +292,7 @@ function WorkflowStepsInner({
                   variant="secondary"
                   size="icon"
                   title={t('steps.toolbar.testWorkflow')}
+                  aria-label={t('steps.toolbar.testWorkflow')}
                   onClick={handleOpenTestPanel}
                   disabled={steps.length === 0}
                 >
@@ -400,6 +401,7 @@ function WorkflowStepsInner({
                             variant="ghost"
                             size="icon"
                             title={tCommon('aria.dismiss')}
+                            aria-label={tCommon('aria.dismiss')}
                             className="size-6 shrink-0 p-1"
                             onClick={() => setShowActivityBanner(false)}
                           >

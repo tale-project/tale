@@ -103,11 +103,20 @@ interface ChatInputProps extends Omit<
    */
   queueModeActive?: boolean;
   disabled?: boolean;
-  disabledReason?: 'no-agents' | 'pending-approval' | 'archived' | 'no-api-key';
+  disabledReason?:
+    | 'no-agents'
+    | 'pending-approval'
+    | 'archived'
+    | 'no-api-key'
+    | 'locked';
   /**
    * Reason text for `disabledReason === 'no-api-key'` — distinguishes the
    * specific-model vs org-wide missing-key wording (`modelSelector.noApiKey`
-   * vs `modelSelector.noProviderKey`, chosen by the caller). The other
+   * vs `modelSelector.noProviderKey`, chosen by the caller). Also carries the
+   * full message for `disabledReason === 'locked'`: that copy belongs to the
+   * caller's own i18n namespace (e.g. discussions' "This discussion is
+   * locked"), not chat's, so ChatInput never mints its own wording for it —
+   * mirrors how `no-api-key` already lets the caller own its text. The other
    * `disabledReason`s carry a fixed, non-interpolated string, so they don't
    * need this.
    */
@@ -1284,7 +1293,15 @@ export function ChatInput({
               onCompositionEnd={() => {
                 isComposingRef.current = false;
               }}
-              className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
+              className={cn(
+                'text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]',
+                // The disabled-reason overlay is `absolute top-0` over this
+                // textarea. A conversation-starter click (or a restored draft)
+                // can still leave glyphs in `value` while `disabled` — without
+                // this, those glyphs stack under the "No API key…" copy and
+                // read as a garbled double-print.
+                disabled && 'text-transparent caret-transparent',
+              )}
               disabled={inputDisabled}
               placeholder=""
               aria-labelledby={textareaLabelId}
@@ -1339,7 +1356,9 @@ export function ChatInput({
                       ? tChat('pendingApprovalDisabled')
                       : disabledReason === 'no-api-key'
                         ? (disabledMessage ?? tChat('modelSelector.noApiKey'))
-                        : tChat('noAgentsAvailable')}
+                        : disabledReason === 'locked'
+                          ? (disabledMessage ?? '')
+                          : tChat('noAgentsAvailable')}
                 </Text>
                 {/* Missing API key is a setup blocker with an actionable fix
                     (unlike no-agents/pending-approval/archived, which are

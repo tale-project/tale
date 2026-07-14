@@ -19,6 +19,7 @@
 export type CheckId =
   | 'parity'
   | 'usage'
+  | 'usage-missing'
   | 'pronouns-formal'
   | 'terminology-loanword'
   | 'terminology-half-compound'
