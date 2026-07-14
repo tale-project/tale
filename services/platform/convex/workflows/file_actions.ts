@@ -25,7 +25,7 @@ import { isValidAutomationSlug } from '../../lib/shared/schemas/automations';
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
-import { action, internalAction } from '../_generated/server';
+import { type ActionCtx, action, internalAction } from '../_generated/server';
 import {
   type InstalledAutomationDisplay,
   readInstalledAutomationDisplays,
@@ -186,15 +186,14 @@ function extractWorkflowIntegrations(config: WorkflowJsonConfig): string[] {
  * manifests — are skipped.
  */
 async function enumerateInstalledInlineWorkflows(
-  ctx: { runQuery: (ref: never, args: never) => Promise<unknown> },
+  ctx: ActionCtx,
   organizationId: string,
   orgSlug: string,
 ): Promise<{ slug: string; owner: InlineWorkflowOwner }[]> {
-  const automationSlugs = (await ctx.runQuery(
-    internal.automations.install_mutations
-      .listAutomationInstallationsInternal as never,
-    { organizationId } as never,
-  )) as string[];
+  const automationSlugs: string[] = await ctx.runQuery(
+    internal.automations.install_mutations.listAutomationInstallationsInternal,
+    { organizationId },
+  );
   const entries = await Promise.all(
     automationSlugs.map(async (slug) => {
       const owner = await resolveInlineWorkflowOwner(orgSlug, slug);
@@ -304,7 +303,7 @@ export const listWorkflows = action({
     };
 
     const inline = await enumerateInstalledInlineWorkflows(
-      ctx as never,
+      ctx,
       args.organizationId,
       orgSlug,
     );
@@ -645,7 +644,7 @@ export const listWorkflowsForAgent = internalAction({
     // Same enumeration as `listWorkflows` (installed automations' inline
     // workflows), projected to the compact summary the agent tools read.
     const inline = await enumerateInstalledInlineWorkflows(
-      ctx as never,
+      ctx,
       args.organizationId,
       args.orgSlug,
     );

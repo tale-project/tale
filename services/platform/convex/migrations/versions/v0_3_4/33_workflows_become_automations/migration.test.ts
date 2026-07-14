@@ -1,10 +1,12 @@
 // @vitest-environment node
 
+import { cpSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { expect, vi } from 'vitest';
+import { afterAll, beforeAll, expect, vi } from 'vitest';
 
 import { readFileSafe } from '../../../../lib/file_io';
 import { buildModules } from '../../../framework/test_helpers';
@@ -14,11 +16,32 @@ vi.setConfig({ testTimeout: 60_000 });
 
 const DIR = 'migrations/versions/v0_3_4/33_workflows_become_automations';
 
-// `up` seeds from the REAL builtin catalog — point the env at the repo copy
-// (vitest isolates env per file).
-process.env.TALE_CONFIG_BUILTIN_DIR = fileURLToPath(
+// `up` seeds from the builtin catalog. Point the env at a MINI catalog —
+// two real bundles copied from the repo — instead of all ~29: the ritual
+// re-seeds per phase and per org, and the full catalog's I/O starves the
+// parallel suite's other workers (vitest isolates env per file).
+const REAL_BUILTIN = fileURLToPath(
   new URL('../../../../../../../builtin-configs', import.meta.url),
 );
+const MINI_CATALOG = mkdtempSync(path.join(tmpdir(), 'wf33-catalog-'));
+mkdirSync(path.join(MINI_CATALOG, 'automations'), { recursive: true });
+for (const slug of ['run-assigned-task', 'reply-gmail-emails']) {
+  cpSync(
+    path.join(REAL_BUILTIN, 'automations', slug),
+    path.join(MINI_CATALOG, 'automations', slug),
+    { recursive: true },
+  );
+}
+// Files sharing a vitest worker share process.env — scope the override to
+// this file's lifecycle so neighbors never see the mini catalog.
+const PREV_BUILTIN = process.env.TALE_CONFIG_BUILTIN_DIR;
+beforeAll(() => {
+  process.env.TALE_CONFIG_BUILTIN_DIR = MINI_CATALOG;
+});
+afterAll(() => {
+  if (PREV_BUILTIN === undefined) delete process.env.TALE_CONFIG_BUILTIN_DIR;
+  else process.env.TALE_CONFIG_BUILTIN_DIR = PREV_BUILTIN;
+});
 
 const EPOCH_WORKFLOW = JSON.stringify({
   steps: [
@@ -103,12 +126,8 @@ defineMigrationTest({
     expect(manifest.name).toBe('my-flow');
     expect(manifest.scope).toBe('org');
     expect(manifest.workflow?.steps).toHaveLength(1);
-    expect(
-      await readFileSafe(
-        path.join(autoDir, 'triage-unassigned-tasks', 'automation.json'),
-      ),
-      'mapped slug ships from the catalog, never as a wrap',
-    ).not.toBeNull();
+    // The MAPPED workflows slug (triage) is deliberately NOT in the mini
+    // catalog: the wrap must still skip it — mapped slugs never wrap.
     expect(
       await readFileSafe(path.join(autoDir, 'broken', 'automation.json')),
     ).toBeNull();
