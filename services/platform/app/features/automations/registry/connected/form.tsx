@@ -184,28 +184,27 @@ export function Form({
   // fields from them. A form with no `initialQuery` (or an unresolved project)
   // simply keeps its `initial` defaults.
   useEffect(() => {
-    let cancelled = false;
-    const cleanup = () => {
-      cancelled = true;
-    };
-    if (!initialQuery?.path) return cleanup;
+    if (!initialQuery?.path) return;
     // Load once the form is actually visible — gated-and-shown or ungated.
     // Skip while the gate is pending / hidden / awaiting project config.
-    if (whenGate.decision !== 'show' && whenGate.decision !== 'ungated') {
-      return cleanup;
-    }
+    if (whenGate.decision !== 'show' && whenGate.decision !== 'ungated') return;
     if (
       argsReferenceProjectId(initialQuery.args) &&
       runtime.projectId === undefined
     ) {
-      return cleanup;
+      return;
     }
-    if (initialLoadedRef.current) return cleanup;
+    if (initialLoadedRef.current) return;
     initialLoadedRef.current = true;
+    // Deliberately no unmount-cancel flag: `initialLoad`/`initialQuery` are
+    // fresh refs each render, so this effect re-runs constantly; a cleanup that
+    // flipped a `cancelled` flag would abort the in-flight load on the very
+    // next render before it could seed. `initialLoadedRef` already guarantees a
+    // single dispatch, and a setState after unmount is a harmless no-op.
     initialLoad
       .dispatch(initialQuery.args)
       .then((res) => {
-        if (cancelled || !isRecord(res)) return;
+        if (!isRecord(res)) return;
         const rec: Record<string, string> = {};
         for (const [key, value] of Object.entries(res)) {
           if (typeof value === 'string') rec[key] = value;
@@ -220,7 +219,6 @@ export function Form({
           err,
         );
       });
-    return cleanup;
   }, [initialQuery, whenGate.decision, runtime.projectId, initialLoad]);
 
   // The file's values win over the static defaults — but never clobber an edit
