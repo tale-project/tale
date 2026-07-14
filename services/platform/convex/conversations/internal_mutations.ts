@@ -17,6 +17,7 @@ export const createConversation = internalMutation({
   args: {
     organizationId: v.string(),
     contactId: v.optional(v.id('contacts')),
+    assigneeUserId: v.optional(v.string()),
     externalMessageId: v.optional(v.string()),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),

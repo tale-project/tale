@@ -47,6 +47,7 @@ const audienceValidator = v.union(
   v.literal('project_creator'),
   v.literal('org_admins'),
   v.literal('org_members'),
+  v.literal('conversation_assignee'),
 );
 
 async function orgAdminUserIds(
@@ -136,6 +137,9 @@ export const notifyFromAutomation = internalMutation({
     projectId: v.optional(v.id('projects')),
     conversationId: v.optional(v.id('conversations')),
     userIds: v.optional(v.array(v.string())),
+    // In-app only: skip the actionable email for this fan-out (e.g. the admin
+    // fallback branch, so an unassigned inbox doesn't email every admin).
+    suppressEmail: v.optional(v.boolean()),
   },
   returns: v.object({ notified: v.number() }),
   handler: async (ctx, args): Promise<{ notified: number }> => {
@@ -165,6 +169,13 @@ export const notifyFromAutomation = internalMutation({
       case 'task_assignee':
         if (task?.assigneeType === 'user' && task.assigneeId) {
           recipients = [task.assigneeId];
+        }
+        break;
+      case 'conversation_assignee':
+        // Human owner only (schema stores a Better Auth userId). Unassigned ⇒
+        // no recipients here; the workflow routes the admin fallback instead.
+        if (conversation?.assigneeUserId) {
+          recipients = [conversation.assigneeUserId];
         }
         break;
       case 'task_subscribers':
@@ -247,17 +258,19 @@ export const notifyFromAutomation = internalMutation({
         read: false,
         createdAt: now,
       });
-      await queueActionableEmail(ctx, {
-        userId,
-        organizationId: args.organizationId,
-        type: args.type,
-        titleKey: args.titleKey,
-        bodyKey: args.bodyKey,
-        params: notificationParams,
-        resourceType,
-        resourceId,
-        taskId: args.taskId ?? (task ? task._id : undefined),
-      });
+      if (!args.suppressEmail) {
+        await queueActionableEmail(ctx, {
+          userId,
+          organizationId: args.organizationId,
+          type: args.type,
+          titleKey: args.titleKey,
+          bodyKey: args.bodyKey,
+          params: notificationParams,
+          resourceType,
+          resourceId,
+          taskId: args.taskId ?? (task ? task._id : undefined),
+        });
+      }
       notified += 1;
     }
     return { notified };

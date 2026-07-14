@@ -1040,6 +1040,7 @@ import type * as migrations_versions_v0_3_4_41_create_pack_automation_installs_m
 import type * as migrations_versions_v0_3_4_42_retire_github_agent_installs_migration from "../migrations/versions/v0_3_4/42_retire_github_agent_installs/migration.js";
 import type * as migrations_versions_v0_3_4_43_retire_standalone_workflow_installs_migration from "../migrations/versions/v0_3_4/43_retire_standalone_workflow_installs/migration.js";
 import type * as migrations_versions_v0_3_4_44_realign_conversation_last_message_at_migration from "../migrations/versions/v0_3_4/44_realign_conversation_last_message_at/migration.js";
+import type * as migrations_versions_v0_3_4_45_add_conversation_assignee_migration from "../migrations/versions/v0_3_4/45_add_conversation_assignee/migration.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -2784,6 +2785,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_3_4/42_retire_github_agent_installs/migration": typeof migrations_versions_v0_3_4_42_retire_github_agent_installs_migration;
   "migrations/versions/v0_3_4/43_retire_standalone_workflow_installs/migration": typeof migrations_versions_v0_3_4_43_retire_standalone_workflow_installs_migration;
   "migrations/versions/v0_3_4/44_realign_conversation_last_message_at/migration": typeof migrations_versions_v0_3_4_44_realign_conversation_last_message_at_migration;
+  "migrations/versions/v0_3_4/45_add_conversation_assignee/migration": typeof migrations_versions_v0_3_4_45_add_conversation_assignee_migration;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

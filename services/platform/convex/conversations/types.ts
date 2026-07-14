@@ -42,6 +42,8 @@ export type BulkOperationResult = Infer<typeof bulkOperationResultValidator>;
 export interface CreateConversationArgs {
   organizationId: string;
   contactId?: Id<'contacts'>;
+  /** Internal member owner (Better Auth userId). Absent ⇒ unassigned. */
+  assigneeUserId?: string;
   externalMessageId?: string;
   subject?: string;
   status?: ConversationStatus;

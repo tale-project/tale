@@ -103,3 +103,108 @@ describe('notifyFromAutomation', () => {
     expect(result.notified).toBe(0);
   });
 });
+
+describe('notifyFromAutomation — conversation_assignee audience', () => {
+  it('notifies the conversation owner when assigned', async () => {
+    const t = convexTest(schema, modules);
+    const conversationId = await t.run((ctx) =>
+      ctx.db.insert('conversations', {
+        organizationId: ORG,
+        assigneeUserId: RECIPIENT,
+        status: 'open',
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'conversation_assignee',
+        conversationId,
+        type: 'conversation_message',
+        titleKey: 'conversationInboundMessage',
+        bodyKey: 'conversationInboundMessageBody',
+      },
+    );
+
+    expect(result.notified).toBe(1);
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('userNotifications')
+        .withIndex('by_user_org_created', (q) =>
+          q.eq('userId', RECIPIENT).eq('organizationId', ORG),
+        )
+        .collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.type).toBe('conversation_message');
+  });
+
+  it('notifies no one when the conversation is unassigned (admin fallback is the workflow branch)', async () => {
+    const t = convexTest(schema, modules);
+    const conversationId = await t.run((ctx) =>
+      ctx.db.insert('conversations', {
+        organizationId: ORG,
+        status: 'open',
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'conversation_assignee',
+        conversationId,
+        type: 'conversation_message',
+        titleKey: 'conversationInboundMessage',
+        bodyKey: 'conversationInboundMessageBody',
+      },
+    );
+
+    expect(result.notified).toBe(0);
+  });
+});
+
+describe('notifyFromAutomation — suppressEmail', () => {
+  async function scheduledEmailJobs(t: T): Promise<unknown[]> {
+    return t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name.includes('deliverActionableEmail'),
+      ),
+    );
+  }
+
+  it('writes the in-app row but schedules no email when suppressEmail is set', async () => {
+    const t = convexTest(schema, modules);
+    // conversation_message is actionable, so it would normally queue email.
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'user_ids',
+        userIds: [RECIPIENT],
+        type: 'conversation_message',
+        titleKey: 'conversationInboundMessage',
+        bodyKey: 'conversationInboundMessageBody',
+        suppressEmail: true,
+      },
+    );
+
+    expect(result.notified).toBe(1);
+    expect(await scheduledEmailJobs(t)).toHaveLength(0);
+  });
+
+  it('queues the actionable email when suppressEmail is not set', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.collab.internal_mutations.notifyFromAutomation, {
+      organizationId: ORG,
+      audience: 'user_ids',
+      userIds: [RECIPIENT],
+      type: 'conversation_message',
+      titleKey: 'conversationInboundMessage',
+      bodyKey: 'conversationInboundMessageBody',
+    });
+
+    expect(await scheduledEmailJobs(t)).toHaveLength(1);
+  });
+});

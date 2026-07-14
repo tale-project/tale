@@ -36,17 +36,35 @@ describe('notify-members-on-inbound-message automation workflow', () => {
     );
     expect(openStep?.stepType).toBe('condition');
 
-    const notifyStep = parsed.data.steps.find(
-      (step) => step.stepSlug === 'notify_members',
+    const assigneeGate = parsed.data.steps.find(
+      (step) => step.stepSlug === 'has_assignee',
     );
-    expect(notifyStep?.stepType).toBe('action');
-    expect(notifyStep?.config).toMatchObject({
+    expect(assigneeGate?.stepType).toBe('condition');
+
+    const notifyAssignee = parsed.data.steps.find(
+      (step) => step.stepSlug === 'notify_assignee',
+    );
+    expect(notifyAssignee?.stepType).toBe('action');
+    expect(notifyAssignee?.config).toMatchObject({
       type: 'notification',
       parameters: {
         operation: 'notify_users',
-        audience: 'org_members',
+        audience: 'conversation_assignee',
         type: 'conversation_message',
         titleKey: 'conversationInboundMessage',
+      },
+    });
+
+    const notifyAdmins = parsed.data.steps.find(
+      (step) => step.stepSlug === 'notify_admins',
+    );
+    expect(notifyAdmins?.config).toMatchObject({
+      type: 'notification',
+      parameters: {
+        operation: 'notify_users',
+        audience: 'org_admins',
+        type: 'conversation_message',
+        suppressEmail: true,
       },
     });
   });
