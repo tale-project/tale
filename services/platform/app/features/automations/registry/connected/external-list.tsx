@@ -30,6 +30,7 @@
  * waiting for a refetch.
  */
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
 import { CircleDot } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
@@ -43,6 +44,10 @@ import {
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
+import {
+  resolveLocalizedProp,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -61,6 +66,8 @@ import {
 
 export interface ExternalListProps {
   title?: string;
+  /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   /** The allowlisted action to fetch rows from (mode defaults to `action`). */
   source: { path: string; args?: unknown; mode?: 'action' };
   /** Result key holding the rows array (e.g. `data`); else a common wrapper key. */
@@ -109,6 +116,7 @@ function pickRefRows(data: unknown): unknown[] {
 
 export function ExternalList({
   title,
+  i18n,
   source,
   itemsKey,
   rowWhen,
@@ -118,6 +126,7 @@ export function ExternalList({
   excludeBy,
 }: ExternalListProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const { config } = useAutomationRuntime();
   const getRowId = useBoundRowIds();
 
@@ -187,9 +196,10 @@ export function ExternalList({
     () =>
       buildBoundColumns(columns, {
         rows: visibleRows,
+        locale,
         actions,
       }),
-    [columns, actions, visibleRows],
+    [columns, actions, visibleRows, locale],
   );
 
   // A `$state.` / `$projectId` reference the source args specialize the
@@ -207,7 +217,11 @@ export function ExternalList({
     query.error && visibleRows.length === 0 && !searching ? query.error : null;
 
   return (
-    <BlockFrame title={title} icon={CircleDot} actions={refresh}>
+    <BlockFrame
+      title={resolveLocalizedProp(title, i18n, 'title', locale) ?? title}
+      icon={CircleDot}
+      actions={refresh}
+    >
       <BindingStates
         blocked={query.blocked}
         path={source.path}

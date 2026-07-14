@@ -44,7 +44,11 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
-import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
+import {
+  resolveLocalizedProp,
+  resolveValueLabels,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -79,6 +83,8 @@ export interface CollectionFilterSpec {
   /** Literal display label per raw value; the raw value stays the
    *  dispatched arg — an unmapped value renders verbatim. */
   valueLabels?: Record<string, string>;
+  /** Per-locale overrides for `labelKey`/`valueLabels`. */
+  i18n?: PackI18nMap;
 }
 
 /** Empty-state copy (literals); defaults to the shared binding.empty. */
@@ -96,6 +102,8 @@ export interface CollectionSearchSpec {
 
 export interface CollectionProps {
   title?: string;
+  /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
   /** Columns to show — column specs; if omitted, inferred from the first row
    *  (minus id-like keys). */
@@ -160,14 +168,25 @@ function CollectionFilterBar({
   onChange: (next: Record<string, string>) => void;
 }) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   return (
     <Row gap={2} wrap>
       {filters.map((f) => {
         const selected = values[f.field];
-        const label = f.labelKey ?? f.field;
-        // Enum-value display labels (`valueLabels`) — the raw value stays the
-        // dispatched arg; unmapped values render verbatim.
-        const valueLabelOf = (value: string) => f.valueLabels?.[value] ?? value;
+        const authoredLabel =
+          resolveLocalizedProp(f.labelKey, f.i18n, 'label', locale) ??
+          f.labelKey;
+        const label = authoredLabel ?? f.field;
+        // Enum-value display labels (`valueLabels`, with `i18n.<locale>`
+        // overrides) — the raw value stays the dispatched arg; unmapped
+        // values render verbatim.
+        const localizedValueLabels = resolveValueLabels(
+          f.valueLabels,
+          f.i18n,
+          locale,
+        );
+        const valueLabelOf = (value: string) =>
+          localizedValueLabels?.[value] ?? value;
         return (
           <DropdownMenu
             key={f.field}
@@ -178,7 +197,7 @@ function CollectionFilterBar({
                     'text-muted-foreground',
                     // Match the column-header capitalize-the-raw-key fallback
                     // when the view didn't author a localized label.
-                    !f.labelKey && 'capitalize',
+                    authoredLabel === undefined && 'capitalize',
                   )}
                 >
                   {label}:
@@ -308,6 +327,7 @@ type CollectionDataSource =
  */
 function CollectionBody({
   title,
+  i18n,
   query,
   columns,
   actions,
@@ -329,6 +349,7 @@ function CollectionBody({
   needsConfig: boolean;
 }) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const applyEffect = useActionEffect();
   const getRowId = useBoundRowIds();
   const tableAddAction = useBoundAddAction(addAction);
@@ -347,15 +368,25 @@ function CollectionBody({
     filters:
       clientFilters.length > 0
         ? {
-            definitions: clientFilters.map((f) => ({
-              key: f.field,
-              title: f.labelKey ?? f.field,
-              options: f.values.map((v) => ({
-                value: v,
-                // Facet display labels — the raw value stays the facet key.
-                label: f.valueLabels?.[v] ?? v,
-              })),
-            })),
+            definitions: clientFilters.map((f) => {
+              const facetValueLabels = resolveValueLabels(
+                f.valueLabels,
+                f.i18n,
+                locale,
+              );
+              return {
+                key: f.field,
+                title:
+                  resolveLocalizedProp(f.labelKey, f.i18n, 'label', locale) ??
+                  f.labelKey ??
+                  f.field,
+                options: f.values.map((v) => ({
+                  value: v,
+                  // Facet display labels — the raw value stays the facet key.
+                  label: facetValueLabels?.[v] ?? v,
+                })),
+              };
+            }),
           }
         : undefined,
     getRowId,
@@ -367,6 +398,7 @@ function CollectionBody({
     () =>
       buildBoundColumns(columns, {
         rows,
+        locale,
         actions,
         rowActions: subjectType
           ? {
@@ -408,8 +440,8 @@ function CollectionBody({
     // that remounts BoundButton cells and drops in-flight latch state.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `rows` when columns declared so BoundButton latch survives query refresh
     hasDeclaredColumns
-      ? [columns, actions, subjectType, subjectIdField]
-      : [columns, actions, subjectType, subjectIdField, rows],
+      ? [columns, actions, subjectType, subjectIdField, locale]
+      : [columns, actions, subjectType, subjectIdField, locale, rows],
   );
 
   // A `$state.` / `$projectId` reference the args carry specializes the
@@ -428,10 +460,13 @@ function CollectionBody({
     infinite !== undefined &&
     (dataSource.type === 'paginated' || infinite.hasMore);
 
+  const resolvedTitle =
+    resolveLocalizedProp(title, i18n, 'title', locale) ?? title;
+
   return (
     <BlockFrame
-      title={title}
-      icon={title ? ListChecks : undefined}
+      title={resolvedTitle}
+      icon={resolvedTitle ? ListChecks : undefined}
       actions={blocked || needsConfig ? undefined : filterBar}
     >
       <BindingStates

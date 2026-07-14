@@ -9,6 +9,10 @@ import type { BoundQueryResult } from '../../hooks/use-bound-query';
 import { ChartCard } from './chart-card';
 
 // i18n → echo `automations.<key>`.
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) =>

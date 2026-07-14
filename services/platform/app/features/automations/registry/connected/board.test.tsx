@@ -17,6 +17,10 @@ import { BoardCard } from './board-card';
 
 // i18n → echo `<ns>.<key>` (collection.test.tsx convention) so assertions read
 // clearly without locale fixtures.
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) =>

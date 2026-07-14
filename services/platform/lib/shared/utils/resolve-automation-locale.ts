@@ -67,6 +67,37 @@ export function resolveLocalizedProp(
   ]);
 }
 
+/**
+ * A pack-authored per-locale override map (`i18n.de.title`, `i18n.fr.label`,
+ * …) — the runtime shape every view/block/entry `i18n` prop shares. Values
+ * carry `unknown` alongside known string props because the Zod sources are
+ * `.passthrough()` objects.
+ */
+export type PackI18nMap = Record<string, Record<string, unknown>>;
+
+/**
+ * Per-raw-value display labels (a badge column's / filter's `valueLabels`)
+ * with per-locale overrides: `i18n.<locale>.valueLabels.<rawValue>`. Layers
+ * merge least-specific first (literal → `en` → base language → requested
+ * locale), so a locale may override any subset of the mapped values.
+ */
+export function resolveValueLabels(
+  literal: Record<string, string> | undefined,
+  i18n: PackI18nMap | undefined,
+  locale: string,
+): Record<string, string> | undefined {
+  const merged: Record<string, string> = { ...literal };
+  // `localeLayers` is most-specific first — reverse it for the merge.
+  for (const layer of localeLayers(i18n, locale).reverse()) {
+    const overrides = layer?.valueLabels;
+    if (typeof overrides !== 'object' || overrides === null) continue;
+    for (const [raw, label] of Object.entries(overrides)) {
+      if (typeof label === 'string' && label !== '') merged[raw] = label;
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 /** An automation's localized `name`/`description` (hub card, page headers…). */
 export function resolveAutomationLocale(
   automation: LocalizableAutomation,

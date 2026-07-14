@@ -61,7 +61,7 @@ function renderTable(
   ctx?: Partial<Parameters<typeof buildBoundColumns>[1]>,
   rows: BoundRow[] = [ROW],
 ) {
-  const defs = buildBoundColumns(columns, { rows, ...ctx });
+  const defs = buildBoundColumns(columns, { rows, locale: 'en', ...ctx });
   return render(
     <DataTable columns={defs} data={rows} getRowId={(r) => String(r._id)} />,
   );
@@ -71,6 +71,7 @@ describe('buildBoundColumns — column defs', () => {
   it('infers the badge kind for status/state columns', () => {
     const defs = buildBoundColumns([{ field: 'title' }, { field: 'status' }], {
       rows: [ROW],
+      locale: 'en',
     });
     expect(defs.map((d) => d.id)).toEqual(['title', 'status']);
     expect(defs[1]?.meta).toMatchObject({ skeleton: { type: 'badge' } });
@@ -90,7 +91,7 @@ describe('buildBoundColumns — column defs', () => {
       f: 6,
       g: 7,
     };
-    const defs = buildBoundColumns(undefined, { rows: [wide] });
+    const defs = buildBoundColumns(undefined, { rows: [wide], locale: 'en' });
     expect(defs.map((d) => d.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
@@ -101,7 +102,7 @@ describe('buildBoundColumns — column defs', () => {
         { field: 'num', kind: 'number' },
         { field: 'when', kind: 'datetime', align: 'left' },
       ],
-      { rows: [ROW] },
+      { rows: [ROW], locale: 'en' },
     );
     expect(defs[0]?.size).toBe(240);
     expect(defs[0]?.meta).toMatchObject({
@@ -121,6 +122,7 @@ describe('buildBoundColumns — column defs', () => {
     };
     const withActions = buildBoundColumns([{ field: 'title' }], {
       rows: [ROW],
+      locale: 'en',
       actions: [action],
     });
     const last = withActions.at(-1);
@@ -130,11 +132,15 @@ describe('buildBoundColumns — column defs', () => {
 
     const withRowActions = buildBoundColumns([{ field: 'title' }], {
       rows: [ROW],
+      locale: 'en',
       rowActions: { idField: '_id', render: () => null },
     });
     expect(withRowActions.at(-1)?.id).toBe('actions');
 
-    const plain = buildBoundColumns([{ field: 'title' }], { rows: [ROW] });
+    const plain = buildBoundColumns([{ field: 'title' }], {
+      rows: [ROW],
+      locale: 'en',
+    });
     expect(plain.at(-1)?.id).toBe('title');
   });
 });
@@ -248,6 +254,38 @@ describe('buildBoundColumns — rendered cells', () => {
     });
     expect(screen.getByRole('button', { name: 'Create task' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'rerun-r1' })).toBeVisible();
+  });
+
+  it("resolves a column's i18n label and valueLabels for the active locale", () => {
+    const columns = [
+      {
+        field: 'status',
+        kind: 'badge' as const,
+        labelKey: 'Status',
+        valueLabels: { in_progress: 'Working' },
+        i18n: {
+          de: { label: 'Stand', valueLabels: { in_progress: 'In Arbeit' } },
+        },
+      },
+    ];
+    renderTable(columns, { locale: 'de' });
+    expect(screen.getByRole('columnheader', { name: 'Stand' })).toBeVisible();
+    expect(screen.getByText('In Arbeit')).toBeVisible();
+  });
+
+  it('falls back to the literal label when the locale has no override', () => {
+    const columns = [
+      {
+        field: 'status',
+        kind: 'badge' as const,
+        labelKey: 'Status',
+        valueLabels: { in_progress: 'Working' },
+        i18n: { de: { label: 'Stand' } },
+      },
+    ];
+    renderTable(columns, { locale: 'fr' });
+    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    expect(screen.getByText('Working')).toBeVisible();
   });
 
   it('omits the injected rowActions affordance when its render returns nothing', () => {

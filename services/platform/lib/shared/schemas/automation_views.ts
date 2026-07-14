@@ -70,6 +70,26 @@ const localizedStringProps = z
   .record(z.string(), z.record(z.string(), z.string()))
   .optional();
 
+/**
+ * Per-locale overrides for one LABELED ENTRY inside a block's spec arrays —
+ * a table column, list filter, select option, detail field, board lane,
+ * stat, or chart series: `i18n.<locale>.label`, plus (where the entry maps
+ * badge values) `i18n.<locale>.valueLabels.<rawValue>`. Resolved at render
+ * via `resolveLocalizedProp` / `resolveValueLabels`
+ * (`lib/shared/utils/resolve-automation-locale.ts`).
+ */
+const labeledEntryI18nSchema = z
+  .record(
+    z.string(),
+    z
+      .object({
+        label: z.string().optional(),
+        valueLabels: z.record(z.string(), z.string()).optional(),
+      })
+      .passthrough(),
+  )
+  .optional();
+
 /** A reactive read binding — the `query` prop of a data block. */
 export const queryBindingSchema = z
   .object({
@@ -244,6 +264,8 @@ export const columnSpecSchema = z
     /** Literal display label per raw cell value for the `badge` kind — an
      *  unmapped value renders verbatim. */
     valueLabels: z.record(z.string(), labelStringSchema).optional(),
+    /** Per-locale overrides for `labelKey`/`valueLabels`. */
+    i18n: labeledEntryI18nSchema,
   })
   .passthrough();
 
@@ -302,6 +324,8 @@ export const formFieldSchema = z.object({
       z.object({
         value: z.string(),
         label: z.string().optional(),
+        /** Per-locale overrides for `label` (`i18n.de.label`, …). */
+        i18n: labeledEntryI18nSchema,
       }),
     )
     .optional(),
@@ -335,6 +359,8 @@ const listFilterSchema = z
     /** Literal display label per raw filter value — the raw value stays the
      *  dispatched arg; an unmapped value renders verbatim. */
     valueLabels: z.record(z.string(), labelStringSchema).optional(),
+    /** Per-locale overrides for `labelKey`/`valueLabels`. */
+    i18n: labeledEntryI18nSchema,
   })
   .passthrough();
 
@@ -543,6 +569,8 @@ const statGridPropsSchema = z
               .optional(),
             trendField: z.string().optional(),
             sparklineField: z.string().optional(),
+            /** Per-locale overrides for `labelKey`. */
+            i18n: labeledEntryI18nSchema,
           })
           .passthrough(),
       )
@@ -563,7 +591,12 @@ const chartCardPropsSchema = z
         series: z
           .array(
             z
-              .object({ field: z.string(), labelKey: labelStringSchema })
+              .object({
+                field: z.string(),
+                labelKey: labelStringSchema,
+                /** Per-locale overrides for `labelKey`. */
+                i18n: labeledEntryI18nSchema,
+              })
               .passthrough(),
           )
           .min(1),
@@ -588,6 +621,8 @@ const detailPanelPropsSchema = z
             kind: z
               .enum(['text', 'badge', 'datetime', 'link', 'number'])
               .optional(),
+            /** Per-locale overrides for `labelKey`/`valueLabels`. */
+            i18n: labeledEntryI18nSchema,
           })
           .passthrough(),
       )
@@ -631,7 +666,12 @@ const boardPropsSchema = z
     lanes: z
       .array(
         z
-          .object({ value: z.string(), labelKey: labelStringSchema })
+          .object({
+            value: z.string(),
+            labelKey: labelStringSchema,
+            /** Per-locale overrides for `labelKey`. */
+            i18n: labeledEntryI18nSchema,
+          })
           .passthrough(),
       )
       .min(1),

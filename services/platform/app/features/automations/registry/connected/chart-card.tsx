@@ -18,6 +18,7 @@ import type { Fields, PuckComponent } from '@measured/puck';
 import { ChartCard as UiChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { getChartSeriesColor } from '@tale/ui/chart-theme';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { BarChart3 } from 'lucide-react';
 
 import {
@@ -33,6 +34,10 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
+import {
+  resolveLocalizedProp,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundQuery } from '../../hooks/use-bound-query';
@@ -44,6 +49,8 @@ export interface ChartSeriesSpec {
   field: string;
   /** Literal display label, rendered verbatim. */
   labelKey: string;
+  /** Per-locale overrides for `labelKey`. */
+  i18n?: PackI18nMap;
 }
 
 export interface ChartSpec {
@@ -56,6 +63,8 @@ export interface ChartSpec {
 export interface ChartCardBlockProps {
   /** Literal card title, rendered verbatim. */
   titleKey: string;
+  /** Per-locale overrides for `titleKey` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
   /** Result key (dot-notation) holding the datapoint array. */
   itemsKey?: string;
@@ -97,12 +106,14 @@ function toChartRows(
 
 export function ChartCard({
   titleKey,
+  i18n,
   query,
   itemsKey,
   chart,
   height,
 }: ChartCardBlockProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const { data, isLoading, blocked, needsConfig } = useBoundQuery(
     query.path,
     query.args,
@@ -116,7 +127,8 @@ export function ChartCard({
   const chartRows = toChartRows(rows, chart);
   const series: ChartSeries[] = chart.series.map((s, i) => ({
     key: `s${i}`,
-    label: s.labelKey,
+    label:
+      resolveLocalizedProp(s.labelKey, s.i18n, 'label', locale) ?? s.labelKey,
     color: getChartSeriesColor(i),
   }));
 
@@ -131,7 +143,7 @@ export function ChartCard({
 
   return (
     <UiChartCard
-      title={titleKey}
+      title={resolveLocalizedProp(titleKey, i18n, 'title', locale) ?? titleKey}
       loading={isLoading && !hasBindingState}
       isEmpty={!isLoading && !hasBindingState && rows.length === 0}
       emptyIcon={BarChart3}
@@ -173,7 +185,7 @@ export const chartCardBlock: {
   render: PuckComponent<Partial<ChartCardBlockProps>>;
 } = {
   fields: { titleKey: { type: 'text' } },
-  render: ({ titleKey, query, itemsKey, chart, height }) =>
+  render: ({ titleKey, i18n, query, itemsKey, chart, height }) =>
     titleKey !== undefined &&
     query?.path &&
     chart?.xField &&
@@ -181,6 +193,7 @@ export const chartCardBlock: {
     chart.series.length > 0 ? (
       <ChartCard
         titleKey={titleKey}
+        i18n={i18n}
         query={query}
         itemsKey={itemsKey}
         chart={chart}

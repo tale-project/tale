@@ -16,6 +16,8 @@ import {
   humanizeFieldKey,
   resolveAutomationLocale,
   resolveConfigFieldLocale,
+  resolveLocalizedProp,
+  type PackI18nMap,
 } from '@/lib/shared/utils/resolve-automation-locale';
 
 /**
@@ -38,8 +40,13 @@ export interface ConfigFieldText {
   placeholder: (field: AutomationConfigField) => string | undefined;
   /** `undefined` when the field declares no help text anywhere. */
   help: (field: AutomationConfigField) => string | undefined;
-  /** A `select` option's label (literal, or the humanized `value`). */
-  option: (option: { value: string; label?: string }) => string;
+  /** A `select` option's label — its own `i18n.<locale>.label` over the
+   *  literal, else the humanized `value`. */
+  option: (option: {
+    value: string;
+    label?: string;
+    i18n?: PackI18nMap;
+  }) => string;
 }
 
 /**
@@ -58,6 +65,9 @@ export function useConfigFieldText(
     placeholder: (field) =>
       resolveConfigFieldLocale(field, i18n, locale).placeholder,
     help: (field) => resolveConfigFieldLocale(field, i18n, locale).help,
-    option: (option) => option.label ?? humanizeFieldKey(option.value),
+    option: (option) =>
+      resolveLocalizedProp(option.label, option.i18n, 'label', locale) ??
+      option.label ??
+      humanizeFieldKey(option.value),
   };
 }

@@ -1792,6 +1792,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -1845,6 +1869,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -2310,6 +2358,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -2530,6 +2602,30 @@
                                     ],
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -2583,6 +2679,30 @@
                                     "properties": {
                                       "field": {
                                         "type": "string"
+                                      },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
                                       },
                                       "labelKey": {
                                         "type": "string"
@@ -2894,6 +3014,30 @@
                                   "field": {
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -3004,6 +3148,30 @@
                                     "items": {
                                       "additionalProperties": false,
                                       "properties": {
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "label": {
                                           "type": "string"
                                         },
@@ -3687,6 +3855,30 @@
                               "items": {
                                 "additionalProperties": {},
                                 "properties": {
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -4111,6 +4303,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -6617,6 +6833,30 @@
                                         }
                                       ]
                                     },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "kind": {
                                       "enum": [
                                         "text",
@@ -6670,6 +6910,30 @@
                                   "properties": {
                                     "field": {
                                       "type": "string"
+                                    },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
                                     },
                                     "labelKey": {
                                       "type": "string"
@@ -7135,6 +7399,30 @@
                                         }
                                       ]
                                     },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "kind": {
                                       "enum": [
                                         "text",
@@ -7355,6 +7643,30 @@
                                       ],
                                       "type": "string"
                                     },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "labelKey": {
                                       "type": "string"
                                     },
@@ -7408,6 +7720,30 @@
                                       "properties": {
                                         "field": {
                                           "type": "string"
+                                        },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
                                         },
                                         "labelKey": {
                                           "type": "string"
@@ -7719,6 +8055,30 @@
                                     "field": {
                                       "type": "string"
                                     },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "kind": {
                                       "enum": [
                                         "text",
@@ -7829,6 +8189,30 @@
                                       "items": {
                                         "additionalProperties": false,
                                         "properties": {
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "label": {
                                             "type": "string"
                                           },
@@ -8520,6 +8904,30 @@
                                 "items": {
                                   "additionalProperties": {},
                                   "properties": {
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "labelKey": {
                                       "type": "string"
                                     },
@@ -8944,6 +9352,30 @@
                                   "properties": {
                                     "field": {
                                       "type": "string"
+                                    },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
                                     },
                                     "labelKey": {
                                       "type": "string"
@@ -11453,6 +11885,30 @@
                                     }
                                   ]
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -11506,6 +11962,30 @@
                               "properties": {
                                 "field": {
                                   "type": "string"
+                                },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
                                 },
                                 "labelKey": {
                                   "type": "string"
@@ -11963,6 +12443,30 @@
                                     }
                                   ]
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -12183,6 +12687,30 @@
                                   ],
                                   "type": "string"
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "labelKey": {
                                   "type": "string"
                                 },
@@ -12236,6 +12764,30 @@
                                   "properties": {
                                     "field": {
                                       "type": "string"
+                                    },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
                                     },
                                     "labelKey": {
                                       "type": "string"
@@ -12539,6 +13091,30 @@
                                 "field": {
                                   "type": "string"
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -12649,6 +13225,30 @@
                                   "items": {
                                     "additionalProperties": false,
                                     "properties": {
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "label": {
                                         "type": "string"
                                       },
@@ -13324,6 +13924,30 @@
                             "items": {
                               "additionalProperties": {},
                               "properties": {
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "labelKey": {
                                   "type": "string"
                                 },
@@ -13740,6 +14364,30 @@
                               "properties": {
                                 "field": {
                                   "type": "string"
+                                },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
                                 },
                                 "labelKey": {
                                   "type": "string"
@@ -16222,6 +16870,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -16275,6 +16947,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -16740,6 +17436,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -16960,6 +17680,30 @@
                                     ],
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -17013,6 +17757,30 @@
                                     "properties": {
                                       "field": {
                                         "type": "string"
+                                      },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
                                       },
                                       "labelKey": {
                                         "type": "string"
@@ -17324,6 +18092,30 @@
                                   "field": {
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -17434,6 +18226,30 @@
                                     "items": {
                                       "additionalProperties": false,
                                       "properties": {
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "label": {
                                           "type": "string"
                                         },
@@ -18117,6 +18933,30 @@
                               "items": {
                                 "additionalProperties": {},
                                 "properties": {
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -18541,6 +19381,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -21048,6 +21912,30 @@
                                     }
                                   ]
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -21101,6 +21989,30 @@
                               "properties": {
                                 "field": {
                                   "type": "string"
+                                },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
                                 },
                                 "labelKey": {
                                   "type": "string"
@@ -21558,6 +22470,30 @@
                                     }
                                   ]
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -21778,6 +22714,30 @@
                                   ],
                                   "type": "string"
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "labelKey": {
                                   "type": "string"
                                 },
@@ -21831,6 +22791,30 @@
                                   "properties": {
                                     "field": {
                                       "type": "string"
+                                    },
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
                                     },
                                     "labelKey": {
                                       "type": "string"
@@ -22134,6 +23118,30 @@
                                 "field": {
                                   "type": "string"
                                 },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "kind": {
                                   "enum": [
                                     "text",
@@ -22244,6 +23252,30 @@
                                   "items": {
                                     "additionalProperties": false,
                                     "properties": {
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "label": {
                                         "type": "string"
                                       },
@@ -22919,6 +23951,30 @@
                             "items": {
                               "additionalProperties": {},
                               "properties": {
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
                                 "labelKey": {
                                   "type": "string"
                                 },
@@ -23335,6 +24391,30 @@
                               "properties": {
                                 "field": {
                                   "type": "string"
+                                },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
                                 },
                                 "labelKey": {
                                   "type": "string"
@@ -25817,6 +26897,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -25870,6 +26974,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -26335,6 +27463,30 @@
                                       }
                                     ]
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -26555,6 +27707,30 @@
                                     ],
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -26608,6 +27784,30 @@
                                     "properties": {
                                       "field": {
                                         "type": "string"
+                                      },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
                                       },
                                       "labelKey": {
                                         "type": "string"
@@ -26919,6 +28119,30 @@
                                   "field": {
                                     "type": "string"
                                   },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "text",
@@ -27029,6 +28253,30 @@
                                     "items": {
                                       "additionalProperties": false,
                                       "properties": {
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "label": {
                                           "type": "string"
                                         },
@@ -27712,6 +28960,30 @@
                               "items": {
                                 "additionalProperties": {},
                                 "properties": {
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "labelKey": {
                                     "type": "string"
                                   },
@@ -28136,6 +29408,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -30690,6 +31986,30 @@
                                             }
                                           ]
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -30743,6 +32063,30 @@
                                       "properties": {
                                         "field": {
                                           "type": "string"
+                                        },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
                                         },
                                         "labelKey": {
                                           "type": "string"
@@ -31224,6 +32568,30 @@
                                             }
                                           ]
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -31444,6 +32812,30 @@
                                           ],
                                           "type": "string"
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "labelKey": {
                                           "type": "string"
                                         },
@@ -31497,6 +32889,30 @@
                                           "properties": {
                                             "field": {
                                               "type": "string"
+                                            },
+                                            "i18n": {
+                                              "additionalProperties": {
+                                                "additionalProperties": {},
+                                                "properties": {
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "valueLabels": {
+                                                    "additionalProperties": {
+                                                      "type": "string"
+                                                    },
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "type": "object"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
                                             },
                                             "labelKey": {
                                               "type": "string"
@@ -31820,6 +33236,30 @@
                                         "field": {
                                           "type": "string"
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -31930,6 +33370,30 @@
                                           "items": {
                                             "additionalProperties": false,
                                             "properties": {
+                                              "i18n": {
+                                                "additionalProperties": {
+                                                  "additionalProperties": {},
+                                                  "properties": {
+                                                    "label": {
+                                                      "type": "string"
+                                                    },
+                                                    "valueLabels": {
+                                                      "additionalProperties": {
+                                                        "type": "string"
+                                                      },
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "type": "object"
+                                                    }
+                                                  },
+                                                  "type": "object"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
                                               "label": {
                                                 "type": "string"
                                               },
@@ -32645,6 +34109,30 @@
                                     "items": {
                                       "additionalProperties": {},
                                       "properties": {
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "labelKey": {
                                           "type": "string"
                                         },
@@ -33085,6 +34573,30 @@
                                       "properties": {
                                         "field": {
                                           "type": "string"
+                                        },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
                                         },
                                         "labelKey": {
                                           "type": "string"
@@ -35697,6 +37209,30 @@
                                               }
                                             ]
                                           },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "kind": {
                                             "enum": [
                                               "text",
@@ -35750,6 +37286,30 @@
                                         "properties": {
                                           "field": {
                                             "type": "string"
+                                          },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
                                           },
                                           "labelKey": {
                                             "type": "string"
@@ -36237,6 +37797,30 @@
                                               }
                                             ]
                                           },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "kind": {
                                             "enum": [
                                               "text",
@@ -36461,6 +38045,30 @@
                                             ],
                                             "type": "string"
                                           },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "labelKey": {
                                             "type": "string"
                                           },
@@ -36514,6 +38122,30 @@
                                             "properties": {
                                               "field": {
                                                 "type": "string"
+                                              },
+                                              "i18n": {
+                                                "additionalProperties": {
+                                                  "additionalProperties": {},
+                                                  "properties": {
+                                                    "label": {
+                                                      "type": "string"
+                                                    },
+                                                    "valueLabels": {
+                                                      "additionalProperties": {
+                                                        "type": "string"
+                                                      },
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "type": "object"
+                                                    }
+                                                  },
+                                                  "type": "object"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
                                               },
                                               "labelKey": {
                                                 "type": "string"
@@ -36843,6 +38475,30 @@
                                           "field": {
                                             "type": "string"
                                           },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "kind": {
                                             "enum": [
                                               "text",
@@ -36953,6 +38609,30 @@
                                             "items": {
                                               "additionalProperties": false,
                                               "properties": {
+                                                "i18n": {
+                                                  "additionalProperties": {
+                                                    "additionalProperties": {},
+                                                    "properties": {
+                                                      "label": {
+                                                        "type": "string"
+                                                      },
+                                                      "valueLabels": {
+                                                        "additionalProperties": {
+                                                          "type": "string"
+                                                        },
+                                                        "propertyNames": {
+                                                          "type": "string"
+                                                        },
+                                                        "type": "object"
+                                                      }
+                                                    },
+                                                    "type": "object"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                },
                                                 "label": {
                                                   "type": "string"
                                                 },
@@ -37678,6 +39358,30 @@
                                       "items": {
                                         "additionalProperties": {},
                                         "properties": {
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
                                           "labelKey": {
                                             "type": "string"
                                           },
@@ -38128,6 +39832,30 @@
                                         "properties": {
                                           "field": {
                                             "type": "string"
+                                          },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
                                           },
                                           "labelKey": {
                                             "type": "string"
@@ -40748,6 +42476,30 @@
                                           }
                                         ]
                                       },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "kind": {
                                         "enum": [
                                           "text",
@@ -40801,6 +42553,30 @@
                                     "properties": {
                                       "field": {
                                         "type": "string"
+                                      },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
                                       },
                                       "labelKey": {
                                         "type": "string"
@@ -41274,6 +43050,30 @@
                                           }
                                         ]
                                       },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "kind": {
                                         "enum": [
                                           "text",
@@ -41494,6 +43294,30 @@
                                         ],
                                         "type": "string"
                                       },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "labelKey": {
                                         "type": "string"
                                       },
@@ -41547,6 +43371,30 @@
                                         "properties": {
                                           "field": {
                                             "type": "string"
+                                          },
+                                          "i18n": {
+                                            "additionalProperties": {
+                                              "additionalProperties": {},
+                                              "properties": {
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "valueLabels": {
+                                                  "additionalProperties": {
+                                                    "type": "string"
+                                                  },
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "object"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
                                           },
                                           "labelKey": {
                                             "type": "string"
@@ -41866,6 +43714,30 @@
                                       "field": {
                                         "type": "string"
                                       },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "kind": {
                                         "enum": [
                                           "text",
@@ -41976,6 +43848,30 @@
                                         "items": {
                                           "additionalProperties": false,
                                           "properties": {
+                                            "i18n": {
+                                              "additionalProperties": {
+                                                "additionalProperties": {},
+                                                "properties": {
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "valueLabels": {
+                                                    "additionalProperties": {
+                                                      "type": "string"
+                                                    },
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "type": "object"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            },
                                             "label": {
                                               "type": "string"
                                             },
@@ -42675,6 +44571,30 @@
                                   "items": {
                                     "additionalProperties": {},
                                     "properties": {
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      },
                                       "labelKey": {
                                         "type": "string"
                                       },
@@ -43107,6 +45027,30 @@
                                     "properties": {
                                       "field": {
                                         "type": "string"
+                                      },
+                                      "i18n": {
+                                        "additionalProperties": {
+                                          "additionalProperties": {},
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "valueLabels": {
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
                                       },
                                       "labelKey": {
                                         "type": "string"
@@ -45675,6 +47619,30 @@
                                             }
                                           ]
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -45728,6 +47696,30 @@
                                       "properties": {
                                         "field": {
                                           "type": "string"
+                                        },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
                                         },
                                         "labelKey": {
                                           "type": "string"
@@ -46209,6 +48201,30 @@
                                             }
                                           ]
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -46429,6 +48445,30 @@
                                           ],
                                           "type": "string"
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "labelKey": {
                                           "type": "string"
                                         },
@@ -46482,6 +48522,30 @@
                                           "properties": {
                                             "field": {
                                               "type": "string"
+                                            },
+                                            "i18n": {
+                                              "additionalProperties": {
+                                                "additionalProperties": {},
+                                                "properties": {
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "valueLabels": {
+                                                    "additionalProperties": {
+                                                      "type": "string"
+                                                    },
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "type": "object"
+                                              },
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "type": "object"
                                             },
                                             "labelKey": {
                                               "type": "string"
@@ -46805,6 +48869,30 @@
                                         "field": {
                                           "type": "string"
                                         },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "kind": {
                                           "enum": [
                                             "text",
@@ -46915,6 +49003,30 @@
                                           "items": {
                                             "additionalProperties": false,
                                             "properties": {
+                                              "i18n": {
+                                                "additionalProperties": {
+                                                  "additionalProperties": {},
+                                                  "properties": {
+                                                    "label": {
+                                                      "type": "string"
+                                                    },
+                                                    "valueLabels": {
+                                                      "additionalProperties": {
+                                                        "type": "string"
+                                                      },
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "type": "object"
+                                                    }
+                                                  },
+                                                  "type": "object"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
                                               "label": {
                                                 "type": "string"
                                               },
@@ -47630,6 +49742,30 @@
                                     "items": {
                                       "additionalProperties": {},
                                       "properties": {
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
                                         "labelKey": {
                                           "type": "string"
                                         },
@@ -48070,6 +50206,30 @@
                                       "properties": {
                                         "field": {
                                           "type": "string"
+                                        },
+                                        "i18n": {
+                                          "additionalProperties": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "valueLabels": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
                                         },
                                         "labelKey": {
                                           "type": "string"
@@ -50632,6 +52792,30 @@
                           }
                         ]
                       },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "kind": {
                         "enum": [
                           "text",
@@ -50685,6 +52869,30 @@
                     "properties": {
                       "field": {
                         "type": "string"
+                      },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
                       },
                       "labelKey": {
                         "type": "string"
@@ -51142,6 +53350,30 @@
                           }
                         ]
                       },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "kind": {
                         "enum": [
                           "text",
@@ -51357,6 +53589,30 @@
                         "enum": ["number", "percent", "duration", "cents"],
                         "type": "string"
                       },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "labelKey": {
                         "type": "string"
                       },
@@ -51410,6 +53666,30 @@
                         "properties": {
                           "field": {
                             "type": "string"
+                          },
+                          "i18n": {
+                            "additionalProperties": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "valueLabels": {
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "type": "object"
                           },
                           "labelKey": {
                             "type": "string"
@@ -51713,6 +53993,30 @@
                       "field": {
                         "type": "string"
                       },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "kind": {
                         "enum": ["text", "badge", "datetime", "link", "number"],
                         "type": "string"
@@ -51817,6 +54121,30 @@
                         "items": {
                           "additionalProperties": false,
                           "properties": {
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "label": {
                               "type": "string"
                             },
@@ -52482,6 +54810,30 @@
                   "items": {
                     "additionalProperties": {},
                     "properties": {
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "labelKey": {
                         "type": "string"
                       },
@@ -52892,6 +55244,30 @@
                     "properties": {
                       "field": {
                         "type": "string"
+                      },
+                      "i18n": {
+                        "additionalProperties": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "valueLabels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
                       },
                       "labelKey": {
                         "type": "string"
@@ -54625,6 +57001,30 @@
             }
           ]
         },
+        "i18n": {
+          "additionalProperties": {
+            "additionalProperties": {},
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "valueLabels": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
         "kind": {
           "enum": ["text", "badge", "datetime", "number", "id", "two-line"],
           "type": "string"
@@ -54708,6 +57108,30 @@
           "items": {
             "additionalProperties": false,
             "properties": {
+              "i18n": {
+                "additionalProperties": {
+                  "additionalProperties": {},
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "valueLabels": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "label": {
                 "type": "string"
               },
@@ -55667,6 +58091,30 @@
                                 }
                               ]
                             },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "kind": {
                               "enum": [
                                 "text",
@@ -55720,6 +58168,30 @@
                           "properties": {
                             "field": {
                               "type": "string"
+                            },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
                             },
                             "labelKey": {
                               "type": "string"
@@ -56177,6 +58649,30 @@
                                 }
                               ]
                             },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "kind": {
                               "enum": [
                                 "text",
@@ -56397,6 +58893,30 @@
                               ],
                               "type": "string"
                             },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "labelKey": {
                               "type": "string"
                             },
@@ -56450,6 +58970,30 @@
                               "properties": {
                                 "field": {
                                   "type": "string"
+                                },
+                                "i18n": {
+                                  "additionalProperties": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "valueLabels": {
+                                        "additionalProperties": {
+                                          "type": "string"
+                                        },
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "type": "object"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
                                 },
                                 "labelKey": {
                                   "type": "string"
@@ -56753,6 +59297,30 @@
                             "field": {
                               "type": "string"
                             },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "kind": {
                               "enum": [
                                 "text",
@@ -56863,6 +59431,30 @@
                               "items": {
                                 "additionalProperties": false,
                                 "properties": {
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
                                   "label": {
                                     "type": "string"
                                   },
@@ -57533,6 +60125,30 @@
                         "items": {
                           "additionalProperties": {},
                           "properties": {
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
                             "labelKey": {
                               "type": "string"
                             },
@@ -57943,6 +60559,30 @@
                           "properties": {
                             "field": {
                               "type": "string"
+                            },
+                            "i18n": {
+                              "additionalProperties": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "valueLabels": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
                             },
                             "labelKey": {
                               "type": "string"
@@ -60396,6 +63036,30 @@
                                   }
                                 ]
                               },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              },
                               "kind": {
                                 "enum": [
                                   "text",
@@ -60449,6 +63113,30 @@
                             "properties": {
                               "field": {
                                 "type": "string"
+                              },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
                               },
                               "labelKey": {
                                 "type": "string"
@@ -60906,6 +63594,30 @@
                                   }
                                 ]
                               },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              },
                               "kind": {
                                 "enum": [
                                   "text",
@@ -61126,6 +63838,30 @@
                                 ],
                                 "type": "string"
                               },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              },
                               "labelKey": {
                                 "type": "string"
                               },
@@ -61179,6 +63915,30 @@
                                 "properties": {
                                   "field": {
                                     "type": "string"
+                                  },
+                                  "i18n": {
+                                    "additionalProperties": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "valueLabels": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
                                   },
                                   "labelKey": {
                                     "type": "string"
@@ -61482,6 +64242,30 @@
                               "field": {
                                 "type": "string"
                               },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              },
                               "kind": {
                                 "enum": [
                                   "text",
@@ -61592,6 +64376,30 @@
                                 "items": {
                                   "additionalProperties": false,
                                   "properties": {
+                                    "i18n": {
+                                      "additionalProperties": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "valueLabels": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
                                     "label": {
                                       "type": "string"
                                     },
@@ -62267,6 +65075,30 @@
                           "items": {
                             "additionalProperties": {},
                             "properties": {
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              },
                               "labelKey": {
                                 "type": "string"
                               },
@@ -62677,6 +65509,30 @@
                             "properties": {
                               "field": {
                                 "type": "string"
+                              },
+                              "i18n": {
+                                "additionalProperties": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "valueLabels": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "type": "object"
                               },
                               "labelKey": {
                                 "type": "string"

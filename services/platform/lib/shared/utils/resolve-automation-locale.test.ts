@@ -4,6 +4,7 @@ import {
   humanizeFieldKey,
   resolveAutomationLocale,
   resolveConfigFieldLocale,
+  resolveValueLabels,
   resolveLocalizedProp,
 } from './resolve-automation-locale';
 
@@ -233,5 +234,51 @@ describe('resolveConfigFieldLocale', () => {
     const result = resolveConfigFieldLocale(bare, undefined, 'en');
     expect(result.placeholder).toBeUndefined();
     expect(result.help).toBeUndefined();
+  });
+});
+
+describe('resolveValueLabels', () => {
+  const literal = { backlog: 'Backlog', in_progress: 'Working' };
+  const i18n = {
+    de: { valueLabels: { backlog: 'Rückstand', in_progress: 'In Arbeit' } },
+    'de-CH': { valueLabels: { in_progress: 'In Arbet' } },
+  };
+
+  it('overlays the locale layer over the literal map', () => {
+    expect(resolveValueLabels(literal, i18n, 'de')).toEqual({
+      backlog: 'Rückstand',
+      in_progress: 'In Arbeit',
+    });
+  });
+
+  it('merges regional over base over the literal (partial overrides)', () => {
+    expect(resolveValueLabels(literal, i18n, 'de-CH')).toEqual({
+      backlog: 'Rückstand',
+      in_progress: 'In Arbet',
+    });
+  });
+
+  it('returns the literal map for a locale with no overrides', () => {
+    expect(resolveValueLabels(literal, i18n, 'fr')).toEqual(literal);
+  });
+
+  it('returns undefined when nothing maps anywhere', () => {
+    expect(resolveValueLabels(undefined, undefined, 'de')).toBeUndefined();
+  });
+
+  it('a locale can introduce values the literal map does not carry', () => {
+    expect(
+      resolveValueLabels(undefined, { de: { valueLabels: { x: 'Ix' } } }, 'de'),
+    ).toEqual({ x: 'Ix' });
+  });
+
+  it('skips empty-string overrides', () => {
+    expect(
+      resolveValueLabels(
+        literal,
+        { de: { valueLabels: { backlog: '' } } },
+        'de',
+      ),
+    ).toEqual(literal);
   });
 });

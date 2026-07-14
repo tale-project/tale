@@ -27,6 +27,10 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
+import {
+  resolveLocalizedProp,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -95,6 +99,8 @@ export function formatStatValue(
 export interface StatSpec {
   /** Literal display label, rendered verbatim. */
   labelKey: string;
+  /** Per-locale overrides for `labelKey`. */
+  i18n?: PackI18nMap;
   /** Dot-notation path into the query result. */
   valueField: string;
   format?: 'number' | 'percent' | 'duration' | 'cents';
@@ -107,6 +113,8 @@ export interface StatSpec {
 export interface StatGridProps {
   /** Optional block title (literal; schema passthrough). */
   title?: string;
+  /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
   /** Grid column count — the StatCardGrid strip supports 2 or 4 (default 4). */
   cols?: number;
@@ -140,7 +148,10 @@ function StatGridCards({
         return (
           <StatCard
             key={`${i}-${stat.valueField}`}
-            label={stat.labelKey}
+            label={
+              resolveLocalizedProp(stat.labelKey, stat.i18n, 'label', locale) ??
+              stat.labelKey
+            }
             value={formatStatValue(value, stat.format, locale)}
           >
             {(stat.trendField && current !== undefined) || spark.length > 1 ? (
@@ -163,7 +174,8 @@ function StatGridCards({
   );
 }
 
-export function StatGrid({ title, query, cols, stats }: StatGridProps) {
+export function StatGrid({ title, i18n, query, cols, stats }: StatGridProps) {
+  const { locale } = useLocale();
   const { t } = useT('automations');
   const { data, isLoading, blocked, needsConfig } = useBoundQuery(
     query.path,
@@ -175,7 +187,10 @@ export function StatGrid({ title, query, cols, stats }: StatGridProps) {
   const record = isRecord(data) ? data : undefined;
 
   return (
-    <BlockFrame title={title} icon={Gauge}>
+    <BlockFrame
+      title={resolveLocalizedProp(title, i18n, 'title', locale) ?? title}
+      icon={Gauge}
+    >
       <BindingStates
         blocked={blocked}
         path={query.path}
@@ -207,9 +222,15 @@ export const statGridBlock: {
   render: PuckComponent<Partial<StatGridProps>>;
 } = {
   fields: { title: { type: 'text' } },
-  render: ({ title, query, cols, stats }) =>
+  render: ({ title, i18n, query, cols, stats }) =>
     query?.path && stats && stats.length > 0 ? (
-      <StatGrid title={title} query={query} cols={cols} stats={stats} />
+      <StatGrid
+        title={title}
+        i18n={i18n}
+        query={query}
+        cols={cols}
+        stats={stats}
+      />
     ) : (
       <></>
     ),

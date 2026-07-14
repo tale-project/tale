@@ -8,6 +8,10 @@ import type { BoundActionInfiniteQueryResult } from '../../hooks/use-bound-actio
 import { ExternalList } from './external-list';
 
 // i18n → echo `<ns>.<key>`, interpolating params, so assertions read clearly.
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) =>
