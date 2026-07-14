@@ -159,6 +159,10 @@ type DocumentActionParams =
       operation: 'list';
       /** Exact folder id — wins over `folderPath` (no fuzzy resolution). */
       folderId?: string;
+      /** Owning project of a project-scoped folder (e.g. a task's quarter
+       *  folder). Required to list that folder's files — project docs are
+       *  hidden from hub listings otherwise. Pass `{{input.task.projectId}}`. */
+      projectId?: string;
       folderPath?: string;
       extension?: string;
     }
@@ -272,6 +276,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     v.object({
       operation: v.literal('list'),
       folderId: v.optional(v.string()),
+      projectId: v.optional(v.string()),
       folderPath: v.optional(v.string()),
       extension: v.optional(v.string()),
     }),
@@ -841,6 +846,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               organizationId,
               userId,
               folderId: params.folderId,
+              projectId: params.projectId,
               folderPath: params.folderPath,
               extension: params.extension,
               limit: MAX_LIMIT,

@@ -18,7 +18,10 @@ import {
 } from '../lib/fuzzy_match';
 import { toId } from '../lib/type_cast_helpers';
 import { isActiveDocument } from './_helpers';
-import { hasKnowledgeHubDocumentAccess } from './access';
+import {
+  hasKnowledgeHubDocumentAccess,
+  isProjectScopedDocument,
+} from './access';
 
 const MAX_SCAN = 10_000;
 const DEFAULT_LIMIT = 20;
@@ -50,6 +53,12 @@ export async function listDocumentsForAgent(
     /** Exact folder id — wins over `folderPath` (no fuzzy resolution). The
      *  base query is org-keyed, so a foreign org's folder id matches nothing. */
     folderId?: string;
+    /** Owning project of a project-scoped listing. Project docs are hidden
+     *  from Knowledge Hub surfaces (`hasKnowledgeHubDocumentAccess`); when the
+     *  caller names the project (read access resolved once in `listForAgent`),
+     *  that project's docs become visible here — folder-driven desks list a
+     *  task's own quarter folder this way. Absent = hub behavior (excluded). */
+    projectId?: string;
     folderPath?: string;
     extension?: string;
     teamId?: string;
@@ -146,9 +155,13 @@ export async function listDocumentsForAgent(
     if (folderIdSet && !folderIdSet.has(doc.folderId ?? '')) continue;
     if (args.extension && doc.extension !== args.extension) continue;
 
-    // Team filter
+    // Team / project-scope filter
     if (args.teamId) {
       if (doc.teamId !== args.teamId) continue;
+    } else if (isProjectScopedDocument(doc)) {
+      // Project docs never surface in the hub; they list here only when the
+      // caller named their owning project (access resolved once upstream).
+      if (!args.projectId || doc.projectId !== args.projectId) continue;
     } else if (!hasKnowledgeHubDocumentAccess(doc, teamIdSet)) {
       continue;
     }
