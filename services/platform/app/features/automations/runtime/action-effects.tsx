@@ -17,6 +17,7 @@
  * (literal title, `$tpl:`-capable), and `setState` (cross-block view state,
  * e.g. select the row a Form just created).
  */
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 import type { z } from 'zod';
@@ -24,6 +25,7 @@ import type { z } from 'zod';
 import { toast } from '@/app/hooks/use-toast';
 import { resolveBindingArgs } from '@/lib/shared/platform/function_bindings';
 import type { actionEffectSchema } from '@/lib/shared/schemas/automation_views';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useAutomationRuntime } from './automation-runtime';
@@ -44,6 +46,8 @@ export interface EffectContext {
   config?: Record<string, unknown>;
   /** Cross-block view state (`$state.<key>` references inside effect fields). */
   state?: Record<string, unknown>;
+  /** Active UI locale — resolves a toast's `i18n.<locale>.titleKey`. */
+  locale?: string;
 }
 
 /** A fully resolved, ready-to-apply effect (or null when it can't/shouldn't run). */
@@ -106,9 +110,16 @@ export function resolveEffect(
     };
   }
   if (effect.kind === 'toast') {
-    // `titleKey` is a literal display string; `$tpl:` interpolation over the
-    // row/config still applies via `resolveBindingArgs`.
-    const title = resolve(effect.titleKey);
+    // Localized `titleKey` (`i18n.<locale>.titleKey` over the English
+    // literal), THEN `$tpl:` interpolation over the row/config.
+    const localizedTitleKey =
+      resolveLocalizedProp(
+        effect.titleKey,
+        effect.i18n,
+        'titleKey',
+        ctx.locale ?? 'en',
+      ) ?? effect.titleKey;
+    const title = resolve(localizedTitleKey);
     if (!title) return null;
     return { kind: 'toast', title };
   }
@@ -140,6 +151,7 @@ export function useActionEffect(): (
   const navigate = useNavigate();
   const { open } = useResourceDetail();
   const { organizationId, projectId, config } = useAutomationRuntime();
+  const { locale } = useLocale();
   const viewState = useOptionalViewState();
 
   return useCallback(
@@ -151,6 +163,7 @@ export function useActionEffect(): (
         result: isRecord(result) ? result : undefined,
         config,
         state: viewState?.state,
+        locale,
       });
       if (!resolved) return;
       switch (resolved.kind) {
@@ -192,6 +205,6 @@ export function useActionEffect(): (
         }
       }
     },
-    [navigate, open, organizationId, projectId, config, viewState],
+    [navigate, open, organizationId, projectId, config, viewState, locale],
   );
 }

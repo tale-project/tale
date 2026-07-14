@@ -21,8 +21,8 @@ import { t } from '../helpers/i18n';
  * live `bun run dev` the spec uploads the zip when the catalog does not list it.
  *
  * Proves:
- *  1. Install Finish lands on the project automation URL.
- *  2. Project nav exposes a tab into the desk.
+ *  1. Install Finish closes in place; the desk renders at its project VIEW URL.
+ *  2. The project tab strip exposes the desk view as a first-class tab.
  *  3. Periods list is project-scoped (Acme never sees Beta's folders).
  *  4. `_setup` is excluded from Periods; Start stays hidden until it exists.
  *  5. Start creates a job visible on that project's Jobs tab only.
@@ -184,10 +184,9 @@ async function installIntoProject(
   await expect(wizard).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await walkInstallWizard(wizard, { projectName });
 
-  // The desk view is a tab, not the default Editor (developers see Editor
-  // first).
+  // The desk is a first-class project view tab now.
   await page.goto(
-    `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}?tab=desk`,
+    `/dashboard/${organizationId}/projects/${projectId}/views/${SLUG}/desk`,
   );
   await expect(page.getByText('Period folders', { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
@@ -231,7 +230,7 @@ async function bindAdditionalProject(
   await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 
   await page.goto(
-    `/dashboard/${organizationId}/projects/${projectId}/automations/${SLUG}?tab=desk`,
+    `/dashboard/${organizationId}/projects/${projectId}/views/${SLUG}/desk`,
   );
   await expect(page.getByText('Period folders', { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
@@ -281,7 +280,10 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
       { cause: err },
     );
   }
-  await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
+  // Scoped to table cells: the desk's markdown-rendered description also
+  // contains a literal `_setup` (as inline code), which a page-wide
+  // getByText would now match — the assertion is about the PERIODS ROWS.
+  await expect(page.getByRole('cell', { name: '_setup' })).toHaveCount(0);
   const acmePeriodRow = page.getByRole('row').filter({ hasText: acmePeriod });
   await expect(acmePeriodRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
@@ -291,7 +293,7 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
   // Add setup folder → Start appears.
   await createRootFolder(page, organizationId, acmeId, '_setup');
   await page.goto(
-    `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
+    `/dashboard/${organizationId}/projects/${acmeId}/views/${SLUG}/desk`,
   );
   await expect(page.getByText(acmePeriod, { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
@@ -305,36 +307,49 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
-  // Project nav: Automations list → desk by name → desk tab.
-  // Scope to the project TabNavigation — the org sidebar also exposes an
-  // Automations rail link with the same accessible name.
+  // Project nav: the desk view is a first-class tab on the project strip.
+  // Scope to the project TabNavigation — the org sidebar also exposes links
+  // with overlapping accessible names.
   await page.goto(`/dashboard/${organizationId}/projects/${acmeId}`);
-  const automationsTab = page
-    .getByRole('navigation', {
-      name: t('common.aria.projectsNavigation'),
-    })
-    .getByRole('link', {
-      name: t('projects.navigation.automations'),
+  const projectNav = page.getByRole('navigation', {
+    name: t('common.aria.projectsNavigation'),
+  });
+  const deskViewTab = projectNav.getByRole('link', {
+    name: 'Project files desk',
+    exact: true,
+  });
+  await expect(deskViewTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await deskViewTab.click();
+  await page.waitForURL(
+    new RegExp(
+      `/dashboard/${organizationId}/projects/${acmeId}/views/${SLUG}/desk`,
+    ),
+    { timeout: TIMEOUT.NAV },
+  );
+  await expect(page.getByText(acmePeriod, { exact: true })).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+
+  // The project strip carries NO Automations management tab — an
+  // automation's operator surface is its view tab (above), its management
+  // lives on the org Automations page. The project-nested admin route is
+  // still reachable by URL (its Configuration lists the bound projects).
+  await expect(
+    projectNav.getByRole('link', {
+      name: t('navigation.automations'),
       exact: true,
-    });
-  await expect(automationsTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await automationsTab.click();
-  await page.waitForURL(
-    new RegExp(
-      `/dashboard/${organizationId}/projects/${acmeId}/automations/?$`,
-    ),
-    { timeout: TIMEOUT.NAV },
-  );
-  await page.getByRole('link', { name: DESK_NAME() }).click();
-  await page.waitForURL(
-    new RegExp(
-      `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}`,
-    ),
-    { timeout: TIMEOUT.NAV },
-  );
-  // List entry may land on Editor; open the desk view.
+    }),
+  ).toHaveCount(0);
   await page.goto(
-    `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
+    `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}`,
+  );
+  await expect(
+    page.getByRole('combobox', {
+      name: t('automations.membership.boundProjectsTitle'),
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await page.goto(
+    `/dashboard/${organizationId}/projects/${acmeId}/views/${SLUG}/desk`,
   );
   await expect(page.getByText(acmePeriod, { exact: true })).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
@@ -349,7 +364,10 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
     timeout: TIMEOUT.FIRST_PAINT,
   });
   await expect(page.getByText(acmePeriod, { exact: true })).toHaveCount(0);
-  await expect(page.getByText('_setup', { exact: true })).toHaveCount(0);
+  // Scoped to table cells: the desk's markdown-rendered description also
+  // contains a literal `_setup` (as inline code), which a page-wide
+  // getByText would now match — the assertion is about the PERIODS ROWS.
+  await expect(page.getByRole('cell', { name: '_setup' })).toHaveCount(0);
 
   // Start on Beta → Jobs shows Beta's task only.
   const betaRow = page.getByRole('row').filter({ hasText: betaPeriod });
@@ -399,7 +417,7 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
 
   // Acme desk must not list Beta's job.
   await page.goto(
-    `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}?tab=desk`,
+    `/dashboard/${organizationId}/projects/${acmeId}/views/${SLUG}/desk`,
   );
   await page.getByRole('tab', { name: 'Jobs', exact: true }).click();
   await expect(

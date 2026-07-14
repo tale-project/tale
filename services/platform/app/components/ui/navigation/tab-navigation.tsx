@@ -1,9 +1,12 @@
 'use client';
 
-import { Link, useLocation } from '@tanstack/react-router';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { ChevronDown } from 'lucide-react';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -77,6 +80,14 @@ export interface TabNavigationProps {
    * the label. Drives the per-tab "unsaved changes" indicator.
    */
   dirtyKeys?: ReadonlySet<string>;
+  /**
+   * How the strip handles more tabs than fit the row. `scroll` (default)
+   * keeps the horizontal scroller. `menu` clamps the row to the tabs that
+   * fit and folds the tail into a trailing "More" dropdown — for strips
+   * whose item count is unbounded (e.g. the project tabs, which grow with
+   * every bound automation view).
+   */
+  overflow?: 'scroll' | 'menu';
 }
 
 export function TabNavigation({
@@ -88,9 +99,11 @@ export function TabNavigation({
   children,
   standalone = true,
   dirtyKeys,
+  overflow = 'scroll',
 }: TabNavigationProps) {
   const location = useLocation();
   const pathname = location.pathname;
+  const navigate = useNavigate();
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
   const { t: tCommon } = useT('common');
@@ -123,6 +136,73 @@ export function TabNavigation({
     [items, ability],
   );
 
+  // --- `overflow="menu"` clamping ------------------------------------------
+  // The row renders only the first `visibleCount` tabs; the tail folds into a
+  // "More" dropdown. Widths come from a hidden measurement row that always
+  // carries EVERY tab (clamped tabs unmount from the real row, so their live
+  // widths would be lost the moment they overflow) — measured against the
+  // scroller's content box. `null` = not measured yet / everything fits.
+  const isMenuOverflow = overflow === 'menu';
+  const measureRowRef = useRef<HTMLDivElement | null>(null);
+  const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number | null>(null);
+
+  const updateOverflowClamp = useCallback(() => {
+    if (!isMenuOverflow) return;
+    const scroller = scrollRef.current;
+    const row = measureRowRef.current;
+    if (!scroller || !row) return;
+    const scrollerStyle = getComputedStyle(scroller);
+    const available =
+      scroller.clientWidth -
+      (Number.parseFloat(scrollerStyle.paddingLeft) || 0) -
+      (Number.parseFloat(scrollerStyle.paddingRight) || 0);
+    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+    const measured = Array.from(row.children, (child) =>
+      child instanceof HTMLElement ? child.offsetWidth : 0,
+    );
+    // Last measurement child is the "More" trigger's width twin.
+    const moreWidth = measured.pop() ?? 0;
+    const total = measured.reduce(
+      (sum, width, index) => sum + width + (index > 0 ? gap : 0),
+      0,
+    );
+    let next: number | null = null;
+    if (total > available) {
+      // Widest prefix that still leaves room for the trailing More trigger.
+      let used = moreWidth;
+      let fit = 0;
+      for (const width of measured) {
+        const candidate = used + gap + width;
+        if (candidate > available) break;
+        used = candidate;
+        fit += 1;
+      }
+      next = fit;
+    }
+    setVisibleCount((prev) => (prev === next ? prev : next));
+  }, [isMenuOverflow]);
+
+  // Clamp before paint so an overflowing strip never flashes unclamped.
+  useLayoutEffect(() => {
+    updateOverflowClamp();
+  }, [updateOverflowClamp, accessibleItems]);
+
+  const visibleItems = useMemo(
+    () =>
+      isMenuOverflow && visibleCount !== null
+        ? accessibleItems.slice(0, visibleCount)
+        : accessibleItems,
+    [isMenuOverflow, visibleCount, accessibleItems],
+  );
+  const overflowItems = useMemo(
+    () =>
+      isMenuOverflow && visibleCount !== null
+        ? accessibleItems.slice(visibleCount)
+        : [],
+    [isMenuOverflow, visibleCount, accessibleItems],
+  );
+
   // Determine if a path matches an item
   const isPathActive = useCallback(
     (item: TabNavigationItem): boolean => {
@@ -149,6 +229,10 @@ export function TabNavigation({
     () => accessibleItems.findIndex(isPathActive),
     [accessibleItems, isPathActive],
   );
+  // The active tab sits in the clamped-away tail — the More trigger stands in
+  // for it (active text colour + the underline indicator).
+  const activeInOverflow =
+    activeIndex !== -1 && activeIndex >= visibleItems.length;
 
   // Update indicator position. Skip the setState when the measured values
   // are unchanged — otherwise a `ResizeObserver` re-attach (which fires the
@@ -157,8 +241,11 @@ export function TabNavigation({
   // would feed that cycle into a max-update-depth loop.
   const updateIndicator = useCallback(() => {
     const navElement = navRef.current;
-    const activeElement =
-      activeIndex !== -1 ? itemRefs.current[activeIndex] : null;
+    const activeElement = activeInOverflow
+      ? moreTriggerRef.current
+      : activeIndex !== -1
+        ? itemRefs.current[activeIndex]
+        : null;
     if (navElement && activeElement) {
       // Measure with bounding rects relative to the <nav>, not `offsetLeft`.
       // The indicator now lives in the <nav> while the active tab lives in the
@@ -185,7 +272,7 @@ export function TabNavigation({
         });
       }
     }
-  }, [activeIndex]);
+  }, [activeIndex, activeInOverflow]);
 
   // Measure whether the tab strip overflows (drives the trailing shadow).
   const measureScrollable = useCallback(() => {
@@ -233,8 +320,10 @@ export function TabNavigation({
   // narrow viewports where the tab strip overflows horizontally. Without
   // this, opening a settings sub-page (e.g. /settings/account) on mobile
   // can leave the active tab hidden off the right edge. Adjusts `scrollLeft`
-  // directly so we never scroll an outer container.
+  // directly so we never scroll an outer container. (`menu` strips never
+  // overflow the scroller — the clamp guarantees the row fits.)
   useEffect(() => {
+    if (isMenuOverflow) return;
     const scroller = scrollRef.current;
     const active = itemRefs.current[activeIndex];
     if (!scroller || !active) return;
@@ -255,7 +344,7 @@ export function TabNavigation({
       behavior:
         prefersReducedMotion || !hasInitialized.current ? 'auto' : 'smooth',
     });
-  }, [activeIndex]);
+  }, [activeIndex, isMenuOverflow]);
 
   // Keep the indicator pinned to the active tab while the strip scrolls
   // horizontally. The indicator sits in the <nav> (so it can rest on the bottom
@@ -290,10 +379,10 @@ export function TabNavigation({
   const allRefs = useMemo(() => {
     const refs: (HTMLElement | null)[] = [
       scrollRef.current,
-      ...itemRefs.current.slice(0, accessibleItems.length),
+      ...itemRefs.current.slice(0, visibleItems.length),
     ];
     return { current: refs };
-  }, [accessibleItems]);
+  }, [visibleItems]);
 
   // Re-measure on resize. Horizontal window/container drags fire the observer
   // many times per second; the indicator's 200ms slide transition chases each
@@ -309,6 +398,7 @@ export function TabNavigation({
   const updateIndicatorForResize = useCallback(() => {
     const indicator = indicatorRef.current;
     if (indicator) indicator.style.transition = 'none';
+    updateOverflowClamp();
     updateIndicator();
     measureScrollable();
     if (resizeRestoreTimerRef.current) {
@@ -319,7 +409,7 @@ export function TabNavigation({
       if (settled) settled.style.transition = '';
       resizeRestoreTimerRef.current = null;
     }, 150);
-  }, [updateIndicator, measureScrollable]);
+  }, [updateIndicator, measureScrollable, updateOverflowClamp]);
   useEffect(
     () => () => {
       if (resizeRestoreTimerRef.current) {
@@ -331,8 +421,38 @@ export function TabNavigation({
 
   useResizeObserver(allRefs, updateIndicatorForResize, {
     listenToWindow: true,
-    deps: [accessibleItems.length],
+    deps: [visibleItems.length],
   });
+
+  // The overflowed tail as dropdown rows. Navigation goes through the router
+  // imperatively — the shared DropdownMenu is router-agnostic (its `href`
+  // items render plain anchors, which would full-page reload).
+  const overflowMenuItems: DropdownMenuGroup[] = useMemo(
+    () => [
+      overflowItems.map((item) => {
+        const [path, queryString] = item.href.split('?');
+        const hrefSearch = queryString
+          ? Object.fromEntries(new URLSearchParams(queryString))
+          : undefined;
+        return {
+          type: 'item' as const,
+          label: item.label,
+          selected: isPathActive(item),
+          onClick: () => {
+            void navigate({ to: path, search: item.search ?? hrefSearch });
+          },
+        };
+      }),
+    ],
+    [overflowItems, isPathActive, navigate],
+  );
+  // A dirty tab hidden in the tail still deserves its unsaved-changes dot —
+  // surfaced on the More trigger, since the tab itself isn't in the row.
+  const overflowHasDirty =
+    dirtyKeys !== undefined &&
+    overflowItems.some(
+      (item) => item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false,
+    );
 
   return (
     <nav
@@ -354,7 +474,7 @@ export function TabNavigation({
         ref={scrollRef}
         className="scrollbar-hide relative flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-4"
       >
-        {accessibleItems.map((item, index) => {
+        {visibleItems.map((item, index) => {
           const isActive = isPathActive(item);
           const [path, queryString] = item.href.split('?');
           const hrefSearch = queryString
@@ -404,7 +524,70 @@ export function TabNavigation({
             </Link>
           );
         })}
+        {overflowItems.length > 0 && (
+          <DropdownMenu
+            align="end"
+            items={overflowMenuItems}
+            trigger={
+              <button
+                ref={moreTriggerRef}
+                type="button"
+                aria-label={tCommon('aria.moreTabs')}
+                className={cn(
+                  'relative flex h-full shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
+                  activeInOverflow
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {overflowHasDirty && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="inline-block size-1.5 rounded-full bg-amber-500"
+                    />
+                    <span className="sr-only">
+                      {tCommon('aria.unsavedChanges')}
+                    </span>{' '}
+                  </>
+                )}
+                {tCommon('moreTabs')}
+                <ChevronDown aria-hidden="true" className="size-4" />
+              </button>
+            }
+          />
+        )}
       </div>
+
+      {/* Width twin of every tab (+ the More trigger, last) for the `menu`
+          overflow clamp. Clamped-away tabs unmount from the real row, so this
+          hidden copy is the only place their widths stay measurable. Same
+          typography/gap classes as the live row so the twin widths hold. */}
+      {isMenuOverflow && (
+        <div
+          ref={measureRowRef}
+          aria-hidden="true"
+          className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-4 whitespace-nowrap"
+        >
+          {accessibleItems.map((item) => (
+            <span
+              key={`${item.href}|${item.label}`}
+              className="flex items-center gap-1.5 py-1 text-sm font-medium"
+            >
+              {dirtyKeys !== undefined &&
+                (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false) && (
+                  <span className="inline-block size-1.5 rounded-full" />
+                )}
+              {item.label}
+              {item.trailing}
+            </span>
+          ))}
+          <span className="flex items-center gap-1 py-1 text-sm font-medium">
+            {tCommon('moreTabs')}
+            <ChevronDown className="size-4" />
+          </span>
+        </div>
+      )}
 
       {/* Animated active indicator. Rendered as a child of the <nav> rather than
           the scroll container so it can sit flush on the nav's bottom border:

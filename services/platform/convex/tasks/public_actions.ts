@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -85,7 +85,22 @@ export const createTaskFromExternalIssue = action({
      */
     projectId: v.optional(v.id('projects')),
     externalSystem: v.string(),
-    externalId: v.string(),
+    externalId: v.optional(v.string()),
+    /**
+     * Materialize the task's external subject as a project ROOT FOLDER in
+     * the same gesture — for folder-driven desks whose "external issue" IS a
+     * project folder. `name` creates (or reuses, by name) the root folder
+     * and becomes the task's `externalId`; `setupFolderName` resolves the
+     * sibling setup folder's id into `externalUrl` (the desks' binding
+     * convention) and fails closed when that folder does not exist yet.
+     * Requires `projectId`; mutually exclusive with `externalId`.
+     */
+    ensureFolder: v.optional(
+      v.object({
+        name: v.string(),
+        setupFolderName: v.optional(v.string()),
+      }),
+    ),
     title: v.string(),
     externalUrl: v.optional(v.string()),
     description: v.optional(v.string()),
@@ -97,6 +112,7 @@ export const createTaskFromExternalIssue = action({
     taskId: v.string(),
     created: v.boolean(),
     executionId: v.optional(v.union(v.string(), v.null())),
+    folderId: v.optional(v.string()),
   }),
   handler: async (
     ctx,
@@ -105,8 +121,22 @@ export const createTaskFromExternalIssue = action({
     taskId: string;
     created: boolean;
     executionId?: string | null;
+    folderId?: string;
   }> => {
     const { userId } = await requireOrgMembershipById(ctx, args.organizationId);
+
+    if (!args.externalId === !args.ensureFolder) {
+      throw new ConvexError({
+        code: 'INVALID_ARGUMENTS',
+        message: 'Provide exactly one of externalId or ensureFolder',
+      });
+    }
+    if (args.ensureFolder && !args.projectId) {
+      throw new ConvexError({
+        code: 'INVALID_ARGUMENTS',
+        message: 'ensureFolder requires an explicit projectId',
+      });
+    }
 
     // Project-scoped apps pass their bound project explicitly; validate it.
     // Without one (legacy/org caller), fall back to the org-wide project and
@@ -138,6 +168,51 @@ export const createTaskFromExternalIssue = action({
       projectId = fallback._id;
     }
 
+    // Folder-driven flow: the folder is the external subject — make (or find)
+    // it, then bind the task to its id. The setup-folder id rides externalUrl
+    // per the desks' binding convention; its absence fails closed so a task
+    // can never be born pointing at a setup that does not exist.
+    let externalId = args.externalId;
+    let externalUrl = args.externalUrl;
+    let ensuredFolderId: string | undefined;
+    if (args.ensureFolder) {
+      const folder = await ctx.runMutation(
+        internal.folders.internal_mutations.getOrCreateProjectRootFolder,
+        {
+          organizationId: args.organizationId,
+          projectId,
+          name: args.ensureFolder.name,
+          userId,
+        },
+      );
+      externalId = folder.folderId;
+      ensuredFolderId = folder.folderId;
+      const setupName = args.ensureFolder.setupFolderName;
+      if (setupName !== undefined && externalUrl === undefined) {
+        const setup = await ctx.runQuery(
+          api.projects.queries.getProjectSetupFolder,
+          {
+            projectId,
+            organizationId: args.organizationId,
+            setupFolderName: setupName,
+          },
+        );
+        if (!setup) {
+          throw new ConvexError({
+            code: 'SETUP_FOLDER_MISSING',
+            message: `Folder "${setupName}" does not exist in this project yet`,
+          });
+        }
+        externalUrl = setup._id;
+      }
+    }
+    if (!externalId) {
+      throw new ConvexError({
+        code: 'INVALID_ARGUMENTS',
+        message: 'externalId did not resolve',
+      });
+    }
+
     const result = await ctx.runMutation(
       internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
       {
@@ -145,9 +220,9 @@ export const createTaskFromExternalIssue = action({
         actorId: userId,
         projectId,
         externalSystem: args.externalSystem,
-        externalId: args.externalId,
+        externalId,
         title: args.title,
-        externalUrl: args.externalUrl,
+        externalUrl,
         description: args.description,
         labels: args.labels,
         externalState: 'open',
@@ -185,7 +260,12 @@ export const createTaskFromExternalIssue = action({
       executionId = null;
     }
 
-    return { taskId, created: result.created, executionId };
+    return {
+      taskId,
+      created: result.created,
+      executionId,
+      ...(ensuredFolderId !== undefined ? { folderId: ensuredFolderId } : {}),
+    };
   },
 });
 

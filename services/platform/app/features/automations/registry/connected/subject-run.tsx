@@ -16,10 +16,14 @@
  * the automation allowlist — that gates automation-AUTHORED view bindings, whereas this is
  * platform code reading org-RLS-gated execution data.
  */
+import { Card } from '@tale/ui/card';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
+import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
+import { PackageCheck } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { EmbeddedRun } from '@/app/features/operator/components/embedded-run';
 import { TaskComments } from '@/app/features/tasks/components/task-comments';
@@ -77,14 +81,82 @@ function TaskExpandComments({
   );
 }
 
+/**
+ * The Outcome section's no-run twin — same card chrome and heading as the
+ * operator `OutcomeStrip`, so the expanded panel keeps its fixed anatomy
+ * (Input · Outcome · Comments · Run details) before the first run exists.
+ */
+function OutcomePlaceholder({ promises }: { promises?: string[] }) {
+  const { t: tOperator } = useT('operator');
+  const hasPromises = promises !== undefined && promises.length > 0;
+  return (
+    <Card asChild padding="none" shadow="sm">
+      <section>
+        <Row gap={3} align="center" justify="between" className="p-5 pb-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Row
+              gap={0}
+              justify="center"
+              className="bg-muted text-muted-foreground size-8 shrink-0 rounded-md"
+            >
+              <PackageCheck className="size-4" aria-hidden />
+            </Row>
+            <Text as="span" className="font-semibold">
+              {tOperator('section.outcome', { defaultValue: 'Outcome' })}
+            </Text>
+          </div>
+          {hasPromises && (
+            <Text variant="muted" className="shrink-0 text-sm">
+              {tOperator('outcome.pendingHint', {
+                defaultValue: 'Not ready yet.',
+              })}
+            </Text>
+          )}
+        </Row>
+        <div className="px-5 pb-5">
+          {hasPromises ? (
+            // The pack-declared deliverables as static slots — the same rows
+            // OutcomeStrip shows while a run is in flight, minus the pulse.
+            <ul className="flex flex-col gap-2">
+              {promises.map((name) => (
+                <li key={name}>
+                  <StatusIndicator variant="neutral" size="sm">
+                    {name}
+                  </StatusIndicator>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Text variant="muted">
+              {tOperator('outcome.empty', {
+                defaultValue:
+                  'No results yet — they will appear here once a run produces them.',
+              })}
+            </Text>
+          )}
+        </div>
+      </section>
+    </Card>
+  );
+}
+
 export function SubjectRun({
   subjectType,
   subjectId,
+  input,
+  promisedOutcomes,
 }: {
   subjectType: string;
   subjectId: string;
+  /** The Input section rendered at the top of the panel (e.g. the bound
+   *  folder's upload card) — supplied by the hosting block. */
+  input?: ReactNode;
+  /** Pack-declared deliverable names shown as static Outcome slots before
+   *  the first run exists (e.g. return.xml). */
+  promisedOutcomes?: string[];
 }) {
   const { t } = useT('automations');
+  const { t: tOperator } = useT('operator');
   const { organizationId } = useAutomationRuntime();
   const { data, isLoading } = useConvexQuery(
     api.workflow_executions.queries.getLatestExecutionForSubject,
@@ -115,11 +187,36 @@ export function SubjectRun({
 
   if (!isTask) return runBody;
 
+  // Fixed panel anatomy — Input · Outcome · Comments · Run details — in every
+  // state: before the first run the Outcome and Run-details sections render
+  // their empty twins instead of collapsing the structure to one bare line.
   return (
-    <Stack gap={3}>
+    <Stack gap={3} className="pt-3">
+      {input}
       <SubjectInputPanel subjectType={subjectType} subjectId={subjectId} />
-      {runBody}
-      {!data && comments}
+      {isLoading && data === undefined ? (
+        <SkeletonText lines={4} />
+      ) : data ? (
+        runBody
+      ) : (
+        <>
+          <OutcomePlaceholder promises={promisedOutcomes} />
+          {comments}
+          <CollapsibleDetails
+            summary={
+              <Text as="span" className="font-medium">
+                {tOperator('section.runDetails', {
+                  defaultValue: 'Run details',
+                })}
+              </Text>
+            }
+          >
+            <div className="mt-3">
+              <Text variant="muted">{t('runs.none')}</Text>
+            </div>
+          </CollapsibleDetails>
+        </>
+      )}
     </Stack>
   );
 }

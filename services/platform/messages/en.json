@@ -852,8 +852,6 @@
       "boundProjectsPlaceholder": "Bind projects…",
       "boundProjectLinksLabel": "Open bound projects",
       "openBoundProject": "Open in {name}",
-      "viewNeedsProjectTitle": "Open from a project",
-      "viewNeedsProjectDescription": "This view needs a project. Open it from a bound project below, or bind one under Configuration.",
       "noProjectsAvailable": "No projects available.",
       "saveFailed": "Couldn't update this automation's projects.",
       "notInProjectTitle": "Not added to this project",
@@ -908,6 +906,21 @@
     "integrationsTab": {
       "emptyTitle": "No integrations required",
       "emptyDescription": "This automation runs without any connected integration."
+    },
+    "viewNotFound": {
+      "title": "Page not found",
+      "description": "This view isn't available in this project — the automation may have been uninstalled, unbound from the project, or the page removed from its bundle."
+    },
+    "input": {
+      "title": "Files",
+      "empty": "No files yet — upload the documents for this return.",
+      "upload": "Upload files",
+      "uploading": "uploading…",
+      "uploadFailed": "upload failed",
+      "more": "+{count} more",
+      "drop": "Drop files here, or",
+      "deleteFile": "Delete {name}",
+      "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
     }
   },
   "changelog": {
@@ -1908,7 +1921,8 @@
       "sortAscending": "sorted ascending",
       "sortDescending": "sorted descending",
       "sortAvailable": "sort available",
-      "unsavedChanges": "Unsaved changes"
+      "unsavedChanges": "Unsaved changes",
+      "moreTabs": "More tabs"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
@@ -1987,7 +2001,8 @@
       "zoomOut": "Zoom out",
       "resetView": "Reset view",
       "aiEditor": "AI editor"
-    }
+    },
+    "moreTabs": "More"
   },
   "composer": {
     "openMenu": "Open composer menu",
@@ -5130,7 +5145,6 @@
       "files": "Knowledge",
       "instructions": "Instructions",
       "threads": "Chats",
-      "automations": "Automations",
       "agents": "Agents & models",
       "settings": "Settings"
     },

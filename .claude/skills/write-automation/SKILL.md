@@ -29,7 +29,10 @@ addressed as `<slug>/<name>` — they never join the org's global agent roster o
   automation.json           the manifest — the bundle's whole contract (name/description +
                              an inline i18n block translate it; see Translations below)
   icon.svg                  the card icon
-  views/*.json              the automation's UI definitions (literal display strings)
+  views/*.json              the automation's UI pages (a project-scoped automation's views
+                             render as first-class PROJECT tabs — one view = one tab, with the
+                             view's own `tabs` inside it; org-scoped views render on the
+                             automation's page)
   agents/*.json             optional — automation-owned agents (see write-agent)
   scripts/…                 optional assets, referenced as pack://<slug>/…
 ```
@@ -76,9 +79,14 @@ An automation translates ITSELF — there is no separate per-bundle label catalo
 `messages/<locale>.json` dir is accepted on upload but silently ignored). Add an `i18n` block to
 `automation.json` with one entry per non-English locale carrying `name`/`description` overrides (+
 `config.<key>.label`/`placeholder`/`help` for `requires.config` fields); an absent locale or field
-falls back to the top-level literal. View documents (`views/*.json`) hold literal display strings
-only — they are platform-owned UI, not bundle-translated. Ship native `de`/`fr` copy for a builtin
-per `write-translations`.
+falls back to the top-level literal. View documents (`views/*.json`) author English literals plus
+optional sibling `i18n` maps at every display site: the view's `title`/`description`, each tab's
+`label`, block props (`i18n.<locale>.title`/`text`/`description` on Text/Alert/Card/Heading and the
+data blocks' titles), and every labeled entry — table columns, list filters, select options, detail
+fields, board lanes, stats, chart series — via `i18n.<locale>.label` (+ `.valueLabels.<raw>` where
+the entry maps badge values). Unlocalized literals render as authored. Description strings render
+as Markdown (GFM; lone newlines become line breaks) — write them for reading, not one line. Ship
+native `de`/`fr` copy for a builtin per `write-translations`.
 
 ## Validation
 

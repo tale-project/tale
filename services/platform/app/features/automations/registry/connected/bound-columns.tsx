@@ -24,6 +24,10 @@ import {
   type CellKind,
 } from '@/app/components/ui/data-table/cell-kinds';
 import type { columnSpecSchema } from '@/lib/shared/schemas/automation_views';
+import {
+  resolveLocalizedProp,
+  resolveValueLabels,
+} from '@/lib/shared/utils/resolve-automation-locale';
 
 import {
   BoundButton,
@@ -86,6 +90,9 @@ export function useBoundRowIds(): (row: BoundRow) => string {
 export interface BoundColumnsContext {
   /** Loaded rows — used only to infer columns when none are declared. */
   rows: BoundRow[];
+  /** Active UI locale — resolves each column's `i18n.<locale>.label` /
+   *  `.valueLabels` overrides over the English literals. */
+  locale: string;
   /** View-config per-row actions, rendered as a BoundButton / EffectButton cluster. */
   actions?: RowActionSpec[];
   /** Injected per-row action (e.g. subject re-run) merged into the actions
@@ -132,14 +139,16 @@ function inferKind(spec: ColumnSpec): CellKind {
 
 /**
  * Build the `ColumnDef[]` for a bound list block. Header precedence:
- * `labelKey` (a literal, rendered verbatim) → the raw field key
- * CSS-capitalized (the old table's fallback). The actions column is appended
- * when view actions or an injected row action exist.
+ * the column's `i18n.<locale>.label` override → `labelKey` (the English
+ * literal) → the raw field key CSS-capitalized (the old table's fallback).
+ * The actions column is appended when view actions or an injected row
+ * action exist.
  */
 export function buildBoundColumns(
   columns: BoundColumn[] | undefined,
   ctx: BoundColumnsContext,
 ): ColumnDef<BoundRow>[] {
+  const locale = ctx.locale;
   const specs = normalizeColumns(columns, ctx.rows);
   const defs: ColumnDef<BoundRow>[] = specs.map((spec) => {
     const field = spec.field;
@@ -147,13 +156,16 @@ export function buildBoundColumns(
     const align =
       spec.align ??
       (kind === 'number' || kind === 'datetime' ? 'right' : undefined);
-    const label = spec.labelKey;
+    const label =
+      resolveLocalizedProp(spec.labelKey, spec.i18n, 'label', locale) ??
+      spec.labelKey;
     // The two-line kind's muted second line (`columnSpecSchema.secondaryField`).
     const secondaryField =
       typeof spec.secondaryField === 'string' ? spec.secondaryField : undefined;
-    // Badge-kind display labels (`columnSpecSchema.valueLabels`), literal per
-    // raw value — an unmapped value renders verbatim.
-    const valueLabels = spec.valueLabels;
+    // Badge-kind display labels (`columnSpecSchema.valueLabels`), per raw
+    // value with `i18n.<locale>.valueLabels` overrides — an unmapped value
+    // renders verbatim.
+    const valueLabels = resolveValueLabels(spec.valueLabels, spec.i18n, locale);
     const headerClass =
       align === 'right'
         ? 'block w-full text-right'

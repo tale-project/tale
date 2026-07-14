@@ -852,8 +852,6 @@
       "boundProjectsPlaceholder": "Projekte binden…",
       "boundProjectLinksLabel": "Gebundene Projekte öffnen",
       "openBoundProject": "In {name} öffnen",
-      "viewNeedsProjectTitle": "In einem Projekt öffnen",
-      "viewNeedsProjectDescription": "Diese Ansicht braucht ein Projekt. Öffne sie unten in einem gebundenen Projekt, oder binde eines unter Konfiguration.",
       "noProjectsAvailable": "Keine Projekte verfügbar.",
       "saveFailed": "Die Projekte dieser Automatisierung konnten nicht aktualisiert werden.",
       "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
@@ -908,6 +906,21 @@
     "integrationsTab": {
       "emptyTitle": "Keine Integrationen erforderlich",
       "emptyDescription": "Diese Automation läuft ohne verbundene Integration."
+    },
+    "viewNotFound": {
+      "title": "Seite nicht gefunden",
+      "description": "Diese Ansicht ist in diesem Projekt nicht verfügbar — die Automation wurde möglicherweise deinstalliert, vom Projekt getrennt oder die Seite aus dem Paket entfernt."
+    },
+    "input": {
+      "title": "Dateien",
+      "empty": "Noch keine Dateien — laden Sie die Unterlagen für diese Abrechnung hoch.",
+      "upload": "Dateien hochladen",
+      "uploading": "wird hochgeladen…",
+      "uploadFailed": "Hochladen fehlgeschlagen",
+      "more": "+{count} weitere",
+      "drop": "Dateien hierher ziehen, oder",
+      "deleteFile": "{name} löschen",
+      "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
     }
   },
   "changelog": {
@@ -1908,7 +1921,8 @@
       "sortAscending": "aufsteigend sortiert",
       "sortDescending": "absteigend sortiert",
       "sortAvailable": "sortierbar",
-      "unsavedChanges": "Nicht gespeicherte Änderungen"
+      "unsavedChanges": "Nicht gespeicherte Änderungen",
+      "moreTabs": "Weitere Tabs"
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
@@ -1987,7 +2001,8 @@
       "zoomOut": "Verkleinern",
       "resetView": "Ansicht zurücksetzen",
       "aiEditor": "KI-Editor"
-    }
+    },
+    "moreTabs": "Mehr"
   },
   "composer": {
     "openMenu": "Composer-Menü öffnen",
@@ -7788,8 +7803,7 @@
       "instructions": "Anweisungen",
       "threads": "Chats",
       "agents": "Agenten & Modelle",
-      "settings": "Einstellungen",
-      "automations": "Automatisierungen"
+      "settings": "Einstellungen"
     },
     "list": {
       "title": "Projekte",

@@ -13,6 +13,8 @@ import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { LucideIcon } from 'lucide-react';
 
+import { PackMarkdown } from '../../components/pack-markdown';
+
 export function Section({
   title,
   description,
@@ -51,9 +53,7 @@ export function Section({
                   </Text>
                 )}
                 {description && (
-                  <Text variant="muted" className="block text-sm">
-                    {description}
-                  </Text>
+                  <PackMarkdown text={description} variant="muted" />
                 )}
               </div>
             </div>

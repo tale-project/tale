@@ -33,6 +33,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Kanban } from 'lucide-react';
@@ -45,6 +46,10 @@ import {
   argsReferenceViewState,
   type FunctionMode,
 } from '@/lib/shared/platform/function_bindings';
+import {
+  resolveLocalizedProp,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { cn } from '@/lib/utils/cn';
 import { isRecord, primitiveString } from '@/lib/utils/type-utils';
 
@@ -67,10 +72,14 @@ export interface BoardLaneSpec {
   value: string;
   /** Lane header — a literal display string, rendered verbatim. */
   labelKey: string;
+  /** Per-locale overrides for `labelKey`. */
+  i18n?: PackI18nMap;
 }
 
 export interface BoardProps {
   title?: string;
+  /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
   /** Result key holding the rows array; omit when the result IS the array. */
   itemsKey?: string;
@@ -208,6 +217,7 @@ function BoardLane({
 
 export function Board({
   title,
+  i18n,
   query,
   itemsKey,
   groupBy,
@@ -219,6 +229,11 @@ export function Board({
   onCardClick,
 }: BoardProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
+  const laneLabel = (lane: BoardLaneSpec) =>
+    resolveLocalizedProp(lane.labelKey, lane.i18n, 'label', locale) ??
+    lane.labelKey ??
+    lane.value;
   const { data, isLoading, blocked, needsConfig } = useBoundQuery(
     query.path,
     query.args,
@@ -296,7 +311,7 @@ export function Board({
       .filter((lane) => lane.value !== laneValue)
       .map((lane) => ({
         value: lane.value,
-        label: lane.labelKey ?? lane.value,
+        label: laneLabel(lane),
       })),
     onMove: onMoveToLane,
   });
@@ -314,7 +329,7 @@ export function Board({
 
   return (
     <BlockFrame
-      title={title}
+      title={resolveLocalizedProp(title, i18n, 'title', locale) ?? title}
       icon={Kanban}
       actions={
         notes.length > 0 ? (
@@ -353,7 +368,7 @@ export function Board({
                 <BoardLane
                   key={lane.value}
                   laneValue={lane.value}
-                  label={lane.labelKey ?? lane.value}
+                  label={laneLabel(lane)}
                   rows={(dnd.columns[lane.value] ?? [])
                     .map((id) => dnd.byId.get(id))
                     .filter((row): row is BoardRow => row !== undefined)}
@@ -396,6 +411,7 @@ export const boardBlock = {
   fields: { title: { type: 'text' as const } },
   render: ({
     title,
+    i18n,
     query,
     itemsKey,
     groupBy,
@@ -409,6 +425,7 @@ export const boardBlock = {
     query && groupBy && lanes && lanes.length > 0 && card && move ? (
       <Board
         title={title}
+        i18n={i18n}
         query={query}
         itemsKey={itemsKey}
         groupBy={groupBy}

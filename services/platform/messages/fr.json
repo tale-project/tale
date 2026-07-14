@@ -852,8 +852,6 @@
       "boundProjectsPlaceholder": "Lier des projets…",
       "boundProjectLinksLabel": "Ouvrir les projets liés",
       "openBoundProject": "Ouvrir dans {name}",
-      "viewNeedsProjectTitle": "Ouvrir depuis un projet",
-      "viewNeedsProjectDescription": "Cette vue a besoin d'un projet. Ouvre-la depuis un projet lié ci-dessous, ou lie-en un sous Configuration.",
       "noProjectsAvailable": "Aucun projet disponible.",
       "saveFailed": "Impossible de mettre à jour les projets de cette automatisation.",
       "notInProjectTitle": "Pas ajoutée à ce projet",
@@ -908,6 +906,21 @@
     "integrationsTab": {
       "emptyTitle": "Aucune intégration requise",
       "emptyDescription": "Cette automatisation fonctionne sans intégration connectée."
+    },
+    "viewNotFound": {
+      "title": "Page introuvable",
+      "description": "Cette vue n'est pas disponible dans ce projet — l'automatisation a peut-être été désinstallée, détachée du projet, ou la page retirée du paquet."
+    },
+    "input": {
+      "title": "Fichiers",
+      "empty": "Aucun fichier pour l’instant — téléversez les documents de ce décompte.",
+      "upload": "Téléverser des fichiers",
+      "uploading": "téléversement…",
+      "uploadFailed": "échec du téléversement",
+      "more": "+{count} de plus",
+      "drop": "Déposez les fichiers ici, ou",
+      "deleteFile": "Supprimer {name}",
+      "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
     }
   },
   "changelog": {
@@ -1908,7 +1921,8 @@
       "sortAscending": "trié par ordre croissant",
       "sortDescending": "trié par ordre décroissant",
       "sortAvailable": "tri disponible",
-      "unsavedChanges": "Modifications non enregistrées"
+      "unsavedChanges": "Modifications non enregistrées",
+      "moreTabs": "Autres onglets"
     },
     "pagination": {
       "rowsPerPage": "Lignes par page",
@@ -1987,7 +2001,8 @@
       "zoomOut": "Dézoomer",
       "resetView": "Réinitialiser la vue",
       "aiEditor": "Éditeur IA"
-    }
+    },
+    "moreTabs": "Plus"
   },
   "composer": {
     "openMenu": "Ouvrir le menu du composeur",
@@ -7788,8 +7803,7 @@
       "instructions": "Instructions",
       "threads": "Chats",
       "agents": "Agents et modèles",
-      "settings": "Paramètres",
-      "automations": "Automatisations"
+      "settings": "Paramètres"
     },
     "list": {
       "title": "Projets",

@@ -18,7 +18,11 @@ vi.mock('../_generated/server', async (importOriginal) => {
 vi.mock('../_generated/api', () => ({
   api: {
     projects: {
-      queries: { getProject: 'getProject', listProjects: 'listProjects' },
+      queries: {
+        getProject: 'getProject',
+        listProjects: 'listProjects',
+        getProjectSetupFolder: 'getProjectSetupFolder',
+      },
     },
     tasks: {
       queries: { getTask: 'getTask' },
@@ -30,6 +34,11 @@ vi.mock('../_generated/api', () => ({
     },
   },
   internal: {
+    folders: {
+      internal_mutations: {
+        getOrCreateProjectRootFolder: 'getOrCreateRootFolder',
+      },
+    },
     tasks: {
       internal_mutations: {
         agentUpsertTaskByExternalRef: 'agentUpsert',
@@ -447,5 +456,101 @@ describe('createTaskFromExternalIssue', () => {
       executionId: undefined,
     });
     expect(runMutationCalls.map((c) => c.ref)).toEqual(['agentUpsert']);
+  });
+});
+
+describe('createTaskFromExternalIssue — ensureFolder', () => {
+  const handler = (createTaskFromExternalIssue as unknown as Handler).handler;
+
+  function folderCtx(opts: { setup?: unknown } = {}) {
+    const runMutationCalls: Array<{
+      ref: unknown;
+      args: Record<string, unknown>;
+    }> = [];
+    const ctx = {
+      runQuery: vi.fn(async (ref: unknown) => {
+        if (ref === 'getProject') return { _id: 'proj_1' };
+        if (ref === 'getProjectSetupFolder') return opts.setup ?? null;
+        return null;
+      }),
+      runAction: vi.fn(async () => null),
+      runMutation: vi.fn(
+        async (ref: unknown, args: Record<string, unknown>) => {
+          runMutationCalls.push({ ref, args });
+          if (ref === 'getOrCreateRootFolder') {
+            return { folderId: 'folder_q3', created: true };
+          }
+          if (ref === 'agentUpsert') return { taskId: 'task_9', created: true };
+          return null;
+        },
+      ),
+    };
+    return { ctx, runMutationCalls };
+  }
+
+  const BASE = {
+    organizationId: 'org_1',
+    projectId: 'proj_1',
+    externalSystem: 'vatplus',
+    title: 'VAT return — 2026Q3',
+  };
+
+  it('creates the root folder, binds it as externalId, and rides setup on externalUrl', async () => {
+    const { ctx, runMutationCalls } = folderCtx({
+      setup: { _id: 'folder_setup', name: 'Setup' },
+    });
+    const result = await handler(ctx, {
+      ...BASE,
+      ensureFolder: { name: '2026Q3', setupFolderName: 'Setup' },
+    });
+    const ensure = runMutationCalls.find(
+      (c) => c.ref === 'getOrCreateRootFolder',
+    );
+    expect(ensure?.args).toMatchObject({ name: '2026Q3', projectId: 'proj_1' });
+    const upsert = runMutationCalls.find((c) => c.ref === 'agentUpsert');
+    expect(upsert?.args).toMatchObject({
+      externalId: 'folder_q3',
+      externalUrl: 'folder_setup',
+    });
+    expect(result).toMatchObject({
+      taskId: 'task_9',
+      created: true,
+      folderId: 'folder_q3',
+    });
+  });
+
+  it('fails closed when the named setup folder does not exist yet', async () => {
+    const { ctx } = folderCtx({ setup: null });
+    await expect(
+      handler(ctx, {
+        ...BASE,
+        ensureFolder: { name: '2026Q3', setupFolderName: 'Setup' },
+      }),
+    ).rejects.toMatchObject({ data: { code: 'SETUP_FOLDER_MISSING' } });
+  });
+
+  it('rejects externalId and ensureFolder together, and neither', async () => {
+    const { ctx } = folderCtx();
+    await expect(
+      handler(ctx, {
+        ...BASE,
+        externalId: 'folder_x',
+        ensureFolder: { name: '2026Q3' },
+      }),
+    ).rejects.toMatchObject({ data: { code: 'INVALID_ARGUMENTS' } });
+    await expect(handler(ctx, { ...BASE })).rejects.toMatchObject({
+      data: { code: 'INVALID_ARGUMENTS' },
+    });
+  });
+
+  it('rejects ensureFolder without an explicit projectId', async () => {
+    const { ctx } = folderCtx();
+    await expect(
+      handler(ctx, {
+        ...BASE,
+        projectId: undefined,
+        ensureFolder: { name: '2026Q3' },
+      }),
+    ).rejects.toMatchObject({ data: { code: 'INVALID_ARGUMENTS' } });
   });
 });

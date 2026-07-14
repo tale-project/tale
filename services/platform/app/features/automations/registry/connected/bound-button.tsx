@@ -8,12 +8,14 @@
  * instance — rules-of-hooks safe.
  */
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import type { BoundActionSpec } from '@/lib/shared/schemas/automation_views';
+import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
 import {
@@ -37,6 +39,8 @@ export type { BoundActionSpec };
  * absent `path`. Effect templates resolve against the row (`$selected.*`).
  */
 export interface EffectActionSpec {
+  /** Per-locale overrides for `label` (`i18n.de.label`, …). */
+  i18n?: Record<string, Record<string, unknown>>;
   label?: string;
   labelKey?: string;
   /** Availability predicate over the bound item (when_predicate grammar). */
@@ -155,6 +159,7 @@ function DispatchBoundButton({
   size?: 'sm' | 'default';
 }) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const { dispatch, isPending } = useBoundAction(action.path, action.mode);
   const applyEffect = useActionEffect();
   // Consume-once feedback: a successful run leaves the row "done" for the session,
@@ -171,14 +176,27 @@ function DispatchBoundButton({
 
   const { done, latchesOnRun } = deriveDoneState(action, item, justRan);
 
+  // Pack-authored per-locale overrides (`i18n.<locale>.label`/`.doneLabel`)
+  // resolve over the English literals; a platform `labelKey` still wins its
+  // catalog lookup with the localized literal as fallback.
+  const authoredLabel =
+    resolveLocalizedProp(action.label, action.i18n, 'label', locale) ??
+    action.label;
   const label = action.labelKey
-    ? t(action.labelKey, { defaultValue: action.label ?? action.path })
-    : (action.label ?? action.path);
+    ? t(action.labelKey, { defaultValue: authoredLabel ?? action.path })
+    : (authoredLabel ?? action.path);
 
   if (done) {
+    const authoredDone =
+      resolveLocalizedProp(
+        action.doneLabel,
+        action.i18n,
+        'doneLabel',
+        locale,
+      ) ?? action.doneLabel;
     const doneLabel = action.doneLabelKey
-      ? t(action.doneLabelKey, { defaultValue: action.doneLabel ?? label })
-      : (action.doneLabel ?? label);
+      ? t(action.doneLabelKey, { defaultValue: authoredDone ?? label })
+      : (authoredDone ?? label);
     return (
       <Button size={size} variant="ghost" disabled>
         {doneLabel}
@@ -187,14 +205,34 @@ function DispatchBoundButton({
   }
 
   const confirmSpec = action.confirm;
-  const confirmTitle =
-    typeof confirmSpec === 'object' && confirmSpec.title
-      ? t(confirmSpec.title, { defaultValue: confirmSpec.title })
-      : t('confirm', { defaultValue: 'Are you sure?' });
-  const confirmDescription =
-    typeof confirmSpec === 'object' && confirmSpec.description
-      ? t(confirmSpec.description, { defaultValue: confirmSpec.description })
-      : label;
+  const confirmI18n =
+    typeof confirmSpec === 'object' ? confirmSpec.i18n : undefined;
+  const authoredConfirmTitle =
+    typeof confirmSpec === 'object'
+      ? (resolveLocalizedProp(
+          confirmSpec.title,
+          confirmI18n,
+          'title',
+          locale,
+        ) ?? confirmSpec.title)
+      : undefined;
+  const authoredConfirmDescription =
+    typeof confirmSpec === 'object'
+      ? (resolveLocalizedProp(
+          confirmSpec.description,
+          confirmI18n,
+          'description',
+          locale,
+        ) ?? confirmSpec.description)
+      : undefined;
+  const confirmTitle = authoredConfirmTitle
+    ? t(authoredConfirmTitle, { defaultValue: authoredConfirmTitle })
+    : t('confirm', { defaultValue: 'Are you sure?' });
+  const confirmDescription = authoredConfirmDescription
+    ? t(authoredConfirmDescription, {
+        defaultValue: authoredConfirmDescription,
+      })
+    : label;
 
   const run = async () => {
     try {
@@ -275,13 +313,17 @@ export function EffectButton({
   size?: 'sm' | 'default';
 }) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const applyEffect = useActionEffect();
 
   if (item && action.when && !evaluateWhen(action.when, item)) return null;
 
+  const authoredLabel =
+    resolveLocalizedProp(action.label, action.i18n, 'label', locale) ??
+    action.label;
   const label = action.labelKey
-    ? t(action.labelKey, { defaultValue: action.label ?? action.effect.kind })
-    : (action.label ?? action.effect.kind);
+    ? t(action.labelKey, { defaultValue: authoredLabel ?? action.effect.kind })
+    : (authoredLabel ?? action.effect.kind);
 
   return (
     <Button

@@ -22,22 +22,16 @@ import {
 } from '@measured/puck';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@tale/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@tale/ui/card';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Text } from '@tale/ui/text';
 import type { ReactElement } from 'react';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 
+import { PackMarkdown } from '../components/pack-markdown';
 import { useBlockWhenGate } from '../hooks/use-block-when-gate';
 import { BindingStates, BlockFrame } from './block-frame';
 import {
@@ -184,7 +178,7 @@ function LocalizedText({
   const resolved = useLocalizedProp(text, i18n, 'text') ?? text;
   return (
     <WhenGated when={when} whenQuery={whenQuery}>
-      <Text variant={variant}>{resolved}</Text>
+      <PackMarkdown text={resolved} variant={variant} />
     </WhenGated>
   );
 }
@@ -214,7 +208,13 @@ function LocalizedAlert({
       <Alert
         variant={variant}
         title={resolvedTitle}
-        description={resolvedDescription}
+        description={
+          // No `variant`: inherit the alert palette's tinted description
+          // colour instead of forcing the standalone text presets.
+          resolvedDescription !== undefined ? (
+            <PackMarkdown text={resolvedDescription} />
+          ) : undefined
+        }
       />
     </WhenGated>
   );
@@ -239,11 +239,18 @@ function LocalizedCard({
         <CardHeader className="pb-3">
           {resolvedTitle ? <CardTitle>{resolvedTitle}</CardTitle> : null}
           {resolvedDescription ? (
-            <CardDescription>{resolvedDescription}</CardDescription>
+            // CardDescription is a <p> — markdown paragraphs can't nest inside
+            // it, so render the markdown div with its exact styling instead.
+            <PackMarkdown
+              text={resolvedDescription}
+              className="text-fg-muted text-sm"
+            />
           ) : null}
         </CardHeader>
       )}
-      <CardContent>{resolvedBody}</CardContent>
+      <CardContent>
+        <PackMarkdown text={resolvedBody} variant="body" />
+      </CardContent>
     </Card>
   );
 }
@@ -380,30 +387,46 @@ export const taleConfig: Config<TaleComponents> = {
         fields: { title: { type: 'text' } },
         render: ({
           title,
+          i18n,
+          when,
+          whenQuery,
           query,
+          rowWhen,
           columns,
           actions,
           subjectType,
           subjectIdField,
+          subjectUpload,
+          subjectOutcome,
+          defaultExpandWhen,
           perPage,
           filters,
           emptyState,
           addAction,
+          addActionPlacement,
           search,
           onRowClick,
         }) =>
           query ? (
             <Collection
               title={title}
+              i18n={i18n}
+              when={when}
+              whenQuery={whenQuery}
               query={query}
+              rowWhen={rowWhen}
               columns={columns}
               actions={actions}
               subjectType={subjectType}
               subjectIdField={subjectIdField}
+              subjectUpload={subjectUpload}
+              subjectOutcome={subjectOutcome}
+              defaultExpandWhen={defaultExpandWhen}
               perPage={perPage}
               filters={filters}
               emptyState={emptyState}
               addAction={addAction}
+              addActionPlacement={addActionPlacement}
               search={search}
               onRowClick={onRowClick}
             />
@@ -461,6 +484,7 @@ export const taleConfig: Config<TaleComponents> = {
         fields: { title: { type: 'text' } },
         render: ({
           title,
+          i18n,
           source,
           itemsKey,
           rowWhen,
@@ -472,6 +496,7 @@ export const taleConfig: Config<TaleComponents> = {
           source?.path ? (
             <ExternalList
               title={title}
+              i18n={i18n}
               source={source}
               itemsKey={itemsKey}
               rowWhen={rowWhen}

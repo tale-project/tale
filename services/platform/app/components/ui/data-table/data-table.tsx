@@ -203,6 +203,12 @@ export interface DataTableProps<TData, TValue = unknown> {
   enableExpanding?: boolean;
   /** Render function for expanded row content */
   renderExpandedRow?: (row: Row<TData>) => ReactNode;
+  /**
+   * Row ids to expand automatically ONCE when they first appear (e.g. a
+   * freshly created row whose expanded panel is the next step). Each id
+   * auto-expands a single time — a user collapse is never fought.
+   */
+  autoExpandRowIds?: string[];
   /** Get row ID for selection/expansion */
   getRowId?: (row: TData) => string;
   /** Additional class name for the table container */
@@ -295,6 +301,7 @@ export function DataTable<TData, TValue = unknown>({
   onRowSelectionChange,
   enableExpanding = false,
   renderExpandedRow,
+  autoExpandRowIds,
   getRowId,
   className,
   rowClassName,
@@ -332,6 +339,23 @@ export function DataTable<TData, TValue = unknown>({
   const [internalRowSelection, setInternalRowSelection] =
     useState<RowSelectionState>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
+  // One-shot auto-expansion: expand each listed id the first time it shows
+  // up, then leave the row alone (so a manual collapse sticks).
+  const autoExpandedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!enableExpanding || !autoExpandRowIds || autoExpandRowIds.length === 0)
+      return;
+    const fresh = autoExpandRowIds.filter(
+      (id) => !autoExpandedRef.current.has(id),
+    );
+    if (fresh.length === 0) return;
+    for (const id of fresh) autoExpandedRef.current.add(id);
+    setExpanded((prev) =>
+      prev === true
+        ? prev
+        : { ...prev, ...Object.fromEntries(fresh.map((id) => [id, true])) },
+    );
+  }, [enableExpanding, autoExpandRowIds]);
   const [internalPagination, setInternalPagination] = useState({
     pageIndex: currentPage - 1,
     pageSize: pagination?.pageSize ?? 20,

@@ -26,6 +26,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useProjectViewTabs } from '@/app/features/automations/hooks/use-project-view-tabs';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
@@ -84,6 +85,11 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
+  // One first-class tab per bundled view of every bound automation — the
+  // operator surfaces (e.g. a VAT desk), between the core collaboration
+  // tabs and the management tabs.
+  const viewTabs = useProjectViewTabs(organizationId, asProjectId(projectId));
+
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
   // render kicks that effect (and the observer it owns) every render.
@@ -126,13 +132,14 @@ function ProjectDetailLayout() {
         href: `/dashboard/${organizationId}/projects/${projectId}/files`,
         matchMode: 'exact',
       },
-      // One Automations tab → bound-automations list. Detail routes stay under
-      // Automations chrome (bare outlet above), so match the list exactly.
-      {
-        label: t('navigation.automations'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
-        matchMode: 'exact',
-      },
+      // Bound automations' views as first-class tabs (1 view = 1 tab) —
+      // the operator surfaces, ahead of the management tabs below.
+      ...viewTabs,
+      // No project-level "Automations" management tab: an automation's
+      // operator surfaces are the bound view tabs above, and its
+      // management (Configuration, bound projects, uninstall) lives on the
+      // org Automations page. The project-nested detail route stays
+      // reachable by URL (bare outlet above) — it just isn't a strip tab.
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
@@ -164,6 +171,7 @@ function ProjectDetailLayout() {
       organizationId,
       projectId,
       project?.canAdminister,
+      viewTabs,
     ],
   );
 
@@ -226,6 +234,9 @@ function ProjectDetailLayout() {
             <TabNavigation
               items={tabs}
               standalone={false}
+              // View tabs grow with every bound automation — fold the
+              // overflow into a More menu instead of a hidden scroll tail.
+              overflow="menu"
               ariaLabel={tCommon('aria.projectsNavigation')}
             >
               <ProjectEditorActionsSlot />

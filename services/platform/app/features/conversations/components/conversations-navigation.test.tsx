@@ -6,6 +6,7 @@ import { render } from '@/tests/utils/render';
 import { ConversationsNavigation } from './conversations-navigation';
 
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     children,
     ...props

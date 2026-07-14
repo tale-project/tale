@@ -26,6 +26,11 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
+import {
+  resolveLocalizedProp,
+  resolveValueLabels,
+  type PackI18nMap,
+} from '@/lib/shared/utils/resolve-automation-locale';
 import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -45,12 +50,16 @@ export interface DetailFieldSpec {
    * columns). Unmapped values still render raw — authors opt in per field.
    */
   valueLabels?: Record<string, string>;
+  /** Per-locale overrides for `labelKey`/`valueLabels`. */
+  i18n?: PackI18nMap;
 }
 
 export interface DetailPanelProps {
   /** Optional block title (literal; schema passthrough).
    *  Defaults to the localized "Details". */
   title?: string;
+  /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
+  i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
   /** `<dl>` column count (1–4, default 2). */
   cols?: number;
@@ -137,6 +146,7 @@ function DetailValue({
 
 export function DetailPanel({
   title,
+  i18n,
   query,
   cols,
   fields,
@@ -145,6 +155,7 @@ export function DetailPanel({
   actionSlot,
 }: DetailPanelProps) {
   const { t } = useT('automations');
+  const { locale } = useLocale();
   const { data, isLoading, blocked, needsConfig } = useBoundQuery(
     query.path,
     query.args,
@@ -161,12 +172,13 @@ export function DetailPanel({
   })();
 
   const items: StatGridItem[] = fields.map((f) => ({
-    label: f.labelKey,
+    label:
+      resolveLocalizedProp(f.labelKey, f.i18n, 'label', locale) ?? f.labelKey,
     value: (
       <DetailValue
         value={getValueAtPath(record, f.field)}
         kind={f.kind}
-        valueLabels={f.valueLabels}
+        valueLabels={resolveValueLabels(f.valueLabels, f.i18n, locale)}
       />
     ) as ReactNode,
   }));
@@ -177,7 +189,11 @@ export function DetailPanel({
 
   return (
     <BlockFrame
-      title={title ?? t('detail.title')}
+      title={
+        resolveLocalizedProp(title, i18n, 'title', locale) ??
+        title ??
+        t('detail.title')
+      }
       icon={Info}
       actions={
         hasActions ? (
@@ -218,10 +234,11 @@ export const detailPanelBlock: {
   render: PuckComponent<Partial<DetailPanelProps>>;
 } = {
   fields: { title: { type: 'text' } },
-  render: ({ title, query, cols, fields, actions }) =>
+  render: ({ title, i18n, query, cols, fields, actions }) =>
     query?.path && fields && fields.length > 0 ? (
       <DetailPanel
         title={title}
+        i18n={i18n}
         query={query}
         cols={cols}
         fields={fields}
