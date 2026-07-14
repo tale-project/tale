@@ -17,6 +17,12 @@ Tout ce que contient l’espace prend l’une de deux formes. Le **contenu index
 
 La forme que tu choisis décide de la façon dont un agent peut exploiter le contenu — c’est pourquoi [Données structurées](/fr/platform/knowledge/structured-data) est une page de décision, pas seulement une référence.
 
+## Où réside l'index
+
+Le contenu indexé est intégré dans la base de données vectorielle intégrée de Tale — un stockage Postgres (ParadeDB) qui combine les embeddings `pgvector` avec la recherche par mots-clés (BM25) et fusionne les deux, de sorte que la recherche capte à la fois les correspondances sémantiques et les termes exacts. Il n'y a rien à connecter, à licencier ni à exploiter séparément : le stockage vectoriel est livré avec la plateforme, et c'est précisément ce qui permet à la recherche, aux citations, aux permissions par équipe et à l'effacement RGPD d'agir sur un seul stockage plutôt que sur un service rapporté. Les embeddings proviennent du fournisseur d'embeddings configuré par l'organisation, donc tu choisis le modèle sans toucher à ce qui est en dessous.
+
+Les moteurs vectoriels externes — Pinecone, Weaviate, Qdrant et consorts — ne sont volontairement pas connectables, et ne sont pas nécessaires. Un déploiement auto-hébergé qui doit garder le corpus sur sa propre infrastructure peut pointer la base de connaissances vers un Postgres géré qu'il exploite ; voir [Résidence des données](/fr/self-hosted/configuration/data-residency).
+
 ## Comment les agents y puisent
 
 Un agent ne voit pas toute la bibliothèque par défaut. L’onglet **Base de connaissances** de l’agent contrôle son périmètre de récupération — les parties de la bibliothèque qu’il interroge au moment de répondre — et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. La récupération passe par les outils RAG de l’agent, et chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Connaissances de l’agent](/fr/platform/agents/knowledge).

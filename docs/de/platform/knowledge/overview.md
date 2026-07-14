@@ -17,6 +17,12 @@ Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die
 
 Die Form, die du wählst, entscheidet, wie ein Agent den Inhalt nutzen kann — deshalb ist [Strukturierte Daten](/de/platform/knowledge/structured-data) eine Entscheidungsseite, nicht nur eine Referenz.
 
+## Wo der Index liegt
+
+Indexierte Inhalte werden in Tales eingebaute Vektordatenbank eingebettet — einen Postgres-Speicher (ParadeDB), der `pgvector`-Embeddings mit Keyword-Suche (BM25) kombiniert und beide fusioniert, sodass die Suche sowohl semantische Treffer als auch exakte Begriffe erfasst. Es gibt nichts anzubinden, zu lizenzieren oder separat zu betreiben: Der Vektorspeicher kommt mit der Plattform, und genau das lässt Suche, Zitate, team-bezogene Berechtigungen und DSGVO-Löschung alle auf einem Speicher arbeiten statt auf einem angeflanschten Dienst. Embeddings stammen vom konfigurierten Embedding-Provider der Organisation, sodass du das Modell wählst, ohne etwas darunter anzufassen.
+
+Externe Vektor-Engines — Pinecone, Weaviate, Qdrant und dergleichen — sind bewusst nicht anbindbar und auch nicht nötig. Eine selbst gehostete Bereitstellung, die den Korpus auf eigener Infrastruktur halten muss, kann die Wissensdatenbank auf ein selbst betriebenes verwaltetes Postgres zeigen; siehe [Datenresidenz](/de/self-hosted/configuration/data-residency).
+
 ## Wie Agenten hineingreifen
 
 Ein Agent sieht die ganze Bibliothek nicht von selbst. Der Tab **Wissen** des Agenten steuert seinen Abruf-Umfang — welche Teile der Bibliothek er zur Antwortzeit durchsucht —, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Den Abruf treiben die RAG-getaggten Tools des Agenten, und jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Agent-Wissen](/de/platform/agents/knowledge).
