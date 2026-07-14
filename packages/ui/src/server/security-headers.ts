@@ -10,6 +10,8 @@
  * Observatory "quick test"), but they are deliberately separate surfaces.
  */
 
+import { createHash } from 'node:crypto';
+
 export interface SecurityHeadersConfig {
   /**
    * CSP directives in camelCase (`defaultSrc`, `scriptSrc`, …); values are
@@ -82,6 +84,48 @@ export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
   crossOriginResourcePolicy: 'same-origin',
   xPermittedCrossDomainPolicies: 'none',
 };
+
+/**
+ * Compute the CSP `sha256-…` source tokens for every executable inline
+ * `<script>` in `html`. Matches ONLY bare `<script>…</script>` blocks — the
+ * synchronous theme-flash IIFE the sites ship. External scripts (`src=`) and
+ * non-executable data blocks (`type="application/ld+json"`) carry attributes
+ * and are skipped, so they don't need hashing. The hash is over the exact
+ * inner bytes, which is what the browser hashes, so a token computed from the
+ * served `index.html` always matches the script the browser runs.
+ */
+export function extractInlineScriptHashes(html: string): string[] {
+  const hashes: string[] = [];
+  const re = /<script>([\s\S]*?)<\/script>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const digest = createHash('sha256')
+      .update(match[1], 'utf8')
+      .digest('base64');
+    hashes.push(`'sha256-${digest}'`);
+  }
+  return hashes;
+}
+
+/**
+ * Return `config` with its CSP `script-src` pinned to `'self'` + the given
+ * hashes (dropping `'unsafe-inline'`, which a browser ignores once a hash is
+ * present anyway). No-op when there are no hashes or no CSP — the caller keeps
+ * its `'unsafe-inline'` fallback so a hashing miss never breaks the page.
+ */
+export function withScriptHashes(
+  config: SecurityHeadersConfig,
+  hashes: string[],
+): SecurityHeadersConfig {
+  if (hashes.length === 0 || !config.contentSecurityPolicy) return config;
+  return {
+    ...config,
+    contentSecurityPolicy: {
+      ...config.contentSecurityPolicy,
+      scriptSrc: ["'self'", ...hashes],
+    },
+  };
+}
 
 export function cspDirectiveName(camel: string): string {
   return camel.replace(/([A-Z])/g, '-$1').toLowerCase();

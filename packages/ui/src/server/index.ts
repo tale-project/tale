@@ -14,7 +14,7 @@
  * proper ETag handling before falling through to static serving.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
 import { serializeLocaleCookie } from '@tale/ui/i18n/cookie';
@@ -28,6 +28,8 @@ import type { ArtifactsServer } from '../seo';
 import {
   applySecurityHeaders,
   defaultReactServerSecurityHeaders,
+  extractInlineScriptHashes,
+  withScriptHashes,
   type SecurityHeadersConfig,
 } from './security-headers';
 
@@ -38,6 +40,7 @@ import {
 export {
   applySecurityHeaders,
   defaultReactServerSecurityHeaders,
+  extractInlineScriptHashes,
   type SecurityHeadersConfig,
 };
 
@@ -148,6 +151,37 @@ async function handleArtifacts(
   }
 }
 
+/**
+ * Resolve the security-headers config actually used at runtime: the configured
+ * policy with its CSP `script-src` tightened to the built page's inline-script
+ * hashes (dropping `'unsafe-inline'`). Falls back to the configured policy
+ * unchanged on any miss so a hashing failure can never break inline scripts.
+ */
+function computeEffectiveSecurityHeaders(
+  config: SecurityHeadersConfig | undefined,
+  distDir: string,
+  logPrefix: string,
+): SecurityHeadersConfig | undefined {
+  if (!config?.contentSecurityPolicy) return config;
+  try {
+    const html = readFileSync(join(distDir, 'index.html'), 'utf8');
+    const hashes = extractInlineScriptHashes(html);
+    if (hashes.length === 0) {
+      console.warn(
+        `[${logPrefix}] no inline scripts in dist/index.html; keeping CSP script-src as configured`,
+      );
+      return config;
+    }
+    return withScriptHashes(config, hashes);
+  } catch (error) {
+    console.warn(
+      `[${logPrefix}] could not hash dist/index.html for CSP; keeping configured script-src:`,
+      error instanceof Error ? error.message : error,
+    );
+    return config;
+  }
+}
+
 export function startReactServer(opts: ReactServerOptions): void {
   const {
     port,
@@ -162,6 +196,18 @@ export function startReactServer(opts: ReactServerOptions): void {
     extraRoutes,
     artifacts,
   } = opts;
+
+  // Pin the CSP `script-src` to the sha256 of the built page's inline
+  // theme-flash script and drop `'unsafe-inline'` — computed once at boot from
+  // the SAME `dist/index.html` that is served, so the hash always matches the
+  // script the browser runs. On any miss (no dist, no inline script, read
+  // error) the configured policy is used unchanged, so a hashing failure can
+  // never break the theme; it just keeps the looser `'unsafe-inline'`.
+  const effectiveSecurityHeaders = computeEffectiveSecurityHeaders(
+    securityHeaders,
+    distDir,
+    logPrefix,
+  );
 
   const distPrefix = distDir + sep;
 
@@ -245,8 +291,8 @@ export function startReactServer(opts: ReactServerOptions): void {
       const url = new URL(request.url);
       const secure = isSecureRequest(request);
       const finalize = (response: Response) =>
-        securityHeaders
-          ? applySecurityHeaders(response, securityHeaders, secure)
+        effectiveSecurityHeaders
+          ? applySecurityHeaders(response, effectiveSecurityHeaders, secure)
           : response;
 
       if (url.pathname === '/api/health') {

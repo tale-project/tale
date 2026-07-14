@@ -1,11 +1,19 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   applySecurityHeaders,
   buildCspHeader,
   defaultReactServerSecurityHeaders,
+  extractInlineScriptHashes,
+  withScriptHashes,
   type SecurityHeadersConfig,
 } from './security-headers';
+
+function sha256Token(body: string): string {
+  return `'sha256-${createHash('sha256').update(body, 'utf8').digest('base64')}'`;
+}
 
 function apply(config: SecurityHeadersConfig, isSecure = true): Headers {
   const res = new Response('<!doctype html>', {
@@ -89,5 +97,67 @@ describe('buildCspHeader', () => {
     ).toBe(
       "default-src 'self'; frame-ancestors 'none'; img-src 'self' data: blob:",
     );
+  });
+});
+
+describe('extractInlineScriptHashes', () => {
+  it('hashes a bare inline <script> and matches the browser hash', () => {
+    const body = `(function(){document.documentElement.classList.add('dark')})()`;
+    const html = `<!doctype html><head><script>${body}</script></head>`;
+    expect(extractInlineScriptHashes(html)).toEqual([sha256Token(body)]);
+  });
+
+  it('skips external (src=) scripts and application/ld+json data blocks', () => {
+    const html = `
+      <script src="/app/main.js"></script>
+      <script type="application/ld+json">{"@type":"WebSite"}</script>
+      <script>theme()</script>
+    `;
+    expect(extractInlineScriptHashes(html)).toEqual([sha256Token('theme()')]);
+  });
+
+  it('returns [] when there are no bare inline scripts', () => {
+    expect(extractInlineScriptHashes('<script src="/x.js"></script>')).toEqual(
+      [],
+    );
+  });
+});
+
+describe('withScriptHashes', () => {
+  it('pins script-src to self + hashes and drops unsafe-inline', () => {
+    const hashes = [sha256Token('theme()')];
+    const tightened = withScriptHashes(
+      defaultReactServerSecurityHeaders,
+      hashes,
+    );
+    const csp = tightened.contentSecurityPolicy;
+    if (!csp) throw new Error('expected a CSP');
+    expect(csp.scriptSrc).toEqual(["'self'", ...hashes]);
+    expect(csp.scriptSrc).not.toContain("'unsafe-inline'");
+    // style-src keeps unsafe-inline (Tailwind) — 0-penalty on Observatory.
+    expect(csp.styleSrc).toContain("'unsafe-inline'");
+  });
+
+  it('is a no-op with no hashes or no CSP', () => {
+    expect(withScriptHashes(defaultReactServerSecurityHeaders, [])).toBe(
+      defaultReactServerSecurityHeaders,
+    );
+    const noCsp: SecurityHeadersConfig = { contentSecurityPolicy: false };
+    expect(withScriptHashes(noCsp, [sha256Token('x')])).toBe(noCsp);
+  });
+
+  it('emits an Observatory-A+-grade script-src (self + hash, no unsafe-inline)', () => {
+    const hashes = [sha256Token('theme()')];
+    const h = apply(
+      withScriptHashes(defaultReactServerSecurityHeaders, hashes),
+    );
+    const csp = h.get('Content-Security-Policy') ?? '';
+    const scriptSrc = csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith('script-src'));
+    expect(scriptSrc).toContain("'self'");
+    expect(scriptSrc).toContain(hashes[0]);
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
   });
 });
