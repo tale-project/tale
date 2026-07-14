@@ -25,52 +25,20 @@ import {
 import { file } from 'bun';
 
 import type { ArtifactsServer } from '../seo';
+import {
+  applySecurityHeaders,
+  defaultReactServerSecurityHeaders,
+  type SecurityHeadersConfig,
+} from './security-headers';
 
-export interface SecurityHeadersConfig {
-  /**
-   * CSP directives in camelCase (`defaultSrc`, `scriptSrc`, …); values are
-   * source lists joined with spaces. Set to `false` to omit the header.
-   */
-  contentSecurityPolicy?: Record<string, readonly string[]> | false;
-  /**
-   * `Strict-Transport-Security` value (e.g. `'max-age=15552000'`). Only
-   * emitted on HTTPS requests. Set to `false` to omit.
-   */
-  strictTransportSecurity?: string | false;
-  xContentTypeOptions?: 'nosniff' | false;
-  xFrameOptions?: 'DENY' | 'SAMEORIGIN' | false;
-  referrerPolicy?: string | false;
-}
-
-/**
- * Sensible default for a public marketing/docs site served from a Vite
- * `dist/`. Allows inline `<script>` because docs ships a synchronous
- * theme-detection script in `index.html`; allows inline `<style>` because
- * Tailwind v4 emits a few. Override per-service if a stricter policy fits.
- *
- * No external origins are allowed by default — runtime assets must be
- * served same-origin. Same GDPR / air-gap rationale as the platform CSP.
- */
-export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
-  contentSecurityPolicy: {
-    defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'blob:'],
-    fontSrc: ["'self'", 'data:'],
-    connectSrc: ["'self'"],
-    frameAncestors: ["'none'"],
-    baseUri: ["'self'"],
-    formAction: ["'self'"],
-    objectSrc: ["'none'"],
-    mediaSrc: ["'none'"],
-  },
-  // 180 days, no `includeSubDomains` / `preload` — self-deployed operators
-  // run on varied domains and don't own preload submission.
-  strictTransportSecurity: 'max-age=15552000',
-  xContentTypeOptions: 'nosniff',
-  xFrameOptions: 'DENY',
-  referrerPolicy: 'strict-origin-when-cross-origin',
+// Re-exported so existing callers (`services/web`, `services/docs`) keep
+// importing the config + default from `@tale/ui/server` unchanged. The pure
+// header logic lives in `./security-headers` so it is testable without the
+// `bun` import above.
+export {
+  applySecurityHeaders,
+  defaultReactServerSecurityHeaders,
+  type SecurityHeadersConfig,
 };
 
 export interface ReactServerOptions {
@@ -161,51 +129,6 @@ export function staticCacheControlFor(rel: string): string {
 function isSecureRequest(request: Request): boolean {
   if (request.url.startsWith('https://')) return true;
   return request.headers.get('x-forwarded-proto') === 'https';
-}
-
-function cspDirectiveName(camel: string): string {
-  return camel.replace(/([A-Z])/g, '-$1').toLowerCase();
-}
-
-function buildCspHeader(directives: Record<string, readonly string[]>): string {
-  return Object.entries(directives)
-    .map(([key, sources]) => `${cspDirectiveName(key)} ${sources.join(' ')}`)
-    .join('; ');
-}
-
-/**
- * Mutates `response.headers` in place, adding any configured security
- * headers. HSTS is skipped on plaintext HTTP so dev environments don't
- * pin themselves to https.
- */
-function applySecurityHeaders(
-  response: Response,
-  config: SecurityHeadersConfig,
-  isSecure: boolean,
-): Response {
-  if (config.contentSecurityPolicy) {
-    response.headers.set(
-      'Content-Security-Policy',
-      buildCspHeader(config.contentSecurityPolicy),
-    );
-  }
-  if (config.strictTransportSecurity && isSecure) {
-    response.headers.set(
-      'Strict-Transport-Security',
-      config.strictTransportSecurity,
-    );
-  }
-  if (config.xContentTypeOptions) {
-    response.headers.set('X-Content-Type-Options', config.xContentTypeOptions);
-  }
-  if (config.xFrameOptions) {
-    // nosemgrep: javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration -- generic config-driven header setter; the value is operator-controlled
-    response.headers.set('X-Frame-Options', config.xFrameOptions);
-  }
-  if (config.referrerPolicy) {
-    response.headers.set('Referrer-Policy', config.referrerPolicy);
-  }
-  return response;
 }
 
 async function handleArtifacts(
