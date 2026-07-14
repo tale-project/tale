@@ -19,6 +19,7 @@ import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';
 
 import { mapUploadError } from '../lib/map-upload-error';
+import { UploadTimeoutError, withDeadline } from '../lib/upload-deadline';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +68,21 @@ interface UploadOptions {
 // Upload with XHR for byte-level progress
 // ---------------------------------------------------------------------------
 
+// No-progress watchdog for the blob PUT. A fixed overall timeout would kill a
+// legitimately slow 100 MB upload, so we time INACTIVITY instead: if no
+// `progress` event fires for this long, the connection is wedged (dropped
+// network, dead proxy) and we abort. Without this, a stalled XHR never settles
+// and the dialog's `isUploading` latch stays stuck forever — no further uploads
+// possible until a page reload.
+const UPLOAD_STALL_TIMEOUT_MS = 60_000;
+
+// Ceiling for the Convex upload mutations (`generateUploadUrl`,
+// `createDocumentFromUpload`). These are normally sub-second; if one never
+// settles (a wedged websocket) the per-file loop would hang forever with the
+// latch held. Race each await against this deadline AND the abort signal so a
+// hung call fails the file and releases the loop instead of wedging the dialog.
+const MUTATION_TIMEOUT_MS = 120_000;
+
 function uploadWithProgress(
   url: string,
   file: File,
@@ -79,13 +95,30 @@ function uploadWithProgress(
     xhr.open('POST', url);
     xhr.setRequestHeader('Content-Type', contentType);
 
+    // No-progress watchdog: (re)armed on every progress tick; if it ever
+    // fires, the transfer has stalled — abort so the promise settles.
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearStall = () => {
+      if (stallTimer !== undefined) clearTimeout(stallTimer);
+    };
+    const armStall = () => {
+      clearStall();
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, UPLOAD_STALL_TIMEOUT_MS);
+    };
+
     xhr.upload.addEventListener('progress', (e) => {
+      armStall();
       if (e.lengthComputable) {
         onProgress(e.loaded, e.total);
       }
     });
 
     xhr.addEventListener('load', () => {
+      clearStall();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           resolve(JSON.parse(xhr.responseText));
@@ -97,15 +130,22 @@ function uploadWithProgress(
       }
     });
 
-    xhr.addEventListener('error', () =>
-      reject(new Error('Upload failed: network error')),
-    );
+    xhr.addEventListener('error', () => {
+      clearStall();
+      reject(new Error('Upload failed: network error'));
+    });
     xhr.addEventListener('abort', () => {
-      reject(new DOMException('The operation was aborted.', 'AbortError'));
+      clearStall();
+      reject(
+        stalled
+          ? new UploadTimeoutError('Upload stalled')
+          : new DOMException('The operation was aborted.', 'AbortError'),
+      );
     });
 
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
 
+    armStall();
     xhr.send(file);
   });
 }
@@ -177,14 +217,19 @@ export function useDocumentUpload(options: UploadOptions) {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
 
+        const signal = abortControllerRef.current?.signal;
         const contentHash = await calculateFileHash(file);
-        const uploadUrl = await generateUploadUrl({});
+        const uploadUrl = await withDeadline(
+          generateUploadUrl({}),
+          MUTATION_TIMEOUT_MS,
+          signal,
+        );
 
         const { storageId } = await uploadWithProgress(
           uploadUrl,
           file,
           resolvedType,
-          abortControllerRef.current?.signal,
+          signal,
           (loaded, total) => {
             updateFileStatus(fileId, {
               bytesLoaded: loaded,
@@ -193,11 +238,41 @@ export function useDocumentUpload(options: UploadOptions) {
           },
         );
 
-        // Create document records — one per team, or one org-wide
+        // Create document records — one per team, or one org-wide. Each
+        // mutation is raced against a deadline + the abort signal so a wedged
+        // call fails this file and releases the loop rather than hanging it.
         const teamIds = uploadOptions?.teamIds;
         if (teamIds && teamIds.length > 0) {
           for (const teamId of teamIds) {
-            await createDocumentFromUpload({
+            await withDeadline(
+              createDocumentFromUpload({
+                organizationId: options.organizationId,
+                fileId: toId<'_storage'>(storageId),
+                fileName: file.name,
+                contentType: resolvedType,
+                contentHash,
+                metadata: {
+                  size: file.size,
+                  sourceProvider: 'upload',
+                  sourceMode: 'manual',
+                  lastModified: file.lastModified,
+                },
+                teamId,
+                folderId: uploadOptions?.folderId
+                  ? toId<'folders'>(uploadOptions.folderId)
+                  : undefined,
+                projectId: uploadOptions?.projectId
+                  ? toId<'projects'>(uploadOptions.projectId)
+                  : undefined,
+                fileSize: file.size,
+              }),
+              MUTATION_TIMEOUT_MS,
+              signal,
+            );
+          }
+        } else {
+          await withDeadline(
+            createDocumentFromUpload({
               organizationId: options.organizationId,
               fileId: toId<'_storage'>(storageId),
               fileName: file.name,
@@ -209,7 +284,7 @@ export function useDocumentUpload(options: UploadOptions) {
                 sourceMode: 'manual',
                 lastModified: file.lastModified,
               },
-              teamId,
+              teamId: undefined,
               folderId: uploadOptions?.folderId
                 ? toId<'folders'>(uploadOptions.folderId)
                 : undefined,
@@ -217,30 +292,10 @@ export function useDocumentUpload(options: UploadOptions) {
                 ? toId<'projects'>(uploadOptions.projectId)
                 : undefined,
               fileSize: file.size,
-            });
-          }
-        } else {
-          await createDocumentFromUpload({
-            organizationId: options.organizationId,
-            fileId: toId<'_storage'>(storageId),
-            fileName: file.name,
-            contentType: resolvedType,
-            contentHash,
-            metadata: {
-              size: file.size,
-              sourceProvider: 'upload',
-              sourceMode: 'manual',
-              lastModified: file.lastModified,
-            },
-            teamId: undefined,
-            folderId: uploadOptions?.folderId
-              ? toId<'folders'>(uploadOptions.folderId)
-              : undefined,
-            projectId: uploadOptions?.projectId
-              ? toId<'projects'>(uploadOptions.projectId)
-              : undefined,
-            fileSize: file.size,
-          });
+            }),
+            MUTATION_TIMEOUT_MS,
+            signal,
+          );
         }
 
         updateFileStatus(fileId, {
@@ -256,6 +311,18 @@ export function useDocumentUpload(options: UploadOptions) {
 
         if (isCancellation) {
           updateFileStatus(fileId, { status: 'pending', bytesLoaded: 0 });
+          return false;
+        }
+
+        // A stalled transfer / wedged mutation is a distinct, actionable
+        // failure — surface it as such rather than the generic "check your
+        // connection". Crucially the loop still advances and the `finally`
+        // below releases the `isUploading` latch, so the dialog stays usable.
+        if (error instanceof UploadTimeoutError) {
+          updateFileStatus(fileId, {
+            status: 'failed',
+            error: t('upload.uploadTimedOut'),
+          });
           return false;
         }
 
@@ -387,6 +454,11 @@ export function useDocumentUpload(options: UploadOptions) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // Hard-release the latch. `withDeadline` now rejects the in-flight
+    // mutation awaits on abort, so the `uploadFiles` finally runs and clears
+    // this too — but resetting here makes Cancel effective even if the loop
+    // is between files, and it releases the dialog's close-block immediately.
+    setIsUploading(false);
   }, []);
 
   // Computed stats
