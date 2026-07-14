@@ -184,19 +184,24 @@ export function Form({
   // fields from them. A form with no `initialQuery` (or an unresolved project)
   // simply keeps its `initial` defaults.
   useEffect(() => {
-    if (!initialQuery?.path) return;
+    let cancelled = false;
+    const cleanup = () => {
+      cancelled = true;
+    };
+    if (!initialQuery?.path) return cleanup;
     // Load once the form is actually visible — gated-and-shown or ungated.
     // Skip while the gate is pending / hidden / awaiting project config.
-    if (whenGate.decision !== 'show' && whenGate.decision !== 'ungated') return;
+    if (whenGate.decision !== 'show' && whenGate.decision !== 'ungated') {
+      return cleanup;
+    }
     if (
       argsReferenceProjectId(initialQuery.args) &&
       runtime.projectId === undefined
     ) {
-      return;
+      return cleanup;
     }
-    if (initialLoadedRef.current) return;
+    if (initialLoadedRef.current) return cleanup;
     initialLoadedRef.current = true;
-    let cancelled = false;
     initialLoad
       .dispatch(initialQuery.args)
       .then((res) => {
@@ -215,9 +220,7 @@ export function Form({
           err,
         );
       });
-    return () => {
-      cancelled = true;
-    };
+    return cleanup;
   }, [initialQuery, whenGate.decision, runtime.projectId, initialLoad]);
 
   // The file's values win over the static defaults — but never clobber an edit

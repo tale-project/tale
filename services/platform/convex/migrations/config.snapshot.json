@@ -4097,6 +4097,17 @@
                               },
                               "type": "object"
                             },
+                            "initialQuery": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "args": {},
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["path"],
+                              "type": "object"
+                            },
                             "onSuccess": {
                               "oneOf": [
                                 {
@@ -11504,6 +11515,17 @@
                                 },
                                 "type": "object"
                               },
+                              "initialQuery": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "args": {},
+                                  "path": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["path"],
+                                "type": "object"
+                              },
                               "onSuccess": {
                                 "oneOf": [
                                   {
@@ -18900,6 +18922,17 @@
                             },
                             "type": "object"
                           },
+                          "initialQuery": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "args": {},
+                              "path": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path"],
+                            "type": "object"
+                          },
                           "onSuccess": {
                             "oneOf": [
                               {
@@ -26262,6 +26295,17 @@
                               "propertyNames": {
                                 "type": "string"
                               },
+                              "type": "object"
+                            },
+                            "initialQuery": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "args": {},
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["path"],
                               "type": "object"
                             },
                             "onSuccess": {
@@ -33671,6 +33715,17 @@
                             },
                             "type": "object"
                           },
+                          "initialQuery": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "args": {},
+                              "path": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path"],
+                            "type": "object"
+                          },
                           "onSuccess": {
                             "oneOf": [
                               {
@@ -41033,6 +41088,17 @@
                               "propertyNames": {
                                 "type": "string"
                               },
+                              "type": "object"
+                            },
+                            "initialQuery": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "args": {},
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["path"],
                               "type": "object"
                             },
                             "onSuccess": {
@@ -48522,6 +48588,17 @@
                                     "propertyNames": {
                                       "type": "string"
                                     },
+                                    "type": "object"
+                                  },
+                                  "initialQuery": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "args": {},
+                                      "path": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["path"],
                                     "type": "object"
                                   },
                                   "onSuccess": {
@@ -56164,6 +56241,17 @@
                                       },
                                       "type": "object"
                                     },
+                                    "initialQuery": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "args": {},
+                                        "path": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": ["path"],
+                                      "type": "object"
+                                    },
                                     "onSuccess": {
                                       "oneOf": [
                                         {
@@ -63799,6 +63887,17 @@
                                   },
                                   "type": "object"
                                 },
+                                "initialQuery": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "args": {},
+                                    "path": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["path"],
+                                  "type": "object"
+                                },
                                 "onSuccess": {
                                   "oneOf": [
                                     {
@@ -71335,6 +71434,17 @@
                                     },
                                     "type": "object"
                                   },
+                                  "initialQuery": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "args": {},
+                                      "path": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["path"],
+                                    "type": "object"
+                                  },
                                   "onSuccess": {
                                     "oneOf": [
                                       {
@@ -78851,6 +78961,17 @@
                   "propertyNames": {
                     "type": "string"
                   },
+                  "type": "object"
+                },
+                "initialQuery": {
+                  "additionalProperties": {},
+                  "properties": {
+                    "args": {},
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path"],
                   "type": "object"
                 },
                 "onSuccess": {
@@ -86701,6 +86822,17 @@
                         },
                         "type": "object"
                       },
+                      "initialQuery": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "args": {},
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path"],
+                        "type": "object"
+                      },
                       "onSuccess": {
                         "oneOf": [
                           {
@@ -94009,6 +94141,17 @@
                           "propertyNames": {
                             "type": "string"
                           },
+                          "type": "object"
+                        },
+                        "initialQuery": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "args": {},
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["path"],
                           "type": "object"
                         },
                         "onSuccess": {

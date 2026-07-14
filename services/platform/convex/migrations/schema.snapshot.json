@@ -3142,6 +3142,12 @@
       }
     },
     "conversations": {
+      "assigneeUserId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "channel": {
         "ft": {
           "type": "string"
