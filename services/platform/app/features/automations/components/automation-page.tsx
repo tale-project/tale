@@ -22,14 +22,13 @@ import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
+import { HStack, Row, VStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonText } from '@tale/ui/skeleton';
-import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, UserPen, Wrench } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -60,7 +59,6 @@ import { useAutomationScheduleReadiness } from '../hooks/use-automation-schedule
 import { useAutomationDisplay } from '../hooks/use-automation-text';
 import {
   type AutomationSummary,
-  type AutomationTabDoc,
   type AutomationViewDoc,
   isAutomationViewErrorStub,
   useAutomationCatalog,
@@ -72,9 +70,9 @@ import {
   useAutomationInstallActions,
   useAutomationInstallStates,
 } from '../hooks/use-install-state';
+import { useOpenTimeIntegrityCheck } from '../hooks/use-open-time-integrity-check';
 import { useReinstallWithPreflight } from '../hooks/use-reinstall-with-preflight';
 import { useRequiredIntegrations } from '../hooks/use-required-integrations';
-import { AutomationView } from '../registry/automation-view';
 import { AutomationRuntimeProvider } from '../runtime/automation-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
 import { AutomationConfiguration } from './automation-configuration';
@@ -82,10 +80,13 @@ import { AutomationDeleteAction } from './automation-delete-action';
 import { AutomationDetailShell } from './automation-detail-shell';
 import { AutomationMarker } from './automation-icon';
 import { AutomationIntegrationsTab } from './automation-integrations-tab';
+import {
+  AutomationViewBody,
+  ViewErrorStubAlert,
+  viewRouteId,
+} from './automation-view-body';
 import { AutomationWorkflowEditorTab } from './automation-workflow-editor-tab';
 import { AutomationInstallWizard } from './install-wizard/automation-install-wizard';
-import { PackMarkdown } from './pack-markdown';
-import { ProjectScopedViewGate } from './project-scoped-view-gate';
 
 /**
  * Tab values for the automation-owned tabs (as opposed to a manifest view's
@@ -243,27 +244,6 @@ function ReadinessChecklist({
 }
 
 /**
- * Re-check that the copied files still exist when an installed automation opens.
- * Guarded by automationSlug so it runs once per automation (verify's identity is
- * unstable and it mutates the install status, which would otherwise re-fire in
- * a loop). Lives on the PAGE hosts — not inside `ReadinessSection` — so the
- * check still runs when the readiness banner's tab isn't the one open.
- */
-function useOpenTimeIntegrityCheck(
-  organizationId: string,
-  automationSlug: string,
-) {
-  const { verify } = useAutomationInstallActions(organizationId);
-  const verifiedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (verifiedRef.current !== automationSlug) {
-      verifiedRef.current = automationSlug;
-      void verify(automationSlug);
-    }
-  }, [automationSlug, verify]);
-}
-
-/**
  * The non-blocking readiness banner. Scoped per tab: integration blockers show
  * on the Integrations tab, agent blockers on the Configuration tab. Its single
  * button opens the finish-setup wizard (owned by the page) for the remaining
@@ -338,43 +318,6 @@ function ReadinessSection({
   );
 }
 
-/** A tab's content: side-by-side columns, or a single Puck Data region. */
-function TabContent({ tab }: { tab: AutomationTabDoc }) {
-  if (tab.columns && tab.columns.length > 0) {
-    return (
-      <Grid lg={2} className="items-start">
-        {tab.columns.map((col, i) => (
-          <AutomationView key={i} data={col} />
-        ))}
-      </Grid>
-    );
-  }
-  return <AutomationView data={tab.data} />;
-}
-
-/** A view body: the tabbed shell (navigated) or a flat Puck Data document.
- *  Tab labels resolve pack-authored `i18n.<locale>.label` over the English
- *  literal. */
-function ViewBody({ view }: { view: AutomationViewDoc }) {
-  const { locale } = useLocale();
-  if (view.tabs && view.tabs.length > 0) {
-    return (
-      <Tabs
-        variant="underline"
-        defaultValue={view.tabs[0].id}
-        items={view.tabs.map((tab) => ({
-          value: tab.id,
-          label:
-            resolveLocalizedProp(tab.label, tab.i18n, 'label', locale) ??
-            tab.label,
-          content: <TabContent tab={tab} />,
-        }))}
-      />
-    );
-  }
-  return <AutomationView data={view.data} />;
-}
-
 /**
  * Reads the active tab's editor controller (the Configuration form) and
  * renders the unified Save/Discard cluster in the tab strip, alongside the
@@ -403,17 +346,19 @@ function AutomationEditorActionsSlot({ trailing }: { trailing: ReactNode }) {
  * An installed automation's page body — the workflow settings, under the
  * automation: the "Automations / <name>" breadcrumb and ONE shared tab strip
  * (`TabNavigation`, matching every other settings page), in order: Editor,
- * Executions, Triggers, Integrations, any bundled views (invalid ones as
- * repair-stub tabs), then Configuration last. Editor/Executions/Triggers are
- * gated on developer access AND the automation actually having a workflow
+ * Executions, Triggers, Integrations, any bundled views of an ORG-scoped
+ * automation (invalid ones as repair-stub tabs), then Configuration last. A
+ * PROJECT-scoped automation's views are first-class PROJECT tabs
+ * (`/projects/$projectId/views/…`) — this page is its management surface
+ * and defaults to Configuration. Editor/Executions/Triggers are gated on
+ * developer access AND the automation actually having a workflow
  * (`manifest.workflows[0]`); Configuration and Integrations always show. Tab
- * selection is URL-addressable via the `tab` search param; the default is
- * Configuration for a project-scoped automation on the org route (views need
- * a project), else the first bundled view when one exists (operators and
- * developers alike — developers still reach Editor from the strip), else
- * Editor for a developer with a workflow, else Integrations. The strip's
- * trailing slot carries the active tab's Save/Discard plus — on the Editor
- * tab — the single AI Assistant toggle; lifecycle actions (Reinstall /
+ * selection is URL-addressable via the `tab` search param; an org-scoped
+ * automation defaults to its first bundled view when one exists (operators
+ * and developers alike — developers still reach Editor from the strip),
+ * else Editor for a developer with a workflow, else Integrations. The
+ * strip's trailing slot carries the active tab's Save/Discard plus — on the
+ * Editor tab — the single AI Assistant toggle; lifecycle actions (Reinstall /
  * Export / Uninstall / Remove-from-project) live on the Automations catalog
  * card and the Configuration tab's projects list, not here. Scoped to
  * `projectId` when rendered under a project route.
@@ -500,68 +445,36 @@ function InstalledAutomationBody({
     return value;
   };
 
-  const viewTabs = automation.views.map((view, index) => {
-    // A view doc may omit its `id` — fall back to a stable positional value.
-    const viewId = view.id ?? `view-${index + 1}`;
-    if (isAutomationViewErrorStub(view)) {
-      return {
-        value: uniqueTabValue(view.id),
-        label: startCase(view.id),
-        content: (
-          <Alert variant="destructive" title={t('viewInvalid.title')}>
-            <VStack gap={3}>
-              <Text>{t('viewInvalid.description')}</Text>
-              <Text variant="muted" className="text-sm">
-                {view.error.message}
-              </Text>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="self-start"
-                disabled={isPending}
-                onClick={() => void requestReinstall(automationSlug)}
-              >
-                {t('viewInvalid.reinstall')}
-              </Button>
-            </VStack>
-          </Alert>
-        ),
-      };
-    }
-    const viewTitle =
-      resolveLocalizedProp(view.title, view.i18n, 'title', locale) ??
-      view.title;
-    const viewDescription = resolveLocalizedProp(
-      view.description,
-      view.i18n,
-      'description',
-      locale,
-    );
-    const viewBody = (
-      <VStack gap={4}>
-        {viewDescription && (
-          <PackMarkdown text={viewDescription} variant="muted" />
-        )}
-        <ViewBody view={view} />
-      </VStack>
-    );
-    return {
-      value: uniqueTabValue(viewId),
-      label: viewTitle ?? startCase(viewId),
-      content:
-        automation.scope === 'project' && projectId === undefined ? (
-          <ProjectScopedViewGate
-            organizationId={organizationId}
-            automationSlug={automationSlug}
-            firstViewId={view.id}
-          >
-            {viewBody}
-          </ProjectScopedViewGate>
-        ) : (
-          viewBody
-        ),
-    };
-  });
+  // Project-scoped automations render their views as first-class PROJECT
+  // tabs (`/projects/$projectId/views/…`) — this page is their admin surface
+  // only. Org-scoped automations keep their view tabs here.
+  const viewTabs =
+    automation.scope === 'project'
+      ? []
+      : automation.views.map((view, index) => {
+          const viewId = viewRouteId(view, index);
+          if (isAutomationViewErrorStub(view)) {
+            return {
+              value: uniqueTabValue(view.id),
+              label: startCase(view.id),
+              content: (
+                <ViewErrorStubAlert
+                  message={view.error.message}
+                  onReinstall={() => void requestReinstall(automationSlug)}
+                  isPending={isPending}
+                />
+              ),
+            };
+          }
+          const viewTitle =
+            resolveLocalizedProp(view.title, view.i18n, 'title', locale) ??
+            view.title;
+          return {
+            value: uniqueTabValue(viewId),
+            label: viewTitle ?? startCase(viewId),
+            content: <AutomationViewBody view={view} />,
+          };
+        });
   const tabItems = [
     ...(showDevTabs && workflowSlug !== undefined
       ? [
@@ -644,21 +557,22 @@ function InstalledAutomationBody({
     },
   ];
   // An unknown/absent `?tab=` falls back to Configuration for a project-scoped
-  // automation on the org route (no `projectId`) — desk views need a project,
-  // and Configuration already lists the bound-project entry points. Otherwise
-  // the first bundled view when the automation ships one — including for
-  // developers (Editor stays one click away). Without views: Editor for a
-  // developer with a workflow, else Integrations (where the "Finish setup"
-  // banner lives), so a no-workflow automation (e.g. an email inbox) opens on
-  // something actionable rather than its last (Configuration) tab. Validated
-  // against the tabs actually RENDERED (not `usedTabValues`, which also
-  // reserves gated tab values for collision-avoidance even when they aren't
-  // shown) — a stale `?tab=editor` from before a role change, or on a
-  // non-developer's guessed URL, falls back cleanly instead of selecting a
-  // tab that isn't in `tabItems`.
+  // automation — its views live on the PROJECT tab strip now, so this page is
+  // the management surface and Configuration is its front door (it lists the
+  // bound-project entry points). An org-scoped automation opens on its first
+  // bundled view when it ships one — including for developers (Editor stays
+  // one click away). Without views: Editor for a developer with a workflow,
+  // else Integrations (where the "Finish setup" banner lives), so a
+  // no-workflow automation (e.g. an email inbox) opens on something
+  // actionable rather than its last (Configuration) tab. Validated against
+  // the tabs actually RENDERED (not `usedTabValues`, which also reserves
+  // gated tab values for collision-avoidance even when they aren't shown) —
+  // a stale `?tab=editor` from before a role change, a bookmarked view id
+  // from before the project-tab move, or a non-developer's guessed URL falls
+  // back cleanly instead of selecting a tab that isn't in `tabItems`.
   const renderedTabValues = new Set(tabItems.map((item) => item.value));
   const defaultTab =
-    automation.scope === 'project' && projectId === undefined
+    automation.scope === 'project'
       ? CONFIGURATION_TAB
       : (viewTabs[0]?.value ?? (showDevTabs ? EDITOR_TAB : INTEGRATIONS_TAB));
   const activeTab =

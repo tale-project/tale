@@ -10,8 +10,6 @@ import { ChevronRight, Workflow } from 'lucide-react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { firstViewIdFromViews } from '@/app/features/automations/components/install-wizard/first-view-id';
-import { useAutomations } from '@/app/features/automations/hooks/use-automations';
 import { useProjectAutomations } from '@/app/features/automations/hooks/use-install-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -22,8 +20,10 @@ interface ProjectAutomationsTabProps {
 }
 
 /**
- * Bound project-scoped automations for this project. One list under the
- * project shell — each row opens the automation detail (Automations chrome).
+ * Bound project-scoped automations for this project — the MANAGEMENT list.
+ * Each row opens the automation's project-nested admin page (Configuration
+ * etc.); the automations' operator surfaces are first-class view tabs on the
+ * project strip, not behind this list.
  */
 export function ProjectAutomationsTab({
   organizationId,
@@ -31,12 +31,6 @@ export function ProjectAutomationsTab({
 }: ProjectAutomationsTabProps) {
   const { t } = useT('projects');
   const { automations, isLoading } = useProjectAutomations(projectId);
-  // Bindings carry no views; join installed summaries so links can open the
-  // first view tab (`?tab=<id>`) the same way Finish does after install.
-  const { automations: installed } = useAutomations(organizationId);
-  const firstViewBySlug = new Map(
-    installed.map((a) => [a.slug, firstViewIdFromViews(a.views)]),
-  );
 
   return (
     <ContentArea variant="narrow" gap={6}>
@@ -52,9 +46,6 @@ export function ProjectAutomationsTab({
             aria-label={t('automations.title')}
           >
             {automations.map((automation) => {
-              const firstViewId = firstViewBySlug.get(
-                automation.automationSlug,
-              );
               return (
                 <li key={automation.automationSlug}>
                   <Link
@@ -64,9 +55,6 @@ export function ProjectAutomationsTab({
                       projectId: String(projectId),
                       automationSlug: automation.automationSlug,
                     }}
-                    {...(firstViewId !== undefined
-                      ? { search: { tab: firstViewId } }
-                      : {})}
                     className="hover:bg-muted/50 flex items-center gap-3 px-4 py-3 transition-colors"
                   >
                     <Workflow

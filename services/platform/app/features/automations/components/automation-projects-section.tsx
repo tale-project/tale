@@ -72,20 +72,35 @@ export function AutomationProjectsSection({
             >
               {selectedLinks.map(({ projectId, label }) => (
                 <li key={projectId}>
-                  <Link
-                    to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
-                    params={{
-                      id: organizationId,
-                      projectId,
-                      automationSlug,
-                    }}
-                    {...(firstViewId !== undefined
-                      ? { search: { tab: firstViewId } }
-                      : {})}
-                    className="text-primary text-sm hover:underline"
-                  >
-                    {t('membership.openBoundProject', { name: label })}
-                  </Link>
+                  {/* The automation's operator surface is a project VIEW tab
+                      now — link straight to the first view; an automation
+                      without views opens its project-nested admin page. */}
+                  {firstViewId !== undefined ? (
+                    <Link
+                      to="/dashboard/$id/projects/$projectId/views/$automationSlug/$viewId"
+                      params={{
+                        id: organizationId,
+                        projectId,
+                        automationSlug,
+                        viewId: firstViewId,
+                      }}
+                      className="text-primary text-sm hover:underline"
+                    >
+                      {t('membership.openBoundProject', { name: label })}
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
+                      params={{
+                        id: organizationId,
+                        projectId,
+                        automationSlug,
+                      }}
+                      className="text-primary text-sm hover:underline"
+                    >
+                      {t('membership.openBoundProject', { name: label })}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

@@ -20,6 +20,7 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     children,
     to,

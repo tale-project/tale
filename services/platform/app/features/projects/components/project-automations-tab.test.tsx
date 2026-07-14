@@ -13,22 +13,11 @@ type AutomationFixture = {
 
 let automationsFixture: AutomationFixture[] = [];
 let isLoadingFixture = false;
-let installedViewsFixture: Array<{
-  slug: string;
-  views: Array<{ id: string }>;
-}> = [];
 
 vi.mock('@/app/features/automations/hooks/use-install-state', () => ({
   useProjectAutomations: () => ({
     automations: automationsFixture,
     isLoading: isLoadingFixture,
-  }),
-}));
-
-vi.mock('@/app/features/automations/hooks/use-automations', () => ({
-  useAutomations: () => ({
-    automations: installedViewsFixture,
-    isLoading: false,
   }),
 }));
 
@@ -73,7 +62,6 @@ describe('ProjectAutomationsTab', () => {
   beforeEach(() => {
     automationsFixture = [];
     isLoadingFixture = false;
-    installedViewsFixture = [];
   });
 
   it('shows the empty state with a hub CTA when nothing is bound', () => {
@@ -91,7 +79,7 @@ describe('ProjectAutomationsTab', () => {
     );
   });
 
-  it('links each bound automation to its project detail route', () => {
+  it('links each bound automation to its project-nested admin page (views live on the project strip)', () => {
     automationsFixture = [
       {
         automationSlug: 'resolve-github-issues',
@@ -104,21 +92,17 @@ describe('ProjectAutomationsTab', () => {
         status: 'broken',
       },
     ];
-    installedViewsFixture = [
-      {
-        slug: 'resolve-github-issues',
-        views: [{ id: 'desk' }],
-      },
-    ];
 
     render(<ProjectAutomationsTab organizationId={ORG} projectId={PROJECT} />);
 
     const resolve = screen.getByRole('link', {
       name: /Resolve GitHub issues/,
     });
+    // Management list rows never deep-link a view — the operator surface is
+    // the project's own view tab now.
     expect(resolve).toHaveAttribute(
       'href',
-      `/dashboard/${ORG}/projects/${PROJECT}/automations/resolve-github-issues?tab=desk`,
+      `/dashboard/${ORG}/projects/${PROJECT}/automations/resolve-github-issues`,
     );
 
     expect(screen.getByText('Needs repair')).toBeInTheDocument();

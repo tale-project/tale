@@ -852,8 +852,6 @@
       "boundProjectsPlaceholder": "Lier des projets…",
       "boundProjectLinksLabel": "Ouvrir les projets liés",
       "openBoundProject": "Ouvrir dans {name}",
-      "viewNeedsProjectTitle": "Ouvrir depuis un projet",
-      "viewNeedsProjectDescription": "Cette vue a besoin d'un projet. Ouvre-la depuis un projet lié ci-dessous, ou lie-en un sous Configuration.",
       "noProjectsAvailable": "Aucun projet disponible.",
       "saveFailed": "Impossible de mettre à jour les projets de cette automatisation.",
       "notInProjectTitle": "Pas ajoutée à ce projet",
@@ -908,6 +906,10 @@
     "integrationsTab": {
       "emptyTitle": "Aucune intégration requise",
       "emptyDescription": "Cette automatisation fonctionne sans intégration connectée."
+    },
+    "viewNotFound": {
+      "title": "Page introuvable",
+      "description": "Cette vue n'est pas disponible dans ce projet — l'automatisation a peut-être été désinstallée, détachée du projet, ou la page retirée du paquet."
     }
   },
   "changelog": {

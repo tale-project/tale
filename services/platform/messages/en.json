@@ -852,8 +852,6 @@
       "boundProjectsPlaceholder": "Bind projects…",
       "boundProjectLinksLabel": "Open bound projects",
       "openBoundProject": "Open in {name}",
-      "viewNeedsProjectTitle": "Open from a project",
-      "viewNeedsProjectDescription": "This view needs a project. Open it from a bound project below, or bind one under Configuration.",
       "noProjectsAvailable": "No projects available.",
       "saveFailed": "Couldn't update this automation's projects.",
       "notInProjectTitle": "Not added to this project",
@@ -908,6 +906,10 @@
     "integrationsTab": {
       "emptyTitle": "No integrations required",
       "emptyDescription": "This automation runs without any connected integration."
+    },
+    "viewNotFound": {
+      "title": "Page not found",
+      "description": "This view isn't available in this project — the automation may have been uninstalled, unbound from the project, or the page removed from its bundle."
     }
   },
   "changelog": {
