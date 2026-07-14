@@ -44,6 +44,7 @@ import { migration as m0_3_4_39 } from '../versions/v0_3_4/39_remap_workflow_env
 import { migration as m0_3_4_40 } from '../versions/v0_3_4/40_remap_wf_default_provisions/migration';
 import { migration as m0_3_4_42 } from '../versions/v0_3_4/42_retire_github_agent_installs/migration';
 import { migration as m0_3_4_43 } from '../versions/v0_3_4/43_retire_standalone_workflow_installs/migration';
+import { migration as m0_3_4_44 } from '../versions/v0_3_4/44_realign_conversation_last_message_at/migration';
 import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
@@ -868,6 +869,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: true,
     snapshot: 'table-rows',
   },
+  {
+    id: "0.3.4/44_realign_conversation_last_message_at",
+    semver: "0.3.4",
+    numericId: 44,
+    slug: "realign_conversation_last_message_at",
+    title: "Realign conversation lastMessageAt with message sentAt",
+    description: "Recomputes conversations.lastMessageAt from each thread latest message sentAt-first timestamp so inbox sort matches displayed send time. up stamps the prior value in metadata for rollback; down restores it and clears the stamp. Idempotent on both paths.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -918,6 +931,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.3.4/40_remap_wf_default_provisions": composeDb(requireMeta("0.3.4/40_remap_wf_default_provisions"), m0_3_4_40),
   "0.3.4/42_retire_github_agent_installs": composeDb(requireMeta("0.3.4/42_retire_github_agent_installs"), m0_3_4_42),
   "0.3.4/43_retire_standalone_workflow_installs": composeDb(requireMeta("0.3.4/43_retire_standalone_workflow_installs"), m0_3_4_43),
+  "0.3.4/44_realign_conversation_last_message_at": composeDb(requireMeta("0.3.4/44_realign_conversation_last_message_at"), m0_3_4_44),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

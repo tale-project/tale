@@ -32,3 +32,16 @@ export function compareConversationMessages(
   }
   return a._id.localeCompare(b._id);
 }
+
+/**
+ * Advance a conversation's indexed `lastMessageAt` from an incoming message.
+ * Uses sentAt-first ordering (same as list timestamps) and never moves the
+ * cursor backward when out-of-order mail is synced.
+ */
+export function nextConversationLastMessageAt(
+  current: number | undefined,
+  message: ConversationMessageSortable,
+): number {
+  const candidate = getConversationMessageSortTime(message);
+  return current === undefined ? candidate : Math.max(current, candidate);
+}

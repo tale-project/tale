@@ -203,9 +203,11 @@ export async function transformConversation(
     unread_count:
       typeof metadata.unread_count === 'number' ? metadata.unread_count : 0,
     last_message_at:
-      messages.length > 0
-        ? messages[messages.length - 1].timestamp
-        : new Date(conversation._creationTime).toISOString(),
+      conversation.lastMessageAt !== undefined
+        ? new Date(conversation.lastMessageAt).toISOString()
+        : messages.length > 0
+          ? messages[messages.length - 1].timestamp
+          : new Date(conversation._creationTime).toISOString(),
     last_read_at:
       typeof metadata.last_read_at === 'string'
         ? metadata.last_read_at
