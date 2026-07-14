@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { getConversationMessageSortTime } from '../../lib/shared/conversations/message-order';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
@@ -186,10 +187,7 @@ export const backfillLastMessageAt = internalMutation({
 
       let lastMessageAt: number;
       if (latestMessage) {
-        lastMessageAt =
-          latestMessage.deliveredAt ??
-          latestMessage.sentAt ??
-          latestMessage._creationTime;
+        lastMessageAt = getConversationMessageSortTime(latestMessage);
       } else {
         lastMessageAt = conv._creationTime;
       }

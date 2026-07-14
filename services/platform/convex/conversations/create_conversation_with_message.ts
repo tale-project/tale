@@ -7,6 +7,7 @@
 
 import { ConvexError } from 'convex/values';
 
+import { nextConversationLastMessageAt } from '../../lib/shared/conversations/message-order';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -125,12 +126,22 @@ export async function createConversationWithMessage(
   // Update conversation with initial message info
   // Set both the indexed lastMessageAt field and metadata for backwards compatibility
   const now = Date.now();
+  const lastMessageAt = nextConversationLastMessageAt(undefined, {
+    _id: String(messageId),
+    _creationTime: now,
+    sentAt: args.initialMessage.sentAt,
+    deliveredAt:
+      args.initialMessage.deliveredAt ??
+      (direction === 'inbound' && args.initialMessage.sentAt
+        ? args.initialMessage.sentAt
+        : undefined),
+  });
   const existingMetadata = conversation.metadata ?? {};
   await ctx.db.patch(conversationId, {
-    lastMessageAt: now,
+    lastMessageAt,
     metadata: {
       ...existingMetadata,
-      last_message_at: now,
+      last_message_at: lastMessageAt,
       unread_count: args.initialMessage.isCustomer ? 1 : 0,
     },
   });

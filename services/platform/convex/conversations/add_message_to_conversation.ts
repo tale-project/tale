@@ -1,5 +1,6 @@
 import { ConvexError } from 'convex/values';
 
+import { nextConversationLastMessageAt } from '../../lib/shared/conversations/message-order';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
@@ -104,6 +105,15 @@ export async function addMessageToConversation(
   });
 
   const now = Date.now();
+  const lastMessageAt = nextConversationLastMessageAt(
+    parentConversation.lastMessageAt,
+    {
+      _id: String(messageId),
+      _creationTime: now,
+      sentAt: args.sentAt,
+      deliveredAt,
+    },
+  );
   const existingMetadata = parentConversation.metadata ?? {};
   // Heal a never-stamped conversation: rows without an `integrationName` are
   // invisible to the per-integration inbox apps and unreplyable — the first
@@ -116,11 +126,11 @@ export async function addMessageToConversation(
       ? { integrationName: args.integrationName }
       : {};
   await ctx.db.patch(args.conversationId, {
-    lastMessageAt: now,
+    lastMessageAt,
     ...healIntegrationName,
     metadata: {
       ...existingMetadata,
-      last_message_at: now,
+      last_message_at: lastMessageAt,
       unread_count:
         (typeof existingMetadata.unread_count === 'number'
           ? existingMetadata.unread_count
