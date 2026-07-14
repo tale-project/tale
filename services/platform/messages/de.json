@@ -918,6 +918,7 @@
       "uploading": "wird hochgeladen…",
       "uploadFailed": "Hochladen fehlgeschlagen",
       "more": "+{count} weitere",
+      "showLess": "Weniger anzeigen",
       "drop": "Dateien hierher ziehen, oder",
       "deleteFile": "{name} löschen",
       "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."

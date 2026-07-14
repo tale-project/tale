@@ -44,6 +44,9 @@ export function FolderUploadCard({
   const inputRef = useRef<HTMLInputElement | null>(null);
   // null = follow the data (open while empty); a manual toggle pins it.
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  // The list shows the first MAX_LISTED files; "+N more" expands to every
+  // file, and collapses back.
+  const [showAll, setShowAll] = useState(false);
 
   // Project documents (the hub listing deliberately excludes them), narrowed
   // to this folder client-side — the project list is the reactive source the
@@ -176,7 +179,7 @@ export function FolderUploadCard({
               )}
               {loaded && count > 0 && (
                 <ul className="flex flex-col gap-0.5">
-                  {docs.slice(0, MAX_LISTED).map((doc) => (
+                  {(showAll ? docs : docs.slice(0, MAX_LISTED)).map((doc) => (
                     <li
                       key={doc._id}
                       className="group hover:bg-muted/50 flex items-center gap-2 rounded-md px-2 py-1"
@@ -212,10 +215,17 @@ export function FolderUploadCard({
                     </li>
                   ))}
                   {count > MAX_LISTED && (
-                    <li className="px-2">
-                      <Text variant="muted" className="text-sm">
-                        {t('input.more', { count: count - MAX_LISTED })}
-                      </Text>
+                    <li>
+                      <button
+                        type="button"
+                        aria-expanded={showAll}
+                        onClick={() => setShowAll((v) => !v)}
+                        className="focus-visible:ring-primary text-muted-foreground rounded-sm px-2 py-1 text-left text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        {showAll
+                          ? t('input.showLess')
+                          : t('input.more', { count: count - MAX_LISTED })}
+                      </button>
                     </li>
                   )}
                 </ul>
