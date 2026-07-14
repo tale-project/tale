@@ -137,9 +137,6 @@ export const notifyFromAutomation = internalMutation({
     projectId: v.optional(v.id('projects')),
     conversationId: v.optional(v.id('conversations')),
     userIds: v.optional(v.array(v.string())),
-    // In-app only: skip the actionable email for this fan-out (e.g. the admin
-    // fallback branch, so an unassigned inbox doesn't email every admin).
-    suppressEmail: v.optional(v.boolean()),
   },
   returns: v.object({ notified: v.number() }),
   handler: async (ctx, args): Promise<{ notified: number }> => {
@@ -258,19 +255,17 @@ export const notifyFromAutomation = internalMutation({
         read: false,
         createdAt: now,
       });
-      if (!args.suppressEmail) {
-        await queueActionableEmail(ctx, {
-          userId,
-          organizationId: args.organizationId,
-          type: args.type,
-          titleKey: args.titleKey,
-          bodyKey: args.bodyKey,
-          params: notificationParams,
-          resourceType,
-          resourceId,
-          taskId: args.taskId ?? (task ? task._id : undefined),
-        });
-      }
+      await queueActionableEmail(ctx, {
+        userId,
+        organizationId: args.organizationId,
+        type: args.type,
+        titleKey: args.titleKey,
+        bodyKey: args.bodyKey,
+        params: notificationParams,
+        resourceType,
+        resourceId,
+        taskId: args.taskId ?? (task ? task._id : undefined),
+      });
       notified += 1;
     }
     return { notified };

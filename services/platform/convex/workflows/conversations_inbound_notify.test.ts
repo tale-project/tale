@@ -12,7 +12,7 @@ const WORKFLOW_PATH = fileURLToPath(
   ),
 );
 
-describe('notify-members-on-inbound-message automation workflow', () => {
+describe('notify-members-on-inbound-messages automation workflow', () => {
   it('parses as valid workflow JSON and listens for inbound conversation events', () => {
     const manifest = JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8')) as {
       autoInstall?: boolean;
@@ -64,7 +64,6 @@ describe('notify-members-on-inbound-message automation workflow', () => {
         operation: 'notify_users',
         audience: 'org_admins',
         type: 'conversation_message',
-        suppressEmail: true,
       },
     });
   });

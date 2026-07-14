@@ -56,7 +56,6 @@ type NotificationActionParams =
       projectId?: string;
       conversationId?: string;
       userIds?: string[];
-      suppressEmail?: boolean;
     }
   | {
       operation: 'notify_org_channel';
@@ -107,7 +106,6 @@ export const notificationAction: ActionDefinition<NotificationActionParams> = {
       projectId: v.optional(v.id('projects')),
       conversationId: v.optional(v.id('conversations')),
       userIds: v.optional(v.array(v.string())),
-      suppressEmail: v.optional(v.boolean()),
     }),
     v.object({
       operation: v.literal('notify_org_channel'),
@@ -148,7 +146,6 @@ export const notificationAction: ActionDefinition<NotificationActionParams> = {
               ? toId<'conversations'>(params.conversationId)
               : undefined,
             userIds: params.userIds,
-            suppressEmail: params.suppressEmail,
           },
         );
         return { operation: 'notify_users', ...result };

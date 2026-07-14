@@ -117,8 +117,7 @@
             "params": {
               "subject": "{{input.conversation.subject}}",
               "sender": "{{input.message.metadata.sender}}"
-            },
-            "suppressEmail": true
+            }
           }
         },
         "nextSteps": {
