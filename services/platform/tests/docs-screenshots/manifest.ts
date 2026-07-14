@@ -514,15 +514,15 @@ export const SHOTS: readonly Shot[] = [
       page.getByText('Resolve GitHub issues', { exact: true }).first(),
   },
   {
-    // The workflow editor — step graph on the canvas with the AI editor
-    // panel toggled open alongside.
+    // The automation's workflow editor tab — step graph on the canvas with
+    // the AI editor panel toggled open alongside (the hidden autoInstall
+    // triage automation renders the same editor every automation gets).
     name: 'automation-editor-canvas',
     section: 'platform',
-    route:
-      '/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks',
-    // The AI editor panel opens by default on this route — never click the
-    // toolbar toggle here, it would CLOSE it. Wait for the graph, then gate
-    // on the open panel's title so both are in frame.
+    route: '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=editor',
+    // The AI editor panel opens by default on the editor tab — never click
+    // the toolbar toggle here, it would CLOSE it. Wait for the graph, then
+    // gate on the open panel's title so both are in frame.
     prepare: async (page, _ctx) => {
       await page
         .getByText('Score candidates against the task')
@@ -537,7 +537,7 @@ export const SHOTS: readonly Shot[] = [
     name: 'automation-configuration',
     section: 'platform',
     route:
-      '/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/configuration',
+      '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=configuration',
     // Wait for the variables editor to render its loaded JSON, not the
     // loading skeleton.
     readyWhen: (page) => page.getByText('workflowId').first(),
@@ -547,8 +547,7 @@ export const SHOTS: readonly Shot[] = [
     // event subscription row.
     name: 'automation-triggers',
     section: 'platform',
-    route:
-      '/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/triggers',
+    route: '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=triggers',
     prepare: async (page) => {
       await page
         .getByRole('button', { name: t('workflows.triggers.events.title') })
@@ -563,7 +562,7 @@ export const SHOTS: readonly Shot[] = [
     name: 'automation-executions',
     section: 'platform',
     route:
-      '/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/executions',
+      '/dashboard/:orgId/automations/triage-unassigned-tasks?tab=executions',
     readyWhen: (page) =>
       page.getByText(t('workflows.steps.execution.status.failed')).first(),
   },
