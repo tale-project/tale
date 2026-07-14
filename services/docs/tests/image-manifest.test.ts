@@ -85,6 +85,10 @@ interface ManifestEntry {
   file: string;
   width: number | undefined;
   height: number | undefined;
+  /** The CSS viewport the shot declared, and the scale it was taken at — the
+   *  width budget is 2× this, not a flat 2880 (a shot may widen its viewport). */
+  viewportWidth: number | undefined;
+  dpr: number | undefined;
 }
 
 /** Parse the manifest defensively — a malformed entry becomes a finding, not
@@ -129,10 +133,14 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
       });
       continue;
     }
+    const viewport = entry.viewport as { width?: unknown } | undefined;
     entries.push({
       file: entry.file,
       width: typeof entry.width === 'number' ? entry.width : undefined,
       height: typeof entry.height === 'number' ? entry.height : undefined,
+      viewportWidth:
+        typeof viewport?.width === 'number' ? viewport.width : undefined,
+      dpr: typeof entry.dpr === 'number' ? entry.dpr : undefined,
     });
   }
   return { entries, findings };
@@ -207,12 +215,23 @@ describe('screenshot manifest', () => {
         });
         continue;
       }
-      if (size.width > MAX_WIDTH) {
+      // The cap is "a DPR-2 capture of the viewport this shot DECLARES", not a
+      // flat 2880: a shot may legitimately widen its viewport (the task board
+      // renders six columns and does not fit 1440). The manifest records that
+      // viewport, so the entry is the budget — and a shot without an entry still
+      // answers to the 1440 default.
+      const declaredWidth = entry?.viewportWidth;
+      const declaredDpr = entry?.dpr;
+      const widthBudget =
+        declaredWidth !== undefined && declaredDpr !== undefined
+          ? declaredWidth * declaredDpr
+          : MAX_WIDTH;
+      if (size.width > widthBudget) {
         findings.push({
           file,
           line: 0,
           rule: 'image-width-over-budget',
-          detail: `width ${size.width}px exceeds ${MAX_WIDTH}px (DPR-2 capture of a 1440px viewport)`,
+          detail: `width ${size.width}px exceeds ${widthBudget}px (DPR-${declaredDpr ?? 2} capture of a ${declaredWidth ?? 1440}px viewport)`,
         });
       }
       if (size.width % 2 !== 0) {
