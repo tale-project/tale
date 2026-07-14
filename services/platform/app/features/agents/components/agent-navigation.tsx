@@ -29,6 +29,11 @@ import { normalizeAgentConfig } from '@/lib/shared/utils/normalize-agent-config'
 import { changedKeys } from '@/lib/utils/structural-equal';
 
 import { useOrganization } from '../../organization/hooks/queries';
+import {
+  useRestoreFromHistory,
+  useSaveAgent,
+  useSnapshotToHistory,
+} from '../hooks/mutations';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentValidation } from '../hooks/use-agent-validation';
 import { HistoryDiffDialog } from './history-diff-dialog';
@@ -137,19 +142,19 @@ export function AgentNavigation({
   const { data: organization } = useOrganization(organizationId);
   const orgDefaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
-  const snapshotAction = useConvexAction(
-    api.agents.file_actions.snapshotToHistory,
-  );
-  const saveAction = useConvexAction(api.agents.file_actions.saveAgent);
+  // Use the shared mutation hooks so a successful save/restore invalidates
+  // `['config','agents',organizationId]` — chat's ModelSelector reads
+  // supportedModels from that cached list (`staleTime: Infinity`), and the
+  // raw action path left it stale after Instructions edits.
+  const snapshotAction = useSnapshotToHistory();
+  const saveAction = useSaveAgent();
   const listHistoryAction = useConvexAction(
     api.agents.file_actions.listHistory,
   );
   const readHistoryAction = useConvexAction(
     api.agents.file_actions.readHistoryEntry,
   );
-  const restoreAction = useConvexAction(
-    api.agents.file_actions.restoreFromHistory,
-  );
+  const restoreAction = useRestoreFromHistory();
 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [, setIsLoadingHistory] = useState(false);

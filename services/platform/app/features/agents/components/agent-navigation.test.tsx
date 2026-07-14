@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -46,6 +46,17 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
   useConvexAction: () => ({ mutateAsync: vi.fn() }),
 }));
 
+const saveAgentMock = vi.fn();
+const restoreAgentMock = vi.fn();
+const snapshotMock = vi.fn();
+vi.mock('../hooks/mutations', () => ({
+  // Regression: Save/restore must go through these hooks so the agents list
+  // cache (chat ModelSelector / supportedModels) is invalidated after edit.
+  useSaveAgent: () => ({ mutateAsync: saveAgentMock }),
+  useRestoreFromHistory: () => ({ mutateAsync: restoreAgentMock }),
+  useSnapshotToHistory: () => ({ mutateAsync: snapshotMock }),
+}));
+
 vi.mock('@/app/hooks/use-format-date', () => ({
   useFormatDate: () => ({
     formatDate: (date: Date) => date.toISOString(),
@@ -86,6 +97,7 @@ vi.mock('../../organization/hooks/queries', () => ({
 // component reads.
 const agentConfigState = {
   config: {} as Record<string, unknown>,
+  initialConfig: {} as Record<string, unknown>,
   isDirty: false,
   isSaving: false,
   resetConfig: vi.fn(),
@@ -102,7 +114,7 @@ vi.mock('./history-diff-dialog', () => ({
 }));
 
 import { screen } from '@testing-library/react';
-import { expect } from 'vitest';
+import userEvent from '@testing-library/user-event';
 
 import { AgentNavigation } from './agent-navigation';
 
@@ -113,6 +125,17 @@ const VALID_CONFIG = {
 };
 
 describe('AgentNavigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    saveAgentMock.mockResolvedValue({ hash: 'h' });
+    restoreAgentMock.mockResolvedValue({ hash: 'h' });
+    snapshotMock.mockResolvedValue(undefined);
+    agentConfigState.initialConfig = { ...VALID_CONFIG };
+    agentConfigState.config = { ...VALID_CONFIG };
+    agentConfigState.isDirty = false;
+    agentConfigState.isSaving = false;
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       agentConfigState.config = {};
@@ -159,6 +182,38 @@ describe('AgentNavigation', () => {
       expect(
         screen.getByRole('button', { name: 'common.actions.save' }),
       ).toBeEnabled();
+    });
+  });
+
+  describe('list cache invalidation after save', () => {
+    it('saves via useSaveAgent so chat picks up new supportedModels', async () => {
+      const user = userEvent.setup();
+      const onSaved = vi.fn();
+      const withNewModel = {
+        ...VALID_CONFIG,
+        supportedModels: ['openai:gpt-4o', 'anthropic:claude-sonnet-4'],
+      };
+      agentConfigState.config = withNewModel;
+      agentConfigState.isDirty = true;
+
+      render(
+        <AgentNavigation
+          organizationId="test-org"
+          agentId="test-agent"
+          onSaved={onSaved}
+        />,
+      );
+
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.save' }),
+      );
+
+      expect(saveAgentMock).toHaveBeenCalledWith({
+        organizationId: 'test-org',
+        agentName: 'test-agent',
+        config: withNewModel,
+      });
+      expect(onSaved).toHaveBeenCalled();
     });
   });
 });
