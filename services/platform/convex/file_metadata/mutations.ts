@@ -13,6 +13,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { maybeDispatchRagIndexing } from './rag_dispatch';
 
 export const saveFileMetadata = mutation({
   args: {
@@ -182,16 +183,7 @@ export const saveFileMetadata = mutation({
       await ctx.db.patch(existing._id, patchData);
 
       if (needsRagRetry) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.file_metadata.internal_actions.uploadFileToRag,
-          {
-            organizationId: args.organizationId,
-            storageId: args.storageId,
-            fileName: args.fileName,
-            contentType: args.contentType,
-          },
-        );
+        await maybeDispatchRagIndexing(ctx, args.storageId);
       }
       if (needsTranscribeRetry) {
         await ctx.scheduler.runAfter(
@@ -229,16 +221,7 @@ export const saveFileMetadata = mutation({
     });
 
     if (shouldIndex) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.file_metadata.internal_actions.uploadFileToRag,
-        {
-          organizationId: args.organizationId,
-          storageId: args.storageId,
-          fileName: args.fileName,
-          contentType: args.contentType,
-        },
-      );
+      await maybeDispatchRagIndexing(ctx, args.storageId);
     }
 
     if (isAudio) {

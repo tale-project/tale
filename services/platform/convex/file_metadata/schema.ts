@@ -49,6 +49,15 @@ export const fileMetadataTable = defineTable({
   // (e.g. scheduled action silently failed before hitting the service).
   // Falls back to _creationTime when absent on older rows.
   ragQueuedAt: v.optional(v.number()),
+  // Per-org indexing concurrency cap. When the upload path enqueues a file
+  // but the org is already at its in-flight limit, the row is inserted as
+  // `'queued'` with `ragParked: true` and its indexing action is NOT
+  // scheduled — it waits. `promoteQueuedRagJobs` clears the flag and
+  // schedules the action when a slot frees (on each terminal transition).
+  // A `'queued'` row WITHOUT this flag is in flight (its action is scheduled
+  // or running), which is also the safe reading for legacy rows and for the
+  // Hub/retry paths that don't park — so only the cap ever sets it.
+  ragParked: v.optional(v.boolean()),
   // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by
   // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds

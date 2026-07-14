@@ -3950,6 +3950,12 @@
         },
         "optional": true
       },
+      "ragParked": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
       "ragProgress": {
         "ft": {
           "type": "string"

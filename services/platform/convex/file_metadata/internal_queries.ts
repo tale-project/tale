@@ -245,6 +245,10 @@ export const listStuckRagCandidates = internalQuery({
       for await (const row of ctx.db
         .query('fileMetadata')
         .withIndex('by_ragStatus', (q) => q.eq('ragStatus', status))) {
+        // A parked `'queued'` row (concurrency cap) is waiting for a slot, not
+        // stuck — it has no scheduled action to time out. It's promoted by
+        // `promoteQueuedRagJobs`, never failed here.
+        if (status === 'queued' && row.ragParked === true) continue;
         const clock = row.ragQueuedAt ?? row._creationTime;
         if (clock < args.staleBeforeMs) {
           results.push({
