@@ -41,7 +41,7 @@ Stell in einem neuen Chat eine Frage, die nur dein Dokument beantworten kann. Ei
 
 <Frame caption="Das Aufgaben-Board eines Projekts — zieh Karten zwischen den Spalten.">
 
-![Ein Projekt-Aufgabenboard mit dem Titel Website-Relaunch, fünf Aufgabenkarten in der Backlog-Spalte und leeren Spalten To do, In progress, In review und Done.](/images/platform/projects-task-board.webp)
+![Ein Projekt-Aufgabenboard mit dem Titel Website-Relaunch und sieben Aufgabenkarten, ein bis zwei je Spalte, verteilt über Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

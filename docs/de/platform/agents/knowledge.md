@@ -5,9 +5,9 @@ description: Der Wissen-Tab des Agents — Abrufmodus, Scopes für Team- und Org
 
 Wissen ist das, was ein Agent zur Antwortzeit abrufen und zitieren kann. Ohne Wissen ist der Agent generisch; mit Wissen antwortet er aus deinen Dokumenten und zitiert, woher die Antwort kam. Der Tab **Wissen** des Agents steuert zwei Dinge: _wie_ der Agent abruft (der Abrufmodus) und _was_ im Scope liegt (welche Dokumente).
 
-<Frame caption="Der Wissen-Tab — oben der Abrufmodus, darunter die Dokument-Scopes und die Agent-Uploads.">
+<Frame caption="Der Wissen-Tab — oben der Abrufmodus, darunter die Dokument-Scopes und das, was jeder davon gerade hält.">
 
-![Der Wissen-Tab des Agenten-Editors mit den vier Abrufmodi, den Schaltern für Team- und Organisationsdokumente, drei indizierten Organisationsdokumenten und dem Upload-Bereich für Agent-Dokumente.](/images/platform/agent-editor-knowledge.webp)
+![Der Wissen-Tab des Agenten-Editors mit Tool als gewähltem der vier Abrufmodi, eingeschalteten Schaltern für Team- und Organisationsdokumente, einem Kasten für Team-Dokumente mit dem Hinweis, dass für dieses Team keine Dokumente gefunden wurden, und der Liste der Organisationsdokumente, in der jede Datei ein Abzeichen Indexiert trägt.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 

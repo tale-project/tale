@@ -5,9 +5,9 @@ description: Die Laufhistorie pro Workflow — jede Ausführung mit Status, Zeit
 
 Ausführungsprotokolle sind die Laufhistorie eines einzelnen Workflows. Jedes Mal, wenn ein Trigger feuert, öffnet Tale einen Ausführungsdatensatz und schreibt hinein, während der Lauf voranschreitet — Status, Zeiten, die empfangene Eingabe und was jeder Schritt konsumiert und produziert hat. Der Tab **Ausführungen** ist die Debugging-Oberfläche, auf die jede andere Automatisierungs-Seite zeigt, wenn etwas schiefging.
 
-<Frame caption="Der Ausführungen-Tab — eine Zeile pro Lauf; die roten Statusabzeichen sind der Startpunkt jeder Debugging-Sitzung.">
+<Frame caption="Der Ausführungen-Tab — eine Zeile pro Lauf; das eine rote Abzeichen zwischen den grünen ist der Startpunkt jeder Debugging-Sitzung.">
 
-![Der Ausführungen-Tab einer Automatisierung listet zwölf Läufe, jeder mit einer Ausführungs-ID, dem Statusabzeichen Fehlgeschlagen, einem Startzeitstempel, einer Dauer und einem Ereignis-Trigger als Quelle.](/images/platform/automation-executions.webp)
+![Der Ausführungen-Tab einer Automatisierung listet zwölf Läufe — elf mit grünem Abzeichen Abgeschlossen und einer mit rotem Abzeichen Fehlgeschlagen —, jeder mit Ausführungs-ID, Startzeitstempel, Dauer und event als Trigger-Quelle.](/images/platform/automation-executions.webp)
 
 </Frame>
 

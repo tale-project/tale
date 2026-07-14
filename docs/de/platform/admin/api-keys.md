@@ -9,7 +9,7 @@ Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-T
 
 <Frame caption="Einstellungen > API-Schlüssel — wo Schlüssel erstellt, rotiert und widerrufen werden.">
 
-![Die REST-API-Schlüssel-Einstellungsseite mit einer Schaltfläche API-Schlüssel erstellen über der Schlüssel-Liste.](/images/get-started/settings-api-keys.webp)
+![Die REST-API-Schlüssel-Einstellungsseite listet zwei Schlüssel, jeder nur mit seinem Präfix, dem Datum unter Hinzugefügt und der Markierung Nie verwendet, neben der Schaltfläche API-Schlüssel erstellen.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

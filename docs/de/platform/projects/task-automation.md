@@ -7,7 +7,7 @@ Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task
 
 <Frame caption="Das Aufgaben-Board eines Projekts — eine Karte einem Agenten zuzuweisen startet die Schleife unten.">
 
-![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit fünf Aufgabenkarten, verteilt über die Status-Spalten.](/images/platform/projects-task-board.webp)
+![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über seine Status-Spalten, von Backlog und Zu erledigen über In Prüfung bis Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

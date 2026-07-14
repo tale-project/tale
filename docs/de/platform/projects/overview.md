@@ -7,7 +7,7 @@ Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück
 
 <Frame caption="Das Aufgaben-Board eines Projekts — einer der acht Tabs, die jedes Projekt trägt.">
 
-![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit fünf Aufgabenkarten in der Spalte Backlog.](/images/platform/projects-task-board.webp)
+![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über die Spalten Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

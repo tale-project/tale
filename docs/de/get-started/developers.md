@@ -15,7 +15,7 @@ Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Ein
 
 <Frame caption="Die REST-API-Einstellungen — Schlüssel werden hier erstellt und widerrufen.">
 
-![Die Einstellungsseite für REST-API-Schlüssel mit dem Knopf API-Schlüssel erstellen und einer leeren Schlüsselliste.](/images/get-started/settings-api-keys.webp)
+![Die Einstellungsseite für REST-API-Schlüssel listet zwei Schlüssel — Production ingest und CI pipeline —, jeder nur mit seinem Schlüssel-Präfix, dem Datum unter Hinzugefügt und der Markierung Nie verwendet, neben dem Knopf API-Schlüssel erstellen.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

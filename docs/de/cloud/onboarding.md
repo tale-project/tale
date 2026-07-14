@@ -41,7 +41,7 @@ Tale Cloud ist kein Self-Service — jede Cloud-Org läuft auf einer eigenen Ins
 
 <Frame caption="Der Arbeitsbereichs-Schritt — der Name, den dein Team überall sieht.">
 
-![Der Assistent zum Erstellen einer Organisation mit dem Feld für den Organisationsnamen auf seinem Arbeitsbereichs-Schritt.](/images/get-started/org-create-wizard.webp)
+![Der Assistent zum Erstellen einer Organisation auf seinem Arbeitsbereichs-Schritt, mit Northlight Labs im Feld Organisationsname und aktivem Knopf Weiter.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -61,9 +61,9 @@ Die Rollen-Matrix (wer was darf) steht in [Mitglieder und Rollen](/de/platform/a
 
 Öffne **Einstellungen > KI-Anbieter** und klicke auf **Anbieter hinzufügen**. Wähl den Anbieter, für den du Zugangsdaten hast, und füg den API-Schlüssel ein. Speichere. Tale validiert den Schlüssel im Hintergrund; eine Bestätigung auf der Anbieterzeile heißt, dass er funktioniert. Schlägt die Validierung fehl, zeigt die Zeile den Fehler wörtlich — die häufigste Ursache ist Whitespace um den Schlüssel.
 
-<Frame caption="Ein validierter Anbieter — von hier kann jeder Agent antworten.">
+<Frame caption="Der verbundene Anbieter — von hier kann jeder Agent antworten.">
 
-![Die Einstellungsseite für KI-Anbieter mit dem OpenRouter-Anbietereintrag.](/images/get-started/settings-providers.webp)
+![Die Einstellungsseite für KI-Anbieter listet einen verbundenen Anbieter, OpenRouter, mit seiner Basis-URL und 52 Modellen.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

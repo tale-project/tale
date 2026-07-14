@@ -15,9 +15,9 @@ Diese Seite ist das mentale Modell für alles im Chat-Tab. Sie benennt die Teile
 
 Der Composer ist der Eingabestreifen am unteren Bildschirmrand. Drei Bedienelemente zählen: der Agent-Picker links, der Modell-Picker daneben und das Nachrichtenfeld mit **Nachricht senden** rechts. Anhänge kommen per Einfügen, Drag-and-drop oder über den Anhang-Knopf herein — was akzeptiert wird, steht unter [Anhänge](/de/platform/chat/attachments).
 
-<Frame caption="Die drei Bedienelemente des Composers — Agent-Picker, Modell-Picker, Nachrichtenfeld.">
+<Frame caption="Die Bedienelemente des Composers — das Nachrichtenfeld, der Agent-Picker, der Modell-Picker und Senden.">
 
-![Der Composer-Streifen des Chats zeigt den Agent-Picker, den Modell-Picker und den Senden-Knopf.](/images/platform/chat-composer.webp)
+![Der leere Chat-Composer, dessen Platzhalter zu einer Frage nach Kontakten, Produkten oder Dokumenten einlädt, über einer Werkzeugleiste mit den Knöpfen für Anhang und Prompt-Bibliothek, dem Agent-Picker, dem Modell-Picker und den Knöpfen für Stummschaltung, Mikrofon und Senden.](/images/platform/chat-composer.webp)
 
 </Frame>
 

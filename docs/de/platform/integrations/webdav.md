@@ -7,7 +7,7 @@ WebDAV verwandelt Tales Dokumentenspeicher in einen entfernten Ordner, den du wi
 
 <Frame caption="Einstellungen > API > WebDAV — oben die vorbefüllten Verbindungsdaten, darunter der App-Passwort-Generator.">
 
-![Die WebDAV-Einstellungsseite mit einer Verbindungs-URL, einem Benutzernamensfeld mit der Konto-E-Mail, einer Erklärung, dass das Passwort ein erzeugtes App-Passwort ist, und einer leeren App-Passwort-Tabelle mit einem Erzeugen-Button.](/images/platform/settings-webdav.webp)
+![Die WebDAV-Einstellungsseite mit einer Verbindungs-URL, einem Benutzernamensfeld mit der Konto-E-Mail, einer Erklärung, dass das Passwort ein erzeugtes App-Passwort ist, und einer App-Passwort-Tabelle mit zwei Einträgen — Design workstation und MacBook Pro, jeder nur mit seinem Präfix und dem Erstellungsdatum — neben einem Erzeugen-Button.](/images/platform/settings-webdav.webp)
 
 </Frame>
 
