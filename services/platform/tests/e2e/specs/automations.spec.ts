@@ -23,14 +23,19 @@ function appsHubUrl(organizationId: string): string {
   return `/dashboard/${organizationId}/automations`;
 }
 
-test('automations hub shows the empty state for a fresh org', async ({
+test('automations hub shows the auto-installed packs on a fresh org', async ({
   page,
   org,
 }) => {
+  // A fresh org is never durably empty any more: the out-of-the-box packs
+  // (task ops, mentions, OneDrive sync) install via the default-automation
+  // provisioner ~10s after org creation, so the Installed tab fills itself.
+  // Asserting a pack card here also proves the autoInstall pipeline e2e —
+  // the generous timeout absorbs the provisioner's head-start delay.
   await page.goto(appsHubUrl(org.organizationId));
   await expect(
-    page.getByRole('heading', { name: t('automations.empty.title'), level: 3 }),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    page.getByRole('button', { name: 'Run assigned tasks' }),
+  ).toBeVisible({ timeout: 60_000 });
 });
 
 test('an unknown automation slug renders the not-found state', async ({

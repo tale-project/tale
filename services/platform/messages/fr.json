@@ -4590,10 +4590,6 @@
         "label": "Alertes d'automatisation",
         "description": "Échecs, avertissements de budget et runtimes hors ligne."
       },
-      "digest": {
-        "label": "Résumé",
-        "description": "Résumé périodique de l'activité de la workforce."
-      },
       "conversationMessages": {
         "label": "Messages de conversation",
         "description": "Quand un message client arrive dans Conversations."

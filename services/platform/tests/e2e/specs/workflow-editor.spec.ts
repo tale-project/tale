@@ -86,7 +86,7 @@ test.describe.serial('workflow editor', () => {
     // "Save" button — an unscoped name match would resolve to two elements.
     const save = page
       .getByRole('navigation', {
-        name: t('common.aria.workflowNavigation'),
+        name: t('automations.tabs.ariaLabel'),
       })
       .getByRole('button', { name: t('common.actions.save'), exact: true });
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });

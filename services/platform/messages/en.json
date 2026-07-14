@@ -4590,10 +4590,6 @@
         "label": "Automation alerts",
         "description": "Failures, budget warnings, and offline runtimes."
       },
-      "digest": {
-        "label": "Digest",
-        "description": "Periodic summary of workforce activity."
-      },
       "conversationMessages": {
         "label": "Conversation messages",
         "description": "When a customer message arrives in Conversations."
