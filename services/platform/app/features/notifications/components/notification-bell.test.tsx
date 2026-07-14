@@ -58,22 +58,30 @@ describe('NotificationBell', () => {
     );
   });
 
-  describe('Escape dismissal (#2650)', () => {
+  describe('popover open focus (#2650)', () => {
+    it('does not auto-focus the expand button or show its tooltip on open', async () => {
+      const { user } = render(<NotificationBell organizationId="org-1" />);
+      const trigger = screen.getByRole('button', { name: 'Notifications' });
+
+      await user.click(trigger);
+
+      await waitFor(() =>
+        expect(document.querySelector('[role="dialog"]')).toBeInTheDocument(),
+      );
+      expect(document.activeElement).toBe(trigger);
+      expect(screen.queryByRole('tooltip', { name: 'Expand' })).toBeNull();
+    });
+
     it('closes the popover on Escape and returns focus to the bell trigger', async () => {
       const { user } = render(<NotificationBell organizationId="org-1" />);
       const trigger = screen.getByRole('button', { name: 'Notifications' });
 
       await user.click(trigger);
 
-      // Radix auto-focuses the first tabbable element on open — the stubbed
-      // Expand `IconButton` — which opens its own Tooltip and is the actual
-      // mechanism that previously swallowed Escape (see the mock above).
       await waitFor(() =>
-        expect(document.activeElement).toBe(
-          screen.getByRole('button', { name: 'Expand' }),
-        ),
+        expect(document.querySelector('[role="dialog"]')).toBeInTheDocument(),
       );
-      expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+      expect(document.activeElement).toBe(trigger);
 
       await user.keyboard('{Escape}');
 
