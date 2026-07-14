@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "check-check",
-  "folder": "tasks",
+  "folder": "projects/tasks/review-completed-work",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

@@ -12,7 +12,7 @@
     }
   },
   "icon": "archive",
-  "folder": "conversations",
+  "folder": "conversations/archive-idle",
   "labels": ["Conversations"],
   "scope": "org",
   "workflow": {

@@ -1,6 +1,7 @@
 /**
  * Mechanical loop-safety assertions over the task-ops automation pack — the
- * hidden `autoInstall` automations whose manifests set `folder: "tasks"`
+ * hidden `autoInstall` automations whose manifests file under the
+ * `projects/tasks/` display folder
  * (`builtin-configs/automations/<slug>/automation.json`, inline `workflow`).
  *
  * The pack is a set of automations that trigger each other through task
@@ -70,7 +71,11 @@ function loadPack(): PackWorkflow[] {
         const manifest: unknown = JSON.parse(
           readFileSync(manifestPath, 'utf-8'),
         );
-        return isRecord(manifest) && manifest.folder === 'tasks';
+        return (
+          isRecord(manifest) &&
+          typeof manifest.folder === 'string' &&
+          manifest.folder.startsWith('projects/tasks/')
+        );
       } catch {
         return false; // bundle dirs carry bundle.json instead
       }

@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "bell",
-  "folder": "tasks",
+  "folder": "projects/tasks/remind-reviewers",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

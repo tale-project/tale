@@ -12,7 +12,7 @@
     }
   },
   "icon": "users",
-  "folder": "commerce",
+  "folder": "shopify/sync-customers",
   "labels": ["Commerce", "Shopify"],
   "scope": "org",
   "workflow": {

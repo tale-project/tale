@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "git-merge",
-  "folder": "tasks",
+  "folder": "projects/tasks/roll-up-completed-subtasks",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

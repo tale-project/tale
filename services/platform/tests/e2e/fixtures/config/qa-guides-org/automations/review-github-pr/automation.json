@@ -13,7 +13,7 @@
   },
   "hidden": true,
   "icon": "check-check",
-  "folder": "github/issues",
+  "folder": "github/review-pull-requests",
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {

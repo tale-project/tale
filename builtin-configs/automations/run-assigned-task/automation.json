@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "play",
-  "folder": "tasks",
+  "folder": "projects/tasks/run-assigned",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

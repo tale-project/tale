@@ -17,7 +17,7 @@
   },
   "hidden": true,
   "icon": "list-checks",
-  "folder": "github/issues",
+  "folder": "github/triage-issues",
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "workflow": {

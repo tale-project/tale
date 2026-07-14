@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "alarm-clock",
-  "folder": "tasks",
+  "folder": "projects/tasks/enforce-slas",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

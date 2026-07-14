@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "at-sign",
-  "folder": "tasks",
+  "folder": "projects/tasks/react-to-mentions",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

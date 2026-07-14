@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "list-checks",
-  "folder": "tasks",
+  "folder": "projects/tasks/triage-unassigned",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

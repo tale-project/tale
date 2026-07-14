@@ -12,7 +12,7 @@
     }
   },
   "icon": "network",
-  "folder": "commerce",
+  "folder": "products/analyze-relationships",
   "labels": ["Products"],
   "scope": "org",
   "workflow": {

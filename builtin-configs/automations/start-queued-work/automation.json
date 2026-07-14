@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "circle-play",
-  "folder": "tasks",
+  "folder": "projects/tasks/start-queued-work",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

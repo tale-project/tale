@@ -12,7 +12,7 @@
     }
   },
   "icon": "mail",
-  "folder": "email",
+  "folder": "gmail/reply-emails",
   "labels": ["Email", "Gmail"],
   "scope": "org",
   "builtinViews": [

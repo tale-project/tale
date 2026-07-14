@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "timer-reset",
-  "folder": "tasks",
+  "folder": "projects/tasks/sweep-stale-work",
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {

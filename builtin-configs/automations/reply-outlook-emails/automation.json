@@ -12,7 +12,7 @@
     }
   },
   "icon": "mail",
-  "folder": "email",
+  "folder": "outlook/reply-emails",
   "labels": ["Email", "Outlook"],
   "scope": "org",
   "builtinViews": [

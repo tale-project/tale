@@ -12,7 +12,7 @@
     }
   },
   "icon": "file-search",
-  "folder": "knowledge",
+  "folder": "knowledge/index-documents-for-retrieval",
   "labels": ["Knowledge"],
   "scope": "org",
   "workflow": {

@@ -12,7 +12,7 @@
     }
   },
   "icon": "mail",
-  "folder": "email",
+  "folder": "imap-smtp/reply-emails",
   "labels": ["Email", "IMAP"],
   "scope": "org",
   "builtinViews": [

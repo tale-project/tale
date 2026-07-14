@@ -12,7 +12,7 @@
     }
   },
   "icon": "book-open",
-  "folder": "knowledge",
+  "folder": "confluence/sync-pages",
   "labels": ["Knowledge", "Confluence"],
   "scope": "org",
   "workflow": {

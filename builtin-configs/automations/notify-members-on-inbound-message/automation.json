@@ -12,7 +12,7 @@
     }
   },
   "icon": "bell-ring",
-  "folder": "conversations",
+  "folder": "conversations/notify-members-on-inbound-messages",
   "labels": ["Conversations"],
   "scope": "org",
   "workflow": {

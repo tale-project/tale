@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "message-circle",
-  "folder": "discussions",
+  "folder": "projects/discussions/react-to-mentions",
   "labels": ["Discussions"],
   "scope": "org",
   "workflow": {

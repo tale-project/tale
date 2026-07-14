@@ -14,7 +14,7 @@
   "hidden": true,
   "autoInstall": true,
   "icon": "refresh-cw",
-  "folder": "knowledge",
+  "folder": "onedrive/sync-files",
   "labels": ["Knowledge", "OneDrive"],
   "scope": "org",
   "workflow": {

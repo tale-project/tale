@@ -12,7 +12,7 @@
     }
   },
   "icon": "refresh-cw",
-  "folder": "knowledge",
+  "folder": "google-drive/sync-files",
   "labels": ["Knowledge", "Google Drive"],
   "scope": "org",
   "workflow": {
