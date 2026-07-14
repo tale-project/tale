@@ -14,6 +14,7 @@ import { ConvexError, v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
+import { isActiveDocument } from '../documents/_helpers';
 import {
   buildPeriodKeyFromTimestamp,
   readPolicyConfig,
@@ -23,6 +24,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { toId } from '../lib/type_cast_helpers';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
@@ -391,11 +393,55 @@ export const listTasksByProjectPaginated = query({
       project.organizationId,
       args.projectId,
     );
+    // Stamp, per the task's external FOLDER, two signals a folder-driven view
+    // gates row actions on: `folderExists` (the bound folder is still there —
+    // a deleted quarter leaves an orphaned return the desk marks and lets you
+    // remove) and `hasFiles` (it holds ≥1 active file — hide Start until
+    // documents are uploaded). One `.get` + one bounded `.take` per DISTINCT
+    // folder, deduped across the page.
+    const foldersWithFiles = new Set<string>();
+    const existingFolders = new Set<string>();
+    const checkedFolders = new Set<string>();
+    for (const task of result.page) {
+      const folderId = task.externalId;
+      if (folderId === undefined || checkedFolders.has(folderId)) continue;
+      checkedFolders.add(folderId);
+      const folder = await ctx.db.get(toId<'folders'>(folderId));
+      if (
+        !folder ||
+        folder.organizationId !== project.organizationId ||
+        folder.projectId !== args.projectId
+      ) {
+        continue; // orphaned: folder deleted or not in this project.
+      }
+      existingFolders.add(folderId);
+      // A small bounded page is enough to answer "any active file?" — quarter
+      // folders hold at most a handful; a trashed doc must not count, so the
+      // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
+      const docs = await ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_folderId', (q) =>
+          q
+            .eq('organizationId', project.organizationId)
+            .eq('folderId', toId<'folders'>(folderId)),
+        )
+        .take(50);
+      if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
+    }
     return {
       ...result,
       page: result.page.map((task) =>
         Object.assign(task, {
           pendingReview: pendingByTask.has(String(task._id)),
+          // A task with no external folder (non-folder-driven) is not an
+          // orphan — folderExists only means false when it HAD a folder that
+          // is now gone. Default true so non-desk task lists are unaffected.
+          folderExists:
+            task.externalId === undefined ||
+            existingFolders.has(task.externalId),
+          hasFiles:
+            task.externalId !== undefined &&
+            foldersWithFiles.has(task.externalId),
         }),
       ),
     };
