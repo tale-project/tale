@@ -10,8 +10,12 @@
  *
  * Behaviour:
  *   - `stream: true`  → SSE deltas; otherwise a single JSON completion.
- *   - `response_format` of any `json*` type → `{}` (router / title generation
- *     parse the content as JSON and must never choke).
+ *   - A task-triage `score` prompt → its scripted, schema-conforming object
+ *     (`docs-replies.ts`), so the workflow's `generateObject` call parses and
+ *     the run completes. This must be checked BEFORE the `json*` rule below,
+ *     whose `{}` fails that schema and fails every run.
+ *   - `response_format` of any other `json*` type → `{}` (router / title
+ *     generation parse the content as JSON and must never choke).
  *   - A user message containing a `MOCK_TRIGGERS` substring switches into the
  *     matching scenario (reasoning / next-steps / human-input tool / error).
  *
@@ -35,7 +39,7 @@ import {
   CANNED_REPLY,
   MOCK_TRIGGERS,
 } from './canned';
-import { matchDocsReply } from './docs-replies';
+import { matchDocsReply, matchDocsTriageScore } from './docs-replies';
 
 /** Canned content for structured-output requests (`response_format` json*). */
 const CANNED_JSON_REPLY = '{}';
@@ -164,6 +168,7 @@ function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
 type Scenario =
   | 'canned'
   | 'docs'
+  | 'taskTriage'
   | 'reasoning'
   | 'nextSteps'
   | 'humanInputTool'
@@ -203,10 +208,27 @@ function isToolResume(messages: ParsedMessage[]): boolean {
   );
 }
 
+/**
+ * The scripted structured output when this request is the task-triage
+ * workflow's `score` step (its prompt carries the candidate-list marker AND a
+ * seeded task title), else null. Checked across every user message because the
+ * step sends its prompt as the sole user turn.
+ */
+function triageScore(body: ChatCompletionRequest): string | null {
+  for (const text of userTexts(body.messages ?? [])) {
+    const score = matchDocsTriageScore(text);
+    if (score !== null) return score;
+  }
+  return null;
+}
+
 function pickScenario(body: ChatCompletionRequest): Scenario {
+  const messages = body.messages ?? [];
+  // The triage step is itself a `json_schema` call, so it MUST win over the
+  // blanket `{}` below — that empty object fails its schema and fails the run.
+  if (triageScore(body) !== null) return 'taskTriage';
   // JSON-format calls (router / title generation) keep the canned `{}` path.
   if ((body.response_format?.type ?? '').startsWith('json')) return 'canned';
-  const messages = body.messages ?? [];
   const users = userTexts(messages);
   const resume = isToolResume(messages);
   if (users.some((text) => text.includes(MOCK_TRIGGERS.humanInput))) {
@@ -235,7 +257,11 @@ function scenarioContent(
 ): string {
   switch (scenario) {
     case 'docs':
-      return matchDocsReply(lastUserText(body))?.reply ?? CANNED_REPLY;
+      return (
+        matchDocsReply(lastUserText(body), body.model)?.reply ?? CANNED_REPLY
+      );
+    case 'taskTriage':
+      return triageScore(body) ?? CANNED_JSON_REPLY;
     case 'reasoning':
       return CANNED_REASONING_ANSWER;
     case 'nextSteps':
@@ -257,20 +283,33 @@ function completionId(): string {
   return `chatcmpl-e2e-${Date.now().toString(36)}`;
 }
 
+/**
+ * The content of a single (non-streamed) completion. Only the two docs-pipeline
+ * scenarios may reach it:
+ *
+ *  - `taskTriage` — the workflow `score` step is a non-streamed structured call,
+ *    and it is a `json*` request, so its script MUST be honoured ahead of the
+ *    `{}` below (which fails the step's schema and fails the whole run).
+ *  - `docs` — the seeded demo chats issue plain (non-streamed) generation calls,
+ *    and a docs phrase that silently fell back to the canned reply would ship a
+ *    fake-looking shot.
+ *
+ * The streaming-chat e2e scenarios (nextSteps/reasoning/humanInput) must NOT
+ * leak here: thread-title generation is a non-streamed `generateText` call whose
+ * prompt is the user's first message, so routing it to `nextSteps` would surface
+ * the raw `[[NEXT_STEPS]]` marker as the thread title.
+ */
+function jsonCompletionContent(body: ChatCompletionRequest): string {
+  const scenario = pickScenario(body);
+  if (scenario === 'taskTriage') return scenarioContent(scenario, body);
+  if ((body.response_format?.type ?? '').startsWith('json'))
+    return CANNED_JSON_REPLY;
+  if (scenario === 'docs') return scenarioContent(scenario, body);
+  return CANNED_REPLY;
+}
+
 function jsonCompletion(body: ChatCompletionRequest): Response {
-  const formatType = body.response_format?.type ?? '';
-  // Honour ONLY the docs scenario on the non-streamed path — the seeded demo
-  // chats issue plain (non-streamed) generation calls, and a docs phrase that
-  // silently fell back to the canned reply would ship a fake-looking shot. The
-  // streaming-chat e2e scenarios (nextSteps/reasoning/humanInput) must NOT leak
-  // here: thread-title generation is a non-streamed `generateText` call whose
-  // prompt is the user's first message, so routing it to `nextSteps` would
-  // surface the raw `[[NEXT_STEPS]]` marker as the thread title.
-  const content = formatType.startsWith('json')
-    ? CANNED_JSON_REPLY
-    : pickScenario(body) === 'docs'
-      ? scenarioContent('docs', body)
-      : CANNED_REPLY;
+  const content = jsonCompletionContent(body);
   return Response.json({
     id: completionId(),
     object: 'chat.completion',
@@ -423,7 +462,8 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
         scenario === 'reasoning'
           ? CANNED_REASONING
           : scenario === 'docs'
-            ? (matchDocsReply(lastUserText(body))?.reasoning ?? null)
+            ? (matchDocsReply(lastUserText(body), body.model)?.reasoning ??
+              null)
             : null;
       if (reasoningText !== null) {
         for (const delta of toDeltas(reasoningText)) {
