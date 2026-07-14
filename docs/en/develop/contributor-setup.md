@@ -78,7 +78,21 @@ Set `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` to opt out of prune/snapshot cleanup (t
 
 ## Resetting local Convex dev data
 
-Last resort only — wipes **all** local Convex dev data: every table in the local SQLite file, every upload in `convex_local_storage/files/`, and every function bundle. Org config on disk and `.env.local` are untouched.
+Last resort only — `bun run setup:clean` wipes **all** local Convex dev data: every table in the local SQLite file, every upload in `convex_local_storage/files/`, and every function bundle. Org config on disk and `.env.local` are untouched.
+
+**Keep your data across the reset.** Even when the integrity gate fires (a live module bundle is missing), the backend itself still starts — so you can export your data first and restore it afterwards, and the reset then loses nothing:
+
+```bash
+# 1. Start the backend (this bypasses the `bun run dev` integrity gate), then
+#    export in a second terminal:
+bun run --filter @tale/platform convex:dev
+cd services/platform && npx convex export --path convex-backup.zip
+
+# 2. Reset (guarded — see below), bootstrap a fresh deployment, then restore:
+bun run setup:clean            # type: delete local convex
+bun run dev                    # wait for the READY banner
+cd services/platform && npx convex import --replace-all convex-backup.zip
+```
 
 `bun run setup:clean` is guarded on purpose (coding agents must not run it unless you explicitly asked):
 
@@ -86,7 +100,7 @@ Last resort only — wipes **all** local Convex dev data: every table in the loc
 2. When prompted, type the exact phrase `delete local convex` (a bare `y` is rejected).
 3. Non-interactive runs (CI) require `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — never set that in agent shells.
 
-Try automatic maintenance and a normal `bun run dev` first. Only run `bun run setup:clean` when you accept losing local conversations, uploads, and other anonymous-deployment state.
+Try automatic maintenance and a normal `bun run dev` first. If you must reset, **export first** (above) to keep your data — only skip the export when you truly don't need the local conversations, uploads, and other anonymous-deployment state.
 
 ## Hybrid mode against a containerised Convex
 
