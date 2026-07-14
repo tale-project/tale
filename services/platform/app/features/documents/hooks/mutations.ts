@@ -49,6 +49,10 @@ interface UploadResult {
 export interface UploadFilesOptions {
   teamIds?: string[];
   folderId?: string;
+  /** Upload into a PROJECT folder: `folderId` must belong to this project
+   *  (the mutation's project branch — a project folder without this reads
+   *  as not-found, by design). */
+  projectId?: string;
 }
 
 interface UploadOptions {
@@ -207,6 +211,9 @@ export function useDocumentUpload(options: UploadOptions) {
               folderId: uploadOptions?.folderId
                 ? toId<'folders'>(uploadOptions.folderId)
                 : undefined,
+              projectId: uploadOptions?.projectId
+                ? toId<'projects'>(uploadOptions.projectId)
+                : undefined,
               fileSize: file.size,
             });
           }
@@ -226,6 +233,9 @@ export function useDocumentUpload(options: UploadOptions) {
             teamId: undefined,
             folderId: uploadOptions?.folderId
               ? toId<'folders'>(uploadOptions.folderId)
+              : undefined,
+            projectId: uploadOptions?.projectId
+              ? toId<'projects'>(uploadOptions.projectId)
               : undefined,
             fileSize: file.size,
           });
