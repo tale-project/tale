@@ -451,6 +451,9 @@ const collectionPropsSchema = z
   .object({
     title: labelStringSchema.optional(),
     query: queryBindingSchema,
+    /** Client-side row filter (when_predicate grammar), e.g. `!hasTask` —
+     *  same contract as ExternalList's `rowWhen`. */
+    rowWhen: z.string().optional(),
     columns: columnsSchema.optional(),
     actions: z.array(rowActionSchema).optional(),
     /** When set, rows expand to show their workflow run inline. */

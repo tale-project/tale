@@ -44,6 +44,7 @@ import {
   argsReferenceProjectId,
   argsReferenceViewState,
 } from '@/lib/shared/platform/function_bindings';
+import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import {
   resolveLocalizedProp,
   resolveValueLabels,
@@ -105,6 +106,10 @@ export interface CollectionProps {
   /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
   i18n?: PackI18nMap;
   query: { path: string; args?: unknown };
+  /** Client-side row filter (when_predicate grammar), e.g. `!hasTask` —
+   *  rows failing the predicate never render. Same contract as
+   *  ExternalList's `rowWhen`. */
+  rowWhen?: string;
   /** Columns to show — column specs; if omitted, inferred from the first row
    *  (minus id-like keys). */
   columns?: BoundColumn[];
@@ -329,6 +334,7 @@ function CollectionBody({
   title,
   i18n,
   query,
+  rowWhen,
   columns,
   actions,
   subjectType,
@@ -356,8 +362,25 @@ function CollectionBody({
 
   const clientFilters = (filters ?? []).filter((f) => f.mode === 'client');
 
+  // `rowWhen` drops rows BEFORE the list page sees them, so search, facets,
+  // and the empty state all operate on the visible set (ExternalList's
+  // contract). Evaluated per row via the shared when_predicate grammar.
+  const visibleDataSource = useMemo<CollectionDataSource>(() => {
+    if (!rowWhen) return dataSource;
+    if (dataSource.type === 'paginated') {
+      return {
+        ...dataSource,
+        results: dataSource.results.filter((row) => evaluateWhen(rowWhen, row)),
+      };
+    }
+    return {
+      ...dataSource,
+      data: dataSource.data?.filter((row) => evaluateWhen(rowWhen, row)),
+    };
+  }, [dataSource, rowWhen]);
+
   const { tableProps, isLoading } = useListPage<BoundRow>({
-    dataSource,
+    dataSource: visibleDataSource,
     pageSize: perPage ?? DEFAULT_PAGE_SIZE,
     search: search
       ? {

@@ -2017,6 +2017,9 @@
                               "required": ["path"],
                               "type": "object"
                             },
+                            "rowWhen": {
+                              "type": "string"
+                            },
                             "search": {
                               "additionalProperties": {},
                               "properties": {
@@ -7057,6 +7060,9 @@
                                 },
                                 "required": ["path"],
                                 "type": "object"
+                              },
+                              "rowWhen": {
+                                "type": "string"
                               },
                               "search": {
                                 "additionalProperties": {},
@@ -12110,6 +12116,9 @@
                             "required": ["path"],
                             "type": "object"
                           },
+                          "rowWhen": {
+                            "type": "string"
+                          },
                           "search": {
                             "additionalProperties": {},
                             "properties": {
@@ -17094,6 +17103,9 @@
                               },
                               "required": ["path"],
                               "type": "object"
+                            },
+                            "rowWhen": {
+                              "type": "string"
                             },
                             "search": {
                               "additionalProperties": {},
@@ -22137,6 +22149,9 @@
                             "required": ["path"],
                             "type": "object"
                           },
+                          "rowWhen": {
+                            "type": "string"
+                          },
                           "search": {
                             "additionalProperties": {},
                             "properties": {
@@ -27121,6 +27136,9 @@
                               },
                               "required": ["path"],
                               "type": "object"
+                            },
+                            "rowWhen": {
+                              "type": "string"
                             },
                             "search": {
                               "additionalProperties": {},
@@ -32214,6 +32232,9 @@
                                     },
                                     "required": ["path"],
                                     "type": "object"
+                                  },
+                                  "rowWhen": {
+                                    "type": "string"
                                   },
                                   "search": {
                                     "additionalProperties": {},
@@ -37437,6 +37458,9 @@
                                       },
                                       "required": ["path"],
                                       "type": "object"
+                                    },
+                                    "rowWhen": {
+                                      "type": "string"
                                     },
                                     "search": {
                                       "additionalProperties": {},
@@ -42701,6 +42725,9 @@
                                   "required": ["path"],
                                   "type": "object"
                                 },
+                                "rowWhen": {
+                                  "type": "string"
+                                },
                                 "search": {
                                   "additionalProperties": {},
                                   "properties": {
@@ -47847,6 +47874,9 @@
                                     },
                                     "required": ["path"],
                                     "type": "object"
+                                  },
+                                  "rowWhen": {
+                                    "type": "string"
                                   },
                                   "search": {
                                     "additionalProperties": {},
@@ -53016,6 +53046,9 @@
                   },
                   "required": ["path"],
                   "type": "object"
+                },
+                "rowWhen": {
+                  "type": "string"
                 },
                 "search": {
                   "additionalProperties": {},
@@ -58316,6 +58349,9 @@
                         "required": ["path"],
                         "type": "object"
                       },
+                      "rowWhen": {
+                        "type": "string"
+                      },
                       "search": {
                         "additionalProperties": {},
                         "properties": {
@@ -63261,6 +63297,9 @@
                           "required": ["path"],
                           "type": "object"
                         },
+                        "rowWhen": {
+                          "type": "string"
+                        },
                         "search": {
                           "additionalProperties": {},
                           "properties": {
@@ -67160,6 +67199,9 @@
           },
           "type": "array"
         },
+        "autoInstall": {
+          "type": "boolean"
+        },
         "builtinViews": {
           "items": {
             "additionalProperties": false,
@@ -70211,26 +70253,6 @@
         "authMethod": {
           "enum": ["api_key", "bearer_token", "basic_auth", "oauth2"],
           "type": "string"
-        },
-        "bundles": {
-          "additionalProperties": false,
-          "properties": {
-            "agents": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "workflows": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
         },
         "capabilities": {
           "additionalProperties": false,

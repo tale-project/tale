@@ -144,6 +144,49 @@ afterEach(() => {
   lastPaginatedArgs = undefined;
 });
 
+describe('Collection — rowWhen', () => {
+  it('drops rows failing the predicate before they render (single-shot)', () => {
+    singleReturn = {
+      data: {
+        tasks: [
+          { _id: 'q1', title: '2026Q1', hasTask: true },
+          { _id: 'q2', title: '2026Q2', hasTask: false },
+        ],
+      },
+      isLoading: false,
+      blocked: false,
+      needsConfig: false,
+    };
+
+    render(<Collection query={QUERY} columns={COLUMNS} rowWhen="!hasTask" />);
+
+    expect(screen.getByText('2026Q2')).toBeInTheDocument();
+    expect(screen.queryByText('2026Q1')).not.toBeInTheDocument();
+  });
+
+  it('filters accumulated pages on the paginated path', () => {
+    paginatedReturn = paginated({
+      results: [
+        { _id: 'a', title: 'Visible', hasTask: false },
+        { _id: 'b', title: 'Hidden', hasTask: true },
+      ],
+      status: 'Exhausted',
+    });
+
+    render(
+      <Collection
+        query={QUERY}
+        columns={COLUMNS}
+        perPage={10}
+        rowWhen="!hasTask"
+      />,
+    );
+
+    expect(screen.getByText('Visible')).toBeInTheDocument();
+    expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
+  });
+});
+
 describe('Collection — paginated', () => {
   it('reveals every accumulated row behind "Load more" (no silent truncation)', async () => {
     paginatedReturn = paginated({

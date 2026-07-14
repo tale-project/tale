@@ -387,7 +387,9 @@ export const taleConfig: Config<TaleComponents> = {
         fields: { title: { type: 'text' } },
         render: ({
           title,
+          i18n,
           query,
+          rowWhen,
           columns,
           actions,
           subjectType,
@@ -402,7 +404,9 @@ export const taleConfig: Config<TaleComponents> = {
           query ? (
             <Collection
               title={title}
+              i18n={i18n}
               query={query}
+              rowWhen={rowWhen}
               columns={columns}
               actions={actions}
               subjectType={subjectType}
@@ -468,6 +472,7 @@ export const taleConfig: Config<TaleComponents> = {
         fields: { title: { type: 'text' } },
         render: ({
           title,
+          i18n,
           source,
           itemsKey,
           rowWhen,
@@ -479,6 +484,7 @@ export const taleConfig: Config<TaleComponents> = {
           source?.path ? (
             <ExternalList
               title={title}
+              i18n={i18n}
               source={source}
               itemsKey={itemsKey}
               rowWhen={rowWhen}

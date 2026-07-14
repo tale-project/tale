@@ -234,10 +234,11 @@ export const detailPanelBlock: {
   render: PuckComponent<Partial<DetailPanelProps>>;
 } = {
   fields: { title: { type: 'text' } },
-  render: ({ title, query, cols, fields, actions }) =>
+  render: ({ title, i18n, query, cols, fields, actions }) =>
     query?.path && fields && fields.length > 0 ? (
       <DetailPanel
         title={title}
+        i18n={i18n}
         query={query}
         cols={cols}
         fields={fields}
