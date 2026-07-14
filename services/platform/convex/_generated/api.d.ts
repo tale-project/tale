@@ -413,6 +413,7 @@ import type * as documents_list_files_by_folder from "../documents/list_files_by
 import type * as documents_list_indexed_documents_for_agent from "../documents/list_indexed_documents_for_agent.js";
 import type * as documents_list_orphaned_external_docs from "../documents/list_orphaned_external_docs.js";
 import type * as documents_mutations from "../documents/mutations.js";
+import type * as documents_parse_yaml_map from "../documents/parse_yaml_map.js";
 import type * as documents_public_actions from "../documents/public_actions.js";
 import type * as documents_queries from "../documents/queries.js";
 import type * as documents_query_documents from "../documents/query_documents.js";
@@ -2158,6 +2159,7 @@ declare const fullApi: ApiFromModules<{
   "documents/list_indexed_documents_for_agent": typeof documents_list_indexed_documents_for_agent;
   "documents/list_orphaned_external_docs": typeof documents_list_orphaned_external_docs;
   "documents/mutations": typeof documents_mutations;
+  "documents/parse_yaml_map": typeof documents_parse_yaml_map;
   "documents/public_actions": typeof documents_public_actions;
   "documents/queries": typeof documents_queries;
   "documents/query_documents": typeof documents_query_documents;

@@ -58,6 +58,12 @@ export interface FormBlockProps {
   fields: AutomationConfigField[];
   /** Initial values per field key (sentinel-capable, resolved once). */
   initial?: Record<string, unknown>;
+  /**
+   * Read action dispatched once when the form is shown; its `{key: value}`
+   * result pre-fills matching fields OVER `initial`, until the operator edits.
+   * Lets the form reflect the file/record its `submit` writes.
+   */
+  initialQuery?: { path: string; args?: unknown };
   /** The submit action — its args read the entered values via `$input.*`. */
   submit: BoundActionSpec;
   onSuccess?: ActionEffect;
@@ -89,6 +95,7 @@ export function Form({
   i18n,
   fields,
   initial,
+  initialQuery,
   submit,
   onSuccess,
   when,
@@ -103,6 +110,9 @@ export function Form({
   const runtime = useAutomationRuntime();
   const viewState = useOptionalViewState();
   const { dispatch, isPending } = useBoundAction(submit.path, submit.mode);
+  // Optional read action that pre-fills the form from the file it edits.
+  // A '' path is invalid → the hook no-ops (dispatch never fires).
+  const initialLoad = useBoundAction(initialQuery?.path ?? '', 'action');
   const applyEffect = useActionEffect();
   const baseId = useId();
   const whenGate = useBlockWhenGate(when, whenQuery);
@@ -150,6 +160,10 @@ export function Form({
   // with its default/prefilled values. Set only by user edits below — the
   // sentinel re-seed effect above is a system action and must not mark dirty.
   const [dirty, setDirty] = useState(false);
+  // Values read back from the file the form edits (via `initialQuery`). They
+  // override `initial` defaults but yield to any operator edit.
+  const [loaded, setLoaded] = useState<Record<string, string>>({});
+  const initialLoadedRef = useRef(false);
 
   useEffect(() => {
     if (editedRef.current) return;
@@ -165,6 +179,64 @@ export function Form({
       return changed ? next : prev;
     });
   }, [resolvedInitial]);
+
+  // Load the current file values ONCE when the form is shown, then seed the
+  // fields from them. A form with no `initialQuery` (or an unresolved project)
+  // simply keeps its `initial` defaults.
+  useEffect(() => {
+    if (!initialQuery?.path) return;
+    // Load once the form is actually visible — gated-and-shown or ungated.
+    // Skip while the gate is pending / hidden / awaiting project config.
+    if (whenGate.decision !== 'show' && whenGate.decision !== 'ungated') return;
+    if (
+      argsReferenceProjectId(initialQuery.args) &&
+      runtime.projectId === undefined
+    ) {
+      return;
+    }
+    if (initialLoadedRef.current) return;
+    initialLoadedRef.current = true;
+    let cancelled = false;
+    initialLoad
+      .dispatch(initialQuery.args)
+      .then((res) => {
+        if (cancelled || !isRecord(res)) return;
+        const rec: Record<string, string> = {};
+        for (const [key, value] of Object.entries(res)) {
+          if (typeof value === 'string') rec[key] = value;
+        }
+        if (Object.keys(rec).length > 0) setLoaded(rec);
+      })
+      .catch((err) => {
+        // Non-fatal: the form falls back to its `initial` defaults.
+        console.warn(
+          '[automation-binding] form initialQuery load failed',
+          initialQuery.path,
+          err,
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialQuery, whenGate.decision, runtime.projectId, initialLoad]);
+
+  // The file's values win over the static defaults — but never clobber an edit
+  // the operator has already made (mirrors the sentinel re-seed above).
+  useEffect(() => {
+    if (editedRef.current) return;
+    if (Object.keys(loaded).length === 0) return;
+    setValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [key, value] of Object.entries(loaded)) {
+        if (!fields.some((f) => f.key === key)) continue;
+        if (asFieldString(prev[key]) === value) continue;
+        next[key] = value;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [loaded, fields]);
 
   // Mirror BoundButton's label resolution (`labelKey` through the platform
   // catalog with the literal as fallback), with the localized Save as the
@@ -292,6 +364,7 @@ export const formBlock: {
     i18n,
     fields,
     initial,
+    initialQuery,
     submit,
     onSuccess,
     when,
@@ -303,6 +376,7 @@ export const formBlock: {
         i18n={i18n}
         fields={fields}
         initial={initial}
+        initialQuery={initialQuery}
         submit={submit}
         onSuccess={onSuccess}
         when={when}

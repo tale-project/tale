@@ -682,8 +682,17 @@ const formPropsSchema = z
      */
     i18n: localizedStringProps,
     fields: z.array(formFieldSchema).min(1),
-    /** Initial values per field key (sentinel-capable). */
+    /** Initial values per field key (sentinel-capable) — the fallback defaults. */
     initial: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * Optional read action (`{path, args}`) dispatched ONCE when the form
+     * becomes visible; its returned `{key: value}` record pre-fills matching
+     * fields OVER `initial`, until the operator edits. Lets a config-editing
+     * form reflect the file/record its `submit` writes (e.g. the FX-policy
+     * panel showing the actual `Setup/fx-policy.yaml`). The path must be in
+     * `capabilities.functions`; keys map to field keys.
+     */
+    initialQuery: queryBindingSchema.optional(),
     /** The submit action — its args read the entered values via `$input.*`. */
     submit: boundActionSchema,
     onSuccess: actionEffectSchema.optional(),
