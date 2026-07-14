@@ -5,9 +5,9 @@ description: The per-tool permissions an agent carries beyond text generation �
 
 Tools are what an agent can do beyond producing text. The model decides which tool to call from the list the agent's author has granted; Tale runs the tool, hands the result back, and the model continues. The agent's **Tools** tab is that list — a searchable catalog of per-tool switches, grouped into category cards.
 
-<Frame caption="The Tools tab — web search mode on top, then the searchable tool catalog grouped by category.">
+<Frame caption="The tool catalog — one card per category, each counting how many of its tools the agent has been granted.">
 
-![The agent editor's Tools tab showing the four web search modes and the per-tool catalog grouped under categories such as Customers, Products, Vendors, and Knowledge.](/images/platform/agent-editor-tools.webp)
+![The agent editor's Tools tab scrolled to the category cards, with Knowledge at three of four tools checked and Files at seven of seven, while Conversations, Discussions, Analytics, and Tasks & projects have none granted.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

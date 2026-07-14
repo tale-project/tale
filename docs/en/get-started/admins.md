@@ -15,7 +15,7 @@ If you arrived via the quickstart, your organization already exists — skip to 
 
 <Frame caption="The workspace step of the creation wizard.">
 
-![The create-organization wizard showing the organization name field on its workspace step.](/images/get-started/org-create-wizard.webp)
+![The create-organization wizard on its workspace step, with Northlight Labs typed into the Organization name field and the Next button enabled.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -27,7 +27,7 @@ Nothing answers until a provider is connected. If you skipped the wizard's provi
 
 <Frame caption="A connected provider with its model catalog.">
 
-![The AI providers settings page showing the OpenRouter provider entry.](/images/get-started/settings-providers.webp)
+![The AI providers settings page listing one connected provider, OpenRouter, with its base URL and a count of 52 models.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

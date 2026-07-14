@@ -9,7 +9,7 @@ Tale speaks four protocols: **OIDC**, plain **OAuth2**, **SAML 2.0** for sign-in
 
 <Frame caption="Settings > Enterprise SSO — the protocol picker and sign-in fields on one page, with the redirect URL to register in the IdP shown ready to copy.">
 
-![The Enterprise SSO settings page showing the Protocol dropdown set to Microsoft Entra ID, display name and email domain fields, and the sign-in section with the redirect URL, issuer URL, client ID, and scopes.](/images/platform/settings-enterprise-sso.webp)
+![The Enterprise SSO settings page with the Protocol dropdown set to Microsoft Entra ID and a matching display name, and a sign-in section carrying the redirect URL to register, an issuer URL and client ID filled in from the app registration, an empty client secret, and the requested scopes.](/images/platform/settings-enterprise-sso.webp)
 
 </Frame>
 

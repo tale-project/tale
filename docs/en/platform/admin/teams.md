@@ -7,9 +7,9 @@ A team is a named group of members that shares access to agents, prompts, projec
 
 This page is the reference for what a team owns, how membership works, and how the team boundary interacts with the role-based permissions documented under [Members and roles](/platform/admin/members-and-roles). Read it once when you stand up the org's teams; come back when you reorganise.
 
-<Frame caption="Settings > Teams before any team exists — the empty table with the Create team action.">
+<Frame caption="Settings > Teams — every team the org has, with its member count, beside the Create team action.">
 
-![The Teams settings page showing an empty teams table with a Create team button and a message that no teams exist yet.](/images/platform/settings-teams.webp)
+![The Teams settings page listing three teams — Growth, Platform engineering, and Customer success — each with one member and the date it was added, beside a Create team button.](/images/platform/settings-teams.webp)
 
 </Frame>
 

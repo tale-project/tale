@@ -7,7 +7,7 @@ Assigning a board task to an AI agent puts it to work. The **task-ops pack** —
 
 <Frame caption="The project task board — assigning a card to an agent is what starts the loop below.">
 
-![A kanban task board inside the Website relaunch project, showing five task cards across its status columns.](/images/platform/projects-task-board.webp)
+![A kanban task board inside the Website relaunch project, showing seven task cards spread across its status columns, from Backlog and To do through In review to Done and Cancelled.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

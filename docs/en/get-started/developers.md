@@ -15,7 +15,7 @@ To get a credential your scripts can hold, open **Settings > API > REST** and cl
 
 <Frame caption="The REST API settings — keys are created and revoked here.">
 
-![The REST API keys settings page with a Create API key button and an empty key list.](/images/get-started/settings-api-keys.webp)
+![The REST API keys settings page listing two keys — Production ingest and CI pipeline — each showing only its key prefix, the date it was added, and a Never used marker, beside a Create API key button.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

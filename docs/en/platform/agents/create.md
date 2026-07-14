@@ -46,7 +46,7 @@ Switch to the **Knowledge** tab. Pick a **Retrieval mode** — **Tool** lets the
 
 <Frame caption="The Knowledge tab — retrieval mode, document scopes, and the indexed organization documents.">
 
-![The agent editor's Knowledge tab showing the retrieval mode options, the team and organization document toggles, and three indexed organization documents.](/images/platform/agent-editor-knowledge.webp)
+![The agent editor's Knowledge tab with Tool picked as the retrieval mode, the team and organization document toggles both on, and the organization documents list where every file carries an Indexed badge.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 
@@ -54,9 +54,9 @@ Switch to the **Knowledge** tab. Pick a **Retrieval mode** — **Tool** lets the
 
 Switch to the **Tools** tab. Tools are individual checkboxes grouped by category — customers, products, files, workflows, and more — plus a **Web search** mode selector at the top. Grant what the agent needs and leave the rest off; every toggle widens the trust boundary.
 
-<Frame caption="The Tools tab — a per-tool checklist by category, with the web search mode on top.">
+<Frame caption="The Tools tab — a per-tool checklist grouped into category cards, each counting what it has granted.">
 
-![The agent editor's Tools tab showing the web search mode options and per-tool checkboxes grouped under Customers, Products, Vendors, and Knowledge.](/images/platform/agent-editor-tools.webp)
+![The agent editor's Tools tab scrolled to the category cards, with Knowledge at three of four tools checked and Files at seven of seven, while Conversations, Discussions, Analytics, and Tasks & projects have none granted.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 

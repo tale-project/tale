@@ -41,7 +41,7 @@ Open your instance and sign up. The form asks for your name, email, and a passwo
 
 <Frame caption="The workspace step — the name your team sees everywhere.">
 
-![The create-organization wizard showing the organization name field on its workspace step.](/images/get-started/org-create-wizard.webp)
+![The create-organization wizard on its workspace step, with Northlight Labs typed into the Organization name field and the Next button enabled.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -61,9 +61,9 @@ For the role matrix (who can do what), see [Members and roles](/platform/admin/m
 
 Open **Settings > AI providers** and click **Add provider**. Pick the provider you have credentials for and paste the API key. Save. Tale validates the key in the background; a confirmation on the provider row means the key works. If validation fails, the row shows the error verbatim — the most common cause is whitespace around the key.
 
-<Frame caption="A validated provider — from here every agent can answer.">
+<Frame caption="The connected provider — from here every agent can answer.">
 
-![The AI providers settings page showing the OpenRouter provider entry.](/images/get-started/settings-providers.webp)
+![The AI providers settings page listing one connected provider, OpenRouter, with its base URL and a count of 52 models.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

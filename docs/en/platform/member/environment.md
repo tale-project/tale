@@ -7,9 +7,9 @@ Environment variables & secrets is your personal store of variables that Tale in
 
 This page covers the two kinds of entry, how secrets are protected, the rules a name and value have to satisfy, and where the values end up.
 
-<Frame caption="Settings > Environment on a fresh account — the empty store with the Add variable action that opens the inline entry form.">
+<Frame caption="Settings > Environment — the saved entries, each with the Secret switch that decides whether its value can be read back.">
 
-![The Environment settings page for a new account, showing an empty variable list and an Add variable button above it.](/images/platform/settings-environment.webp)
+![The Environment settings page listing three saved entries — ANALYTICS_ORG and CRM_BASE_URL with their values in plain sight, and CRM_API_TOKEN masked as dots with its Secret box ticked — above an Add variable action.](/images/platform/settings-environment.webp)
 
 </Frame>
 

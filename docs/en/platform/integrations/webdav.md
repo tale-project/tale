@@ -7,7 +7,7 @@ WebDAV turns Tale's document store into a remote folder you mount like any share
 
 <Frame caption="Settings > API > WebDAV — the pre-filled connection details on top, the app-password generator below.">
 
-![The WebDAV settings page showing a connection URL, a username field with the account email, an explanation that the password is a generated app-password, and an empty app-passwords table with a Generate button.](/images/platform/settings-webdav.webp)
+![The WebDAV settings page showing a connection URL, a username field with the account email, an explanation that the password is a generated app-password, and an app-passwords table holding two entries — Design workstation and MacBook Pro, each with only its prefix and creation date — beside a Generate button.](/images/platform/settings-webdav.webp)
 
 </Frame>
 

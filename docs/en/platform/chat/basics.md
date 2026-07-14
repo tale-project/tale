@@ -15,9 +15,9 @@ This page is the mental model for everything in the Chat tab. It names the parts
 
 The composer is the input strip at the bottom of the screen. Three controls matter: the agent picker on the left, the model picker beside it, and the message field with send on the right. Attachments come in via paste, drag-and-drop, or the attach control — see [Attachments](/platform/chat/attachments) for what is accepted.
 
-<Frame caption="The composer's three controls — agent picker, model picker, message field.">
+<Frame caption="The composer's controls — the message field, the agent and model pickers, and send.">
 
-![The chat composer strip with agent picker, model picker, and send button.](/images/platform/chat-composer.webp)
+![The empty chat composer, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
 
 </Frame>
 

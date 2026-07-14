@@ -7,7 +7,7 @@ A project is a shared workspace that bundles everything one piece of work needs 
 
 <Frame caption="A project's task board — one of the eight tabs every project carries.">
 
-![A kanban task board inside the Website relaunch project, showing five task cards in the Backlog column.](/images/platform/projects-task-board.webp)
+![A kanban task board inside the Website relaunch project, with seven task cards spread across the Backlog, To do, In progress, In review, Done, and Cancelled columns.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

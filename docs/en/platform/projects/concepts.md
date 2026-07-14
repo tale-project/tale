@@ -7,7 +7,7 @@ A project is the unit Tale reaches for when a body of work needs the same files,
 
 <Frame caption="The General tab — identity, sharing, and the stats strip are the project's front door.">
 
-![The General tab of the Website relaunch project showing the name and description fields, the sharing section, and a stats strip reading two files and two chats.](/images/platform/project-general-tab.webp)
+![The General tab of the Website relaunch project showing the name and description fields, the sharing section with an Org-wide owning team, and a stats strip reading two files, no chats, and Org-wide.](/images/platform/project-general-tab.webp)
 
 </Frame>
 

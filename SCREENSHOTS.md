@@ -23,7 +23,7 @@ The everyday entry point: agents, attachments, citations, voice — and Arena.
       <br/><sub><b>New chat</b> — an agent's conversation starters, one click from work</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src="services/docs/public/images/platform/chat-arena-split.webp" alt="Arena Mode with the same prompt streamed into two columns headed by different models, and four verdict buttons underneath" width="100%"></a>
+      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src="services/docs/public/images/platform/chat-arena-split.webp" alt="Arena Mode with the same prompt answered in two columns headed by different models — a numbered checklist on the left, a grouped answer on the right — and four verdict buttons underneath" width="100%"></a>
       <br/><sub><b>Arena</b> — the same prompt streamed through two models, with a verdict bar</sub>
     </td>
   </tr>
@@ -43,7 +43,7 @@ The everyday entry point: agents, attachments, citations, voice — and Arena.
       <br/><sub><b>Agent picker</b> — switch agents, or let Auto route the request</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/chat-mention-picker.webp"><img src="services/docs/public/images/platform/chat-mention-picker.webp" alt="The chat composer with an at-sign typed and the knowledge-base picker open, listing three indexed text documents" width="100%"></a>
+      <a href="services/docs/public/images/platform/chat-mention-picker.webp"><img src="services/docs/public/images/platform/chat-mention-picker.webp" alt="The chat composer with an at-sign typed and the knowledge-base picker open, listing knowledge entries alongside indexed text documents" width="100%"></a>
       <br/><sub><b>@-mentions</b> — pull indexed knowledge straight into the composer</sub>
     </td>
   </tr>
@@ -53,7 +53,7 @@ The everyday entry point: agents, attachments, citations, voice — and Arena.
       <br/><sub><b>Prompt library</b> — provisioned, shareable starter prompts</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/chat-share-dialog.webp"><img src="services/docs/public/images/platform/chat-share-dialog.webp" alt="The Share chat dialog showing the Enable sharing toggle switched on, the share link, and Copy link and Preview buttons" width="100%"></a>
+      <a href="services/docs/public/images/platform/chat-share-dialog.webp"><img src="services/docs/public/images/platform/chat-share-dialog.webp" alt="The Share chat dialog open over a thread, with the Enable sharing toggle still off and a note that anyone in the organization holding the link can view the chat" width="100%"></a>
       <br/><sub><b>Sharing</b> — turn a chat into a shareable link</sub>
     </td>
   </tr>
@@ -69,7 +69,7 @@ of work — with task boards agents work from.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/projects-task-board.webp"><img src="services/docs/public/images/platform/projects-task-board.webp" alt="A kanban task board inside the Website relaunch project, showing five task cards queued in a column" width="100%"></a>
+      <a href="services/docs/public/images/platform/projects-task-board.webp"><img src="services/docs/public/images/platform/projects-task-board.webp" alt="A kanban task board inside the Website relaunch project, its seven task cards spread across the Backlog, To do, In progress, In review, Done, and Cancelled columns" width="100%"></a>
       <br/><sub><b>Task board</b> — assign a card to an agent and it goes to work</sub>
     </td>
     <td width="50%">
@@ -129,8 +129,8 @@ Instructions, knowledge, tools, and a model as one unit.
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/agent-editor-tools.webp"><img src="services/docs/public/images/platform/agent-editor-tools.webp" alt="The agent editor's Tools tab showing the web search mode options and per-tool checkboxes grouped by domain" width="100%"></a>
-      <br/><sub><b>Tools</b> — web search modes and per-tool grants</sub>
+      <a href="services/docs/public/images/platform/agent-editor-tools.webp"><img src="services/docs/public/images/platform/agent-editor-tools.webp" alt="The agent editor's Tools tab showing per-tool checkboxes grouped by domain — Conversations, Discussions, Knowledge, Analytics, Files — each group carrying its own grant counter" width="100%"></a>
+      <br/><sub><b>Tools</b> — per-tool grants, domain by domain</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/agent-editor-starters.webp"><img src="services/docs/public/images/platform/agent-editor-starters.webp" alt="The agent editor's Starters tab showing four English conversation starters with drag handles, reorder arrows, and remove buttons" width="100%"></a>
@@ -147,8 +147,8 @@ Typed workflows on schedules, webhooks, and events — with human approval gates
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src="services/docs/public/images/platform/automation-editor-canvas.webp" alt="The workflow editor with a step graph on the canvas and the AI editor panel open on the right, where proposed workflow changes appear for approval" width="100%"></a>
-      <br/><sub><b>Workflow editor</b> — the step graph, with an AI editor proposing changes for approval</sub>
+      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src="services/docs/public/images/platform/automation-editor-canvas.webp" alt="The workflow editor for the Triage unassigned tasks automation, showing its typed Condition, Action, and LLM steps branching across the canvas with the AI Assistant panel open on the right" width="100%"></a>
+      <br/><sub><b>Workflow editor</b> — the typed step graph, with the AI editor a prompt away</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/automation-triggers.webp"><img src="services/docs/public/images/platform/automation-triggers.webp" alt="The Triggers tab of an automation showing Schedules and Webhooks sections and an expanded Events section with a task.created trigger row" width="100%"></a>
@@ -161,7 +161,7 @@ Typed workflows on schedules, webhooks, and events — with human approval gates
       <br/><sub><b>Configuration</b> — timeouts, retries, backoff, and variables</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/automations-catalog.webp"><img src="services/docs/public/images/platform/automations-catalog.webp" alt="The Automations catalog showing cards for the built-in email automations and the Resolve GitHub issues bundle" width="100%"></a>
+      <a href="services/docs/public/images/platform/automations-catalog.webp"><img src="services/docs/public/images/platform/automations-catalog.webp" alt="The Automations catalog on its All automations tab, cards grouped by source — Sync Confluence pages, Archive idle conversations, Resolve GitHub issues, Sync Gmail emails" width="100%"></a>
       <br/><sub><b>Catalog</b> — ready-made automations, installable per organization</sub>
     </td>
   </tr>
@@ -175,8 +175,8 @@ Connect the systems your team already uses.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/integrations-catalog.webp"><img src="services/docs/public/images/platform/integrations-catalog.webp" alt="The integrations catalog showing a grid of connector cards — Slack, Gmail, Google Drive, GitHub, Tavily, and more — each with a Connect action" width="100%"></a>
-      <br/><sub><b>Catalog</b> — Slack, Gmail, Google Drive, GitHub, Tavily, and more</sub>
+      <a href="services/docs/public/images/platform/integrations-catalog.webp"><img src="services/docs/public/images/platform/integrations-catalog.webp" alt="The integrations catalog showing a grid of connector cards — Confluence, Discord, GitHub, Gmail, Google Drive, IMAP/SMTP, Outlook, Shopify — each with a Connect action" width="100%"></a>
+      <br/><sub><b>Catalog</b> — Gmail, Google Drive, GitHub, Confluence, Shopify, and more</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/settings-mcp-add-dialog.webp"><img src="services/docs/public/images/platform/settings-mcp-add-dialog.webp" alt="The Add MCP server dialog with fields for name, display name, description, and a transport type selector showing Streamable HTTP" width="100%"></a>
@@ -193,7 +193,7 @@ Approvals before actions ship — and the controls around them.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src="services/docs/public/images/platform/governance-guardrails.webp" alt="The Guardrails governance page showing three status cards for content safety, PII detection, and moderation provider above the recent-events feed" width="100%"></a>
+      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src="services/docs/public/images/platform/governance-guardrails.webp" alt="The Guardrails governance page showing three status cards — content safety applied to input and output, PII detection set to mask, the moderation provider disabled — above the recent-events section" width="100%"></a>
       <br/><sub><b>Guardrails</b> — content safety, PII detection, and a moderation provider, layered per message</sub>
     </td>
     <td width="50%">
@@ -207,7 +207,7 @@ Approvals before actions ship — and the controls around them.
       <br/><sub><b>Security & monitoring</b> — login-attempt limits and password policy</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/governance-data-subject-requests.webp"><img src="services/docs/public/images/platform/governance-data-subject-requests.webp" alt="The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above the erasure-requests table" width="100%"></a>
+      <a href="services/docs/public/images/platform/governance-data-subject-requests.webp"><img src="services/docs/public/images/platform/governance-data-subject-requests.webp" alt="The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above the erasure-requests table, which holds one pending request with 24 hours left before execution" width="100%"></a>
       <br/><sub><b>Data subject requests</b> — GDPR Art. 17 erasure with cooling-off and dual approval</sub>
     </td>
   </tr>
@@ -225,8 +225,8 @@ The operator's side: models, members, branding, SSO, and your documents as a net
       <br/><sub><b>Model catalog</b> — every provider model with capability tags, kept in sync</sub>
     </td>
     <td width="50%" valign="top">
-      <a href="services/docs/public/images/get-started/settings-organization-members.webp"><img src="services/docs/public/images/get-started/settings-organization-members.webp" alt="The Organization settings page with its Members section listing the workspace owner and an Add member button" width="100%"></a>
-      <br/><sub><b>Members</b> — the organization, its people, and the danger zone</sub>
+      <a href="services/docs/public/images/get-started/settings-organization-members.webp"><img src="services/docs/public/images/get-started/settings-organization-members.webp" alt="The Organization settings page with its Members table listing five people — an owner, an admin, an editor, and two members — beside an Add member button" width="100%"></a>
+      <br/><sub><b>Members</b> — the organization, its people, and their roles</sub>
     </td>
   </tr>
   <tr>
@@ -235,13 +235,13 @@ The operator's side: models, members, branding, SSO, and your documents as a net
       <br/><sub><b>Branding</b> — logo, favicon, accent color, live preview</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/settings-enterprise-sso.webp"><img src="services/docs/public/images/platform/settings-enterprise-sso.webp" alt="The Enterprise SSO settings page showing the Protocol dropdown set to Microsoft Entra ID, display name and email domain fields, and the sign-in section" width="100%"></a>
+      <a href="services/docs/public/images/platform/settings-enterprise-sso.webp"><img src="services/docs/public/images/platform/settings-enterprise-sso.webp" alt="The Enterprise SSO settings page showing the Protocol dropdown set to Microsoft Entra ID, the display name field, and a sign-in section with redirect URL, issuer URL, client ID, and scopes" width="100%"></a>
       <br/><sub><b>Enterprise SSO</b> — Microsoft Entra ID or trusted headers</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/settings-webdav.webp"><img src="services/docs/public/images/platform/settings-webdav.webp" alt="The WebDAV settings page showing a connection URL, a username field, and the app-passwords section with a Generate button" width="100%"></a>
+      <a href="services/docs/public/images/platform/settings-webdav.webp"><img src="services/docs/public/images/platform/settings-webdav.webp" alt="The WebDAV settings page showing the connection URL and username, and an app-passwords table listing two generated device passwords next to a Generate button" width="100%"></a>
       <br/><sub><b>WebDAV</b> — mount Tale documents as a network drive</sub>
     </td>
     <td width="50%"></td>

@@ -28,7 +28,7 @@ Pool their knowledge, delegate real work — on infrastructure you run.
 <table>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena mode running the same prompt through two models side by side" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="A project task board whose cards are picked up by agents" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="A project task board with task cards in all six columns, from Backlog to Cancelled" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="The agent editor bundling instructions, knowledge, tools, and a model" width="100%"></a></td>
   </tr>
   <tr>
@@ -37,8 +37,8 @@ Pool their knowledge, delegate real work — on infrastructure you run.
     <td align="center"><sub><b>Agents</b> — instructions, knowledge, tools, and a model as one unit</sub></td>
   </tr>
   <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The workflow editor canvas with typed steps on a live automation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="The integrations catalog with Slack, GitHub, Gmail, Teams, and more" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The workflow editor canvas with the typed, branching steps of an automation" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="The integrations catalog with Confluence, GitHub, Gmail, Google Drive, Shopify, and more" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Guardrails settings layering content safety, PII detection, and moderation" width="100%"></a></td>
   </tr>
   <tr>

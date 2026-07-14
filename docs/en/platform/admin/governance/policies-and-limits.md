@@ -7,7 +7,7 @@ Policies and limits is the surface where you cap what your members and agents ca
 
 <Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
 
-![The Policies and Limits governance page showing an empty budget-rules table above the upload-policy fields for allowed file types, sizes, and volume.](/images/platform/governance-policies-limits.webp)
+![The Policies and Limits governance page showing three monthly budget rules — one for the entire organization, one default for all users, and one for the developer role, each capping tokens, cost, and requests — above the upload-policy fields for allowed file types, sizes, and volume.](/images/platform/governance-policies-limits.webp)
 
 </Frame>
 

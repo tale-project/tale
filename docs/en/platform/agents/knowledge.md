@@ -5,9 +5,9 @@ description: The agent's Knowledge tab — retrieval mode, team and organization
 
 Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your documents and cites where the answer came from. The agent's **Knowledge** tab controls two things: _how_ the agent retrieves (the retrieval mode) and _what_ is in scope (which documents).
 
-<Frame caption="The Knowledge tab — retrieval mode above, the document scopes and agent uploads below.">
+<Frame caption="The Knowledge tab — retrieval mode above, the document scopes and what each one currently holds below.">
 
-![The agent editor's Knowledge tab showing the four retrieval modes, the team and organization document toggles, three indexed organization documents, and the agent documents upload area.](/images/platform/agent-editor-knowledge.webp)
+![The agent editor's Knowledge tab with Tool picked among the four retrieval modes, the team and organization document toggles both on, a team-documents box reading that no documents were found for this team, and the organization documents list where every file carries an Indexed badge.](/images/platform/agent-editor-knowledge.webp)
 
 </Frame>
 

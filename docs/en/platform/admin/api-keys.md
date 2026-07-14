@@ -9,7 +9,7 @@ The keys listed here are different from the per-user session tokens Tale issues 
 
 <Frame caption="Settings > API keys — where keys are created, rotated, and revoked.">
 
-![The REST API keys settings page with a Create API key button above the key list.](/images/get-started/settings-api-keys.webp)
+![The REST API keys settings page listing two keys, each showing only its prefix, the date it was added, and a Never used marker, beside a Create API key button.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 

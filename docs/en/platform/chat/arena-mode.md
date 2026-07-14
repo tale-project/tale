@@ -13,7 +13,7 @@ Open the composer's plus menu and pick **Arena Mode** — the composer sprouts t
 
 <Frame caption="The same prompt answered by two models, with the verdict row beneath.">
 
-![Arena Mode with the same prompt streamed into two columns headed by different models, and four verdict buttons underneath.](/images/platform/chat-arena-split.webp)
+![Arena Mode with one launch-checklist prompt answered in two columns — Claude Haiku 4.5 on the left returning a numbered five-step list, Claude Sonnet 4.6 on the right grouping the same work under headings and adding the risks worth flagging — above the A is better, B is better, Tie, and Both bad verdict buttons.](/images/platform/chat-arena-split.webp)
 
 </Frame>
 

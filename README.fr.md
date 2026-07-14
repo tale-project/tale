@@ -28,7 +28,7 @@ Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure
 <table>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Le mode Arena fait répondre deux modèles au même prompt, côte à côte" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Le tableau de tâches d’un projet, dont les cartes sont prises en charge par des agents" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Le tableau de tâches d’un projet, avec des cartes dans ses six colonnes, de Backlog à Cancelled" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="L’éditeur d’agent réunit instructions, connaissances, outils et modèle" width="100%"></a></td>
   </tr>
   <tr>
@@ -38,7 +38,7 @@ Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure
   </tr>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Le canvas de l’éditeur de workflows, avec les étapes typées d’une automatisation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Le catalogue d’intégrations avec Slack, GitHub, Gmail, Teams et plus" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="Le catalogue d’intégrations avec Confluence, GitHub, Gmail, Google Drive, Shopify et plus" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Les guardrails de gouvernance — filtrage du contenu, détection PII et fournisseur de modération" width="100%"></a></td>
   </tr>
   <tr>

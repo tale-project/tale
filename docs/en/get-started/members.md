@@ -41,7 +41,7 @@ Open **Projects** in the sidebar. A project bundles everything about one effort 
 
 <Frame caption="A project's task board — drag cards between columns.">
 
-![A project task board titled Website relaunch with five task cards in the Backlog column and empty To do, In progress, In review, and Done columns.](/images/platform/projects-task-board.webp)
+![A project task board titled Website relaunch with seven task cards spread one or two per column across Backlog, To do, In progress, In review, Done, and Cancelled.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
