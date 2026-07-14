@@ -105,6 +105,7 @@ describe('checkUploadPolicy', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('.exe');
+      expect(result.reasonCode).toBe('extension_blocked');
     });
 
     it('allows file not in blocked list', async () => {
@@ -165,6 +166,7 @@ describe('checkUploadPolicy', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('.exe');
+      expect(result.reasonCode).toBe('extension_not_allowed');
     });
 
     it('allows file in allowed list', async () => {
@@ -206,6 +208,7 @@ describe('checkUploadPolicy', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('application/octet-stream');
+      expect(result.reasonCode).toBe('mime_not_allowed');
     });
 
     it('allows file matching wildcard MIME type', async () => {
@@ -266,6 +269,8 @@ describe('checkUploadPolicy', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('MB limit');
+      expect(result.reasonCode).toBe('file_too_large');
+      expect(result.limitBytes).toBe(5 * 1024 * 1024);
     });
 
     it('allows file within max size', async () => {
@@ -320,6 +325,10 @@ describe('checkUploadPolicy', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('GB limit');
+      // Structured data the client turns into an actionable message.
+      expect(result.reasonCode).toBe('volume_exceeded');
+      expect(result.usedBytes).toBe(95 * 1024 * 1024);
+      expect(result.limitBytes).toBe(100 * 1024 * 1024);
     });
 
     it('allows upload within per-user volume limit', async () => {

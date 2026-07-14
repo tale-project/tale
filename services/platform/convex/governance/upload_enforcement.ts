@@ -4,9 +4,28 @@ import type { UploadPolicyConfig } from '../../lib/shared/schemas/governance';
 import type { DataModel } from '../_generated/dataModel';
 import { readPolicyConfig } from './helpers';
 
+/**
+ * Machine-readable rejection reason. The client maps this to a specific,
+ * actionable localized message — in particular `volume_exceeded` must tell the
+ * user their quota is full and that deleting files (including failed uploads,
+ * which still count) frees it, instead of the generic "upload failed" that
+ * made a full quota look like a broken uploader.
+ */
+export type UploadRejectionCode =
+  | 'extension_blocked'
+  | 'extension_not_allowed'
+  | 'mime_not_allowed'
+  | 'file_too_large'
+  | 'volume_exceeded';
+
 interface UploadCheckResult {
   allowed: boolean;
   reason?: string;
+  reasonCode?: UploadRejectionCode;
+  /** For `file_too_large` / `volume_exceeded`: the configured limit in bytes. */
+  limitBytes?: number;
+  /** For `volume_exceeded`: bytes already counted against the user's quota. */
+  usedBytes?: number;
 }
 
 /**
@@ -40,6 +59,7 @@ export async function checkUploadPolicy(
       return {
         allowed: false,
         reason: `File type .${ext} is not allowed by organization policy`,
+        reasonCode: 'extension_blocked',
       };
     }
   }
@@ -52,6 +72,7 @@ export async function checkUploadPolicy(
       return {
         allowed: false,
         reason: `File type .${ext} is not in the allowed list`,
+        reasonCode: 'extension_not_allowed',
       };
     }
   }
@@ -67,6 +88,7 @@ export async function checkUploadPolicy(
       return {
         allowed: false,
         reason: `MIME type ${mimeType} is not allowed by organization policy`,
+        reasonCode: 'mime_not_allowed',
       };
     }
   }
@@ -87,6 +109,8 @@ export async function checkUploadPolicy(
       return {
         allowed: false,
         reason: `File size exceeds the ${maxMB} MB limit`,
+        reasonCode: 'file_too_large',
+        limitBytes: limit,
       };
     }
   }
@@ -110,6 +134,9 @@ export async function checkUploadPolicy(
       return {
         allowed: false,
         reason: `Total upload volume would exceed the ${maxGB} GB limit`,
+        reasonCode: 'volume_exceeded',
+        usedBytes: totalVolume,
+        limitBytes: config.maxTotalVolumeBytesPerUser,
       };
     }
   }

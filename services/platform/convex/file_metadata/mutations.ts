@@ -72,10 +72,15 @@ export const saveFileMetadata = mutation({
     if (!check.allowed) {
       // Preserve the policy's human-readable reason as structured data so the
       // composer can surface why the upload was rejected; a raw Error message
-      // is redacted to "Server Error" by Convex in prod.
+      // is redacted to "Server Error" by Convex in prod. `reasonCode` +
+      // usage bytes let the client show an actionable, localized message
+      // (e.g. a full per-user volume quota rather than a generic failure).
       throw new ConvexError({
         code: 'UPLOAD_REJECTED',
         reason: check.reason ?? 'Upload rejected by organization policy',
+        reasonCode: check.reasonCode,
+        ...(check.usedBytes != null && { usedBytes: check.usedBytes }),
+        ...(check.limitBytes != null && { limitBytes: check.limitBytes }),
       });
     }
 

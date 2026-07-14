@@ -18,6 +18,8 @@ import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';
 
+import { mapUploadError } from '../lib/map-upload-error';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -259,7 +261,7 @@ export function useDocumentUpload(options: UploadOptions) {
 
         updateFileStatus(fileId, {
           status: 'failed',
-          error: t('upload.uploadFailedRetry'),
+          error: mapUploadError(error, t),
         });
         return false;
       }
