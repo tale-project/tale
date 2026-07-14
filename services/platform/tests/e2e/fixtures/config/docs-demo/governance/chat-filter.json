@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "maskReplacement": "[REDACTED]",
+  "appliesTo": ["input", "output"],
+  "preferNonStreamingForFiltering": false,
+  "configVersion": 1,
+  "categories": [
+    {
+      "id": "unreleased_codenames",
+      "label": "Unreleased codenames",
+      "enabled": true,
+      "mode": "mask",
+      "words": ["northstar", "project halyard", "blue harbor"],
+      "patterns": []
+    },
+    {
+      "id": "internal_only",
+      "label": "Internal-only terms",
+      "enabled": true,
+      "mode": "flag",
+      "words": ["board deck", "acquisition target", "severance"],
+      "patterns": []
+    }
+  ]
+}

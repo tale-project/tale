@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "mode": "mask",
+  "enabledPatterns": ["email", "phone", "creditCard", "iban"]
+}

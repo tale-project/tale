@@ -49,6 +49,15 @@ const ROOTS: ReadonlyArray<{
     dir: `${REPO_ROOT}services/platform/tests/e2e/fixtures/config/qa-guides-org`,
     kind: 'org',
   },
+  {
+    // The docs-screenshot demo catalog. It carries a REAL governance dir (not a
+    // symlink to builtin-configs) so the governance pages screenshot populated
+    // instead of empty — which means it can drift from the policy schemas on
+    // its own, and nothing else validates it.
+    label: 'e2e fixture docs-demo',
+    dir: `${REPO_ROOT}services/platform/tests/e2e/fixtures/config/docs-demo`,
+    kind: 'org',
+  },
 ];
 
 describe('config-domain validator completeness (registry drift guard)', () => {

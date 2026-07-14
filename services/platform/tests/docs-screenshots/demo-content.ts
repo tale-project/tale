@@ -8,6 +8,12 @@
  * The chat prompts pair 1:1 with `lib/mocks/overrides/docs-replies.ts` — a
  * prompt must contain its reply's `match` phrase or the mock answers with the
  * visibly synthetic e2e canned reply.
+ *
+ * The TASK TITLES are paired the same way, against `DOCS_TRIAGE_SCORES` in that
+ * file: every `todo` task trips the task-triage automation, whose scoring step
+ * is a structured-output call the mock answers by title. A `todo` task with no
+ * scripted score falls back to `{}`, fails the step's schema, and lands a red
+ * row in the Executions screenshot — so rename a task here and rename it there.
  */
 
 import { E2E_PASSWORD } from '../e2e/helpers/auth';
@@ -22,29 +28,53 @@ export const DEMO_OWNER = {
 /** Workspace name — shows in the sidebar and org switcher on every shot. */
 export const DEMO_ORG_NAME = 'Northlight Labs';
 
+/**
+ * A seeded task. `status` is picked in the create dialog (task-modal's Status
+ * field) — without it every task lands in `todo` and the board screenshots as
+ * one full column and four empty ones.
+ *
+ * Only `todo` tasks reach the triage automation's scoring step (its guard is
+ * `!assigneeId && status == 'todo'`); the rest short-circuit to the output node
+ * and still complete. That mix is what makes the run log look real.
+ */
+export interface DemoTask {
+  readonly title: string;
+  /** `tasks.status.*` key — todo | in_progress | in_review | done | cancelled. */
+  readonly status: string;
+}
+
 export interface DemoProject {
   readonly name: string;
-  readonly tasks: readonly string[];
+  readonly tasks: readonly DemoTask[];
 }
 
 export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     name: 'Website relaunch',
+    // Spread across every board column — including Backlog and Cancelled, the
+    // two the board renders at its edges — so the kanban shot shows a project in
+    // flight rather than a single stack of To do cards.
     tasks: [
-      'Finalize homepage copy with marketing',
-      'Map legacy URLs to the new structure',
-      'Run the accessibility sweep on staging',
-      'Prepare the rollback plan',
-      'Sign off the launch checklist',
+      { title: 'Sign off the launch checklist', status: 'todo' },
+      { title: 'Audit the third-party scripts', status: 'backlog' },
+      // The triage automation's one failing run (the mock answers this task's
+      // scoring step with a payload that violates the step's output schema —
+      // lib/mocks/overrides/docs-replies.ts). The execution-logs docs page
+      // teaches debugging from exactly this red badge.
+      { title: 'Prepare the rollback plan', status: 'todo' },
+      { title: 'Finalize homepage copy with marketing', status: 'in_progress' },
+      { title: 'Run the accessibility sweep on staging', status: 'in_review' },
+      { title: 'Map legacy URLs to the new structure', status: 'done' },
+      { title: 'Rebuild the legacy pricing page', status: 'cancelled' },
     ],
   },
   {
     name: 'Customer onboarding portal',
     tasks: [
-      'Draft the welcome email sequence',
-      'Design the progress checklist screen',
-      'Wire the CRM webhook for new sign-ups',
-      'Review the trial-to-paid handoff flow',
+      { title: 'Design the progress checklist screen', status: 'todo' },
+      { title: 'Wire the CRM webhook for new sign-ups', status: 'todo' },
+      { title: 'Draft the welcome email sequence', status: 'in_progress' },
+      { title: 'Review the trial-to-paid handoff flow', status: 'done' },
     ],
   },
 ] as const;
@@ -186,3 +216,127 @@ export const DEMO_CHAT_PROMPTS: readonly string[] = [
   'Plan the quarterly business review agenda for Friday',
   'Write a Python script to deduplicate our CRM export',
 ] as const;
+
+export interface DemoMember {
+  readonly name: string;
+  readonly email: string;
+  /** `settings.roles.*` key. */
+  readonly role: string;
+}
+
+/**
+ * The rest of the workspace's people. Members are admin-provisioned (name,
+ * email, password, role) — no invite mail — so the Members table shows a real
+ * team instead of a lone owner.
+ *
+ * `DEMO_DEPARTING_MEMBER` is the subject of the legal hold and the erasure
+ * request. It is deliberately NOT the owner: `requestErasure` schedules a real
+ * cascade delete once the cooling-off window passes, and the demo org outlives
+ * a capture run.
+ */
+export const DEMO_MEMBERS: readonly DemoMember[] = [
+  { name: 'Priya Raman', email: 'priya.raman@example.com', role: 'admin' },
+  { name: 'Sam Okonkwo', email: 'sam.okonkwo@example.com', role: 'editor' },
+  { name: 'Marta Vogel', email: 'marta.vogel@example.com', role: 'member' },
+  { name: 'Jordan Blake', email: 'jordan.blake@example.com', role: 'member' },
+] as const;
+
+/** The contractor whose data the governance demo freezes, then erases. */
+export const DEMO_DEPARTING_MEMBER = DEMO_MEMBERS[3];
+
+/** Teams (Settings > Teams). */
+export const DEMO_TEAMS: readonly string[] = [
+  'Growth',
+  'Platform engineering',
+  'Customer success',
+] as const;
+
+export interface DemoEnvVar {
+  readonly key: string;
+  readonly value: string;
+  readonly secret: boolean;
+}
+
+/**
+ * Personal environment (Settings > Environment). Keys must match
+ * `^[A-Za-z_][A-Za-z0-9_]*$` or the save throws. Secret values are write-only —
+ * the row re-renders as a mask, so idempotency checks the KEY, never the value.
+ */
+export const DEMO_ENV_VARS: readonly DemoEnvVar[] = [
+  {
+    key: 'CRM_BASE_URL',
+    value: 'https://crm.northlight.example/api/v2',
+    secret: false,
+  },
+  // Keep keys short: the row's key input clips a long name flush against its
+  // right edge with no ellipsis, which reads as broken in a screenshot.
+  { key: 'ANALYTICS_ORG', value: 'northlight-prod', secret: false },
+  { key: 'CRM_API_TOKEN', value: 'nl_crm_2f8c41d9e7b64a0c', secret: true },
+] as const;
+
+/** REST API keys (Settings > API > REST). Names cap at 32 characters. */
+export const DEMO_API_KEYS: readonly string[] = [
+  'Production ingest',
+  'CI pipeline',
+] as const;
+
+/** WebDAV app-passwords (Settings > API > WebDAV). */
+export const DEMO_WEBDAV_LABELS: readonly string[] = [
+  'MacBook Pro',
+  'Design workstation',
+] as const;
+
+/** MCP server (Settings > API > MCP). `name` is lowercase alphanumeric + hyphens. */
+export const DEMO_MCP_SERVER = {
+  name: 'internal-wiki',
+  displayName: 'Internal Wiki',
+  description: 'Search the Northlight engineering wiki and design decisions.',
+  url: 'https://mcp.northlight.example/mcp',
+} as const;
+
+/** Per-user custom instructions (Settings > Preferences). Caps at 4000 chars. */
+export const DEMO_CUSTOM_INSTRUCTIONS =
+  'Write in the direct register from our brand guide: short sentences, no exclamation marks. Use ISO dates and metric units. When you use a document, name the file you took it from.';
+
+/** The project's curated agents and models (project > Agents & models). */
+export const DEMO_PROJECT_AGENTS: readonly string[] = ['Assistant'] as const;
+export const DEMO_PROJECT_MODELS: readonly string[] = [
+  'Claude Sonnet 4.6',
+] as const;
+
+/**
+ * Values typed into forms that are screenshotted OPEN but never submitted — an
+ * empty dialog of grey placeholders teaches nothing. A second, distinct server
+ * (the seeded one already exists) so the form is not a duplicate name.
+ */
+export const DEMO_MCP_DIALOG_EXAMPLE = {
+  name: 'support-tickets',
+  displayName: 'Support Tickets',
+  description: 'Look up ticket history and SLA state for a customer.',
+  url: 'https://mcp.northlight.example/support',
+} as const;
+
+/** Enterprise SSO form values (filled, never saved — saving would gate sign-in). */
+export const DEMO_SSO_EXAMPLE = {
+  issuerUrl: 'https://login.microsoftonline.com/8f2c-northlight/v2.0',
+  clientId: '4a17c9e2-63b8-4f0d-9e51-2c7a5d8b1f36',
+} as const;
+
+/** Governance > Legal hold: the matter, and the hold placed under it. */
+export const DEMO_LEGAL_MATTER = {
+  name: 'Northstar contract dispute',
+  caseNumber: 'NL-2026-014',
+  description:
+    'Preservation obligation covering the Northstar engagement and its handover material.',
+} as const;
+
+export const DEMO_LEGAL_HOLD_REASON =
+  'Preserve all workspace data belonging to the departing contractor while the Northstar dispute is open.';
+
+/** Governance > Data subject requests: the erasure request on file. */
+export const DEMO_ERASURE_REQUEST = {
+  /** A `governance.dataSubjectRequests.reasonCodes.*` option label. */
+  reasonCode: 'consent_withdrawn',
+  reason:
+    'The contractor withdrew consent when their engagement ended and asked us to erase their workspace data.',
+} as const;
