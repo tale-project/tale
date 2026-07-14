@@ -638,7 +638,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
-      "description": "Was jede der drei mitgelieferten E-Mail-Automatisierungen tut, welche Integration sie braucht, und wie das Bundle GitHub-Issues lösen synchronisierte Issues Ende zu Ende in gemergte Pull Requests verwandelt."
+      "description": "Was jede mitgelieferte Automatisierung tut — das Posteingangs-Trio, das Bundle GitHub-Issues lösen, die Sync- und Pflege-Vorlagen und die vorinstallierten Pakete, die Boards und Erwähnungen am Laufen halten."
     }
   },
   "de:platform/automations/execution-logs": {
@@ -1798,7 +1798,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisations livrées",
-      "description": "Ce que fait chacune des quatre automatisations livrées, l’intégration qu’elle requiert, et comment le bundle Résoudre les issues GitHub transforme des issues synchronisées en pull requests fusionnées."
+      "description": "Ce que fait chaque automatisation livrée — le trio boîte de réception, le bundle Résoudre les issues GitHub, les modèles de synchronisation et d’entretien, et les packs préinstallés qui font tourner tableaux et mentions."
     }
   },
   "fr:platform/automations/execution-logs": {
@@ -2958,7 +2958,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Built-in automations",
-      "description": "What each of the four shipped automations does, the integration it requires, and how the Resolve GitHub issues bundle turns synced issues into merged pull requests."
+      "description": "What each shipped automation does — the inbox trio, the Resolve GitHub issues bundle, the sync and upkeep templates, and the pre-installed packs that run your boards and mentions."
     }
   },
   "en:platform/automations/execution-logs": {

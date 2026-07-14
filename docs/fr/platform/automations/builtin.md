@@ -1,13 +1,19 @@
 ---
 title: Automatisations livrées
-description: Ce que fait chacune des quatre automatisations livrées, l’intégration qu’elle requiert, et comment le bundle Résoudre les issues GitHub transforme des issues synchronisées en pull requests fusionnées.
+description: Ce que fait chaque automatisation livrée — le trio boîte de réception, le bundle Résoudre les issues GitHub, les modèles de synchronisation et d’entretien, et les packs préinstallés qui font tourner tableaux et mentions.
 ---
 
 Tale livre des automatisations prêtes à l’emploi : trois à but unique qui transforment une boîte aux lettres en une boîte de réception partagée, et un bundle qui résout les issues GitHub de bout en bout. Les Éditeurs et Membres se servent de ce qu’une automatisation installée ajoute — un onglet Boîte de réception, une entrée de Backlog — sans rien installer eux-mêmes ; installer est une action Propriétaire/Admin/Développeur couverte sur [Parcourir et installer des automatisations](/fr/platform/automations/catalog). Cette page nomme ce que fait chacune et l’intégration qu’il faut connecter en premier.
 
+<Frame caption="Le catalogue des automatisations — chaque carte est à une installation près ; les membres de packs cachés et l’intérieur des bundles restent hors de la liste.">
+
+![Le catalogue des automatisations sur l’onglet Toutes les automatisations, avec les cartes des automatisations e-mail et du bundle Résoudre les issues GitHub, chacune avec son icône et sa description.](/images/platform/automations-catalog.webp)
+
+</Frame>
+
 ## Répondre aux e-mails Gmail, Outlook et IMAP
 
-**Répondre aux e-mails Gmail**, **Répondre aux e-mails Outlook** et **Répondre aux e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, et chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal. Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
+**Répondre aux e-mails Gmail**, **Répondre aux e-mails Outlook** et **Répondre aux e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification (toutes les six heures d’origine — resserrable sur l’onglet **Déclencheurs** de l’automatisation). Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
 
 | Automatisation                     | Requiert  | Boîte aux lettres                 |
 | ---------------------------------- | --------- | --------------------------------- |
@@ -29,6 +35,25 @@ L’en-tête du fil porte les verbes de statut de la conversation sélectionnée
 
 Un humain reste dans la boucle à deux moments : démarrer une tâche proposée depuis le Backlog, et fusionner la pull request sur GitHub lui-même — rien dans le bundle ne fusionne à ta place.
 
+## Modèles de synchronisation et d’entretien
+
+Huit automatisations de plus attendent dans le catalogue pour le moment où tu en as besoin. Chacune est un workflow unique : installe-la, pointe-la vers tes données — les modèles de synchronisation demandent leur source via la planification qu’ils créent — puis ajuste-la librement sur l’onglet **Éditeur** de l’automatisation.
+
+| Automatisation                             | Requiert     | Ce qu’elle fait                                                                                    |
+| ------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------- |
+| Synchroniser les pages Confluence          | Confluence   | Importe les pages d’un espace Confluence dans la bibliothèque de connaissances selon un planning   |
+| Synchroniser les fichiers Google Drive     | Google Drive | Importe les documents d’un dossier Drive dans la bibliothèque de connaissances                     |
+| Synchroniser les clients Shopify           | Shopify      | Importe les clients de la boutique dans les fiches clients de l’organisation                       |
+| Synchroniser les produits Shopify          | Shopify      | Importe le catalogue produits de la boutique dans les fiches produits de l’organisation            |
+| Analyser les relations entre produits      | —            | Parcourt le catalogue et consigne accessoires, variantes et compléments                            |
+| Indexer les documents pour la recherche    | —            | Indexe les documents fraîchement importés pour que les agents puissent les rechercher et les citer |
+| Archiver les conversations inactives       | —            | Clôt les conversations restées silencieuses au-delà de leur période d’inactivité                   |
+| Notifier les membres des messages entrants | —            | Alerte les membres dès qu’un nouveau message entrant arrive dans une conversation ouverte          |
+
+## Les packs préinstallés
+
+La mécanique qui fait tourner les tableaux de chaque organisation est elle aussi faite d’automatisations — installées automatiquement à la création, cachées du catalogue, mais visibles sur l’onglet **Installées** comme tout le reste. Le **pack tâches** lance un agent assigné dès qu’une tâche lui arrive, trie le travail non assigné, réagit aux @-mentions, fait passer le travail terminé par la relecture, balaie les exécutions bloquées, fait respecter les SLA et garde en mouvement tâches dépendantes, sous-tâches et archives ; ses voisins répondent aux mentions en discussion et gardent les fichiers OneDrive synchronisés. Chacune est une automatisation normale — ouvre-la pour lire son workflow sur l’onglet **Éditeur**, l’observer sous **Exécutions** ou couper un déclencheur sous **Déclencheurs** ; une désinstallation tient, et rien ne la réinstalle dans ton dos.
+
 ## Où cela s’inscrit
 
-Les trois automatisations de boîte de réception et le bundle Résoudre les issues GitHub sont ce qui est livré aujourd’hui ; une automatisation privée que ton organisation construit ou téléverse apparaît dans le même catalogue, juste à côté. [Parcourir et installer des automatisations](/fr/platform/automations/catalog) couvre la mécanique du catalogue ; [Backlog du projet](/fr/platform/projects/backlog) est la lecture suivante pour ce qui arrive à une tâche une fois que Trier les issues GitHub l’a proposée.
+Les automatisations de boîte de réception, le bundle Résoudre les issues GitHub et les modèles de synchronisation sont ce qui est livré aujourd’hui ; une automatisation privée que ton organisation construit ou téléverse apparaît dans le même catalogue, juste à côté. [Parcourir et installer des automatisations](/fr/platform/automations/catalog) couvre la mécanique du catalogue ; [Backlog du projet](/fr/platform/projects/backlog) est la lecture suivante pour ce qui arrive à une tâche une fois que Trier les issues GitHub l’a proposée.

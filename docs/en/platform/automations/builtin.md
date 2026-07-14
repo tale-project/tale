@@ -1,13 +1,19 @@
 ---
 title: Built-in automations
-description: What each of the four shipped automations does, the integration it requires, and how the Resolve GitHub issues bundle turns synced issues into merged pull requests.
+description: What each shipped automation does — the inbox trio, the Resolve GitHub issues bundle, the sync and upkeep templates, and the pre-installed packs that run your boards and mentions.
 ---
 
-Tale ships automations out of the box: three single-purpose ones that turn a mailbox into a shared inbox, and one bundle that resolves GitHub issues end to end. Editors and Members use whatever an installed automation adds — an Inbox tab, a Backlog entry — without installing anything themselves; installing is an Owner/Admin/Developer action covered on [Browse and install](/platform/automations/catalog). This page names what each one does and the integration it needs connected first.
+Tale ships automations out of the box: three that turn a mailbox into a shared inbox, one bundle that resolves GitHub issues end to end, a set of sync and upkeep templates you install when you need them, and the pre-installed packs that run task boards and mentions for every organization. Editors and Members use whatever an installed automation adds — an Inbox tab, a Backlog entry — without installing anything themselves; installing is an Owner/Admin/Developer action covered on [Browse and install](/platform/automations/catalog). This page names what each one does and the integration it needs connected first.
+
+<Frame caption="The Automations catalog — every card is one install away; hidden pack members and bundle internals stay out of the list.">
+
+![The Automations catalog on the All automations tab, showing cards for the email automations and the Resolve GitHub issues bundle, each with its icon and description.](/images/platform/automations-catalog.webp)
+
+</Frame>
 
 ## Reply to Gmail, Outlook, and email over IMAP
 
-**Reply to Gmail emails**, **Reply to Outlook emails**, and **Reply to emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, and each installs the same channel-agnostic **Inbox** builtin view. An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
+**Reply to Gmail emails**, **Reply to Outlook emails**, and **Reply to emails via SMTP/IMAP** are the same automation three times over, one per mailbox kind: each requires exactly the integration its name says, each installs the same channel-agnostic **Inbox** builtin view, and each carries the mail-sync workflow that pulls the mailbox into conversations on a schedule (every six hours out of the box — tighten it on the automation's **Triggers** tab). An organization that receives mail on more than one kind of mailbox installs more than one of these; each Inbox only shows its own mailbox's traffic.
 
 | Automation                    | Requires  | Mailbox                                |
 | ----------------------------- | --------- | -------------------------------------- |
@@ -29,6 +35,25 @@ The thread header carries the status verbs for whichever conversation is selecte
 
 A human stays in the loop at two points: starting a proposed task off the Backlog, and merging the pull request on GitHub itself — nothing in the bundle merges on your behalf.
 
+## Sync and upkeep templates
+
+Eight more automations sit in the catalog for the moments you need them. Each is a single workflow you install and then point at your data — the sync ones ask for their source on the schedule they create, and every one is editable afterwards on the automation's **Editor** tab.
+
+| Automation                         | Requires     | What it does                                                                  |
+| ---------------------------------- | ------------ | ----------------------------------------------------------------------------- |
+| Sync Confluence pages              | Confluence   | Imports a Confluence space's pages into the knowledge library on a schedule   |
+| Sync Google Drive files            | Google Drive | Imports a Drive folder's documents into the knowledge library                 |
+| Sync Shopify customers             | Shopify      | Imports the shop's customers into the organization's customer records         |
+| Sync Shopify products              | Shopify      | Imports the shop's product catalog into the organization's product records    |
+| Analyze product relationships      | —            | Scans the product catalog and records accessories, variants, and complements  |
+| Index documents for retrieval      | —            | Indexes newly uploaded documents so agents can search and cite them           |
+| Archive idle conversations         | —            | Closes out conversations that sat quiet past their idle window                |
+| Notify members on inbound messages | —            | Alerts members the moment a new inbound message lands in an open conversation |
+
+## The pre-installed packs
+
+The plumbing that runs every organization's boards ships as automations too — installed automatically at creation, hidden from the catalog, and visible on the **Installed** tab like anything else. The **task pack** runs an assigned agent the moment a task lands on it, triages unassigned work, reacts to @-mentions, routes finished work through review, sweeps stale runs, enforces SLAs, and keeps dependent tasks, subtasks, and archives moving; its siblings answer discussion mentions and keep OneDrive files synced. Each is a normal automation — open one to read its workflow on the **Editor** tab, watch it under **Executions**, or switch off a trigger under **Triggers**; an uninstall sticks and is never re-installed behind your back.
+
 ## Where this fits
 
-The three inbox automations and the Resolve GitHub issues bundle are what ships today; a private automation your organization builds or uploads shows up in the same catalog next to them. [Browse and install](/platform/automations/catalog) covers the catalog mechanics; [Project Backlog](/platform/projects/backlog) is the next read for what happens to a task after Triage proposes it.
+The inbox automations, the Resolve GitHub issues bundle, and the sync templates are what ships today; a private automation your organization builds or uploads shows up in the same catalog next to them. [Browse and install](/platform/automations/catalog) covers the catalog mechanics; [Project Backlog](/platform/projects/backlog) is the next read for what happens to a task after Triage proposes it.
