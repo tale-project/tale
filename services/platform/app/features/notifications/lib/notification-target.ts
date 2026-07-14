@@ -26,6 +26,11 @@ export type NotificationTarget =
       params: { id: string; agentId: string };
     }
   | {
+      to: '/dashboard/$id/conversations/$status';
+      params: { id: string; status: string };
+      search: { conversation: string };
+    }
+  | {
       to: '/dashboard/$id/settings/governance/logs';
       params: { id: string };
       /** Deep-links to a specific broken audit row (#1845); reveals it in-page. */
@@ -96,6 +101,27 @@ export function personalNotificationTarget(args: {
     typeof params?.projectId === 'string' ? params.projectId : undefined;
   const threadId =
     typeof params?.threadId === 'string' ? params.threadId : undefined;
+  const conversationId =
+    typeof params?.conversationId === 'string'
+      ? params.conversationId
+      : undefined;
+
+  // A conversation notification (inbound message / assignment) opens the thread
+  // in the Inbox. The stamped `conversationStatus` doubles as the `$status` URL
+  // segment — the DB status enum matches the route's valid statuses — defaulting
+  // to `open`. Mirrors `buildPersonalNotificationUrl` in the email path.
+  if (conversationId) {
+    const status =
+      typeof params?.conversationStatus === 'string' &&
+      params.conversationStatus
+        ? params.conversationStatus
+        : 'open';
+    return {
+      to: '/dashboard/$id/conversations/$status',
+      params: { id, status },
+      search: { conversation: conversationId },
+    };
+  }
 
   if (params?.chat === true && threadId) {
     return {

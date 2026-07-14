@@ -8,6 +8,9 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   'mention',
   'task_assigned',
   'agent_escalation',
+  // Inbound conversation messages route to the assignee (or org admins) and
+  // need a reply, so they deliver by email too — not just the in-app bell.
+  'conversation_message',
 ] as const;
 
 type ActionableNotificationType =
