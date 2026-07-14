@@ -7,7 +7,7 @@ Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtsha
 
 <Frame caption="Governance > Legal Hold — die Tabelle der aktiven Holds mit der Aktion Legal Hold setzen über der vier-Augen-kontrollierten Warteschlange der Freigabeanträge.">
 
-![Die Governance-Seite Legal Hold zeigt einen aktiven Hold — Typ Benutzer auf marta.vogel, gesetzt von Alex Rivera zum Sachverhalt Northstar contract — neben der Schaltfläche Legal Hold setzen, darüber die Warteschlangen Ausstehende Genehmigung und Genehmigt, die beide Keine Freigabeanträge melden.](/images/platform/governance-legal-hold.webp)
+![Die Governance-Seite Legal Hold zeigt einen aktiven Hold — Typ Benutzer auf marta.vogel, gesetzt von Alex Rivera zum Sachverhalt Northstar contract — neben der Schaltfläche Legal Hold setzen, darunter die Warteschlangen Ausstehende Genehmigung und Genehmigt, die beide Keine Freigabeanträge melden.](/images/platform/governance-legal-hold.webp)
 
 </Frame>
 
