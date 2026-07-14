@@ -11,7 +11,6 @@
  * token etc. live in `integrationCredentials`, collected by the readiness wizard.
  */
 import { readFile, stat } from 'node:fs/promises';
-import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
@@ -33,10 +32,7 @@ import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
-import {
-  resolveWorkflowsDir,
-  serializeWorkflowJson,
-} from '../workflows/file_utils';
+import { serializeWorkflowJson } from '../workflows/file_utils';
 import {
   findMissingResources,
   installAutomationFiles,
@@ -250,12 +246,12 @@ export interface InstallContext {
 
 /**
  * Auth-free install preamble shared by the public and server-only install
- * paths: slug validation, the global-workflow shadowing guard, and the
- * manifest read. Throws on any failure so a bad install fails fast before any
- * file is copied. Callers own authorization — `prepareInstall` gates on the
- * `developerSettings` capability; `installAutomationInternal` is reachable only from
- * trusted server code; `installBundle` (`install_bundle_actions.ts`) gates
- * ONCE for the whole bundle, then calls this per member.
+ * paths: slug validation and the manifest read. Throws on any failure so a
+ * bad install fails fast before any file is copied. Callers own authorization
+ * — `prepareInstall` gates on the `developerSettings` capability;
+ * `installAutomationInternal` is reachable only from trusted server code;
+ * `installBundle` (`install_bundle_actions.ts`) gates ONCE for the whole
+ * bundle, then calls this per member.
  */
 export async function prepareInstallAs(
   orgSlug: string,
@@ -265,27 +261,14 @@ export async function prepareInstallAs(
   if (!isValidAutomationSlug(automationSlug)) {
     throw new Error(`Invalid automation slug: ${automationSlug}`);
   }
-  // An automation slug must not collide with an existing GLOBAL workflow folder of the
-  // same name: the workflow resolver prefers the automation dir, so a collision would
-  // silently shadow those global workflows. Refuse instead — this keeps the
-  // automation-vs-global workflow dispatch unambiguous.
-  const globalFolder = path.join(resolveWorkflowsDir(orgSlug), automationSlug);
-  const shadowsGlobal = await stat(globalFolder)
-    .then((s) => s.isDirectory())
-    .catch(() => false);
-  if (shadowsGlobal) {
-    throw new Error(
-      `Cannot install automation "${automationSlug}": a global workflow folder of the same name exists and would be shadowed.`,
-    );
-  }
   const manifest = await readAutomationBundleManifest(orgSlug, automationSlug);
   return { orgSlug, installedBy, manifest };
 }
 
 /**
- * Shared install/reinstall preamble: membership + slug validation, the
- * global-workflow shadowing guard, and the manifest read. Throws on any failure
- * so a bad install fails fast before any file is copied.
+ * Shared install/reinstall preamble: membership + slug validation and the
+ * manifest read. Throws on any failure so a bad install fails fast before any
+ * file is copied.
  *
  * Exported (with `ensureOrgResources`) for the builtin-sync action, which
  * re-runs the reinstall pipeline for installed automations whose bundle changed.
@@ -595,8 +578,8 @@ export const installAutomation = action({
  * same org-level install as `installAutomation` minus the `developerSettings` gate,
  * which needs an authenticated user and so can never pass inside a migration
  * run. Every other guard is kept via the shared `prepareInstallAs` +
- * `ensureOrgResources` core — slug validation, the global-workflow shadowing
- * check, manifest validation, and the idempotent resource upsert. Org-scoped
+ * `ensureOrgResources` core — slug validation, manifest validation, and the
+ * idempotent resource upsert. Org-scoped
  * automations only: a project-scoped automation needs a target project (a human decision),
  * so it is refused here. `installedBy` is recorded verbatim on the install
  * row — a migration passes a `migration:<id>` marker so its `down` can target

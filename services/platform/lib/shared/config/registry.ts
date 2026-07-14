@@ -138,8 +138,8 @@ const stripJson = (s: string | undefined): string | undefined =>
 export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   {
     name: 'agents',
-    // Tree (was flat): agents are organized in folders (chat/,
-    // github/) for grouping. Identity is the explicit `slug` field in each
+    // Tree (was flat): agents are organized in folders (e.g. chat/)
+    // for grouping. Identity is the explicit `slug` field in each
     // config (NOT the path), so files can move between folders without
     // breaking refs; the folder is organizational only.
     layout: 'tree',

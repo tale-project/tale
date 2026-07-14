@@ -213,7 +213,7 @@ Inform the user the update is ready for review. Only say the approval card has b
       workflowSlug: z
         .string()
         .describe(
-          'Slug of the workflow containing the step(s) to update (e.g., "conversation-sync", "shopify/sync-customers"). Required.',
+          'Slug of the workflow containing the step(s) to update — the owning automation\'s slug (e.g., "reply-imap-emails", "triage-unassigned-tasks"). Required.',
         ),
       stepSlug: z
         .string()

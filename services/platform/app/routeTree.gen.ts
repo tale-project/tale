@@ -86,9 +86,6 @@ import { Route as DashboardIdSettingsApiIndexRouteImport } from './routes/dashbo
 import { Route as DashboardIdProjectsProjectIdIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/index';
 import { Route as DashboardIdAutomationsAutomationSlugIndexRouteImport } from './routes/dashboard/$id/automations/$automationSlug/index';
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index';
-import { Route as DashboardIdWorkflowsWorkflowIdTriggersRouteImport } from './routes/dashboard/$id/workflows/$workflowId/triggers';
-import { Route as DashboardIdWorkflowsWorkflowIdExecutionsRouteImport } from './routes/dashboard/$id/workflows/$workflowId/executions';
-import { Route as DashboardIdWorkflowsWorkflowIdConfigurationRouteImport } from './routes/dashboard/$id/workflows/$workflowId/configuration';
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName';
 import { Route as DashboardIdSettingsMetricsUsageRouteImport } from './routes/dashboard/$id/settings/metrics/usage';
 import { Route as DashboardIdSettingsMetricsProjectsRouteImport } from './routes/dashboard/$id/settings/metrics/projects';
@@ -570,24 +567,6 @@ const DashboardIdAgentsAgentIdIndexRoute =
     path: '/',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any);
-const DashboardIdWorkflowsWorkflowIdTriggersRoute =
-  DashboardIdWorkflowsWorkflowIdTriggersRouteImport.update({
-    id: '/triggers',
-    path: '/triggers',
-    getParentRoute: () => DashboardIdWorkflowsWorkflowIdRoute,
-  } as any);
-const DashboardIdWorkflowsWorkflowIdExecutionsRoute =
-  DashboardIdWorkflowsWorkflowIdExecutionsRouteImport.update({
-    id: '/executions',
-    path: '/executions',
-    getParentRoute: () => DashboardIdWorkflowsWorkflowIdRoute,
-  } as any);
-const DashboardIdWorkflowsWorkflowIdConfigurationRoute =
-  DashboardIdWorkflowsWorkflowIdConfigurationRouteImport.update({
-    id: '/configuration',
-    path: '/configuration',
-    getParentRoute: () => DashboardIdWorkflowsWorkflowIdRoute,
-  } as any);
 const DashboardIdSettingsProvidersProviderNameRoute =
   DashboardIdSettingsProvidersProviderNameRouteImport.update({
     id: '/$providerName',
@@ -886,7 +865,7 @@ export interface FileRoutesByFullPath {
   '/2fa': typeof Auth2faRoute;
   '/log-in': typeof AuthLogInRoute;
   '/sign-up': typeof AuthSignUpRoute;
-  '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren;
+  '/dashboard/$id': typeof DashboardIdRouteWithChildren;
   '/dashboard/changelog': typeof DashboardChangelogRoute;
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
   '/dashboard/switching': typeof DashboardSwitchingRoute;
@@ -938,7 +917,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/token-sources': typeof DashboardIdSettingsTokenSourcesRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRouteWithChildren;
+  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -981,9 +960,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/workflows/$workflowId/configuration': typeof DashboardIdWorkflowsWorkflowIdConfigurationRoute;
-  '/dashboard/$id/workflows/$workflowId/executions': typeof DashboardIdWorkflowsWorkflowIdExecutionsRoute;
-  '/dashboard/$id/workflows/$workflowId/triggers': typeof DashboardIdWorkflowsWorkflowIdTriggersRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/automations/$automationSlug/': typeof DashboardIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
@@ -1051,7 +1027,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/token-sources': typeof DashboardIdSettingsTokenSourcesRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRouteWithChildren;
+  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
@@ -1094,9 +1070,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/workflows/$workflowId/configuration': typeof DashboardIdWorkflowsWorkflowIdConfigurationRoute;
-  '/dashboard/$id/workflows/$workflowId/executions': typeof DashboardIdWorkflowsWorkflowIdExecutionsRoute;
-  '/dashboard/$id/workflows/$workflowId/triggers': typeof DashboardIdWorkflowsWorkflowIdTriggersRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/automations/$automationSlug': typeof DashboardIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId': typeof DashboardIdProjectsProjectIdIndexRoute;
@@ -1180,7 +1153,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/settings/token-sources': typeof DashboardIdSettingsTokenSourcesRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
-  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRouteWithChildren;
+  '/dashboard/$id/workflows/$workflowId': typeof DashboardIdWorkflowsWorkflowIdRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -1223,9 +1196,6 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
   '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/workflows/$workflowId/configuration': typeof DashboardIdWorkflowsWorkflowIdConfigurationRoute;
-  '/dashboard/$id/workflows/$workflowId/executions': typeof DashboardIdWorkflowsWorkflowIdExecutionsRoute;
-  '/dashboard/$id/workflows/$workflowId/triggers': typeof DashboardIdWorkflowsWorkflowIdTriggersRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/automations/$automationSlug/': typeof DashboardIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
@@ -1352,9 +1322,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/workflows/$workflowId/configuration'
-    | '/dashboard/$id/workflows/$workflowId/executions'
-    | '/dashboard/$id/workflows/$workflowId/triggers'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/'
@@ -1465,9 +1432,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/workflows/$workflowId/configuration'
-    | '/dashboard/$id/workflows/$workflowId/executions'
-    | '/dashboard/$id/workflows/$workflowId/triggers'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/automations/$automationSlug'
     | '/dashboard/$id/projects/$projectId'
@@ -1593,9 +1557,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/metrics/projects'
     | '/dashboard/$id/settings/metrics/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/workflows/$workflowId/configuration'
-    | '/dashboard/$id/workflows/$workflowId/executions'
-    | '/dashboard/$id/workflows/$workflowId/triggers'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/'
@@ -2167,27 +2128,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/agents/$agentId/';
       preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
-    };
-    '/dashboard/$id/workflows/$workflowId/triggers': {
-      id: '/dashboard/$id/workflows/$workflowId/triggers';
-      path: '/triggers';
-      fullPath: '/dashboard/$id/workflows/$workflowId/triggers';
-      preLoaderRoute: typeof DashboardIdWorkflowsWorkflowIdTriggersRouteImport;
-      parentRoute: typeof DashboardIdWorkflowsWorkflowIdRoute;
-    };
-    '/dashboard/$id/workflows/$workflowId/executions': {
-      id: '/dashboard/$id/workflows/$workflowId/executions';
-      path: '/executions';
-      fullPath: '/dashboard/$id/workflows/$workflowId/executions';
-      preLoaderRoute: typeof DashboardIdWorkflowsWorkflowIdExecutionsRouteImport;
-      parentRoute: typeof DashboardIdWorkflowsWorkflowIdRoute;
-    };
-    '/dashboard/$id/workflows/$workflowId/configuration': {
-      id: '/dashboard/$id/workflows/$workflowId/configuration';
-      path: '/configuration';
-      fullPath: '/dashboard/$id/workflows/$workflowId/configuration';
-      preLoaderRoute: typeof DashboardIdWorkflowsWorkflowIdConfigurationRouteImport;
-      parentRoute: typeof DashboardIdWorkflowsWorkflowIdRoute;
     };
     '/dashboard/$id/settings/providers/$providerName': {
       id: '/dashboard/$id/settings/providers/$providerName';
@@ -2959,27 +2899,6 @@ const DashboardIdProjectsProjectIdRouteWithChildren =
     DashboardIdProjectsProjectIdRouteChildren,
   );
 
-interface DashboardIdWorkflowsWorkflowIdRouteChildren {
-  DashboardIdWorkflowsWorkflowIdConfigurationRoute: typeof DashboardIdWorkflowsWorkflowIdConfigurationRoute;
-  DashboardIdWorkflowsWorkflowIdExecutionsRoute: typeof DashboardIdWorkflowsWorkflowIdExecutionsRoute;
-  DashboardIdWorkflowsWorkflowIdTriggersRoute: typeof DashboardIdWorkflowsWorkflowIdTriggersRoute;
-}
-
-const DashboardIdWorkflowsWorkflowIdRouteChildren: DashboardIdWorkflowsWorkflowIdRouteChildren =
-  {
-    DashboardIdWorkflowsWorkflowIdConfigurationRoute:
-      DashboardIdWorkflowsWorkflowIdConfigurationRoute,
-    DashboardIdWorkflowsWorkflowIdExecutionsRoute:
-      DashboardIdWorkflowsWorkflowIdExecutionsRoute,
-    DashboardIdWorkflowsWorkflowIdTriggersRoute:
-      DashboardIdWorkflowsWorkflowIdTriggersRoute,
-  };
-
-const DashboardIdWorkflowsWorkflowIdRouteWithChildren =
-  DashboardIdWorkflowsWorkflowIdRoute._addFileChildren(
-    DashboardIdWorkflowsWorkflowIdRouteChildren,
-  );
-
 interface DashboardIdRouteChildren {
   DashboardIdSplatRoute: typeof DashboardIdSplatRoute;
   DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren;
@@ -2990,7 +2909,7 @@ interface DashboardIdRouteChildren {
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren;
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute;
   DashboardIdProjectsProjectIdRoute: typeof DashboardIdProjectsProjectIdRouteWithChildren;
-  DashboardIdWorkflowsWorkflowIdRoute: typeof DashboardIdWorkflowsWorkflowIdRouteWithChildren;
+  DashboardIdWorkflowsWorkflowIdRoute: typeof DashboardIdWorkflowsWorkflowIdRoute;
   DashboardIdProjectsIndexRoute: typeof DashboardIdProjectsIndexRoute;
 }
 
@@ -3005,8 +2924,7 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdIndexRoute: DashboardIdIndexRoute,
   DashboardIdProjectsProjectIdRoute:
     DashboardIdProjectsProjectIdRouteWithChildren,
-  DashboardIdWorkflowsWorkflowIdRoute:
-    DashboardIdWorkflowsWorkflowIdRouteWithChildren,
+  DashboardIdWorkflowsWorkflowIdRoute: DashboardIdWorkflowsWorkflowIdRoute,
   DashboardIdProjectsIndexRoute: DashboardIdProjectsIndexRoute,
 };
 

@@ -1,5 +1,3 @@
-import { getSlugBaseName, slugToUrlParam } from '@/lib/utils/workflow-slug';
-
 /** Sentinel `actorId` for workflow-engine task writes. */
 export const WORKFLOW_ACTOR_ID = 'workflow';
 
@@ -17,7 +15,10 @@ export interface TaskActorPreviewLabels {
 }
 
 function humanizeWorkflowSlug(slug: string): string {
-  const base = getSlugBaseName(slug);
+  // Workflow slugs are flat (slug === owning automation's slug); the basename
+  // split only still matters for historical activity rows that captured a
+  // retired foldered slug (e.g. `projects/tasks/run-assigned-task`).
+  const base = slug.slice(slug.lastIndexOf('/') + 1);
   return base
     .split(/[-_]+/)
     .filter(Boolean)
@@ -101,7 +102,9 @@ function workflowPreview(args: {
       ? '/dashboard/$id/automations/$automationSlug'
       : '/dashboard/$id/automations',
     viewParams: slug
-      ? { id: args.organizationId, automationSlug: slugToUrlParam(slug) }
+      ? // A workflow's slug IS its owning automation's slug (flat) — usable
+        // as the route param directly.
+        { id: args.organizationId, automationSlug: slug }
       : { id: args.organizationId },
     viewSearch: args.context?.wfExecutionId
       ? { execution: args.context.wfExecutionId }

@@ -3,7 +3,7 @@ title: Agenten-Ordner
 description: Wie Agenten gruppiert werden — Ordner aus der Id des Agents, wie mit einer Automatisierung installierte Agenten sich einsortieren und wo die Berechtigungsgrenze wirklich liegt.
 ---
 
-Agenten sind nach Ordnern gruppiert, und ein Ordner entsteht aus der Id des Agents: ein Agent mit der Id `github/pull-request-reviewer` liegt überall dort, wo Agenten gelistet werden, in einem `github`-Ordner. Ordner sind ein organisatorisches Sortierwerkzeug, keine Berechtigungsgrenze — wer einen Agent nutzen darf, regelt der Abschnitt **Zugriff** auf seiner Seite **Allgemein**, unabhängig davon, wo er einsortiert ist.
+Agenten sind nach Ordnern gruppiert, und ein Ordner entsteht aus der Id des Agents: ein Agent mit der Id `review-github-pr/pr-reviewer` liegt überall dort, wo Agenten gelistet werden, in einem `review-github-pr`-Ordner. Ordner sind ein organisatorisches Sortierwerkzeug, keine Berechtigungsgrenze — wer einen Agent nutzen darf, regelt der Abschnitt **Zugriff** auf seiner Seite **Allgemein**, unabhängig davon, wo er einsortiert ist.
 
 <Frame caption="Die Agentenliste mit ausgeklapptem chat-Ordner — der Ordner ist das Präfix des Slugs, die Zeilen sind seine Agenten.">
 
@@ -13,9 +13,9 @@ Agenten sind nach Ordnern gruppiert, und ein Ordner entsteht aus der Id des Agen
 
 ## Einen Agent in einen Ordner legen
 
-Ids mit Ordner kommen von der Plattform, nicht aus dem Erstell-Dialog. Das Feld **Name** im Dialog nimmt eine flache Id — Kleinbuchstaben, Ziffern, Bindestriche und Unterstriche, kein `/` —, sodass ein dort erstellter Agent unabgelegt auf der obersten Ebene landet. Das Ordner-Präfix (`chat/`, `github/`) ist Agenten vorbehalten, die die Plattform mitliefert oder installiert: Builtins kommen vorab einsortiert an, und die Installation einer [Automatisierung](/de/platform/automations/concepts) legt ihre Agenten in den Ordner, den ihre Id benennt. Eine Id kann sich später nicht ändern, der Ordner steht also mit dem Erstellen fest. Der Anzeigename ist unabhängig; benenn den Agent frei um, ohne ihn zu verschieben.
+Ids mit Ordner kommen von der Plattform, nicht aus dem Erstell-Dialog. Das Feld **Name** im Dialog nimmt eine flache Id — Kleinbuchstaben, Ziffern, Bindestriche und Unterstriche, kein `/` —, sodass ein dort erstellter Agent unabgelegt auf der obersten Ebene landet. Das Ordner-Präfix (`chat/`, `review-github-pr/`) ist Agenten vorbehalten, die die Plattform mitliefert oder installiert: Builtins kommen vorab einsortiert an, und die Installation einer [Automatisierung](/de/platform/automations/concepts) legt ihre Agenten in den Ordner, den ihre Id benennt. Eine Id kann sich später nicht ändern, der Ordner steht also mit dem Erstellen fest. Der Anzeigename ist unabhängig; benenn den Agent frei um, ohne ihn zu verschieben.
 
-In der **Agenten**-Liste erscheinen Ordner als eingeklappte Zeilen mit Agentenzahl — klicke einen an, um ihn auszuklappen, und die Breadcrumb-Leiste zeigt, wo du bist. Die eingebauten Agenten kommen voreinsortiert an: die allgemeinen Assistenten unter `chat`, die GitHub-Agenten unter `github`.
+In der **Agenten**-Liste erscheinen Ordner als eingeklappte Zeilen mit Agentenzahl — klicke einen an, um ihn auszuklappen, und die Breadcrumb-Leiste zeigt, wo du bist. Die eingebauten Agenten kommen voreinsortiert an: die allgemeinen Assistenten unter `chat`; mit einer Automation installierte Agenten liegen im Ordner ihrer Automation.
 
 ## Agenten, die mit einer Automatisierung ankommen
 

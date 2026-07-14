@@ -49,7 +49,6 @@ import type { HumanInputField } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
-import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
 import { mapHumanInputError } from '../lib/map-human-input-error';
@@ -411,11 +410,14 @@ function WorkflowRunApprovalCardComponent({
             {(executionStatus?.status === 'completed' ||
               executionStatus?.status === 'failed') && (
               <Link
-                to="/dashboard/$id/workflows/$workflowId/executions"
+                to="/dashboard/$id/automations/$automationSlug"
                 params={{
                   id: organizationId,
-                  workflowId: slugToUrlParam(metadata.workflowSlug),
+                  // The run's workflow lives inline in its owning automation
+                  // (same slug); its runs list is the Executions tab.
+                  automationSlug: metadata.workflowSlug,
                 }}
+                search={{ tab: 'executions' }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >
                 {t('viewDetails')}

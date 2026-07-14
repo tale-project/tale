@@ -22,6 +22,7 @@ import { resolvePromptsDir } from '../../prompts/file_utils';
 import { resolveProvidersDir } from '../../providers/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
 import { resolveTokenSourcesDir } from '../../token_sources/file_utils';
+import { resolveWorkflowsDir } from '../../workflows/file_utils';
 
 export type DomainDirResolver = (orgSlug: string) => string;
 
@@ -38,6 +39,13 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   // `sso` is nested under governance — `resolveSsoDir` returns `<org>/governance/sso/`.
   sso: resolveSsoDir,
   automations: resolveAutomationsDir,
+  // LEGACY-CHAIN ONLY: `workflows` left the config-domain registry when
+  // standalone workflows retired (a workflow lives inline in its automation).
+  // The resolver stays because pre-cutover v0_3_4 migrations (06, 30, and the
+  // 33-cutover itself) still address org trees that carry a `workflows/` dir
+  // mid-upgrade. Never reachable from live domain enumeration — the registry
+  // (Layer A) no longer lists the name.
+  workflows: resolveWorkflowsDir,
 };
 
 /** Resolve a domain's dir for an org, throwing if the domain has no resolver. */

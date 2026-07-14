@@ -1,6 +1,7 @@
 /**
- * Mechanical loop-safety assertions over the task-ops default workflow pack
- * (`builtin-configs/workflows/tasks/*.json`).
+ * Mechanical loop-safety assertions over the task-ops automation pack — the
+ * hidden `autoInstall` automations whose manifests set `folder: "tasks"`
+ * (`builtin-configs/automations/<slug>/automation.json`, inline `workflow`).
  *
  * The pack is a set of automations that trigger each other through task
  * events; left unchecked, that is a feedback amplifier. These tests assert —
@@ -30,11 +31,8 @@ import { describe, expect, it } from 'vitest';
 
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
-const PACK_DIR = fileURLToPath(
-  new URL(
-    '../../../../builtin-configs/workflows/projects/tasks',
-    import.meta.url,
-  ),
+const AUTOMATIONS_DIR = fileURLToPath(
+  new URL('../../../../builtin-configs/automations', import.meta.url),
 );
 
 interface Step {
@@ -63,15 +61,35 @@ function asString(value: unknown): string {
 }
 
 function loadPack(): PackWorkflow[] {
-  const files = readdirSync(PACK_DIR).filter((f) => f.endsWith('.json'));
-  expect(files.length).toBeGreaterThanOrEqual(11);
-  return files.map((file) => {
-    const raw: unknown = JSON.parse(
-      readFileSync(path.join(PACK_DIR, file), 'utf-8'),
+  const packSlugs = readdirSync(AUTOMATIONS_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .filter((slug) => {
+      const manifestPath = path.join(AUTOMATIONS_DIR, slug, 'automation.json');
+      try {
+        const manifest: unknown = JSON.parse(
+          readFileSync(manifestPath, 'utf-8'),
+        );
+        return isRecord(manifest) && manifest.folder === 'tasks';
+      } catch {
+        return false; // bundle dirs carry bundle.json instead
+      }
+    });
+  expect(packSlugs.length).toBeGreaterThanOrEqual(11);
+  return packSlugs.map((slug) => {
+    const file = `${slug}.json`;
+    const manifest: unknown = JSON.parse(
+      readFileSync(
+        path.join(AUTOMATIONS_DIR, slug, 'automation.json'),
+        'utf-8',
+      ),
     );
-    const parsed = workflowJsonSchema.safeParse(raw);
+    if (!isRecord(manifest)) throw new Error(`${slug}: manifest not an object`);
+    const parsed = workflowJsonSchema.safeParse(manifest.workflow);
     if (!parsed.success) {
-      throw new Error(`${file} fails workflowJsonSchema: ${parsed.error}`);
+      throw new Error(
+        `${slug} inline workflow fails workflowJsonSchema: ${parsed.error}`,
+      );
     }
     const doc = parsed.data;
     const steps: Step[] = doc.steps.map((s) => ({

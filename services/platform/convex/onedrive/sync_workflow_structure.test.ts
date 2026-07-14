@@ -1,8 +1,9 @@
 /**
- * Structural assertions over the OneDrive sync workflow JSON. The sync loop is
+ * Structural assertions over the OneDrive sync workflow — the inline
+ * `workflow` of the `sync-onedrive-files` automation. The sync loop is
  * driven by the workflow engine (durable, per-config retry/observability), so
  * the shape — list → guard → loop → per-config action → terminal — is the
- * contract. Any edit to the JSON re-proves these from the file alone.
+ * contract. Any edit to the manifest re-proves these from the file alone.
  */
 
 import { readFileSync } from 'node:fs';
@@ -12,18 +13,21 @@ import { describe, expect, it } from 'vitest';
 
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
-const WORKFLOW_PATH = fileURLToPath(
+const MANIFEST_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/workflows/onedrive/sync-files-from-onedrive.json',
+    '../../../../builtin-configs/automations/sync-onedrive-files/automation.json',
     import.meta.url,
   ),
 );
 
-const parsed = workflowJsonSchema.safeParse(
-  JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8')),
-);
+const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as {
+  workflow?: unknown;
+};
+const parsed = workflowJsonSchema.safeParse(manifest.workflow);
 if (!parsed.success) {
-  throw new Error(`sync-files-from-onedrive.json invalid: ${parsed.error}`);
+  throw new Error(
+    `sync-onedrive-files inline workflow invalid: ${parsed.error}`,
+  );
 }
 const doc = parsed.data;
 const bySlug = new Map(doc.steps.map((s) => [s.stepSlug, s]));
@@ -94,8 +98,14 @@ describe('onedrive sync workflow: structure', () => {
     expect(p.itemName).toBe('{{loop.item.itemName}}');
   });
 
+  it('declares the schedule that drives the sync loop', () => {
+    const schedules = doc.triggers?.schedules ?? [];
+    expect(schedules.length).toBeGreaterThanOrEqual(1);
+    expect(schedules[0].cron).toBeTruthy();
+  });
+
   it('no longer depends on processing-records or a backoff knob', () => {
-    const raw = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const raw = readFileSync(MANIFEST_PATH, 'utf-8');
     expect(raw).not.toContain('workflow_processing_records');
     expect(raw).not.toContain('backoffHours');
   });

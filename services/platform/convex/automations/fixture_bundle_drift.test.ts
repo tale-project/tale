@@ -17,11 +17,9 @@
  *   workflow, exercising every reference kind the transform must rewrite —
  *   the bundle manifest itself carries neither, so renaming IT alone would
  *   exercise nothing). The documented transform (and nothing else): every
- *   `create-github-pr/` becomes `create-github-pr-qa/` — in FILE PATHS
- *   (`workflows/create-github-pr/…` → `workflows/create-github-pr-qa/…`, the
- *   scoping the uploader validates) and in JSON file CONTENTS (workflow
- *   slugs, composite agent slugs like `create-github-pr/pr-creator`, view
- *   workflow refs). Bare occurrences without the slash (`metadata.pack`) are
+ *   `create-github-pr/` becomes `create-github-pr-qa/` — in JSON file
+ *   CONTENTS (the inline workflow's slug references, composite agent slugs
+ *   like `create-github-pr/pr-creator`, view workflow refs). Bare occurrences without the slash (`metadata.pack`) are
  *   NOT part of the transform.
  * - `tests/e2e/fixtures/config/default/automations/` — the hermetic e2e stack's
  *   builtin catalog (`playwright.config.ts` pins `TALE_CONFIG_BUILTIN_DIR`

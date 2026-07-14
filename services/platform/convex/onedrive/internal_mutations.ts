@@ -4,7 +4,6 @@
 
 import { v } from 'convex/values';
 
-import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import * as MicrosoftAccountsModel from '../accounts/helpers';
 import { createOneDriveSyncConfig } from '../documents/create_onedrive_sync_config';
@@ -28,17 +27,11 @@ export const upsertSyncConfig = internalMutation({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const result = await createOneDriveSyncConfig(ctx, args);
-    if (result.success) {
-      // Idempotent compensation: every sync config upsert re-checks workflow
-      // install + schedule triggers (safe to run repeatedly).
-      await ctx.scheduler.runAfter(
-        0,
-        internal.onedrive.ensure_sync_workflow.ensureSyncWorkflowEngine,
-        { organizationId: args.organizationId },
-      );
-    }
-    return result;
+    // Presence of the sync engine (the `sync-onedrive-files` autoInstall
+    // automation) is guaranteed by default-automation provisioning at
+    // org-create / deploy / catalog resync, and the sync-import action
+    // re-runs the idempotent provisioner — no per-upsert compensation.
+    return await createOneDriveSyncConfig(ctx, args);
   },
 });
 

@@ -115,6 +115,8 @@ export const notificationPreferencesTable = defineTable({
   escalation: v.optional(v.boolean()),
   // Groups automation_failed / budget_alert / runtime_offline.
   automationAlerts: v.optional(v.boolean()),
+  // RETIRED — nothing maps to `digest` since the workforce digest died; the
+  // 0.3.4 migration strips stored values, 0.3.5 drops the field.
   digest: v.optional(v.boolean()),
   /** Inbound customer messages in Conversations (automation-driven). */
   conversationMessages: v.optional(v.boolean()),

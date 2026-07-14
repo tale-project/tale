@@ -578,12 +578,7 @@ function InstalledAutomationBody({
           {
             value: EXECUTIONS_TAB,
             label: t('tabs.executions'),
-            content: (
-              <ExecutionsTable
-                workflowId={workflowSlug}
-                organizationId={organizationId}
-              />
-            ),
+            content: <ExecutionsTable workflowId={workflowSlug} />,
           },
         ]
       : []),

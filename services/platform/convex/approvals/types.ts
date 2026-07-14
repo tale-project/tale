@@ -30,7 +30,11 @@ export interface IntegrationOperationMetadata {
 }
 
 export interface WorkflowCreationMetadata {
-  /** Card display label — the workflow's slug (its only identity). */
+  /**
+   * Card display label — the display name of the automation created to carry
+   * the workflow (pre-`name`-input approvals stored the slug here; the
+   * executor Title-Cases those).
+   */
   workflowName: string;
   workflowSlug: string;
   workflowConfig: {

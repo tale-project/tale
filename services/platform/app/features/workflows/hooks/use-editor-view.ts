@@ -32,9 +32,9 @@ function writeViewCookie(value: WorkflowEditorView): void {
 /**
  * Graph/Specification toggle state for the workflow editor (W5b). Persisted
  * in a COOKIE (not per-workflow `usePersistedState`/localStorage) so the
- * choice carries across every workflow the user opens next, on both the
- * standalone `/workflows/$workflowId` route and the automation detail's
- * Editor tab. An optional `?view=` URL param layers on top — it forces the
+ * choice carries across every workflow the user opens next in any
+ * automation detail's Editor tab. An optional `?view=` URL param layers on
+ * top — it forces the
  * view for the current visit (e.g. a shared link) without changing the
  * saved default; picking a tab clears it so the cookie drives the next visit.
  *

@@ -283,9 +283,9 @@ const SKIP_AGENT_DIRS = new Set(['.history', '_archive', 'old']);
 
 /**
  * Recursively list agent JSON file paths RELATIVE to the org's agents dir
- * (posix-style, e.g. `github/issue-triager.json` or a flat
+ * (posix-style, e.g. `chat/researcher.json` or a flat
  * `chat-agent.json`). One real level of nesting is expected (chat/,
- * github/) but the walk is depth-general. Skips `.history/`, dotfiles, and any
+ * chat/) but the walk is depth-general. Skips `.history/`, dotfiles, and any
  * `_archive`/`old` dir (superseded catalog that must never load). Returns [] if
  * the dir is missing.
  */
@@ -328,7 +328,7 @@ export async function walkAgentRelativePaths(
 
 /**
  * Safe-join a relative agent path (possibly foldered, e.g.
- * `github/reviewer.json`) within the org's agents dir, validating every segment.
+ * `chat/researcher.json`) within the org's agents dir, validating every segment.
  * Used to read/write a file at the location the slug→path index resolved.
  */
 export function resolveAgentFilePathFromRelative(
