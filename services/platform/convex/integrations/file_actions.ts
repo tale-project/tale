@@ -343,9 +343,9 @@ export const installIntegration = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    // Connecting an integration creates its credential record (and installs its
-    // bundled capabilities) — `developerSettings` work elsewhere. Gate it on
-    // the same capability rather than admitting any non-disabled member.
+    // Connecting an integration creates its credential record —
+    // `developerSettings` work elsewhere. Gate it on the same capability
+    // rather than admitting any non-disabled member.
     const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,

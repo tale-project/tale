@@ -1,19 +1,27 @@
 'use node';
 
 /**
- * Workflow file I/O actions.
+ * Workflow definition I/O actions.
  *
- * All workflow config reads/writes go through these actions.
- * Uses atomic writes (temp → fsync → rename) for data safety.
- * History snapshots use epoch-ms filenames with 100-entry retention.
+ * All workflow reads/writes go through these actions, and every one of them
+ * routes through `definition_store.ts`: a workflow lives ONLY inline in its
+ * automation's `automation.json` (`workflow` field; workflowSlug === automation
+ * slug). Writes rewrite the manifest atomically (temp → fsync → rename).
+ * History snapshots live in the automation's own dir
+ * (`automations/<slug>/.history/`, epoch-ms filenames, 100-entry retention).
  * Supports compare-and-swap via expectedHash to prevent lost updates.
+ *
+ * Install/uninstall/duplicate/rename verbs live on the AUTOMATION lifecycle
+ * (`automations/install_actions.ts`), not here — the standalone-workflow verbs
+ * this module once carried are gone with the standalone files themselves.
  */
 
-import { mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
+import { isValidAutomationSlug } from '../../lib/shared/schemas/automations';
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
@@ -22,21 +30,20 @@ import {
   type InstalledAutomationDisplay,
   readInstalledAutomationDisplays,
   readInstalledAutomationFolders,
+  resolveAutomationWorkflowHistoryDir,
 } from '../automations/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
-  errnoCode,
   generateHistoryTimestamp,
-  handleDirReadError,
   pruneHistory,
   readFileSafe,
   readdirSafe,
   safeJoinWithinDir,
   sha256,
-  verifyPathWithinBase,
 } from '../lib/file_io';
 import {
+  type InlineWorkflowOwner,
   readCurrentWorkflowContent,
   readWorkflowDefinition,
   resolveInlineWorkflowOwner,
@@ -46,12 +53,8 @@ import type { WorkflowReadResult } from './file_utils';
 import {
   MAX_HISTORY_ENTRIES,
   parseWorkflowJson,
-  resolveHistoryDir,
-  resolveWorkflowFilePath,
-  resolveWorkflowsDir,
   serializeWorkflowJson,
   validateWorkflowSlug,
-  workflowSlugFromRelativePath,
 } from './file_utils';
 import { reconcileSpecificationMeta } from './specification_fingerprint';
 
@@ -91,27 +94,26 @@ async function readWorkflowFile(
   orgSlug: string,
   workflowSlug: string,
 ): Promise<WorkflowReadResult> {
-  // Inline-first: an automation-owned workflow is served from its
-  // `automation.json` `workflow` field, a standalone one from its file — see
-  // `definition_store.ts`.
+  // Inline-only: served from the owning automation's `automation.json`
+  // `workflow` field — see `definition_store.ts`.
   return readWorkflowDefinition(orgSlug, workflowSlug);
 }
 
 /**
  * Best-effort "created at" for a workflow.
  *
- * Saves use atomic temp+rename, so the live file's birthtime resets on every
- * save. The oldest history snapshot's epoch-ms filename is the earliest
- * preserved revision, which is the closest signal to "first save". If no
- * history exists yet, the file itself is the original — fall back to its
- * birthtime (or mtime where birthtime is unavailable).
+ * Saves rewrite `automation.json` via atomic temp+rename, so the manifest's
+ * birthtime resets on every save. The oldest history snapshot's epoch-ms
+ * filename is the earliest preserved revision, which is the closest signal to
+ * "first save". If no history exists yet, the manifest install is the origin —
+ * fall back to its birthtime (or mtime where birthtime is unavailable).
  */
 async function resolveCreatedAtMs(
   orgSlug: string,
   workflowSlug: string,
-  filePath: string,
+  manifestPath: string,
 ): Promise<number | undefined> {
-  const historyDir = resolveHistoryDir(orgSlug, workflowSlug);
+  const historyDir = resolveAutomationWorkflowHistoryDir(orgSlug, workflowSlug);
   const entries = await readdir(historyDir).catch((err: unknown) => {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       return [] as string[];
@@ -129,7 +131,7 @@ async function resolveCreatedAtMs(
   if (earliest !== undefined) return earliest;
 
   try {
-    const s = await stat(filePath);
+    const s = await stat(manifestPath);
     const birth = s.birthtimeMs;
     return birth && birth > 0 ? birth : s.mtimeMs;
   } catch (err) {
@@ -142,15 +144,13 @@ async function resolveCreatedAtMs(
 
 /**
  * Best-effort list of integrations a workflow touches, used to render brand
- * icon chips on template cards. Reads `requires.integrations[].name` when
- * present, then falls back to integration-type step parameters and the slug
- * category prefix. Template placeholders like `{{integrationName}}` are
- * skipped — they don't pin to a specific brand.
+ * icon chips on its list card. Reads `requires.integrations[].name` when
+ * present, then falls back to integration-type step parameters. Template
+ * placeholders like `{{integrationName}}` are skipped — they don't pin to a
+ * specific brand. A workflow with no third-party integration surfaces the
+ * Tale brand so its card still shows an icon chip.
  */
-function extractWorkflowIntegrations(
-  slug: string,
-  config: WorkflowJsonConfig,
-): string[] {
+function extractWorkflowIntegrations(config: WorkflowJsonConfig): string[] {
   const found = new Set<string>();
 
   for (const dep of config.requires?.integrations ?? []) {
@@ -170,18 +170,38 @@ function extractWorkflowIntegrations(
     }
   }
 
-  if (found.size === 0) {
-    const category = slug.includes('/') ? slug.split('/')[0] : '';
-    if (category && category !== 'general') {
-      found.add(category);
-    } else {
-      // Inbuilt / general templates have no third-party integration — surface
-      // the Tale brand so the template card still shows an icon chip.
-      found.add('tale');
-    }
-  }
+  if (found.size === 0) found.add('tale');
 
   return [...found];
+}
+
+/**
+ * Enumerate the org's workflows: every INSTALLED automation whose org
+ * `automation.json` carries an inline `workflow` contributes exactly one
+ * (slug = automation slug). The shared core of `listWorkflows` and
+ * `listWorkflowsForAgent`. Only installed automations count: uploaded private
+ * bundles also live on disk before install (and stay after uninstall), so a
+ * disk scan would surface never-installed workflows (#2564 class). Automations
+ * with no inline workflow (bundles, view-only ones) — and unreadable
+ * manifests — are skipped.
+ */
+async function enumerateInstalledInlineWorkflows(
+  ctx: { runQuery: (ref: never, args: never) => Promise<unknown> },
+  organizationId: string,
+  orgSlug: string,
+): Promise<{ slug: string; owner: InlineWorkflowOwner }[]> {
+  const automationSlugs = (await ctx.runQuery(
+    internal.automations.install_mutations
+      .listAutomationInstallationsInternal as never,
+    { organizationId } as never,
+  )) as string[];
+  const entries = await Promise.all(
+    automationSlugs.map(async (slug) => {
+      const owner = await resolveInlineWorkflowOwner(orgSlug, slug);
+      return owner ? [{ slug, owner }] : [];
+    }),
+  );
+  return entries.flat();
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +226,10 @@ export const readWorkflow = action({
 export const listWorkflows = action({
   args: {
     organizationId: v.string(),
+    // Accepted for client compatibility and IGNORED: with inline-only
+    // workflows every listed entry belongs to an installed automation, so the
+    // listing is always the "installed" set and standalone templates no
+    // longer exist.
     filter: v.optional(
       v.union(v.literal('installed'), v.literal('templates'), v.literal('all')),
     ),
@@ -221,7 +245,6 @@ export const listWorkflows = action({
       ctx,
       args.organizationId,
     );
-    const filterMode = args.filter ?? 'all';
 
     const installedRaw: string[] = await ctx.runQuery(
       internal.workflows.installations.listInstalledSlugs,
@@ -229,63 +252,28 @@ export const listWorkflows = action({
     );
     const installedSlugs = new Set<string>(installedRaw);
 
-    // Relative paths of *.json workflow files under a base dir (recursive,
-    // skipping dotfiles + .history). ENOENT → []; other errors surface.
-    const listJsonRelPaths = async (baseDir: string): Promise<string[]> => {
-      try {
-        const raw = await readdir(baseDir, {
-          recursive: true,
-          withFileTypes: true,
-        });
-        return raw
-          .filter(
-            (e) =>
-              !e.isDirectory() &&
-              e.name.endsWith('.json') &&
-              !e.name.startsWith('.') &&
-              !(e.parentPath ?? '').includes('.history'),
-          )
-          .map((e) =>
-            path
-              .relative(baseDir, path.join(e.parentPath ?? '', e.name))
-              .replace(/\\/g, '/'),
-          );
-      } catch (err) {
-        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-          return [];
-        }
-        throw new Error(
-          `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
-        );
-      }
-    };
-
-    // Project one workflow file (by slug) to its list item, applying the filter.
-    // `automationSlug` set ⇒ app-owned: the global list groups + marks it (under the
-    // app's display `folder`) and — when `automationDisplay` resolved — carries the
-    // owning automation's self-translated `automationName`/`automationDescription`/
-    // `automationI18n`, so a binding picker can show the AUTOMATION's identity
-    // instead of the workflow's own slug-derived name; null ⇒ global/standalone.
+    // Project one inline workflow to its list item. Every entry is
+    // automation-owned: it carries the owning automation's slug, its display
+    // `folder`, and — when `automationDisplay` resolved — the automation's
+    // self-translated `automationName`/`automationDescription`/`automationI18n`,
+    // so a binding picker can show the AUTOMATION's identity instead of the
+    // workflow's own slug-derived one.
     const projectWorkflow = async (
       slug: string,
-      automationSlug?: string,
+      owner: InlineWorkflowOwner,
       folder?: string,
       automationDisplay?: InstalledAutomationDisplay,
     ) => {
       if (!validateWorkflowSlug(slug)) return null;
-      const ownerTag =
-        automationSlug !== undefined
-          ? {
-              automationSlug,
-              folder: folder ?? automationSlug,
-              ...(automationDisplay && {
-                automationName: automationDisplay.name,
-                automationDescription: automationDisplay.description,
-                automationI18n: automationDisplay.i18n,
-              }),
-            }
-          : {};
+      const ownerTag = {
+        automationSlug: slug,
+        folder: folder ?? slug,
+        ...(automationDisplay && {
+          automationName: automationDisplay.name,
+          automationDescription: automationDisplay.description,
+          automationI18n: automationDisplay.i18n,
+        }),
+      };
       const result = await readWorkflowFile(orgSlug, slug);
       if (!result.ok) {
         return {
@@ -295,18 +283,17 @@ export const listWorkflows = action({
           ...ownerTag,
         };
       }
-      const installed = installedSlugs.has(slug);
-      if (filterMode === 'installed' && !installed) return null;
-      if (filterMode === 'templates' && installed) return null;
-
-      const filePath = resolveWorkflowFilePath(orgSlug, slug);
-      const createdAtMs = await resolveCreatedAtMs(orgSlug, slug, filePath);
-      const integrations = extractWorkflowIntegrations(slug, result.config);
+      const createdAtMs = await resolveCreatedAtMs(
+        orgSlug,
+        slug,
+        owner.manifestPath,
+      );
+      const integrations = extractWorkflowIntegrations(result.config);
       return {
         slug,
         name: slug,
         description: specificationSummary(result.config),
-        installed,
+        installed: installedSlugs.has(slug),
         version: result.config.version,
         stepCount: result.config.steps.length,
         integrations,
@@ -316,67 +303,41 @@ export const listWorkflows = action({
       };
     };
 
-    // Global workflows (org/workflows/).
-    const globalDir = resolveWorkflowsDir(orgSlug);
-    const globalRel = await listJsonRelPaths(globalDir);
-    const globalResults = await Promise.all(
-      globalRel.map((rel) =>
-        projectWorkflow(workflowSlugFromRelativePath(rel)),
+    const inline = await enumerateInstalledInlineWorkflows(
+      ctx as never,
+      args.organizationId,
+      orgSlug,
+    );
+    const slugs = inline.map((e) => e.slug);
+    const appFolders = await readInstalledAutomationFolders(orgSlug, slugs);
+    const appDisplays = await readInstalledAutomationDisplays(orgSlug, slugs);
+
+    const results = await Promise.all(
+      inline.map(({ slug, owner }) =>
+        projectWorkflow(
+          slug,
+          owner,
+          appFolders.get(slug),
+          appDisplays.get(slug),
+        ),
       ),
     );
 
-    // Automation-owned workflows — inline in each automation's `automation.json`
-    // `workflow` field, invisible to the global scan above. A non-bundle
-    // automation owns AT MOST ONE, its slug IS the automation slug; surface it
-    // (tagged with the owning automation + its display folder, manifest
-    // `folder` falling back to the slug, plus its self-translated display text)
-    // so the global workflows list groups + marks it. Automations with no inline
-    // workflow (bundles, view-only ones) are skipped.
-    // Only INSTALLED automations contribute workflows: uploaded private
-    // bundles also live on disk before install (and stay after uninstall), so
-    // a disk scan would surface never-installed workflows (#2564 class).
-    const automationSlugs: string[] = await ctx.runQuery(
-      internal.automations.install_mutations
-        .listAutomationInstallationsInternal,
-      { organizationId: args.organizationId },
-    );
-    const appFolders = await readInstalledAutomationFolders(
-      orgSlug,
-      automationSlugs,
-    );
-    const appDisplays = await readInstalledAutomationDisplays(
-      orgSlug,
-      automationSlugs,
-    );
-    const appResults = (
-      await Promise.all(
-        automationSlugs.map(async (app) => {
-          const owner = await resolveInlineWorkflowOwner(orgSlug, app);
-          if (!owner) return [];
-          const projected = await projectWorkflow(
-            app,
-            app,
-            appFolders.get(app),
-            appDisplays.get(app),
-          );
-          return projected ? [projected] : [];
-        }),
-      )
-    ).flat();
-
-    return [...globalResults, ...appResults].filter(Boolean);
+    return results.filter(Boolean);
   },
 });
 
 /**
  * Save a workflow with an atomic snapshot-then-write operation.
  *
- * `isNew` makes this a create: it refuses to clobber an existing slug and
- * throws `DUPLICATE_NAME` instead — mirroring `agents/file_actions.ts::saveAgent`
- * so creating a workflow whose name collides is rejected rather than silently
- * overwriting the existing one. Edits (the default) overwrite in place after
- * snapshotting the prior revision to history. Optionally performs
- * compare-and-swap via `expectedHash`.
+ * The write lands in the owning automation's `automation.json` `workflow`
+ * field; a slug with no inline owner is refused (a workflow is created by
+ * creating an automation, never by saving to a bare slug). `isNew` keeps the
+ * create-collision contract for API compatibility: it refuses to clobber an
+ * existing slug and throws `DUPLICATE_NAME` instead. Edits (the default)
+ * overwrite in place after snapshotting the prior revision to
+ * `automations/<slug>/.history/`. Optionally performs compare-and-swap via
+ * `expectedHash`.
  */
 export const saveWorkflowWithSnapshot = action({
   args: {
@@ -400,16 +361,16 @@ export const saveWorkflowWithSnapshot = action({
     const parsed = workflowJsonSchema.parse(args.config);
 
     // The "current" content and the destination both route through
-    // `definition_store` — an automation-owned workflow reads/writes its
-    // `automation.json` `workflow` field, a standalone one its file.
+    // `definition_store` — the owning automation's `automation.json`
+    // `workflow` field.
     const currentContent = await readCurrentWorkflowContent(
       orgSlug,
       args.workflowSlug,
     );
 
     // A create must not overwrite an existing workflow. `isNew` and
-    // `expectedHash` are mutually exclusive intents (create vs. compare-and-swap
-    // an existing file), so check it first.
+    // `expectedHash` are mutually exclusive intents (create vs.
+    // compare-and-swap an existing definition), so check it first.
     if (args.isNew && currentContent) {
       throw new ConvexError({
         code: 'DUPLICATE_NAME',
@@ -437,7 +398,10 @@ export const saveWorkflowWithSnapshot = action({
     const newContent = serializeWorkflowJson(config);
 
     if (currentContent) {
-      const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+      const historyDir = resolveAutomationWorkflowHistoryDir(
+        orgSlug,
+        args.workflowSlug,
+      );
       await mkdir(historyDir, { recursive: true });
       const timestamp = generateHistoryTimestamp();
       await atomicWrite(
@@ -452,404 +416,6 @@ export const saveWorkflowWithSnapshot = action({
     });
 
     return { hash: sha256(newContent) };
-  },
-});
-
-export const deleteWorkflow = action({
-  args: {
-    organizationId: v.string(),
-    workflowSlug: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-
-    if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
-    }
-
-    // App-owned workflows are not individually deletable from the global surface
-    // — removing one would orphan its app. Deletion happens only via app
-    // uninstall (which deregisters + removes the bundle). Ownership is the
-    // recorded `automationSlug` on the install row.
-    const installation = await ctx.runQuery(
-      internal.workflows.installations.getInstallationInternal,
-      {
-        organizationId: args.organizationId,
-        workflowSlug: args.workflowSlug,
-      },
-    );
-    if (installation?.automationSlug) {
-      throw new ConvexError({
-        code: 'app_owned',
-        message: `Workflow "${args.workflowSlug}" belongs to app "${installation.automationSlug}". Uninstall the app to remove it.`,
-      });
-    }
-
-    const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
-
-    await unlink(filePath).catch((err) => {
-      if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
-        throw err;
-      }
-    });
-    await rm(historyDir, { recursive: true, force: true });
-
-    await ctx.runMutation(internal.workflows.installations.deleteInstallation, {
-      organizationId: args.organizationId,
-      workflowSlug: args.workflowSlug,
-    });
-
-    // Drop the workflow's env/secrets (all scopes) so they never outlive the
-    // file — deployment-local config, not part of the workflow definition.
-    await ctx.runMutation(
-      internal.workflows.workflow_env.deleteWorkflowEnvInternal,
-      {
-        organizationId: args.organizationId,
-        workflowSlug: args.workflowSlug,
-      },
-    );
-
-    return null;
-  },
-});
-
-export const installWorkflow = action({
-  args: {
-    organizationId: v.string(),
-    workflowSlug: v.string(),
-  },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
-    const { orgSlug, userId, email } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-
-    if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
-    }
-
-    const result = await readWorkflowFile(orgSlug, args.workflowSlug);
-    if (!result.ok) {
-      throw new Error(`Cannot install workflow: ${result.message}`);
-    }
-
-    await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
-      organizationId: args.organizationId,
-      workflowSlug: args.workflowSlug,
-      installedBy: email !== '' ? email : userId,
-      contentHash: result.hash,
-    });
-
-    await ctx.runMutation(
-      internal.workflows.provision_defaults_mutations
-        .provisionDeclaredWorkflowTriggers,
-      {
-        organizationId: args.organizationId,
-        workflowSlug: args.workflowSlug,
-        events: result.config.triggers?.events,
-        schedules: result.config.triggers?.schedules,
-        activate: true,
-      },
-    );
-
-    return { hash: result.hash };
-  },
-});
-
-/**
- * Bulk-install every available (uninstalled) workflow template in one call —
- * the "install all" entry. Optionally scoped to a `folder` (a top-level subdir
- * of the org's workflows tree, e.g. `issue-desk`), so a pack's workflows can be
- * installed as a group. Idempotent: already-installed slugs are skipped, and a
- * single malformed file is reported (not fatal) so one bad template can't block
- * the rest. Reuses the same recursive scan + slug derivation as listWorkflows.
- */
-export const installAllWorkflows = action({
-  args: {
-    organizationId: v.string(),
-    // Restrict to slugs equal to / under this top-level folder (no slash).
-    folder: v.optional(v.string()),
-  },
-  returns: v.object({
-    installed: v.array(v.string()),
-    alreadyInstalled: v.array(v.string()),
-    failed: v.array(v.object({ slug: v.string(), message: v.string() })),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    installed: string[];
-    alreadyInstalled: string[];
-    failed: { slug: string; message: string }[];
-  }> => {
-    const { orgSlug, userId, email } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-    const installedBy = email !== '' ? email : userId;
-
-    if (args.folder !== undefined && !validateWorkflowSlug(args.folder)) {
-      throw new Error(`Invalid folder: ${args.folder}`);
-    }
-    const inFolder = (slug: string): boolean =>
-      args.folder === undefined ||
-      slug === args.folder ||
-      slug.startsWith(`${args.folder}/`);
-
-    const dir = resolveWorkflowsDir(orgSlug);
-    let entries: { name: string; parentPath: string; isDirectory: boolean }[];
-    try {
-      const raw = await readdir(dir, { recursive: true, withFileTypes: true });
-      entries = raw.map((e) => ({
-        name: e.name,
-        parentPath: e.parentPath ?? '',
-        isDirectory: e.isDirectory(),
-      }));
-    } catch (err) {
-      if (errnoCode(err) === 'ENOENT') {
-        return { installed: [], alreadyInstalled: [], failed: [] };
-      }
-      throw new Error(
-        `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
-      );
-    }
-
-    const jsonFiles = entries.filter(
-      (e) =>
-        !e.isDirectory &&
-        e.name.endsWith('.json') &&
-        !e.name.startsWith('.') &&
-        !e.parentPath.includes('.history'),
-    );
-
-    const installedRaw: string[] = await ctx.runQuery(
-      internal.workflows.installations.listInstalledSlugs,
-      { organizationId: args.organizationId },
-    );
-    const installedSlugs = new Set<string>(installedRaw);
-
-    const installed: string[] = [];
-    const alreadyInstalled: string[] = [];
-    const failed: { slug: string; message: string }[] = [];
-
-    for (const entry of jsonFiles) {
-      const relativePath = path
-        .relative(dir, path.join(entry.parentPath, entry.name))
-        .replace(/\\/g, '/');
-      const slug = workflowSlugFromRelativePath(relativePath);
-      if (!validateWorkflowSlug(slug) || !inFolder(slug)) continue;
-      if (installedSlugs.has(slug)) {
-        alreadyInstalled.push(slug);
-        continue;
-      }
-      const result = await readWorkflowFile(orgSlug, slug);
-      if (!result.ok) {
-        failed.push({ slug, message: result.message });
-        continue;
-      }
-      await ctx.runMutation(
-        internal.workflows.installations.upsertInstallation,
-        {
-          organizationId: args.organizationId,
-          workflowSlug: slug,
-          installedBy,
-          contentHash: result.hash,
-        },
-      );
-      await ctx.runMutation(
-        internal.workflows.provision_defaults_mutations
-          .provisionDeclaredWorkflowTriggers,
-        {
-          organizationId: args.organizationId,
-          workflowSlug: slug,
-          events: result.config.triggers?.events,
-          schedules: result.config.triggers?.schedules,
-          activate: true,
-        },
-      );
-      installed.push(slug);
-    }
-
-    return { installed, alreadyInstalled, failed };
-  },
-});
-
-export const uninstallWorkflow = action({
-  args: {
-    organizationId: v.string(),
-    workflowSlug: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    await requireOrgMembershipById(ctx, args.organizationId);
-
-    if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
-    }
-
-    await ctx.runMutation(internal.workflows.installations.deleteInstallation, {
-      organizationId: args.organizationId,
-      workflowSlug: args.workflowSlug,
-    });
-
-    return null;
-  },
-});
-
-export const duplicateWorkflow = action({
-  args: {
-    organizationId: v.string(),
-    workflowSlug: v.string(),
-  },
-  returns: v.object({ newSlug: v.string() }),
-  handler: async (ctx, args): Promise<{ newSlug: string }> => {
-    const { orgSlug, userId, email } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-
-    const source = await readWorkflowFile(orgSlug, args.workflowSlug);
-    if (!source.ok) {
-      throw new Error(`Cannot duplicate: ${source.message}`);
-    }
-
-    const parts = args.workflowSlug.split('/');
-    const baseName = parts.pop() ?? args.workflowSlug;
-    const folderPrefix = parts.length > 0 ? parts.join('/') + '/' : '';
-
-    const dir = resolveWorkflowsDir(orgSlug);
-    const targetDir = folderPrefix.length > 0 ? path.join(dir, ...parts) : dir;
-    const existingFiles = await readdirSafe(targetDir);
-    const existingNames = new Set(
-      existingFiles
-        .filter((e) => e.endsWith('.json'))
-        .map((e) => e.replace(/\.json$/, '')),
-    );
-
-    let newBaseName = `${baseName}-copy`;
-    let counter = 2;
-    while (existingNames.has(newBaseName)) {
-      newBaseName = `${baseName}-copy-${counter}`;
-      counter++;
-    }
-
-    const newSlug = `${folderPrefix}${newBaseName}`;
-    // The copy's identity is its new slug — a workflow carries no name.
-    const newConfig: WorkflowJsonConfig = { ...source.config };
-
-    const content = serializeWorkflowJson(newConfig);
-    const filePath = resolveWorkflowFilePath(orgSlug, newSlug);
-    await atomicWrite(filePath, content);
-
-    await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
-      organizationId: args.organizationId,
-      workflowSlug: newSlug,
-      installedBy: email !== '' ? email : userId,
-      contentHash: sha256(content),
-    });
-
-    return { newSlug };
-  },
-});
-
-export const renameWorkflow = action({
-  args: {
-    organizationId: v.string(),
-    oldSlug: v.string(),
-    newSlug: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-
-    if (!validateWorkflowSlug(args.oldSlug)) {
-      throw new Error(`Invalid old slug: ${args.oldSlug}`);
-    }
-    if (!validateWorkflowSlug(args.newSlug)) {
-      throw new Error(`Invalid new slug: ${args.newSlug}`);
-    }
-
-    const oldPath = resolveWorkflowFilePath(orgSlug, args.oldSlug);
-    const newPath = resolveWorkflowFilePath(orgSlug, args.newSlug);
-    const baseDir = resolveWorkflowsDir(orgSlug);
-
-    await verifyPathWithinBase(oldPath, baseDir);
-    await verifyPathWithinBase(newPath, baseDir);
-
-    const content = await readFileSafe(oldPath);
-    if (!content) throw new Error('Workflow not found');
-    parseWorkflowJson(content);
-
-    // Refuse to clobber an existing target. `atomicWrite` resolves to a
-    // rename-from-temp under the hood, which silently overwrites — without
-    // this guard, two concurrent renames or a typo could destroy the target
-    // workflow's content with no way to recover.
-    const targetExists = await stat(newPath).then(
-      () => true,
-      (err) => {
-        if (errnoCode(err) === 'ENOENT') return false;
-        throw err;
-      },
-    );
-    if (targetExists) {
-      throw new ConvexError({
-        code: 'DUPLICATE_NAME',
-        message: `Target workflow already exists: ${args.newSlug}`,
-      });
-    }
-
-    await mkdir(path.dirname(newPath), { recursive: true });
-    await atomicWrite(newPath, content);
-    await unlink(oldPath);
-
-    const oldHistoryDir = resolveHistoryDir(orgSlug, args.oldSlug);
-    const newHistoryDir = resolveHistoryDir(orgSlug, args.newSlug);
-    try {
-      await mkdir(path.dirname(newHistoryDir), { recursive: true });
-      const { rename: fsRename } = await import('node:fs/promises');
-      await fsRename(oldHistoryDir, newHistoryDir);
-    } catch (err) {
-      console.warn('[renameWorkflow] history move failed', err);
-    }
-
-    const existingInstallation = await ctx.runQuery(
-      internal.workflows.installations.getInstallationInternal,
-      {
-        organizationId: args.organizationId,
-        workflowSlug: args.oldSlug,
-      },
-    );
-    if (existingInstallation) {
-      await ctx.runMutation(
-        internal.workflows.installations.deleteInstallation,
-        {
-          organizationId: args.organizationId,
-          workflowSlug: args.oldSlug,
-        },
-      );
-      await ctx.runMutation(
-        internal.workflows.installations.upsertInstallation,
-        {
-          organizationId: args.organizationId,
-          workflowSlug: args.newSlug,
-          installedBy: existingInstallation.installedBy,
-          contentHash: existingInstallation.contentHash,
-        },
-      );
-    }
-
-    return null;
   },
 });
 
@@ -868,8 +434,14 @@ export const listHistory = action({
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
+    // History lives in the owning automation's dir; a slug that can't name an
+    // automation (e.g. a historical foldered one) simply has none.
+    if (!isValidAutomationSlug(args.workflowSlug)) return [];
 
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+    const historyDir = resolveAutomationWorkflowHistoryDir(
+      orgSlug,
+      args.workflowSlug,
+    );
     const entries = await readdirSafe(historyDir);
 
     return entries
@@ -905,8 +477,18 @@ export const readHistoryEntry = action({
     if (!validateHistoryTimestamp(args.timestamp)) {
       throw new Error(`Invalid history timestamp: ${args.timestamp}`);
     }
+    // See `listHistory`: no automation, no history.
+    if (!isValidAutomationSlug(args.workflowSlug)) {
+      return {
+        ok: false,
+        message: `History entry not found: ${args.timestamp}`,
+      };
+    }
 
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+    const historyDir = resolveAutomationWorkflowHistoryDir(
+      orgSlug,
+      args.workflowSlug,
+    );
     const filePath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
 
     const content = await readFileSafe(filePath);
@@ -946,23 +528,30 @@ export const restoreFromHistory = action({
     if (!validateHistoryTimestamp(args.timestamp)) {
       throw new Error(`Invalid history timestamp: ${args.timestamp}`);
     }
+    // See `listHistory`: no automation, no history.
+    if (!isValidAutomationSlug(args.workflowSlug)) {
+      throw new Error('History entry not found');
+    }
 
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+    const historyDir = resolveAutomationWorkflowHistoryDir(
+      orgSlug,
+      args.workflowSlug,
+    );
     const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');
     const restored = parseWorkflowJson(historyContent);
 
-    // Snapshot current state before overwriting (inline or file, via the store).
+    // Snapshot current state before overwriting (read through the store).
     const currentContent = await readCurrentWorkflowContent(
       orgSlug,
       args.workflowSlug,
     );
 
-    // Write the restored version to its home (automation.json field or file).
-    // `trustPair`: a history revision is a once-consistent spec/graph pair
-    // restored wholesale — never re-stamp it against the pre-restore state.
+    // Write the restored version into the automation manifest. `trustPair`: a
+    // history revision is a once-consistent spec/graph pair restored wholesale
+    // — never re-stamp it against the pre-restore state.
     await writeWorkflowDefinition(orgSlug, args.workflowSlug, restored, {
       trustPair: true,
     });
@@ -1011,7 +600,10 @@ export const saveWorkflowForExecution = internalAction({
     const newContent = serializeWorkflowJson(config);
 
     if (currentContent) {
-      const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+      const historyDir = resolveAutomationWorkflowHistoryDir(
+        args.orgSlug,
+        args.workflowSlug,
+      );
       await mkdir(historyDir, { recursive: true });
       const timestamp = generateHistoryTimestamp();
       await atomicWrite(
@@ -1021,8 +613,8 @@ export const saveWorkflowForExecution = internalAction({
       await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
     }
 
-    // Inline-owned → its `automation.json` `workflow` field; standalone → its
-    // file (created, parent dirs and all, by `writeWorkflowDefinition`).
+    // Lands in the owning automation's `automation.json` `workflow` field;
+    // refused (clear error) when no automation owns the slug.
     await writeWorkflowDefinition(args.orgSlug, args.workflowSlug, config, {
       trustPair: true,
     });
@@ -1050,53 +642,18 @@ export const listWorkflowsForAgent = internalAction({
   returns: v.any(),
   // oxlint-disable-next-line typescript/no-explicit-any -- v.any() at API boundary
   handler: async (ctx, args): Promise<any[]> => {
-    const dir = resolveWorkflowsDir(args.orgSlug);
-    let raw;
-    try {
-      raw = await readdir(dir, { recursive: true, withFileTypes: true });
-    } catch (err) {
-      handleDirReadError(err, 'workflows.listWorkflowsForAgent');
-      return [];
-    }
-
-    const jsonFiles = raw.filter(
-      (e) =>
-        !e.isDirectory() &&
-        e.name.endsWith('.json') &&
-        !e.name.startsWith('.') &&
-        !(e.parentPath ?? '').includes('.history'),
+    // Same enumeration as `listWorkflows` (installed automations' inline
+    // workflows), projected to the compact summary the agent tools read.
+    const inline = await enumerateInstalledInlineWorkflows(
+      ctx as never,
+      args.organizationId,
+      args.orgSlug,
     );
-
-    const installedRaw: string[] = await ctx.runQuery(
-      internal.workflows.installations.listInstalledSlugs,
-      { organizationId: args.organizationId },
-    );
-    const installedSlugs = new Set<string>(installedRaw);
-
-    const results = await Promise.all(
-      jsonFiles.map(async (entry) => {
-        const parentPath = entry.parentPath ?? '';
-        const relativePath = path
-          .relative(dir, path.join(parentPath, entry.name))
-          .replace(/\\/g, '/');
-        const slug = workflowSlugFromRelativePath(relativePath);
-
-        if (!validateWorkflowSlug(slug)) return null;
-        if (!installedSlugs.has(slug)) return null;
-
-        const result = await readWorkflowFile(args.orgSlug, slug);
-        if (result.ok) {
-          return {
-            slug,
-            name: slug,
-            description: specificationSummary(result.config),
-            stepCount: result.config.steps.length,
-          };
-        }
-        return null;
-      }),
-    );
-
-    return results.filter(Boolean);
+    return inline.map(({ slug, owner }) => ({
+      slug,
+      name: slug,
+      description: specificationSummary(owner.workflow),
+      stepCount: owner.workflow.steps.length,
+    }));
   },
 });

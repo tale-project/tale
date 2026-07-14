@@ -1,24 +1,20 @@
 'use node';
 
 /**
- * Canonical store for a workflow definition — INLINE-FIRST.
+ * Canonical store for a workflow definition — INLINE-ONLY.
  *
- * A non-bundle automation owns its single workflow INLINE in its
- * `automation.json` under `workflow` (see `lib/shared/schemas/automations.ts`);
- * every standalone/global workflow lives in an `org/workflows/*.json` file.
- * These helpers are the ONE seam that knows which home a `workflowSlug` has, so
- * every READ (`readWorkflowFile`/`readWorkflowForExecution`, the editor, the
- * run/spec tools, the engine) and every WRITE (the two save actions, restore)
- * serves/persists the right one without caring.
- *
- * Identity: a `workflowSlug` is inline-owned iff it is a valid automation slug
- * (a single kebab segment — never `a/b`) whose org `automation.json` carries an
- * inline `workflow`. Otherwise it is a file. The automation slug and its inline
- * workflow's slug are the SAME string (the workflow for automation
- * `create-github-pr` has slug `create-github-pr`).
+ * A workflow has exactly ONE home: the `workflow` field of an automation's
+ * org `automation.json` (see `lib/shared/schemas/automations.ts`). A
+ * `workflowSlug` IS an automation slug — the workflow for automation
+ * `create-github-pr` has slug `create-github-pr` — so these helpers are the
+ * ONE seam that maps a workflowSlug to its owning manifest, and every READ
+ * (`readWorkflowFile`/`readWorkflowForExecution`, the editor, the run/spec
+ * tools, the engine) and every WRITE (the two save actions, restore)
+ * serves/persists the manifest's inline copy. There is no standalone-file
+ * fallback: a slug that is not an installed automation with an inline
+ * `workflow` reads as `not_found` and refuses writes.
  */
-import { mkdir, readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 import {
   automationManifestSchema,
@@ -26,20 +22,9 @@ import {
 } from '../../lib/shared/schemas/automations';
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { resolveAutomationManifestPath } from '../automations/file_utils';
-import {
-  atomicWrite,
-  readFileSafe,
-  readJsonFile,
-  serializeJson,
-  sha256,
-} from '../lib/file_io';
-import {
-  MAX_FILE_SIZE_BYTES,
-  parseWorkflowJson,
-  resolveWorkflowFilePath,
-  serializeWorkflowJson,
-  type WorkflowReadResult,
-} from './file_utils';
+import { atomicWrite, serializeJson, sha256 } from '../lib/file_io';
+import { serializeWorkflowJson } from './file_utils';
+import type { WorkflowReadResult } from './file_utils';
 import {
   computeSpecSyncStatus,
   reconcileSpecificationMeta,
@@ -58,17 +43,18 @@ export interface InlineWorkflowOwner {
 /**
  * If `workflowSlug` names an automation whose org `automation.json` carries an
  * inline `workflow`, return the manifest handle + parsed workflow; else `null`
- * (the slug is a standalone/global workflow FILE). Tolerant by design: a
- * missing/unparsable manifest, or one with no inline workflow, yields `null` so
- * the caller falls back to the file path.
+ * (the slug has no workflow — reads report `not_found`, writes refuse).
+ * Tolerant by design: a missing/unparsable manifest, or one with no inline
+ * workflow, yields `null` rather than throwing, so a read stays a clean
+ * not-found even on a corrupt org tree.
  */
 export async function resolveInlineWorkflowOwner(
   orgSlug: string,
   workflowSlug: string,
 ): Promise<InlineWorkflowOwner | null> {
-  // A composite/foldered slug (`a/b`) or an invalid one is never inline-owned —
-  // guarding here also keeps `resolveAutomationManifestPath` from throwing on a
-  // slug it would reject.
+  // A composite/foldered slug (`a/b`) or an invalid one can never name an
+  // automation — guarding here also keeps `resolveAutomationManifestPath`
+  // from throwing on a slug it would reject.
   if (!isValidAutomationSlug(workflowSlug)) return null;
   let content: string;
   let manifestPath: string;
@@ -100,45 +86,37 @@ export async function resolveInlineWorkflowOwner(
 }
 
 /**
- * Read a workflow definition inline-first, falling back to the standalone file.
- * The single READ seam behind `readWorkflowFile`/`readWorkflowForExecution`.
- * The returned `hash` is over the CANONICAL serialization for both homes (so
- * compare-and-swap stays stable across edits regardless of where it lives).
+ * Read a workflow definition from its owning automation manifest. The single
+ * READ seam behind `readWorkflowFile`/`readWorkflowForExecution`. The
+ * returned `hash` is over the CANONICAL serialization (so compare-and-swap
+ * stays stable across manifest rewrites). A slug with no inline owner returns
+ * the same `not_found` shape a missing file used to, so callers/UI keep their
+ * existing error handling.
  */
 export async function readWorkflowDefinition(
   orgSlug: string,
   workflowSlug: string,
 ): Promise<WorkflowReadResult> {
   const inline = await resolveInlineWorkflowOwner(orgSlug, workflowSlug);
-  if (inline) {
-    const serialized = serializeWorkflowJson(inline.workflow);
+  if (!inline) {
     return {
-      ok: true,
-      config: inline.workflow,
-      hash: sha256(serialized),
-      specSyncStatus: computeSpecSyncStatus(inline.workflow),
+      ok: false,
+      error: 'not_found',
+      message: `Workflow not found: no installed automation "${workflowSlug}" carries an inline workflow`,
     };
   }
-  const filePath = resolveWorkflowFilePath(orgSlug, workflowSlug);
-  const result = await readJsonFile<WorkflowJsonConfig>(
-    filePath,
-    MAX_FILE_SIZE_BYTES,
-    parseWorkflowJson,
-  );
-  if (result.ok) {
-    return {
-      ok: true,
-      config: result.data,
-      hash: result.hash,
-      specSyncStatus: computeSpecSyncStatus(result.data),
-    };
-  }
-  return result;
+  const serialized = serializeWorkflowJson(inline.workflow);
+  return {
+    ok: true,
+    config: inline.workflow,
+    hash: sha256(serialized),
+    specSyncStatus: computeSpecSyncStatus(inline.workflow),
+  };
 }
 
 /**
- * The current serialized workflow content for `workflowSlug` (inline or file),
- * or `null` when it has no definition yet. Used by the save actions for
+ * The current serialized workflow content for `workflowSlug`, or `null` when
+ * no automation manifest carries it. Used by the save actions for
  * compare-and-swap (`expectedHash`) and the history snapshot — the counterpart
  * to {@link writeWorkflowDefinition} so both agree on what "current" is.
  */
@@ -147,19 +125,21 @@ export async function readCurrentWorkflowContent(
   workflowSlug: string,
 ): Promise<string | null> {
   const inline = await resolveInlineWorkflowOwner(orgSlug, workflowSlug);
-  if (inline) return serializeWorkflowJson(inline.workflow);
-  return readFileSafe(resolveWorkflowFilePath(orgSlug, workflowSlug));
+  return inline ? serializeWorkflowJson(inline.workflow) : null;
 }
 
 /**
- * Persist `config` to its home: the automation's inline `workflow` field when
- * `workflowSlug` is inline-owned (an atomic rewrite of `automation.json` that
- * preserves every OTHER manifest field), else the standalone workflow FILE.
- * The single WRITE seam behind the save/restore actions — which is why it also
- * reconciles `specificationMeta` against the stored state
+ * Persist `config` into its owning automation's `workflow` field — an atomic
+ * rewrite of `automation.json` that preserves every OTHER manifest field
+ * verbatim. The single WRITE seam behind the save/restore actions — which is
+ * why it also reconciles `specificationMeta` against the stored state
  * (`reconcileSpecificationMeta`): no write path can silently un-stale an
  * authored spec/graph pair. `trustPair` skips that (a history restore is a
  * once-consistent pair restored wholesale).
+ *
+ * Throws when `workflowSlug` has no inline owner: a workflow can only be
+ * created by creating an automation (the agent tool / the catalog), never by
+ * writing a definition to a bare slug.
  */
 export async function writeWorkflowDefinition(
   orgSlug: string,
@@ -168,28 +148,14 @@ export async function writeWorkflowDefinition(
   options?: { trustPair?: boolean },
 ): Promise<void> {
   const inline = await resolveInlineWorkflowOwner(orgSlug, workflowSlug);
-  if (inline) {
-    const next = options?.trustPair
-      ? config
-      : reconcileSpecificationMeta(inline.workflow, config, Date.now());
-    const nextManifest = { ...inline.rawManifest, workflow: next };
-    await atomicWrite(inline.manifestPath, serializeJson(nextManifest));
-    return;
-  }
-  const filePath = resolveWorkflowFilePath(orgSlug, workflowSlug);
-  let next = config;
-  if (!options?.trustPair) {
-    const current = await readJsonFile<WorkflowJsonConfig>(
-      filePath,
-      MAX_FILE_SIZE_BYTES,
-      parseWorkflowJson,
-    );
-    next = reconcileSpecificationMeta(
-      current.ok ? current.data : undefined,
-      config,
-      Date.now(),
+  if (!inline) {
+    throw new Error(
+      `Cannot save workflow "${workflowSlug}": no installed automation of that slug carries an inline workflow. Create an automation to create its workflow.`,
     );
   }
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await atomicWrite(filePath, serializeWorkflowJson(next));
+  const next = options?.trustPair
+    ? config
+    : reconcileSpecificationMeta(inline.workflow, config, Date.now());
+  const nextManifest = { ...inline.rawManifest, workflow: next };
+  await atomicWrite(inline.manifestPath, serializeJson(nextManifest));
 }

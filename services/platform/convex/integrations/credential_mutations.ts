@@ -25,25 +25,9 @@ import {
 } from './validators';
 
 /**
- * Connecting an integration installs its bundled agents + workflows. Scheduled
- * (not awaited) because the provisioner is a `'use node'` action a V8 mutation
- * cannot call directly.
- */
-function scheduleBundleProvision(
-  ctx: MutationCtx,
-  organizationId: string,
-  slug: string,
-): Promise<unknown> {
-  return ctx.scheduler.runAfter(
-    0,
-    internal.integrations.bundle_provision.provisionIntegrationBundle,
-    { organizationId, slug },
-  );
-}
-
-/**
- * Disconnecting an integration cascade-disables its bundled + hard-requiring
- * agents and deactivates its bundled workflows' triggers.
+ * Disconnecting an integration cascade-disables agents that hard-require it.
+ * Scheduled (not awaited) because the cascade coordinator is a `'use node'`
+ * action a V8 mutation cannot call directly.
  */
 function scheduleCascadeDisable(
   ctx: MutationCtx,
@@ -91,11 +75,6 @@ export const createCredentials = internalMutation({
     }
 
     const id = await ctx.db.insert('integrationCredentials', args);
-    // A credential created already-active connects the integration: install its
-    // bundled agents + workflows.
-    if (args.status === 'active' && args.isActive) {
-      await scheduleBundleProvision(ctx, args.organizationId, args.slug);
-    }
     return id;
   },
 });
@@ -137,8 +116,8 @@ export const updateCredentials = mutation({
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
-    // Connecting/disconnecting an integration installs or cascade-disables its
-    // bundled agents/workflows and writes its stored credentials — the same
+    // Disconnecting an integration cascade-disables agents that hard-require
+    // it, and this mutation writes its stored credentials — the same
     // capability-bearing surface the providers/skills paths gate on. A plain
     // `member` is hidden from the integrations UI by
     // `cannot('read','developerSettings')` but could previously call this
@@ -157,16 +136,13 @@ export const updateCredentials = mutation({
     if (clearSmtpAuth) cleanUpdates.smtpAuth = undefined;
     await ctx.db.patch(credentialId, cleanUpdates);
 
-    // Cascade on connect/disconnect transitions: connecting installs the
-    // integration's bundled agents/workflows; disconnecting disables them (and
-    // any agents that hard-require this integration).
+    // Cascade on the disconnect transition: disable any agents that
+    // hard-require this integration.
     const wasActive = cred.isActive && cred.status === 'active';
     const nowActive =
       (updates.isActive ?? cred.isActive) &&
       (updates.status ?? cred.status) === 'active';
-    if (nowActive && !wasActive) {
-      await scheduleBundleProvision(ctx, cred.organizationId, cred.slug);
-    } else if (!nowActive && wasActive) {
+    if (!nowActive && wasActive) {
       await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
     }
 
@@ -226,7 +202,7 @@ export const deleteCredentials = mutation({
     if (!cred) throw new Error('Credential record not found');
 
     // Deleting a credential disconnects the integration and cascade-disables
-    // its bundled + hard-requiring agents — strictly destructive. Gate on the
+    // its hard-requiring agents — strictly destructive. Gate on the
     // `developerSettings` capability, matching the providers/skills pattern,
     // rather than admitting any non-disabled member.
     const { member } = await requireOrgAdminOrDeveloper(
@@ -244,8 +220,7 @@ export const deleteCredentials = mutation({
 
     await ctx.db.delete(args.credentialId);
 
-    // Disconnecting the integration: cascade-disable its bundled + requiring
-    // agents and deactivate its bundled workflows' triggers.
+    // Disconnecting the integration: cascade-disable its hard-requiring agents.
     await scheduleCascadeDisable(ctx, cred.organizationId, cred.slug);
 
     await AuditLogHelpers.logSuccess(ctx, {

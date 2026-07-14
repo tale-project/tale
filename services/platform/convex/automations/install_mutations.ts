@@ -32,6 +32,9 @@ export const upsertAutomationInstallation = internalMutation({
     status: statusValidator,
     resources: v.array(resourceValidator),
     requiredIntegrations: v.array(v.string()),
+    /** Override for versioned migrations, which must stamp a DETERMINISTIC
+     *  moment so the chain's re-up convergence holds; absent ⇒ now. */
+    installedAt: v.optional(v.number()),
   },
   returns: v.id('automationInstallations'),
   handler: async (ctx, args) => {
@@ -45,7 +48,7 @@ export const upsertAutomationInstallation = internalMutation({
       .first();
     const fields = {
       automationName: args.automationName,
-      installedAt: Date.now(),
+      installedAt: args.installedAt ?? Date.now(),
       installedBy: args.installedBy,
       status: args.status,
       resources: args.resources,

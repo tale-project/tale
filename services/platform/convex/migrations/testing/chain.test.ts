@@ -201,13 +201,22 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
     ),
   ).toBe(true);
 
-  // 0.3.4/06 removed the retired workflow file and kept the survivor.
+  // 0.3.4/06 removed the retired workflow file; the survivor then LEFT the
+  // workflows tree with the 0.3.4/33-43 cutover — at the frontier its
+  // definition lives inline in the seeded automation and the whole
+  // `workflows/` dir is gone (0.3.4/35).
   expect(
     await exists(path.join(root, alpha, WORLD_RETIRED_WORKFLOW_FILE)),
   ).toBe(false);
   expect(
     await exists(path.join(root, alpha, WORLD_SURVIVOR_WORKFLOW_FILE)),
-  ).toBe(true);
+  ).toBe(false);
+  expect(await exists(path.join(root, alpha, 'workflows'))).toBe(false);
+  // The survivor's automation manifest is NOT asserted here: the chain world
+  // deliberately runs without TALE_CONFIG_BUILTIN_DIR, so 0.3.4/33's catalog
+  // seed is a logged no-op (its own migration.test.ts proves the seeded
+  // manifest with the env set). The DB half — remapped rows + the marker
+  // automationInstallations — is pinned by the digest and 41's test.
 
   // The issue-desk bundle deliberately survives the chain untouched
   // (manifest profile issueDeskRetireChainNoop).

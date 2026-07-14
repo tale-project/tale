@@ -1,9 +1,14 @@
 'use node';
 
 /**
- * Workflow JSON file utilities.
+ * Workflow JSON utilities.
  *
- * Pure helpers for resolving paths, validating slugs, and parsing workflow JSON.
+ * Pure helpers for validating workflow slugs and parsing/serializing workflow
+ * JSON. A workflow exists ONLY inline in an automation manifest
+ * (`automations/<slug>/automation.json` `workflow` — see
+ * `definition_store.ts`); a workflowSlug IS an automation slug, so there is no
+ * live on-disk workflow file to resolve. The path resolvers at the bottom are
+ * kept solely for the pre-cutover migrations (see the LEGACY banner).
  * No Convex dependencies — these can be used in any Node.js context.
  */
 
@@ -19,28 +24,23 @@ import {
   getConfigRoot,
   safeJoinWithinDir,
   serializeJson,
-  sha256,
   validateOrgSlug,
 } from '../lib/file_io';
 import type { SpecSyncStatus } from './specification_fingerprint';
 
-export { sha256 };
-
 /**
- * Workflow slug: nestable folders (`folder/subfolder/name`), lowercase
- * alphanumeric + hyphens/underscores per segment. Consecutive underscores (__)
- * are reserved as the URL separator and not allowed inside a segment.
- * Examples: "my_workflow", "github/sync-issues-from-github",
- * "projects/tasks/run-assigned-task".
+ * Workflow slug shape. Live slugs are flat automation slugs (an inline
+ * workflow's slug IS its automation's slug), but the validator still accepts
+ * the historical foldered form (`folder/name`, e.g.
+ * "projects/tasks/run-assigned-task") so requests carrying a pre-cutover slug
+ * degrade to a clean not-found instead of an invalid-input throw. Lowercase
+ * alphanumeric + hyphens/underscores per segment; consecutive underscores
+ * (`__`) were the historical URL separator and stay reserved.
  */
 const WORKFLOW_SLUG_REGEX =
   /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)*$/;
 
-const MAX_FILE_SIZE_BYTES = 512 * 1024; // 512 KB
 const MAX_HISTORY_ENTRIES = 100;
-
-/** Separator used in URLs and flattened history paths to represent `/` in slugs. */
-const SLUG_SEPARATOR = '__';
 
 export type WorkflowReadResult =
   | {
@@ -64,74 +64,6 @@ export function validateWorkflowSlug(slug: string): boolean {
   return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;
 }
 
-/**
- * Extract workflow slug from a relative file path.
- * "general/conversation-sync.json" → "general/conversation-sync"
- * "my-workflow.json" → "my-workflow"
- */
-export function workflowSlugFromRelativePath(relativePath: string): string {
-  return relativePath.replace(/\.json$/, '').replace(/\\/g, '/');
-}
-
-/**
- * Convert a filesystem slug (with /) to a URL-safe parameter (with --).
- * "general/conversation-sync" → "general--conversation-sync"
- */
-export function slugToUrlParam(slug: string): string {
-  return slug.replace(/\//g, SLUG_SEPARATOR);
-}
-
-/**
- * Convert a URL parameter (with --) back to a filesystem slug (with /).
- * "general--conversation-sync" → "general/conversation-sync"
- */
-export function urlParamToSlug(param: string): string {
-  return param.replace(new RegExp(SLUG_SEPARATOR, 'g'), '/');
-}
-
-/**
- * Resolve the workflows directory for an organization. Org-first:
- * `${TALE_CONFIG_DIR}/<orgSlug>/workflows/`. No `@`-prefix collision concern
- * here since workflow folders live inside the per-org subtree.
- */
-export function resolveWorkflowsDir(orgSlug: string): string {
-  if (!validateOrgSlug(orgSlug)) {
-    throw new Error(`Invalid org slug: ${orgSlug}`);
-  }
-  return path.join(getConfigRoot('workflows'), orgSlug, 'workflows');
-}
-
-/**
- * Resolve the absolute file path for a standalone workflow JSON file under
- * `org/workflows/`. Validates the slug and checks for path traversal. An
- * automation's single workflow lives INLINE in its `automation.json` (resolved
- * via `definition_store.ts`), never as a file — so there is no automation branch.
- */
-export function resolveWorkflowFilePath(
-  orgSlug: string,
-  workflowSlug: string,
-): string {
-  if (!validateWorkflowSlug(workflowSlug)) {
-    throw new Error(`Invalid workflow slug: ${workflowSlug}`);
-  }
-  return safeJoinWithinDir(
-    resolveWorkflowsDir(orgSlug),
-    `${workflowSlug}.json`,
-  );
-}
-
-/**
- * Resolve the history directory for a workflow.
- * Uses flattened slug (-- instead of /) to avoid nested history dirs.
- */
-export function resolveHistoryDir(
-  orgSlug: string,
-  workflowSlug: string,
-): string {
-  const flatSlug = slugToUrlParam(workflowSlug);
-  return path.join(resolveWorkflowsDir(orgSlug), '.history', flatSlug);
-}
-
 export function serializeWorkflowJson(config: WorkflowJsonConfig): string {
   return serializeJson(canonicalizeWorkflowConfig(config));
 }
@@ -145,4 +77,53 @@ export function parseWorkflowJson(content: string): WorkflowJsonConfig {
   return result.data;
 }
 
-export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };
+export { MAX_HISTORY_ENTRIES };
+
+// ---------------------------------------------------------------------------
+// LEGACY-CHAIN ONLY: standalone workflow files no longer exist post-v0.3.4;
+// everything below is kept solely for the pre-cutover migrations
+// (v0_3_4/06_remove_retired_task_workflows, v0_3_4/30_run_assigned_task_
+// admission_gate and their world testkits), which operate on org trees that
+// STILL HAVE a `workflows/` dir mid-upgrade. Never call from live code.
+// ---------------------------------------------------------------------------
+
+/** LEGACY-CHAIN ONLY (see banner): size cap for standalone workflow files. */
+const MAX_FILE_SIZE_BYTES = 512 * 1024; // 512 KB
+export { MAX_FILE_SIZE_BYTES };
+
+/**
+ * LEGACY-CHAIN ONLY (see banner). Extract a workflow slug from a relative
+ * file path: "general/conversation-sync.json" → "general/conversation-sync".
+ */
+export function workflowSlugFromRelativePath(relativePath: string): string {
+  return relativePath.replace(/\.json$/, '').replace(/\\/g, '/');
+}
+
+/**
+ * LEGACY-CHAIN ONLY (see banner). The retired standalone-workflows dir of an
+ * organization: `${TALE_CONFIG_DIR}/<orgSlug>/workflows/`.
+ */
+export function resolveWorkflowsDir(orgSlug: string): string {
+  if (!validateOrgSlug(orgSlug)) {
+    throw new Error(`Invalid org slug: ${orgSlug}`);
+  }
+  return path.join(getConfigRoot('workflows'), orgSlug, 'workflows');
+}
+
+/**
+ * LEGACY-CHAIN ONLY (see banner). The absolute file path a standalone
+ * workflow JSON lived at under `org/workflows/`. Validates the slug and
+ * checks for path traversal.
+ */
+export function resolveWorkflowFilePath(
+  orgSlug: string,
+  workflowSlug: string,
+): string {
+  if (!validateWorkflowSlug(workflowSlug)) {
+    throw new Error(`Invalid workflow slug: ${workflowSlug}`);
+  }
+  return safeJoinWithinDir(
+    resolveWorkflowsDir(orgSlug),
+    `${workflowSlug}.json`,
+  );
+}
