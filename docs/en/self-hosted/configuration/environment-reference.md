@@ -116,6 +116,21 @@ Re-ranking ships disabled because it adds per-query latency and depends on an ex
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
 
+## Video-link ingestion (yt-dlp)
+
+Pasting a video link in chat fetches its transcript for the agent. YouTube blocks automated access from datacenter/server IPs, so this can fail on a cloud deployment. Every option below is optional and default-off; each makes traffic look more legitimate, but none guarantees a bypass — a clean egress IP is the single biggest lever. Read by the `convex` container and re-read on each ingestion, so a change takes effect without a restart.
+
+| Name                            | Default             | Description                                                                                                                                                                                                                               |
+| ------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VIDEO_INGEST_PROXY_URL`        | unset               | Route yt-dlp egress through a proxy (a residential/ISP IP works best; datacenter proxies are usually flagged too). Schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h` — prefer `socks5h://` so DNS resolves at the proxy. |
+| `VIDEO_INGEST_POT_PROVIDER_URL` | unset               | Base URL of a PO-token provider (the bgutil HTTP server) supplying the GVS tokens that dissolve YouTube's bot wall for the `mweb`/`web`/`tv_simply` clients. Run the provider yourself.                                                   |
+| `VIDEO_INGEST_COOKIES_FILE`     | unset               | Path to a Netscape cookie jar. Guest cookies from an incognito session raise the rate limit with no ban risk; account cookies unlock gated content but risk the account.                                                                  |
+| `VIDEO_INGEST_PLAYER_CLIENT`    | `default,tv_simply` | Comma-separated YouTube player-client fallback list. Add `mweb` only when a PO-token provider is configured (it needs a GVS token).                                                                                                       |
+| `VIDEO_INGEST_PO_TOKEN`         | unset               | Manually pinned PO token (`CLIENT.CONTEXT+TOKEN`). Mainly for testing — tokens are video-ID-bound and short-lived; prefer the provider.                                                                                                   |
+| `VIDEO_INGEST_IMPERSONATE`      | unset               | Browser TLS/JA3 impersonation target (e.g. `safari`). Requires `curl_cffi` in the image; leave unset unless you know it's available.                                                                                                      |
+
+None of these guarantees success against YouTube's adversarial detection. Ordinary public videos, less aggressive platforms, or a residential-IP/self-hosted deployment typically work without any of them. See [chat attachments](/platform/chat/attachments) for how ingested transcripts are used.
+
 ## Where this fits
 
 The variables here are the operator's contact surface; the UI surface that consumes most of them lives under [Platform admin](/platform/admin/overview). Provider keys are the one half-and-half: the keys themselves live in `providers/*.secrets.json`, but the UI under **Settings > AI providers** is how you add and rotate them in practice. The next read worth queuing is [Providers](/self-hosted/configuration/providers) — it covers the file form, the SOPS modes, and the resolve-and-failover behaviour.
