@@ -1,13 +1,19 @@
 ---
 title: Mitgelieferte Automatisierungen
-description: Was jede der drei mitgelieferten E-Mail-Automatisierungen tut, welche Integration sie braucht, und wie das Bundle GitHub-Issues lösen synchronisierte Issues Ende zu Ende in gemergte Pull Requests verwandelt.
+description: Was jede mitgelieferte Automatisierung tut — das Posteingangs-Trio, das Bundle GitHub-Issues lösen, die Sync- und Pflege-Vorlagen und die vorinstallierten Pakete, die Boards und Erwähnungen am Laufen halten.
 ---
 
-Tale liefert Automatisierungen von Haus aus mit: drei einzweckige, die ein Postfach in einen geteilten Posteingang verwandeln, und ein Bundle, das GitHub-Issues von Anfang bis Ende löst. Redakteure und Mitglieder nutzen, was eine installierte Automatisierung mitbringt — einen Posteingang-Tab, einen Backlog-Eintrag —, ohne selbst etwas zu installieren; das Installieren ist eine Aktion für Inhaber, Admin oder Entwickler, die [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) behandelt. Diese Seite benennt, was jede einzelne tut, und welche Integration zuerst verbunden sein muss.
+Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen geteilten Posteingang verwandeln, ein Bundle, das GitHub-Issues von Anfang bis Ende löst, eine Reihe von Sync- und Pflege-Vorlagen zum Installieren bei Bedarf, und die vorinstallierten Pakete, die Aufgaben-Boards und Erwähnungen für jede Organisation am Laufen halten. Redakteure und Mitglieder nutzen, was eine installierte Automatisierung mitbringt — einen Posteingang-Tab, einen Backlog-Eintrag —, ohne selbst etwas zu installieren; das Installieren ist eine Aktion für Inhaber, Admin oder Entwickler, die [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) behandelt. Diese Seite benennt, was jede einzelne tut, und welche Integration zuerst verbunden sein muss.
+
+<Frame caption="Der Automatisierungs-Katalog — jede Karte ist eine Installation entfernt; versteckte Paket-Mitglieder und Bundle-Interna bleiben aus der Liste heraus.">
+
+![Der Automatisierungs-Katalog auf dem Tab Alle Automatisierungen, mit Karten für die E-Mail-Automatisierungen und das Bundle GitHub-Issues lösen, jede mit Icon und Beschreibung.](/images/platform/automations-catalog.webp)
+
+</Frame>
 
 ## Auf Gmail, Outlook und E-Mail über IMAP antworten
 
-**Auf Gmail-E-Mails antworten**, **Auf Outlook-E-Mails antworten** und **Auf E-Mails über SMTP/IMAP antworten** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, und jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
+**Auf Gmail-E-Mails antworten**, **Auf Outlook-E-Mails antworten** und **Auf E-Mails über SMTP/IMAP antworten** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt (ab Werk alle sechs Stunden — auf dem Tab **Auslöser** der Automatisierung enger stellbar). Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
 
 | Automatisierung                      | Braucht   | Postfach                                  |
 | ------------------------------------ | --------- | ----------------------------------------- |
@@ -37,6 +43,25 @@ Der Thread-Kopf trägt die Status-Verben für die ausgewählte Konversation — 
 
 An zwei Stellen bleibt ein Mensch in der Schleife: beim Starten einer vorgeschlagenen Aufgabe aus dem Backlog, und beim Mergen des Pull Requests auf GitHub selbst — nichts im Bundle merged in deinem Namen.
 
+## Sync- und Pflege-Vorlagen
+
+Acht weitere Automatisierungen liegen im Katalog für den Moment, in dem du sie brauchst. Jede ist ein einzelner Workflow: installieren, auf die eigenen Daten richten — die Sync-Vorlagen fragen ihre Quelle über den Zeitplan ab, den sie anlegen — und danach jederzeit auf dem Tab **Editor** der Automatisierung anpassbar.
+
+| Automatisierung                                        | Braucht      | Was sie tut                                                                                          |
+| ------------------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------- |
+| Confluence-Seiten synchronisieren                      | Confluence   | Importiert die Seiten eines Confluence-Bereichs nach Zeitplan in die Wissensbibliothek               |
+| Google-Drive-Dateien synchronisieren                   | Google Drive | Importiert die Dokumente eines Drive-Ordners in die Wissensbibliothek                                |
+| Shopify-Kunden synchronisieren                         | Shopify      | Importiert die Kundinnen und Kunden des Shops in die Kundendaten der Organisation                    |
+| Shopify-Produkte synchronisieren                       | Shopify      | Importiert den Produktkatalog des Shops in die Produktdaten der Organisation                         |
+| Produktbeziehungen analysieren                         | —            | Durchsucht den Produktkatalog und erfasst Zubehör, Varianten und Ergänzungen                         |
+| Dokumente für die Suche indexieren                     | —            | Indexiert neu hochgeladene Dokumente, damit Agenten sie durchsuchen und zitieren können              |
+| Inaktive Konversationen archivieren                    | —            | Schließt Konversationen, die über ihr Inaktivitätsfenster hinaus still geblieben sind                |
+| Mitglieder bei eingehenden Nachrichten benachrichtigen | —            | Informiert Mitglieder, sobald eine neue eingehende Nachricht in einer offenen Konversation eintrifft |
+
+## Die vorinstallierten Pakete
+
+Auch die Mechanik, die die Boards jeder Organisation antreibt, ist als Automatisierungen gebaut — bei der Erstellung automatisch installiert, im Katalog versteckt, auf dem Tab **Installiert** aber sichtbar wie alles andere. Das **Aufgaben-Paket** startet einen zugewiesenen Agenten, sobald eine Aufgabe bei ihm landet, sichtet unzugewiesene Arbeit, reagiert auf @-Erwähnungen, schickt erledigte Arbeit durch die Prüfung, räumt hängende Läufe auf, setzt SLAs durch und hält abhängige Aufgaben, Unteraufgaben und Archive in Bewegung; seine Geschwister beantworten Diskussions-Erwähnungen und halten OneDrive-Dateien synchron. Jedes ist eine normale Automatisierung — öffne eine, um ihren Workflow auf dem Tab **Editor** zu lesen, unter **Ausführungen** zuzusehen oder unter **Auslöser** einen Auslöser abzuschalten; eine Deinstallation bleibt bestehen und wird nie hinter deinem Rücken rückgängig gemacht.
+
 ## Wo das hineinpasst
 
-Die drei Posteingangs-Automatisierungen und das Bundle GitHub-Issues lösen sind das, was heute mitgeliefert wird; eine private Automatisierung, die deine Organisation baut oder hochlädt, taucht im selben Katalog gleich daneben auf. [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) deckt die Katalog-Mechanik ab; [Projekt-Backlog](/de/platform/projects/backlog) ist die nächste Lektüre dafür, was mit einer Aufgabe passiert, nachdem GitHub-Issues sichten sie vorgeschlagen hat.
+Die Posteingangs-Automatisierungen, das Bundle GitHub-Issues lösen und die Sync-Vorlagen sind das, was heute mitgeliefert wird; eine private Automatisierung, die deine Organisation baut oder hochlädt, taucht im selben Katalog gleich daneben auf. [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) deckt die Katalog-Mechanik ab; [Projekt-Backlog](/de/platform/projects/backlog) ist die nächste Lektüre dafür, was mit einer Aufgabe passiert, nachdem GitHub-Issues sichten sie vorgeschlagen hat.

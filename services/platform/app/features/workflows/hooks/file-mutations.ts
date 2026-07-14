@@ -3,6 +3,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
+/**
+ * Mutations for an automation's inline workflow definition — the only home a
+ * workflow has. Editing goes through the compare-and-swap save action; the
+ * standalone-file lifecycle (install/duplicate/rename/delete) is gone with the
+ * workflows config domain.
+ */
 export function useInvalidateWorkflows() {
   const queryClient = useQueryClient();
   return (organizationId: string) =>
@@ -14,55 +20,6 @@ export function useInvalidateWorkflows() {
 export function useSaveWorkflow() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.saveWorkflowWithSnapshot, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useInstallWorkflow() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.installWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useInstallAllWorkflows() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.installAllWorkflows, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useUninstallWorkflow() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.uninstallWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDeleteWorkflowFile() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.deleteWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDuplicateWorkflowFile() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.duplicateWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useRenameWorkflow() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.renameWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useRestoreFromHistory() {
-  const invalidate = useInvalidateWorkflows();
-  return useConvexAction(api.workflows.file_actions.restoreFromHistory, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }

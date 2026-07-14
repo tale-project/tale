@@ -64,8 +64,9 @@ async function seedSlackCredential(
 }
 
 // Whole-tree module map (needed for t.fetch routing) makes this suite
-// boot-heavy; under a loaded CI worker the default 5s budget is not enough.
-describe('slackEventsHandler (httpAction)', { timeout: 30_000 }, () => {
+// boot-heavy; under a loaded CI worker the default 5s budget is not enough
+// (and the migration-chain suites' full-tree module globs load workers further).
+describe('slackEventsHandler (httpAction)', { timeout: 60_000 }, () => {
   beforeEach(() => {
     process.env.ENCRYPTION_SECRET = ENCRYPTION_SECRET;
   });

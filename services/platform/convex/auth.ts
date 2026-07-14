@@ -789,14 +789,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.lib.config_cache.sync_org.syncOrgConfigCaches,
                   { organizationId: data.organization.id },
                 );
-                // Auto-install the default workflow pack (task-ops) once the
-                // scaffold has copied the catalog. The provisioner self-retries
-                // while the workflows dir is still being written, so the small
-                // delay is just a head start, not a correctness requirement.
+                // Auto-install the out-of-the-box automations (task-ops,
+                // mention dispatch, OneDrive sync — every org-scoped
+                // `autoInstall` manifest) once the scaffold has copied the
+                // catalog. The provisioner self-retries while the automations
+                // dir is still being written, so the small delay is just a
+                // head start, not a correctness requirement.
                 await runCtx.scheduler.runAfter(
                   10_000,
-                  internal.workflows.provision_defaults
-                    .syncDefaultWorkflowInstallations,
+                  internal.automations.provision_defaults
+                    .syncDefaultAutomationInstallations,
                   { organizationId: data.organization.id, orgSlug: slug },
                 );
                 // Seed the default prompt-library catalog (global prompts) in

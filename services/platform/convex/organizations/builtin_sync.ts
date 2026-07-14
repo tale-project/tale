@@ -9,25 +9,20 @@
  * same override semantics for a single domain — overwrite builtin-named
  * entries, preserve org-authored ones — with a backup of every replaced entry:
  *
- *  - tree domains (agents/workflows): each changed file's previous content is
+ *  - the tree domain (agents): each changed file's previous content is
  *    written to the entry's existing `.history/` trail first, so the standard
  *    history-restore UI can undo the sync per entry. Then the domain is
  *    reseeded with the scaffold's `override:true` per-file overwrite.
  *  - bundle domains (integrations/automations/skills): only bundles that
  *    actually differ are replaced (staging + atomic rename); the previous
  *    bundle is copied to `<domainDir>/.history/<bundle>/<timestamp>/` first.
- *    Untouched bundles keep their internal `.history/` trails. For
- *    `automations` specifically, an installed app's `workflows/` subtree is
- *    write-once (an installed workflow is user-owned/editable — see
- *    `automations/install_fs.ts`'s `isWorkflowShellPath`): a workflow-only
- *    change doesn't count as "the bundle differs", and the replace overlays
- *    the org's existing `workflows/` back onto the fresh copy before the
- *    atomic rename.
+ *    Untouched bundles keep their internal `.history/` trails.
  *
  * Post-sync, the same provisioning hooks the org-create flow uses run again:
- * the default-agent/workflow provisioners pick up new `autoInstall` entries,
- * and installed apps whose bundle changed re-run the reinstall pipeline
- * (re-register rows, refresh the resource ledger, reconcile schedules).
+ * the default-agent/automation provisioners pick up new `autoInstall`
+ * entries, and installed automations whose bundle changed re-run the
+ * reinstall pipeline (re-register rows, refresh the resource ledger,
+ * reconcile schedules).
  */
 
 import { lstat, mkdir, readdir, readFile, rm } from 'node:fs/promises';
@@ -58,11 +53,6 @@ import {
 } from '../lib/file_io';
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import {
-  MAX_HISTORY_ENTRIES as WORKFLOW_MAX_HISTORY_ENTRIES,
-  resolveHistoryDir as resolveWorkflowHistoryDir,
-  workflowSlugFromRelativePath,
-} from '../workflows/file_utils';
-import {
   copyTreeVerbatim,
   pathsOverlap,
   replaceBundleDir,
@@ -72,7 +62,6 @@ import {
 /** The catalog-page domains the sync button covers. */
 const SYNCABLE_DOMAINS = [
   'agents',
-  'workflows',
   'integrations',
   'automations',
   'skills',
@@ -124,21 +113,13 @@ async function readFileOrNull(filePath: string): Promise<Buffer | null> {
 /**
  * The `.history/` dir for one tree-domain entry, matching what the domain's
  * existing history-restore UI reads. Agents key history by the canonical slug
- * (the file's `slug` field, else the basename); workflows by the flattened
- * relative slug.
+ * (the file's `slug` field, else the basename).
  */
 function treeEntryHistoryDir(
-  domain: 'agents' | 'workflows',
   orgSlug: string,
   relativePath: string,
   previousContent: string,
 ): string {
-  if (domain === 'workflows') {
-    return resolveWorkflowHistoryDir(
-      orgSlug,
-      workflowSlugFromRelativePath(relativePath),
-    );
-  }
   let slug: string | undefined;
   try {
     const parsed: unknown = JSON.parse(previousContent);
@@ -161,20 +142,16 @@ function treeEntryHistoryDir(
 }
 
 /**
- * Diff a tree domain (agents/workflows) against the builtin catalog and write
- * a per-entry history backup for every file the override seed will change.
- * Returns the counts for the caller's toast.
+ * Diff the agents tree against the builtin catalog and write a per-entry
+ * history backup for every file the override seed will change. Returns the
+ * counts for the caller's toast.
  */
 async function backupChangedTreeEntries(
-  domain: 'agents' | 'workflows',
   sourceDir: string,
   targetDir: string,
   orgSlug: string,
 ): Promise<{ updated: number; backedUp: number }> {
-  const maxEntries =
-    domain === 'agents'
-      ? AGENT_MAX_HISTORY_ENTRIES
-      : WORKFLOW_MAX_HISTORY_ENTRIES;
+  const maxEntries = AGENT_MAX_HISTORY_ENTRIES;
   let updated = 0;
   let backedUp = 0;
   for (const rel of await listFilesRecursive(sourceDir)) {
@@ -185,7 +162,7 @@ async function backupChangedTreeEntries(
     if (dst === null) continue; // new entry, nothing to back up
     const previous = dst.toString('utf-8');
     try {
-      const historyDir = treeEntryHistoryDir(domain, orgSlug, rel, previous);
+      const historyDir = treeEntryHistoryDir(orgSlug, rel, previous);
       await mkdir(historyDir, { recursive: true });
       await atomicWrite(
         path.join(historyDir, `${generateHistoryTimestamp()}.json`),
@@ -197,7 +174,7 @@ async function backupChangedTreeEntries(
       // A failed backup must not block the sync of the other entries; the
       // overwrite itself is still recorded in the result counts.
       console.warn(
-        `[builtinSync] ${domain}: history backup failed for "${rel}":`,
+        `[builtinSync] agents: history backup failed for "${rel}":`,
         err instanceof Error ? err.message : err,
       );
     }
@@ -309,7 +286,6 @@ export const syncDomainFromBuiltin = action({
     organizationId: v.string(),
     domain: v.union(
       v.literal('agents'),
-      v.literal('workflows'),
       v.literal('integrations'),
       v.literal('automations'),
       v.literal('skills'),
@@ -355,9 +331,7 @@ export const syncDomainFromBuiltin = action({
       backedUp = result.backedUp;
       changedBundles = result.changedBundles;
     } else {
-      const treeDomain = domainName === 'agents' ? 'agents' : 'workflows';
       const result = await backupChangedTreeEntries(
-        treeDomain,
         sourceDir,
         targetDir,
         orgSlug,
@@ -399,12 +373,6 @@ export const syncDomainFromBuiltin = action({
     // become live without a second manual step.
     if (domainName === 'agents') {
       invalidateAgentListCache(orgSlug);
-    } else if (domainName === 'workflows') {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
-        { organizationId: args.organizationId, orgSlug },
-      );
     } else if (domainName === 'skills') {
       // Drop the org's cached skill snapshot so the next chat send rebuilds
       // with the refreshed bundles immediately (same invalidation the skill
@@ -451,6 +419,15 @@ export const syncDomainFromBuiltin = action({
           );
         }
       }
+      // A resync may also DELIVER new `autoInstall` automations (out-of-the-box
+      // packs added since the org was created) — provision them the same way
+      // the org-create flow does. Idempotent; org opt-outs stick.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.automations.provision_defaults
+          .syncDefaultAutomationInstallations,
+        { organizationId: args.organizationId, orgSlug },
+      );
     }
 
     return { updated, backedUp };

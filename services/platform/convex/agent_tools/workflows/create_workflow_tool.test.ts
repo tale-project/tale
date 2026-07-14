@@ -44,9 +44,10 @@ function createMockCtx(overrides?: Record<string, unknown>) {
 
 function createValidArgs() {
   return {
+    workflowSlug: 'test-workflow',
+    name: 'Test Workflow',
     workflowConfig: {
-      name: 'Test Workflow',
-      description: 'A test workflow',
+      version: '1.0.0',
     },
     stepsConfig: [
       {
@@ -156,6 +157,22 @@ describe('create_workflow tool handler', () => {
       'mock-createWorkflowCreationApproval',
       expect.objectContaining({
         threadId: 'thread-123',
+      }),
+    );
+  });
+
+  it('labels the approval with the display name of the carrying automation', async () => {
+    const handler = await getHandler();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-4');
+    const ctx = createMockCtx({ runMutation: mockRunMutation });
+
+    await handler(ctx, createValidArgs());
+
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowCreationApproval',
+      expect.objectContaining({
+        workflowName: 'Test Workflow',
+        workflowSlug: 'test-workflow',
       }),
     );
   });

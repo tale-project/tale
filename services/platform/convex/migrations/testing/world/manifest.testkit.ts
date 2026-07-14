@@ -63,6 +63,11 @@ export const baselineTables: string[] = [
 export const baselineDomains: string[] = [
   'agents', // 0.2.98/01, 0.2.98/02, 0.3.4/04 walk/rewrite it
   'apps', // legacy issue-desk bundle tree (0.3.4/11's layout)
+  // Present EMPTY at baseline (.gitkeep) as coverage ballast for 0.3.4/33's
+  // domain subject: the dir is born mid-chain in real orgs (installs create
+  // it; 33's seedDomain seeds it), and an empty dir is invisible to every
+  // era's config validation.
+  'automations',
   'branding', // 0.3.4/21 merges brandColor → accentColor
   'governance', // 0.2.85/01, 0.2.87/02+03 write INTO it; 0.3.4/03 deletes from it
   'integrations', // empty ballast (no chain migration touches it)

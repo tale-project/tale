@@ -186,6 +186,23 @@ export function resolveAutomationDir(orgSlug: string, slug: string): string {
   return safeJoinWithinDir(resolveAutomationsDir(orgSlug), slug);
 }
 
+/**
+ * The history dir for an automation's INLINE workflow
+ * (`automations/<slug>/.history/`) — revision snapshots of the `workflow`
+ * field taken by `workflows/file_actions.ts` on every save/restore. It lives
+ * inside the automation's own bundle dir because the workflow has no other
+ * home: a workflowSlug IS an automation slug, so the automation dir carries
+ * everything the workflow owns. Entry format (epoch-ms + random suffix
+ * filenames, pruned to `MAX_HISTORY_ENTRIES`) is unchanged from the retired
+ * global `workflows/.history/<flatSlug>/` location.
+ */
+export function resolveAutomationWorkflowHistoryDir(
+  orgSlug: string,
+  automationSlug: string,
+): string {
+  return path.join(resolveAutomationDir(orgSlug, automationSlug), '.history');
+}
+
 export function resolveAutomationManifestPath(
   orgSlug: string,
   slug: string,

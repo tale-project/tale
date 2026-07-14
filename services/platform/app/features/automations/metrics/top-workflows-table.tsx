@@ -15,7 +15,6 @@ import {
   formatDurationSeconds,
   formatSuccessRate,
 } from '@/lib/utils/format/duration';
-import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 export interface TopWorkflowRow {
   wfDefinitionId: string | null;
@@ -53,9 +52,12 @@ export function TopWorkflowsTable({
     (row: Row<TopWorkflowRow>) => {
       const slug = row.original.workflowSlug;
       if (!slug) return;
+      // A workflow lives inline in its owning automation (same slug); its run
+      // history is the automation page's Executions tab.
       void navigate({
-        to: '/dashboard/$id/workflows/$workflowId/executions',
-        params: { id: organizationId, workflowId: slugToUrlParam(slug) },
+        to: '/dashboard/$id/automations/$automationSlug',
+        params: { id: organizationId, automationSlug: slug },
+        search: { tab: 'executions' },
       });
     },
     [navigate, organizationId],

@@ -37,6 +37,13 @@ import { migration as m0_3_4_27 } from '../versions/v0_3_4/27_clear_conversation
 import { migration as m0_3_4_28 } from '../versions/v0_3_4/28_clear_support_case_customer_id/migration';
 import { migration as m0_3_4_31 } from '../versions/v0_3_4/31_drop_conversation_customer_id/migration';
 import { migration as m0_3_4_32 } from '../versions/v0_3_4/32_drop_support_case_customer_id/migration';
+import { migration as m0_3_4_36 } from '../versions/v0_3_4/36_remap_wf_installations/migration';
+import { migration as m0_3_4_37 } from '../versions/v0_3_4/37_remap_wf_schedules/migration';
+import { migration as m0_3_4_38 } from '../versions/v0_3_4/38_remap_wf_event_subscriptions/migration';
+import { migration as m0_3_4_39 } from '../versions/v0_3_4/39_remap_workflow_env/migration';
+import { migration as m0_3_4_40 } from '../versions/v0_3_4/40_remap_wf_default_provisions/migration';
+import { migration as m0_3_4_42 } from '../versions/v0_3_4/42_retire_github_agent_installs/migration';
+import { migration as m0_3_4_43 } from '../versions/v0_3_4/43_retire_standalone_workflow_installs/migration';
 import { migration as m0_3_3_01 } from '../versions/v0_3_3/01_normalize_auth_user_emails/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
@@ -729,6 +736,138 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.3.4/33_workflows_become_automations",
+    semver: "0.3.4",
+    numericId: 33,
+    slug: "workflows_become_automations",
+    title: "Seed the workflow-carrying automations into every org tree",
+    description: "Re-seeds each org automations/ dir from the builtin catalog (override semantics: builtin-named bundles refreshed, org-authored ones kept) so the automations that now carry the retired standalone workflows inline exist on disk, and wraps org-authored standalone workflow files into minimal org automations so user work survives the workflows-tree removal (35). Down restores the automations dir from the fs snapshot.",
+    kind: 'node',
+    reversible: true,
+    destructive: true,
+    snapshot: 'fs-tree',
+  },
+  {
+    id: "0.3.4/34_retire_github_pack_agents",
+    semver: "0.3.4",
+    numericId: 34,
+    slug: "retire_github_pack_agents",
+    title: "Retire the free-floating github and workforce agents",
+    description: "Deletes each org's scaffolded agents/github and agents/workforce config files (the free-floating builtins retired with the integration-bundles mechanism; workforce returned for orgs scaffolded after 0.3.4/04). A per-org fs-tree snapshot of the agents directory is taken first; down restores the files byte-for-byte.",
+    kind: 'node',
+    reversible: true,
+    destructive: true,
+    snapshot: 'fs-tree',
+  },
+  {
+    id: "0.3.4/35_remove_standalone_workflow_files",
+    semver: "0.3.4",
+    numericId: 35,
+    slug: "remove_standalone_workflow_files",
+    title: "Remove the retired standalone workflows tree",
+    description: "Deletes each org's workflows/ config tree after 33 seeded the automations that now carry every builtin definition inline and wrapped org-authored ones; a per-org fs-tree snapshot is taken first and down restores the tree byte-for-byte.",
+    kind: 'node',
+    reversible: true,
+    destructive: true,
+    snapshot: 'fs-tree',
+  },
+  {
+    id: "0.3.4/36_remap_wf_installations",
+    semver: "0.3.4",
+    numericId: 36,
+    slug: "remap_wf_installations",
+    title: "Remap workflow install rows onto their automations",
+    description: "Patches every wfInstallations row whose workflowSlug is a retired standalone slug to the automation slug that now carries the workflow inline and stamps automationSlug; down applies the inverse map and clears the stamp, restoring rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/37_remap_wf_schedules",
+    semver: "0.3.4",
+    numericId: 37,
+    slug: "remap_wf_schedules",
+    title: "Remap workflow schedule rows onto their automations",
+    description: "Patches every wfSchedules row whose workflowSlug is a retired standalone slug to its automation slug per the shared cutover map; down applies the inverse map, restoring rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/38_remap_wf_event_subscriptions",
+    semver: "0.3.4",
+    numericId: 38,
+    slug: "remap_wf_event_subscriptions",
+    title: "Remap workflow event subscriptions onto their automations",
+    description: "Patches every wfEventSubscriptions row whose workflowSlug is a retired standalone slug to its automation slug per the shared cutover map; down applies the inverse map, restoring rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/39_remap_workflow_env",
+    semver: "0.3.4",
+    numericId: 39,
+    slug: "remap_workflow_env",
+    title: "Remap workflow env rows onto their automations",
+    description: "Patches every workflowEnv row whose workflowSlug is a retired standalone slug to its automation slug so configured variables and secrets follow the workflow; down applies the inverse map, restoring rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/40_remap_wf_default_provisions",
+    semver: "0.3.4",
+    numericId: 40,
+    slug: "remap_wf_default_provisions",
+    title: "Remap default-provision markers onto their automations",
+    description: "Patches every wfDefaultProvisions row whose workflowSlug is a retired standalone slug to its automation slug so the automation provisioner honors prior provisioning and org opt-outs; down applies the inverse map, restoring rows byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/41_create_pack_automation_installs",
+    semver: "0.3.4",
+    numericId: 41,
+    slug: "create_pack_automation_installs",
+    title: "Create install rows for remapped pack automations",
+    description: "Creates a marker automationInstallations row for every mapped automation whose remapped workflow install row exists without one, so the installed pack renders and uninstalls like any automation; down deletes exactly the marker rows this migration created.",
+    kind: 'node',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.3.4/42_retire_github_agent_installs",
+    semver: "0.3.4",
+    numericId: 42,
+    slug: "retire_github_agent_installs",
+    title: "Drop install rows of the retired github agents",
+    description: "Deletes every agentInstallations row for the retired issue-triager and pull-request-reviewer bundle agents after snapshotting each row; down restores the rows from the snapshot byte-for-byte.",
+    kind: 'db',
+    reversible: true,
+    destructive: true,
+    snapshot: 'table-rows',
+  },
+  {
+    id: "0.3.4/43_retire_standalone_workflow_installs",
+    semver: "0.3.4",
+    numericId: 43,
+    slug: "retire_standalone_workflow_installs",
+    title: "Drop install rows of the retired standalone workflows",
+    description: "Deletes every wfInstallations row for the three retired standalone workflow slugs superseded by automations after snapshotting each row; leftover trigger rows are inert without an installation; down restores the rows from the snapshot.",
+    kind: 'db',
+    reversible: true,
+    destructive: true,
+    snapshot: 'table-rows',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -772,6 +911,13 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.3.4/28_clear_support_case_customer_id": composeDb(requireMeta("0.3.4/28_clear_support_case_customer_id"), m0_3_4_28),
   "0.3.4/31_drop_conversation_customer_id": composeDb(requireMeta("0.3.4/31_drop_conversation_customer_id"), m0_3_4_31),
   "0.3.4/32_drop_support_case_customer_id": composeDb(requireMeta("0.3.4/32_drop_support_case_customer_id"), m0_3_4_32),
+  "0.3.4/36_remap_wf_installations": composeDb(requireMeta("0.3.4/36_remap_wf_installations"), m0_3_4_36),
+  "0.3.4/37_remap_wf_schedules": composeDb(requireMeta("0.3.4/37_remap_wf_schedules"), m0_3_4_37),
+  "0.3.4/38_remap_wf_event_subscriptions": composeDb(requireMeta("0.3.4/38_remap_wf_event_subscriptions"), m0_3_4_38),
+  "0.3.4/39_remap_workflow_env": composeDb(requireMeta("0.3.4/39_remap_workflow_env"), m0_3_4_39),
+  "0.3.4/40_remap_wf_default_provisions": composeDb(requireMeta("0.3.4/40_remap_wf_default_provisions"), m0_3_4_40),
+  "0.3.4/42_retire_github_agent_installs": composeDb(requireMeta("0.3.4/42_retire_github_agent_installs"), m0_3_4_42),
+  "0.3.4/43_retire_standalone_workflow_installs": composeDb(requireMeta("0.3.4/43_retire_standalone_workflow_installs"), m0_3_4_43),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

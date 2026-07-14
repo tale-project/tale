@@ -23,9 +23,10 @@ vi.mock('../_generated/api', () => ({
         sync_org: { syncOrgConfigCaches: 'syncOrgConfigCaches' },
       },
     },
-    workflows: {
+    automations: {
       provision_defaults: {
-        syncDefaultWorkflowInstallations: 'syncDefaultWorkflowInstallations',
+        syncDefaultAutomationInstallations:
+          'syncDefaultAutomationInstallations',
       },
     },
     prompts: {
@@ -185,12 +186,17 @@ describe('retryProvisioning', () => {
       true,
     );
     expect(result).toEqual({ ok: true, failedDomains: [] });
-    // Config caches, workflow/prompt/agent installs, starter content.
+    // Config caches, automation/prompt/agent installs, starter content.
     expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(5);
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
       'syncDefaultAgentInstallations',
       { organizationId: 'org-1', orgSlug: 'acme', reinstallMissing: true },
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultAutomationInstallations',
+      { organizationId: 'org-1', orgSlug: 'acme' },
     );
   });
 

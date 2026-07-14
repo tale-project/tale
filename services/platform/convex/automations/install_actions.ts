@@ -11,7 +11,6 @@
  * token etc. live in `integrationCredentials`, collected by the readiness wizard.
  */
 import { readFile, stat } from 'node:fs/promises';
-import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
@@ -33,10 +32,7 @@ import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { requireDeveloperSettingsAccessById } from '../providers/auth';
-import {
-  resolveWorkflowsDir,
-  serializeWorkflowJson,
-} from '../workflows/file_utils';
+import { serializeWorkflowJson } from '../workflows/file_utils';
 import {
   findMissingResources,
   installAutomationFiles,
@@ -51,19 +47,25 @@ import {
 import { startInputSchemaOf } from './schedule_variables';
 
 /**
- * Register an automation's single INLINE workflow: the install record only.
+ * Register an automation's single INLINE workflow: the install record, plus —
+ * for an ORG-scoped automation — its declared event subscriptions.
  *
  * The workflow lives in the automation's `automation.json` `workflow` field —
  * its slug IS the automation slug — so there is no file to read: the parsed
- * manifest already carries it. Automation workflows are deliberately NOT given
- * org-global event subscriptions. An automation is an internally-scoped scenario,
- * so its workflow must run only from within the automation's own scope (its view
- * actions / its per-workflow webhook) — never off an org-wide `task.*`/`*.*`
- * event that other automations and channels also emit, which would cross-fire it
- * on unrelated tasks. (Schedules are time-based and per-workflow, not org-global
- * fan-out, so they remain — provisioned by `syncAutomationSchedules` once the
- * bindings are known.) A declared event trigger is therefore a misconfiguration
- * we ignore loudly rather than leak.
+ * manifest already carries it.
+ *
+ * Event triggers are scope-gated. An org-scoped automation (the task-ops /
+ * mention-dispatch packs, inbound-message notify) exists precisely to react to
+ * org-wide events, so its declared `triggers.events` are provisioned
+ * CREATE-IF-ABSENT — an org's later edit or deactivation always wins, and
+ * `processEvent`'s ownership arbitration (`isSubscriptionAllowedForTask`)
+ * keeps it off other automations' tasks. A PROJECT-scoped automation is an
+ * internally-scoped scenario: its workflow runs from its own surface (view
+ * actions, schedules, its per-workflow webhook), never off an org-wide event
+ * that would cross-fire it on unrelated projects — a declared event trigger
+ * there is a misconfiguration we ignore loudly rather than leak. (Schedules
+ * are per-workflow either way — reconciled by `syncAutomationSchedules` once
+ * the bindings are known.)
  */
 async function registerInlineWorkflow(
   ctx: ActionCtx,
@@ -71,6 +73,7 @@ async function registerInlineWorkflow(
   automationSlug: string,
   workflow: WorkflowJsonConfig,
   installedBy: string,
+  scope: 'org' | 'project',
 ): Promise<void> {
   const content = serializeWorkflowJson(workflow);
   await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
@@ -81,11 +84,23 @@ async function registerInlineWorkflow(
     automationSlug,
   });
   const declaredEvents = workflow.triggers?.events ?? [];
-  if (declaredEvents.length > 0) {
+  if (declaredEvents.length === 0) return;
+  if (scope === 'project') {
     console.warn(
-      `[automation-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by automation "${automationSlug}"'s workflow: automation workflows are scoped and must not subscribe to org-global events`,
+      `[automation-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by project-scoped automation "${automationSlug}"'s workflow: project automations must not subscribe to org-global events`,
     );
+    return;
   }
+  await ctx.runMutation(
+    internal.workflows.provision_defaults_mutations
+      .provisionDeclaredWorkflowTriggers,
+    {
+      organizationId,
+      workflowSlug: automationSlug,
+      events: declaredEvents,
+      activate: true,
+    },
+  );
 }
 
 /**
@@ -231,12 +246,12 @@ export interface InstallContext {
 
 /**
  * Auth-free install preamble shared by the public and server-only install
- * paths: slug validation, the global-workflow shadowing guard, and the
- * manifest read. Throws on any failure so a bad install fails fast before any
- * file is copied. Callers own authorization — `prepareInstall` gates on the
- * `developerSettings` capability; `installAutomationInternal` is reachable only from
- * trusted server code; `installBundle` (`install_bundle_actions.ts`) gates
- * ONCE for the whole bundle, then calls this per member.
+ * paths: slug validation and the manifest read. Throws on any failure so a
+ * bad install fails fast before any file is copied. Callers own authorization
+ * — `prepareInstall` gates on the `developerSettings` capability;
+ * `installAutomationInternal` is reachable only from trusted server code;
+ * `installBundle` (`install_bundle_actions.ts`) gates ONCE for the whole
+ * bundle, then calls this per member.
  */
 export async function prepareInstallAs(
   orgSlug: string,
@@ -246,27 +261,14 @@ export async function prepareInstallAs(
   if (!isValidAutomationSlug(automationSlug)) {
     throw new Error(`Invalid automation slug: ${automationSlug}`);
   }
-  // An automation slug must not collide with an existing GLOBAL workflow folder of the
-  // same name: the workflow resolver prefers the automation dir, so a collision would
-  // silently shadow those global workflows. Refuse instead — this keeps the
-  // automation-vs-global workflow dispatch unambiguous.
-  const globalFolder = path.join(resolveWorkflowsDir(orgSlug), automationSlug);
-  const shadowsGlobal = await stat(globalFolder)
-    .then((s) => s.isDirectory())
-    .catch(() => false);
-  if (shadowsGlobal) {
-    throw new Error(
-      `Cannot install automation "${automationSlug}": a global workflow folder of the same name exists and would be shadowed.`,
-    );
-  }
   const manifest = await readAutomationBundleManifest(orgSlug, automationSlug);
   return { orgSlug, installedBy, manifest };
 }
 
 /**
- * Shared install/reinstall preamble: membership + slug validation, the
- * global-workflow shadowing guard, and the manifest read. Throws on any failure
- * so a bad install fails fast before any file is copied.
+ * Shared install/reinstall preamble: membership + slug validation and the
+ * manifest read. Throws on any failure so a bad install fails fast before any
+ * file is copied.
  *
  * Exported (with `ensureOrgResources`) for the builtin-sync action, which
  * re-runs the reinstall pipeline for installed automations whose bundle changed.
@@ -343,6 +345,7 @@ export async function ensureOrgResources(
       automationSlug,
       workflow,
       installedBy,
+      automationScope(manifest),
     );
   }
 
@@ -575,8 +578,8 @@ export const installAutomation = action({
  * same org-level install as `installAutomation` minus the `developerSettings` gate,
  * which needs an authenticated user and so can never pass inside a migration
  * run. Every other guard is kept via the shared `prepareInstallAs` +
- * `ensureOrgResources` core — slug validation, the global-workflow shadowing
- * check, manifest validation, and the idempotent resource upsert. Org-scoped
+ * `ensureOrgResources` core — slug validation, manifest validation, and the
+ * idempotent resource upsert. Org-scoped
  * automations only: a project-scoped automation needs a target project (a human decision),
  * so it is refused here. `installedBy` is recorded verbatim on the install
  * row — a migration passes a `migration:<id>` marker so its `down` can target

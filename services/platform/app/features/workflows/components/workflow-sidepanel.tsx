@@ -15,7 +15,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { structuralEqual } from '@/lib/utils/structural-equal';
-import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 import {
   getStepIcon,
@@ -334,7 +333,7 @@ export function WorkflowSidePanel({
           warnings={warnings}
           stepOptions={stepOptions}
           organizationId={organizationId}
-          workflowSlug={workflowId ? urlParamToSlug(workflowId) : undefined}
+          workflowSlug={workflowId}
         />
       ) : null}
     </Stack>

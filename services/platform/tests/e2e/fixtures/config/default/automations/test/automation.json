@@ -1,0 +1,19 @@
+{
+  "name": "Test workflow",
+  "description": "Seeded e2e fixture: the minimal automation whose inline workflow the editor and webhook specs drive.",
+  "hidden": true,
+  "autoInstall": true,
+  "icon": "flask-conical",
+  "scope": "org",
+  "workflow": {
+    "steps": [
+      {
+        "stepSlug": "start",
+        "name": "Start",
+        "stepType": "start",
+        "config": {},
+        "nextSteps": {}
+      }
+    ]
+  }
+}

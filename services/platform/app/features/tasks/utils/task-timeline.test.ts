@@ -87,13 +87,13 @@ describe('inferWorkflowContextFromRuns', () => {
         status: 'completed',
         startedAt: 950,
         costCents: 0,
-        workflowSlug: 'task-ops/assignment',
+        workflowSlug: 'run-assigned-task',
         wfExecutionId: 'exec_1' as never,
       },
     ]);
 
     expect(context).toEqual({
-      workflowSlug: 'task-ops/assignment',
+      workflowSlug: 'run-assigned-task',
       wfExecutionId: 'exec_1',
     });
   });
@@ -105,7 +105,7 @@ describe('buildTaskActorPreview', () => {
   ]);
   const workflows = new Map([
     [
-      'task-ops/status-gate',
+      'status-gate',
       { name: 'Status gate', description: 'Moves tasks through review.' },
     ],
   ]);
@@ -135,7 +135,7 @@ describe('buildTaskActorPreview', () => {
       actorType: 'agent',
       actorId: WORKFLOW_ACTOR_ID,
       context: {
-        workflowSlug: 'task-ops/status-gate',
+        workflowSlug: 'status-gate',
         wfExecutionId: 'exec_1',
       },
       agents,
@@ -148,7 +148,7 @@ describe('buildTaskActorPreview', () => {
       name: 'Status gate',
       description: 'Moves tasks through review.',
       viewTo: '/dashboard/$id/automations/$automationSlug',
-      viewParams: { id: 'org_1', automationSlug: 'task-ops__status-gate' },
+      viewParams: { id: 'org_1', automationSlug: 'status-gate' },
       viewSearch: { execution: 'exec_1' },
     });
   });
@@ -158,9 +158,9 @@ describe('buildTaskActorPreview', () => {
       organizationId: 'org_1',
       actorType: 'agent',
       actorId: WORKFLOW_ACTOR_ID,
-      context: { workflowSlug: 'task-ops/bare' },
+      context: { workflowSlug: 'bare-workflow' },
       agents,
-      workflows: new Map([['task-ops/bare', { name: 'Bare workflow' }]]),
+      workflows: new Map([['bare-workflow', { name: 'Bare workflow' }]]),
       labels,
     });
 
@@ -173,7 +173,7 @@ describe('buildTaskActorPreview', () => {
       organizationId: 'org_1',
       actorType: 'agent',
       actorId: WORKFLOW_ACTOR_ID,
-      context: { workflowSlug: 'task-ops/status-gate' },
+      context: { workflowSlug: 'status-gate' },
       agents,
       workflows: new Map(),
       labels,

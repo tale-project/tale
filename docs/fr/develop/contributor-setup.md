@@ -78,7 +78,22 @@ Règle `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1` pour désactiver le prune/nettoyage 
 
 ## Réinitialiser les données Convex de dev locales
 
-En dernier recours seulement — efface **toutes** les données Convex de dev locales : chaque table du SQLite local, chaque upload dans `convex_local_storage/files/`, chaque bundle de fonctions. La config org sur disque et `.env.local` restent intacts.
+En dernier recours seulement — `bun run setup:clean` efface **toutes** les données Convex de dev locales : chaque table du SQLite local, chaque upload dans `convex_local_storage/files/`, chaque bundle de fonctions. La config org sur disque et `.env.local` restent intacts.
+
+**Garde tes données à travers le reset.** Même quand la barrière d'intégrité se déclenche (le bundle d'un module actif manque), le backend lui-même démarre encore — tu peux donc exporter tes données avant et les restaurer après, et le reset ne perd alors rien :
+
+```bash
+# 1. Démarre le backend (cela contourne la barrière d'intégrité de
+#    `bun run dev`), puis exporte dans un second terminal :
+bun run --filter @tale/platform convex:dev
+cd services/platform && npx convex export --path convex-backup.zip
+
+# 2. Réinitialise (protégé — voir ci-dessous), bootstrappe un déploiement
+#    neuf, puis restaure :
+bun run setup:clean            # tape : delete local convex
+bun run dev                    # attends la bannière READY
+cd services/platform && npx convex import --replace-all convex-backup.zip
+```
 
 `bun run setup:clean` est volontairement protégé (les agents de code ne doivent pas l'exécuter sauf demande explicite de ta part) :
 
@@ -86,7 +101,7 @@ En dernier recours seulement — efface **toutes** les données Convex de dev lo
 2. Au prompt, tape la phrase exacte `delete local convex` (un simple `y` est refusé).
 3. Les exécutions non interactives (CI) exigent `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — ne jamais le définir dans les shells d'agents.
 
-Essaie d'abord la maintenance automatique et un `bun run dev` normal. Lance `bun run setup:clean` seulement si tu acceptes de perdre conversations locales, uploads et tout l'état du déploiement anonyme.
+Essaie d'abord la maintenance automatique et un `bun run dev` normal. S'il faut vraiment réinitialiser, **exporte d'abord** (ci-dessus) pour garder tes données — ne saute l'export que si tu n'as réellement pas besoin des conversations locales, des uploads et du reste de l'état du déploiement anonyme.
 
 ## Mode hybride contre un Convex conteneurisé
 

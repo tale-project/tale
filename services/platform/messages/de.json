@@ -1905,7 +1905,6 @@
       "skipToContent": "Zum Hauptinhalt springen",
       "mainNavigation": "Hauptnavigation",
       "projectsNavigation": "Projektnavigation",
-      "workflowNavigation": "Workflow-Navigation",
       "sortAscending": "aufsteigend sortiert",
       "sortDescending": "absteigend sortiert",
       "sortAvailable": "sortierbar",
@@ -4590,10 +4589,6 @@
       "automationAlerts": {
         "label": "Automatisierungs-Warnungen",
         "description": "Fehler, Budget-Warnungen und offline gegangene Runtimes."
-      },
-      "digest": {
-        "label": "Zusammenfassung",
-        "description": "Regelmäßige Übersicht der Workforce-Aktivität."
       },
       "conversationMessages": {
         "label": "Konversationsnachrichten",
@@ -8195,9 +8190,7 @@
   },
   "agentCatalog": {
     "folders": {
-      "workforce": "Belegschaft",
       "chat": "Chat",
-      "github": "GitHub",
       "general": "Allgemein"
     },
     "loadError": {
@@ -8342,8 +8335,6 @@
     "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
   },
   "workflows": {
-    "title": "Workflows",
-    "notFound": "Workflow nicht gefunden: {{slug}}",
     "aria": {
       "openNamed": "{name} öffnen",
       "openLoop": "Schleife öffnen"
@@ -8352,23 +8343,10 @@
       "noSteps": "Keine Workflow-Schritte vorhanden",
       "createStepsHint": "Erstelle Schritte, um die Workflow-Übersicht zu sehen, oder nutze den KI-Assistenten für den Einstieg."
     },
-    "navigation": {
-      "editor": "Editor",
-      "history": "Verlauf",
-      "openAssistant": "KI-Assistent öffnen"
-    },
     "history": {
-      "empty": "Keine Verlaufseinträge",
-      "diffTitle": "Änderungen vergleichen",
-      "diffDescription": "Unterschiede prüfen, bevor der Snapshot vom {date} wiederhergestellt wird",
-      "restore": "Wiederherstellen",
-      "noDifferences": "Keine Unterschiede gefunden",
-      "loadFailed": "Verlauf konnte nicht geladen werden",
-      "restoreSuccess": "Version wiederhergestellt",
-      "restoreFailed": "Version konnte nicht wiederhergestellt werden"
+      "noDifferences": "Keine Unterschiede gefunden"
     },
     "configuration": {
-      "title": "Konfiguration",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Maximale Ausführungszeit in Millisekunden",
       "maxRetries": "Max. Wiederholungen",
@@ -8384,7 +8362,6 @@
       "envHelp": "Variablen, die in jeden Sandbox-Schritt dieses Workflows eingespeist werden. Markiere einen Wert als geheim, um ihn zu verschlüsseln; Geheimnisse sind nur schreibbar. Ein Schritt kann diese überschreiben."
     },
     "triggers": {
-      "title": "Trigger",
       "errors": {
         "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
         "invalidSlug": "Die Kennung dieses Workflows ist ungültig.",
@@ -8524,7 +8501,6 @@
       }
     },
     "executions": {
-      "title": "Ausführungen",
       "entityLabel": "Ausführungen",
       "entityLabelOne": "Ausführung",
       "searchPlaceholder": "Nach Ausführungs-ID suchen",

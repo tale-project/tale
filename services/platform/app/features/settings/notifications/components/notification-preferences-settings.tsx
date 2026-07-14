@@ -22,7 +22,6 @@ type InAppPrefKey =
   | 'taskReview'
   | 'escalation'
   | 'automationAlerts'
-  | 'digest'
   | 'conversationMessages';
 
 const IN_APP_PREF_KEYS: InAppPrefKey[] = [
@@ -33,7 +32,6 @@ const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'taskReview',
   'escalation',
   'automationAlerts',
-  'digest',
   'conversationMessages',
 ];
 

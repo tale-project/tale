@@ -94,7 +94,6 @@ describe('config-domain registry', () => {
           'providers',
           'skills',
           'token-sources',
-          'workflows',
         ].sort(),
       );
       // governance is reactive (configCache via Convex queries); prompts is
@@ -108,11 +107,6 @@ describe('config-domain registry', () => {
       expect(agents?.emitsFor('my-agent.json')).toBe(true);
       expect(agents?.emitsFor('notes.txt')).toBe(false);
       expect(agents?.slugFromRest(['my-agent.json'])).toBe('my-agent');
-
-      const workflows = getConfigDomain('workflows').watcher;
-      expect(workflows?.slugFromRest(['general', 'hello.json'])).toBe(
-        'general/hello',
-      );
 
       const skills = getConfigDomain('skills').watcher;
       expect(skills?.emitsFor('code-reviewer/scripts/x.py')).toBe(true);

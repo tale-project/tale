@@ -1,11 +1,10 @@
 'use node';
 
 /**
- * Integration → agents/workflows cascade coordinator. When an integration is
- * disconnected, every agent it bundled (`bundledBy`) PLUS every agent that
- * HARD-requires it (`metadata.requires.integrations`) is disabled, and every
- * workflow it installed has its triggers deactivated. On reconnect, only what
- * the cascade disabled is restored — a user's explicit disable is never
+ * Integration → agents cascade coordinator. When an integration is
+ * disconnected, every agent that HARD-requires it
+ * (`metadata.requires.integrations`) is disabled. On reconnect, only what the
+ * cascade disabled is restored — a user's explicit disable is never
  * resurrected. Scheduled from `credential_mutations.ts` on credential status
  * changes (V8 mutations can't call a `'use node'` action directly).
  */
@@ -50,20 +49,12 @@ export const cascadeIntegration = internalAction({
     slug: v.string(),
     mode: v.union(v.literal('disable'), v.literal('enable')),
   },
-  returns: v.object({ agents: v.number(), workflows: v.number() }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ agents: number; workflows: number }> => {
+  returns: v.object({ agents: v.number() }),
+  handler: async (ctx, args): Promise<{ agents: number }> => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
 
-    // Agents: union of integration-bundled + hard-requiring.
-    const bundled = await ctx.runQuery(
-      internal.integrations.cascade_mutations.listBundledAgentSlugs,
-      { organizationId: args.organizationId, integrationSlug: args.slug },
-    );
-    const requiring = await requiringAgentSlugs(orgSlug, args.slug);
-    const agentSlugs = [...new Set([...bundled, ...requiring])];
+    // Agents that hard-require this integration.
+    const agentSlugs = await requiringAgentSlugs(orgSlug, args.slug);
 
     for (const agentSlug of agentSlugs) {
       if (args.mode === 'disable') {
@@ -81,32 +72,13 @@ export const cascadeIntegration = internalAction({
       }
     }
 
-    // Workflows installed by this integration: toggle their triggers via the
-    // shared kill-switch helper (events + schedules).
-    const workflowSlugs = await ctx.runQuery(
-      internal.integrations.cascade_mutations.listIntegrationWorkflowSlugs,
-      { organizationId: args.organizationId, integrationSlug: args.slug },
-    );
-    if (workflowSlugs.length > 0) {
-      await ctx.runMutation(
-        internal.workflows.provision_defaults_mutations
-          .setTriggersActiveForSlugs,
-        {
-          organizationId: args.organizationId,
-          workflowSlugs,
-          isActive: args.mode === 'enable',
-        },
-      );
-    }
-
     invalidateAgentListCache(orgSlug);
     console.log('[IntegrationCascade]', {
       org: args.organizationId,
       slug: args.slug,
       mode: args.mode,
       agents: agentSlugs.length,
-      workflows: workflowSlugs.length,
     });
-    return { agents: agentSlugs.length, workflows: workflowSlugs.length };
+    return { agents: agentSlugs.length };
   },
 });

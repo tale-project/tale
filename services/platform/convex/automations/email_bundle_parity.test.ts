@@ -86,7 +86,7 @@ describe('email inbox bundles are provider-substituted copies of one document', 
     }
   });
 
-  it('automation.json manifests match modulo name/description/i18n/integration/label', () => {
+  it('automation.json manifests match modulo name/description/i18n/integration/label/folder/workflow', () => {
     const neutralized = BUNDLES.map((bundle) => {
       const manifest = JSON.parse(
         readBundleFile(bundle, 'automation.json'),
@@ -100,6 +100,14 @@ describe('email inbox bundles are provider-substituted copies of one document', 
         // block is provider identity, not shared structure.
         i18n: '__I18N__',
         requires: { integrations: ['__PROVIDER__'] },
+        // The inline mail-sync workflow is provider-specific BY DESIGN (each
+        // talks its own connector operations; IMAP also syncs the sent
+        // folder), so parity covers only its PRESENCE — a provider shipping
+        // without one diverges here — never its steps.
+        workflow: manifest.workflow ? '__PROVIDER_WORKFLOW__' : '__MISSING__',
+        // The display folder is provider identity too (gmail/reply-emails,
+        // outlook/reply-emails, imap-smtp/reply-emails) — topic-first paths.
+        folder: '__PROVIDER_FOLDER__',
         // Only the provider chip is neutralized — the shared "Email" label (and
         // the shape of the list) stays pinned by the parity comparison.
         labels: Array.isArray(manifest.labels)

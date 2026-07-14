@@ -43,6 +43,14 @@ vi.mock('../_generated/api', () => ({
         listAutomationBindingsInternal: 'listAutomationBindingsInternal',
       },
     },
+    workflows: {
+      installations: {
+        upsertInstallation: 'workflows.installations.upsertInstallation',
+      },
+      provision_defaults_mutations: {
+        provisionDeclaredWorkflowTriggers: 'provisionDeclaredWorkflowTriggers',
+      },
+    },
   },
 }));
 
@@ -350,6 +358,103 @@ describe('ensureOrgResources — prior-ledger thread-through (R1)', () => {
       'support',
       undefined,
     );
+  });
+});
+
+describe('registerInlineWorkflow (via ensureOrgResources) — event-trigger scope gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockInstallAutomationFiles.mockResolvedValue({ resources: [] });
+  });
+
+  /** A manifest whose inline workflow declares two org-wide event triggers. */
+  const manifestWithEvents = (scope: 'org' | 'project') =>
+    ({
+      name: 'Task Ops',
+      scope,
+      workflow: {
+        triggers: {
+          events: [
+            { eventType: 'task.created' },
+            { eventType: 'task.updated', eventFilter: { status: 'open' } },
+          ],
+        },
+        steps: [],
+      },
+    }) as never;
+
+  /** Bindings query must return an array; every other query has no row. */
+  function mockQueries(ctx: ReturnType<typeof createMockCtx>) {
+    ctx.runQuery.mockImplementation((ref: unknown) =>
+      ref === 'listAutomationBindingsInternal'
+        ? Promise.resolve([])
+        : Promise.resolve(null),
+    );
+  }
+
+  it('org scope: registers the workflow and provisions its declared events create-if-absent + active', async () => {
+    const ctx = createMockCtx();
+    mockQueries(ctx);
+
+    await ensureOrgResources(ctx as never, 'org-123', 'task-ops', {
+      orgSlug: 'test-org',
+      installedBy: 'dev@example.com',
+      manifest: manifestWithEvents('org'),
+    } as never);
+
+    // The inline workflow's install record (slug = automation slug)…
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'workflows.installations.upsertInstallation',
+      expect.objectContaining({
+        organizationId: 'org-123',
+        workflowSlug: 'task-ops',
+        automationSlug: 'task-ops',
+        installedBy: 'dev@example.com',
+      }),
+    );
+    // …and its declared org-wide event triggers, provisioned create-if-absent
+    // and (re)activated — an org's later edit or deactivation always wins.
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'provisionDeclaredWorkflowTriggers',
+      {
+        organizationId: 'org-123',
+        workflowSlug: 'task-ops',
+        events: [
+          { eventType: 'task.created' },
+          { eventType: 'task.updated', eventFilter: { status: 'open' } },
+        ],
+        activate: true,
+      },
+    );
+  });
+
+  it('project scope: warns loudly and never provisions org-global event triggers', async () => {
+    const ctx = createMockCtx();
+    mockQueries(ctx);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await ensureOrgResources(ctx as never, 'org-123', 'triage', {
+        orgSlug: 'test-org',
+        installedBy: 'dev@example.com',
+        manifest: manifestWithEvents('project'),
+      } as never);
+
+      expect(ctx.runMutation).not.toHaveBeenCalledWith(
+        'provisionDeclaredWorkflowTriggers',
+        expect.anything(),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ignoring 2 org-global event trigger(s)'),
+      );
+      // The workflow install record itself is still registered.
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        'workflows.installations.upsertInstallation',
+        expect.objectContaining({ workflowSlug: 'triage' }),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 

@@ -140,8 +140,7 @@
         "totalRequests": "Requêtes totales",
         "totalTokens": "Tokens totaux",
         "totalCost": "Coût total",
-        "activeUsers": "Utilisateurs actifs",
-        "tokens": {}
+        "activeUsers": "Utilisateurs actifs"
       },
       "chart": {
         "inputTokens": "Entrée",
@@ -1906,7 +1905,6 @@
       "skipToContent": "Aller au contenu principal",
       "mainNavigation": "Navigation principale",
       "projectsNavigation": "Navigation des projets",
-      "workflowNavigation": "Navigation du workflow",
       "sortAscending": "trié par ordre croissant",
       "sortDescending": "trié par ordre décroissant",
       "sortAvailable": "tri disponible",
@@ -4591,10 +4589,6 @@
       "automationAlerts": {
         "label": "Alertes d'automatisation",
         "description": "Échecs, avertissements de budget et runtimes hors ligne."
-      },
-      "digest": {
-        "label": "Résumé",
-        "description": "Résumé périodique de l'activité de la workforce."
       },
       "conversationMessages": {
         "label": "Messages de conversation",
@@ -8196,9 +8190,7 @@
   },
   "agentCatalog": {
     "folders": {
-      "workforce": "Effectif",
       "chat": "Chat",
-      "github": "GitHub",
       "general": "Général"
     },
     "loadError": {
@@ -8343,8 +8335,6 @@
     "dupKey": "Nom de variable en double — chaque NOM doit être unique."
   },
   "workflows": {
-    "title": "Workflows",
-    "notFound": "Workflow introuvable : {{slug}}",
     "aria": {
       "openNamed": "Ouvrir {name}",
       "openLoop": "Ouvrir la boucle"
@@ -8353,23 +8343,10 @@
       "noSteps": "Aucune étape de workflow à afficher",
       "createStepsHint": "Crée des étapes pour voir l'aperçu du workflow, ou utilise l'assistant IA pour t'aider à démarrer."
     },
-    "navigation": {
-      "editor": "Éditeur",
-      "history": "Historique",
-      "openAssistant": "Ouvrir l'assistant IA"
-    },
     "history": {
-      "empty": "Aucune entrée d'historique",
-      "diffTitle": "Comparer les modifications",
-      "diffDescription": "Examine les différences avant de restaurer l'instantané du {date}",
-      "restore": "Restaurer",
-      "noDifferences": "Aucune différence trouvée",
-      "loadFailed": "Échec du chargement de l'historique",
-      "restoreSuccess": "Version restaurée avec succès",
-      "restoreFailed": "Échec de la restauration de la version"
+      "noDifferences": "Aucune différence trouvée"
     },
     "configuration": {
-      "title": "Configuration",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Temps d'exécution maximum en millisecondes",
       "maxRetries": "Nombre max de tentatives",
@@ -8385,7 +8362,6 @@
       "envHelp": "Variables injectées dans chaque étape sandbox de ce workflow. Cochez « Secret » pour chiffrer une valeur ; les secrets sont en écriture seule. Une étape peut les remplacer."
     },
     "triggers": {
-      "title": "Déclencheurs",
       "errors": {
         "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
         "invalidSlug": "L'identifiant de ce workflow est invalide.",
@@ -8525,7 +8501,6 @@
       }
     },
     "executions": {
-      "title": "Exécutions",
       "entityLabel": "exécutions",
       "entityLabelOne": "exécution",
       "searchPlaceholder": "Rechercher par ID d'exécution",

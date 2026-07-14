@@ -33,7 +33,6 @@ import type { WorkflowUpdateMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
-import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
@@ -343,10 +342,12 @@ function WorkflowUpdateApprovalCardComponent({
               {t('updatedSuccessfully')}
             </HStack>
             <Link
-              to="/dashboard/$id/workflows/$workflowId"
+              to="/dashboard/$id/automations/$automationSlug"
               params={{
                 id: organizationId,
-                workflowId: slugToUrlParam(metadata.workflowSlug),
+                // A workflow lives inline in its owning automation (same
+                // slug) — its editor is the automation's Editor tab.
+                automationSlug: metadata.workflowSlug,
               }}
               className="text-primary flex items-center gap-1 text-xs hover:underline"
             >

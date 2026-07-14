@@ -62,7 +62,6 @@ import {
   tokenSourceSchema,
   tokenSourceSecretsSchema,
 } from '../schemas/token_sources';
-import { workflowJsonSchema } from '../schemas/workflows';
 import { CONFIG_DOMAINS } from './registry';
 
 /** This module's own repo-root, used only to check that an externally-gated
@@ -195,7 +194,7 @@ function walkFlat(
 }
 
 /**
- * Tree layout: arbitrary nested `*.json` (agents, workflows). The loaders
+ * Tree layout: arbitrary nested `*.json` (agents). The loaders
  * recurse for `*.json` only; any other file in the shipped catalog fails.
  */
 function walkJsonTree(
@@ -396,16 +395,6 @@ const DOMAIN_VALIDATORS: Record<string, DomainValidator> = {
         secretsSchema: tokenSourceSecretsSchema,
       }),
   },
-  // Schema-only, matching the load path: the file catalog is parsed with
-  // `workflowJsonSchema` (`convex/workflows/file_utils.ts`) and is never
-  // publish-gated — `validateWorkflowDefinition` runs only on the agent-tool
-  // create/save (publish) path, and several shipped builtins predate its
-  // stricter reference/port lints while running fine. App-BUNDLED workflows
-  // DO pass full definition validation in the builtin_apps gate.
-  workflows: {
-    kind: 'walk',
-    validateDir: (dir) => walkJsonTree(dir, '', workflowJsonSchema),
-  },
   skills: { kind: 'walk', validateDir: validateSkillsDir },
   branding: { kind: 'walk', validateDir: validateBrandingDir },
   governance: { kind: 'walk', validateDir: validateGovernanceDir },
@@ -452,8 +441,6 @@ export function domainCatalogFileSchema(
       return fileName.endsWith('.secrets.json')
         ? tokenSourceSecretsSchema
         : tokenSourceSchema;
-    case 'workflows':
-      return workflowJsonSchema;
     case 'branding':
       return fileName === 'branding.json' ? brandingJsonSchema : undefined;
     case 'integrations':

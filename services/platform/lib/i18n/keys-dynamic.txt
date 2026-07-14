@@ -256,7 +256,8 @@ automations.folders.github
 
 # Agent-catalog folder section headings, rendered via `t(`folders.${folder}`)`
 # in agent-catalog.tsx's local `folderLabel` (namespace `agentCatalog`) — the
-# folder set (chat/workforce/github/general) is data-driven from agent JSON.
+# folder set (chat/general + automation folders) is data-driven from the
+# on-disk agent layout.
 agentCatalog.folders
 
 # Task-board dispatch hints: `tasks.assignee.dispatchHints.${suffix}` where the

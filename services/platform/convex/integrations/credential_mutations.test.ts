@@ -19,9 +19,6 @@ vi.mock('../_generated/server', () => ({
 vi.mock('../_generated/api', () => ({
   internal: {
     integrations: {
-      bundle_provision: {
-        provisionIntegrationBundle: 'provisionIntegrationBundle',
-      },
       cascade: { cascadeIntegration: 'cascadeIntegration' },
     },
   },

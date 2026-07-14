@@ -76,13 +76,14 @@ export const WORLD_INJECTIONS: readonly WorldInjection[] = [
   {
     afterVersion: '0.2.85',
     reason:
-      "appInstallations, appProjectBindings, agentInstallations, and wfDefaultProvisions first appear in the v0.2.85 schema, userNotifications.resourceType gained 'dashboard' there, and the external-agent config shape (agentKind/authMode) was born with them — none of it can sit in a 0.2.84 baseline.",
+      "appInstallations, appProjectBindings, agentInstallations, wfDefaultProvisions, and workflowEnv first appear in the v0.2.85 schema, userNotifications.resourceType gained 'dashboard' there, and the external-agent config shape (agentKind/authMode) was born with them — none of it can sit in a 0.2.84 baseline.",
     tables: [
       'appInstallations',
       'appProjectBindings',
       'agentInstallations',
       'wfDefaultProvisions',
       'userNotifications',
+      'workflowEnv',
     ],
     async seedFs(configRoot, orgs) {
       // The external-agent files (agentKind + authMode + the 'external-agent'
@@ -117,6 +118,20 @@ export const WORLD_INJECTIONS: readonly WorldInjection[] = [
     },
     async seed(ctx, orgs) {
       const { alpha, beta } = orgs;
+
+      // --- workflowEnv — a non-secret var on the SURVIVOR pack workflow:
+      // --- 0.3.4/39 remaps its workflowSlug onto the automation slug and
+      // --- back; everything else on the row must round-trip untouched. ---
+      await ctx.db.insert('workflowEnv', {
+        organizationId: alpha.id,
+        workflowSlug: 'projects/tasks/triage-unassigned-tasks',
+        stepSlug: '',
+        key: 'TRIAGE_LIMIT',
+        isSecret: false,
+        value: '25',
+        updatedAt: WORLD_EPOCH_MS,
+        updatedBy: 'user_alpha_admin',
+      });
 
       // --- appInstallations — 0.2.96/01+02 + 0.3.4/09 look it up by
       // --- (org, appSlug); 0.3.4/13 renames the slug fields; 0.3.4/16 moves

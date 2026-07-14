@@ -1,9 +1,12 @@
 /**
  * Convex Tool: Create Workflow with Approval
  *
- * Creates a new workflow definition with all steps.
- * Requires user approval before the workflow is actually created.
- * This enables AI to propose workflows in chat that users can review and approve.
+ * Proposes a new org AUTOMATION whose manifest carries the workflow inline —
+ * a workflow only exists inside an automation (workflowSlug === automationSlug).
+ * Requires user approval before anything is written; on approval the executor
+ * (`internal_actions.ts#executeApprovedWorkflowCreation`) writes
+ * `automations/<slug>/automation.json` and installs it through the standard
+ * automation install pipeline.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -23,7 +26,7 @@ export const createWorkflowTool = {
   name: 'create_workflow' as const,
   availability: 'any' as const,
   tool: createTool({
-    description: `Create a new workflow definition with all steps.
+    description: `Create a new workflow with all steps. It is created as an org automation carrying the workflow (the workflow's slug IS the automation's slug), visible under Automations.
 Requires user approval — an approval card rendered separately by the UI will be created. When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).
 
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
@@ -32,9 +35,17 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
     inputSchema: z.object({
       workflowSlug: z
         .string()
+        .max(64)
         .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
         .describe(
-          'Unique kebab-case slug identifying the workflow (its only identity — workflows carry no display name).',
+          'Unique flat kebab-case slug (no "/" folders) identifying the workflow AND the automation created to carry it. Must not collide with an existing automation.',
+        ),
+      name: z
+        .string()
+        .min(1)
+        .max(120)
+        .describe(
+          'Human-readable display name for the automation that will carry this workflow (shown in the Automations list).',
         ),
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
@@ -90,8 +101,10 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
             .createWorkflowCreationApproval,
           {
             organizationId,
-            // The slug IS the workflow's identity — approval cards label with it.
-            workflowName: args.workflowSlug,
+            // Display name of the automation created to carry the workflow —
+            // approval cards label with it; the executor writes it into the
+            // automation manifest's `name`.
+            workflowName: args.name,
             workflowSlug: args.workflowSlug,
             workflowConfig: {
               ...args.workflowConfig,

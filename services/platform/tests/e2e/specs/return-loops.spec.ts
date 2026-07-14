@@ -75,9 +75,10 @@ test('notification preferences: toggles a channel, persists, and restores', asyn
     page.getByRole('heading', { name: t('notificationPreferences.title') }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-  // "Digest" defaults on (an undefined preference reads as enabled). The
-  // switch's accessible name is its row label (aria-labelledby).
-  const digestName = t('notificationPreferences.fields.digest.label');
+  // "Automation alerts" defaults on (an undefined preference reads as
+  // enabled; the digest row died with the workforce digest). The switch's
+  // accessible name is its row label (aria-labelledby).
+  const digestName = t('notificationPreferences.fields.automationAlerts.label');
   const digest = page.getByRole('switch', { name: digestName });
   await expect(digest).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(digest).toBeChecked();

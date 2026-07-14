@@ -78,7 +78,22 @@ Setz `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1`, um Prune/Snapshot-Cleanup zu deaktivi
 
 ## Lokale Convex-Dev-Daten zurücksetzen
 
-Nur als letzter Ausweg — löscht **alle** lokalen Convex-Dev-Daten: jede Tabelle in der lokalen SQLite-Datei, jeden Upload in `convex_local_storage/files/` und jedes Function-Bundle. Org-Konfig auf der Platte und `.env.local` bleiben unberührt.
+Nur als letzter Ausweg — `bun run setup:clean` löscht **alle** lokalen Convex-Dev-Daten: jede Tabelle in der lokalen SQLite-Datei, jeden Upload in `convex_local_storage/files/` und jedes Function-Bundle. Org-Konfig auf der Platte und `.env.local` bleiben unberührt.
+
+**Behalte deine Daten über den Reset hinweg.** Selbst wenn das Integritäts-Gate anschlägt (ein Bundle eines Live-Moduls fehlt), startet das Backend selbst noch — du kannst deine Daten also vorher exportieren und danach wiederherstellen, und der Reset verliert nichts:
+
+```bash
+# 1. Backend starten (umgeht das Integritäts-Gate von `bun run dev`), dann
+#    in einem zweiten Terminal exportieren:
+bun run --filter @tale/platform convex:dev
+cd services/platform && npx convex export --path convex-backup.zip
+
+# 2. Zurücksetzen (abgesichert — siehe unten), frisches Deployment
+#    bootstrappen, dann wiederherstellen:
+bun run setup:clean            # tippe: delete local convex
+bun run dev                    # auf das READY-Banner warten
+cd services/platform && npx convex import --replace-all convex-backup.zip
+```
 
 `bun run setup:clean` ist absichtlich abgesichert (Coding-Agenten dürfen es nicht laufen lassen, es sei denn, du hast ausdrücklich darum gebeten):
 
@@ -86,7 +101,7 @@ Nur als letzter Ausweg — löscht **alle** lokalen Convex-Dev-Daten: jede Tabel
 2. Beim Prompt die exakte Phrase `delete local convex` tippen (ein bloßes `y` wird abgelehnt).
 3. Nicht-interaktive Läufe (CI) brauchen `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — in Agent-Shells nie setzen.
 
-Probier zuerst automatische Wartung und normales `bun run dev`. Nur `bun run setup:clean` ausführen, wenn du den Verlust lokaler Conversations, Uploads und anderer Anonymous-Deployment-Daten akzeptierst.
+Probier zuerst automatische Wartung und normales `bun run dev`. Musst du doch zurücksetzen, **exportiere vorher** (siehe oben), um deine Daten zu behalten — lass den Export nur weg, wenn du die lokalen Conversations, Uploads und den übrigen Anonymous-Deployment-Zustand wirklich nicht brauchst.
 
 ## Hybrid-Modus gegen ein containerisiertes Convex
 

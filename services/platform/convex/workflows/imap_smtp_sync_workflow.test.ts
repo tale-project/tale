@@ -1,11 +1,11 @@
 /**
- * Structural guard for the bundled IMAP sync workflow.
+ * Structural guard for the IMAP mail-sync workflow — the inline `workflow` of
+ * the `reply-imap-emails` automation.
  *
- * The generic task-pack loop-safety suite only scans
- * `builtin-configs/workflows/projects/tasks`, so the imap_smtp sync workflow
- * (installed via the integration's `bundles.workflows`) has no other coverage.
- * This validates it parses against the canonical schema, auto-schedules, and
- * has no dangling step references.
+ * The task-pack loop-safety suite only covers the `folder: "tasks"` pack, so
+ * the mail sync has no other structural coverage. This validates it parses
+ * against the canonical schema, declares its schedule (installing the
+ * automation is what makes mail flow), and has no dangling step references.
  */
 
 import { readFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const WORKFLOW_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/workflows/imap_smtp/sync-emails-from-imap_smtp.json',
+    '../../../../builtin-configs/automations/reply-imap-emails/automation.json',
     import.meta.url,
   ),
 );
@@ -26,8 +26,10 @@ const WORKFLOW_PATH = fileURLToPath(
 const TERMINAL_TARGETS = new Set(['noop']);
 
 describe('imap_smtp sync workflow', () => {
-  const raw: unknown = JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8'));
-  const parsed = workflowJsonSchema.safeParse(raw);
+  const manifest = JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8')) as {
+    workflow?: unknown;
+  };
+  const parsed = workflowJsonSchema.safeParse(manifest.workflow);
 
   it('parses against workflowJsonSchema', () => {
     if (!parsed.success) {
@@ -36,7 +38,7 @@ describe('imap_smtp sync workflow', () => {
     expect(parsed.success).toBe(true);
   });
 
-  it('declares a schedule trigger so it auto-schedules on connect', () => {
+  it('declares a schedule trigger so it auto-schedules on install', () => {
     if (!parsed.success) throw new Error('workflow did not parse');
     const schedules = parsed.data.triggers?.schedules ?? [];
     expect(schedules.length).toBeGreaterThanOrEqual(1);

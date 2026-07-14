@@ -6,7 +6,7 @@
  * `promptDefaultProvisions` rows make re-runs no-ops, and orgs that edited or
  * deleted a seeded prompt are never re-provisioned behind their back.
  *
- * Two entry points (mirrors `provision_task_ops_pack.ts`):
+ * Two entry points (mirrors `provision_default_automations.ts`):
  *  - `provisionDefaultPromptsAllOrgs` — registered in `provisioning.ts:provisionAll`,
  *    so the catalog comes PREINSTALLED for every org on every deploy.
  *  - `provisionDefaultPrompts` — single-org ops tool:
@@ -58,7 +58,7 @@ export const provisionDefaultPromptsAllOrgs = internalAction({
     ctx,
   ): Promise<{ orgs: number; provisioned: number; failedOrgs: number }> => {
     // Enumerate Better Auth organizations (cursor-paginated; same defensive
-    // bounds as reseed_all_orgs / provision_task_ops_pack).
+    // bounds as reseed_all_orgs / provision_default_automations).
     const orgs: Array<{ id: string; slug: string }> = [];
     let cursor: string | null = null;
     let prevCursor: string | null | undefined;

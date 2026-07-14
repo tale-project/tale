@@ -7,22 +7,29 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const WORKFLOW_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/workflows/conversations/notify-members-on-inbound-message.json',
+    '../../../../builtin-configs/automations/notify-members-on-inbound-message/automation.json',
     import.meta.url,
   ),
 );
 
-describe('notify-members-on-inbound-message workflow template', () => {
+describe('notify-members-on-inbound-message automation workflow', () => {
   it('parses as valid workflow JSON and listens for inbound conversation events', () => {
-    const raw = JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8'));
-    const parsed = workflowJsonSchema.safeParse(raw);
+    const manifest = JSON.parse(readFileSync(WORKFLOW_PATH, 'utf-8')) as {
+      autoInstall?: boolean;
+      hidden?: boolean;
+      workflow?: unknown;
+    };
+    const parsed = workflowJsonSchema.safeParse(manifest.workflow);
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
 
     expect(parsed.data.triggers?.events).toEqual([
       { eventType: 'conversation.message_received' },
     ]);
-    expect(parsed.data.metadata?.autoInstall).toBeUndefined();
+    // Deliberately opt-in: it stays a visible catalog automation an org
+    // installs, never a preinstalled pack member.
+    expect(manifest.autoInstall).toBeUndefined();
+    expect(manifest.hidden).toBeUndefined();
 
     const openStep = parsed.data.steps.find(
       (step) => step.stepSlug === 'open_only',

@@ -12,7 +12,7 @@
     }
   },
   "icon": "ticket",
-  "folder": "github/issues",
+  "folder": "github/resolve-issues",
   "labels": ["GitHub", "GitHub Issues"],
   "scope": "project",
   "bundle": {

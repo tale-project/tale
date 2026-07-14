@@ -10,10 +10,10 @@ description: 'Use this skill whenever you create or update a workflow in a Tale 
 A workflow is one JSON definition: a set of steps wired by `nextSteps`, optionally declaring its
 triggers and integration dependencies. A workflow carries **no name or description** — its identity
 is its slug and its intent lives in the `specification` text; the automation that owns it carries
-every display string. Standalone org workflows live at `workflows/[folder/]<name>.json` — the
-**slug is the relative path without extension** (e.g. `github/review-pull-request-in-github`). An
-automation's single workflow lives INLINE in its `automation.json` under `workflow`, and its slug
-IS the automation slug (see `write-automation`).
+every display string. A workflow has exactly ONE home: INLINE in its automation's
+`automation.json` under `workflow`, and its **slug IS the automation slug** (e.g. the workflow of
+automation `sync-shopify-products` has slug `sync-shopify-products`). There are no standalone
+workflow files — to create a workflow, create (or extend) its automation (see `write-automation`).
 
 ## Reuse before you create — tick every box
 

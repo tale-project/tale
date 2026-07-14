@@ -21,11 +21,13 @@ import { internalAction } from './_generated/server';
 export const provisionAll = internalAction({
   args: {},
   handler: async (ctx) => {
-    // The default task-ops workflow pack comes PREINSTALLED: provision every
-    // existing org. Idempotent — per-workflow provision rows make re-runs
+    // The out-of-the-box automations (autoInstall manifests: task ops,
+    // mention dispatch, OneDrive sync) come PREINSTALLED: provision every
+    // existing org. Idempotent — per-automation provision rows make re-runs
     // no-ops, and org opt-outs are never overridden.
     await ctx.runAction(
-      internal.provisioning.provision_task_ops_pack.provisionTaskOpsPackAllOrgs,
+      internal.provisioning.provision_default_automations
+        .provisionDefaultAutomationsAllOrgs,
       {},
     );
     // The default prompt-library catalog comes PREINSTALLED: seed every

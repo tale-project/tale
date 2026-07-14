@@ -24,7 +24,7 @@ import type { WorkflowStep } from '../../lib/shared/schemas/workflows';
 
 const PACK_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/workflows/projects/tasks/run-assigned-task.json',
+    '../../../../builtin-configs/automations/run-assigned-task/automation.json',
     import.meta.url,
   ),
 );
@@ -39,11 +39,13 @@ function asString(value: unknown): string {
 }
 
 function loadPackSteps(): WorkflowStep[] {
-  const raw: unknown = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
-  const parsed = workflowJsonSchema.safeParse(raw);
+  const manifest = JSON.parse(readFileSync(PACK_PATH, 'utf-8')) as {
+    workflow?: unknown;
+  };
+  const parsed = workflowJsonSchema.safeParse(manifest.workflow);
   if (!parsed.success) {
     throw new Error(
-      `run-assigned-task.json fails workflowJsonSchema: ${parsed.error}`,
+      `run-assigned-task inline workflow fails workflowJsonSchema: ${parsed.error}`,
     );
   }
   return parsed.data.steps;

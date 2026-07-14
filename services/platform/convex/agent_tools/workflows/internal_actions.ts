@@ -1,7 +1,10 @@
 'use node';
 
+import { stat } from 'node:fs/promises';
+
 import { v, type Infer } from 'convex/values';
 
+import { isValidAutomationSlug } from '../../../lib/shared/schemas/automations';
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import type {
   StepType,
@@ -15,6 +18,16 @@ import type {
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
+import {
+  resolveAutomationDir,
+  resolveAutomationManifestPath,
+} from '../../automations/file_utils';
+import {
+  ensureOrgResources,
+  prepareInstallAs,
+} from '../../automations/install_actions';
+import { automationExistsInBuiltinCatalog } from '../../automations/install_fs';
+import { atomicWrite, serializeJson } from '../../lib/file_io';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import {
   computeGraphFingerprint,
@@ -60,6 +73,25 @@ function applyStepPatch(
 
 type JsonValue = Infer<typeof jsonValueValidator>;
 
+/**
+ * Fallback display name for approvals created before the tool carried a
+ * `name` input (their `workflowName` is the slug itself): Title Case the slug.
+ */
+function titleCaseFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
+
+/**
+ * Execute an approved `create_workflow` proposal: author a NEW org automation
+ * carrying the workflow inline (`automations/<slug>/automation.json` with a
+ * `workflow` field — a workflow only exists inside an automation;
+ * workflowSlug === automationSlug), then install it through the standard
+ * automation install pipeline (`prepareInstallAs` + `ensureOrgResources`:
+ * install row, schedules, org-scope event triggers).
+ */
 export const executeApprovedWorkflowCreation = internalAction({
   args: {
     approvalId: v.id('approvals'),
@@ -122,6 +154,11 @@ export const executeApprovedWorkflowCreation = internalAction({
     try {
       const workflowSlug = metadata.workflowSlug;
 
+      // The workflow's slug IS the automation's slug — same shape, flat.
+      if (!isValidAutomationSlug(workflowSlug)) {
+        throw new Error(`Invalid workflow slug: ${workflowSlug}`);
+      }
+
       const baseConfig: WorkflowJsonConfig = {
         version: metadata.workflowConfig.version,
         config: metadata.workflowConfig.config,
@@ -153,23 +190,49 @@ export const executeApprovedWorkflowCreation = internalAction({
 
       const orgSlug = await resolveOrgSlug(ctx, approval.organizationId);
 
-      await ctx.runAction(
-        internal.workflows.file_actions.saveWorkflowForExecution,
-        {
-          orgSlug,
-          workflowSlug,
-          config,
-        },
+      // Refuse a slug an automation already owns — in the built-in catalog
+      // (the installer would prefer and silently install THAT bundle) or in
+      // the org's own automations dir (never overwrite an existing bundle).
+      if (await automationExistsInBuiltinCatalog(workflowSlug)) {
+        throw new Error(
+          `An automation named "${workflowSlug}" already exists in the built-in catalog; choose a different slug.`,
+        );
+      }
+      const orgAutomationDir = resolveAutomationDir(orgSlug, workflowSlug);
+      const orgDirExists = await stat(orgAutomationDir)
+        .then((s) => s.isDirectory())
+        .catch(() => false);
+      if (orgDirExists) {
+        throw new Error(
+          `An automation named "${workflowSlug}" already exists in this organization; choose a different slug.`,
+        );
+      }
+
+      // Author the automation manifest carrying the workflow inline, then
+      // install it through the ONE install pipeline every path shares.
+      const displayName =
+        metadata.workflowName && metadata.workflowName !== workflowSlug
+          ? metadata.workflowName
+          : titleCaseFromSlug(workflowSlug);
+      await atomicWrite(
+        resolveAutomationManifestPath(orgSlug, workflowSlug),
+        serializeJson({
+          name: displayName,
+          scope: 'org',
+          workflow: config,
+        }),
       );
 
-      await ctx.runMutation(
-        internal.workflows.installations.upsertInstallation,
-        {
-          organizationId: approval.organizationId,
-          workflowSlug,
-          installedBy: 'agent',
-          contentHash: '',
-        },
+      const install = await prepareInstallAs(
+        orgSlug,
+        workflowSlug,
+        args.approvedBy,
+      );
+      await ensureOrgResources(
+        ctx,
+        approval.organizationId,
+        workflowSlug,
+        install,
       );
 
       await ctx.runMutation(
@@ -185,20 +248,20 @@ export const executeApprovedWorkflowCreation = internalAction({
       if (approval.threadId) {
         const siteUrl = process.env.SITE_URL || '';
         const basePath = process.env.BASE_PATH || '';
-        const workflowUrl = `${siteUrl}${basePath}/workflows/${workflowSlug}`;
+        const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
         const messageContent = `[WORKFLOW_CREATED]
 The user has approved the workflow creation request.
 
 Workflow Details:
 - Slug: ${workflowSlug}
-- Name: ${metadata.workflowName}
+- Name: ${displayName}
 - Steps: ${metadata.stepsConfig.length}
-- Status: draft
+- Home: installed org automation "${workflowSlug}" (the workflow lives inline in its manifest)
 - URL: ${workflowUrl}
 
 Instructions:
 - Use workflow slug "${workflowSlug}" for any subsequent read/update operations on this workflow
-- The workflow is in draft status and can be edited
+- The workflow can be edited from its automation's Workflow tab
 - Inform the user that the workflow has been created successfully`;
 
         await ctx.runMutation(
@@ -214,7 +277,7 @@ Instructions:
         success: true,
         workflowSlug,
         stepCount: metadata.stepsConfig.length,
-        message: `Workflow "${metadata.workflowName}" created successfully with ${metadata.stepsConfig.length} steps.`,
+        message: `Workflow "${displayName}" created successfully with ${metadata.stepsConfig.length} steps.`,
       };
     } catch (error) {
       const errorMessage =
@@ -583,7 +646,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
         try {
           const siteUrl = process.env.SITE_URL || '';
           const basePath = process.env.BASE_PATH || '';
-          const workflowUrl = `${siteUrl}${basePath}/workflows/${workflowSlug}`;
+          const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
           const updateDetail =
             metadata.updateType === 'full_save'
               ? `All steps replaced (${metadata.stepsConfig?.length ?? 0} steps)`

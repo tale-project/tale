@@ -34,11 +34,10 @@ const differ = new Differ({
 
 /**
  * Side-by-side JSON diff dialog for reviewing a proposed workflow config
- * before committing it — shared by the history "restore a snapshot" flow
- * (`workflow-navigation.tsx`) and the specification editor's "regenerate
+ * before committing it — used by the specification editor's "regenerate
  * graph from spec" flow (`workflow-specification.tsx`). Callers own all
- * copy (title/description/confirmLabel) so nothing history-specific leaks
- * into a non-history caller.
+ * copy (title/description/confirmLabel) so nothing flow-specific leaks
+ * into another caller.
  */
 export function WorkflowDiffDialog({
   open,

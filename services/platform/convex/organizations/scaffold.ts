@@ -24,14 +24,10 @@
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
  *     flat: per-file atomicWrite (providers/prompts/governance —
  *     governance also carries the `retention.json` bounds catalog as a
- *     flat file); dir-bundle (skills/integrations/apps): a staged copy
- *     atomic-renamed over `<per-bundle>` (`replaceBundleDir`) — for the
- *     `apps` domain specifically, an installed app's `workflows/` subtree is
- *     write-once (an installed workflow is user-owned/editable), so it's
- *     overlaid back onto the fresh copy before the rename (see
- *     `keepInstalledWorkflows`); tree (agents/workflows/branding): per-file
- *     overwrite recursing into subdirs (agents chat/github folders, workflows
- *     per-provider folders, user-only folders / images preserved).
+ *     flat file); dir-bundle (skills/integrations/automations): a staged
+ *     copy atomic-renamed over `<per-bundle>` (`replaceBundleDir`); tree
+ *     (agents/branding): per-file overwrite recursing into subdirs
+ *     (agent folders, user-only folders / images preserved).
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
  * one tree under org-first), guarded by validateOrgSlug + verifyPathWithinBase
@@ -326,11 +322,9 @@ export async function copyTree(
  * Copy `sourceDir` into `targetDir` verbatim — unlike {@link copyTree}, this
  * keeps `*.secrets.json` and any `.history/` trail (dotfiles included): its
  * job is to preserve everything a destructive bundle replace would otherwise
- * destroy. Skips symlinks (never dereference). Shared by the per-domain admin
+ * destroy. Skips symlinks (never dereference). Used by the per-domain admin
  * sync's bundle backup (`organizations/builtin_sync.ts`, org bundle → its
- * `.history/` backup) and {@link keepInstalledWorkflows} (org `workflows/` →
- * the freshly-staged copy) — same "copy everything as-is" primitive, two
- * directions.
+ * `.history/` backup).
  */
 export async function copyTreeVerbatim(
   sourceDir: string,

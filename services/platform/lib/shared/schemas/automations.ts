@@ -91,6 +91,17 @@ export const automationManifestSchema = z
      * duplicate).
      */
     hidden: z.boolean().optional(),
+    /**
+     * Ships PREINSTALLED: the default-automation provisioner
+     * (`convex/automations/provision_defaults.ts`) installs this automation into
+     * every org — at org create, on deploy, and after a builtin resync — and
+     * activates its declared triggers, recording the provision in
+     * `wfDefaultProvisions` so an org's later uninstall is never overridden.
+     * Reserved for org-scoped platform packs (task ops, mention dispatch,
+     * knowledge sync); an auto-installed automation is usually also `hidden`,
+     * since browsing/installing it from the catalog would be redundant.
+     */
+    autoInstall: z.boolean().optional(),
     /** Per-locale display overrides; see {@link automationManifestI18nSchema}. */
     i18n: automationManifestI18nSchema.optional(),
     /** Optional lucide icon name for the automation card. */

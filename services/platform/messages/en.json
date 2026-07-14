@@ -1905,7 +1905,6 @@
       "skipToContent": "Skip to main content",
       "mainNavigation": "Main navigation",
       "projectsNavigation": "Projects navigation",
-      "workflowNavigation": "Workflow navigation",
       "sortAscending": "sorted ascending",
       "sortDescending": "sorted descending",
       "sortAvailable": "sort available",
@@ -4590,10 +4589,6 @@
       "automationAlerts": {
         "label": "Automation alerts",
         "description": "Failures, budget warnings, and offline runtimes."
-      },
-      "digest": {
-        "label": "Digest",
-        "description": "Periodic summary of workforce activity."
       },
       "conversationMessages": {
         "label": "Conversation messages",
@@ -8195,9 +8190,7 @@
   },
   "agentCatalog": {
     "folders": {
-      "workforce": "Workforce",
       "chat": "Chat",
-      "github": "GitHub",
       "general": "General"
     },
     "loadError": {
@@ -8342,8 +8335,6 @@
     "dupKey": "Duplicate variable name — each NAME must be unique."
   },
   "workflows": {
-    "title": "Workflows",
-    "notFound": "Workflow not found: {{slug}}",
     "aria": {
       "openNamed": "Open {name}",
       "openLoop": "Open loop"
@@ -8352,23 +8343,10 @@
       "noSteps": "No workflow steps to display",
       "createStepsHint": "Create steps to see the workflow overview, or use the AI assistant to help you get started."
     },
-    "navigation": {
-      "editor": "Editor",
-      "history": "History",
-      "openAssistant": "Open AI assistant"
-    },
     "history": {
-      "empty": "No history entries",
-      "diffTitle": "Compare changes",
-      "diffDescription": "Review differences before restoring snapshot from {date}",
-      "restore": "Restore",
-      "noDifferences": "No differences found",
-      "loadFailed": "Failed to load history",
-      "restoreSuccess": "Version restored successfully",
-      "restoreFailed": "Failed to restore version"
+      "noDifferences": "No differences found"
     },
     "configuration": {
-      "title": "Configuration",
       "timeout": "Timeout (ms)",
       "timeoutHelp": "Maximum execution time in milliseconds",
       "maxRetries": "Max retries",
@@ -8384,7 +8362,6 @@
       "envHelp": "Variables injected into every sandbox step of this workflow. Mark a value as a secret to encrypt it; secrets are write-only. A step can override any of these."
     },
     "triggers": {
-      "title": "Triggers",
       "errors": {
         "unauthenticated": "You're not signed in. Refresh the page and try again.",
         "invalidSlug": "This workflow's identifier is invalid.",
@@ -8524,7 +8501,6 @@
       }
     },
     "executions": {
-      "title": "Executions",
       "entityLabel": "executions",
       "entityLabelOne": "execution",
       "searchPlaceholder": "Search by execution ID",

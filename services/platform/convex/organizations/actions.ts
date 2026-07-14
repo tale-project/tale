@@ -92,7 +92,8 @@ export const retryProvisioning = action({
     );
     await ctx.scheduler.runAfter(
       0,
-      internal.workflows.provision_defaults.syncDefaultWorkflowInstallations,
+      internal.automations.provision_defaults
+        .syncDefaultAutomationInstallations,
       { organizationId: args.organizationId, orgSlug },
     );
     // Locale intentionally omitted: the prompt provisioner resolves the org's

@@ -225,9 +225,8 @@ export async function parseAutomationBundleZip(
  * but `installAutomation` dies with a cryptic `ENOENT` when `registerWorkflow` /
  * `registerAgent` reads the file.
  *
- * Automation **workflows** are automation-scoped: they must be declared as `<slug>/<name>`
- * (the resolver routes that prefix to the automation dir; a bare slug would resolve to
- * the org's GLOBAL workflows dir) and carried at `workflows/<slug>/<name>.json`.
+ * An automation's single **workflow** is INLINE in the manifest (`workflow`
+ * field) — a bundle never carries workflow files.
  * Automation **agents** are declared by bare name and carried at `agents/<name>.json`.
  * Automation **skills** are declared by bare slug and carried as a skill bundle at
  * `skills/<slug>/SKILL.md` (+ assets) — fanned into the org's shared skills

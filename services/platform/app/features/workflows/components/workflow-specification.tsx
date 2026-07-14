@@ -50,9 +50,8 @@ const draftCacheKey = (organizationId: string, workflowSlug: string): string =>
  * The workflow's SPECIFICATION — its only prose (a workflow carries no name
  * or description): a full-height markdown text editor. Context-free (no
  * `WorkflowConfigProvider`) — like `WorkflowAIChatPanel`, it reads and saves
- * the workflow file directly so it can drop into either the standalone
- * `/workflows/$workflowId` editor or the automation detail's Editor tab
- * without a shared ancestor.
+ * the workflow definition directly so it can drop into the automation
+ * detail's Editor tab without a shared ancestor.
  *
  * Saving goes through the page's SHARED Save cluster: the component registers
  * itself as the active editor (`useRegisterActiveEditor`), so Save/Discard

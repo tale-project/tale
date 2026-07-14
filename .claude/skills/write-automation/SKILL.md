@@ -28,7 +28,6 @@ addressed as `<slug>/<name>` — they never join the org's global agent roster o
   icon.svg                  the card icon
   views/*.json              the automation's UI definitions (literal display strings)
   agents/*.json             optional — automation-owned agents (see write-agent)
-  workflows/**/*.json       optional — automation-owned workflows (see write-workflow)
   scripts/…                 optional assets, referenced as pack://<slug>/…
 ```
 

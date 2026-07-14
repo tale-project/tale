@@ -235,7 +235,12 @@ describe.each(automationSlugs)(
           params &&
           typeof params === 'object' &&
           'agentSlug' in params &&
-          typeof params.agentSlug === 'string'
+          typeof params.agentSlug === 'string' &&
+          // A templated slug ({{input.assigneeId}}, {{loop.item.id}}) picks the
+          // agent at RUN time from the triggering event — the task-ops packs'
+          // dispatch pattern. Only literal refs can (and must) resolve to a
+          // bundled agent file at build time.
+          !params.agentSlug.includes('{{')
         ) {
           refs.add(params.agentSlug);
         }

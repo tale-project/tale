@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -8,36 +7,17 @@ import { render, screen, within } from '@/tests/utils/render';
 
 import { ExecutionsTable } from './executions-table';
 
+const mockNavigate = vi.fn();
+
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useParams: () => ({ id: 'test-org-id' }),
-  // Filter changes navigate relative to the host route (`location.pathname`)
-  // rather than a hardcoded path, so the table works on both the standalone
-  // workflow route and an automation detail's Executions tab (#2427).
-  useLocation: () => ({ pathname: '/dashboard/test-org-id/workflows/wf-1' }),
-  // Render a real anchor so the row action stays a keyboard-reachable link and
-  // its `to`/`params`/`search` are assertable (the canvas deep link, #2347).
-  Link: ({
-    to,
-    params,
-    search,
-    children,
-    ...props
-  }: {
-    to: string;
-    params?: unknown;
-    search?: unknown;
-    children?: ReactNode;
-  }) => (
-    <a
-      href={to}
-      data-params={JSON.stringify(params)}
-      data-search={JSON.stringify(search)}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  // Both filter changes and the "View on canvas" action navigate relative to
+  // the host route (`location.pathname`) rather than a hardcoded path, so the
+  // table works on both the org and project automation detail routes (#2427).
+  useLocation: () => ({
+    pathname: '/dashboard/test-org-id/automations/am-1',
+  }),
 }));
 
 vi.mock('@tale/ui/i18n/locale-provider', async (importOriginal) => ({
@@ -89,9 +69,7 @@ describe('ExecutionsTable', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       mockTableData = [];
-      const { container } = render(
-        <ExecutionsTable workflowId="am-1" organizationId="test-org-id" />,
-      );
+      const { container } = render(<ExecutionsTable workflowId="am-1" />);
       await checkAccessibility(container, {
         rules: {
           // Expand-row column intentionally has no header text
@@ -114,9 +92,7 @@ describe('ExecutionsTable', () => {
         executionRow('exec-unknown', 'mystery_state'),
       ];
 
-      render(
-        <ExecutionsTable workflowId="am-1" organizationId="test-org-id" />,
-      );
+      render(<ExecutionsTable workflowId="am-1" />);
 
       const table = screen.getByRole('table');
       // Base status -> translated label.
@@ -134,33 +110,34 @@ describe('ExecutionsTable', () => {
 
   // Regression for #2347: the Executions tab only expanded inline JSON, with no
   // path to the canvas run view. Each row now exposes a labelled "View on
-  // canvas" link that deep-links to `/workflows/$workflowId?execution={runId}`,
-  // reusing the same `execution` param the tester panel writes.
-  describe('canvas run link', () => {
-    it('links each row to the canvas with its execution id', () => {
+  // canvas" action that switches the hosting automation page to its Editor tab
+  // with `?execution={runId}` set — the same `execution` param the tester
+  // panel writes — via a prev-merging search updater on the host route.
+  describe('canvas run action', () => {
+    it('switches to the editor tab with the row execution id', () => {
+      mockNavigate.mockClear();
       mockTableData = [
         executionRow('exec-a', 'completed'),
         executionRow('exec-b', 'failed'),
       ];
 
-      render(
-        <ExecutionsTable workflowId="am-1" organizationId="test-org-id" />,
-      );
+      render(<ExecutionsTable workflowId="am-1" />);
 
-      const links = screen.getAllByRole('link', { name: 'View on canvas' });
-      expect(links).toHaveLength(2);
-      expect(links[0]).toHaveAttribute(
-        'href',
-        '/dashboard/$id/workflows/$workflowId',
-      );
-      expect(links[0]).toHaveAttribute(
-        'data-search',
-        JSON.stringify({ execution: 'exec-a' }),
-      );
-      expect(links[0]).toHaveAttribute(
-        'data-params',
-        JSON.stringify({ id: 'test-org-id', workflowId: 'am-1' }),
-      );
+      const buttons = screen.getAllByRole('button', {
+        name: 'View on canvas',
+      });
+      expect(buttons).toHaveLength(2);
+      buttons[0].click();
+
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      const call = mockNavigate.mock.calls[0][0];
+      expect(call.to).toBe('/dashboard/test-org-id/automations/am-1');
+      // The search updater merges into the host route's existing params.
+      expect(call.search({ tab: 'executions', query: 'x' })).toEqual({
+        tab: 'editor',
+        execution: 'exec-a',
+        query: 'x',
+      });
     });
   });
 });
