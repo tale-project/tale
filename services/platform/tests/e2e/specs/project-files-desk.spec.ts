@@ -336,7 +336,7 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
   // still reachable by URL (its Configuration lists the bound projects).
   await expect(
     projectNav.getByRole('link', {
-      name: t('projects.navigation.automations'),
+      name: t('navigation.automations'),
       exact: true,
     }),
   ).toHaveCount(0);

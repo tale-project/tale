@@ -341,7 +341,7 @@ export function DataTable<TData, TValue = unknown>({
   const [expanded, setExpanded] = useState<ExpandedState>({});
   // One-shot auto-expansion: expand each listed id the first time it shows
   // up, then leave the row alone (so a manual collapse sticks).
-  const autoExpandedRef = useRef<Set<string>>(new Set());
+  const autoExpandedRef = useRef(new Set<string>());
   useEffect(() => {
     if (!enableExpanding || !autoExpandRowIds || autoExpandRowIds.length === 0)
       return;

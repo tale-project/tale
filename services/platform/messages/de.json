@@ -916,7 +916,6 @@
       "empty": "Noch keine Dateien — laden Sie die Unterlagen für diese Abrechnung hoch.",
       "upload": "Dateien hochladen",
       "uploading": "wird hochgeladen…",
-      "uploadDone": "hochgeladen",
       "uploadFailed": "Hochladen fehlgeschlagen",
       "more": "+{count} weitere",
       "drop": "Dateien hierher ziehen, oder",
@@ -7804,8 +7803,7 @@
       "instructions": "Anweisungen",
       "threads": "Chats",
       "agents": "Agenten & Modelle",
-      "settings": "Einstellungen",
-      "automations": "Automatisierungen"
+      "settings": "Einstellungen"
     },
     "list": {
       "title": "Projekte",

@@ -916,7 +916,6 @@
       "empty": "Aucun fichier pour l’instant — téléversez les documents de ce décompte.",
       "upload": "Téléverser des fichiers",
       "uploading": "téléversement…",
-      "uploadDone": "téléversé",
       "uploadFailed": "échec du téléversement",
       "more": "+{count} de plus",
       "drop": "Déposez les fichiers ici, ou",
@@ -7804,8 +7803,7 @@
       "instructions": "Instructions",
       "threads": "Chats",
       "agents": "Agents et modèles",
-      "settings": "Paramètres",
-      "automations": "Automatisations"
+      "settings": "Paramètres"
     },
     "list": {
       "title": "Projets",

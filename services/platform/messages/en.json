@@ -916,7 +916,6 @@
       "empty": "No files yet — upload the documents for this return.",
       "upload": "Upload files",
       "uploading": "uploading…",
-      "uploadDone": "uploaded",
       "uploadFailed": "upload failed",
       "more": "+{count} more",
       "drop": "Drop files here, or",
@@ -5146,7 +5145,6 @@
       "files": "Knowledge",
       "instructions": "Instructions",
       "threads": "Chats",
-      "automations": "Automations",
       "agents": "Agents & models",
       "settings": "Settings"
     },
