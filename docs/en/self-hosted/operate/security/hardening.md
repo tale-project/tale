@@ -75,6 +75,17 @@ Keep the list short and prefer specific hosts over wildcards. Package installs a
 
 The audit-log hash chain is verified automatically every night by a scheduled integrity check. A genuine break raises a critical security alert to the organisation's admins — in the notification bell, and in your Slack channel when one is connected — so tampering surfaces even when nobody is watching the logs; a signed checkpoint that can't be verified because `TALE_AUDIT_SIGNING_KEY` is unset alerts more calmly, as the configuration gap it is. The alert fires once when a break is first detected or when it changes, not every day for the same break. Admins re-run the verification on demand from the **Chain integrity** panel on **Settings > Governance > Logs** — a status badge, the last-check time, and a **Verify now** button. When one fires, work the [audit-log integrity runbook](/self-hosted/operate/security/audit-log-integrity) to tell a real break from a benign retention or configuration artifact.
 
+## HTTP security headers
+
+Every HTML response carries a strict set of security headers, and the set is locked by tests so an upgrade cannot silently drop one. The platform web client (`services/platform`) sends a nonce-based Content-Security-Policy with no `unsafe-inline` scripts, HSTS on HTTPS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` alongside CSP `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and `X-Permitted-Cross-Domain-Policies: none`. It scores A+ on the MDN HTTP Observatory, and that grade is asserted by the CI test suite — the scoring is re-implemented in tests that fail the build on any regression. The marketing site and the docs site ship the same header family, adding `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` set to `same-origin`.
+
+Verify it against your own deployment:
+
+- `curl -sI https://<your-host>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
+- Scan the host on [securityheaders.com](https://securityheaders.com) or the [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory).
+
+Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app because it opens OAuth sign-in popups and can be reached from a second host for branding assets; the content sites, which do neither, enable it. HSTS is emitted only when `SITE_URL` is `https://`.
+
 ## Where this fits
 
 Hardening is not a one-pass task — the list above is what to walk before launch, and re-walk after every upgrade or after every change to the network shape. The next thing worth reading after this is whichever row above you have not done yet.
