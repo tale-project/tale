@@ -492,6 +492,43 @@ describe('listDocumentsForAgent', () => {
       expect(result.documents).toHaveLength(1);
     });
 
+    it("surfaces a project's own documents when the caller names that project", async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', teamId: undefined }),
+        makeDoc({ _id: 'doc2', teamId: undefined, projectId: 'proj1' }),
+      ]);
+
+      // Naming the owning project lifts the hub-only exclusion for THAT
+      // project's docs — the org-wide hub doc plus proj1's doc both list.
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: [],
+        projectId: 'proj1',
+      });
+
+      const ids = result.documents.map((d) => d.fileId);
+      expect(result.documents).toHaveLength(2);
+      expect(ids).toContain('file_doc1');
+      expect(ids).toContain('file_doc2');
+    });
+
+    it('keeps project-scoped documents isolated to the named project', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', teamId: undefined, projectId: 'proj1' }),
+        makeDoc({ _id: 'doc2', teamId: undefined, projectId: 'proj2' }),
+      ]);
+
+      // Naming proj1 must never surface a sibling project's files.
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: [],
+        projectId: 'proj1',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
+    });
+
     it('filters out documents from teams user does not belong to', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', teamId: 'team1' }),

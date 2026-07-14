@@ -3,6 +3,8 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { toId } from '../lib/type_cast_helpers';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { checkMembership } from './check_membership';
 import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
@@ -97,6 +99,10 @@ export const listForAgent = internalQuery({
     organizationId: v.string(),
     userId: v.string(),
     folderId: v.optional(v.string()),
+    /** Owning project of a project-scoped listing (e.g. a task's quarter
+     *  folder). Read access is resolved once here; only then does the helper
+     *  surface that project's docs (hub listings still exclude them). */
+    projectId: v.optional(v.string()),
     folderPath: v.optional(v.string()),
     extension: v.optional(v.string()),
     teamId: v.optional(v.string()),
@@ -109,9 +115,25 @@ export const listForAgent = internalQuery({
     cursor: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId, ...rest } = args;
+    const { userId, projectId, ...rest } = args;
     const userTeamIds = await getUserTeamIds(ctx, userId);
-    return listDocumentsForAgentHelper(ctx, { ...rest, userTeamIds });
+    // A project-scoped listing surfaces the project's own docs only after the
+    // caller proves read access to it. Denied / absent → fall through to hub
+    // rules (project docs stay excluded) — fail-safe, no boundary loosening.
+    let allowedProjectId: string | undefined;
+    if (projectId) {
+      const access = await resolveProjectAccessForUser(
+        ctx,
+        toId<'projects'>(projectId),
+        { userId, organizationId: args.organizationId },
+      );
+      if (access.canRead) allowedProjectId = projectId;
+    }
+    return listDocumentsForAgentHelper(ctx, {
+      ...rest,
+      userTeamIds,
+      projectId: allowedProjectId,
+    });
   },
 });
 
