@@ -217,7 +217,7 @@ export const DEMO_CHAT_PROMPTS: readonly string[] = [
   'Write a Python script to deduplicate our CRM export',
 ] as const;
 
-export interface DemoMember {
+interface DemoMember {
   readonly name: string;
   readonly email: string;
   /** `settings.roles.*` key. */
@@ -251,7 +251,7 @@ export const DEMO_TEAMS: readonly string[] = [
   'Customer success',
 ] as const;
 
-export interface DemoEnvVar {
+interface DemoEnvVar {
   readonly key: string;
   readonly value: string;
   readonly secret: boolean;

@@ -77,6 +77,9 @@ export default {
         // hosted at root like docker:test* — a platform-local `bun tests/…`
         // script crashes knip's script parser), never imported.
         'tests/docs-screenshots/capture.ts',
+        // Same shape: the root `readme:assets` script derives the README gallery
+        // tiles and tour from the captured docs frames.
+        'tests/docs-screenshots/readme-assets.ts',
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [
