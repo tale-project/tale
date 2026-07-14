@@ -1908,7 +1908,8 @@
       "sortAscending": "aufsteigend sortiert",
       "sortDescending": "absteigend sortiert",
       "sortAvailable": "sortierbar",
-      "unsavedChanges": "Nicht gespeicherte Änderungen"
+      "unsavedChanges": "Nicht gespeicherte Änderungen",
+      "moreTabs": "Weitere Tabs"
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
@@ -1987,7 +1988,8 @@
       "zoomOut": "Verkleinern",
       "resetView": "Ansicht zurücksetzen",
       "aiEditor": "KI-Editor"
-    }
+    },
+    "moreTabs": "Mehr"
   },
   "composer": {
     "openMenu": "Composer-Menü öffnen",

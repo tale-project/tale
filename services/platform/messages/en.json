@@ -1908,7 +1908,8 @@
       "sortAscending": "sorted ascending",
       "sortDescending": "sorted descending",
       "sortAvailable": "sort available",
-      "unsavedChanges": "Unsaved changes"
+      "unsavedChanges": "Unsaved changes",
+      "moreTabs": "More tabs"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
@@ -1987,7 +1988,8 @@
       "zoomOut": "Zoom out",
       "resetView": "Reset view",
       "aiEditor": "AI editor"
-    }
+    },
+    "moreTabs": "More"
   },
   "composer": {
     "openMenu": "Open composer menu",

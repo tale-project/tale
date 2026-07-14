@@ -1908,7 +1908,8 @@
       "sortAscending": "trié par ordre croissant",
       "sortDescending": "trié par ordre décroissant",
       "sortAvailable": "tri disponible",
-      "unsavedChanges": "Modifications non enregistrées"
+      "unsavedChanges": "Modifications non enregistrées",
+      "moreTabs": "Autres onglets"
     },
     "pagination": {
       "rowsPerPage": "Lignes par page",
@@ -1987,7 +1988,8 @@
       "zoomOut": "Dézoomer",
       "resetView": "Réinitialiser la vue",
       "aiEditor": "Éditeur IA"
-    }
+    },
+    "moreTabs": "Plus"
   },
   "composer": {
     "openMenu": "Ouvrir le menu du composeur",
