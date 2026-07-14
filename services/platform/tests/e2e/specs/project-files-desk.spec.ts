@@ -330,26 +330,18 @@ test('two projects isolate period folders and Project nav reaches the desk', asy
     timeout: TIMEOUT.FIRST_PAINT,
   });
 
-  // The Automations tab remains the management list; a row opens the
-  // automation's project-nested admin page (Configuration by default —
-  // views no longer render there).
-  const automationsTab = projectNav.getByRole('link', {
-    name: t('projects.navigation.automations'),
-    exact: true,
-  });
-  await automationsTab.click();
-  await page.waitForURL(
-    new RegExp(
-      `/dashboard/${organizationId}/projects/${acmeId}/automations/?$`,
-    ),
-    { timeout: TIMEOUT.NAV },
-  );
-  await page.getByRole('link', { name: DESK_NAME() }).click();
-  await page.waitForURL(
-    new RegExp(
-      `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}`,
-    ),
-    { timeout: TIMEOUT.NAV },
+  // The project strip carries NO Automations management tab — an
+  // automation's operator surface is its view tab (above), its management
+  // lives on the org Automations page. The project-nested admin route is
+  // still reachable by URL (its Configuration lists the bound projects).
+  await expect(
+    projectNav.getByRole('link', {
+      name: t('projects.navigation.automations'),
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page.goto(
+    `/dashboard/${organizationId}/projects/${acmeId}/automations/${SLUG}`,
   );
   await expect(
     page.getByRole('combobox', {
