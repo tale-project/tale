@@ -5,9 +5,9 @@ description: L’historique d’exécution par workflow — chaque exécution av
 
 Les journaux d’exécution sont l’historique d’un seul workflow. Chaque fois qu’un déclencheur se lance, Tale ouvre un enregistrement d’exécution et y écrit au fil de l’exécution — statut, chronologie, l’entrée reçue et ce que chaque étape a consommé et produit. L’onglet **Exécutions** est la surface de débogage vers laquelle chaque autre page des automatisations pointe quand quelque chose a mal tourné.
 
-<Frame caption="L’onglet Exécutions — une ligne par exécution ; les badges de statut rouges sont le point de départ d’une session de débogage.">
+<Frame caption="L’onglet Exécutions — une ligne par exécution ; le seul badge rouge au milieu des verts est le point de départ d’une session de débogage.">
 
-![L’onglet Exécutions d’une automatisation listant douze exécutions, chacune avec un ID d’exécution, un badge de statut Échouée, un horodatage de départ, une durée et une source de déclenchement par événement.](/images/platform/automation-executions.webp)
+![L’onglet Exécutions d’une automatisation listant douze exécutions — onze avec un badge vert Terminé et une avec un badge rouge Échoué — chacune avec un ID d’exécution, un horodatage de départ, une durée et event comme source de déclenchement.](/images/platform/automation-executions.webp)
 
 </Frame>
 

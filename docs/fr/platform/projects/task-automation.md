@@ -7,7 +7,7 @@ Affecter une tâche du tableau à un agent IA la met au travail. Le **pack task-
 
 <Frame caption="Le tableau des tâches du projet — affecter une carte à un agent est ce qui lance la boucle ci-dessous.">
 
-![Un tableau kanban de tâches dans le projet Website relaunch, montrant cinq cartes de tâches réparties sur ses colonnes de statut.](/images/platform/projects-task-board.webp)
+![Un tableau kanban de tâches dans le projet Website relaunch, montrant sept cartes de tâches réparties sur ses colonnes de statut, du Backlog et de À faire jusqu’à En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

@@ -41,7 +41,7 @@ Ouvre ton instance et inscris-toi. Le formulaire demande ton nom, ton e-mail et 
 
 <Frame caption="L’étape espace de travail — le nom que ton équipe voit partout.">
 
-![L’assistant de création d’organisation montrant le champ du nom de l’organisation à son étape espace de travail.](/images/get-started/org-create-wizard.webp)
+![L’assistant de création d’organisation à son étape espace de travail, avec Northlight Labs saisi dans le champ Nom de l’organisation et le bouton Suivant actif.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
@@ -61,9 +61,9 @@ Pour la matrice des rôles (qui peut faire quoi), voir [Membres et rôles](/fr/p
 
 Ouvre **Paramètres > Fournisseurs IA** et clique sur **Ajouter un fournisseur**. Choisis le fournisseur pour lequel tu as des identifiants et colle la clé API. Enregistre. Tale valide la clé en arrière-plan ; une confirmation sur la ligne du fournisseur signifie que la clé fonctionne. Si la validation échoue, la ligne affiche l’erreur telle quelle — la cause la plus fréquente est un espace autour de la clé.
 
-<Frame caption="Un fournisseur validé — à partir d’ici, chaque agent peut répondre.">
+<Frame caption="Le fournisseur connecté — à partir d’ici, chaque agent peut répondre.">
 
-![La page des paramètres des fournisseurs d’IA montrant l’entrée du fournisseur OpenRouter.](/images/get-started/settings-providers.webp)
+![La page des paramètres des fournisseurs d’IA listant un seul fournisseur connecté, OpenRouter, avec son URL de base et ses 52 modèles.](/images/get-started/settings-providers.webp)
 
 </Frame>
 

@@ -7,7 +7,7 @@ Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fic
 
 <Frame caption="L’onglet Général — identité, partage et bandeau de statistiques sont la porte d’entrée du projet.">
 
-![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, la section de partage et un bandeau de statistiques indiquant deux fichiers et deux chats.](/images/platform/project-general-tab.webp)
+![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, la section de partage où l’équipe propriétaire est Toute l’organisation, et un bandeau de statistiques indiquant deux fichiers, aucun chat et Toute l’organisation.](/images/platform/project-general-tab.webp)
 
 </Frame>
 

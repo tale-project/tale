@@ -7,7 +7,7 @@ Un projet est un espace de travail partagé qui regroupe tout ce dont un travail
 
 <Frame caption="Le tableau des tâches d’un projet — l’un des huit onglets que porte chaque projet.">
 
-![Un tableau kanban de tâches dans le projet Website relaunch, montrant cinq cartes de tâches dans la colonne Backlog.](/images/platform/projects-task-board.webp)
+![Un tableau kanban de tâches dans le projet Website relaunch, avec sept cartes de tâches réparties sur les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
 </Frame>
 

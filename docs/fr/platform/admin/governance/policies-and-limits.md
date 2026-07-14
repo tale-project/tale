@@ -7,7 +7,7 @@ Politiques et limites est la surface où tu plafonnes ce que tes membres et agen
 
 <Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’upload et des contrôles de rétention.">
 
-![La page de gouvernance Politiques et limites montrant un tableau de règles de budget vide, au-dessus des champs de politique d’upload pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
+![La page de gouvernance Politiques et limites montrant trois règles de budget mensuelles — une pour l’organisation entière, une par défaut pour tous les utilisateurs et une pour le rôle developer, chacune plafonnant les tokens, le coût et les requêtes — au-dessus des champs de politique d’upload pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
 
 </Frame>
 

@@ -7,7 +7,7 @@ Contenu et modèles est la surface où tu décides quels LLMs les personnes de t
 
 <Frame caption="Gouvernance > Contenu et modèles — le préfixe et le suffixe de prompt système obligatoires, au-dessus des règles de modèle par défaut par scope.">
 
-![La page de gouvernance Contenu et modèles montrant les champs de préfixe et de suffixe de prompt système obligatoires, au-dessus d’un tableau vide de règles de modèles par défaut.](/images/platform/governance-content-models.webp)
+![La page de gouvernance Contenu et modèles montrant les champs de préfixe et de suffixe de prompt système obligatoires remplis des règles maison de l’organisation, au-dessus d’un tableau de modèles par défaut qui porte trois règles — un défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter.](/images/platform/governance-content-models.webp)
 
 </Frame>
 

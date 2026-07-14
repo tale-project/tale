@@ -7,9 +7,9 @@ Variables d’environnement et secrets est ton magasin personnel de variables qu
 
 Cette page couvre les deux types d’entrée, comment les secrets sont protégés, les règles qu’un nom et une valeur doivent respecter, et où les valeurs finissent.
 
-<Frame caption="Paramètres > Environnement sur un compte frais — le magasin vide avec l’action Ajouter une variable qui ouvre le formulaire d’entrée en ligne.">
+<Frame caption="Paramètres > Environnement — les entrées enregistrées, chacune avec l’interrupteur Secret qui décide si sa valeur peut être relue.">
 
-![La page de paramètres Environnement pour un nouveau compte, montrant une liste de variables vide et un bouton Ajouter une variable au-dessus.](/images/platform/settings-environment.webp)
+![La page de paramètres Environnement listant trois entrées enregistrées — ANALYTICS_ORG et CRM_BASE_URL avec leurs valeurs en clair, et CRM_API_TOKEN masquée en points avec sa case Secret cochée — au-dessus de l’action Ajouter une variable.](/images/platform/settings-environment.webp)
 
 </Frame>
 

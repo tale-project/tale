@@ -47,9 +47,9 @@ Les instances Cloud sont montées pour toi : remplis le [formulaire de demande 
 
 Clique sur **Nouveau chat** dans la barre latérale. Le composeur en bas de l’écran est le point de départ de tout : le sélecteur d’agent à gauche, le sélecteur de modèle à côté, et le champ de message avec l’envoi à droite. Le composeur qui attend avec **Assistant** et **Auto** présélectionnés signifie que tu es prêt à envoyer.
 
-<Frame caption="Le composeur — sélecteur d’agent, sélecteur de modèle, champ de message.">
+<Frame caption="Le composeur — le champ de message en haut, les sélecteurs d’agent et de modèle et l’envoi en dessous.">
 
-![La barre du composeur de chat avec le sélecteur d’agent, le sélecteur de modèle et le bouton d’envoi.](/images/platform/chat-composer.webp)
+![Le composeur de chat vide, dont le texte d’invite propose de poser une question sur les contacts, les produits ou les documents, au-dessus d’une barre d’outils qui porte les boutons de pièce jointe et de bibliothèque de prompts, les sélecteurs d’agent et de modèle, et les boutons de sourdine, de micro et d’envoi.](/images/platform/chat-composer.webp)
 
 </Frame>
 

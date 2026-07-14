@@ -7,7 +7,7 @@ Un serveur MCP est un processus externe qui expose des outils aux agents de Tale
 
 <Frame caption="Le formulaire Ajouter un serveur MCP — une connexion et une méthode d’authentification sont tout l’enregistrement.">
 
-![La boîte de dialogue Ajouter un serveur MCP sous Paramètres API MCP avec des champs pour le nom, le nom d’affichage et la description, un sélecteur de type de transport affichant Streamable HTTP, un champ d’URL et une méthode d’authentification réglée sur Aucune.](/images/platform/settings-mcp-add-dialog.webp)
+![La boîte de dialogue Ajouter un serveur MCP sous Paramètres API MCP, remplie pour un serveur de tickets de support — nom d’affichage Support Tickets, une description d’une ligne, Streamable HTTP comme type de transport, l’URL du serveur et Aucune comme méthode d’authentification — par-dessus la page MCP, où un serveur Internal Wiki est déjà enregistré.](/images/platform/settings-mcp-add-dialog.webp)
 
 </Frame>
 

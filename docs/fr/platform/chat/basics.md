@@ -15,9 +15,9 @@ Cette page est le modèle mental pour tout ce qui vit dans l’onglet Chat. Elle
 
 Le composeur est la bande de saisie en bas de l’écran. Trois contrôles comptent : le sélecteur d’agents à gauche, le sélecteur de modèles à côté, et le champ de message avec l’envoi à droite. Les pièces jointes arrivent par collage, glisser-déposer ou le contrôle d’ajout — voir [Pièces jointes](/fr/platform/chat/attachments) pour ce qui est accepté.
 
-<Frame caption="Les trois contrôles du composeur — sélecteur d’agents, sélecteur de modèles, champ de message.">
+<Frame caption="Les contrôles du composeur — le champ de message, les sélecteurs d’agents et de modèles, et l’envoi.">
 
-![La bande du composeur de chat avec le sélecteur d’agents, le sélecteur de modèles et le bouton d’envoi.](/images/platform/chat-composer.webp)
+![Le composeur de chat vide, dont le texte d’invite propose de poser une question sur les contacts, les produits ou les documents, au-dessus d’une barre d’outils qui porte les boutons de pièce jointe et de bibliothèque de prompts, le sélecteur d’agents, le sélecteur de modèles, et les boutons de sourdine, de micro et d’envoi.](/images/platform/chat-composer.webp)
 
 </Frame>
 
