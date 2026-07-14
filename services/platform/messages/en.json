@@ -910,6 +910,18 @@
     "viewNotFound": {
       "title": "Page not found",
       "description": "This view isn't available in this project — the automation may have been uninstalled, unbound from the project, or the page removed from its bundle."
+    },
+    "input": {
+      "title": "Files",
+      "empty": "No files yet — upload the documents for this return.",
+      "upload": "Upload files",
+      "uploading": "uploading…",
+      "uploadDone": "uploaded",
+      "uploadFailed": "upload failed",
+      "more": "+{count} more",
+      "drop": "Drop files here, or",
+      "deleteFile": "Delete {name}",
+      "folderDeleted": "This quarter’s folder was deleted. Recreate it in Knowledge, or remove this return."
     }
   },
   "changelog": {

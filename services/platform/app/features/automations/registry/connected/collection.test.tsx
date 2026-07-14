@@ -78,7 +78,31 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 
 // Subject expansion/accessory are domain components pulling in reactive deps;
 // never exercised here (no `subjectType`), so stub them to keep the import light.
-vi.mock('./subject-run', () => ({ SubjectRun: () => null }));
+vi.mock('./subject-run', () => ({
+  SubjectRun: ({ input }: { input?: React.ReactNode }) => (
+    <div>
+      subject-run
+      {input}
+    </div>
+  ),
+}));
+vi.mock('../../hooks/use-block-when-gate', () => ({
+  useBlockWhenGate: () => ({ decision: 'ungated' }),
+}));
+vi.mock('./add-action-form-dialog', () => ({
+  AddActionFormDialog: ({ open }: { open: boolean }) =>
+    open ? <div>add-form-dialog-open</div> : null,
+}));
+vi.mock('./subject-awaiting-input-actions', () => ({
+  SubjectAwaitingInputActions: ({ cluster }: { cluster?: React.ReactNode }) => (
+    <>{cluster}</>
+  ),
+}));
+vi.mock('./folder-upload-card', () => ({
+  FolderUploadCard: ({ folderId }: { folderId: string }) => (
+    <div>upload-card:{folderId}</div>
+  ),
+}));
 vi.mock('./subject-run-status-chip', () => ({
   SubjectRunStatusChip: () => null,
 }));
@@ -142,6 +166,77 @@ afterEach(() => {
   applyEffect.mockClear();
   dispatch.mockReset();
   lastPaginatedArgs = undefined;
+});
+
+describe('Collection — subjectUpload + defaultExpandWhen', () => {
+  it('auto-expands matching rows and renders the Input upload card in the panel', () => {
+    singleReturn = {
+      data: {
+        tasks: [
+          {
+            _id: 't_new',
+            title: 'VAT return — 2026Q3',
+            status: 'backlog',
+            externalId: 'folder_q3',
+          },
+          {
+            _id: 't_old',
+            title: 'VAT return — 2026Q1',
+            status: 'in_review',
+            externalId: 'folder_q1',
+          },
+        ],
+      },
+      isLoading: false,
+      blocked: false,
+      needsConfig: false,
+    };
+
+    render(
+      <Collection
+        query={QUERY}
+        columns={COLUMNS}
+        subjectType="task"
+        subjectUpload={{ folderIdField: 'externalId' }}
+        defaultExpandWhen="status == backlog"
+      />,
+    );
+
+    // The backlog row starts expanded — its panel carries the upload card
+    // wired to ITS folder; the settled row stays collapsed.
+    expect(screen.getByText('upload-card:folder_q3')).toBeInTheDocument();
+    expect(screen.queryByText('upload-card:folder_q1')).not.toBeInTheDocument();
+  });
+});
+
+describe('Collection — addAction form dialog', () => {
+  it('opens the dialog instead of dispatching when addAction carries form.fields', async () => {
+    singleReturn = {
+      data: { tasks: taskRows(1) },
+      isLoading: false,
+      blocked: false,
+      needsConfig: false,
+    };
+    const user = userEvent.setup();
+    render(
+      <Collection
+        query={QUERY}
+        columns={COLUMNS}
+        addAction={{
+          label: 'New quarter',
+          path: 'tasks/public_actions:createTaskFromExternalIssue',
+          mode: 'action',
+          form: { fields: [{ key: 'quarterLabel', type: 'string' }] },
+          args: {},
+        }}
+      />,
+    );
+    expect(screen.queryByText('add-form-dialog-open')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'New quarter' }));
+    expect(screen.getByText('add-form-dialog-open')).toBeInTheDocument();
+    // The form path must NOT dispatch on the header click.
+    expect(dispatch).not.toHaveBeenCalled();
+  });
 });
 
 describe('Collection — rowWhen', () => {

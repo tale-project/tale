@@ -910,6 +910,18 @@
     "viewNotFound": {
       "title": "Page introuvable",
       "description": "Cette vue n'est pas disponible dans ce projet — l'automatisation a peut-être été désinstallée, détachée du projet, ou la page retirée du paquet."
+    },
+    "input": {
+      "title": "Fichiers",
+      "empty": "Aucun fichier pour l’instant — téléversez les documents de ce décompte.",
+      "upload": "Téléverser des fichiers",
+      "uploading": "téléversement…",
+      "uploadDone": "téléversé",
+      "uploadFailed": "échec du téléversement",
+      "more": "+{count} de plus",
+      "drop": "Déposez les fichiers ici, ou",
+      "deleteFile": "Supprimer {name}",
+      "folderDeleted": "Le dossier de ce trimestre a été supprimé. Recréez-le dans Connaissances ou supprimez ce décompte."
     }
   },
   "changelog": {

@@ -134,6 +134,8 @@ const toastEffectSchema = z
   .object({
     kind: z.literal('toast'),
     titleKey: labelStringSchema,
+    /** Per-locale overrides for `titleKey` (`i18n.de.titleKey`, …). */
+    i18n: localizedStringProps,
   })
   .passthrough();
 
@@ -170,6 +172,8 @@ const actionConfirmSchema = z.union([
     .object({
       title: labelStringSchema.optional(),
       description: labelStringSchema.optional(),
+      /** Per-locale overrides for `title`/`description`. */
+      i18n: localizedStringProps,
     })
     .passthrough(),
 ]);
@@ -196,6 +200,8 @@ export const boundActionSchema = z
      *  `list.start`), falling back to `label` — never a bundle catalog. */
     label: z.string().optional(),
     labelKey: z.string().optional(),
+    /** Per-locale overrides for `label`/`doneLabel` (`i18n.de.label`, …). */
+    i18n: localizedStringProps,
     path: functionPathSchema,
     mode: functionModeSchema,
     args: z.unknown().optional(),
@@ -217,6 +223,16 @@ export const boundActionSchema = z
      * Start re-click). Falls back to `onSuccess` when omitted.
      */
     onAlreadyExists: actionEffectSchema.optional(),
+    /**
+     * Upgrade the action into a DIALOG FORM: clicking opens a dialog with
+     * these fields, and the submitted values resolve as `$input.*` in
+     * `args` (the inline Form block's contract). Rendered by the Collection
+     * `addAction` slot.
+     */
+    form: z
+      .object({ fields: z.array(z.lazy(() => formFieldSchema)).min(1) })
+      .passthrough()
+      .optional(),
     /** Predicate over the bound item: true → disabled "done" affordance. */
     doneWhen: z.string().optional(),
     /** Label for the done state; its presence marks the action consume-once. */
@@ -233,6 +249,8 @@ const effectActionSchema = z
   .object({
     label: z.string().optional(),
     labelKey: z.string().optional(),
+    /** Per-locale overrides for `label` (`i18n.de.label`, …). */
+    i18n: localizedStringProps,
     when: z.string().optional(),
     variant: z
       .enum(['primary', 'secondary', 'destructive', 'ghost'])
@@ -450,6 +468,10 @@ const cardPropsSchema = z
 const collectionPropsSchema = z
   .object({
     title: labelStringSchema.optional(),
+    /** Hide the whole block when this predicate is false (evaluated over
+     *  `whenQuery`'s item) — same gate as Form/Text/Alert. */
+    when: z.string().optional(),
+    whenQuery: queryBindingSchema.optional(),
     query: queryBindingSchema,
     /** Client-side row filter (when_predicate grammar), e.g. `!hasTask` —
      *  same contract as ExternalList's `rowWhen`. */
@@ -460,6 +482,22 @@ const collectionPropsSchema = z
     subjectType: z.string().optional(),
     /** Row field holding the subject id (default `_id`). */
     subjectIdField: z.string().optional(),
+    /** Expanded panel's INPUT section: an upload card over the project
+     *  folder whose id the named row field carries (e.g. `externalId`). */
+    subjectUpload: z
+      .object({ folderIdField: z.string() })
+      .passthrough()
+      .optional(),
+    /** Deliverable names (e.g. file names) shown as static Outcome slots in
+     *  an expanded row before its first run — mirrors the workflow's
+     *  outcome-annotated steps, authored here so the panel can promise them
+     *  pre-run. */
+    subjectOutcome: z
+      .object({ promises: z.array(z.string()).min(1) })
+      .passthrough()
+      .optional(),
+    /** Auto-expand rows matching this when_predicate once on first load. */
+    defaultExpandWhen: z.string().optional(),
     /** Page size; when set the block paginates (cursor) behind "Load more". */
     perPage: z.number().optional(),
     filters: z.array(listFilterSchema).optional(),
@@ -917,6 +955,17 @@ export const automationTabSchema = z
         z.string(),
         z.object({ label: z.string().optional() }).passthrough(),
       )
+      .optional(),
+    /**
+     * Make this tab the INITIAL selection when its predicate holds — a
+     * data-driven onboarding steer (the first matching tab wins; else the
+     * first tab). `whenQuery` loads the item, `when` is the when_predicate
+     * over it (same grammar as a block's `when`/`whenQuery`). Evaluated once
+     * on open; a later user switch is never overridden.
+     */
+    defaultWhen: z
+      .object({ when: z.string(), whenQuery: queryBindingSchema })
+      .passthrough()
       .optional(),
     data: puckDataSchema.optional(),
     columns: z.array(puckDataSchema).optional(),

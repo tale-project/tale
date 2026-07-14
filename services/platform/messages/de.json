@@ -910,6 +910,18 @@
     "viewNotFound": {
       "title": "Seite nicht gefunden",
       "description": "Diese Ansicht ist in diesem Projekt nicht verfügbar — die Automation wurde möglicherweise deinstalliert, vom Projekt getrennt oder die Seite aus dem Paket entfernt."
+    },
+    "input": {
+      "title": "Dateien",
+      "empty": "Noch keine Dateien — laden Sie die Unterlagen für diese Abrechnung hoch.",
+      "upload": "Dateien hochladen",
+      "uploading": "wird hochgeladen…",
+      "uploadDone": "hochgeladen",
+      "uploadFailed": "Hochladen fehlgeschlagen",
+      "more": "+{count} weitere",
+      "drop": "Dateien hierher ziehen, oder",
+      "deleteFile": "{name} löschen",
+      "folderDeleted": "Der Ordner dieses Quartals wurde gelöscht. Legen Sie ihn in Wissen neu an oder entfernen Sie diese Abrechnung."
     }
   },
   "changelog": {

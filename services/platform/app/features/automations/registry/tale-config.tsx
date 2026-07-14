@@ -388,16 +388,22 @@ export const taleConfig: Config<TaleComponents> = {
         render: ({
           title,
           i18n,
+          when,
+          whenQuery,
           query,
           rowWhen,
           columns,
           actions,
           subjectType,
           subjectIdField,
+          subjectUpload,
+          subjectOutcome,
+          defaultExpandWhen,
           perPage,
           filters,
           emptyState,
           addAction,
+          addActionPlacement,
           search,
           onRowClick,
         }) =>
@@ -405,16 +411,22 @@ export const taleConfig: Config<TaleComponents> = {
             <Collection
               title={title}
               i18n={i18n}
+              when={when}
+              whenQuery={whenQuery}
               query={query}
               rowWhen={rowWhen}
               columns={columns}
               actions={actions}
               subjectType={subjectType}
               subjectIdField={subjectIdField}
+              subjectUpload={subjectUpload}
+              subjectOutcome={subjectOutcome}
+              defaultExpandWhen={defaultExpandWhen}
               perPage={perPage}
               filters={filters}
               emptyState={emptyState}
               addAction={addAction}
+              addActionPlacement={addActionPlacement}
               search={search}
               onRowClick={onRowClick}
             />

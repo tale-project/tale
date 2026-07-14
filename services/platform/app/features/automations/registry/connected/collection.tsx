@@ -30,7 +30,7 @@
 import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Row } from '@tale/ui/layout';
+import { Row, VStack } from '@tale/ui/layout';
 import { ChevronDown, ListChecks } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
@@ -53,6 +53,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { useBlockWhenGate } from '../../hooks/use-block-when-gate';
 import { useBoundAction } from '../../hooks/use-bound-action';
 import { useBoundPaginatedQuery } from '../../hooks/use-bound-paginated-query';
 import { useBoundQuery } from '../../hooks/use-bound-query';
@@ -61,6 +62,7 @@ import {
   type ActionEffect,
 } from '../../runtime/action-effects';
 import { BindingStates, BlockFrame } from '../block-frame';
+import { AddActionFormDialog } from './add-action-form-dialog';
 import { isEffectAction, type RowActionSpec } from './bound-button';
 import {
   buildBoundColumns,
@@ -68,6 +70,7 @@ import {
   type BoundColumn,
   type BoundRow,
 } from './bound-columns';
+import { FolderUploadCard } from './folder-upload-card';
 import { SubjectAwaitingInputActions } from './subject-awaiting-input-actions';
 import { SubjectRerunAction } from './subject-rerun-action';
 import { SubjectRun } from './subject-run';
@@ -105,6 +108,10 @@ export interface CollectionProps {
   title?: string;
   /** Per-locale overrides for the block `title` (`i18n.de.title`, …). */
   i18n?: PackI18nMap;
+  /** Hide the whole block (list + create action) when this predicate is
+   *  false — same `when`/`whenQuery` gate the Form/Text/Alert blocks use. */
+  when?: string;
+  whenQuery?: { path: string; args?: unknown };
   query: { path: string; args?: unknown };
   /** Client-side row filter (when_predicate grammar), e.g. `!hasTask` —
    *  rows failing the predicate never render. Same contract as
@@ -119,6 +126,21 @@ export interface CollectionProps {
   subjectType?: string;
   /** Row field holding the subject id (default `_id`). */
   subjectIdField?: string;
+  /**
+   * Renders the expanded panel's INPUT section: an upload card over the
+   * project folder whose id the named row field carries (e.g. a desk task's
+   * `externalId`). Open while the folder is empty, collapsed once it has
+   * files.
+   */
+  subjectUpload?: { folderIdField: string };
+  /** Pack-declared deliverable names for the pre-run Outcome placeholder. */
+  subjectOutcome?: { promises: string[] };
+  /**
+   * Auto-expand rows matching this when_predicate ONCE when they first load
+   * (e.g. `status == backlog` — a fresh row whose expanded Input card is the
+   * next step). A manual collapse is never fought.
+   */
+  defaultExpandWhen?: string;
   /** Page size; when set, the block paginates (cursor) and accumulates pages
    *  behind a "Load more" button. Omit for a single-shot reactive read. */
   perPage?: number;
@@ -130,6 +152,10 @@ export interface CollectionProps {
   /** The single primary create affordance — a bound action OR effect-only
    *  (e.g. navigate), rendered in the table header. */
   addAction?: RowActionSpec;
+  /** Where the `addAction` sits: `toolbar` (default — inside the card's
+   *  filter row) or `above` (a right-aligned button in its own row OUTSIDE
+   *  the card, for a view-level primary create like "New quarter"). */
+  addActionPlacement?: 'toolbar' | 'above';
   /** Managed client-side search over the given row fields. */
   search?: CollectionSearchSpec;
   /** Effect applied when a row is clicked (`$selected.*` binds the row). */
@@ -254,6 +280,9 @@ function CollectionFilterBar({
  */
 function useBoundAddAction(
   spec: RowActionSpec | undefined,
+  /** Present when the spec carries `form.fields` — the click opens the
+   *  dialog instead of dispatching directly. */
+  onFormOpen?: () => void,
 ): DataTableAddAction | undefined {
   const { t } = useT('automations');
   const { locale } = useLocale();
@@ -285,6 +314,9 @@ function useBoundAddAction(
       : spec.variant === 'secondary'
         ? 'secondary'
         : 'primary';
+  if (!isEffectAction(spec) && spec.form && onFormOpen) {
+    return { label, variant, onClick: onFormOpen };
+  }
   if (isEffectAction(spec)) {
     return {
       label,
@@ -339,10 +371,14 @@ function CollectionBody({
   actions,
   subjectType,
   subjectIdField = '_id',
+  subjectUpload,
+  subjectOutcome,
+  defaultExpandWhen,
   perPage,
   filters,
   emptyState,
   addAction,
+  addActionPlacement = 'toolbar',
   search,
   onRowClick,
   filterBar,
@@ -358,7 +394,19 @@ function CollectionBody({
   const { locale } = useLocale();
   const applyEffect = useActionEffect();
   const getRowId = useBoundRowIds();
-  const tableAddAction = useBoundAddAction(addAction);
+  const [addFormOpen, setAddFormOpen] = useState(false);
+  const addFormFields =
+    addAction && !isEffectAction(addAction)
+      ? addAction.form?.fields
+      : undefined;
+  const boundAddAction = useBoundAddAction(
+    addAction,
+    addFormFields ? () => setAddFormOpen(true) : undefined,
+  );
+  // `above` lifts the create button out of the card into its own row; the
+  // toolbar then carries no add action.
+  const aboveCard = addActionPlacement === 'above';
+  const tableAddAction = aboveCard ? undefined : boundAddAction;
 
   const clientFilters = (filters ?? []).filter((f) => f.mode === 'client');
 
@@ -486,7 +534,40 @@ function CollectionBody({
   const resolvedTitle =
     resolveLocalizedProp(title, i18n, 'title', locale) ?? title;
 
-  return (
+  // Rows born expanded (once): the fresh-row predicate over the loaded set.
+  const autoExpandRowIds = useMemo(() => {
+    if (!defaultExpandWhen) return undefined;
+    return rows
+      .filter((row) => evaluateWhen(defaultExpandWhen, row))
+      .map((row) => getRowId(row));
+  }, [defaultExpandWhen, rows, getRowId]);
+
+  const addFormDialog =
+    addAction && !isEffectAction(addAction) && addFormFields ? (
+      <AddActionFormDialog
+        action={addAction}
+        fields={addFormFields}
+        open={addFormOpen}
+        onOpenChange={setAddFormOpen}
+      />
+    ) : null;
+
+  // The lifted create button (placement `above`) — its own right-aligned row
+  // over the card, so it reads as a view-level action, not a table control.
+  const aboveAction =
+    aboveCard && boundAddAction && !blocked && !needsConfig ? (
+      <Row justify="end">
+        <Button
+          variant={boundAddAction.variant ?? 'primary'}
+          disabled={boundAddAction.disabled}
+          onClick={boundAddAction.onClick}
+        >
+          {boundAddAction.label}
+        </Button>
+      </Row>
+    ) : null;
+
+  const card = (
     <BlockFrame
       title={resolvedTitle}
       icon={resolvedTitle ? ListChecks : undefined}
@@ -520,13 +601,42 @@ function CollectionBody({
             description: emptyState?.descriptionKey,
           }}
           addAction={tableAddAction}
-          enableExpanding={subjectType !== undefined}
+          enableExpanding={
+            subjectType !== undefined || subjectUpload !== undefined
+          }
+          autoExpandRowIds={autoExpandRowIds}
           renderExpandedRow={
-            subjectType
+            subjectType !== undefined || subjectUpload !== undefined
               ? (row) => {
-                  const rawId = row.original[subjectIdField];
-                  return typeof rawId === 'string' ? (
-                    <SubjectRun subjectType={subjectType} subjectId={rawId} />
+                  const folderRaw = subjectUpload
+                    ? row.original[subjectUpload.folderIdField]
+                    : undefined;
+                  // `folderExists === false` = the bound folder was deleted
+                  // (the query stamps it); the card then shows a recover/remove
+                  // notice instead of a doomed upload zone.
+                  const orphaned = row.original.folderExists === false;
+                  const inputCard =
+                    typeof folderRaw === 'string' ? (
+                      <FolderUploadCard
+                        folderId={folderRaw}
+                        orphaned={orphaned}
+                      />
+                    ) : undefined;
+                  const rawId = subjectType
+                    ? row.original[subjectIdField]
+                    : undefined;
+                  if (subjectType && typeof rawId === 'string') {
+                    return (
+                      <SubjectRun
+                        subjectType={subjectType}
+                        subjectId={rawId}
+                        input={inputCard}
+                        promisedOutcomes={subjectOutcome?.promises}
+                      />
+                    );
+                  }
+                  return inputCard ? (
+                    <div className="pt-3">{inputCard}</div>
                   ) : null;
                 }
               : undefined
@@ -539,7 +649,16 @@ function CollectionBody({
           clickableRows={onRowClick !== undefined}
         />
       </BindingStates>
+      {addFormDialog}
     </BlockFrame>
+  );
+
+  if (!aboveAction) return card;
+  return (
+    <VStack gap={3}>
+      {aboveAction}
+      {card}
+    </VStack>
   );
 }
 
@@ -592,6 +711,13 @@ function CollectionPaginated(props: InnerCollectionProps) {
 }
 
 export function Collection(props: CollectionProps) {
+  // Optional visibility gate (same grammar as Form/Text/Alert): when the
+  // predicate is false the whole block — list AND its create action — is
+  // hidden, so a pack can withhold it until a precondition holds (e.g. the
+  // desk hides the returns list until the company Setup exists). Hooks run
+  // unconditionally; the gate only changes what we return.
+  const whenGate = useBlockWhenGate(props.when, props.whenQuery);
+
   // Arg-filter state lives once here and is merged into the bound query's args,
   // so both inner paths get a filtered query + the same filter bar. `perPage`
   // and `filters` come from view config and never change at runtime, so picking
@@ -612,6 +738,17 @@ export function Collection(props: CollectionProps) {
         onChange={setFilterValues}
       />
     ) : null;
+
+  if (whenGate.decision === 'pending' || whenGate.decision === 'hide') {
+    return null;
+  }
+  if (whenGate.decision === 'needsConfig') {
+    return whenGate.needsProject ? (
+      <BlockFrame title={props.title}>
+        <BindingStates needsProject>{null}</BindingStates>
+      </BlockFrame>
+    ) : null;
+  }
 
   return props.perPage !== undefined ? (
     <CollectionPaginated {...props} query={query} filterBar={filterBar} />
