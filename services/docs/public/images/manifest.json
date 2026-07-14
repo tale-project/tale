@@ -147,7 +147,7 @@
     {
       "file": "images/platform/automation-configuration.webp",
       "shot": "automation-configuration",
-      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/configuration",
+      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=configuration",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -159,7 +159,7 @@
     {
       "file": "images/platform/automation-editor-canvas.webp",
       "shot": "automation-editor-canvas",
-      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks",
+      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=editor",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -171,7 +171,7 @@
     {
       "file": "images/platform/automation-executions.webp",
       "shot": "automation-executions",
-      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/executions",
+      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=executions",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -183,7 +183,7 @@
     {
       "file": "images/platform/automation-triggers.webp",
       "shot": "automation-triggers",
-      "route": "/dashboard/:orgId/workflows/projects__tasks__triage-unassigned-tasks/triggers",
+      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=triggers",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -237,8 +237,8 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 2880,
-      "height": 1800
+      "width": 1536,
+      "height": 1444
     },
     {
       "file": "images/platform/chat-composer-menu.webp",
@@ -261,8 +261,8 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1452,
-      "height": 200
+      "width": 1536,
+      "height": 348
     },
     {
       "file": "images/platform/chat-mention-picker.webp",
@@ -354,11 +354,11 @@
       "route": "/dashboard/:orgId/settings/governance/legal-hold",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 960
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1920
     },
     {
       "file": "images/platform/governance-policies-limits.webp",
@@ -366,11 +366,11 @@
       "route": "/dashboard/:orgId/settings/governance/policies-limits",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1530
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 3060
     },
     {
       "file": "images/platform/governance-run-code-policy.webp",
@@ -390,11 +390,11 @@
       "route": "/dashboard/:orgId/settings/governance/security-monitoring",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1260
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 2520
     },
     {
       "file": "images/platform/integrations-catalog.webp",
@@ -473,12 +473,12 @@
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",
       "viewport": {
-        "width": 1440,
-        "height": 900
+        "width": 1920,
+        "height": 1200
       },
       "dpr": 2,
-      "width": 2880,
-      "height": 1800
+      "width": 3840,
+      "height": 2400
     },
     {
       "file": "images/platform/prompt-library-dialog.webp",
