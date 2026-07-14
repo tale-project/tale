@@ -4,3 +4,7 @@ design/sources/** linguist-vendored
 # Exclude the generated .claude/skills mirror from Linguist — it is regenerated
 # from .agents/skills by `bun run skills:sync` (see tools/skills), not hand-written.
 .claude/skills/** linguist-vendored
+
+# Exclude migration schema/config baselines from Linguist — large generated JSON
+# fingerprints (see services/platform/scripts/check-{schema,config}-snapshot.ts).
+services/platform/convex/migrations/*.snapshot.json linguist-vendored
