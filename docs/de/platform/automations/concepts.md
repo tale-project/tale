@@ -37,7 +37,7 @@ Ein Bundle fasst mehrere Automatisierungen zusammen, die nur gemeinsam installie
 
 ## Alles zusammen — zwei Kombinationen
 
-**Auf Gmail-E-Mails antworten** kombiniert die kleinstmögliche Menge: eine Integration (Gmail) und eine mitgelieferte Ansicht (Posteingang) — kein Agent, kein Workflow. Verbinde Gmail, und der Posteingang-Tab ist die ganze Automatisierung.
+**Gmail-E-Mails synchronisieren** kombiniert die kleinstmögliche Menge: eine Integration (Gmail) und eine mitgelieferte Ansicht (Posteingang) — kein Agent, kein Workflow. Verbinde Gmail, und der Posteingang-Tab ist die ganze Automatisierung.
 
 **GitHub-Issues lösen** kombiniert jeden Bestandteil auf einmal: eine Integration (GitHub), vier Agents verteilt über seine vier versteckten Mitglieder, vier Workflows und keine mitgelieferte Ansicht — es arbeitet stattdessen über das bestehende Board und Backlog des Projekts statt über eine eigene Seite. Die Installation des Bundles verdrahtet alle vier in einem gebündelten Assistenten, gebunden an das Projekt, das du wählst.
 

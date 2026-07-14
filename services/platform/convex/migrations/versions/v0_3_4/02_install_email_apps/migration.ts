@@ -5,7 +5,7 @@
  * email integrations.
  *
  * The dashboard's built-in Conversations pages are replaced by the
- * reply-outlook-emails / reply-gmail-emails / reply-imap-emails apps, so an
+ * outlook/sync-emails / gmail/sync-emails / imap-smtp/sync-emails apps, so an
  * org that has a connected email integration would lose its inbox UI on
  * upgrade unless the matching app is installed. Runs once per org (the
  * node-runner contract); all reads/writes go through internal functions by
@@ -39,16 +39,17 @@ import type { MigrationOrg, NodeMigrationCtx } from '../../../framework/types';
 const MIGRATION_ID = '0.3.4/02_install_email_apps';
 
 /**
- * Email integration slug → the automation that fronts it. The slugs were
- * renamed action-style (`outlook-inbox` → `reply-outlook-emails`, etc.) while
- * the branch was still unreleased; this historical migration is re-seedable, so
- * the constant is edited in place to the current slugs rather than pinned to the
- * old names.
+ * Email integration slug → the automation that fronts it. These slugs churned
+ * several times while the branch was still unreleased (`outlook-inbox` →
+ * `reply-outlook-emails` → `outlook/sync-emails`, once an automation slug became
+ * the path it lives at); this historical migration is re-seedable, so the
+ * constant is edited in place to the CURRENT slugs rather than pinned to any of
+ * the old names.
  */
 export const INTEGRATION_TO_EMAIL_APP: Readonly<Record<string, string>> = {
-  outlook: 'reply-outlook-emails',
-  gmail: 'reply-gmail-emails',
-  imap_smtp: 'reply-imap-emails',
+  outlook: 'outlook/sync-emails',
+  gmail: 'gmail/sync-emails',
+  imap_smtp: 'imap-smtp/sync-emails',
 };
 
 /**
@@ -122,7 +123,7 @@ export const migration = defineNodeMigration({
   description:
     'For each org with an ACTIVE integrationCredentials row for outlook, ' +
     'gmail, or imap_smtp, installs the matching email inbox app ' +
-    '(reply-outlook-emails / reply-gmail-emails / reply-imap-emails) via installAutomationInternal with ' +
+    '(outlook/sync-emails / gmail/sync-emails / imap-smtp/sync-emails) via installAutomationInternal with ' +
     "the installedBy marker 'migration:v0_2_90_install_email_apps', so the " +
     'org keeps an inbox UI when the built-in Conversations pages are ' +
     'removed. Already-installed apps are skipped; a failed install is logged ' +

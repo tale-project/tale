@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  automationDisplayFolder,
   automationManifestSchema,
+  automationParentFolder,
   automationScope,
+  automationSlugToParam,
   isValidAutomationSlug,
+  paramToAutomationSlug,
 } from './automations';
 
 describe('automationManifestSchema — scope', () => {
@@ -54,35 +56,23 @@ describe('automationManifestSchema — labels', () => {
   });
 });
 
-describe('automationManifestSchema — folder (display grouping)', () => {
-  it('accepts nested kebab/underscore paths and keeps the field optional', () => {
-    expect(
-      automationManifestSchema.parse({ name: 'Desk', folder: 'github/issues' })
-        .folder,
-    ).toBe('github/issues');
-    expect(
-      automationManifestSchema.parse({ name: 'Desk', folder: 'ops' }).folder,
-    ).toBe('ops');
-    expect(
-      automationManifestSchema.parse({ name: 'Desk', folder: 'a_b/c-d' })
-        .folder,
-    ).toBe('a_b/c-d');
-    expect(
-      automationManifestSchema.parse({ name: 'Desk' }).folder,
-    ).toBeUndefined();
+describe('automationParentFolder — the folder is derived, never declared', () => {
+  it('returns the parent path of a nested slug', () => {
+    expect(automationParentFolder('gmail/sync-emails')).toBe('gmail');
+    expect(automationParentFolder('projects/tasks/run-assigned')).toBe(
+      'projects/tasks',
+    );
   });
 
-  it('rejects uppercase, empty segments, edge slashes, double underscores, and >64 chars', () => {
-    const reject = (folder: string) =>
-      expect(
-        automationManifestSchema.safeParse({ name: 'Desk', folder }).success,
-      ).toBe(false);
-    reject('GitHub');
-    reject('a//b');
-    reject('/a');
-    reject('a/');
-    reject('a__b');
-    reject(`${'a'.repeat(63)}/b`); // 65 chars
+  it('returns the empty folder for a root-level slug (the "General" bucket)', () => {
+    expect(automationParentFolder('my-automation')).toBe('');
+  });
+
+  it('groups an automation-owned agent under its automation', () => {
+    // An agent's path is `<automationSlug>/<name>` — one rule, both lists.
+    expect(
+      automationParentFolder('github/create-pull-requests/pr-creator'),
+    ).toBe('github/create-pull-requests');
   });
 });
 
@@ -107,17 +97,15 @@ describe('automationManifestSchema — skills (display declaration)', () => {
   });
 });
 
-describe('automationDisplayFolder — fallback resolution', () => {
-  it('falls back to the app slug when the manifest declares no folder', () => {
-    expect(automationDisplayFolder({}, 'issue-desk')).toBe('issue-desk');
-    expect(automationDisplayFolder(null, 'issue-desk')).toBe('issue-desk');
-    expect(automationDisplayFolder(undefined, 'issue-desk')).toBe('issue-desk');
-  });
-
-  it('returns the declared folder when present', () => {
-    expect(
-      automationDisplayFolder({ folder: 'github/issues' }, 'issue-desk'),
-    ).toBe('github/issues');
+describe('automationManifestSchema — folder is no longer a manifest field', () => {
+  it('ignores a legacy `folder` key instead of failing an installed manifest', () => {
+    // The slug carries the path now; a stale key in an org's on-disk manifest
+    // must not break its parse (the schema passes unknown keys through).
+    const m = automationManifestSchema.parse({
+      name: 'Desk',
+      folder: 'github/issues',
+    });
+    expect(m.name).toBe('Desk');
   });
 });
 
@@ -134,14 +122,55 @@ describe('automationScope — default resolution', () => {
   });
 });
 
-describe('isValidAutomationSlug', () => {
-  it('accepts kebab segments', () => {
+describe('isValidAutomationSlug — the slug is a PATH', () => {
+  it('accepts a root-level kebab slug', () => {
     expect(isValidAutomationSlug('issue-desk')).toBe(true);
   });
 
+  it('accepts nested paths up to the depth cap', () => {
+    expect(isValidAutomationSlug('gmail/sync-emails')).toBe(true);
+    expect(isValidAutomationSlug('projects/tasks/run-assigned')).toBe(true);
+    expect(isValidAutomationSlug('a/b/c/d')).toBe(true);
+  });
+
+  it('rejects a path deeper than the cap (the walkers stop there)', () => {
+    expect(isValidAutomationSlug('a/b/c/d/e')).toBe(false);
+  });
+
   it('rejects underscores and uppercase', () => {
+    // No underscore in the alphabet ⇒ `__` can never occur inside a slug, which
+    // is what keeps it usable as the URL separator.
     expect(isValidAutomationSlug('issue_desk')).toBe(false);
     expect(isValidAutomationSlug('IssueDesk')).toBe(false);
+    expect(isValidAutomationSlug('a__b')).toBe(false);
+  });
+
+  it('rejects empty segments, edge slashes, and traversal', () => {
+    expect(isValidAutomationSlug('a//b')).toBe(false);
+    expect(isValidAutomationSlug('/a')).toBe(false);
+    expect(isValidAutomationSlug('a/')).toBe(false);
+    expect(isValidAutomationSlug('../etc')).toBe(false);
+    expect(isValidAutomationSlug('a/../b')).toBe(false);
+  });
+
+  it('rejects a slug over 128 chars', () => {
+    expect(isValidAutomationSlug(`${'a'.repeat(64)}/${'b'.repeat(64)}`)).toBe(
+      false,
+    );
+  });
+});
+
+describe('automationSlugToParam — one URL path segment, losslessly', () => {
+  it('round-trips a nested slug through the `__` separator', () => {
+    const slug = 'projects/tasks/run-assigned';
+    const param = automationSlugToParam(slug);
+    expect(param).toBe('projects__tasks__run-assigned');
+    expect(paramToAutomationSlug(param)).toBe(slug);
+  });
+
+  it('leaves a root-level slug untouched', () => {
+    expect(automationSlugToParam('issue-desk')).toBe('issue-desk');
+    expect(paramToAutomationSlug('issue-desk')).toBe('issue-desk');
   });
 });
 

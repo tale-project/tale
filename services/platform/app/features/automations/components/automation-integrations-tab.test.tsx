@@ -64,7 +64,7 @@ function automationSummary(
 ): AutomationSummary {
   return {
     slug: 'reply-smtp-imap',
-    name: 'Reply to emails via SMTP/IMAP',
+    name: 'Sync emails via SMTP/IMAP',
     description: 'Reply via IMAP/SMTP',
     scope: 'org',
     requiredIntegrations: ['smtp-imap'],

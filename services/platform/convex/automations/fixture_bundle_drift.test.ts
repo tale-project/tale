@@ -5,22 +5,27 @@
  * track its source byte-for-byte (the install path copies bundle files
  * verbatim, so a drifted fixture asserts a UI that no org can ever see):
  *
+ * A slug is a PATH (`github/create-pull-requests`), so a "copy" is the whole
+ * nested dir at that path — group dirs (`github/`) carry no bundle of their own.
+ *
  * - `tests/e2e/fixtures/config/qa-guides-org/automations/` — the manual-QA org's
  *   config. It carries the "Resolve GitHub issues" bundle's visible manifest
- *   plus its four hidden member automations (`triage-github-issues`,
- *   `sync-github-issues`, `create-github-pr`, `review-github-pr`), the three
- *   email inbox automations (`reply-outlook-emails`, `reply-gmail-emails`, `reply-imap-emails`) — all as
+ *   plus its four hidden member automations (`github/triage-issues`,
+ *   `github/sync-issues`, `github/create-pull-requests`,
+ *   `github/review-pull-requests`), the three email inbox automations
+ *   (`outlook/sync-emails`, `gmail/sync-emails`, `imap-smtp/sync-emails`) — all as
  *   BYTE-IDENTICAL copies of `builtin-configs/automations/<slug>/` — and
- *   `create-github-pr-qa`: the private-upload variant the manual guide's F14
- *   case uses (the same bundle under a renamed slug; `create-github-pr` is
- *   picked over the other members because it carries BOTH an agent and a
- *   workflow, exercising every reference kind the transform must rewrite —
- *   the bundle manifest itself carries neither, so renaming IT alone would
- *   exercise nothing). The documented transform (and nothing else): every
- *   `create-github-pr/` becomes `create-github-pr-qa/` — in JSON file
- *   CONTENTS (the inline workflow's slug references, composite agent slugs
- *   like `create-github-pr/pr-creator`, view workflow refs). Bare occurrences without the slash (`metadata.pack`) are
- *   NOT part of the transform.
+ *   `github/create-pull-requests-qa`: the private-upload variant the manual
+ *   guide's F14 case uses (the same bundle under a renamed LEAF;
+ *   `github/create-pull-requests` is picked over the other members because it
+ *   carries BOTH an agent and a workflow, exercising every reference kind the
+ *   transform must rewrite — the bundle manifest itself carries neither, so
+ *   renaming IT alone would exercise nothing). The documented transform (and
+ *   nothing else): every `github/create-pull-requests/` becomes
+ *   `github/create-pull-requests-qa/` — in JSON file CONTENTS (the inline
+ *   workflow's slug references, composite agent slugs like
+ *   `github/create-pull-requests/pr-creator`, view workflow refs). Bare
+ *   occurrences without the slash (`metadata.pack`) are NOT part of the transform.
  * - `tests/e2e/fixtures/config/default/automations/` — the hermetic e2e stack's
  *   builtin catalog (`playwright.config.ts` pins `TALE_CONFIG_BUILTIN_DIR`
  *   here). Worker orgs scaffold their automation catalog from it, and
@@ -54,14 +59,14 @@ const E2E_FIXTURE_AUTOMATIONS_DIR = fileURLToPath(
 
 /** Builtin bundles with a pinned byte-identical copy in a fixture tree. */
 const MIRRORED_SLUGS = [
-  'resolve-github-issues',
-  'triage-github-issues',
-  'sync-github-issues',
-  'create-github-pr',
-  'review-github-pr',
-  'reply-outlook-emails',
-  'reply-gmail-emails',
-  'reply-imap-emails',
+  'github/resolve-issues',
+  'github/triage-issues',
+  'github/sync-issues',
+  'github/create-pull-requests',
+  'github/review-pull-requests',
+  'outlook/sync-emails',
+  'gmail/sync-emails',
+  'imap-smtp/sync-emails',
 ] as const;
 
 /** Every file under `dir`, as sorted POSIX-relative paths. */
@@ -81,7 +86,10 @@ function listFilesRecursive(dir: string, prefix = ''): string[] {
 
 /** The documented slug transform (see the file header). */
 function toQaSlug(value: string): string {
-  return value.replaceAll('create-github-pr/', 'create-github-pr-qa/');
+  return value.replaceAll(
+    'github/create-pull-requests/',
+    'github/create-pull-requests-qa/',
+  );
 }
 
 /**
@@ -122,7 +130,9 @@ it('locates the builtin bundles and both fixture trees', () => {
     );
   }
   expect(
-    existsSync(join(QA_FIXTURE_AUTOMATIONS_DIR, 'create-github-pr-qa')),
+    existsSync(
+      join(QA_FIXTURE_AUTOMATIONS_DIR, 'github/create-pull-requests-qa'),
+    ),
   ).toBe(true);
 });
 
@@ -135,9 +145,15 @@ for (const slug of MIRRORED_SLUGS) {
   });
 }
 
-describe('qa-guides-org fixture "create-github-pr-qa" is the slug-renamed builtin', () => {
-  const builtinDir = join(BUILTIN_AUTOMATIONS_DIR, 'create-github-pr');
-  const fixtureDir = join(QA_FIXTURE_AUTOMATIONS_DIR, 'create-github-pr-qa');
+describe('qa-guides-org fixture "github/create-pull-requests-qa" is the slug-renamed builtin', () => {
+  const builtinDir = join(
+    BUILTIN_AUTOMATIONS_DIR,
+    'github/create-pull-requests',
+  );
+  const fixtureDir = join(
+    QA_FIXTURE_AUTOMATIONS_DIR,
+    'github/create-pull-requests-qa',
+  );
   const builtinFiles = listFilesRecursive(builtinDir);
 
   it('carries the builtin file set under the transformed workflow paths', () => {
@@ -160,12 +176,13 @@ describe('qa-guides-org fixture "create-github-pr-qa" is the slug-renamed builti
     for (const rel of listFilesRecursive(fixtureDir)) {
       if (!rel.endsWith('.json')) continue;
       const text = readFileSync(join(fixtureDir, rel), 'utf8');
-      // `create-github-pr-qa/` contains `create-github-pr` — assert on the
-      // slash-scoped form the transform targets, tolerating the renamed slug
-      // itself.
-      expect(text.replaceAll('create-github-pr-qa/', ''), rel).not.toContain(
-        'create-github-pr/',
-      );
+      // `github/create-pull-requests-qa/` contains `github/create-pull-requests`
+      // — assert on the slash-scoped form the transform targets, tolerating the
+      // renamed slug itself.
+      expect(
+        text.replaceAll('github/create-pull-requests-qa/', ''),
+        rel,
+      ).not.toContain('github/create-pull-requests/');
     }
   });
 });

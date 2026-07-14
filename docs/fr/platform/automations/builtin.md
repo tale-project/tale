@@ -11,15 +11,15 @@ Tale livre des automatisations prêtes à l’emploi : trois à but unique qui 
 
 </Frame>
 
-## Répondre aux e-mails Gmail, Outlook et IMAP
+## Synchroniser les e-mails Gmail, Outlook et IMAP
 
-**Répondre aux e-mails Gmail**, **Répondre aux e-mails Outlook** et **Répondre aux e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification (toutes les six heures d’origine — resserrable sur l’onglet **Déclencheurs** de l’automatisation). Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
+**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement l’intégration que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification (toutes les six heures d’origine — resserrable sur l’onglet **Déclencheurs** de l’automatisation). Une organisation qui reçoit du courrier sur plus d’un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres.
 
-| Automatisation                     | Requiert  | Boîte aux lettres                 |
-| ---------------------------------- | --------- | --------------------------------- |
-| Répondre aux e-mails Gmail         | Gmail     | Une boîte Gmail                   |
-| Répondre aux e-mails Outlook       | Outlook   | Une boîte Microsoft Outlook       |
-| Répondre aux e-mails via SMTP/IMAP | IMAP/SMTP | Toute boîte privée en IMAP / SMTP |
+| Automatisation                         | Requiert  | Boîte aux lettres                 |
+| -------------------------------------- | --------- | --------------------------------- |
+| Synchroniser les e-mails Gmail         | Gmail     | Une boîte Gmail                   |
+| Synchroniser les e-mails Outlook       | Outlook   | Une boîte Microsoft Outlook       |
+| Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toute boîte privée en IMAP / SMTP |
 
 ## L’onglet Boîte de réception
 

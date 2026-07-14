@@ -1,8 +1,23 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
+import {
+  automationSlugToParam,
+  paramToAutomationSlug,
+} from '@/lib/shared/schemas/automations';
+
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/automations/$automationSlug',
 )({
+  // Same `__`-encoded path slug as the org-level automation route — see
+  // `automations/$automationSlug.tsx`.
+  params: {
+    parse: (raw: { automationSlug: string }) => ({
+      automationSlug: paramToAutomationSlug(raw.automationSlug),
+    }),
+    stringify: (parsed: { automationSlug: string }) => ({
+      automationSlug: automationSlugToParam(parsed.automationSlug),
+    }),
+  },
   component: ProjectAutomationLayout,
 });
 

@@ -64304,6 +64304,9 @@
           },
           "type": "array"
         },
+        "autoInstall": {
+          "type": "boolean"
+        },
         "builtinViews": {
           "items": {
             "additionalProperties": false,
@@ -64379,11 +64382,6 @@
           "type": "object"
         },
         "description": {
-          "type": "string"
-        },
-        "folder": {
-          "maxLength": 64,
-          "pattern": "^(?!.*__)[a-z0-9][a-z0-9_-]*(\\/[a-z0-9][a-z0-9_-]*)*$",
           "type": "string"
         },
         "hidden": {
@@ -64859,11 +64857,6 @@
           "type": "object"
         },
         "description": {
-          "type": "string"
-        },
-        "folder": {
-          "maxLength": 64,
-          "pattern": "^(?!.*__)[a-z0-9][a-z0-9_-]*(\\/[a-z0-9][a-z0-9_-]*)*$",
           "type": "string"
         },
         "i18n": {
@@ -67355,26 +67348,6 @@
         "authMethod": {
           "enum": ["api_key", "bearer_token", "basic_auth", "oauth2"],
           "type": "string"
-        },
-        "bundles": {
-          "additionalProperties": false,
-          "properties": {
-            "agents": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "workflows": {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
         },
         "capabilities": {
           "additionalProperties": false,

@@ -102,14 +102,53 @@ const listJsonFiles = (dir: string): string[] =>
         .sort()
     : [];
 
-const automationSlugs = readdirSync(AUTOMATIONS_DIR, { withFileTypes: true })
-  .filter((e) => e.isDirectory())
-  .map((e) => e.name)
-  .sort();
+/**
+ * Every builtin automation, discovered the way the platform discovers them
+ * (`convex/automations/file_utils.ts#listAutomationSlugs`): an automation slug is
+ * a PATH, so a dir CARRYING a manifest is an automation (its path from the
+ * catalog root is its slug, and the walk stops there — `agents/` is bundle
+ * content), while a dir carrying none is a GROUP dir (`github/`) and is
+ * descended into.
+ */
+function collectAutomationSlugs(dir: string, prefix = ''): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const abs = join(dir, entry.name);
+    const slug = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+    if (isBundleAppDir(abs) || existsSync(join(abs, 'automation.json'))) {
+      out.push(slug);
+    } else {
+      out.push(...collectAutomationSlugs(abs, slug));
+    }
+  }
+  return out.sort();
+}
 
-// The suite must never silently pass because the fixture dir moved.
-it('discovers at least one builtin app bundle', () => {
+/** Every manifest file in the catalog tree, however deep. */
+function countManifests(dir: string): number {
+  let count = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name);
+    if (entry.isDirectory()) count += countManifests(abs);
+    else if (entry.name === 'automation.json' || entry.name === 'bundle.json')
+      count++;
+  }
+  return count;
+}
+
+const automationSlugs = collectAutomationSlugs(AUTOMATIONS_DIR);
+
+// The suite must never silently pass because the fixture dir moved — nor
+// because the walk stopped at a group dir and skipped every nested automation
+// (the failure mode a single-level readdir has here: it would find `github/`,
+// `gmail/`, … and validate nothing).
+it('discovers every builtin automation bundle in the catalog tree', () => {
   expect(automationSlugs.length).toBeGreaterThan(0);
+  expect(automationSlugs.length).toBe(countManifests(AUTOMATIONS_DIR));
+  // Sanity: the walk reaches nested slugs, not just the group dirs above them.
+  expect(automationSlugs).toContain('gmail/sync-emails');
+  expect(automationSlugs).toContain('projects/tasks/run-assigned');
 });
 
 describe.each(automationSlugs)(
@@ -270,9 +309,9 @@ describe.each(automationSlugs)(
 // `validateBundleShape` enforces at install time, so a bundle that passes here
 // is guaranteed to install cleanly and vice versa.
 //
-// `resolve-github-issues` is the first real installation bundle (four hidden
-// member automations: triage-github-issues, sync-github-issues,
-// create-github-pr, review-github-pr): the `it.each` below gates it (and any
+// `github/resolve-issues` is the first real installation bundle (four hidden
+// member automations: github/triage-issues, github/sync-issues,
+// github/create-pull-requests, github/review-pull-requests): the `it.each` below gates it (and any
 // future bundle) automatically by discovery; the synthetic fixture right
 // after it (constructed in-memory, never written to `builtin-configs/`)
 // proves the helper actually catches every violation kind.
@@ -342,7 +381,7 @@ describe('installation-bundle shape gate (validateBundleShape)', () => {
 // bundle gate, for the bundle manifest and its four hidden members.
 // ---------------------------------------------------------------------------
 
-const BUNDLE_DIR = join(AUTOMATIONS_DIR, 'resolve-github-issues');
+const BUNDLE_DIR = join(AUTOMATIONS_DIR, 'github/resolve-issues');
 const readBundleJson = (rel: string): unknown =>
   JSON.parse(readFileSync(resolve(BUNDLE_DIR, rel), 'utf8'));
 const readMemberJson = (memberSlug: string, rel: string): unknown =>
@@ -362,10 +401,10 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     expect(bundle.i18n?.de?.name).toBe('GitHub-Issues lösen');
     expect(bundle.i18n?.fr?.name).toBe('Résoudre les issues GitHub');
     expect(bundle.bundle.members).toEqual([
-      'triage-github-issues',
-      'sync-github-issues',
-      'create-github-pr',
-      'review-github-pr',
+      'github/triage-issues',
+      'github/sync-issues',
+      'github/create-pull-requests',
+      'github/review-pull-requests',
     ]);
     // Bundles carry no install-bearing fields of their own (the strict schema
     // rejects them at parse time — asserted here as absence).
@@ -401,10 +440,10 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     }
   });
 
-  it('create-github-pr and review-github-pr ship a durable-sandbox BYO agent', () => {
+  it('create-pull-requests and review-pull-requests ship a durable-sandbox BYO agent', () => {
     for (const [memberSlug, agentName] of [
-      ['create-github-pr', 'pr-creator'],
-      ['review-github-pr', 'pr-reviewer'],
+      ['github/create-pull-requests', 'pr-creator'],
+      ['github/review-pull-requests', 'pr-reviewer'],
     ] as const) {
       const cfg = agentJsonSchema.parse(
         readMemberJson(memberSlug, `agents/${agentName}.json`),
@@ -421,10 +460,10 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     }
   });
 
-  it('triage-github-issues and sync-github-issues carry no agent, only a schedule trigger', () => {
+  it('triage-issues and sync-issues carry no agent, only a schedule trigger', () => {
     for (const memberSlug of [
-      'triage-github-issues',
-      'sync-github-issues',
+      'github/triage-issues',
+      'github/sync-issues',
     ] as const) {
       const manifest = automationManifestSchema.parse(
         readMemberJson(memberSlug, 'automation.json'),
@@ -443,9 +482,9 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     }
   });
 
-  it("create-github-pr's workflow runs pr-creator via the generic agent action (run_on_task)", () => {
+  it("create-pull-requests' workflow runs pr-creator via the generic agent action (run_on_task)", () => {
     const workflow = automationManifestSchema.parse(
-      readMemberJson('create-github-pr', 'automation.json'),
+      readMemberJson('github/create-pull-requests', 'automation.json'),
     ).workflow;
     const steps = (workflow?.steps ?? []) as Array<Record<string, unknown>>;
     const run = steps.find((s) => s.stepSlug === 'run') as {
@@ -459,13 +498,13 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     expect(run.config?.type).toBe('agent');
     expect(run.config?.parameters?.operation).toBe('run_on_task');
     expect(run.config?.parameters?.agentSlug).toBe(
-      'create-github-pr/pr-creator',
+      'github/create-pull-requests/pr-creator',
     );
   });
 
-  it('review-github-pr polls in_review tasks assigned to pr-creator and bounds its rework loop by a task label', () => {
+  it('review-pull-requests polls in_review tasks assigned to pr-creator and bounds its rework loop by a task label', () => {
     const workflow = automationManifestSchema.parse(
-      readMemberJson('review-github-pr', 'automation.json'),
+      readMemberJson('github/review-pull-requests', 'automation.json'),
     ).workflow;
     const steps = (workflow?.steps ?? []) as Array<Record<string, unknown>>;
     const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
@@ -477,7 +516,7 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
     };
     expect(list.config?.parameters?.operation).toBe('list_open_for_assignee');
     expect(list.config?.parameters?.assigneeId).toBe(
-      'create-github-pr/pr-creator',
+      'github/create-pull-requests/pr-creator',
     );
 
     // Not approved routes through the label-backed tier count, never straight
@@ -502,7 +541,7 @@ describe('"Resolve GitHub issues" bundle (data) — desk-specific pins', () => {
       config?: { parameters?: { assigneeId?: string } };
     };
     expect(reassign.config?.parameters?.assigneeId).toBe(
-      'create-github-pr/pr-creator',
+      'github/create-pull-requests/pr-creator',
     );
   });
 });

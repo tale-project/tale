@@ -37,14 +37,6 @@ export const automationBuiltinViewSchema = z.object({
 export type AutomationBuiltinView = z.infer<typeof automationBuiltinViewSchema>;
 
 /**
- * A display folder path: '/'-separated lowercase kebab/underscore segments
- * (e.g. `github/issues`). No leading/trailing slash, no empty segments, no
- * `__` runs — the same alphabet folder-grouped lists already render.
- */
-const AUTOMATION_FOLDER_REGEX =
-  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/;
-
-/**
  * Per-locale overrides for one declared config field's display strings — the
  * translated twins of `formFieldSchema`'s literal `label`/`placeholder`/`help`.
  */
@@ -106,12 +98,6 @@ export const automationManifestSchema = z
     i18n: automationManifestI18nSchema.optional(),
     /** Optional lucide icon name for the automation card. */
     icon: z.string().optional(),
-    /**
-     * Display folder the automation's agents/workflows group under in the global
-     * lists; absent ⇒ automation slug. DISPLAY ONLY — slugs, on-disk paths, and env
-     * namespaces stay keyed by the automation slug. Resolve via {@link automationDisplayFolder}.
-     */
-    folder: z.string().max(64).regex(AUTOMATION_FOLDER_REGEX).optional(),
     /**
      * Short catalog labels shown as chips on the hub card and the automation details
      * header (e.g. "GitHub", "Email"). LITERAL display strings — the hub
@@ -232,8 +218,6 @@ export const bundleManifestSchema = z
     i18n: automationManifestI18nSchema.optional(),
     /** Optional lucide icon name for the catalog card. */
     icon: z.string().optional(),
-    /** Display folder (see {@link automationManifestSchema}'s `folder`). */
-    folder: z.string().max(64).regex(AUTOMATION_FOLDER_REGEX).optional(),
     /** Short catalog labels (literal, untranslated proper nouns). */
     labels: z.array(z.string()).max(6).optional(),
     /** Where the members install/run; every member must share it. */
@@ -275,23 +259,63 @@ export function automationScope(
 }
 
 /**
- * Resolve the display folder an automation's agents/workflows group under. An unset
- * manifest `folder` means the automation slug — the shape every folder-grouped list
- * rendered before folders existed. Always read the folder through this so the
- * fallback lives in exactly one place (mirrors {@link automationScope}).
+ * The folder an item groups under: its parent path (`''` at the root). ONE rule
+ * for every folder-grouped list, because the slug IS the path — the automation
+ * `gmail/sync-emails` groups under `gmail`, and its agent
+ * `github/create-pull-requests/pr-creator` groups under the automation
+ * `github/create-pull-requests`. Replaces the retired cosmetic `folder` manifest
+ * field: a folder is derived from where the thing lives, never declared beside it.
  */
-export function automationDisplayFolder(
-  manifest: { folder?: string } | null | undefined,
-  automationSlug: string,
-): string {
-  return manifest?.folder ?? automationSlug;
+export function automationParentFolder(slugOrPath: string): string {
+  const cut = slugOrPath.lastIndexOf('/');
+  return cut === -1 ? '' : slugOrPath.slice(0, cut);
 }
 
-/** Automation slug — same alphabet as skills/workflows (kebab segments). */
-const AUTOMATION_SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/**
+ * Automation slug — a '/'-separated PATH of kebab segments (`gmail/sync-emails`,
+ * `projects/tasks/run-assigned`). The slug IS the automation's location: its dir
+ * under the built-in catalog, its dir in an org tree, and (via
+ * {@link automationParentFolder}) the folder it groups under. Each segment uses the
+ * same alphabet as skills/workflows; underscores are excluded on purpose, so `__`
+ * can never occur inside a slug and stays free as the URL separator
+ * ({@link automationSlugToParam}).
+ */
+const AUTOMATION_SLUG_SEGMENT = String.raw`[a-z0-9]+(?:-[a-z0-9]+)*`;
+const AUTOMATION_SLUG_REGEX = new RegExp(
+  `^${AUTOMATION_SLUG_SEGMENT}(?:/${AUTOMATION_SLUG_SEGMENT})*$`,
+);
+
+/**
+ * Depth cap on an automation slug — and therefore the recursion bound of every
+ * walker that discovers automations on disk (`listAutomationSlugs`). One constant
+ * so a path the validator accepts can never be a path the walker refuses to reach.
+ */
+export const MAX_AUTOMATION_SLUG_DEPTH = 4;
+const MAX_AUTOMATION_SLUG_LENGTH = 128;
 
 export function isValidAutomationSlug(slug: string): boolean {
-  return AUTOMATION_SLUG_REGEX.test(slug) && slug.length <= 64;
+  return (
+    AUTOMATION_SLUG_REGEX.test(slug) &&
+    slug.length <= MAX_AUTOMATION_SLUG_LENGTH &&
+    slug.split('/').length <= MAX_AUTOMATION_SLUG_DEPTH
+  );
+}
+
+/**
+ * A path-shaped slug, encoded into ONE URL path segment: `/` → `__`. The
+ * separator is the one the workflow routes have always used and
+ * `WORKFLOW_SLUG_REGEX` reserves; since no slug segment may contain an
+ * underscore, the round-trip is lossless. Every `$automationSlug` route param is
+ * this encoded form — decode with {@link paramToAutomationSlug} before touching
+ * the filesystem or a stored slug.
+ */
+export function automationSlugToParam(slug: string): string {
+  return slug.replaceAll('/', '__');
+}
+
+/** Inverse of {@link automationSlugToParam} — a route param back to a real slug. */
+export function paramToAutomationSlug(param: string): string {
+  return param.replaceAll('__', '/');
 }
 
 /** The manifest file at the root of an automation bundle (its dir name is the slug). */

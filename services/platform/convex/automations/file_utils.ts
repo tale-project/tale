@@ -13,18 +13,19 @@
  * choice on which one is present.
  */
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
   AUTOMATION_MANIFEST_FILENAME,
-  automationDisplayFolder,
   type AutomationManifestI18n,
   automationManifestSchema,
   BUNDLE_MANIFEST_FILENAME,
   isValidAutomationSlug,
+  MAX_AUTOMATION_SLUG_DEPTH,
 } from '../../lib/shared/schemas/automations';
 import {
+  errnoCode,
   getConfigRoot,
   safeJoinWithinDir,
   validateOrgSlug,
@@ -97,33 +98,57 @@ export function resolveCatalogAutomationDir(slug: string): string {
   return path.join(resolveCatalogAutomationsDir(), slug);
 }
 
-export async function readInstalledAutomationFolders(
-  orgSlug: string,
-  automationSlugs: readonly string[],
-): Promise<Map<string, string>> {
-  const folders = new Map<string, string>();
-  await Promise.all(
-    automationSlugs.map(async (automationSlug) => {
-      let folder = automationSlug;
-      try {
-        const content = await readFile(
-          resolveAutomationManifestPath(orgSlug, automationSlug),
-          'utf-8',
-        );
-        const parsed = automationManifestSchema.safeParse(JSON.parse(content));
-        if (parsed.success) {
-          folder = automationDisplayFolder(parsed.data, automationSlug);
+/**
+ * Every automation slug under `dir` — the ONE discovery walk (the catalog list
+ * and the default-automation provisioner share it, so a nested automation can
+ * never be visible to one and invisible to the other).
+ *
+ * A dir that CARRIES a manifest IS an automation: its path relative to `dir` is
+ * its slug, and the walk stops there — the `agents/`, `views/`, `scripts/` dirs
+ * inside it are bundle content, never nested automations. A dir WITHOUT one is a
+ * group dir (`github/`, `projects/tasks/`) and is descended into. Bounded by
+ * {@link MAX_AUTOMATION_SLUG_DEPTH} — the same cap `isValidAutomationSlug`
+ * enforces, so a path the validator accepts is always a path the walk reaches.
+ *
+ * Discovery posture (never fail the whole list): a missing `dir` yields `[]`, and
+ * a dir whose path is not a valid slug is skipped with a warning.
+ */
+export async function listAutomationSlugs(
+  dir: string,
+  label: string,
+): Promise<string[]> {
+  const slugs: string[] = [];
+
+  const walk = async (current: string, prefix: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch (err) {
+      if (errnoCode(err) === 'ENOENT') return;
+      throw err;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const slug = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const child = path.join(current, entry.name);
+      if (existsSync(resolveManifestFilePath(child))) {
+        if (isValidAutomationSlug(slug)) {
+          slugs.push(slug);
+        } else {
+          console.warn(
+            `[${label}] skipping automation dir "${slug}": not a valid automation slug`,
+          );
         }
-      } catch (err) {
-        console.warn(
-          `[automations.readInstalledAutomationFolders] falling back to slug for "${automationSlug}":`,
-          err instanceof Error ? err.message : err,
-        );
+        continue;
       }
-      folders.set(automationSlug, folder);
-    }),
-  );
-  return folders;
+      if (slug.split('/').length < MAX_AUTOMATION_SLUG_DEPTH) {
+        await walk(child, slug);
+      }
+    }
+  };
+
+  await walk(dir, '');
+  return slugs.sort();
 }
 
 /** An installed automation's self-translated display text — {@link readInstalledAutomationDisplays}. */
@@ -252,4 +277,34 @@ export async function resolveAutomationAssetPathChecked(
   const resolved = resolveAutomationAssetPath(orgSlug, slug, relPath);
   await verifyPathWithinBase(resolved, automationDir);
   return resolved;
+}
+
+/**
+ * Split the body of a `pack://<slug>/<relPath>` asset reference (a workflow
+ * sandbox step's frozen script) into its automation slug and bundle-relative
+ * path.
+ *
+ * The boundary CANNOT be found lexically: a slug is a path, so
+ * `pack://gmail/sync-emails/scripts/run.ts` is the automation
+ * `gmail/sync-emails` + asset `scripts/run.ts`, not the automation `gmail` + a
+ * `reply-emails/…` asset. It is resolved against the org's installed tree
+ * instead — the LONGEST leading path that carries a manifest is the automation,
+ * the remainder is the asset. Returns null when no prefix resolves to an
+ * installed automation (the caller fails the step loudly).
+ */
+export function splitAutomationAssetRef(
+  orgSlug: string,
+  body: string,
+): { automationSlug: string; relPath: string } | null {
+  const segments = body.split('/');
+  const deepest = Math.min(segments.length - 1, MAX_AUTOMATION_SLUG_DEPTH);
+  for (let cut = deepest; cut >= 1; cut--) {
+    const slug = segments.slice(0, cut).join('/');
+    const relPath = segments.slice(cut).join('/');
+    if (relPath === '' || !isValidAutomationSlug(slug)) continue;
+    if (existsSync(resolveAutomationManifestPath(orgSlug, slug))) {
+      return { automationSlug: slug, relPath };
+    }
+  }
+  return null;
 }

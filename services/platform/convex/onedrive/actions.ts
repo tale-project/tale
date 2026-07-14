@@ -73,7 +73,7 @@ export const importFiles = action({
     }
 
     if (args.importType === 'sync') {
-      // Ongoing sync is driven by the `sync-onedrive-files` autoInstall
+      // Ongoing sync is driven by the `onedrive/sync-files` autoInstall
       // automation, provisioned at org-create / deploy / catalog resync. A
       // sync import is the moment the engine must exist, so re-run the
       // idempotent default-automation provisioner as a belt-and-braces for

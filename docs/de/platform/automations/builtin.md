@@ -11,15 +11,15 @@ Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen
 
 </Frame>
 
-## Auf Gmail, Outlook und E-Mail über IMAP antworten
+## Gmail, Outlook und E-Mail über IMAP synchronisieren
 
-**Auf Gmail-E-Mails antworten**, **Auf Outlook-E-Mails antworten** und **Auf E-Mails über SMTP/IMAP antworten** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt (ab Werk alle sechs Stunden — auf dem Tab **Auslöser** der Automatisierung enger stellbar). Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
+**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt (ab Werk alle sechs Stunden — auf dem Tab **Auslöser** der Automatisierung enger stellbar). Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
 
-| Automatisierung                      | Braucht   | Postfach                                  |
-| ------------------------------------ | --------- | ----------------------------------------- |
-| Auf Gmail-E-Mails antworten          | Gmail     | Ein Gmail-Postfach                        |
-| Auf Outlook-E-Mails antworten        | Outlook   | Ein Microsoft-Outlook-Postfach            |
-| Auf E-Mails über SMTP/IMAP antworten | IMAP/SMTP | Jedes private Postfach über IMAP und SMTP |
+| Automatisierung                        | Braucht   | Postfach                                  |
+| -------------------------------------- | --------- | ----------------------------------------- |
+| Gmail-E-Mails synchronisieren          | Gmail     | Ein Gmail-Postfach                        |
+| Outlook-E-Mails synchronisieren        | Outlook   | Ein Microsoft-Outlook-Postfach            |
+| E-Mails über SMTP/IMAP synchronisieren | IMAP/SMTP | Jedes private Postfach über IMAP und SMTP |
 
 ## Der Posteingang-Tab
 

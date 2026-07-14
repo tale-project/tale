@@ -13,38 +13,47 @@
  * → the automation that now carries that workflow inline. Covers the 13
  * auto-installed pack workflows, the 8 catalog templates, and the 3 email
  * syncs folded into their reply automations.
+ *
+ * An automation slug is itself a PATH (it IS the automation's dir under
+ * `automations/`), so most of these stay in the folder their workflow lived in
+ * — the value is the automation's location, not a flattened name. A few are
+ * identity maps (`projects/tasks/sweep-stale-work`), which the remaps below
+ * handle as no-op patches.
  */
 export const WORKFLOW_TO_AUTOMATION: Readonly<Record<string, string>> = {
-  // Task-ops pack (hidden, autoInstall, folder "tasks").
-  'projects/tasks/run-assigned-task': 'run-assigned-task',
-  'projects/tasks/triage-unassigned-tasks': 'triage-unassigned-tasks',
-  'projects/tasks/react-to-task-mention': 'react-to-task-mention',
-  'projects/tasks/review-completed-work': 'review-completed-work',
-  'projects/tasks/sweep-stale-work': 'sweep-stale-work',
-  'projects/tasks/start-queued-work': 'start-queued-work',
-  'projects/tasks/archive-closed-tasks': 'archive-closed-tasks',
-  'projects/tasks/enforce-task-slas': 'enforce-task-slas',
-  'projects/tasks/unblock-dependent-tasks': 'unblock-dependent-tasks',
-  'projects/tasks/roll-up-completed-subtasks': 'roll-up-completed-subtasks',
-  'projects/tasks/remind-pending-reviewers': 'remind-pending-reviewers',
-  // Discussion pack (hidden, autoInstall, folder "discussions").
+  // Task-ops pack (hidden, autoInstall) — stays under `projects/tasks/`.
+  'projects/tasks/run-assigned-task': 'projects/tasks/run-assigned',
+  'projects/tasks/triage-unassigned-tasks': 'projects/tasks/triage-unassigned',
+  'projects/tasks/react-to-task-mention': 'projects/tasks/react-to-mentions',
+  'projects/tasks/review-completed-work':
+    'projects/tasks/review-completed-work',
+  'projects/tasks/sweep-stale-work': 'projects/tasks/sweep-stale-work',
+  'projects/tasks/start-queued-work': 'projects/tasks/start-queued-work',
+  'projects/tasks/archive-closed-tasks': 'projects/tasks/archive-closed',
+  'projects/tasks/enforce-task-slas': 'projects/tasks/enforce-slas',
+  'projects/tasks/unblock-dependent-tasks': 'projects/tasks/unblock-dependent',
+  'projects/tasks/roll-up-completed-subtasks':
+    'projects/tasks/roll-up-completed-subtasks',
+  'projects/tasks/remind-pending-reviewers': 'projects/tasks/remind-reviewers',
+  // Discussion pack (hidden, autoInstall) — stays under `projects/discussions/`.
   'projects/discussions/react-to-discussion-mention':
-    'react-to-discussion-mention',
+    'projects/discussions/react-to-mentions',
   // Knowledge / commerce / conversations templates.
-  'onedrive/sync-files-from-onedrive': 'sync-onedrive-files',
-  'confluence/sync-pages-from-confluence': 'sync-confluence-pages',
-  'google_drive/sync-files-from-google-drive': 'sync-google-drive-files',
-  'shopify/sync-customers-from-shopify': 'sync-shopify-customers',
-  'shopify/sync-products-from-shopify': 'sync-shopify-products',
-  'products/analyze-product-relationships': 'analyze-product-relationships',
-  'knowledge/index-documents-for-retrieval': 'index-documents-for-retrieval',
-  'conversations/archive-idle-conversations': 'archive-idle-conversations',
+  'onedrive/sync-files-from-onedrive': 'onedrive/sync-files',
+  'confluence/sync-pages-from-confluence': 'confluence/sync-pages',
+  'google_drive/sync-files-from-google-drive': 'google-drive/sync-files',
+  'shopify/sync-customers-from-shopify': 'shopify/sync-customers',
+  'shopify/sync-products-from-shopify': 'shopify/sync-products',
+  'products/analyze-product-relationships': 'products/analyze-relationships',
+  'knowledge/index-documents-for-retrieval':
+    'knowledge/index-documents-for-retrieval',
+  'conversations/archive-idle-conversations': 'conversations/archive-idle',
   'conversations/notify-members-on-inbound-message':
-    'notify-members-on-inbound-message',
+    'conversations/notify-members-on-inbound-messages',
   // Email syncs folded INLINE into the existing reply automations.
-  'gmail/sync-emails-from-gmail': 'reply-gmail-emails',
-  'outlook/sync-emails-from-outlook': 'reply-outlook-emails',
-  'imap_smtp/sync-emails-from-imap_smtp': 'reply-imap-emails',
+  'gmail/sync-emails-from-gmail': 'gmail/sync-emails',
+  'outlook/sync-emails-from-outlook': 'outlook/sync-emails',
+  'imap_smtp/sync-emails-from-imap_smtp': 'imap-smtp/sync-emails',
 };
 
 /** Inverse of {@link WORKFLOW_TO_AUTOMATION}, for the bijective `down`s. */

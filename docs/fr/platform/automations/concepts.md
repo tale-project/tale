@@ -37,7 +37,7 @@ Un bundle regroupe plusieurs automatisations qui n’ont de sens qu’installée
 
 ## Mis bout à bout — deux combinaisons
 
-**Répondre aux e-mails Gmail** combine le plus petit ensemble possible : une intégration (Gmail) et une vue intégrée (Boîte de réception) — pas d’agent, pas de workflow. Connecte Gmail, et l’onglet Boîte de réception est toute l’automatisation.
+**Synchroniser les e-mails Gmail** combine le plus petit ensemble possible : une intégration (Gmail) et une vue intégrée (Boîte de réception) — pas d’agent, pas de workflow. Connecte Gmail, et l’onglet Boîte de réception est toute l’automatisation.
 
 **Résoudre les issues GitHub** combine toutes les pièces à la fois : une intégration (GitHub), quatre agents répartis sur ses quatre membres cachés, quatre workflows, et aucune vue intégrée — elle passe par le Tableau et le Backlog déjà existants du projet plutôt que par une page à elle. Installer le bundle branche les quatre en un seul assistant agrégé, lié au projet que tu choisis.
 

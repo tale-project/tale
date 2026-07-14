@@ -11,7 +11,7 @@
  * the install pipeline halves are mocked, and the catalog walk runs against a
  * real temp org dir.
  */
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -89,11 +89,16 @@ function createMockCtx() {
   return { runQuery, runMutation, scheduler: { runAfter: vi.fn() } };
 }
 
-/** Seed one automation bundle dir in the temp org catalog. */
+/**
+ * Seed one automation bundle dir in the temp org catalog. The manifest FILE is
+ * what makes a dir an automation (a dir without one is a group dir, e.g.
+ * `automations/projects/`) — its CONTENT is irrelevant here, since the mocked
+ * `prepareInstallAs` serves the parsed manifest from the `manifests` fixture.
+ */
 async function writeAutomationDir(slug: string): Promise<void> {
-  await mkdir(path.join(configRoot, 'acme', 'automations', slug), {
-    recursive: true,
-  });
+  const dir = path.join(configRoot, 'acme', 'automations', slug);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'automation.json'), '{}');
 }
 
 beforeEach(async () => {
@@ -158,6 +163,32 @@ describe('syncDefaultAutomationInstallations — provision guard', () => {
         contentHash: expect.any(String),
       }),
     );
+  });
+
+  it('provisions a NESTED autoInstall automation and never the group dir above it', async () => {
+    // The whole task-ops pack lives at `projects/tasks/*`. A single-level walk
+    // would see only the `projects/` group dir — which carries no manifest — and
+    // silently provision nothing.
+    await writeAutomationDir('projects/tasks/run-assigned');
+    manifests['projects/tasks/run-assigned'] = {
+      name: 'Run assigned tasks',
+      autoInstall: true,
+    };
+
+    const ctx = createMockCtx();
+    const result = await sweep(ctx as never, {
+      organizationId: 'org1',
+      orgSlug: 'acme',
+    });
+
+    expect(result).toEqual({ provisioned: 1, skipped: 0, failed: 0 });
+    expect(mockPrepareInstallAs).toHaveBeenCalledWith(
+      'acme',
+      'projects/tasks/run-assigned',
+      'system',
+    );
+    // The group dirs are not automations — the walk never tried to install them.
+    expect(mockPrepareInstallAs).toHaveBeenCalledTimes(1);
   });
 
   it('never re-provisions a previously provisioned automation (uninstall sticks)', async () => {

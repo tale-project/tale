@@ -7,14 +7,14 @@
 
 ## Scope & routes
 
-| Surface                | Route                                                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| Org root (→ chat)      | `/dashboard/{org}`                                                                        |
-| Chat composer          | `/dashboard/{org}/chat`                                                                   |
-| Chat thread            | `/dashboard/{org}/chat/{threadId}`                                                        |
-| Email automation inbox | `/dashboard/{org}/automations/reply-outlook-emails` (needs an installed email automation) |
-| Contacts DataTable     | `/dashboard/{org}/contacts`                                                               |
-| Settings               | `/dashboard/{org}/settings`                                                               |
+| Surface                | Route                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| Org root (→ chat)      | `/dashboard/{org}`                                                                         |
+| Chat composer          | `/dashboard/{org}/chat`                                                                    |
+| Chat thread            | `/dashboard/{org}/chat/{threadId}`                                                         |
+| Email automation inbox | `/dashboard/{org}/automations/outlook__reply-emails` (needs an installed email automation) |
+| Contacts DataTable     | `/dashboard/{org}/contacts`                                                                |
+| Settings               | `/dashboard/{org}/settings`                                                                |
 
 `/dashboard/{org}` redirects to `/dashboard/{org}/chat`; `/settings` redirects to
 `/settings/account`; `/conversations` redirects to the single installed email

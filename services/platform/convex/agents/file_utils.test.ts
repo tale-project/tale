@@ -41,12 +41,19 @@ describe('validateAgentName (flat global OR composite app-owned)', () => {
     expect(validateAgentName('chat-agent')).toBe(true);
   });
 
-  it('accepts a composite <app>/<name>', () => {
+  it('accepts a composite <automationSlug>/<name>', () => {
     expect(validateAgentName('issue-desk/desk-coordinator')).toBe(true);
   });
 
-  it('rejects more than one slash', () => {
-    expect(validateAgentName('a/b/c')).toBe(false);
+  it('accepts a composite over a NESTED automation slug', () => {
+    // An automation slug is a path, so the agent name is the LAST segment and
+    // everything before it is the automation it belongs to.
+    expect(validateAgentName('github/create-pull-requests/pr-creator')).toBe(
+      true,
+    );
+    // The automation half is capped at 4 segments; a 5th makes it invalid.
+    expect(validateAgentName('a/b/c/d/agent')).toBe(true);
+    expect(validateAgentName('a/b/c/d/e/agent')).toBe(false);
   });
 
   it('rejects traversal / malformed segments', () => {

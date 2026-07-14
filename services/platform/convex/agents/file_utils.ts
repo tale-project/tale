@@ -229,14 +229,16 @@ export function resolveAutomationAgentsDir(
 
 /**
  * Split a possibly-composite agent identity. A flat name (no `/`) is a GLOBAL
- * agent; `<app>/<name>` is APP-owned. `validateAgentName` has already proven the
- * shape, so a single `indexOf('/')` is enough.
+ * agent; `<automationSlug>/<name>` is automation-owned. The automation slug is
+ * itself a PATH (`github/create-pull-requests`) while an agent name is a single
+ * segment, so the split is on the LAST `/` — `validateAgentName` has already
+ * proven that shape.
  */
 function splitAgentName(agentName: string): {
   automationSlug?: string;
   name: string;
 } {
-  const slash = agentName.indexOf('/');
+  const slash = agentName.lastIndexOf('/');
   if (slash === -1) return { name: agentName };
   return {
     automationSlug: agentName.slice(0, slash),

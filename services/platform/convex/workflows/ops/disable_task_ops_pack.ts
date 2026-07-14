@@ -32,24 +32,25 @@ import {
 import { createAuditLog } from '../../audit_logs/helpers';
 
 /**
- * The task-ops pack: the auto-installed `folder: "tasks"` / `"discussions"`
- * automations under `builtin-configs/automations/` (each carries its workflow
- * inline; workflowSlug === automationSlug). The kill switch targets exactly
- * these — adding a pack automation means adding its slug here.
+ * The task-ops pack: the auto-installed automations under
+ * `builtin-configs/automations/projects/` (each carries its workflow inline;
+ * workflowSlug === automationSlug, and the slug IS the path they live at). The
+ * kill switch targets exactly these — adding a pack automation means adding its
+ * slug here.
  */
 export const TASK_OPS_PACK_SLUGS: readonly string[] = [
-  'run-assigned-task',
-  'triage-unassigned-tasks',
-  'react-to-task-mention',
-  'review-completed-work',
-  'sweep-stale-work',
-  'start-queued-work',
-  'archive-closed-tasks',
-  'enforce-task-slas',
-  'unblock-dependent-tasks',
-  'roll-up-completed-subtasks',
-  'remind-pending-reviewers',
-  'react-to-discussion-mention',
+  'projects/tasks/run-assigned',
+  'projects/tasks/triage-unassigned',
+  'projects/tasks/react-to-mentions',
+  'projects/tasks/review-completed-work',
+  'projects/tasks/sweep-stale-work',
+  'projects/tasks/start-queued-work',
+  'projects/tasks/archive-closed',
+  'projects/tasks/enforce-slas',
+  'projects/tasks/unblock-dependent',
+  'projects/tasks/roll-up-completed-subtasks',
+  'projects/tasks/remind-reviewers',
+  'projects/discussions/react-to-mentions',
 ];
 
 /** The pack slugs actually installed in this org (trigger rows key on them). */

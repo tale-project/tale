@@ -38,6 +38,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import {
   lstat,
   readdir,
@@ -351,6 +352,64 @@ export async function copyTreeVerbatim(
 }
 
 /**
+ * Every BUNDLE under a bundle-domain's catalog dir, as paths relative to it
+ * (`my-skill`, or `gmail/sync-emails` for a nesting domain).
+ *
+ * A domain that declares `nestedBundles` (automations) is walked to its bundle
+ * ROOTS — a dir carrying one of the domain's manifest markers IS a bundle and
+ * the walk stops there; a dir carrying none is a GROUP dir and is descended
+ * into, up to the declared depth. Every other bundle domain (skills,
+ * integrations) is read one dir level deep, exactly as before. Symlinks,
+ * dotfiles and `.history` are skipped at every level.
+ */
+async function listCatalogBundlePaths(
+  sourceDir: string,
+  domain: ConfigDomain,
+): Promise<string[]> {
+  const nesting = domain.nestedBundles;
+  const bundles: string[] = [];
+
+  const walk = async (dir: string, prefix: string): Promise<void> => {
+    // ENOENT at the ROOT is the caller's "no catalog dir" signal, so only the
+    // top-level readdir is allowed to throw.
+    const entries = await readdir(dir);
+    for (const name of entries) {
+      if (name.startsWith('.')) continue;
+      if (SKIP_DIR_NAMES.has(name)) continue;
+      const abs = path.join(dir, name);
+      const rel = prefix ? `${prefix}/${name}` : name;
+      const info = await lstat(abs).catch((err) => {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(`[scaffold] ${domain.name}: lstat ${abs} failed:`, err);
+        }
+        return null;
+      });
+      if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
+      if (!nesting) {
+        bundles.push(rel);
+        continue;
+      }
+      const isBundle = nesting.markers.some((marker) =>
+        existsSync(path.join(abs, marker)),
+      );
+      if (isBundle) {
+        bundles.push(rel);
+      } else if (rel.split('/').length < nesting.maxDepth) {
+        await walk(abs, rel).catch((err) => {
+          console.warn(
+            `[scaffold] ${domain.name}: readdir ${abs} failed:`,
+            err,
+          );
+        });
+      }
+    }
+  };
+
+  await walk(sourceDir, '');
+  return bundles;
+}
+
+/**
  * Replace one bundle dir with a copy of `bundleSrc`, via a sibling staging dir
  * + atomic rename. Eliminates the "rm before copy" window where an interrupt
  * would leave an empty bundle on disk. `force` dropped so EACCES / EBUSY
@@ -473,33 +532,24 @@ export async function seedDomain(
         domain.name,
       );
     } else if (domain.scaffoldKind === 'bundle') {
-      // For each catalog bundle subdir, rm -rf the corresponding target
-      // bundle (if override) then copy. Domain-root siblings (.history/,
-      // *.secrets.json at the domain dir level) survive — we only touch
-      // bundle subdirs that exist in the catalog.
+      // For each catalog BUNDLE (a leaf dir carrying the domain's manifest when
+      // the domain nests — never a group dir like `automations/gmail/`), rm -rf
+      // the corresponding target bundle (if override) then copy. Replacing at
+      // the GROUP level would delete an org-authored bundle that merely shares a
+      // group dir with a builtin, so the walk descends to the real bundle roots.
+      // Domain-root siblings (.history/, *.secrets.json at the domain dir level)
+      // survive — we only touch bundles that exist in the catalog.
       let bundles: string[];
       try {
-        bundles = await readdir(sourceDir);
+        bundles = await listCatalogBundlePaths(sourceDir, domain);
       } catch (err) {
         if (errnoCode(err) === 'ENOENT')
           return { domain: domain.name, ok: true };
         throw err;
       }
       for (const bundleName of bundles) {
-        if (bundleName.startsWith('.')) continue;
-        if (SKIP_DIR_NAMES.has(bundleName)) continue;
         const bundleSrc = path.join(sourceDir, bundleName);
         const bundleDst = path.join(targetDir, bundleName);
-        const info = await lstat(bundleSrc).catch((err) => {
-          if (errnoCode(err) !== 'ENOENT') {
-            console.warn(
-              `[scaffold] ${domain.name}: lstat ${bundleSrc} failed:`,
-              err,
-            );
-          }
-          return null;
-        });
-        if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
         if (override) {
           await replaceBundleDir(bundleSrc, bundleDst, domain.name);
         } else {

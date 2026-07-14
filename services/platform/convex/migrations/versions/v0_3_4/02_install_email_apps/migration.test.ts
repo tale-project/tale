@@ -141,7 +141,7 @@ defineMigrationTest({
           // A human install of the gmail app predates the migration.
           await ctx.db.insert('automationInstallations', {
             organizationId: orgId,
-            automationSlug: 'reply-gmail-emails',
+            automationSlug: 'gmail/sync-emails',
             installedAt: EPOCH,
             installedBy: 'admin@acme.com',
             status: 'active',
@@ -161,12 +161,12 @@ defineMigrationTest({
             row,
           ]),
         );
-        expect(bySlug.get('reply-outlook-emails')).toMatchObject({
+        expect(bySlug.get('outlook/sync-emails')).toMatchObject({
           installedBy: MIGRATION_INSTALLED_BY,
           status: 'active',
         });
         // The human install row was never overwritten.
-        expect(bySlug.get('reply-gmail-emails')).toMatchObject({
+        expect(bySlug.get('gmail/sync-emails')).toMatchObject({
           installedBy: 'admin@acme.com',
         });
         expect(installs).toHaveLength(2);
@@ -177,7 +177,7 @@ defineMigrationTest({
         const warn = vi
           .spyOn(console, 'warn')
           .mockImplementation(() => undefined);
-        mockControl.failInstalls = new Set(['reply-outlook-emails']);
+        mockControl.failInstalls = new Set(['outlook/sync-emails']);
         try {
           const orgId = world.orgs[0].id;
           await world.run(async (ctx) => {
@@ -195,8 +195,8 @@ defineMigrationTest({
               (row: Record<string, unknown>) => row.automationSlug,
             );
           });
-          // reply-gmail-emails still installed despite outlook failing first.
-          expect(slugs).toEqual(['reply-gmail-emails']);
+          // gmail/sync-emails still installed despite outlook failing first.
+          expect(slugs).toEqual(['gmail/sync-emails']);
           expect(warn).toHaveBeenCalled();
         } finally {
           mockControl.failInstalls = new Set();
@@ -217,7 +217,7 @@ defineMigrationTest({
       await world.run(async (ctx) => {
         await ctx.db.insert('automationInstallations', {
           organizationId: orgId,
-          automationSlug: 'reply-gmail-emails',
+          automationSlug: 'gmail/sync-emails',
           installedAt: EPOCH,
           installedBy: 'admin@acme.com',
           status: 'active',
@@ -234,7 +234,7 @@ defineMigrationTest({
       // The marker-stamped outlook row is gone; the human gmail row survives.
       expect(
         installs.map((row: Record<string, unknown>) => row.automationSlug),
-      ).toEqual(['reply-gmail-emails']);
+      ).toEqual(['gmail/sync-emails']);
     },
   },
 
@@ -247,7 +247,7 @@ defineMigrationTest({
           { slug: 'imap_smtp', isActive: true, status: 'error' }, // unhealthy
           active('slack'), // active but not an email integration
         ]);
-        expect(targets).toEqual(['reply-outlook-emails']);
+        expect(targets).toEqual(['outlook/sync-emails']);
       },
   },
 });

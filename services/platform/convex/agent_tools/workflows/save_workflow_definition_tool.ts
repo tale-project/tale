@@ -54,7 +54,7 @@ Inform the user the update is ready for review. Only say the approval card has b
       workflowSlug: z
         .string()
         .describe(
-          'Slug of the workflow to update — the owning automation\'s slug (e.g., "reply-imap-emails", "triage-unassigned-tasks"). Required.',
+          'Slug of the workflow to update — the owning automation\'s slug, a \'/\'-separated path (e.g., "imap-smtp/sync-emails", "projects/tasks/triage-unassigned"). Required.',
         ),
       updateSummary: z
         .string()

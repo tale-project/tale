@@ -51,7 +51,10 @@ import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { inferContentType } from '../../agent_tools/files/_shared';
 import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
-import { resolveAutomationAssetPathChecked } from '../../automations/file_utils';
+import {
+  resolveAutomationAssetPathChecked,
+  splitAutomationAssetRef,
+} from '../../automations/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
@@ -645,19 +648,19 @@ export const runSandboxScript = internalAction({
         return fail(`script must be a pack:// reference, got "${args.script}"`);
       }
       const rest = args.script.slice(PREFIX.length);
-      const slash = rest.indexOf('/');
-      if (slash <= 0) return fail(`invalid pack:// reference "${args.script}"`);
-      // `pack://<app>/<path>` resolves against the APP bundle (apps/<app>/...).
-      const automationSlug = rest.slice(0, slash);
-      const relPath = rest.slice(slash + 1);
       const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      // `pack://<slug>/<path>` resolves against the automation's bundle
+      // (automations/<slug>/...). The slug is itself a path, so the split is
+      // resolved against the installed tree, not guessed at the first `/`.
+      const ref = splitAutomationAssetRef(orgSlug, rest);
+      if (!ref) return fail(`invalid pack:// reference "${args.script}"`);
       const scriptPath = await resolveAutomationAssetPathChecked(
         orgSlug,
-        automationSlug,
-        relPath,
+        ref.automationSlug,
+        ref.relPath,
       );
       const scriptContent = await readFile(scriptPath, 'utf8');
-      const scriptName = relPath.split('/').pop() ?? 'script';
+      const scriptName = ref.relPath.split('/').pop() ?? 'script';
 
       // Stage the script + inline-content inputs + params.json under /user/code
       // (the script's cwd); fileId inputs under /user/uploads; a folder input

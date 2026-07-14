@@ -2,7 +2,7 @@
  * 0.3.4 / 01 — backfill `conversations.integrationName` from each
  * conversation's message history.
  *
- * The email inbox apps (reply-outlook-emails / reply-gmail-emails / reply-imap-emails) list and
+ * The email inbox apps (outlook/sync-emails / gmail/sync-emails / imap-smtp/sync-emails) list and
  * reply per integration: the list query filters on the new
  * `by_org_integration_status_lastMessageAt` index and `replyToConversation`
  * derives the outbound integration from the conversation row (no more

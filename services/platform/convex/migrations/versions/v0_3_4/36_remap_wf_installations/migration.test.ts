@@ -42,13 +42,13 @@ defineMigrationTest({
     );
     expect(rows).toHaveLength(2);
     const bySlug = new Map(rows.map((r) => [r.workflowSlug, r]));
-    const remapped = bySlug.get('triage-unassigned-tasks');
+    const remapped = bySlug.get('projects/tasks/triage-unassigned');
     expect(
       remapped,
       'mapped row remapped to the automation slug',
     ).toBeDefined();
     expect(remapped?.automationSlug, 'ownership stamped').toBe(
-      'triage-unassigned-tasks',
+      'projects/tasks/triage-unassigned',
     );
     expect(
       bySlug.get('org-custom-workflow'),

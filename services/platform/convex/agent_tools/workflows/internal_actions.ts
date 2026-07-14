@@ -154,7 +154,8 @@ export const executeApprovedWorkflowCreation = internalAction({
     try {
       const workflowSlug = metadata.workflowSlug;
 
-      // The workflow's slug IS the automation's slug — same shape, flat.
+      // The workflow's slug IS the automation's slug — same shape: a path,
+      // which is also where the automation gets filed on disk.
       if (!isValidAutomationSlug(workflowSlug)) {
         throw new Error(`Invalid workflow slug: ${workflowSlug}`);
       }

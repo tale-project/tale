@@ -1,9 +1,11 @@
 /**
  * Parity gate for the three sibling email automation bundles
- * (`builtin-configs/automations/{reply-outlook-emails,reply-gmail-emails,reply-imap-emails}/`). The three
- * automations are ONE product per provider: their manifests must be identical modulo
- * the fields that name the provider (name, description, the inline `i18n`
- * block, requires.integrations, the provider chip in `labels`). A drift here
+ * (`builtin-configs/automations/{outlook,gmail,imap-smtp}/reply-emails/` — each
+ * filed under its provider, since an automation's slug IS the path it lives at).
+ * The three automations are ONE product per provider: their manifests must be
+ * identical modulo the fields that name the provider (name, description, the
+ * inline `i18n` block, requires.integrations, the provider chip in `labels`) —
+ * the provider is now carried by the slug itself, not a `folder` field. A drift here
  * means a fix landed in one inbox and not its siblings. The inbox UI itself is
  * NOT bundled: each manifest opts into the platform-rendered builtin view
  * (`builtinViews: [{ id: 'inbox' }]`, rendered by
@@ -36,21 +38,21 @@ interface EmailBundle {
 
 const BUNDLES: EmailBundle[] = [
   {
-    slug: 'reply-outlook-emails',
+    slug: 'outlook/sync-emails',
     integration: 'outlook',
-    name: 'Reply to Outlook emails',
+    name: 'Sync Outlook emails',
     label: 'Outlook',
   },
   {
-    slug: 'reply-gmail-emails',
+    slug: 'gmail/sync-emails',
     integration: 'gmail',
-    name: 'Reply to Gmail emails',
+    name: 'Sync Gmail emails',
     label: 'Gmail',
   },
   {
-    slug: 'reply-imap-emails',
+    slug: 'imap-smtp/sync-emails',
     integration: 'imap_smtp',
-    name: 'Reply to emails via SMTP/IMAP',
+    name: 'Sync emails via SMTP/IMAP',
     label: 'IMAP',
   },
 ];
@@ -86,7 +88,7 @@ describe('email inbox bundles are provider-substituted copies of one document', 
     }
   });
 
-  it('automation.json manifests match modulo name/description/i18n/integration/label/folder/workflow', () => {
+  it('automation.json manifests match modulo name/description/i18n/integration/label/workflow', () => {
     const neutralized = BUNDLES.map((bundle) => {
       const manifest = JSON.parse(
         readBundleFile(bundle, 'automation.json'),
@@ -105,9 +107,6 @@ describe('email inbox bundles are provider-substituted copies of one document', 
         // folder), so parity covers only its PRESENCE — a provider shipping
         // without one diverges here — never its steps.
         workflow: manifest.workflow ? '__PROVIDER_WORKFLOW__' : '__MISSING__',
-        // The display folder is provider identity too (gmail/reply-emails,
-        // outlook/reply-emails, imap-smtp/reply-emails) — topic-first paths.
-        folder: '__PROVIDER_FOLDER__',
         // Only the provider chip is neutralized — the shared "Email" label (and
         // the shape of the list) stays pinned by the parity comparison.
         labels: Array.isArray(manifest.labels)

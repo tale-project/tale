@@ -1,8 +1,27 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
+import {
+  automationSlugToParam,
+  paramToAutomationSlug,
+} from '@/lib/shared/schemas/automations';
+
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug',
 )({
+  // An automation slug is a PATH (`gmail/sync-emails`) but a route param is ONE
+  // segment, so it travels the URL `__`-encoded. Declaring the codec on the route
+  // that OWNS the param means every link to this route or any of its children is
+  // encoded by the router, and every `useParams()` below it reads the real slug —
+  // no call site has to remember (the router applies these across the whole
+  // matched-route chain).
+  params: {
+    parse: (raw: { automationSlug: string }) => ({
+      automationSlug: paramToAutomationSlug(raw.automationSlug),
+    }),
+    stringify: (parsed: { automationSlug: string }) => ({
+      automationSlug: automationSlugToParam(parsed.automationSlug),
+    }),
+  },
   component: AutomationLayout,
 });
 

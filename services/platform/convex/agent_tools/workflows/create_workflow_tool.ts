@@ -38,7 +38,7 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
         .max(64)
         .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
         .describe(
-          'Unique flat kebab-case slug (no "/" folders) identifying the workflow AND the automation created to carry it. Must not collide with an existing automation.',
+          'Unique kebab-case slug identifying the workflow AND the automation created to carry it — a \'/\'-separated PATH that also files the automation into a folder (e.g. "shopify/sync-customers", or a bare "my-automation" at the root; max 4 segments). Must not collide with an existing automation.',
         ),
       name: z
         .string()

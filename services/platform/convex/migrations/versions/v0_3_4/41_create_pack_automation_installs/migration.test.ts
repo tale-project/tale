@@ -25,26 +25,26 @@ defineMigrationTest({
     // 41 must create the marker row for it.
     await ctx.db.insert('wfInstallations', {
       organizationId: orgs[0].id,
-      workflowSlug: 'run-assigned-task',
+      workflowSlug: 'projects/tasks/run-assigned',
       installedAt: EPOCH,
       installedBy: 'system',
       contentHash: 'hash-runner',
-      automationSlug: 'run-assigned-task',
+      automationSlug: 'projects/tasks/run-assigned',
     });
     // A remapped email fold whose automation row ALREADY exists (0.3.4/02) —
     // 41 must leave it alone.
     await ctx.db.insert('wfInstallations', {
       organizationId: orgs[0].id,
-      workflowSlug: 'reply-imap-emails',
+      workflowSlug: 'imap-smtp/sync-emails',
       installedAt: EPOCH,
       installedBy: 'integration:imap_smtp',
       contentHash: 'hash-imap',
-      automationSlug: 'reply-imap-emails',
+      automationSlug: 'imap-smtp/sync-emails',
     });
     await ctx.db.insert('automationInstallations', {
       organizationId: orgs[0].id,
-      automationSlug: 'reply-imap-emails',
-      automationName: 'Reply to emails via SMTP/IMAP',
+      automationSlug: 'imap-smtp/sync-emails',
+      automationName: 'Sync emails via SMTP/IMAP',
       installedAt: EPOCH,
       installedBy: 'user_1',
       status: 'active',
@@ -62,13 +62,13 @@ defineMigrationTest({
     );
     expect(rows).toHaveLength(2);
     const bySlug = new Map(rows.map((r) => [r.automationSlug, r]));
-    expect(bySlug.get('run-assigned-task')?.installedBy).toBe(
+    expect(bySlug.get('projects/tasks/run-assigned')?.installedBy).toBe(
       MIGRATION_INSTALLED_BY,
     );
-    expect(bySlug.get('run-assigned-task')?.status).toBe('active');
+    expect(bySlug.get('projects/tasks/run-assigned')?.status).toBe('active');
     // The pre-existing human/migration-02 install is untouched.
-    expect(bySlug.get('reply-imap-emails')?.installedBy).toBe('user_1');
+    expect(bySlug.get('imap-smtp/sync-emails')?.installedBy).toBe('user_1');
     // No row invented for a mapped automation whose workflow was never live.
-    expect(bySlug.has('sync-shopify-products')).toBe(false);
+    expect(bySlug.has('shopify/sync-products')).toBe(false);
   },
 });

@@ -40,7 +40,7 @@ defineMigrationTest({
     );
     expect(rows).toHaveLength(2);
     const bySlug = new Map(rows.map((r) => [r.workflowSlug, r]));
-    const remapped = bySlug.get('react-to-discussion-mention');
+    const remapped = bySlug.get('projects/discussions/react-to-mentions');
     expect(
       remapped,
       'mapped row remapped to the automation slug',

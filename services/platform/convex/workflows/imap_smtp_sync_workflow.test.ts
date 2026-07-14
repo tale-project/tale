@@ -1,6 +1,6 @@
 /**
  * Structural guard for the IMAP mail-sync workflow — the inline `workflow` of
- * the `reply-imap-emails` automation.
+ * the `imap-smtp/sync-emails` automation.
  *
  * The task-pack loop-safety suite only covers the `folder: "tasks"` pack, so
  * the mail sync has no other structural coverage. This validates it parses
@@ -17,7 +17,7 @@ import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 
 const WORKFLOW_PATH = fileURLToPath(
   new URL(
-    '../../../../builtin-configs/automations/reply-imap-emails/automation.json',
+    '../../../../builtin-configs/automations/imap-smtp/sync-emails/automation.json',
     import.meta.url,
   ),
 );

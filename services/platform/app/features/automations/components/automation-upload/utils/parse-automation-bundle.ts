@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 
+import { detectBundleRoot } from '@/convex/automations/bundle_parse';
 import {
   collectAgentChatRoles,
   parseAutomationView,
@@ -42,22 +43,6 @@ function isOsMetadataEntry(name: string): boolean {
   if (name.startsWith('__MACOSX/') || name === '__MACOSX') return true;
   const basename = name.split('/').pop() ?? '';
   return basename === '.DS_Store' || basename === 'Thumbs.db';
-}
-
-function detectSingleTopLevelFolder(names: string[]): string | null {
-  let prefix: string | null = null;
-  for (const name of names) {
-    if (name === '') continue;
-    const slash = name.indexOf('/');
-    if (slash === -1) return null;
-    const top = name.slice(0, slash + 1);
-    if (prefix === null) {
-      prefix = top;
-    } else if (prefix !== top) {
-      return null;
-    }
-  }
-  return prefix;
 }
 
 function formatMB(bytes: number): string {
@@ -109,19 +94,18 @@ export async function parseAutomationBundle(file: File): Promise<ParseResult> {
     };
   }
 
-  const stripPrefix = detectSingleTopLevelFolder(rawEntries.map(([n]) => n));
+  const stripPrefix = detectBundleRoot(rawEntries.map(([n]) => n));
   if (!stripPrefix) {
     return {
       success: false,
-      error:
-        'Bundle must contain a single top-level folder named after the automation.',
+      error: `Bundle must sit inside a folder carrying its ${AUTOMATION_MANIFEST_FILENAME} — that folder's path becomes the automation slug.`,
     };
   }
   const slug = stripPrefix.slice(0, -1);
   if (!isValidAutomationSlug(slug)) {
     return {
       success: false,
-      error: `Folder name "${slug}" is not a valid automation slug (lowercase letters, digits and single hyphens; ≤64 chars).`,
+      error: `Folder path "${slug}" is not a valid automation slug ('/'-separated segments of lowercase letters, digits and single hyphens; ≤4 segments, ≤128 chars).`,
     };
   }
 
@@ -277,7 +261,7 @@ export async function parseAutomationFolder(
     return { success: false, error: 'The selected folder is empty.' };
   }
 
-  const topFolder = detectSingleTopLevelFolder(usable.map(relPathOf));
+  const topFolder = detectBundleRoot(usable.map(relPathOf));
   if (!topFolder) {
     return {
       success: false,
@@ -293,7 +277,8 @@ export async function parseAutomationFolder(
     type: 'blob',
     compression: 'DEFLATE',
   });
-  const slug = topFolder.slice(0, -1);
+  // The slug is a path; a File name cannot carry '/'.
+  const slug = topFolder.slice(0, -1).replaceAll('/', '-');
   const zipFile = new File([blob], `${slug}.zip`, { type: 'application/zip' });
   return parseAutomationBundle(zipFile);
 }

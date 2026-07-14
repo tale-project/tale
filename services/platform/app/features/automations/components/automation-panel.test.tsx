@@ -97,8 +97,8 @@ function automationSummary(
   overrides: Partial<AutomationSummary> = {},
 ): AutomationSummary {
   return {
-    slug: 'reply-gmail-emails',
-    name: 'Reply to Gmail emails',
+    slug: 'gmail/sync-emails',
+    name: 'Sync Gmail emails',
     description: 'Read, triage, and reply to your Gmail conversations.',
     scope: 'org',
     kind: 'automation',
@@ -132,7 +132,7 @@ describe('AutomationPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+    expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
     expect(screen.getByText('Organization automation')).toBeInTheDocument();
     expect(
       screen.getByText('Read, triage, and reply to your Gmail conversations.'),
@@ -286,20 +286,20 @@ describe('AutomationPanel', () => {
         name: 'Email',
         description: 'Install every email provider automation at once.',
         kind: 'bundle',
-        members: ['reply-gmail-emails', 'reply-outlook-emails'],
+        members: ['gmail/sync-emails', 'outlook/sync-emails'],
         ...overrides,
       });
     }
 
     const gmailMember = {
-      slug: 'reply-gmail-emails',
-      name: 'Reply to Gmail emails',
+      slug: 'gmail/sync-emails',
+      name: 'Sync Gmail emails',
       description: 'Read, triage, and reply to Gmail.',
       requiredIntegrations: ['gmail'],
     };
     const outlookMember = {
-      slug: 'reply-outlook-emails',
-      name: 'Reply to Outlook emails',
+      slug: 'outlook/sync-emails',
+      name: 'Sync Outlook emails',
       description: 'Read, triage, and reply to Outlook.',
       requiredIntegrations: ['outlook', 'gmail'],
     };
@@ -319,11 +319,11 @@ describe('AutomationPanel', () => {
 
       expect(screen.getByText('What will be installed')).toBeInTheDocument();
       expect(screen.getByText('Automations')).toBeInTheDocument();
-      expect(screen.getByText('Reply to Gmail emails')).toBeInTheDocument();
+      expect(screen.getByText('Sync Gmail emails')).toBeInTheDocument();
       expect(
         screen.getByText('Read, triage, and reply to Gmail.'),
       ).toBeInTheDocument();
-      expect(screen.getByText('Reply to Outlook emails')).toBeInTheDocument();
+      expect(screen.getByText('Sync Outlook emails')).toBeInTheDocument();
     });
 
     it("resolves the Integrations section from the members' deduped requirement union", () => {
@@ -347,7 +347,7 @@ describe('AutomationPanel', () => {
     it('shows "What\'s installed" + Reinstall/Uninstall once every member has an install row', async () => {
       mockBundleMembers = [gmailMember, outlookMember];
       mockInstallStates = new Map(
-        ['reply-gmail-emails', 'reply-outlook-emails'].map((slug) => [
+        ['gmail/sync-emails', 'outlook/sync-emails'].map((slug) => [
           slug,
           {
             automationSlug: slug,

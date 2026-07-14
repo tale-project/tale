@@ -11,9 +11,10 @@ A workflow is one JSON definition: a set of steps wired by `nextSteps`, optional
 triggers and integration dependencies. A workflow carries **no name or description** — its identity
 is its slug and its intent lives in the `specification` text; the automation that owns it carries
 every display string. A workflow has exactly ONE home: INLINE in its automation's
-`automation.json` under `workflow`, and its **slug IS the automation slug** (e.g. the workflow of
-automation `sync-shopify-products` has slug `sync-shopify-products`). There are no standalone
-workflow files — to create a workflow, create (or extend) its automation (see `write-automation`).
+`automation.json` under `workflow`, and its **slug IS the automation slug** — a `/`-separated PATH
+naming where the automation is filed (e.g. the workflow of automation `shopify/sync-products` has
+slug `shopify/sync-products`). There are no standalone workflow files — to create a workflow,
+create (or extend) its automation (see `write-automation`).
 
 ## Reuse before you create — tick every box
 

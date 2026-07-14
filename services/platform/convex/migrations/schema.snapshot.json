@@ -1320,6 +1320,10 @@
             {
               "type": "literal",
               "value": "external_agent_human_control"
+            },
+            {
+              "type": "literal",
+              "value": "operator_input"
             }
           ]
         },
@@ -10290,6 +10294,12 @@
           ]
         },
         "optional": false
+      },
+      "stepSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
       },
       "taskId": {
         "ft": {
