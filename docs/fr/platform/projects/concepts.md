@@ -41,7 +41,7 @@ Le partage se fait par équipe, pas par invitation individuelle. Un projet déma
 | Le travail a des tâches, des responsables et des décisions | ✓      |            |
 | La question est ponctuelle                                 |        | ✓          |
 
-Un chat isolé est la bonne forme pour explorer une réponse une fois. Dès que le contexte doit survivre au chat, déménage-le — l’action **Déplacer vers un projet…** du composeur transporte un chat existant dans un projet.
+Un chat isolé est la bonne forme pour explorer une réponse une fois. Dès que le contexte doit survivre au chat, déménage-le — l’action **Déplacer vers un projet…** du chat transporte un chat existant dans un projet.
 
 ## Où cela s’inscrit
 

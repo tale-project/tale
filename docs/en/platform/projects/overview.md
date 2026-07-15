@@ -59,4 +59,4 @@ Proposed tasks an automation or teammate synced in — Start onto the board or C
 
 ## Where this fits
 
-Projects sit beside Chat in the sidebar, and the handover is natural: a question starts in Chat, turns out to be bigger than one chat, and moves into a project — the composer's **Move to project…** action carries an existing chat across. If you are new to projects, start with [Project concepts](/platform/projects/concepts) for the model, then walk [Use projects](/tutorials/member/use-projects) end to end on a fresh one.
+Projects sit beside Chat in the sidebar, and the handover is natural: a question starts in Chat, turns out to be bigger than one chat, and moves into a project — the chat's **Move to project…** action carries an existing chat across. If you are new to projects, start with [Project concepts](/platform/projects/concepts) for the model, then walk [Use projects](/tutorials/member/use-projects) end to end on a fresh one.

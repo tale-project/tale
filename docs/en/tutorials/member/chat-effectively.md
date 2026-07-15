@@ -9,7 +9,7 @@ You need a Member role (the floor for chat) and one published agent on the org y
 
 ## Habit 1 — Pick the agent before the first message
 
-The agent is the lever with the highest payoff per click. The default Assistant is a blank canvas; an agent with knowledge bound, tools enabled, and a tuned voice will out-answer it for any non-generic question. Open the agent picker in the composer and pick the agent whose scope matches your question — Support, Sales, Research — before typing.
+The agent is the lever with the highest payoff per click. The default Assistant is a blank canvas; an agent with knowledge bound, tools enabled, and a tuned voice will out-answer it for any non-generic question. Open the agent picker in the chat and pick the agent whose scope matches your question — Support, Sales, Research — before typing.
 
 If no agent fits, leave the Assistant on; do not pick a wrong-fit agent for "close enough". A wrong-fit agent often refuses or veers off the bound knowledge.
 

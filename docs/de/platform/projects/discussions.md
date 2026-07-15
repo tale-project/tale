@@ -30,7 +30,7 @@ Die Kategorie einer Diskussion sagt, was sie ist; ihr Status sagt, wo sie steht:
 
 - **Offen** — aktiv, der Standard.
 - **Gelöst** — die Frage ist beantwortet oder die Entscheidung gefallen. **Wieder öffnen** holt sie jederzeit zurück.
-- **Gesperrt** — keine weiteren Antworten; der Composer ist deaktiviert und zeigt einen Sperrhinweis. **Entsperren** kehrt es um.
+- **Gesperrt** — keine weiteren Antworten; der Chat ist deaktiviert und zeigt einen Sperrhinweis. **Entsperren** kehrt es um.
 
 Auflösen ist Buchführung, kein Archiv — gelöste Diskussionen bleiben im Tab lesbar und durchsuchbar.
 

@@ -29,7 +29,7 @@ Bei OpenAI, Anthropic und OpenRouter bleibt die Basis-URL auch nach dem Anlegen 
 
 Jedes Modell trägt einen oder mehrere Fähigkeits-Tags — **Chat**, **Vision**, **Embedding**, **Transkription**, **Text-zu-Sprache**, **Bildgenerierung**, **Bildbearbeitung**. Die Tags sind tragend: sie entscheiden, in welchen Pickern ein Modell erscheint und welche Plattform-Fähigkeit es aufrufen darf. Ein Modell ohne passenden Tag erscheint nie dort, wo diese Fähigkeit gebraucht wird.
 
-**In Modell-Auswahl ausgeblendet** nimmt ein Modell aus dem Chat-Composer und der Agent-Modellauswahl, lässt es aber für Agents und Workflows, die es schon referenzieren, voll nutzbar. So geht eine abgelöste oder veraltete Version in Rente, ohne die daran gebundenen Agents zu brechen.
+**In Modell-Auswahl ausgeblendet** nimmt ein Modell aus dem Chat und der Agent-Modellauswahl, lässt es aber für Agents und Workflows, die es schon referenzieren, voll nutzbar. So geht eine abgelöste oder veraltete Version in Rente, ohne die daran gebundenen Agents zu brechen.
 
 ## Standardmodelle
 

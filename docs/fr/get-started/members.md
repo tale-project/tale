@@ -13,7 +13,7 @@ Il te faut un compte connecté sur un espace de travail où le chat répond déj
 
 Tu as déjà envoyé un premier message dans le démarrage rapide — cette fois, regarde ce que l’agent en fait. Clique sur **Nouveau chat**, pose une question tirée de ton vrai travail et déplie les blocs repliables d’appels d’outils au-dessus de la réponse : ils montrent ce que l’agent a lu ou exécuté avant de répondre.
 
-Pour joindre un fichier à une seule conversation, colle-le, glisse-le dans le composeur ou passe par le contrôle de pièce jointe — l’agent le lit pour ce chat uniquement. [Pièces jointes](/fr/platform/chat/attachments) détaille ce qui est accepté.
+Pour joindre un fichier à une seule conversation, colle-le, glisse-le dans le chat ou passe par le contrôle de pièce jointe — l’agent le lit pour ce chat uniquement. [Pièces jointes](/fr/platform/chat/attachments) détaille ce qui est accepté.
 
 </Step>
 
@@ -49,7 +49,7 @@ Ouvre **Projets** dans la barre latérale. Un projet regroupe tout ce qui touche
 
 <Step title="Retrouve ton chemin">
 
-Les chats ne disparaissent jamais en silence. Clique sur **Afficher l'historique** au-dessus du composeur pour ouvrir la barre latérale d’historique — chaque chat que tu peux reprendre dans cet espace de travail, du plus récent au plus ancien. Renommer un chat lui donne un titre qui reste ; en supprimer un l’envoie dans la corbeille de l’espace de travail au lieu de le détruire.
+Les chats ne disparaissent jamais en silence. Clique sur **Afficher l'historique** au-dessus du chat pour ouvrir la barre latérale d’historique — chaque chat que tu peux reprendre dans cet espace de travail, du plus récent au plus ancien. Renommer un chat lui donne un titre qui reste ; en supprimer un l’envoie dans la corbeille de l’espace de travail au lieu de le détruire.
 
 </Step>
 
@@ -57,4 +57,4 @@ Les chats ne disparaissent jamais en silence. Clique sur **Afficher l'historique
 
 ## Où tu en es
 
-Tu sais discuter, nourrir l’espace de travail en connaissances et naviguer dans le travail partagé — la boucle quotidienne du membre. Les lectures suivantes naturelles sont [Bases du chat](/fr/platform/chat/basics) pour le modèle mental derrière le composeur, et [Utiliser les projets](/fr/tutorials/member/use-projects) pour un parcours projet plus profond. Quand tu veux construire ton propre agent, passe au [parcours éditeur](/fr/get-started/editors).
+Tu sais discuter, nourrir l’espace de travail en connaissances et naviguer dans le travail partagé — la boucle quotidienne du membre. Les lectures suivantes naturelles sont [Bases du chat](/fr/platform/chat/basics) pour le modèle mental derrière le chat, et [Utiliser les projets](/fr/tutorials/member/use-projects) pour un parcours projet plus profond. Quand tu veux construire ton propre agent, passe au [parcours éditeur](/fr/get-started/editors).

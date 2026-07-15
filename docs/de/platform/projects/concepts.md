@@ -41,7 +41,7 @@ Geteilt wird pro Team, nicht per Einzeleinladung. Ein Projekt steht standardmä�
 | Die Arbeit hat Aufgaben, Verantwortliche und Entscheidungen | ✓       |             |
 | Die Frage ist einmalig                                      |         | ✓           |
 
-Ein Einzel-Chat ist die richtige Form, um eine Antwort einmal zu erkunden. In dem Moment, in dem der Kontext den Chat überleben soll, zieh um — die Composer-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat in ein Projekt.
+Ein Einzel-Chat ist die richtige Form, um eine Antwort einmal zu erkunden. In dem Moment, in dem der Kontext den Chat überleben soll, zieh um — die Chat-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat in ein Projekt.
 
 ## Wo das hingehört
 

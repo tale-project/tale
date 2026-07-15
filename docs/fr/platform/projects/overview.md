@@ -59,4 +59,4 @@ Les tâches proposées qu’une automatisation ou un coéquipier a synchronisée
 
 ## Où cela s’inscrit
 
-Les projets vivent à côté du Chat dans la barre latérale, et le passage de relais est naturel : une question démarre dans le Chat, se révèle plus grande qu’un chat et déménage dans un projet — l’action **Déplacer vers un projet…** du composeur transporte un chat existant. Si les projets sont nouveaux pour toi, commence par [Concepts de projet](/fr/platform/projects/concepts) pour le modèle, puis déroule [Utiliser les projets](/fr/tutorials/member/use-projects) de bout en bout sur un projet neuf.
+Les projets vivent à côté du Chat dans la barre latérale, et le passage de relais est naturel : une question démarre dans le Chat, se révèle plus grande qu’un chat et déménage dans un projet — l’action **Déplacer vers un projet…** du chat transporte un chat existant. Si les projets sont nouveaux pour toi, commence par [Concepts de projet](/fr/platform/projects/concepts) pour le modèle, puis déroule [Utiliser les projets](/fr/tutorials/member/use-projects) de bout en bout sur un projet neuf.

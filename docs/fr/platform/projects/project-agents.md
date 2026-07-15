@@ -16,7 +16,7 @@ L’onglet **Agents et modèles** d’un projet décide quels agents et modèles
 Les agents et les modèles s’organisent séparément, chacun avec les deux mêmes modes :
 
 - **Recommandés** — les éléments que tu listes sont épinglés en haut du sélecteur ; tout ce que le membre pourrait normalement utiliser reste disponible en dessous. C’est le mode par défaut, et le bon pour orienter sans bloquer.
-- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet. Un membre qui choisit autre chose reçoit un refus clair : le composeur signale que l’agent ou le modèle n’est pas disponible dans ce projet et lui demande d’en choisir un autre.
+- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet. Un membre qui choisit autre chose reçoit un refus clair : le chat signale que l’agent ou le modèle n’est pas disponible dans ce projet et lui demande d’en choisir un autre.
 
 L’ordre de la liste est l’ordre que voient les membres, et le premier élément est celui par défaut — glisse pour réordonner. **Ajouter un agent** et **Ajouter un modèle** étendent la liste.
 
@@ -28,7 +28,7 @@ En mode **Restreints**, une liste vide interdit le chat du projet à chaque memb
 
 ## Ce que vivent les membres
 
-Dans le projet, le sélecteur d’agent et le sélecteur de modèle du composeur reflètent la curation — les éléments recommandés d’abord, les éléments restreints seulement. Un chat déplacé dans le projet avec un agent désormais interdit ne casse pas en silence : l’envoi est refusé avec le message d’agent non disponible, et le membre en choisit un autorisé. Hors du projet, rien ne change ; la curation se limite aux chats qui tournent dans le contexte du projet.
+Dans le projet, le sélecteur d’agent et le sélecteur de modèle du chat reflètent la curation — les éléments recommandés d’abord, les éléments restreints seulement. Un chat déplacé dans le projet avec un agent désormais interdit ne casse pas en silence : l’envoi est refusé avec le message d’agent non disponible, et le membre en choisit un autorisé. Hors du projet, rien ne change ; la curation se limite aux chats qui tournent dans le contexte du projet.
 
 ## Qui peut le modifier
 

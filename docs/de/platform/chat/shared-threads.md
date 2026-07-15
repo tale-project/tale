@@ -19,7 +19,7 @@ Klick **Teilen** in der Kopfzeile des Chats. Der Dialog **Chat teilen** bietet *
 
 ## Was Betrachter sehen
 
-Betrachter öffnen den Link und landen auf dem Chat mit einem Banner: **Du siehst einen geteilten Chat im Lesemodus**. Das Transkript liest sich genau so wie für den Autor, inklusive Tool-Aufrufen und Zitaten. Der Composer ist durch einen einzigen Hinweis ersetzt — **Das Senden einer Nachricht erstellt deine eigene Kopie dieses Chats** — und das ist der einzige Weg nach vorn.
+Betrachter öffnen den Link und landen auf dem Chat mit einem Banner: **Du siehst einen geteilten Chat im Lesemodus**. Das Transkript liest sich genau so wie für den Autor, inklusive Tool-Aufrufen und Zitaten. Das Nachrichtenfeld ist durch einen einzigen Hinweis ersetzt — **Das Senden einer Nachricht erstellt deine eigene Kopie dieses Chats** — und das ist der einzige Weg nach vorn.
 
 ## Einen geteilten Chat forken
 

@@ -22,7 +22,7 @@ Les échecs ramènent la tâche à _À faire_ avec un commentaire d’explicatio
 
 ## Mentions, dépendances, échéances
 
-- **@-mentionne un agent** dans un commentaire ou dans la description d’une tâche et il lit le texte qui le mentionne, puis agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur prévisualise si chaque agent mentionné répondra vraiment (automatisation coupée, budget épuisé, agent en pause). Modifier une description ne déclenche que les mentions nouvellement ajoutées, et ce que l’automatisation écrit elle-même ne déclenche jamais personne.
+- **@-mentionne un agent** dans un commentaire ou dans la description d’une tâche et il lit le texte qui le mentionne, puis agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le chat prévisualise si chaque agent mentionné répondra vraiment (automatisation coupée, budget épuisé, agent en pause). Modifier une description ne déclenche que les mentions nouvellement ajoutées, et ce que l’automatisation écrit elle-même ne déclenche jamais personne.
 - Quand un **bloqueur se ferme**, les tâches dépendantes reçoivent une note listant les bloqueurs restants ; le travail d’agent totalement débloqué redémarre seul, le travail humain reçoit une notification en boîte de réception.
 - Les **échéances** actionnent une échelle SLA : un avertissement 24 heures avant, une relance en cas de retard, puis une escalade humaine vers le créateur du projet et les admins de l’org — répétée une fois de plus si la tâche reste en retard. Chaque niveau ne tire qu’une fois ; repousser l’échéance réarme l’échelle.
 

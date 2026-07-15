@@ -30,7 +30,7 @@ La catégorie d’une discussion dit ce qu’elle est ; son statut dit où elle 
 
 - **Ouverte** — active, le statut par défaut.
 - **Résolue** — la question a sa réponse ou la décision est prise. **Rouvrir** la ramène à tout moment.
-- **Verrouillée** — plus aucune réponse ; le composeur est désactivé avec un avis de verrouillage. **Déverrouiller** l’inverse.
+- **Verrouillée** — plus aucune réponse ; le chat est désactivé avec un avis de verrouillage. **Déverrouiller** l’inverse.
 
 Résoudre relève de la tenue de registre, pas de l’archivage — les discussions résolues restent lisibles et cherchables dans l’onglet.
 

@@ -3,7 +3,7 @@ title: Gesprächseinstiege
 description: Die vorgeschlagenen Prompts pflegen, die ein Agent auf dem leeren Chat-Bildschirm zeigt — hinzufügen, ordnen, übersetzen und die Aktion Automatisch übersetzen.
 ---
 
-Ein Einstieg ist ein kurzer vorgeschlagener Prompt, den der Agent auf einem leeren Chat-Bildschirm zeigt. Tipp einen an, und der Text fällt in den Composer; der User passt ihn bei Bedarf an und schickt ihn ab. Einstiege sind die kuratierten Einstiegspunkte des Agent-Autors in das, wofür der Agent da ist — diese Seite ist die Autorenseite; wie sie beim User erscheinen, zeigt [Einstiege und Prompts](/de/platform/chat/starters-and-prompts).
+Ein Einstieg ist ein kurzer vorgeschlagener Prompt, den der Agent auf einem leeren Chat-Bildschirm zeigt. Tipp einen an, und der Text fällt in den Chat; der User passt ihn bei Bedarf an und schickt ihn ab. Einstiege sind die kuratierten Einstiegspunkte des Agent-Autors in das, wofür der Agent da ist — diese Seite ist die Autorenseite; wie sie beim User erscheinen, zeigt [Einstiege und Prompts](/de/platform/chat/starters-and-prompts).
 
 <Frame caption="Der Tab Gesprächseinstiege — eine geordnete Liste von Prompts mit Sprach-Tabs darüber.">
 

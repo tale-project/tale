@@ -3,13 +3,13 @@ title: Anhänge
 description: Unterstützte Dateitypen, wo Uploads landen, wann Inhalt RAG-indiziert wird und wann er wörtlich in das Prompt eingefügt wird.
 ---
 
-Anhänge lassen einen Chat auf eine Datei verweisen, ohne dich in einen anderen Tab zu schicken. Du fügst ein, ziehst herein oder wählst **Fotos & Dateien hinzufügen** im Plus-Menü des Composers; die Datei reist mit der Nachricht mit, und Tale routet sie in die richtige Pipeline. Die meisten Dateitypen landen wörtlich im Input des Modells; große oder strukturierte Dateien werden indiziert und ausschnittweise gelesen.
+Anhänge lassen einen Chat auf eine Datei verweisen, ohne dich in einen anderen Tab zu schicken. Du fügst ein, ziehst herein oder wählst **Fotos & Dateien hinzufügen** im Plus-Menü des Chats; die Datei reist mit der Nachricht mit, und Tale routet sie in die richtige Pipeline. Die meisten Dateitypen landen wörtlich im Input des Modells; große oder strukturierte Dateien werden indiziert und ausschnittweise gelesen.
 
-Diese Seite deckt nur den Upload-Mechanismus am Composer ab. Dokumente, die in [Wissen](/de/platform/knowledge/documents) hochgeladen werden, folgen einem separaten Ablauf mit persistenter Indizierung — Chat-Anhänge sind an den Chat gebunden, der sie empfangen hat.
+Diese Seite deckt nur den Upload-Mechanismus am Chat ab. Dokumente, die in [Wissen](/de/platform/knowledge/documents) hochgeladen werden, folgen einem separaten Ablauf mit persistenter Indizierung — Chat-Anhänge sind an den Chat gebunden, der sie empfangen hat.
 
 ## Ein durchgespielter Upload
 
-Füg ein PDF in den Composer ein. Der Composer zeigt einen Chip mit dem Dateinamen und einem Spinner; der Chip wird zu **Hochgeladen**, sobald die Datei in Tales Speicher gelandet ist. Klick **Nachricht senden**, und der Agent erhält eine extrahierte Textansicht des PDFs inline mit deinem Prompt. Ist die Datei größer als das Inline-Kontextbudget, indiziert Tale sie, und der Agent liest Chunks bei Bedarf über sein Retrieval-Tool.
+Füg ein PDF in den Chat ein. Der Chat zeigt einen Chip mit dem Dateinamen und einem Spinner; der Chip wird zu **Hochgeladen**, sobald die Datei in Tales Speicher gelandet ist. Klick **Nachricht senden**, und der Agent erhält eine extrahierte Textansicht des PDFs inline mit deinem Prompt. Ist die Datei größer als das Inline-Kontextbudget, indiziert Tale sie, und der Agent liest Chunks bei Bedarf über sein Retrieval-Tool.
 
 ## Unterstützte Typen
 
@@ -25,13 +25,13 @@ Kleine Textdateien und strukturierte Dokumente unter dem Inline-Budget des Agent
 
 ## Wissensdokumente mit @ referenzieren
 
-<Frame caption="Ein getipptes @ öffnet den Wissensdatenbank-Picker über dem Composer.">
+<Frame caption="Ein getipptes @ öffnet den Wissensdatenbank-Picker über dem Chat.">
 
-![Der Chat-Composer zeigt ein getipptes @-Zeichen und den geöffneten Wissensdatenbank-Picker mit drei indexierten Textdokumenten.](/images/platform/chat-mention-picker.webp)
+![Der Chat zeigt ein getipptes @-Zeichen und den geöffneten Wissensdatenbank-Picker mit drei indexierten Textdokumenten.](/images/platform/chat-mention-picker.webp)
 
 </Frame>
 
-Tippst du `@` in den Composer, öffnet sich ein Picker über das indexierte Wissen der Org — aufgeteilt in einen Abschnitt **Dokumente** und einen Abschnitt **Ordner**. Tipp weiter, um nach Namen zu filtern; `@Datei` heftet ein Dokument unter einem **Wissen**-Chip an, `@Ordner` einen Ordner samt allem darunter Indexierten unter einem **Ordner**-Chip. Beim Senden prüft Tale deinen Zugriff, begrenzt das Retrieval dieser Antwort auf genau die angehefteten Einträge — ein Ordner expandiert zu den Dateien seines Unterbaums — und fügt die relevanten Passagen ein, selbst wenn der Wissensmodus des Agents aus ist, denn eine explizite Erwähnung schlägt die Retrieval-Konfiguration des Agents. Bis zu fünf Einträge, Dokumente und Ordner zusammen, lassen sich pro Nachricht anheften.
+Tippst du `@` in den Chat, öffnet sich ein Picker über das indexierte Wissen der Org — aufgeteilt in einen Abschnitt **Dokumente** und einen Abschnitt **Ordner**. Tipp weiter, um nach Namen zu filtern; `@Datei` heftet ein Dokument unter einem **Wissen**-Chip an, `@Ordner` einen Ordner samt allem darunter Indexierten unter einem **Ordner**-Chip. Beim Senden prüft Tale deinen Zugriff, begrenzt das Retrieval dieser Antwort auf genau die angehefteten Einträge — ein Ordner expandiert zu den Dateien seines Unterbaums — und fügt die relevanten Passagen ein, selbst wenn der Wissensmodus des Agents aus ist, denn eine explizite Erwähnung schlägt die Retrieval-Konfiguration des Agents. Bis zu fünf Einträge, Dokumente und Ordner zusammen, lassen sich pro Nachricht anheften.
 
 Die Chips sind die Quelle der Wahrheit: Löschst du den `@Titel`-Text aus der Nachricht, bleibt der Verweis angeheftet — entfern stattdessen den Chip. Der Picker bietet nur Dokumente an, deren Indexierung abgeschlossen ist und auf die deine Teams Zugriff haben. In einem Projekt-Chat listet er zusätzlich die Dateien und Ordner des Projekts, zuoberst; die Dateien eines Projekts bleiben auf das Projekt begrenzt und tauchen im `@`-Picker eines Chats außerhalb davon nie auf — siehe [Projekt-Dateien verwalten](/de/platform/projects/manage-files). Der Verweis gilt pro Nachricht; eine Nachfrage ohne Erwähnungen fällt auf den normalen Wissens-Scope des Agents zurück.
 

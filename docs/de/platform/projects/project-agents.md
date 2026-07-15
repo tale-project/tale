@@ -16,7 +16,7 @@ Der Tab **Agenten & Modelle** eines Projekts entscheidet, welchen Agenten und Mo
 Agenten und Modelle werden getrennt kuratiert, jeweils mit denselben zwei Modi:
 
 - **Empfohlen** — die Einträge deiner Liste werden im Picker nach oben gepinnt; alles andere, was das Mitglied sonst nutzen könnte, bleibt darunter verfügbar. Das ist der Standard und der richtige Modus, um zu lenken, ohne zu blockieren.
-- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar. Wer etwas anderes wählt, bekommt eine klare Absage: Der Composer meldet, dass der Agent oder das Modell in diesem Projekt nicht verfügbar ist, und bittet um eine andere Wahl.
+- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar. Wer etwas anderes wählt, bekommt eine klare Absage: Der Chat meldet, dass der Agent oder das Modell in diesem Projekt nicht verfügbar ist, und bittet um eine andere Wahl.
 
 Die Reihenfolge der Liste ist die Reihenfolge, die Mitglieder sehen, und der erste Eintrag ist der Standard — zieh zum Umsortieren. **Agent hinzufügen** und **Modell hinzufügen** erweitern die Liste.
 
@@ -28,7 +28,7 @@ Im Modus **Eingeschränkt** sperrt eine leere Liste jedes Mitglied vom Chatten i
 
 ## Was Mitglieder erleben
 
-Im Projekt spiegeln Agenten-Picker und Modell-Picker des Composers die Kuratierung — empfohlene Einträge zuerst, eingeschränkte Einträge ausschließlich. Ein Chat, der mit einem inzwischen unzulässigen Agenten ins Projekt verschoben wird, bricht nicht stumm: Das Senden wird mit dem Hinweis abgewiesen, dass der Agent in diesem Projekt nicht verfügbar ist, und das Mitglied wählt einen erlaubten. Außerhalb des Projekts ändert sich nichts; die Kuratierung gilt nur für Chats, die im Kontext des Projekts laufen.
+Im Projekt spiegeln Agenten-Picker und Modell-Picker des Chats die Kuratierung — empfohlene Einträge zuerst, eingeschränkte Einträge ausschließlich. Ein Chat, der mit einem inzwischen unzulässigen Agenten ins Projekt verschoben wird, bricht nicht stumm: Das Senden wird mit dem Hinweis abgewiesen, dass der Agent in diesem Projekt nicht verfügbar ist, und das Mitglied wählt einen erlaubten. Außerhalb des Projekts ändert sich nichts; die Kuratierung gilt nur für Chats, die im Kontext des Projekts laufen.
 
 ## Wer es ändern darf
 

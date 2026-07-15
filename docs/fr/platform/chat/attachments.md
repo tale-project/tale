@@ -3,13 +3,13 @@ title: Pièces jointes
 description: Les types de fichiers pris en charge, où atterrissent les téléversements, quand le contenu est indexé en RAG et quand il est inséré tel quel dans le prompt.
 ---
 
-Les pièces jointes permettent à un chat de référencer un fichier sans renvoyer l’utilisateur vers un autre onglet. Tu colles, tu glisses, ou tu choisis **Ajouter photos et fichiers** dans le menu plus du composeur ; le fichier accompagne le message et Tale le route vers le bon pipeline. La plupart des types de fichiers atterrissent tels quels dans l’entrée du modèle ; les fichiers volumineux ou structurés sont indexés et lus par extraits.
+Les pièces jointes permettent à un chat de référencer un fichier sans renvoyer l’utilisateur vers un autre onglet. Tu colles, tu glisses, ou tu choisis **Ajouter photos et fichiers** dans le menu plus du chat ; le fichier accompagne le message et Tale le route vers le bon pipeline. La plupart des types de fichiers atterrissent tels quels dans l’entrée du modèle ; les fichiers volumineux ou structurés sont indexés et lus par extraits.
 
-Cette page couvre uniquement le mécanisme de téléversement sur le composeur. Les documents téléversés dans [Connaissances](/fr/platform/knowledge/documents) suivent un flux séparé avec une indexation persistante — les pièces jointes de chat restent limitées au chat qui les a reçues.
+Cette page couvre uniquement le mécanisme de téléversement sur le chat. Les documents téléversés dans [Connaissances](/fr/platform/knowledge/documents) suivent un flux séparé avec une indexation persistante — les pièces jointes de chat restent limitées au chat qui les a reçues.
 
 ## Un téléversement déroulé
 
-Colle un PDF dans le composeur. Le composeur affiche une puce avec le nom du fichier et un spinner ; la puce se stabilise une fois le fichier arrivé dans le stockage de Tale. Envoie le message, et l’agent reçoit une vue texte extraite du PDF, en ligne avec ton prompt. Si le fichier dépasse le budget de contexte en ligne, Tale l’indexe et l’agent lit des chunks à la demande via son outil de récupération.
+Colle un PDF dans le chat. Le chat affiche une puce avec le nom du fichier et un spinner ; la puce se stabilise une fois le fichier arrivé dans le stockage de Tale. Envoie le message, et l’agent reçoit une vue texte extraite du PDF, en ligne avec ton prompt. Si le fichier dépasse le budget de contexte en ligne, Tale l’indexe et l’agent lit des chunks à la demande via son outil de récupération.
 
 ## Types pris en charge
 
@@ -25,13 +25,13 @@ Les petits fichiers texte et les documents structurés sous le budget en ligne d
 
 ## Référencer des documents de la base de connaissances avec @
 
-<Frame caption="Taper @ ouvre le sélecteur de la base de connaissances au-dessus du composeur.">
+<Frame caption="Taper @ ouvre le sélecteur de la base de connaissances au-dessus du chat.">
 
-![Le composeur de chat avec une arobase tapée et le sélecteur de la base de connaissances ouvert, listant trois documents texte indexés.](/images/platform/chat-mention-picker.webp)
+![La zone de saisie du chat avec une arobase tapée et le sélecteur de la base de connaissances ouvert, listant trois documents texte indexés.](/images/platform/chat-mention-picker.webp)
 
 </Frame>
 
-Taper `@` dans le composeur ouvre un sélecteur sur les connaissances indexées de l’organisation — réparti en une section **Documents** et une section **Dossiers**. Tape pour filtrer par nom ; `@fichier` épingle un document sous une puce **Connaissances**, `@dossier` épingle un dossier et tout ce qui est indexé dessous sous une puce **Dossier**. À l’envoi, Tale vérifie ton accès, restreint la récupération de cette réponse exactement aux entrées épinglées — un dossier s’étend à son sous-arbre indexé — et injecte les passages pertinents même quand le mode connaissances de l’agent est désactivé, car une mention explicite l’emporte sur la configuration de récupération de l’agent. Jusqu’à cinq entrées, documents et dossiers confondus, peuvent être épinglées par message.
+Taper `@` dans le chat ouvre un sélecteur sur les connaissances indexées de l’organisation — réparti en une section **Documents** et une section **Dossiers**. Tape pour filtrer par nom ; `@fichier` épingle un document sous une puce **Connaissances**, `@dossier` épingle un dossier et tout ce qui est indexé dessous sous une puce **Dossier**. À l’envoi, Tale vérifie ton accès, restreint la récupération de cette réponse exactement aux entrées épinglées — un dossier s’étend à son sous-arbre indexé — et injecte les passages pertinents même quand le mode connaissances de l’agent est désactivé, car une mention explicite l’emporte sur la configuration de récupération de l’agent. Jusqu’à cinq entrées, documents et dossiers confondus, peuvent être épinglées par message.
 
 Les puces sont la source de vérité : supprimer le texte `@Titre` du message ne désépingle pas la référence — retire plutôt la puce. Le sélecteur ne propose que des documents dont l’indexation est terminée et auxquels tes équipes ont accès. Dans un chat de projet, il liste en plus les fichiers et dossiers propres au projet, en tête ; les fichiers d’un projet restent limités au projet et n’apparaissent jamais dans le sélecteur `@` d’un chat en dehors de celui-ci — voir [Gérer les fichiers du projet](/fr/platform/projects/manage-files). La référence vaut par message ; une question de suivi sans mention retombe sur le périmètre de connaissances normal de l’agent.
 

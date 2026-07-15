@@ -574,9 +574,10 @@ async function sandboxSessionProbe(): Promise<void> {
     );
   }
 
-  // 2 MB + 1 body → 413 (streaming body cap fires before HMAC check). Piped
+  // 8 MiB + 1 body → 413 (streaming body cap fires before HMAC check;
+  // matches SANDBOX_MAX_REQUEST_BODY_BYTES default in sandbox config). Piped
   // via stdin (`--data-binary @-`) to dodge the kernel's MAX_ARG_STRLEN.
-  const tooBig = 'x'.repeat(2_097_153);
+  const tooBig = 'x'.repeat(8 * 1024 * 1024 + 1);
   const oversized = await capture(
     [
       'curl',

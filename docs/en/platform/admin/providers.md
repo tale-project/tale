@@ -29,7 +29,7 @@ For OpenAI, Anthropic, and OpenRouter, the base URL stays locked to the publishe
 
 Each model carries one or more capability tags — **Chat**, **Vision**, **Embedding**, **Transcription**, **Text-to-speech**, **Image generation**, **Image edit**. The tags are load-bearing: they decide which pickers a model appears in and which platform capability may call it. A model with no matching tag never appears where that capability is needed.
 
-**Hidden from model pickers** takes a model out of the chat composer and agent model selection while leaving it fully usable by agents and workflows that already reference it. That is how a superseded or deprecated version retires without breaking the agents bound to it.
+**Hidden from model pickers** takes a model out of the chat and agent model selection while leaving it fully usable by agents and workflows that already reference it. That is how a superseded or deprecated version retires without breaking the agents bound to it.
 
 ## Default models
 

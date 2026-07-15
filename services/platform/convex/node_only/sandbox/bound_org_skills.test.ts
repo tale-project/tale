@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { WORKFLOW_SKILL_NAMES } from '../../lib/skills/guidance';
-import { customBoundSlugs, planBoundOrgSkillPrune } from './bound_org_skills';
+import {
+  customBoundSlugs,
+  planBoundOrgSkillPrune,
+  shouldStageBoundSkillAsset,
+} from './bound_org_skills';
 import {
   BAKED_BUILTIN_SKILL_NAMES,
   INTEGRATION_SKILL_PREFIX,
@@ -26,6 +30,37 @@ describe('customBoundSlugs', () => {
   it('returns empty when bindings are absent or empty', () => {
     expect(customBoundSlugs(undefined)).toEqual([]);
     expect(customBoundSlugs([])).toEqual([]);
+  });
+});
+
+describe('shouldStageBoundSkillAsset', () => {
+  it('keeps runnable skill assets', () => {
+    expect(shouldStageBoundSkillAsset('engine/entrypoint.py')).toBe(true);
+    expect(shouldStageBoundSkillAsset('scripts/x.py')).toBe(true);
+    expect(shouldStageBoundSkillAsset('mapping/rates.yaml')).toBe(true);
+    expect(shouldStageBoundSkillAsset('schema/eCH-0217-2-0-0.xsd')).toBe(true);
+    expect(shouldStageBoundSkillAsset('README.md')).toBe(true);
+  });
+
+  it('drops test suites at any depth', () => {
+    expect(shouldStageBoundSkillAsset('tests/foo.py')).toBe(false);
+    expect(shouldStageBoundSkillAsset('engine/tests/bar.py')).toBe(false);
+    expect(shouldStageBoundSkillAsset('tests/parity/oracles/x.json')).toBe(
+      false,
+    );
+    // A file merely NAMED tests.py is not a tests/ directory.
+    expect(shouldStageBoundSkillAsset('engine/tests.py')).toBe(true);
+  });
+
+  it('drops bytecode and binary assets the UTF-8 read already corrupts', () => {
+    expect(shouldStageBoundSkillAsset('__pycache__/x.cpython-312.pyc')).toBe(
+      false,
+    );
+    expect(shouldStageBoundSkillAsset('engine/cached.pyc')).toBe(false);
+    expect(shouldStageBoundSkillAsset('assets/icon.png')).toBe(false);
+    expect(shouldStageBoundSkillAsset('docs/example.PDF')).toBe(false);
+    expect(shouldStageBoundSkillAsset('fonts/inter.woff2')).toBe(false);
+    expect(shouldStageBoundSkillAsset('bundle.zip')).toBe(false);
   });
 });
 

@@ -16,7 +16,7 @@ A project's **Agents & models** tab decides which agents and models members meet
 Agents and models are curated separately, each with the same two modes:
 
 - **Recommended** — the items you list are pinned to the top of the picker; everything else the member could normally use stays available below. This is the default, and the right mode for steering without blocking.
-- **Restricted** — only the items you list are available in this project. Members picking anything else get a clear refusal: the composer reports that the agent or model isn't available in this project and asks them to pick another.
+- **Restricted** — only the items you list are available in this project. Members picking anything else get a clear refusal: the chat reports that the agent or model isn't available in this project and asks them to pick another.
 
 The list order is the order members see, and the first item is the default — drag to reorder. **Add agent** and **Add model** extend the list.
 
@@ -28,7 +28,7 @@ In **Restricted** mode an empty list locks every member out of chatting in the p
 
 ## What members experience
 
-Inside the project, the composer's agent picker and model picker reflect the curation — recommended items first, restricted items only. A chat moved into the project with a now-disallowed agent doesn't break silently: the send is refused with the agent-not-available message, and the member picks an allowed one. Outside the project nothing changes; curation is scoped to chats that run in the project's context.
+Inside the project, the chat's agent picker and model picker reflect the curation — recommended items first, restricted items only. A chat moved into the project with a now-disallowed agent doesn't break silently: the send is refused with the agent-not-available message, and the member picks an allowed one. Outside the project nothing changes; curation is scoped to chats that run in the project's context.
 
 ## Who can change it
 

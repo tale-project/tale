@@ -1,23 +1,23 @@
 ---
 title: Chat-Grundlagen
-description: Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Composer, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird.
+description: Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Chat, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird.
 ---
 
-Diese Seite ist das mentale Modell für alles im Chat-Tab. Sie benennt die Teile des Composers, verfolgt eine Nachricht vom Tastendruck bis zur gestreamten Antwort und erklärt, wie ein Chat gespeichert wird, sobald er landet — lies sie einmal, und die übrigen Chat-Seiten lesen sich als Variationen desselben Ablaufs.
+Diese Seite ist das mentale Modell für alles im Chat-Tab. Sie benennt die Teile des Chats, verfolgt eine Nachricht vom Tastendruck bis zur gestreamten Antwort und erklärt, wie ein Chat gespeichert wird, sobald er landet — lies sie einmal, und die übrigen Chat-Seiten lesen sich als Variationen desselben Ablaufs.
 
-<Frame caption="Der Chat-Tab mit einer gestreamten Antwort über dem Composer.">
+<Frame caption="Der Chat-Tab mit einer gestreamten Antwort über dem Chat.">
 
 ![Ein Chat-Thread zeigt eine Nutzerfrage zu Onboarding-Feedback und eine Assistenten-Antwort mit einer Markdown-Tabelle aus drei Themen.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## Der Composer
+## Der Chat
 
-Der Composer ist der Eingabestreifen am unteren Bildschirmrand. Drei Bedienelemente zählen: der Agent-Picker links, der Modell-Picker daneben und das Nachrichtenfeld mit **Nachricht senden** rechts. Anhänge kommen per Einfügen, Drag-and-drop oder über den Anhang-Knopf herein — was akzeptiert wird, steht unter [Anhänge](/de/platform/chat/attachments).
+Der Chat ist der Eingabestreifen am unteren Bildschirmrand. Drei Bedienelemente zählen: der Agent-Picker links, der Modell-Picker daneben und das Nachrichtenfeld mit **Nachricht senden** rechts. Anhänge kommen per Einfügen, Drag-and-drop oder über den Anhang-Knopf herein — was akzeptiert wird, steht unter [Anhänge](/de/platform/chat/attachments).
 
-<Frame caption="Die Bedienelemente des Composers — das Nachrichtenfeld, der Agent-Picker, der Modell-Picker und Senden.">
+<Frame caption="Die Bedienelemente des Chats — das Nachrichtenfeld, der Agent-Picker, der Modell-Picker und Senden.">
 
-![Der leere Chat-Composer, dessen Platzhalter zu einer Frage nach Kontakten, Produkten oder Dokumenten einlädt, über einer Werkzeugleiste mit den Knöpfen für Anhang und Prompt-Bibliothek, dem Agent-Picker, dem Modell-Picker und den Knöpfen für Stummschaltung, Mikrofon und Senden.](/images/platform/chat-composer.webp)
+![Der leere Chat, dessen Platzhalter zu einer Frage nach Kontakten, Produkten oder Dokumenten einlädt, über einer Werkzeugleiste mit den Knöpfen für Anhang und Prompt-Bibliothek, dem Agent-Picker, dem Modell-Picker und den Knöpfen für Stummschaltung, Mikrofon und Senden.](/images/platform/chat-composer.webp)
 
 </Frame>
 
@@ -55,8 +55,8 @@ Innerhalb von Chat ist die Einheit ein **Chat** — das Wort, das jede Schaltfl�
 
 ## Verlauf und Suche
 
-**Verlauf anzeigen** über dem Composer öffnet die Verlaufs-Sidebar — jeder Chat, den du in dieser Org fortsetzen kannst, der neueste zuoberst; eine Auswahl öffnet das volle Transkript. Die Suche dort filtert nach Titel; Volltextsuche über Nachrichtentexte ist eine Pro-Chat-Operation, nicht org-weit. Einen Chat umzubenennen setzt einen eigenen Titel, der den modellgenerierten überschreibt; einen Chat zu löschen verschiebt ihn in den [Papierkorb](/de/platform/admin/governance/trash), wo die Aufbewahrung ihn nach der Schonfrist wegräumt.
+**Verlauf anzeigen** über dem Chat öffnet die Verlaufs-Sidebar — jeder Chat, den du in dieser Org fortsetzen kannst, der neueste zuoberst; eine Auswahl öffnet das volle Transkript. Die Suche dort filtert nach Titel; Volltextsuche über Nachrichtentexte ist eine Pro-Chat-Operation, nicht org-weit. Einen Chat umzubenennen setzt einen eigenen Titel, der den modellgenerierten überschreibt; einen Chat zu löschen verschiebt ihn in den [Papierkorb](/de/platform/admin/governance/trash), wo die Aufbewahrung ihn nach der Schonfrist wegräumt.
 
 ## Wo das hineinpasst
 
-Chat-Grundlagen ist die Seite, die alles andere in diesem Abschnitt verfeinert: [Agents im Chat](/de/platform/chat/agents-in-chat) vertieft den Picker, [Anhänge](/de/platform/chat/attachments) den Upload, [Sprachmodus](/de/platform/chat/voice-mode) die STT- und TTS-Übergaben rund um denselben Composer. Wenn du hier bist, um einen Agent zu bauen statt einen zu nutzen, spring zu [Agent-Konzepte](/de/platform/agents/concepts) — das Vier-Knöpfe-Modell ist die Grundlage, auf der jeder Chat mit einem Agent steht.
+Chat-Grundlagen ist die Seite, die alles andere in diesem Abschnitt verfeinert: [Agents im Chat](/de/platform/chat/agents-in-chat) vertieft den Picker, [Anhänge](/de/platform/chat/attachments) den Upload, [Sprachmodus](/de/platform/chat/voice-mode) die STT- und TTS-Übergaben rund um denselben Chat. Wenn du hier bist, um einen Agent zu bauen statt einen zu nutzen, spring zu [Agent-Konzepte](/de/platform/agents/concepts) — das Vier-Knöpfe-Modell ist die Grundlage, auf der jeder Chat mit einem Agent steht.

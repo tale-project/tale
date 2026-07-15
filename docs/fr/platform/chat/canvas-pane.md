@@ -5,7 +5,7 @@ description: Quand le volet Canevas s’ouvre, ce qui obtient un Canevas plutôt
 
 Le **Canevas** est un second volet qui s’ouvre à droite du thread de chat. Il apparaît quand la réponse contient un contenu que le thread linéaire ne peut pas bien tenir — un long bloc de code, un diagramme Mermaid, un document structuré, un script Python exécutable. Les réponses en ligne restent courtes et lisibles ; tout le reste s’écarte du chemin.
 
-Le Canevas n’est pas un composeur plus riche, et ce n’est pas un endroit où tu édites à la main. C’est une vue vivante de l’espace de travail du chat — les fichiers que l’agent écrit, les fichiers que tu téléverses et les fichiers que les exécutions de code produisent — et tu le vois sans avoir à le demander.
+Le Canevas n’est pas un chat plus riche, et ce n’est pas un endroit où tu édites à la main. C’est une vue vivante de l’espace de travail du chat — les fichiers que l’agent écrit, les fichiers que tu téléverses et les fichiers que les exécutions de code produisent — et tu le vois sans avoir à le demander.
 
 ## Ce qu’est le Canevas
 

@@ -9,7 +9,7 @@ Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war �
 
 ## Wie die Arena rendert
 
-Öffne das Plus-Menü des Composers und wähl **Arena-Modus** — der Composer bekommt zwei Modell-Picker mit den Beschriftungen **Modell A** und **Modell B**. Eine Nachricht zu senden führt beide Modelle parallel aus; der Bildschirm teilt sich, und jede Antwort streamt in ihre eigene Spalte. Sind beide fertig, erscheint unter den Spalten eine Bewertungszeile mit vier Knöpfen: **A ist besser**, **B ist besser**, **Unentschieden**, **Beide schlecht**.
+Öffne das Plus-Menü des Chats und wähl **Arena-Modus** — der Chat bekommt zwei Modell-Picker mit den Beschriftungen **Modell A** und **Modell B**. Eine Nachricht zu senden führt beide Modelle parallel aus; der Bildschirm teilt sich, und jede Antwort streamt in ihre eigene Spalte. Sind beide fertig, erscheint unter den Spalten eine Bewertungszeile mit vier Knöpfen: **A ist besser**, **B ist besser**, **Unentschieden**, **Beide schlecht**.
 
 <Frame caption="Dasselbe Prompt, von zwei Modellen beantwortet, mit der Bewertungszeile darunter.">
 

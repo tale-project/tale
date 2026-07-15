@@ -13,7 +13,7 @@ Du brauchst ein angemeldetes Konto in einem Arbeitsbereich, in dem der Chat bere
 
 Deine erste Nachricht hast du schon im Quickstart geschickt — diesmal sieh zu, was der Agent daraus macht. Klicke auf **Neuer Chat**, frag etwas aus deiner echten Arbeit und klapp die Tool-Aufruf-Boxen über der Antwort auf: Sie zeigen, was der Agent gelesen oder ausgeführt hat, bevor er antwortete.
 
-Um eine Datei an eine einzelne Konversation zu hängen, füg sie per Paste ein, zieh sie in den Composer oder nutze das Anhang-Steuerelement — der Agent liest sie nur für diesen Chat. [Anhänge](/de/platform/chat/attachments) beschreibt, was akzeptiert wird.
+Um eine Datei an eine einzelne Konversation zu hängen, füg sie per Paste ein, zieh sie in den Chat oder nutze das Anhang-Steuerelement — der Agent liest sie nur für diesen Chat. [Anhänge](/de/platform/chat/attachments) beschreibt, was akzeptiert wird.
 
 </Step>
 
@@ -49,7 +49,7 @@ Stell in einem neuen Chat eine Frage, die nur dein Dokument beantworten kann. Ei
 
 <Step title="Finde zurück zu deinen Chats">
 
-Chats verschwinden nie stillschweigend. Klicke über dem Composer auf **Verlauf anzeigen**, um die Verlaufs-Sidebar zu öffnen — jeder Chat, den du in diesem Arbeitsbereich fortsetzen kannst, der neueste zuerst. Benennst du einen Chat um, behält er diesen Titel dauerhaft; löschst du einen, wandert er in den Papierkorb des Arbeitsbereichs, statt zerstört zu werden.
+Chats verschwinden nie stillschweigend. Klicke über dem Chat auf **Verlauf anzeigen**, um die Verlaufs-Sidebar zu öffnen — jeder Chat, den du in diesem Arbeitsbereich fortsetzen kannst, der neueste zuerst. Benennst du einen Chat um, behält er diesen Titel dauerhaft; löschst du einen, wandert er in den Papierkorb des Arbeitsbereichs, statt zerstört zu werden.
 
 </Step>
 
@@ -57,4 +57,4 @@ Chats verschwinden nie stillschweigend. Klicke über dem Composer auf **Verlauf 
 
 ## Wo du jetzt stehst
 
-Du kannst chatten, den Arbeitsbereich mit Wissen füttern und dich in gemeinsamer Arbeit bewegen — die tägliche Schleife eines Mitglieds. Als Nächstes lohnen sich [Chat-Grundlagen](/de/platform/chat/basics) für das mentale Modell hinter dem Composer und [Projekte nutzen](/de/tutorials/member/use-projects) für einen tieferen Projekt-Walkthrough. Sobald du bereit bist, einen eigenen Agent zu bauen, wechsle zum [Einstieg für Redakteure](/de/get-started/editors).
+Du kannst chatten, den Arbeitsbereich mit Wissen füttern und dich in gemeinsamer Arbeit bewegen — die tägliche Schleife eines Mitglieds. Als Nächstes lohnen sich [Chat-Grundlagen](/de/platform/chat/basics) für das mentale Modell hinter dem Chat und [Projekte nutzen](/de/tutorials/member/use-projects) für einen tieferen Projekt-Walkthrough. Sobald du bereit bist, einen eigenen Agent zu bauen, wechsle zum [Einstieg für Redakteure](/de/get-started/editors).
