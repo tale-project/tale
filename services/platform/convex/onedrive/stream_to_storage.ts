@@ -8,6 +8,12 @@
  * download response body directly into a Convex upload URL: the bytes flow
  * through as a stream and never fully materialize in the JS heap, so file size
  * is bounded by the transfer, not by the action's memory.
+ *
+ * PER-ORG OBJECT STORAGE: imports deliberately still land in Convex
+ * `_storage`, even for a bring-your-own-bucket org — routing the streamed
+ * store through the blob seam needs the sized-stream vs buffered-PUT split
+ * (S3 presigned PUTs require a Content-Length). Tracked in #2737; until then
+ * the org blob backfill moves imported files into the bucket on its next run.
  */
 
 import { fetchJson } from '../../lib/utils/type-utils';
