@@ -73,9 +73,19 @@ jobs:
   test:
     name: Unit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
+
+    # bgutil PO-token provider — the zero-config anti-bot layer baked into the
+    # convex image. Runs as a service container so the live YouTube-ingestion
+    # step (last) can fetch GVS tokens at 127.0.0.1:4416, exactly like the
+    # `bgutil-provider` compose sidecar in production.
+    services:
+      bgutil:
+        image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
+        ports:
+          - 4416:4416
 
     steps:
       - name: Checkout
@@ -88,6 +98,41 @@ jobs:
 
       - name: Run tests
         run: bunx turbo run test
+
+      # ── Live YouTube ingestion ────────────────────────────────────────────
+      # Folded into this Unit job (not a standalone workflow) because it is just
+      # another test — it runs the platform's OWN ytdlpJson/ytdlpWriteSubs
+      # (convex/video_links/ytdlp.ts) against a real video and asserts a
+      # transcript comes back, so it exercises buildAntiBotFlags exactly as
+      # production does. It belongs on CI specifically because GitHub runners are
+      # DATACENTER IPs — the exact environment where YouTube's "confirm you're
+      # not a bot" wall appears — so a green run proves the shipped anti-bot
+      # stack (the bgutil provider above + tuned player clients) gets past it,
+      # not just that it works from a residential laptop.
+      #
+      # The three tools are baked into the convex image (services/convex/
+      # Dockerfile); here we install the same ones into the PATH runYtdlp pins
+      # (/usr/local/bin:/usr/bin:/bin). Gated behind YOUTUBE_LIVE_TEST so the
+      # `bunx turbo run test` above (and every other suite) skips it — only this
+      # step, which supplies the binaries + provider, runs it.
+      - name: Install yt-dlp + deno + ffmpeg + bgutil plugin
+        run: |
+          set -euo pipefail
+          sudo apt-get update && sudo apt-get install -y ffmpeg unzip
+          sudo curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -o /usr/local/bin/yt-dlp
+          sudo chmod 0755 /usr/local/bin/yt-dlp
+          curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip" -o /tmp/deno.zip
+          sudo unzip -o /tmp/deno.zip -d /usr/local/bin && sudo chmod 0755 /usr/local/bin/deno
+          mkdir -p /tmp/yt-dlp-plugins
+          curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/1.3.1/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil.zip
+          unzip -o /tmp/bgutil.zip -d /tmp/yt-dlp-plugins
+
+      - name: Live YouTube transcript test (proves the datacenter-IP bot-wall bypass)
+        env:
+          YOUTUBE_LIVE_TEST: '1'
+          VIDEO_INGEST_YTDLP_PLUGIN_DIRS: /tmp/yt-dlp-plugins
+          VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
+        run: bun run --filter @tale/platform test -- ytdlp_live
 
   # ---------------------------------------------------------------------------
   # Data-migration guard + round-trip tests. The guard runs FIRST so a missing
