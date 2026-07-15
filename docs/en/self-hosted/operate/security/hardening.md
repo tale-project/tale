@@ -84,7 +84,15 @@ Verify it against your own deployment:
 - `curl -sI https://<your-host>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
 - Scan the host on [securityheaders.com](https://securityheaders.com) or the [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory).
 
-Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app because it opens OAuth sign-in popups and can be reached from a second host for branding assets; the content sites, which do neither, enable it. HSTS is emitted only when `SITE_URL` is `https://`.
+<!--
+  The MDN Observatory UI is only localized in some languages. When adding a new
+  docs language, check whether developer.mozilla.org/<lang>/observatory exists
+  and fall back to the en-US analyze links if it does not.
+-->
+
+The public demo is the live reference for what a correct deployment reports: the [Observatory scan of demo.tale.dev](https://developer.mozilla.org/en-US/observatory/analyze?host=demo.tale.dev) came back A+ on 15 July 2026 — score 115/100, all ten tests passed. The one header the report lists as not implemented, `Cross-Origin-Resource-Policy`, costs no points; it is the deliberate exception described below.
+
+Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app: `Cross-Origin-Opener-Policy: same-origin` would sever the live window handle an OAuth sign-in popup uses to hand the finished sign-in back to the app, and `Cross-Origin-Resource-Policy` would block branding assets loaded from a second host. The content sites, which do neither, enable both. HSTS is emitted only when `SITE_URL` is `https://`.
 
 ## Where this fits
 

@@ -82,9 +82,17 @@ Jede HTML-Antwort trägt einen strengen Satz an Sicherheitsheadern, und der Satz
 Gegen die eigene Bereitstellung prüfen:
 
 - `curl -sI https://<dein-host>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
-- Den Host auf [securityheaders.com](https://securityheaders.com) oder im [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory) scannen.
+- Den Host auf [securityheaders.com](https://securityheaders.com) oder im [MDN HTTP Observatory](https://developer.mozilla.org/de/observatory) scannen.
 
-Cross-Origin-Isolation (COOP/CORP) ist auf der Plattform-App bewusst deaktiviert, weil sie OAuth-Anmelde-Popups öffnet und für Branding-Assets von einem zweiten Host erreichbar sein kann; die Content-Seiten, die keines von beidem tun, aktivieren sie. HSTS wird nur ausgegeben, wenn `SITE_URL` `https://` ist.
+<!--
+  The MDN Observatory UI is only localized in some languages. When adding a new
+  docs language, check whether developer.mozilla.org/<lang>/observatory exists
+  and fall back to the en-US analyze links if it does not.
+-->
+
+Die öffentliche Demo ist die Live-Referenz dafür, was eine korrekte Bereitstellung meldet: Der [Observatory-Scan von demo.tale.dev](https://developer.mozilla.org/de/observatory/analyze?host=demo.tale.dev) stand am 15.07.2026 bei A+ — Score 115/100, alle zehn Tests bestanden. Der einzige Header, der im Report als nicht implementiert steht — `Cross-Origin-Resource-Policy` — kostet keine Punkte und ist die bewusste Ausnahme direkt darunter.
+
+Cross-Origin-Isolation (COOP/CORP) bleibt auf der Plattform-App bewusst aus: `Cross-Origin-Opener-Policy: same-origin` würde die Fenster-Referenz kappen, über die ein OAuth-Anmelde-Popup die fertige Anmeldung an die App zurückmeldet, und `Cross-Origin-Resource-Policy` würde Branding-Assets blockieren, die von einem zweiten Host geladen werden. Die Content-Seiten, die beides nicht tun, aktivieren beide Header. HSTS wird nur ausgegeben, wenn `SITE_URL` `https://` ist.
 
 ## Wo das hingehört
 
