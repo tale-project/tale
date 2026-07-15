@@ -2,18 +2,20 @@
 
 import { v } from 'convex/values';
 
-import {
-  fetchJson,
-  getBoolean,
-  getString,
-  isRecord,
-} from '../../lib/utils/type-utils';
+import { getBoolean, getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
-import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
+import {
+  buildBlobServeUrl,
+  buildDownloadUrl,
+} from '../lib/helpers/public_storage_url';
+import { putBlob } from '../lib/storage/blob_access';
+import {
+  blobRefValidator,
+  isS3Ref,
+  type BlobRef,
+} from '../lib/storage/blob_ref';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 // `generate_document` / `generate_docx` are `'use node'` modules and are NOT
@@ -678,21 +680,15 @@ export const storeRawContent = internalAction({
     const bytes = new TextEncoder().encode(args.content);
     const size = bytes.byteLength;
 
-    const uploadUrl = await ctx.storage.generateUploadUrl();
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': args.contentType },
-      body: bytes,
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error(
-        `Failed to upload content: ${uploadResponse.status} ${uploadResponse.statusText}`,
-      );
-    }
-
-    const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(
-      uploadResponse,
+    // Store through the backend-aware seam: an org with a bring-your-own bucket
+    // gets the blob in its own S3, else Convex `_storage` (unchanged). The slug
+    // resolves the org's store; a missing slug falls through to the default.
+    const orgSlug = (await orgSlugFromIdOrNull(ctx, args.organizationId)) ?? '';
+    const storageId: BlobRef = await putBlob(
+      ctx,
+      orgSlug,
+      bytes,
+      args.contentType,
     );
 
     const lowerFileName = args.fileName.toLowerCase();
@@ -713,7 +709,12 @@ export const storeRawContent = internalAction({
       },
     );
 
-    const downloadUrl = buildDownloadUrl(storageId, finalFileName);
+    // An `s3:` blob is served through the node `/storage` route (which presigns
+    // + 302-redirects); the `org` param addresses the right bucket. A Convex
+    // blob keeps the direct `/storage?id=` download URL.
+    const downloadUrl = isS3Ref(storageId)
+      ? buildBlobServeUrl(String(storageId), args.organizationId, finalFileName)
+      : buildDownloadUrl(String(storageId), finalFileName);
 
     return {
       success: true,

@@ -174,8 +174,9 @@ export interface GenerateDocumentArgs {
 export interface GenerateDocumentResult {
   /** Whether the document was generated and uploaded successfully */
   success: boolean;
-  /** Convex storage id for the generated file */
-  fileStorageId: Id<'_storage'>;
+  /** Blob reference for the generated file: a Convex `_storage` id (default) OR
+   *  an `s3:<key>` ref when the org has a bring-your-own bucket. */
+  fileStorageId: BlobRef;
   /** Download URL for the generated file */
   downloadUrl: string;
   /** Final file name including extension */
