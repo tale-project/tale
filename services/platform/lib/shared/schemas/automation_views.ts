@@ -514,6 +514,15 @@ const collectionPropsSchema = z
      * a bound Convex call OR an effect-only action (e.g. navigate).
      */
     addAction: rowActionSchema.optional(),
+    /** Where `addAction` sits: `toolbar` (default) or `above` the card.
+     *  Ignored when `chrome` is `list`. */
+    addActionPlacement: z.enum(['toolbar', 'above']).optional(),
+    /**
+     * Frame chrome: `card` (default — titled Section/Card) or `list`
+     * (entity-list pattern — title above, filters + Plus add on the
+     * DataTable toolbar, bordered grid only).
+     */
+    chrome: z.enum(['card', 'list']).optional(),
     /** Managed client-side search over the given row fields. */
     search: z
       .object({
