@@ -51,6 +51,10 @@ import {
 import { formatZodErrorFull } from '../schemas/format-error';
 import { fileBaseToPolicyType, POLICY_SCHEMAS } from '../schemas/governance';
 import { integrationJsonSchema } from '../schemas/integrations';
+import {
+  knowledgeConnectionFileSchema,
+  knowledgeConnectionSecretsSchema,
+} from '../schemas/knowledge';
 import { promptJsonSchema } from '../schemas/prompts';
 import {
   providerJsonSchema,
@@ -276,6 +280,23 @@ function validateSsoDir(dir: string, relPrefix: string): WalkResult {
   );
 }
 
+function validateKnowledgeDir(dir: string, relPrefix: string): WalkResult {
+  return walkFlat(
+    dir,
+    relPrefix,
+    (base, rel, out) => {
+      out.issues.push(
+        `${rel}: only connection.json lives in the knowledge domain`,
+      );
+      return undefined;
+    },
+    {
+      secretsSchema: knowledgeConnectionSecretsSchema,
+      specialFiles: { 'connection.json': knowledgeConnectionFileSchema },
+    },
+  );
+}
+
 function validateGovernanceDir(dir: string): WalkResult {
   return walkFlat(
     dir,
@@ -399,6 +420,10 @@ const DOMAIN_VALIDATORS: Record<string, DomainValidator> = {
   branding: { kind: 'walk', validateDir: validateBrandingDir },
   governance: { kind: 'walk', validateDir: validateGovernanceDir },
   sso: { kind: 'walk', validateDir: (dir) => validateSsoDir(dir, '') },
+  knowledge: {
+    kind: 'walk',
+    validateDir: (dir) => validateKnowledgeDir(dir, ''),
+  },
   automations: {
     kind: 'external-gate',
     coveredBy: [
