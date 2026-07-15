@@ -59,6 +59,27 @@ export function customBoundSlugs(
   );
 }
 
+// Asset extensions that cannot survive the UTF-8 `readFileSafe` read used by
+// `readSkillForExecution` — staging them ships corrupt bytes, so they are
+// skipped up front (and they are dead weight for an agent anyway).
+const BINARY_ASSET_EXT_RE =
+  /\.(png|jpe?g|gif|webp|pdf|zip|woff2?|ttf|otf|pyc)$/i;
+
+/**
+ * Should this skill-bundle asset be staged into an AGENT session? Pure —
+ * exported for unit tests. Drops test suites (`tests/` at any depth),
+ * `__pycache__`, and binary assets: agents need the runnable skill (code,
+ * mappings, schemas, docs), not its test fixtures, and the binary formats
+ * are already broken by the UTF-8 read (see BINARY_ASSET_EXT_RE). Script
+ * steps' `useSkills` staging is separate and unaffected (stage_skills.ts
+ * include lists).
+ */
+export function shouldStageBoundSkillAsset(relPath: string): boolean {
+  const segments = relPath.split('/');
+  if (segments.some((s) => s === 'tests' || s === '__pycache__')) return false;
+  return !BINARY_ASSET_EXT_RE.test(relPath);
+}
+
 /** Pure prune decision for previously staged custom bound skill dirs. */
 export function planBoundOrgSkillPrune(input: {
   stagedDirNames: ReadonlySet<string>;
@@ -134,7 +155,10 @@ export async function stageBoundOrgSkills(
   const { kept } = selectStageableSkills(candidates, (slug) => slug, repoOwned);
   if (kept.length === 0) return;
 
-  const files: SessionStageFile[] = [];
+  // One stage call PER SKILL, each inside its own try/catch: a fat or broken
+  // skill must not take down its siblings (the old all-slugs-in-one-POST shape
+  // 413'd the whole set once the combined base64 outgrew the spawner body
+  // cap). sessionStageFiles chunks each skill's payload under the HTTP budget.
   for (const slug of kept) {
     try {
       const result = await ctx.runAction(
@@ -142,27 +166,28 @@ export async function stageBoundOrgSkills(
         { orgSlug, slug },
       );
       if (!isSkillReadOk(result)) continue;
-      files.push({
-        path: `${skillsStageDir}/${slug}/SKILL.md`,
-        contentBase64: Buffer.from(result.body, 'utf8').toString('base64'),
-      });
+      const files: SessionStageFile[] = [
+        {
+          path: `${skillsStageDir}/${slug}/SKILL.md`,
+          contentBase64: Buffer.from(result.body, 'utf8').toString('base64'),
+        },
+      ];
       for (const asset of result.files) {
+        if (!shouldStageBoundSkillAsset(asset.path)) continue;
         files.push({
           path: `${skillsStageDir}/${slug}/${asset.path}`,
           contentBase64: Buffer.from(asset.content, 'utf8').toString('base64'),
         });
       }
+      const staged = await sessionStageFiles(args.sessionId, files);
+      if (staged.skipped.length > 0) {
+        console.warn(
+          `[stageBoundOrgSkills] ${slug}: some files were skipped:`,
+          staged.skipped,
+        );
+      }
     } catch (err) {
-      console.warn(`[stageBoundOrgSkills] reading ${slug} failed:`, err);
+      console.warn(`[stageBoundOrgSkills] staging ${slug} failed:`, err);
     }
-  }
-
-  if (files.length === 0) return;
-  const result = await sessionStageFiles(args.sessionId, files);
-  if (result.skipped.length > 0) {
-    console.warn(
-      '[stageBoundOrgSkills] some files were skipped:',
-      result.skipped,
-    );
   }
 }
