@@ -10,15 +10,23 @@ import { v } from 'convex/values';
  * the crawler) so requests from the deployment's egress look like a returning
  * visitor instead of a fresh bot.
  *
- * Sessions are **domain-scoped**: a session's cookies only help the host they
- * were warmed for, so consumers claim by `domain` (the registrable host, e.g.
- * `youtube.com`). Rotation is least-recently-used, health is tracked, and
- * cookies are encrypted at rest (`encryptString`, the JWE box used for OAuth
- * credentials) — the raw jar is never persisted in plaintext or returned to a
- * client. Deployment-scoped, not per-org: warmed sessions are shared egress
- * infrastructure, not tenant data.
+ * Sessions are **per-org AND domain-scoped**: a session's cookies only help the
+ * host they were warmed for, so consumers claim by `(organizationId, domain)`.
+ * Rotation is least-recently-used, health is tracked, and cookies are encrypted
+ * at rest (`encryptString`, the JWE box used for OAuth credentials) — the raw
+ * jar is never persisted in plaintext or returned to a client.
+ *
+ * TENANT-ISOLATION INVARIANT (do not weaken): browser sessions are NEVER shared
+ * across organizations. A warmed session carries one org's account/guest cookies
+ * — reusing it for another org would leak that identity, so every claim/import
+ * is scoped to `organizationId` and a claim only ever returns THAT org's
+ * sessions. Nothing about an org's egress state may be shared with another org.
  */
 export const browserSessionsTable = defineTable({
+  // Owning organization. Scoping key: a claim only returns this org's sessions,
+  // never another tenant's. Always set on insert (see `insertBrowserSession`);
+  // optional in the schema only so the type stays additive.
+  organizationId: v.optional(v.string()),
   // Registrable host this session is warmed for (e.g. `youtube.com`). Consumers
   // claim sessions matching the host they're about to reach.
   domain: v.string(),
@@ -58,9 +66,12 @@ export const browserSessionsTable = defineTable({
 })
   // Cron sweep visits live rows by status across all domains.
   .index('by_status', ['status'])
-  // Domain-scoped LRU claim: seek `(domain, status='healthy')` ordered by
-  // `lastUsedAt` ascending so the least-recently-used matching session wins.
-  .index('by_domain_and_status_and_lastUsedAt', [
+  // Per-org, domain-scoped LRU claim: seek `(organizationId, domain,
+  // status='healthy')` ordered by `lastUsedAt` ascending so the least-recently-
+  // used matching session for THAT org wins. Org-first so a claim can never
+  // reach another tenant's sessions.
+  .index('by_org_and_domain_and_status_and_lastUsedAt', [
+    'organizationId',
     'domain',
     'status',
     'lastUsedAt',

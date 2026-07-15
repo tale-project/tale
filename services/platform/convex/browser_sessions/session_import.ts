@@ -20,6 +20,10 @@ import { DEFAULT_SESSION_TTL_MS } from './sessions';
  */
 export const importBrowserSession = action({
   args: {
+    // The org this session belongs to. Sessions are per-org (see schema.ts's
+    // tenant-isolation invariant): a claim only ever returns the owning org's
+    // sessions, so a warmed jar is imported FOR a specific organization.
+    organizationId: v.string(),
     domain: v.string(),
     cookiesJar: v.string(),
     userAgent: v.optional(v.string()),
@@ -44,9 +48,17 @@ export const importBrowserSession = action({
       });
     }
     const cookiesEncrypted = await encryptString(jar);
+    const organizationId = args.organizationId.trim();
+    if (!organizationId) {
+      throw new ConvexError({
+        code: 'INVALID_SESSION',
+        message: 'An organizationId is required (sessions are per-org).',
+      });
+    }
     const sessionId = await ctx.runMutation(
       internal.browser_sessions.sessions.insertBrowserSession,
       {
+        organizationId,
         domain,
         cookiesEncrypted,
         ...(args.userAgent !== undefined && { userAgent: args.userAgent }),

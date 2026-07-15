@@ -107,15 +107,19 @@ export const fetchAndExtract = internalAction({
     let sessionUserAgent: string | undefined;
     let sessionId: Id<'browserSessions'> | undefined;
     try {
-      const domain = registrableDomain(new URL(args.url).hostname);
-      const claimed = await ctx.runMutation(
-        internal.browser_sessions.sessions.claimBrowserSession,
-        { domain },
-      );
-      if (claimed) {
-        cookieJar = await decryptString(claimed.cookiesEncrypted);
-        sessionUserAgent = claimed.userAgent;
-        sessionId = claimed.sessionId;
+      // Browser sessions are per-org; without an org context there is nothing to
+      // claim (a session belongs to exactly one tenant). Skip and fetch plain.
+      if (args.organizationId) {
+        const domain = registrableDomain(new URL(args.url).hostname);
+        const claimed = await ctx.runMutation(
+          internal.browser_sessions.sessions.claimBrowserSession,
+          { organizationId: args.organizationId, domain },
+        );
+        if (claimed) {
+          cookieJar = await decryptString(claimed.cookiesEncrypted);
+          sessionUserAgent = claimed.userAgent;
+          sessionId = claimed.sessionId;
+        }
       }
     } catch (sessionErr) {
       console.warn(

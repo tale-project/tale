@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 // The public import ACTION lives in `./session_import` on purpose: an action
 // that calls its own file's internalMutation via `internal.…` forms a
@@ -30,7 +31,7 @@ const EXPIRED_PRUNE_MS = 7 * 24 * 60 * 60 * 1000;
  * (an env proxy / provider still applies).
  */
 export const claimBrowserSession = internalMutation({
-  args: { domain: v.string() },
+  args: { organizationId: v.string(), domain: v.string() },
   returns: v.union(
     v.object({
       sessionId: v.id('browserSessions'),
@@ -43,10 +44,16 @@ export const claimBrowserSession = internalMutation({
   ),
   async handler(ctx, args) {
     const now = Date.now();
+    // Scoped to this org (index is org-first) — a claim can only ever return
+    // THIS organization's sessions, never another tenant's. See the invariant
+    // in schema.ts.
     for await (const row of ctx.db
       .query('browserSessions')
-      .withIndex('by_domain_and_status_and_lastUsedAt', (q) =>
-        q.eq('domain', args.domain).eq('status', 'healthy'),
+      .withIndex('by_org_and_domain_and_status_and_lastUsedAt', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('domain', args.domain)
+          .eq('status', 'healthy'),
       )) {
       if (row.expiresAt <= now) continue; // stale; the cron will expire it
       await ctx.db.patch(row._id, { lastUsedAt: now });
@@ -93,6 +100,7 @@ export const reportBrowserSessionResult = internalMutation({
 /** Insert an encrypted session row (called by the import action). */
 export const insertBrowserSession = internalMutation({
   args: {
+    organizationId: v.string(),
     domain: v.string(),
     cookiesEncrypted: v.string(),
     userAgent: v.optional(v.string()),
@@ -105,6 +113,7 @@ export const insertBrowserSession = internalMutation({
   returns: v.id('browserSessions'),
   async handler(ctx, args) {
     return await ctx.db.insert('browserSessions', {
+      organizationId: args.organizationId,
       domain: args.domain,
       cookiesEncrypted: args.cookiesEncrypted,
       ...(args.userAgent !== undefined && { userAgent: args.userAgent }),
@@ -163,12 +172,13 @@ export const sweepBrowserSessions = internalMutation({
  * returned.
  */
 /**
- * Masked list of pooled sessions for the operator UI — never the cookies. Any
- * authenticated user of the (typically single-org) deployment may view; the
- * import mutation is the gated write.
+ * Masked list of an ORG's pooled sessions for the operator UI — never the
+ * cookies. Scoped to the caller's organization (sessions are per-org): a member
+ * only sees their own org's sessions, never another tenant's. The import action
+ * is the gated write.
  */
 export const listBrowserSessions = query({
-  args: {},
+  args: { organizationId: v.string() },
   returns: v.array(
     v.object({
       _id: v.id('browserSessions'),
@@ -180,9 +190,14 @@ export const listBrowserSessions = query({
       failureCount: v.optional(v.number()),
     }),
   ),
-  async handler(ctx) {
+  async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return [];
+    }
     const out: Array<{
       _id: Id<'browserSessions'>;
       domain: string;
@@ -192,7 +207,11 @@ export const listBrowserSessions = query({
       lastUsedAt?: number;
       failureCount?: number;
     }> = [];
-    for await (const row of ctx.db.query('browserSessions')) {
+    for await (const row of ctx.db
+      .query('browserSessions')
+      .withIndex('by_org_and_domain_and_status_and_lastUsedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
       out.push({
         _id: row._id,
         domain: row.domain,

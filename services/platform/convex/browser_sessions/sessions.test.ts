@@ -23,6 +23,7 @@ const sweep = (sweepBrowserSessions as unknown as Handler).handler;
 
 interface Row {
   _id: string;
+  organizationId?: string;
   domain: string;
   cookiesEncrypted: string;
   visitorData?: string;
@@ -51,7 +52,7 @@ function makeCtx(rows: Row[]) {
               ([k, v]) => (r as Record<string, unknown>)[k] === v,
             ),
           );
-          if (name === 'by_domain_and_status_and_lastUsedAt') {
+          if (name === 'by_org_and_domain_and_status_and_lastUsedAt') {
             rowsOut = [...rowsOut].sort(
               (a, b) => (a.lastUsedAt ?? -1) - (b.lastUsedAt ?? -1),
             );
@@ -79,6 +80,7 @@ function makeCtx(rows: Row[]) {
 
 const HEALTHY = (over: Partial<Row>): Row => ({
   _id: 'x',
+  organizationId: 'org',
   domain: 'youtube.com',
   cookiesEncrypted: 'enc',
   status: 'healthy',
@@ -89,7 +91,19 @@ const HEALTHY = (over: Partial<Row>): Row => ({
 describe('claimBrowserSession', () => {
   it('returns null when the domain has no session', async () => {
     const { ctx } = makeCtx([HEALTHY({ _id: 'a', domain: 'other.com' })]);
-    expect(await claim(ctx, { domain: 'youtube.com' })).toBeNull();
+    expect(
+      await claim(ctx, { organizationId: 'org', domain: 'youtube.com' }),
+    ).toBeNull();
+  });
+
+  it('never returns another org’s session (per-org isolation)', async () => {
+    // orgA owns a healthy youtube.com session; orgB must NOT be handed it.
+    const { ctx } = makeCtx([
+      HEALTHY({ _id: 'orgA-sess', organizationId: 'orgA' }),
+    ]);
+    expect(
+      await claim(ctx, { organizationId: 'orgB', domain: 'youtube.com' }),
+    ).toBeNull();
   });
 
   it('picks the least-recently-used healthy session and stamps it', async () => {
@@ -97,7 +111,10 @@ describe('claimBrowserSession', () => {
       HEALTHY({ _id: 'new', lastUsedAt: 5000 }),
       HEALTHY({ _id: 'old', lastUsedAt: 1000, visitorData: 'vd' }),
     ]);
-    const claimed = await claim(ctx, { domain: 'youtube.com' });
+    const claimed = await claim(ctx, {
+      organizationId: 'org',
+      domain: 'youtube.com',
+    });
     expect(claimed?.sessionId).toBe('old');
     expect(claimed?.cookiesEncrypted).toBe('enc');
     expect(claimed?.visitorData).toBe('vd');
@@ -110,7 +127,9 @@ describe('claimBrowserSession', () => {
     const { ctx } = makeCtx([
       HEALTHY({ _id: 'stale', expiresAt: Date.now() - 1000 }),
     ]);
-    expect(await claim(ctx, { domain: 'youtube.com' })).toBeNull();
+    expect(
+      await claim(ctx, { organizationId: 'org', domain: 'youtube.com' }),
+    ).toBeNull();
   });
 });
 

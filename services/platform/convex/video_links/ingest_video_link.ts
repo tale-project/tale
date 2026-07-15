@@ -247,7 +247,10 @@ export const ingestVideoLink = internalAction({
     try {
       const claimed = await ctx.runMutation(
         internal.browser_sessions.sessions.claimBrowserSession,
-        { domain: YOUTUBE_SESSION_DOMAIN },
+        {
+          organizationId: job.organizationId,
+          domain: YOUTUBE_SESSION_DOMAIN,
+        },
       );
       if (claimed) {
         const jar = await decryptString(claimed.cookiesEncrypted);
