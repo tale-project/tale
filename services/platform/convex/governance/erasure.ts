@@ -69,6 +69,10 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import {
+  deleteBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
 import { resolveActorAndSubject } from '../notifications/actor_name';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
@@ -1302,23 +1306,20 @@ export const eraseSubjectFileMetadata = internalMutation({
     let rows = 0;
     let blobs = 0;
     const ragPurgeStorageIds: string[] = [];
+    const s3Refs: string[] = [];
     for await (const meta of iter()) {
-      // Delete the underlying _storage blob first; row delete after.
-      try {
-        await ctx.storage.delete(meta.storageId);
-        blobs++;
-      } catch (error) {
-        console.warn(
-          `[gdprErasure] storage.delete failed for ${String(meta.storageId)}:`,
-          error,
-        );
-      }
-      // Even if storage.delete failed, propagate to RAG so the index
+      // Delete the underlying blob first; row delete after. Backend-aware:
+      // `storageId` is a blob REFERENCE — an `s3:` chat upload batches onto
+      // the scheduled node lane (a mutation can't sign S3).
+      await deleteBlobInMutation(ctx, meta.storageId, s3Refs, 'gdprErasure');
+      blobs++;
+      // Even if the blob delete failed, propagate to RAG so the index
       // is consistent with the (about-to-be-deleted) DB row.
       ragPurgeStorageIds.push(String(meta.storageId));
       await ctx.db.delete(meta._id);
       rows++;
     }
+    await scheduleS3BlobDeletes(ctx, args.organizationId, s3Refs);
     return { rows, blobs, ragPurgeStorageIds, skippedByHold: 0 };
   },
 });
@@ -1375,18 +1376,18 @@ export const eraseSubjectVideoLinks = internalMutation({
     let rows = 0;
     let blobs = 0;
     const ragPurgeStorageIds: string[] = [];
+    const s3Refs: string[] = [];
     for await (const job of iter()) {
       if (job.storageId) {
-        try {
-          await ctx.storage.delete(job.storageId);
-          blobs++;
-        } catch (error) {
-          console.warn(
-            `[gdprErasure] videoLink storage.delete failed for ${String(job.storageId)}:`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-        // Even if storage.delete failed, propagate to RAG. The captions
+        // Backend-aware: an `s3:` ref batches onto the scheduled node lane.
+        await deleteBlobInMutation(
+          ctx,
+          job.storageId,
+          s3Refs,
+          'gdprErasure.videoLink',
+        );
+        blobs++;
+        // Even if the blob delete failed, propagate to RAG. The captions
         // branch ingests the transcript blob via `uploadFileToRag` keyed
         // on `storageId`, so we must purge under that id whether or not
         // the blob itself is reachable.
@@ -1395,6 +1396,7 @@ export const eraseSubjectVideoLinks = internalMutation({
       await ctx.db.delete(job._id);
       rows++;
     }
+    await scheduleS3BlobDeletes(ctx, args.organizationId, s3Refs);
     return { rows, blobs, ragPurgeStorageIds, skippedByHold: 0 };
   },
 });
