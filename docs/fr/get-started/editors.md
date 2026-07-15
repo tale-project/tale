@@ -11,13 +11,13 @@ Il te faut le rôle **Éditeur** ou plus (la section Agents est masquée pour le
 
 <Step title="Crée l’agent">
 
-Pour lancer un agent que tes collègues peuvent choisir dans le chat, ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que ce nom est ce que tes collègues choisiront plus tard dans le composeur du chat.
+Pour lancer un agent que tes collègues peuvent choisir dans le chat, ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que ce nom est ce que tes collègues choisiront plus tard dans le chat.
 
 </Step>
 
 <Step title="Façonne son identité">
 
-L’éditeur s’ouvre sur l’onglet **Général** : le nom affiché que voient tes collègues, une description d’une ligne et le type d’agent. L’interrupteur qui compte au premier jour est **Visible dans le chat** — sans lui, l’agent existe mais personne ne peut le choisir depuis le composeur.
+L’éditeur s’ouvre sur l’onglet **Général** : le nom affiché que voient tes collègues, une description d’une ligne et le type d’agent. L’interrupteur qui compte au premier jour est **Visible dans le chat** — sans lui, l’agent existe mais personne ne peut le choisir depuis le chat.
 
 <Frame caption="L’onglet Général — identité, type d’agent et visibilité dans le chat.">
 
@@ -51,7 +51,7 @@ Ouvre **Nouveau chat**, choisis ton agent dans le sélecteur d’agent et pose u
 
 <Frame caption="Le sélecteur d’agent — ton nouvel agent listé à côté des agents du catalogue.">
 
-![Le sélecteur d’agent du composeur de chat ouvert, listant les agents disponibles dans l’espace de travail.](/images/platform/chat-agent-picker.webp)
+![Le sélecteur d’agent du chat ouvert, listant les agents disponibles dans l’espace de travail.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 

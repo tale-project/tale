@@ -30,7 +30,7 @@ A discussion's category says what it is; its status says where it stands:
 
 - **Open** — active, the default.
 - **Resolved** — the question is answered or the decision is made. **Reopen** brings it back any time.
-- **Locked** — no further replies; the composer is disabled with a locked notice. **Unlock** reverses it.
+- **Locked** — no further replies; the chat is disabled with a locked notice. **Unlock** reverses it.
 
 Resolving is bookkeeping, not archival — resolved discussions stay readable and searchable in the tab.
 

@@ -93,7 +93,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Chat-Grundlagen",
-      "description": "Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Composer, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird."
+      "description": "Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Chat, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird."
     }
   },
   "de:platform/chat/overview": {
@@ -1253,7 +1253,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bases du chat",
-      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
+      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — chat, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
     }
   },
   "fr:platform/chat/overview": {
@@ -2413,7 +2413,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat basics",
-      "description": "What happens between you hitting Send and the reply landing — composer, agent pick, model resolution, streaming, citations, and how a chat is stored."
+      "description": "What happens between you hitting Send and the reply landing — chat, agent pick, model resolution, streaming, citations, and how a chat is stored."
     }
   },
   "en:platform/chat/overview": {

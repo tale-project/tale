@@ -19,7 +19,7 @@ Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossi
 
 ## Un téléversement déroulé
 
-Ouvre le projet, clique **Connaissances**, sélectionne le dossier cible (ou aucun pour la racine), et glisse des fichiers sur la zone de dépôt. La ligne apparaît dans l’arborescence et passe à **Indexed** une fois que la récupération l’a intégrée. Le même téléversement est désormais accessible depuis n’importe quel chat que le projet possède : envoie un message qui référence le sujet et l’agent le récupère, ou tape `@` dans le composer et épingle le fichier — ou un dossier entier — au tour.
+Ouvre le projet, clique **Connaissances**, sélectionne le dossier cible (ou aucun pour la racine), et glisse des fichiers sur la zone de dépôt. La ligne apparaît dans l’arborescence et passe à **Indexed** une fois que la récupération l’a intégrée. Le même téléversement est désormais accessible depuis n’importe quel chat que le projet possède : envoie un message qui référence le sujet et l’agent le récupère, ou tape `@` dans le chat et épingle le fichier — ou un dossier entier — au tour.
 
 ## Remplacer et supprimer
 

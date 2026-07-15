@@ -3,7 +3,7 @@ title: Approval concepts
 description: An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind.
 ---
 
-An approval is the seam between an agent's initiative and your judgement: a card that appears in the chat where the action was attempted, holding that action until a person decides. Agents propose — a document write, an outbound API call, a workflow run — and nothing executes while the card is pending. The chat composer says so explicitly: **Respond to the pending request above to continue**.
+An approval is the seam between an agent's initiative and your judgement: a card that appears in the chat where the action was attempted, holding that action until a person decides. Agents propose — a document write, an outbound API call, a workflow run — and nothing executes while the card is pending. The chat says so explicitly: **Respond to the pending request above to continue**.
 
 This page is the mental model — what fires an approval, what the card offers, and what a decision leaves behind. The workflow-specific gates live on [Approvals in workflows](/platform/automations/approvals-in-workflows); where the requirements are declared lives on [Configure approvals](/platform/approvals/configure).
 

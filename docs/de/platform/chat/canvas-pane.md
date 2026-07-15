@@ -5,7 +5,7 @@ description: Wann der Canvas-Bereich öffnet, was einen Canvas statt einer Inlin
 
 Der **Canvas** ist ein zweiter Bereich, der rechts vom Chat-Thread öffnet. Er erscheint, wenn die Antwort Inhalt enthält, den der lineare Thread schlecht halten kann — ein langer Codeblock, ein Mermaid-Diagramm, ein strukturiertes Dokument, ein ausführbares Python-Skript. Inline-Antworten bleiben kurz und lesbar; alles andere zieht aus dem Weg.
 
-Der Canvas ist kein reichhaltigerer Composer und kein Ort, an dem du von Hand bearbeitest. Er ist eine lebendige Ansicht des Chat-Workspace — die Dateien, die der Agent schreibt, die Dateien, die du hochlädst, und die Dateien, die Code-Läufe erzeugen — und du siehst sie, ohne fragen zu müssen.
+Der Canvas ist kein reichhaltigerer Chat und kein Ort, an dem du von Hand bearbeitest. Er ist eine lebendige Ansicht des Chat-Workspace — die Dateien, die der Agent schreibt, die Dateien, die du hochlädst, und die Dateien, die Code-Läufe erzeugen — und du siehst sie, ohne fragen zu müssen.
 
 ## Was der Canvas ist
 

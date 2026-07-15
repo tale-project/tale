@@ -3,7 +3,7 @@ title: Concepts d’approbation
 description: Une approbation est une carte dans le chat qui retient l’action d’un agent jusqu’à ta décision. Cette page nomme ce qui en déclenche une, les décisions que chaque carte offre et ce que chaque décision laisse derrière elle.
 ---
 
-Une approbation est la couture entre l’initiative d’un agent et ton jugement : une carte qui apparaît dans le chat où l’action a été tentée, retenant cette action jusqu’à ce qu’une personne décide. Les agents proposent — une écriture de document, un appel d’API sortant, une exécution de workflow — et rien ne s’exécute tant que la carte est en attente. Le composeur du chat le dit explicitement : **Réponds à la demande en attente ci-dessus pour continuer**.
+Une approbation est la couture entre l’initiative d’un agent et ton jugement : une carte qui apparaît dans le chat où l’action a été tentée, retenant cette action jusqu’à ce qu’une personne décide. Les agents proposent — une écriture de document, un appel d’API sortant, une exécution de workflow — et rien ne s’exécute tant que la carte est en attente. Le chat le dit explicitement : **Réponds à la demande en attente ci-dessus pour continuer**.
 
 Cette page est le modèle mental — ce qui déclenche une approbation, ce que la carte offre et ce qu’une décision laisse derrière elle. Les portes propres aux workflows vivent sur [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) ; l’endroit où les exigences sont déclarées vit sur [Configurer les approbations](/fr/platform/approvals/configure).
 

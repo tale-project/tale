@@ -3,7 +3,7 @@ title: Catalogue de modèles
 description: Le catalogue de modèles derrière chaque sélecteur dans Tale — où il vit sous Paramètres > Providers, ce que veulent dire les étiquettes de capacité, quels défauts sont livrés et comment la liste reste à jour.
 ---
 
-Chaque sélecteur de modèle dans Tale — le menu de modèle du composeur, la liaison de modèle d’un agent, les défauts qu’utilisent les services de crawl et de RAG — puise dans un seul catalogue : les modèles déclarés sur les fournisseurs d’IA de ton organisation. Une instance toute neuve embarque un seul fournisseur, **OpenRouter**, dont l’unique clé couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d’images. Cette page est la référence pour savoir où vit ce catalogue dans l’UI, ce que veulent dire les étiquettes sur chaque modèle, et ce qui est livré en standard.
+Chaque sélecteur de modèle dans Tale — le menu de modèle du chat, la liaison de modèle d’un agent, les défauts qu’utilisent les services de crawl et de RAG — puise dans un seul catalogue : les modèles déclarés sur les fournisseurs d’IA de ton organisation. Une instance toute neuve embarque un seul fournisseur, **OpenRouter**, dont l’unique clé couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d’images. Cette page est la référence pour savoir où vit ce catalogue dans l’UI, ce que veulent dire les étiquettes sur chaque modèle, et ce qui est livré en standard.
 
 <Frame caption="La liste de modèles du tiroir fournisseur — chaque modèle porte les étiquettes de capacité qui décident dans quels sélecteurs il apparaît.">
 

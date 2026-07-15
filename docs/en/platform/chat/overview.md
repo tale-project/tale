@@ -13,7 +13,7 @@ Chat is the everyday entry point to Tale. You open it, pick an agent (or none), 
 
 ## The parts of the screen
 
-The composer at the bottom carries the agent picker, the model picker (**Auto** lets Tale pick for you), and the message field. **New chat** in the sidebar starts a fresh chat; **Show chats** opens the history of every chat you can resume. The Canvas opens to the right of the thread when the agent produces something the inline view cannot hold — long code, a diagram, a structured document.
+The chat at the bottom carries the agent picker, the model picker (**Auto** lets Tale pick for you), and the message field. **New chat** in the sidebar starts a fresh chat; **Show chats** opens the history of every chat you can resume. The Canvas opens to the right of the thread when the agent produces something the inline view cannot hold — long code, a diagram, a structured document.
 
 ## Pages in this section
 
@@ -21,7 +21,7 @@ The composer at the bottom carries the agent picker, the model picker (**Auto** 
 
 <Card title="Chat basics" icon="message-circle" href="/platform/chat/basics">
 
-What happens between hitting send and the reply landing — composer, model resolution, streaming, citations.
+What happens between hitting send and the reply landing — chat, model resolution, streaming, citations.
 
 </Card>
 
@@ -71,4 +71,4 @@ When the Canvas opens, and what gets a Canvas versus inline rendering.
 
 ## Where this fits
 
-Chat is the surface every other Platform feature ultimately serves. Agents shape its replies, Knowledge feeds its citations, Approvals interrupt it for human checks, Conversations is a sibling inbox for customer channels rather than your own threads. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the composer-to-reply path, every other chat page reads as a variation on it.
+Chat is the surface every other Platform feature ultimately serves. Agents shape its replies, Knowledge feeds its citations, Approvals interrupt it for human checks, Conversations is a sibling inbox for customer channels rather than your own threads. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the chat-to-reply path, every other chat page reads as a variation on it.

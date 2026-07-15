@@ -13,7 +13,7 @@ Le chat est le point d’entrée quotidien à Tale. Tu l’ouvres, tu choisis un
 
 ## Les parties de l’écran
 
-Le composeur, en bas, porte le sélecteur d’agents, le sélecteur de modèles (**Auto** laisse Tale choisir pour toi) et le champ de message. **Nouveau chat** dans la barre latérale démarre un chat tout neuf ; **Afficher l'historique** ouvre la liste de tous les chats que tu peux reprendre. Le Canevas s’ouvre à droite du thread quand l’agent produit quelque chose que la vue en ligne ne peut pas contenir — du code long, un diagramme, un document structuré.
+Le chat, en bas, porte le sélecteur d’agents, le sélecteur de modèles (**Auto** laisse Tale choisir pour toi) et le champ de message. **Nouveau chat** dans la barre latérale démarre un chat tout neuf ; **Afficher l'historique** ouvre la liste de tous les chats que tu peux reprendre. Le Canevas s’ouvre à droite du thread quand l’agent produit quelque chose que la vue en ligne ne peut pas contenir — du code long, un diagramme, un document structuré.
 
 ## Les pages de cette section
 
@@ -21,7 +21,7 @@ Le composeur, en bas, porte le sélecteur d’agents, le sélecteur de modèles 
 
 <Card title="Bases du chat" icon="message-circle" href="/fr/platform/chat/basics">
 
-Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, résolution du modèle, streaming, citations.
+Ce qui se passe entre l’envoi et l’arrivée de la réponse — chat, résolution du modèle, streaming, citations.
 
 </Card>
 
@@ -71,4 +71,4 @@ Quand le Canevas s’ouvre, et ce qui obtient un Canevas plutôt qu’un rendu e
 
 ## Où ça s’inscrit
 
-Le chat est la surface que chaque autre fonctionnalité de Platform finit par servir. Les agents façonnent ses réponses, les Connaissances alimentent ses citations, les Approbations l’interrompent pour des vérifications humaines, Conversations est une boîte de réception sœur pour les canaux clients plutôt que pour tes propres chats. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin du composeur à la réponse, chaque autre page de chat se lit comme une variation autour.
+Le chat est la surface que chaque autre fonctionnalité de Platform finit par servir. Les agents façonnent ses réponses, les Connaissances alimentent ses citations, les Approbations l’interrompent pour des vérifications humaines, Conversations est une boîte de réception sœur pour les canaux clients plutôt que pour tes propres chats. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin du chat à la réponse, chaque autre page de chat se lit comme une variation autour.

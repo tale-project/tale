@@ -3,7 +3,7 @@ title: Genehmigungskonzepte
 description: Eine Genehmigung ist eine Karte im Chat, die die Aktion eines Agents anhält, bis du entscheidest. Diese Seite benennt, was eine auslöst, welche Entscheidungen jede Karte bietet und was jede Entscheidung hinterlässt.
 ---
 
-Eine Genehmigung ist die Naht zwischen der Initiative eines Agents und deinem Urteil: eine Karte, die im Chat dort erscheint, wo die Aktion versucht wurde, und die Aktion anhält, bis ein Mensch entscheidet. Agents schlagen vor — einen Dokument-Schreibzugriff, einen ausgehenden API-Aufruf, einen Workflow-Lauf — und nichts läuft, solange die Karte aussteht. Der Chat-Composer sagt es ausdrücklich: **Beantworte die ausstehende Anfrage oben, um fortzufahren**.
+Eine Genehmigung ist die Naht zwischen der Initiative eines Agents und deinem Urteil: eine Karte, die im Chat dort erscheint, wo die Aktion versucht wurde, und die Aktion anhält, bis ein Mensch entscheidet. Agents schlagen vor — einen Dokument-Schreibzugriff, einen ausgehenden API-Aufruf, einen Workflow-Lauf — und nichts läuft, solange die Karte aussteht. Der Chat sagt es ausdrücklich: **Beantworte die ausstehende Anfrage oben, um fortzufahren**.
 
 Diese Seite ist das Denkmodell — was eine Genehmigung auslöst, was die Karte bietet und was eine Entscheidung hinterlässt. Die Workflow-spezifischen Tore stehen auf [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows); wo die Anforderungen deklariert werden, steht auf [Genehmigungen konfigurieren](/de/platform/approvals/configure).
 

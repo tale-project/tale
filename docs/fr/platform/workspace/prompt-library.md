@@ -5,17 +5,17 @@ description: La bibliothèque de prompts est l’endroit où tu enregistres des 
 
 La bibliothèque de prompts est la surface des prompts enregistrés de Tale. C’est là que tu gardes les amorces de chat que tu cherches plus d’une fois — un prompt de voix d’écriture que tu réutilises pour chaque brouillon de mail client, un prompt de débogage que ton équipe se passe, un prompt de recherche sur lequel toute l’org devrait s’aligner. Chaque rôle au-dessus de Désactivé peut enregistrer et utiliser des prompts ; le levier **visibilité** sur chaque prompt décide qui d’autre le voit.
 
-Cette page est la référence pour ce qu’est un prompt, comment se comportent les trois niveaux de visibilité, comment marche l’historique des versions, et comment les prompts entrent dans un chat. La bibliothèque vit sous **Prompts** dans la barre latérale ; la même bibliothèque apparaît en ligne dans le composeur de chat.
+Cette page est la référence pour ce qu’est un prompt, comment se comportent les trois niveaux de visibilité, comment marche l’historique des versions, et comment les prompts entrent dans un chat. La bibliothèque vit sous **Prompts** dans la barre latérale ; la même bibliothèque apparaît en ligne dans le chat.
 
-<Frame caption="La bibliothèque de prompts par-dessus le composeur de chat — les amorces provisionnées avec les onglets de portée et les filtres qui rétrécissent la liste.">
+<Frame caption="La bibliothèque de prompts par-dessus le chat — les amorces provisionnées avec les onglets de portée et les filtres qui rétrécissent la liste.">
 
-![La boîte de dialogue de la bibliothèque de prompts ouverte par-dessus le composeur de chat, listant les amorces provisionnées avec des onglets de portée et une ligne de filtres au-dessus.](/images/platform/prompt-library-dialog.webp)
+![La boîte de dialogue de la bibliothèque de prompts ouverte par-dessus le chat, listant les amorces provisionnées avec des onglets de portée et une ligne de filtres au-dessus.](/images/platform/prompt-library-dialog.webp)
 
 </Frame>
 
 ## Ce qu’est un prompt
 
-Un prompt est un morceau de texte enregistré — généralement une question ou une instruction que tu taperais autrement dans le composeur — avec un titre et quelques champs de métadonnées. Quand tu vas chercher un prompt enregistré dans chat, Tale colle son contenu dans le composeur ; tu peux éditer avant d’envoyer, le prompt n’est pas un message système caché.
+Un prompt est un morceau de texte enregistré — généralement une question ou une instruction que tu taperais autrement dans le chat — avec un titre et quelques champs de métadonnées. Quand tu vas chercher un prompt enregistré dans chat, Tale colle son contenu dans le chat ; tu peux éditer avant d’envoyer, le prompt n’est pas un message système caché.
 
 Chaque prompt porte :
 
@@ -25,7 +25,7 @@ Chaque prompt porte :
 - Une liaison **équipe** optionnelle (quand visibilité est `Équipe`).
 - Des **tags** optionnels pour filtrer.
 
-La bibliothèque est cherchable par titre et contenu, filtrable par visibilité et tag, et triable par récence. Le picker en ligne du composeur est la même bibliothèque avec les mêmes filtres.
+La bibliothèque est cherchable par titre et contenu, filtrable par visibilité et tag, et triable par récence. Le picker en ligne du chat est la même bibliothèque avec les mêmes filtres.
 
 ## Les trois niveaux de visibilité
 
@@ -45,7 +45,7 @@ L’historique des versions est l’endroit où regarder quand un coéquipier a 
 
 ## Utiliser un prompt dans chat
 
-Le composeur de chat a un picker de prompts à sa base. Ouvre-le, cherche ou filtre pour trouver le prompt voulu, et clique-le pour coller le contenu dans le composeur. Le prompt est maintenant ton message — édite-le, attache des fichiers, ajoute du contexte, envoie. Une fois envoyé, le prompt agit comme n’importe quelle entrée de composeur ; Tale ne suit pas quels chats ont utilisé quels prompts.
+Le chat a un picker de prompts à sa base. Ouvre-le, cherche ou filtre pour trouver le prompt voulu, et clique-le pour coller le contenu dans le chat. Le prompt est maintenant ton message — édite-le, attache des fichiers, ajoute du contexte, envoie. Une fois envoyé, le prompt agit comme n’importe quelle entrée de chat ; Tale ne suit pas quels chats ont utilisé quels prompts.
 
 Certains prompts contiennent des variables de template — placeholders comme `{{customer_name}}` ou `{{topic}}`. Le picker te demande chaque variable avant de coller ; le contenu résultant est le prompt avec les placeholders remplis. Les variables sont déclarées dans le contenu du prompt avec la syntaxe `{{variable_name}}`.
 
@@ -57,4 +57,4 @@ Supprimer un prompt n’est réversible que via l’historique des versions si t
 
 ## Où cela s’inscrit
 
-La bibliothèque de prompts est la forme la plus légère de réutilisation dans Tale — plus légère qu’un agent (qui porte instructions, connaissance et tools), plus légère qu’un skill (qui empaquette instructions et un script). Va vers un prompt quand la réutilisation est juste le texte ; va vers un agent quand la réutilisation est un comportement configuré. La lecture suivante naturelle est [Amorces et prompts](/fr/platform/chat/starters-and-prompts) pour comment les prompts surgissent dans le composeur de chat à côté des amorces propres d’un agent.
+La bibliothèque de prompts est la forme la plus légère de réutilisation dans Tale — plus légère qu’un agent (qui porte instructions, connaissance et tools), plus légère qu’un skill (qui empaquette instructions et un script). Va vers un prompt quand la réutilisation est juste le texte ; va vers un agent quand la réutilisation est un comportement configuré. La lecture suivante naturelle est [Amorces et prompts](/fr/platform/chat/starters-and-prompts) pour comment les prompts surgissent dans le chat à côté des amorces propres d’un agent.

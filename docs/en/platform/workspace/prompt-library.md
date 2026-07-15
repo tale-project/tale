@@ -5,17 +5,17 @@ description: The Prompt library is where you save chat prompts for reuse — per
 
 The Prompt library is the saved-prompts surface of Tale. It is where you keep the chat starters you reach for more than once — a writing-voice prompt you reuse for every customer email draft, a debugging prompt your team passes around, a research prompt the whole org should agree on. Every role above Disabled can save and use prompts; the **visibility** lever on each prompt decides who else sees it.
 
-This page is the reference for what a prompt is, how the three visibility levels behave, how the version history works, and how prompts get into a chat. The library lives under **Prompts** in the sidebar; the same library surfaces inline in the chat composer.
+This page is the reference for what a prompt is, how the three visibility levels behave, how the version history works, and how prompts get into a chat. The library lives under **Prompts** in the sidebar; the same library surfaces inline in the chat.
 
-<Frame caption="The prompt library over the chat composer — provisioned starter prompts with the scope tabs and filters that narrow the list.">
+<Frame caption="The prompt library over the chat — provisioned starter prompts with the scope tabs and filters that narrow the list.">
 
-![The prompt library dialog open over the chat composer, listing provisioned starter prompts with scope tabs and a filter row above them.](/images/platform/prompt-library-dialog.webp)
+![The prompt library dialog open over the chat input, listing provisioned starter prompts with scope tabs and a filter row above them.](/images/platform/prompt-library-dialog.webp)
 
 </Frame>
 
 ## What a prompt is
 
-A prompt is a saved chunk of text — usually a question or an instruction you would otherwise type into the composer — with a title and a few metadata fields. When you reach for a saved prompt in chat, Tale pastes its content into the composer; you can edit before sending, the prompt is not a hidden system message.
+A prompt is a saved chunk of text — usually a question or an instruction you would otherwise type into the chat — with a title and a few metadata fields. When you reach for a saved prompt in chat, Tale pastes its content into the chat; you can edit before sending, the prompt is not a hidden system message.
 
 Each prompt carries:
 
@@ -25,7 +25,7 @@ Each prompt carries:
 - An optional **team** binding (when visibility is `Team`).
 - Optional **tags** for filtering.
 
-The library is searchable by title and content, filterable by visibility and tag, and sortable by recency. The composer's inline picker is the same library with the same filters.
+The library is searchable by title and content, filterable by visibility and tag, and sortable by recency. The chat's inline picker is the same library with the same filters.
 
 ## The three visibility levels
 
@@ -45,7 +45,7 @@ The version history is the place to look when a teammate edited a global prompt 
 
 ## Using a prompt in chat
 
-The chat composer has a prompt picker at its base. Open it, search or filter to find the prompt you want, and click it to paste the content into the composer. The prompt is now your message — edit it, attach files, add context, send. Once sent, the prompt acts the way any composer input does; Tale does not track which chats used which prompts.
+The chat has a prompt picker at its base. Open it, search or filter to find the prompt you want, and click it to paste the content into the chat. The prompt is now your message — edit it, attach files, add context, send. Once sent, the prompt acts the way any chat input does; Tale does not track which chats used which prompts.
 
 Some prompts contain template variables — placeholders like `{{customer_name}}` or `{{topic}}`. The picker prompts you for each variable before pasting; the resulting content is the prompt with the placeholders filled in. Variables are declared in the prompt's content with the `{{variable_name}}` syntax.
 
@@ -57,4 +57,4 @@ Deleting a prompt is reversible only through the version history if you saved it
 
 ## Where this fits
 
-The prompt library is the lightest available form of reuse in Tale — lighter than an agent (which carries instructions, knowledge, and tools), lighter than a skill (which packages instructions and a script). Reach for a prompt when the reuse is just the text; reach for an agent when the reuse is a configured behaviour. The natural next read is [Starters and prompts](/platform/chat/starters-and-prompts) for how prompts surface in the chat composer alongside an agent's own starters.
+The prompt library is the lightest available form of reuse in Tale — lighter than an agent (which carries instructions, knowledge, and tools), lighter than a skill (which packages instructions and a script). Reach for a prompt when the reuse is just the text; reach for an agent when the reuse is a configured behaviour. The natural next read is [Starters and prompts](/platform/chat/starters-and-prompts) for how prompts surface in the chat alongside an agent's own starters.

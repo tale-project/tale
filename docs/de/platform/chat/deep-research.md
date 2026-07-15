@@ -3,7 +3,7 @@ title: Tiefenrecherche
 description: Der Rechercheur-Agent — offene Webrecherche mit einem Live-To-do-Plan, zitierten Quellen über Tavily und einem sauberen PDF-Bericht am Ende.
 ---
 
-Die Tiefenrecherche ist ein Composer-Modus, der eine Frage an einen spezialisierten **Rechercheur**-Agent übergibt. Der Agent plant die Arbeit als Liste von Unterfragen, sucht mit Tavily im offenen Web, liest die vielversprechendsten Seiten, verfolgt den Fortschritt in einer To-do-Karte, die du live mitlesen kannst, und schließt mit einem PDF-Bericht ab, der jede genutzte Quelle zitiert. Greif danach, wenn die Frage offen ist, die Antwort Belege braucht und du sonst eine Stunde mit zwanzig Browser-Tabs verbringen würdest.
+Die Tiefenrecherche ist ein Chat-Modus, der eine Frage an einen spezialisierten **Rechercheur**-Agent übergibt. Der Agent plant die Arbeit als Liste von Unterfragen, sucht mit Tavily im offenen Web, liest die vielversprechendsten Seiten, verfolgt den Fortschritt in einer To-do-Karte, die du live mitlesen kannst, und schließt mit einem PDF-Bericht ab, der jede genutzte Quelle zitiert. Greif danach, wenn die Frage offen ist, die Antwort Belege braucht und du sonst eine Stunde mit zwanzig Browser-Tabs verbringen würdest.
 
 Diese Seite deckt die Tiefenrecherche-Oberfläche von Anfang bis Ende ab — wann du sie wählst, wie der Ablauf aussieht, das Budget, das sie davor bewahrt, ewig zu laufen, und woher die zitierten Quellen kommen. Die Mechanik des Agents hat dieselbe Form wie jeder andere Tale-Agent (siehe [Agent-Konzepte](/de/platform/agents/concepts)); ungewöhnlich sind hier der Live-To-do-Plan und die Tavily-Integration, die die Suchen antreibt.
 
@@ -19,11 +19,11 @@ Für schmale Faktenfragen („was ist die Hauptstadt des Senegal") ist ein gewö
 
 ## Tiefenrecherche öffnen
 
-Öffne das Plus-Menü des Composers — Modi wohnen unter der Überschrift **Modi**, und **Deep research** erscheint dort, sobald der Rechercheur-Agent verfügbar ist. Wähl den Eintrag, und der Composer wechselt in den Rechercheur-Agent. Tipp die Frage und sende. Die Antwortansicht wechselt vom üblichen Streaming-Text zu einer **Recherche-Plan**-Karte mit drei bis sieben To-do-Einträgen, die der Agent als Unterfragen gewählt hat.
+Öffne das Plus-Menü des Chats — Modi wohnen unter der Überschrift **Modi**, und **Deep research** erscheint dort, sobald der Rechercheur-Agent verfügbar ist. Wähl den Eintrag, und der Chat wechselt in den Rechercheur-Agent. Tipp die Frage und sende. Die Antwortansicht wechselt vom üblichen Streaming-Text zu einer **Recherche-Plan**-Karte mit drei bis sieben To-do-Einträgen, die der Agent als Unterfragen gewählt hat.
 
-<Frame caption="Modi wohnen im Plus-Menü des Composers; Einträge erscheinen, sobald ihre Voraussetzungen erfüllt sind.">
+<Frame caption="Modi wohnen im Plus-Menü des Chats; Einträge erscheinen, sobald ihre Voraussetzungen erfüllt sind.">
 
-![Das geöffnete Plus-Menü des Composers zeigt den Eintrag Fotos & Dateien hinzufügen und einen Modi-Abschnitt mit dem Arena-Modus.](/images/platform/chat-composer-menu.webp)
+![Das geöffnete Plus-Menü des Chats zeigt den Eintrag Fotos & Dateien hinzufügen und einen Modi-Abschnitt mit dem Arena-Modus.](/images/platform/chat-composer-menu.webp)
 
 </Frame>
 
@@ -84,4 +84,4 @@ Für chinesische, japanische und koreanische Berichte ist der Schriftsatz des PD
 
 ## Wo das hineinpasst
 
-Die Tiefenrecherche ist das schwerste Ende des Chat-Composers — sie erledigt in zehn Minuten, was ein Analyst in einem Nachmittag schaffen würde. Lies diese Seite zusammen mit [Agent-Konzepten](/de/platform/agents/concepts) (das Vier-Knöpfe-Modell, auf dem der Rechercheur-Agent gebaut ist) und der [Integrationen-Übersicht](/de/platform/integrations/overview) (wo Tavily neben den anderen Integrationen sitzt, die der Werkzeuggürtel eines Agents erreichen kann). Willst du deinen eigenen recherche-artigen Agent bauen, statt den mitgelieferten zu nutzen, führt dich [Einen Agent erstellen](/de/platform/agents/create) durch den Agent-Bau von Anfang bis Ende.
+Die Tiefenrecherche ist das schwerste Ende des Chats — sie erledigt in zehn Minuten, was ein Analyst in einem Nachmittag schaffen würde. Lies diese Seite zusammen mit [Agent-Konzepten](/de/platform/agents/concepts) (das Vier-Knöpfe-Modell, auf dem der Rechercheur-Agent gebaut ist) und der [Integrationen-Übersicht](/de/platform/integrations/overview) (wo Tavily neben den anderen Integrationen sitzt, die der Werkzeuggürtel eines Agents erreichen kann). Willst du deinen eigenen recherche-artigen Agent bauen, statt den mitgelieferten zu nutzen, führt dich [Einen Agent erstellen](/de/platform/agents/create) durch den Agent-Bau von Anfang bis Ende.
