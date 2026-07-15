@@ -662,7 +662,7 @@ function CollectionBody({
     return (
       <VStack gap={3}>
         {resolvedTitle ? (
-          <Text as="h2" className="font-semibold">
+          <Text as="h3" className="font-semibold">
             {resolvedTitle}
           </Text>
         ) : null}

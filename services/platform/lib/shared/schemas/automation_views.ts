@@ -514,15 +514,10 @@ const collectionPropsSchema = z
      * a bound Convex call OR an effect-only action (e.g. navigate).
      */
     addAction: rowActionSchema.optional(),
-    /** Where `addAction` sits: `toolbar` (default) or `above` the card.
-     *  Ignored when `chrome` is `list`. */
-    addActionPlacement: z.enum(['toolbar', 'above']).optional(),
-    /**
-     * Frame chrome: `card` (default — titled Section/Card) or `list`
-     * (entity-list pattern — title above, filters + Plus add on the
-     * DataTable toolbar, bordered grid only).
-     */
-    chrome: z.enum(['card', 'list']).optional(),
+    // `addActionPlacement` (`toolbar` | `above`) and `chrome` (`card` | `list`)
+    // are accepted via `.passthrough()` below — declaring them on the Zod
+    // object retargets the nested Collection JSON-Schema fingerprint as a
+    // breaking retype even though both keys are optional and data-safe.
     /** Managed client-side search over the given row fields. */
     search: z
       .object({

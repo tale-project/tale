@@ -687,7 +687,7 @@ describe('Collection — list chrome', () => {
     );
 
     expect(
-      screen.getByRole('heading', { name: 'VAT returns' }),
+      screen.getByRole('heading', { level: 3, name: 'VAT returns' }),
     ).toBeInTheDocument();
     // Section/Card chrome wraps card mode in a <section>; list does not.
     expect(document.querySelector('section')).toBeNull();
