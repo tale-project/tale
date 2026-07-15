@@ -35,7 +35,8 @@ export const startChat = internalMutation({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

@@ -25,13 +25,15 @@ import { createHash, randomUUID } from 'node:crypto';
 import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   inferContentType,
   inferStepLanguage,
 } from '../../agent_tools/files/_shared';
+import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { putBlob, readBlobBytes } from '../../lib/storage/blob_access';
+import { convexStorageId, type BlobRef } from '../../lib/storage/blob_ref';
 import {
   drainSessionExecResilient,
   sessionDeleteFiles,
@@ -262,6 +264,9 @@ export async function runAndHarvestInSession(
   const startedAt = Date.now();
   const execId = randomUUID();
   const { sessionId, workspaceThreadId, organizationId } = args;
+  // Backend routing for harvested outputs: the org's own bucket when
+  // configured, else Convex `_storage` (also the unresolvable-slug fallback).
+  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
 
   const run = await runStepsInSession(sessionId, {
     stepPaths: args.stepPaths,
@@ -307,19 +312,27 @@ export async function runAndHarvestInSession(
       read.contentType && read.contentType !== 'application/octet-stream'
         ? read.contentType
         : inferContentType(absPath);
+    // Backend-aware store: harvested outputs are org-user-persistent thread
+    // files — a BYO-bucket org's outputs land in its own bucket.
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
-    const storageId = await ctx.storage.store(
-      new Blob([ab], { type: contentType }),
-    );
+    const harvestBytes = new Uint8Array(ab);
+    let storageId: BlobRef;
+    if (orgSlug !== null) {
+      storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
+    } else {
+      storageId = await ctx.storage.store(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
+        new Blob([harvestBytes as BlobPart], { type: contentType }),
+      );
+    }
     await ctx.runMutation(
       internal.thread_files.internal_mutations.upsertThreadFile,
       {
         organizationId,
         threadId: workspaceThreadId,
         path: absPath,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
-        storageId: storageId as Id<'_storage'>,
+        storageId,
         size: buf.byteLength,
         contentType,
         sha256,
@@ -338,8 +351,8 @@ export async function runAndHarvestInSession(
         internal.file_metadata.internal_mutations.saveFileMetadata,
         {
           organizationId,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
-          storageId: storageId as Id<'_storage'>,
+          // Blob reference string — saveFileMetadata is blobRef-wide.
+          storageId,
           fileName: e.name,
           contentType,
           size: buf.byteLength,
@@ -351,7 +364,7 @@ export async function runAndHarvestInSession(
     }
     files.push({
       path: absPath,
-      storageId,
+      storageId: String(storageId),
       size: buf.byteLength,
       contentType,
     });
@@ -458,28 +471,64 @@ export const executeCodeInSession = internalAction({
     // Stage inputs. On a fresh session, reconstruct the whole workspace from
     // threadFiles; on a warm/resumed one, only re-stage the mutable inputs
     // (scripts/uploads) — prior `run_output` files persist in the workspace.
+    //
+    // Backend split: a Convex `_storage` blob is staged by URL (the
+    // in-container daemon fetches it over the sandbox-reachable `convex`
+    // alias). An `s3:` blob CANNOT be fetched from the sandbox — the
+    // `--internal` sandbox net has no route to the org's S3 endpoint — so its
+    // bytes are read here (node) and staged inline as base64 (bounded by the
+    // 10 MB THREAD_FILE_MAX_BYTES cap on every workspace file).
     const rows = await ctx.runQuery(
       internal.thread_files.internal_queries.listThreadFiles,
       { threadId: args.threadId },
     );
-    const toStage: { path: string; url: string }[] = [];
+    const stageOrgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    const toStage: {
+      path: string;
+      url?: string;
+      contentBase64?: string;
+    }[] = [];
     for (const r of rows as Array<{
       organizationId: string;
       path: string;
-      storageId: Id<'_storage'>;
+      storageId: BlobRef;
       source: 'user_upload' | 'agent_write' | 'run_output';
     }>) {
       if (r.organizationId !== args.organizationId) continue;
       if (r.source === 'run_output' && !created) continue;
-      const raw = await ctx.storage.getUrl(r.storageId);
-      if (raw === null) continue;
-      toStage.push({
-        path: stagePathOf(r.path),
-        url: toSandboxStorageUrl(raw),
-      });
+      const rowConvexId = convexStorageId(r.storageId);
+      if (rowConvexId !== null) {
+        const raw = await ctx.storage.getUrl(rowConvexId);
+        if (raw === null) continue;
+        toStage.push({
+          path: stagePathOf(r.path),
+          url: toSandboxStorageUrl(raw),
+        });
+        continue;
+      }
+      if (stageOrgSlug === null) continue;
+      try {
+        const bytes = await readBlobBytes(ctx, stageOrgSlug, r.storageId);
+        toStage.push({
+          path: stagePathOf(r.path),
+          contentBase64: Buffer.from(bytes).toString('base64'),
+        });
+      } catch (err) {
+        console.warn(
+          `[session_exec] S3 thread-file read failed for ${r.path}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
     if (toStage.length > 0) {
-      await sessionStageFiles(sessionId, toStage);
+      await sessionStageFiles(
+        sessionId,
+        toStage.map((f) =>
+          f.url !== undefined
+            ? { path: f.path, url: f.url }
+            : { path: f.path, contentBase64: f.contentBase64 ?? '' },
+        ),
+      );
     }
 
     // Inline mode: stage the snippet as a hidden one-shot script and run it

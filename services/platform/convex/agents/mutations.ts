@@ -9,12 +9,17 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation, mutation } from '../_generated/server';
 import { extractExtension } from '../documents/extract_extension';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import {
+  deleteBlobInMutation,
+  deleteOrgBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
+import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
 import { knowledgeFileValidator } from './schema';
 
 /**
@@ -27,7 +32,7 @@ import { knowledgeFileValidator } from './schema';
 async function assertStorageIdInOrg(
   ctx: MutationCtx,
   organizationId: string,
-  storageId: Id<'_storage'>,
+  storageId: BlobRef,
 ): Promise<void> {
   const meta = await ctx.db
     .query('fileMetadata')
@@ -185,7 +190,8 @@ export const addKnowledgeFile = mutation({
   args: {
     organizationId: v.string(),
     agentSlug: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
     fileSize: v.number(),
@@ -267,7 +273,8 @@ export const removeKnowledgeFile = mutation({
   args: {
     organizationId: v.string(),
     agentSlug: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -313,7 +320,13 @@ export const removeKnowledgeFile = mutation({
       internal.agents.internal_actions.deleteKnowledgeFileFromRag,
       { organizationId: args.organizationId, fileId: args.fileId },
     );
-    await ctx.storage.delete(args.fileId);
+    // Backend-aware: an `s3:` ref routes through the scheduled node lane.
+    await deleteOrgBlobInMutation(
+      ctx,
+      args.organizationId,
+      args.fileId,
+      'agents.removeKnowledgeFile',
+    );
 
     const metadata = await ctx.db
       .query('fileMetadata')
@@ -343,13 +356,20 @@ export const cleanupAgentBinding = internalMutation({
 
     if (!binding) return null;
 
+    const s3Refs: string[] = [];
     for (const file of binding.knowledgeFiles ?? []) {
       await ctx.scheduler.runAfter(
         0,
         internal.agents.internal_actions.deleteKnowledgeFileFromRag,
         { organizationId: args.organizationId, fileId: file.fileId },
       );
-      await ctx.storage.delete(file.fileId);
+      // Backend-aware: `s3:` refs batch onto one scheduled node delete.
+      await deleteBlobInMutation(
+        ctx,
+        file.fileId,
+        s3Refs,
+        'agents.cleanupAgentBinding',
+      );
 
       const metadata = await ctx.db
         .query('fileMetadata')
@@ -357,6 +377,7 @@ export const cleanupAgentBinding = internalMutation({
         .first();
       if (metadata) await ctx.db.delete(metadata._id);
     }
+    await scheduleS3BlobDeletes(ctx, args.organizationId, s3Refs);
 
     await ctx.db.delete(binding._id);
     return null;

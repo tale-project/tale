@@ -147,16 +147,21 @@ The canvas (right pane) renders workspace files by extension automatically — \
           };
         }
         const contentType = inferContentType(normalizedPath);
-        // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
-        // BlobPart constraint accepts it (Uint8Array<ArrayBufferLike> includes
-        // SharedArrayBuffer in TS's strict lib and is rejected).
+        // Copy bytes into a fresh ArrayBuffer (exact-size, detached from any
+        // SharedArrayBuffer typing) for the cross-action `v.bytes()` arg.
         const ab = new ArrayBuffer(bytes.byteLength);
         new Uint8Array(ab).set(bytes);
-        const blob = new Blob([ab], { type: contentType });
 
         let storageId: string;
         try {
-          storageId = await ctx.storage.store(blob);
+          // Backend-aware store via the node lane: the org's own bucket when
+          // configured, else Convex `_storage`. This tool is bundled into the
+          // V8 workflow engine, so it cannot import the 'use node' seam
+          // directly — it hops through the internal action instead.
+          storageId = await ctx.runAction(
+            internal.files.blob_actions.storeOrgBlob,
+            { organizationId, bytes: ab, contentType },
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return {
@@ -173,9 +178,9 @@ The canvas (right pane) renders workspace files by extension automatically — \
               organizationId,
               threadId: workspaceThreadId,
               path: normalizedPath,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
-              storageId: storageId as never,
-              size: blob.size,
+              // Blob reference string — upsertThreadFile is blobRef-wide.
+              storageId,
+              size: bytes.byteLength,
               contentType,
               sha256: await sha256Hex(bytes),
               // Provenance is the WRITER (the model), whichever root the
@@ -190,7 +195,7 @@ The canvas (right pane) renders workspace files by extension automatically — \
           return {
             ok: true as const,
             path: normalizedPath,
-            size: blob.size,
+            size: bytes.byteLength,
             contentType,
             replaced: result.replaced,
           };
@@ -221,8 +226,12 @@ The canvas (right pane) renders workspace files by extension automatically — \
             // rejected before it got upserted, so the storage row would
             // leak otherwise.
             try {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-              await ctx.storage.delete(storageId as never);
+              // Backend-aware orphan reclaim via the node delete lane
+              // (idempotent, handles `_storage` ids AND `s3:` refs).
+              await ctx.runAction(internal.files.blob_actions.deleteOrgBlobs, {
+                organizationId,
+                refs: [storageId],
+              });
             } catch (delErr) {
               console.warn(
                 '[file_write] orphan storage cleanup failed:',
@@ -240,8 +249,11 @@ The canvas (right pane) renders workspace files by extension automatically — \
             };
           }
           try {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-            await ctx.storage.delete(storageId as never);
+            // Backend-aware orphan reclaim via the node delete lane.
+            await ctx.runAction(internal.files.blob_actions.deleteOrgBlobs, {
+              organizationId,
+              refs: [storageId],
+            });
           } catch (delErr) {
             console.warn('[file_write] orphan storage cleanup failed:', delErr);
           }

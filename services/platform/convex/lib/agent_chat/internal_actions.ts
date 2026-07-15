@@ -69,6 +69,7 @@ import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
 import { NonRetryableError } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
+import { blobRefValidator } from '../storage/blob_ref';
 import { buildBrandingContext } from './branding_context';
 import { buildHooksFromConfig } from './build_hooks';
 import {
@@ -244,7 +245,8 @@ const runGenerationArgs = {
   attachments: v.optional(
     v.array(
       v.object({
-        fileId: v.id('_storage'),
+        // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+        fileId: blobRefValidator,
         fileName: v.string(),
         fileType: v.string(),
         fileSize: v.number(),
@@ -272,7 +274,8 @@ const runGenerationArgs = {
     v.array(
       v.object({
         documentId: v.id('documents'),
-        fileId: v.id('_storage'),
+        // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+        fileId: blobRefValidator,
         fileName: v.string(),
         fileType: v.string(),
         fileSize: v.number(),
@@ -754,6 +757,7 @@ export async function runGenerationCore(
           const built = await buildInlineMultiModalPrompt(ctx, {
             userText: originalUserText ?? promptMessage,
             imageAttachments,
+            organizationId,
           });
           multiModalPrompt = built.prompt;
           debugLog('MULTIMODAL_BRANCH', {
@@ -1266,7 +1270,8 @@ export const beforeGenerateHook = internalAction({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

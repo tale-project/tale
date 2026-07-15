@@ -132,7 +132,7 @@ interface ChatInputProps extends Omit<
   uploadingFiles: string[];
   uploadFiles: (files: File[]) => Promise<void>;
   cancelUpload?: (fileId: string) => void;
-  removeAttachment: (fileId: Id<'_storage'>) => void;
+  removeAttachment: (fileId: string) => void;
   clearAttachments: () => FileAttachment[];
   fileUploadDisabled?: boolean;
   isIndexing?: boolean;
@@ -162,7 +162,7 @@ interface ChatInputProps extends Omit<
   hasFailedAudioJobs?: boolean;
   /** Re-run a failed audio transcription (reuses the persisted `_storage`
    * blob; no re-upload). Wired to the retry button on the audio chip. */
-  retryAudioTranscription?: (fileId: Id<'_storage'>) => void;
+  retryAudioTranscription?: (fileId: string) => void;
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
@@ -853,7 +853,7 @@ export function ChatInput({
   // removed image never leaves an orphan token behind. (Deleting the marker
   // alone keeps the image — see deletePastedTokenAtCaret.)
   const handleRemoveAttachment = useCallback(
-    (fileId: Id<'_storage'>) => {
+    (fileId: string) => {
       const att = attachments.find((a) => a.fileId === fileId);
       const id = att ? pastedImageIdFromName(att.fileName) : null;
       if (id !== null && onChange) {

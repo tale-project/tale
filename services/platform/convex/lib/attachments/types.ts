@@ -4,13 +4,18 @@
 
 import type { ImagePart as AIImagePart, FilePart as AIFilePart } from 'ai';
 
-import type { Id } from '../../_generated/dataModel';
+import type { BlobRef } from '../storage/blob_ref';
 
 /**
- * File attachment from the client
+ * File attachment from the client.
+ *
+ * `fileId` is a blob REFERENCE: a Convex `_storage` id (deployment default)
+ * OR an `s3:<key>` ref when the org brings its own bucket — every consumer
+ * of this type must be backend-aware (`convexStorageId` / the blob seam),
+ * never pass it to `ctx.storage.*` directly.
  */
 export interface FileAttachment {
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   fileName: string;
   fileType: string;
   fileSize: number;
@@ -20,8 +25,10 @@ export interface FileAttachment {
  * Result of registering files with the agent component
  */
 export interface RegisteredFile {
-  agentFileId: string;
-  storageId: Id<'_storage'>;
+  /** Agent-component registry id for Convex-backed blobs; an `s3:` blob is
+   *  not component-registered (the registry vacuums `_storage` only). */
+  agentFileId?: string;
+  storageId: BlobRef;
   imagePart?: AIImagePart;
   filePart: AIFilePart;
   fileUrl: string;

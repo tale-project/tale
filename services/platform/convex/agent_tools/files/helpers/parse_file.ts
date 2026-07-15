@@ -1,5 +1,6 @@
 import type { ActionCtx } from '../../../_generated/server';
-import { toId } from '../../../lib/type_cast_helpers';
+import { getBlobFetchUrl } from '../../../lib/storage/blob_read_any';
+import type { BlobRef } from '../../../lib/storage/blob_ref';
 
 interface ParseFileResult {
   success: boolean;
@@ -8,19 +9,25 @@ interface ParseFileResult {
 }
 
 /**
- * Parse a document file and extract its text content.
+ * Parse a document file and extract its text content. Backend-aware: a Convex
+ * `_storage` id resolves to a direct storage URL (unchanged); an `s3:` ref is
+ * presigned against the org's own bucket — hence `organizationId`.
  */
 export async function parseFile(
   ctx: ActionCtx,
-  fileId: string,
+  fileId: BlobRef,
+  organizationId: string,
   _fileName: string,
   _toolName?: string,
   _userText?: string,
 ): Promise<ParseFileResult> {
   try {
-    const url = await ctx.storage.getUrl(toId<'_storage'>(fileId));
+    const url = await getBlobFetchUrl(ctx, organizationId, fileId);
     if (!url) {
-      return { success: false, error: `No storage URL for fileId ${fileId}` };
+      return {
+        success: false,
+        error: `No storage URL for fileId ${String(fileId)}`,
+      };
     }
 
     const response = await fetch(url);

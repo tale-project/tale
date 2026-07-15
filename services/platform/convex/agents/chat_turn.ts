@@ -45,6 +45,7 @@ import { isDrainingNow } from '../control/drain';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
 import { normalizeMessageKey } from './auto_route_helpers';
@@ -99,7 +100,8 @@ export const chatWithAgentTurn = mutation({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

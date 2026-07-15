@@ -13,7 +13,6 @@ import {
 } from '@/app/features/chat/components/message-bubble/image-preview-dialog';
 import { useFileUrls } from '@/app/features/chat/hooks/queries';
 import type { FileAttachment } from '@/app/features/chat/hooks/use-convex-file-upload';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_UPLOAD_ACCEPT, isImage } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
@@ -41,7 +40,7 @@ export function TaskAttachments({
   disabled?: boolean;
   organizationId: string;
   onUpload: (files: File[]) => void;
-  onRemove: (fileId: Id<'_storage'>) => void;
+  onRemove: (fileId: string) => void;
 }) {
   const { t } = useT('tasks');
   const inputId = useId();
@@ -65,7 +64,7 @@ export function TaskAttachments({
   );
   const { data: resolvedUrls } = useFileUrls(imageFileIdsToResolve);
   const galleryEntries = useMemo(() => {
-    const entries: Array<{ fileId: Id<'_storage'>; image: GalleryImage }> = [];
+    const entries: Array<{ fileId: string; image: GalleryImage }> = [];
     for (const attachment of imageAttachments) {
       const url =
         attachment.previewUrl ??

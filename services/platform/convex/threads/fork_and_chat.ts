@@ -14,6 +14,7 @@ import { action } from '../_generated/server';
 import { validateChatAttachmentCaps } from '../agents/chat_turn';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const forkAndChat = action({
   args: {
@@ -33,7 +34,8 @@ export const forkAndChat = action({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

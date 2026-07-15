@@ -80,10 +80,6 @@ export function useCreateArenaThreadB() {
   return useConvexMutation(api.threads.mutations.createArenaThreadB);
 }
 
-export function useGenerateUploadUrl() {
-  return useConvexMutation(api.files.mutations.generateUploadUrl);
-}
-
 export function useDeleteThread() {
   return useConvexMutation(api.threads.mutations.deleteChatThread);
 }

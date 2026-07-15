@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
 import { startAgentChat } from '../../lib/agent_chat';
 import type { AgentType } from '../../lib/context_management/constants';
+import { blobRefValidator } from '../../lib/storage/blob_ref';
 import { createChatThread } from '../../threads/create_chat_thread';
 
 /**
@@ -117,7 +118,8 @@ export const startWebhookChat = internalMutation({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

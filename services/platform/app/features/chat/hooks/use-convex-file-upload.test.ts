@@ -20,11 +20,14 @@ import { useConvexFileUpload } from './use-convex-file-upload';
 // resolves by extension without an arrayBuffer round-trip.
 // ---------------------------------------------------------------------------
 
-const generateUploadUrl = vi.fn().mockResolvedValue('https://upload.test/url');
+// Backend-aware handoff (Convex arm): POST + storageId-from-response.
+const generateBlobUpload = vi
+  .fn()
+  .mockResolvedValue({ url: 'https://upload.test/url', method: 'POST' });
 const saveFileMetadata = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('./mutations', () => ({
-  useGenerateUploadUrl: () => ({ mutateAsync: generateUploadUrl }),
+vi.mock('@/app/hooks/use-convex-action', () => ({
+  useConvexAction: () => ({ mutateAsync: generateBlobUpload }),
 }));
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({

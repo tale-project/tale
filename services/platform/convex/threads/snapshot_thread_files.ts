@@ -1,3 +1,5 @@
+'use node';
+
 /**
  * Snapshot a source thread's workspace files onto a freshly-forked thread.
  *
@@ -7,13 +9,13 @@
  * takes a one-time COPY of the source's files at creation and then lives its
  * own life — files the source writes afterwards must not leak in.
  *
- * Each file is copied by BYTES to a FRESH `storageId`, never by sharing the
- * source's id: `upsertThreadFile` calls `ctx.storage.delete` unconditionally on
+ * Each file is copied by BYTES to a FRESH blob reference, never by sharing the
+ * source's ref: `upsertThreadFile` deletes the previous blob unconditionally on
  * replace/remove (`thread_files/internal_mutations.ts`), so a shared blob would
- * be deleted out from under whichever thread didn't trigger the delete. Copying
- * bytes needs `ctx.storage.store`, which is why this is an action (mutations
- * can't store) scheduled from the fork mutation — it is NOT a `'use node'`
- * module (the V8 runtime exposes storage; see `agent_tools/files/file_write_tool.ts`).
+ * be deleted out from under whichever thread didn't trigger the delete. Both
+ * the read and the copy go through the backend-aware seam (`'use node'` — S3
+ * signing needs the node runtime), so a BYO-bucket org's fork copies land in
+ * its own bucket; scheduled from the fork mutation (mutations can't store).
  *
  * Caveats:
  *   - Snapshots only the source thread's OWN files. It does not pull in the
@@ -33,6 +35,9 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { deleteBlob, putBlob, readBlobBytes } from '../lib/storage/blob_access';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import {
   THREAD_WORKSPACE_MAX_BYTES,
   THREAD_WORKSPACE_MAX_FILES,
@@ -80,6 +85,11 @@ export const snapshotThreadFiles = internalAction({
     let budgetFiles = 0;
     let budgetBytes = 0;
 
+    // Backend routing for the byte copies: the org's own bucket when
+    // configured, else Convex `_storage` (also the fallback when the slug is
+    // unresolvable — never fail a fork over blob routing).
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+
     for (const row of rows) {
       if (budgetFiles >= THREAD_WORKSPACE_MAX_FILES) {
         skipped++;
@@ -90,13 +100,25 @@ export const snapshotThreadFiles = internalAction({
         continue;
       }
 
-      let newStorageId: Awaited<ReturnType<typeof ctx.storage.store>> | null =
-        null;
+      let newStorageId: BlobRef | null = null;
       try {
-        const blob = await ctx.storage.get(row.storageId);
-        if (!blob) {
-          // Source blob is gone (e.g. retention cleanup raced the fork). Skip
-          // this file but keep snapshotting the rest.
+        // Backend-aware read of the source blob.
+        let bytes: Uint8Array | null = null;
+        let contentType = row.contentType;
+        const sourceConvexId = convexStorageId(row.storageId);
+        if (sourceConvexId !== null) {
+          const blob = await ctx.storage.get(sourceConvexId);
+          if (blob !== null) {
+            bytes = new Uint8Array(await blob.arrayBuffer());
+            contentType = blob.type || row.contentType;
+          }
+        } else if (orgSlug !== null) {
+          bytes = await readBlobBytes(ctx, orgSlug, row.storageId);
+        }
+        if (bytes === null) {
+          // Source blob is gone (e.g. retention cleanup raced the fork) or
+          // its org bucket is unresolvable. Skip this file but keep
+          // snapshotting the rest.
           console.warn('[snapshotThreadFiles] source blob missing', {
             sourceThreadId: args.sourceThreadId,
             path: row.path,
@@ -104,7 +126,16 @@ export const snapshotThreadFiles = internalAction({
           failed++;
           continue;
         }
-        newStorageId = await ctx.storage.store(blob);
+        // Backend-aware copy.
+        if (orgSlug !== null) {
+          newStorageId = await putBlob(ctx, orgSlug, bytes, contentType);
+        } else {
+          const ab = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(ab).set(bytes);
+          newStorageId = await ctx.storage.store(
+            new Blob([ab], { type: contentType }),
+          );
+        }
         await ctx.runMutation(
           internal.thread_files.internal_mutations.upsertThreadFile,
           {
@@ -128,7 +159,12 @@ export const snapshotThreadFiles = internalAction({
         // authoritative quota rejection that our local budget under-counted).
         if (newStorageId) {
           try {
-            await ctx.storage.delete(newStorageId);
+            const copyConvexId = convexStorageId(newStorageId);
+            if (copyConvexId !== null) {
+              await ctx.storage.delete(copyConvexId);
+            } else if (orgSlug !== null) {
+              await deleteBlob(ctx, orgSlug, newStorageId);
+            }
           } catch (delErr) {
             console.warn(
               '[snapshotThreadFiles] orphan blob cleanup failed',

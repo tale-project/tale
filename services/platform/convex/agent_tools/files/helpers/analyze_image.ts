@@ -11,12 +11,13 @@
  */
 
 import { components } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 import { reasoningProviderOptionsFor } from '../../../lib/agent_response/reasoning/build_reasoning_options';
 import { createDebugLog } from '../../../lib/debug_log';
 import { buildCallProviderOptions } from '../../../lib/provider_options';
+import { fetchBlobArrayBuffer } from '../../../lib/storage/blob_read_any';
+import type { BlobRef } from '../../../lib/storage/blob_ref';
 import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import { createVisionAgent } from './vision_agent';
 
@@ -26,8 +27,8 @@ const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
 
 export interface AnalyzeImageParams {
-  /** Convex storage file ID */
-  fileId: Id<'_storage'>;
+  /** Blob reference: a Convex `_storage` id or an `s3:` ref (BYO bucket). */
+  fileId: BlobRef;
   /** The question or instruction for analyzing the image */
   question?: string;
   /** Original file name (for display purposes) */
@@ -67,22 +68,23 @@ export async function analyzeImage(
   const visionModelId = modelData.modelId;
 
   try {
-    // Get the image blob from storage
-    const imageBlob = await ctx.storage.get(fileId);
-    if (!imageBlob) {
-      throw new Error(`Image not found in storage: ${fileId}`);
+    // Get the image bytes through the backend-aware seam: `_storage` directly,
+    // or a presigned fetch for an `s3:`-backed org (this file stays V8-safe).
+    const read = await fetchBlobArrayBuffer(ctx, organizationId, fileId);
+    if (!read) {
+      throw new Error(`Image not found in storage: ${String(fileId)}`);
     }
 
-    const mimeType = imageBlob.type || 'image/png';
+    const mimeType = read.contentType || 'image/png';
 
     debugLog('analyzeImage got blob', {
-      size: imageBlob.size,
+      size: read.bytes.byteLength,
       mimeType,
     });
 
     // Check if image is too large
-    if (imageBlob.size > MAX_IMAGE_BYTES) {
-      const sizeMB = (imageBlob.size / (1024 * 1024)).toFixed(2);
+    if (read.bytes.byteLength > MAX_IMAGE_BYTES) {
+      const sizeMB = (read.bytes.byteLength / (1024 * 1024)).toFixed(2);
       const maxMB = (MAX_IMAGE_BYTES / (1024 * 1024)).toFixed(0);
       return {
         success: false,
@@ -93,8 +95,8 @@ export async function analyzeImage(
       };
     }
 
-    // Convert blob to Uint8Array (AI SDK handles encoding internally)
-    const imageData = new Uint8Array(await imageBlob.arrayBuffer());
+    // Convert to Uint8Array (AI SDK handles encoding internally)
+    const imageData = new Uint8Array(read.bytes);
 
     debugLog('analyzeImage prepared', {
       byteLength: imageData.byteLength,

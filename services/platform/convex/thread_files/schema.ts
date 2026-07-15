@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { blobRefValidator } from '../lib/storage/blob_ref';
+
 /**
  * Thread workspace files — the unifying primitive that replaces the old
  * artifact / artifact-file / artifact-output / runnable-artifact stack.
@@ -24,8 +26,12 @@ export const threadFilesTable = defineTable({
   threadId: v.string(),
   /** POSIX-relative path inside the thread workspace, e.g. `scripts/gen.py`. */
   path: v.string(),
-  /** Content blob in Convex storage. */
-  storageId: v.id('_storage'),
+  /**
+   * Content blob REFERENCE: a Convex `_storage` id (deployment default) OR an
+   * `s3:<key>` ref when the org brings its own bucket (writers route through
+   * the blob seam). Widened from `v.id('_storage')` — existing ids validate.
+   */
+  storageId: blobRefValidator,
   size: v.number(),
   /** MIME inferred from path extension or sniffed at write time. */
   contentType: v.string(),

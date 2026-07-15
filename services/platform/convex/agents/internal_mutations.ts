@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import {
   knowledgeFileRagStatusValidator,
   routeSeedValidator,
@@ -166,7 +167,8 @@ export const updateKnowledgeFileRagInfo = internalMutation({
   args: {
     organizationId: v.string(),
     agentSlug: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
     ragStatus: knowledgeFileRagStatusValidator,
     ragIndexedAt: v.optional(v.number()),
     ragError: v.optional(v.string()),

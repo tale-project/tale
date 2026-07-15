@@ -7,7 +7,6 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { createDebugLog } from '../../lib/debug_log';
-import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import { analyzeImage } from './helpers/analyze_image';
 
@@ -71,7 +70,9 @@ CRITICAL RULES:
           );
         }
         const result = await analyzeImage(ctx, {
-          fileId: toId<'_storage'>(fileId),
+          // Raw blob reference (`_storage` id or `s3:` ref) — analyzeImage is
+          // backend-aware.
+          fileId,
           question,
           organizationId: ctx.organizationId,
         });

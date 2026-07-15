@@ -44,6 +44,9 @@ export interface PlannedAttachment {
   /** Human, sanitized, per-turn-unique on-disk name (never a storage id). */
   diskName: string;
   fileType: string;
+  /** Declared size in bytes — bounds the inline (base64) staging of
+   *  `s3:`-backed attachments the sandbox can't fetch by URL. */
+  fileSize: number;
 }
 
 export interface SkippedAttachment {
@@ -134,6 +137,7 @@ export function buildAttachmentStagePlan(
       absPath: `${dirAbs}/${diskName}`,
       diskName,
       fileType: att.fileType,
+      fileSize: att.fileSize,
     });
   });
   return { dirAbs, planned, skipped };

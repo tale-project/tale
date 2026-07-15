@@ -18,11 +18,11 @@ import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { components, internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
 import { roundCents } from '../../governance/cost_estimation';
 import { onAgentComplete } from '../../lib/agent_completion';
 import { createDebugLog } from '../../lib/debug_log';
+import { fetchBlobArrayBuffer } from '../../lib/storage/blob_read_any';
 import {
   type GeneratedImageBlob,
   generateImageBlobs,
@@ -79,13 +79,18 @@ export const runImageGeneration = internalAction({
       const attachmentImages = args.attachmentImages ?? [];
       const attachmentBytes: GeneratedImageBlob[] = [];
       for (const att of attachmentImages) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage ids round-trip through v.string(); Id<'_storage'> is the branded string ctx.storage.get expects.
-        const blob = await ctx.storage.get(att.fileId as Id<'_storage'>);
-        if (!blob) continue;
-        const buf = new Uint8Array(await blob.arrayBuffer());
+        // Backend-aware read: `att.fileId` is a blob REFERENCE (`_storage` id
+        // or `s3:` ref) — a BYO-bucket org's edit-mode input reads from its
+        // own bucket. Missing blobs are skipped, as before.
+        const read = await fetchBlobArrayBuffer(
+          ctx,
+          args.organizationId,
+          att.fileId,
+        );
+        if (!read) continue;
         attachmentBytes.push({
-          bytes: buf,
-          mediaType: att.mimeType || blob.type || 'image/png',
+          bytes: new Uint8Array(read.bytes),
+          mediaType: att.mimeType || read.contentType || 'image/png',
         });
       }
 

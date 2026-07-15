@@ -1,6 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
+import { deleteOrgBlobInMutation } from '../lib/storage/blob_delete';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import {
   THREAD_FILE_MAX_BYTES,
   THREAD_WORKSPACE_MAX_BYTES,
@@ -12,7 +14,8 @@ export const upsertThreadFile = internalMutation({
     organizationId: v.string(),
     threadId: v.string(),
     path: v.string(),
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    storageId: blobRefValidator,
     size: v.number(),
     contentType: v.string(),
     /**
@@ -97,12 +100,14 @@ export const upsertThreadFile = internalMutation({
       ) {
         return { id: existing._id, replaced: false, unchanged: true };
       }
-      // Replace — drop the old storage blob to avoid leak.
-      try {
-        await ctx.storage.delete(existing.storageId);
-      } catch (err) {
-        console.warn('[threadFiles] storage.delete failed on replace:', err);
-      }
+      // Replace — drop the old blob to avoid leak. Backend-aware: an `s3:`
+      // ref routes through the scheduled node lane (a mutation can't sign S3).
+      await deleteOrgBlobInMutation(
+        ctx,
+        existing.organizationId,
+        existing.storageId,
+        'threadFiles.upsert.replace',
+      );
       const patch: Record<string, unknown> = {
         storageId: args.storageId,
         size: args.size,
@@ -153,11 +158,13 @@ export const deleteThreadFile = internalMutation({
         message: 'Thread file does not belong to this organization.',
       });
     }
-    try {
-      await ctx.storage.delete(existing.storageId);
-    } catch (err) {
-      console.warn('[threadFiles] storage.delete failed on remove:', err);
-    }
+    // Backend-aware: an `s3:` ref routes through the scheduled node lane.
+    await deleteOrgBlobInMutation(
+      ctx,
+      existing.organizationId,
+      existing.storageId,
+      'threadFiles.delete',
+    );
     await ctx.db.delete(existing._id);
     return { deleted: true };
   },

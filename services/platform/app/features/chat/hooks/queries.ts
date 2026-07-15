@@ -305,14 +305,16 @@ export function useChatAgents(organizationId: string) {
   };
 }
 
-export function useFileUrl(fileId: Id<'_storage'> | undefined, skip = false) {
+// `fileId` is a blob REFERENCE (a `_storage` id or an `s3:` ref) — the server
+// query resolves the URL backend-aware either way.
+export function useFileUrl(fileId: string | undefined, skip = false) {
   return useConvexQuery(
     api.files.queries.getFileUrl,
     !fileId || skip ? 'skip' : { fileId },
   );
 }
 
-export function useFileUrls(fileIds: Id<'_storage'>[], skip = false) {
+export function useFileUrls(fileIds: string[], skip = false) {
   return useConvexQuery(
     api.files.queries.getFileUrls,
     skip || fileIds.length === 0 ? 'skip' : { fileIds },
