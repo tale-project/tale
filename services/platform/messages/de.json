@@ -2088,7 +2088,7 @@
       "inboxPlaceholder": "Postfach auswählen",
       "fromLabel": "Absender",
       "fromDomainHint": "Beliebige Adresse unter {domain}",
-      "fromInvalid": "Gib eine Adresse unter {domain} ein",
+      "fromLocalPlaceholder": "support",
       "from": "Absender: {from}",
       "noEmailIntegration": "Verbinde eine E-Mail-Integration, um E-Mails zu senden.",
       "subject": "Betreff",
@@ -2151,6 +2151,7 @@
       "noMembers": "Keine Mitglieder gefunden",
       "unassign": "Zuweisung aufheben",
       "assignError": "Zuständigkeit konnte nicht aktualisiert werden",
+      "inboxSource": "Postfach: {inbox}",
       "toast": {
         "closed": "Konversation wurde geschlossen.",
         "closeFailed": "Beim Schließen der Konversation ist ein unerwarteter Fehler aufgetreten.",

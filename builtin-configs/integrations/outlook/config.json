@@ -16,7 +16,8 @@
       "Mail.Send",
       "Calendars.Read",
       "Calendars.ReadWrite",
-      "Contacts.Read"
+      "Contacts.Read",
+      "User.Read"
     ]
   },
   "operations": [

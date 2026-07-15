@@ -2088,7 +2088,7 @@
       "inboxPlaceholder": "Select an inbox",
       "fromLabel": "From",
       "fromDomainHint": "Any address at {domain}",
-      "fromInvalid": "Enter an address at {domain}",
+      "fromLocalPlaceholder": "support",
       "from": "From: {from}",
       "noEmailIntegration": "Connect an email integration to send email.",
       "subject": "Subject",
@@ -2151,6 +2151,7 @@
       "noMembers": "No members found",
       "unassign": "Unassign",
       "assignError": "Couldn't update the assignee",
+      "inboxSource": "Inbox: {inbox}",
       "toast": {
         "closed": "Conversation has been closed successfully.",
         "closeFailed": "An unexpected error occurred while closing the conversation.",

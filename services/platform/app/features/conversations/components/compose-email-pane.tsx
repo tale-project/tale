@@ -52,6 +52,16 @@ const MessageEditor = lazyComponent(
   },
 );
 
+/**
+ * Build the full sender from an edited local part + the inbox's fixed domain.
+ * Strips anything from an '@' on (defends against a pasted full address); an
+ * empty local part yields '' so the sender falls back to the inbox default.
+ */
+function senderFromLocalPart(localPart: string, domain: string): string {
+  const clean = localPart.replace(/@.*/, '').trim();
+  return clean ? `${clean}@${domain}` : '';
+}
+
 export interface ComposeEmailPaneProps {
   organizationId: string;
   /** Seed the recipient (e.g. arriving from a contact row). */
@@ -183,6 +193,9 @@ export function ComposeEmailPane({
   // back cleanly without an effect that could clobber a restored override.
   const senderDefault = selectedIntegration?.fromAddress ?? '';
   const senderInputValue = senderAddress || senderDefault;
+  // Only the local part is editable; the domain is fixed to the inbox's and
+  // shown as a badge, so the address can never leave the verified domain.
+  const senderLocalPart = senderInputValue.replace(/@.*/, '');
   const effectiveSender = senderAddress.trim() || senderDefault;
   const dynamicSender = supportsDynamicSender(selectedIntegration);
   const senderDomain = senderDefault ? emailDomain(senderDefault) : '';
@@ -395,28 +408,27 @@ export function ComposeEmailPane({
                       <Input
                         label={t('compose.fromLabel')}
                         required
-                        type="email"
-                        value={senderInputValue}
+                        value={senderLocalPart}
                         onChange={(event) =>
-                          setSenderAddress(event.target.value)
+                          setSenderAddress(
+                            senderFromLocalPart(
+                              event.target.value,
+                              senderDomain,
+                            ),
+                          )
                         }
+                        suffix={`@${senderDomain}`}
                         description={t('compose.fromDomainHint', {
                           domain: senderDomain,
                         })}
-                        errorMessage={
-                          senderAddress.trim() !== '' && !senderValid
-                            ? t('compose.fromInvalid', { domain: senderDomain })
-                            : undefined
-                        }
-                        placeholder={`you@${senderDomain}`}
-                        aria-label={t('compose.fromLabel')}
+                        placeholder={t('compose.fromLocalPlaceholder')}
                       />
                     ) : (
                       <Text variant="muted">
                         {t('compose.from', {
-                          from:
-                            selectedIntegration.fromAddress ??
-                            selectedIntegration.title,
+                          from: selectedIntegration.fromAddress
+                            ? `${selectedIntegration.title} <${selectedIntegration.fromAddress}>`
+                            : selectedIntegration.title,
                         })}
                       </Text>
                     ))}
