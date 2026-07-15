@@ -5,17 +5,17 @@ description: Die Prompt-Bibliothek ist der Ort, an dem du Chat-Prompts zur Wiede
 
 Die Prompt-Bibliothek ist die Oberfläche gespeicherter Prompts von Tale. Dort hältst du die Chat-Starter, nach denen du mehr als einmal greifst — einen Schreib-Stimmen-Prompt, den du für jeden Kunden-Mail-Entwurf wiederverwendest, einen Debugging-Prompt, den dein Team weiterreicht, einen Recherche-Prompt, auf den sich die ganze Organisation einigen sollte. Jede Rolle über Deaktiviert kann Prompts speichern und nutzen; der **Sichtbarkeits**-Hebel jedes Prompts entscheidet, wer ihn sonst sieht.
 
-Diese Seite ist die Referenz dafür, was ein Prompt ist, wie sich die drei Sichtbarkeits-Stufen verhalten, wie der Versionsverlauf funktioniert und wie Prompts in einen Chat gelangen. Die Bibliothek liegt unter **Prompts** in der Sidebar; dieselbe Bibliothek erscheint inline im Chat-Composer.
+Diese Seite ist die Referenz dafür, was ein Prompt ist, wie sich die drei Sichtbarkeits-Stufen verhalten, wie der Versionsverlauf funktioniert und wie Prompts in einen Chat gelangen. Die Bibliothek liegt unter **Prompts** in der Sidebar; dieselbe Bibliothek erscheint inline im Chat.
 
-<Frame caption="Die Prompt-Bibliothek über dem Chat-Composer — bereitgestellte Starter-Prompts mit den Sichtbarkeits-Tabs und Filtern, die die Liste eingrenzen.">
+<Frame caption="Die Prompt-Bibliothek über dem Chat — bereitgestellte Starter-Prompts mit den Sichtbarkeits-Tabs und Filtern, die die Liste eingrenzen.">
 
-![Der Prompt-Bibliotheks-Dialog offen über dem Chat-Composer, listet bereitgestellte Starter-Prompts mit Sichtbarkeits-Tabs und einer Filterzeile darüber.](/images/platform/prompt-library-dialog.webp)
+![Der Prompt-Bibliotheks-Dialog offen über dem Chat, listet bereitgestellte Starter-Prompts mit Sichtbarkeits-Tabs und einer Filterzeile darüber.](/images/platform/prompt-library-dialog.webp)
 
 </Frame>
 
 ## Was ein Prompt ist
 
-Ein Prompt ist ein gespeicherter Textbrocken — meist eine Frage oder eine Anweisung, die du sonst in den Composer tippen würdest — mit einem Titel und ein paar Metadaten-Feldern. Wenn du in Chat zu einem gespeicherten Prompt greifst, fügt Tale seinen Inhalt in den Composer; du kannst vor dem Senden bearbeiten, der Prompt ist keine verdeckte Systemnachricht.
+Ein Prompt ist ein gespeicherter Textbrocken — meist eine Frage oder eine Anweisung, die du sonst in den Chat tippen würdest — mit einem Titel und ein paar Metadaten-Feldern. Wenn du in Chat zu einem gespeicherten Prompt greifst, fügt Tale seinen Inhalt in den Chat; du kannst vor dem Senden bearbeiten, der Prompt ist keine verdeckte Systemnachricht.
 
 Jeder Prompt trägt:
 
@@ -25,7 +25,7 @@ Jeder Prompt trägt:
 - Eine optionale **Team**-Bindung (wenn Sichtbarkeit `Team` ist).
 - Optionale **Tags** zum Filtern.
 
-Die Bibliothek ist nach Titel und Inhalt suchbar, nach Sichtbarkeit und Tag filterbar und nach Aktualität sortierbar. Der Inline-Picker des Composers ist dieselbe Bibliothek mit denselben Filtern.
+Die Bibliothek ist nach Titel und Inhalt suchbar, nach Sichtbarkeit und Tag filterbar und nach Aktualität sortierbar. Der Inline-Picker des Chats ist dieselbe Bibliothek mit denselben Filtern.
 
 ## Die drei Sichtbarkeits-Stufen
 
@@ -45,7 +45,7 @@ Der Versionsverlauf ist der Ort, an den man schaut, wenn ein Kollege einen globa
 
 ## Einen Prompt im Chat nutzen
 
-Der Chat-Composer hat unten einen Prompt-Picker. Öffne ihn, such oder filtere den gewünschten Prompt, und klick ihn an, um den Inhalt in den Composer zu fügen. Der Prompt ist jetzt deine Nachricht — bearbeite ihn, häng Dateien an, füg Kontext hinzu, sende. Einmal gesendet, verhält sich der Prompt wie jede Composer-Eingabe; Tale verfolgt nicht, welche Chats welche Prompts genutzt haben.
+Der Chat hat unten einen Prompt-Picker. Öffne ihn, such oder filtere den gewünschten Prompt, und klick ihn an, um den Inhalt in den Chat zu fügen. Der Prompt ist jetzt deine Nachricht — bearbeite ihn, häng Dateien an, füg Kontext hinzu, sende. Einmal gesendet, verhält sich der Prompt wie jede Chat-Eingabe; Tale verfolgt nicht, welche Chats welche Prompts genutzt haben.
 
 Manche Prompts enthalten Template-Variablen — Platzhalter wie `{{customer_name}}` oder `{{topic}}`. Der Picker fragt dich vor dem Einfügen nach jeder Variable; der resultierende Inhalt ist der Prompt mit den befüllten Platzhaltern. Variablen werden im Inhalt des Prompts mit der `{{variable_name}}`-Syntax deklariert.
 
@@ -57,4 +57,4 @@ Einen Prompt zu löschen ist nur über den Versionsverlauf umkehrbar, wenn du ih
 
 ## Wo das hingehört
 
-Die Prompt-Bibliothek ist die leichteste Form der Wiederverwendung in Tale — leichter als ein Agent (der Anweisungen, Wissen und Tools trägt), leichter als ein Skill (der Anweisungen und ein Skript verpackt). Greif zu einem Prompt, wenn die Wiederverwendung nur der Text ist; greif zu einem Agent, wenn die Wiederverwendung ein konfiguriertes Verhalten ist. Die natürliche nächste Lektüre ist [Starter und Prompts](/de/platform/chat/starters-and-prompts) dafür, wie Prompts im Chat-Composer neben den eigenen Startern eines Agents erscheinen.
+Die Prompt-Bibliothek ist die leichteste Form der Wiederverwendung in Tale — leichter als ein Agent (der Anweisungen, Wissen und Tools trägt), leichter als ein Skill (der Anweisungen und ein Skript verpackt). Greif zu einem Prompt, wenn die Wiederverwendung nur der Text ist; greif zu einem Agent, wenn die Wiederverwendung ein konfiguriertes Verhalten ist. Die natürliche nächste Lektüre ist [Starter und Prompts](/de/platform/chat/starters-and-prompts) dafür, wie Prompts im Chat neben den eigenen Startern eines Agents erscheinen.

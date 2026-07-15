@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { extractInlineScriptHashes } from '@tale/ui/server';
 import { describe, expect, it } from 'vitest';
 
 import { MARKETING_ROUTE_URLS } from '../../lib/seo/marketing-routes';
@@ -116,6 +117,33 @@ describe('prerender SEO suite', () => {
       );
       expect(html).toMatch(/"@type":"BreadcrumbList"/);
       expect(html).toMatch(/https:\/\/tale\.dev\/de\/pricing/);
+    });
+  });
+
+  // The server computes CSP script-src sha256 hashes once, from dist/index.html.
+  // That's only safe if every prerendered page's inline scripts are a subset of
+  // the template's — otherwise a page's theme script would be CSP-blocked.
+  describe('CSP inline-script hashing', () => {
+    it('template has at least one inline (theme) script to hash', () => {
+      const html = readHtml('/');
+      if (!html) return;
+      expect(extractInlineScriptHashes(html).length).toBeGreaterThan(0);
+    });
+
+    it('every route’s inline scripts are a subset of the template’s', () => {
+      const templateHtml = readHtml('/');
+      if (!templateHtml) return;
+      const template = new Set(extractInlineScriptHashes(templateHtml));
+      for (const url of MARKETING_ROUTE_URLS) {
+        const html = readHtml(url);
+        if (!html) continue;
+        for (const hash of extractInlineScriptHashes(html)) {
+          expect(
+            template,
+            `${url} has an inline script not in the template`,
+          ).toContain(hash);
+        }
+      }
     });
   });
 });

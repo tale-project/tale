@@ -9,7 +9,7 @@ Il te faut un rôle Membre (le plancher pour le chat) et un agent publié dans l
 
 ## Habitude 1 — Choisir l'agent avant le premier message
 
-L'agent est le levier au plus fort rendement par clic. L'Assistant par défaut est une toile blanche ; un agent avec du savoir lié, des tools actifs et une voix réglée le battra sur toute question non générique. Ouvre le sélecteur d'agent dans le composeur et choisis l'agent dont le périmètre correspond à ta question — Support, Sales, Research — avant de taper.
+L'agent est le levier au plus fort rendement par clic. L'Assistant par défaut est une toile blanche ; un agent avec du savoir lié, des tools actifs et une voix réglée le battra sur toute question non générique. Ouvre le sélecteur d'agent dans le chat et choisis l'agent dont le périmètre correspond à ta question — Support, Sales, Research — avant de taper.
 
 Si aucun agent ne convient, laisse l'Assistant ; ne va pas vers un agent mal ajusté pour « ça ira ». Un agent mal ajusté refuse souvent ou s'écarte du savoir lié.
 

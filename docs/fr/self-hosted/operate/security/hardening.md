@@ -75,6 +75,17 @@ Garde la liste courte et préfère des hôtes spécifiques aux wildcards. Les in
 
 La chaîne de hachage du journal d'audit est vérifiée automatiquement chaque nuit. Toute rupture déclenche une alerte de sécurité critique vers les admins de l'org — dans la cloche de notifications et, lorsque Slack est connecté, dans ton canal Slack — pour que toute altération ressorte même quand personne ne surveille les logs. Tu peux re-walk la même vérification à la demande depuis la page d'administration du journal d'audit.
 
+## En-têtes de sécurité HTTP
+
+Chaque réponse HTML porte un ensemble strict d'en-têtes de sécurité, et cet ensemble est verrouillé par des tests pour qu'une mise à jour ne puisse pas en supprimer un discrètement. Le client web de la plateforme (`services/platform`) envoie une Content-Security-Policy à nonce sans scripts `unsafe-inline`, HSTS en HTTPS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` avec CSP `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, une `Permissions-Policy` restrictive et `X-Permitted-Cross-Domain-Policies: none`. Il obtient A+ au MDN HTTP Observatory, et cette note est garantie par la suite de tests CI — le calcul du score est réimplémenté dans des tests qui font échouer le build à la moindre régression. Le site vitrine et le site de documentation livrent la même famille d'en-têtes, en ajoutant `Cross-Origin-Opener-Policy` et `Cross-Origin-Resource-Policy` à `same-origin`.
+
+Vérifie-le sur ton propre déploiement :
+
+- `curl -sI https://<ton-hôte>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
+- Analyse l'hôte sur [securityheaders.com](https://securityheaders.com) ou le [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory).
+
+L'isolation cross-origin (COOP/CORP) est volontairement désactivée sur l'app de la plateforme parce qu'elle ouvre des popups de connexion OAuth et peut être atteinte depuis un second hôte pour les ressources de marque ; les sites de contenu, qui ne font ni l'un ni l'autre, l'activent. HSTS n'est émis que lorsque `SITE_URL` est `https://`.
+
 ## Où cela s'inscrit
 
 Le durcissement n'est pas une tâche d'une seule passe — la liste ci-dessus est ce que tu walks avant le lancement, et que tu re-walks après chaque montée de version ou après chaque changement de la forme du réseau. La prochaine chose qui vaut la lecture après ceci est la ligne ci-dessus que tu n'as pas encore faite.

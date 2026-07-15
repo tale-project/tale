@@ -11,13 +11,13 @@ You need the **Editor** role or higher (the Agents section is hidden from member
 
 <Step title="Create the agent">
 
-To start an agent teammates can pick in chat, open **Agents** in the sidebar and click **Create agent**. Name it for the job, not the technology — "Support Triage" beats "GPT Helper" — because the name is what teammates pick from the chat composer later.
+To start an agent teammates can pick in chat, open **Agents** in the sidebar and click **Create agent**. Name it for the job, not the technology — "Support Triage" beats "GPT Helper" — because the name is what teammates pick from the chat later.
 
 </Step>
 
 <Step title="Shape its identity">
 
-The editor opens on the **General** tab: the display name teammates see, a one-line description, and the agent type. The switch that matters on day one is **Visible in chat** — without it the agent exists but nobody can pick it from the composer.
+The editor opens on the **General** tab: the display name teammates see, a one-line description, and the agent type. The switch that matters on day one is **Visible in chat** — without it the agent exists but nobody can pick it from the chat.
 
 <Frame caption="The General tab — identity, agent type, and chat visibility.">
 
@@ -51,7 +51,7 @@ Open **New chat**, pick your agent from the agent picker, and ask something squa
 
 <Frame caption="The agent picker — your new agent listed beside the catalog agents.">
 
-![The chat composer's agent picker open, listing the agents available in the workspace.](/images/platform/chat-agent-picker.webp)
+![The chat's agent picker open, listing the agents available in the workspace.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 

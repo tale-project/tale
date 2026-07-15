@@ -1,23 +1,23 @@
 ---
 title: Chat basics
-description: What happens between you hitting Send and the reply landing — composer, agent pick, model resolution, streaming, citations, and how a chat is stored.
+description: What happens between you hitting Send and the reply landing — chat, agent pick, model resolution, streaming, citations, and how a chat is stored.
 ---
 
-This page is the mental model for everything in the Chat tab. It names the parts of the composer, traces a message from key-press to streamed reply, and explains how a chat is stored once it lands — read it once and the rest of the chat pages are variations on the same flow.
+This page is the mental model for everything in the Chat tab. It names the parts of the chat, traces a message from key-press to streamed reply, and explains how a chat is stored once it lands — read it once and the rest of the chat pages are variations on the same flow.
 
-<Frame caption="The Chat tab with a streamed reply above the composer.">
+<Frame caption="The Chat tab with a streamed reply above the chat.">
 
 ![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## The composer
+## The chat
 
-The composer is the input strip at the bottom of the screen. Three controls matter: the agent picker on the left, the model picker beside it, and the message field with send on the right. Attachments come in via paste, drag-and-drop, or the attach control — see [Attachments](/platform/chat/attachments) for what is accepted.
+The chat is the input strip at the bottom of the screen. Three controls matter: the agent picker on the left, the model picker beside it, and the message field with send on the right. Attachments come in via paste, drag-and-drop, or the attach control — see [Attachments](/platform/chat/attachments) for what is accepted.
 
-<Frame caption="The composer's controls — the message field, the agent and model pickers, and send.">
+<Frame caption="The chat's controls — the message field, the agent and model pickers, and send.">
 
-![The empty chat composer, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
+![The empty chat input, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
 
 </Frame>
 
@@ -55,8 +55,8 @@ Within Chat, the unit is a **chat** — that is the word every button and toast 
 
 ## History and search
 
-**Show chats** above the composer opens the history sidebar — every chat you can resume in this org, newest first; selecting one opens the full transcript. Searching there filters by title; full-text search across message bodies is a per-chat operation, not org-wide. Renaming a chat sets a custom title that overrides the model-generated one; deleting a chat moves it into [Trash](/platform/admin/governance/trash), where retention sweeps it after the grace window.
+**Show chats** above the chat opens the history sidebar — every chat you can resume in this org, newest first; selecting one opens the full transcript. Searching there filters by title; full-text search across message bodies is a per-chat operation, not org-wide. Renaming a chat sets a custom title that overrides the model-generated one; deleting a chat moves it into [Trash](/platform/admin/governance/trash), where retention sweeps it after the grace window.
 
 ## Where this fits
 
-Chat basics is the page everything else in this section refines: [Agents in chat](/platform/chat/agents-in-chat) goes deeper on the picker, [Attachments](/platform/chat/attachments) on what the upload does, [Voice mode](/platform/chat/voice-mode) on the STT and TTS handoffs around the same composer. If you came here to build an agent rather than use one, jump to [Agent concepts](/platform/agents/concepts) — the four-knob mental model is the foundation every chat with an agent depends on.
+Chat basics is the page everything else in this section refines: [Agents in chat](/platform/chat/agents-in-chat) goes deeper on the picker, [Attachments](/platform/chat/attachments) on what the upload does, [Voice mode](/platform/chat/voice-mode) on the STT and TTS handoffs around the same chat. If you came here to build an agent rather than use one, jump to [Agent concepts](/platform/agents/concepts) — the four-knob mental model is the foundation every chat with an agent depends on.

@@ -40,6 +40,10 @@ ARG SOPS_VERSION=3.9.4
 # Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
 ARG YTDLP_VERSION=2026.03.17
 ARG DENO_VERSION=v2.5.4
+# bgutil PO-token provider plugin (yt-dlp GVS tokens → dissolves YouTube's bot
+# wall on flagged/datacenter IPs). MUST match the `bgutil-provider` sidecar
+# image tag in compose.yml — bump both together.
+ARG BGUTIL_POT_VERSION=1.3.1
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -95,7 +99,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && chmod 0755 /usr/local/bin/deno \
     && echo "$DENO_TAG" > /etc/deno-version \
     && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
-    # unzip is only needed for Deno install; remove to keep image lean
+    # bgutil PO-token provider plugin: version-pinned + SHA256-verified (like
+    # yt-dlp/deno above), unzipped into the plugin dir the video-ingest actions
+    # point `--plugin-dirs` at. yt-dlp loads the `yt_dlp_plugins/` namespace
+    # package; the token itself is served by the `bgutil-provider` compose
+    # sidecar. Presence of this dir also flips the zero-config default in
+    # convex/video_links/ytdlp.ts (HAS_BAKED_YTDLP_PLUGIN).
+    && mkdir -p /opt/yt-dlp/plugins \
+    && curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil-pot.zip \
+    && echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c - \
+    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins \
+    && rm -f /tmp/bgutil-pot.zip \
+    && echo "${BGUTIL_POT_VERSION}" > /etc/bgutil-pot-version \
+    # unzip is only needed for Deno + bgutil install; remove to keep image lean
     && apt-get purge -y unzip \
     && apt-get autoremove -y \
     && mkdir -p /usr/local/share/ca-certificates \

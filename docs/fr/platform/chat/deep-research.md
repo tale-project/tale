@@ -3,7 +3,7 @@ title: Recherche approfondie
 description: L’agent Chercheur — recherche web ouverte avec un plan de tâches en direct, des sources citées via Tavily, et un rapport PDF propre à la fin.
 ---
 
-La recherche approfondie est un mode du composeur qui confie une question à un agent **Chercheur** spécialisé. L’agent planifie le travail comme une liste de sous-questions, cherche sur le web ouvert avec Tavily, lit les pages les plus prometteuses, suit sa progression dans une carte de tâches que tu regardes en direct, et finit avec un rapport PDF qui cite chaque source utilisée. Va vers ce mode quand la question est ouverte, que la réponse a besoin de preuves, et que tu y passerais sinon une heure avec vingt onglets de navigateur.
+La recherche approfondie est un mode du chat qui confie une question à un agent **Chercheur** spécialisé. L’agent planifie le travail comme une liste de sous-questions, cherche sur le web ouvert avec Tavily, lit les pages les plus prometteuses, suit sa progression dans une carte de tâches que tu regardes en direct, et finit avec un rapport PDF qui cite chaque source utilisée. Va vers ce mode quand la question est ouverte, que la réponse a besoin de preuves, et que tu y passerais sinon une heure avec vingt onglets de navigateur.
 
 Cette page couvre la surface de la recherche approfondie de bout en bout — quand la choisir, à quoi ressemble le flux, le budget qui l’empêche de tourner à l’infini, et d’où viennent les sources citées. La mécanique de l’agent a la même forme que tout autre agent Tale (voir [Concepts d’agent](/fr/platform/agents/concepts)) ; ce qui est inhabituel ici, c’est le plan de tâches en direct et l’intégration Tavily qui alimente les recherches.
 
@@ -19,11 +19,11 @@ Pour des questions factuelles étroites (« quelle est la capitale du Sénégal
 
 ## Ouvrir la recherche approfondie
 
-Ouvre le menu plus du composeur — les modes vivent sous son en-tête **Modes**, et **Deep research** y apparaît dès que l’agent Chercheur est disponible. Choisis-le et le composeur bascule vers l’agent Chercheur. Tape la question et envoie. Le panneau de réponse passe du streaming texte habituel à une carte **Plan de recherche** avec trois à sept tâches que l’agent a choisies comme sous-questions.
+Ouvre le menu plus du chat — les modes vivent sous son en-tête **Modes**, et **Deep research** y apparaît dès que l’agent Chercheur est disponible. Choisis-le et le chat bascule vers l’agent Chercheur. Tape la question et envoie. Le panneau de réponse passe du streaming texte habituel à une carte **Plan de recherche** avec trois à sept tâches que l’agent a choisies comme sous-questions.
 
-<Frame caption="Les modes vivent dans le menu plus du composeur ; les entrées apparaissent quand leurs prérequis sont remplis.">
+<Frame caption="Les modes vivent dans le menu plus du chat ; les entrées apparaissent quand leurs prérequis sont remplis.">
 
-![Le menu plus du composeur ouvert, montrant une entrée Ajouter photos et fichiers et une section Modes listant le Mode Arène.](/images/platform/chat-composer-menu.webp)
+![Le menu plus du chat ouvert, montrant une entrée Ajouter photos et fichiers et une section Modes listant le Mode Arène.](/images/platform/chat-composer-menu.webp)
 
 </Frame>
 
@@ -84,4 +84,4 @@ Pour les rapports en chinois, japonais et coréen, le jeu de polices du moteur d
 
 ## Où ça s’inscrit
 
-La recherche approfondie est l’extrémité la plus lourde du composeur de chat — elle fait en dix minutes ce qu’un analyste ferait en un après-midi. Couple cette page avec [Concepts d’agent](/fr/platform/agents/concepts) (le modèle à quatre boutons sur lequel l’agent Chercheur est construit) et l’[Aperçu des intégrations](/fr/platform/integrations/overview) (où Tavily se tient à côté des autres intégrations que la ceinture d’outils de l’agent peut atteindre). Si tu veux construire ton propre agent de recherche plutôt qu’utiliser celui livré, [Créer un agent](/fr/platform/agents/create) parcourt la construction d’un agent de bout en bout.
+La recherche approfondie est l’extrémité la plus lourde du chat — elle fait en dix minutes ce qu’un analyste ferait en un après-midi. Couple cette page avec [Concepts d’agent](/fr/platform/agents/concepts) (le modèle à quatre boutons sur lequel l’agent Chercheur est construit) et l’[Aperçu des intégrations](/fr/platform/integrations/overview) (où Tavily se tient à côté des autres intégrations que la ceinture d’outils de l’agent peut atteindre). Si tu veux construire ton propre agent de recherche plutôt qu’utiliser celui livré, [Créer un agent](/fr/platform/agents/create) parcourt la construction d’un agent de bout en bout.

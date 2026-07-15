@@ -3,7 +3,7 @@ title: Model catalog
 description: The model catalog behind every picker in Tale — where it lives under Settings > AI providers, what the capability tags mean, which defaults ship, and how the list stays fresh.
 ---
 
-Every model picker in Tale — the composer's model menu, an agent's model binding, the defaults the crawler and RAG services use — draws from one catalog: the models declared on your organisation's AI providers. A fresh instance ships with a single provider, **OpenRouter**, whose one key covers chat, vision, embeddings, transcription, text-to-speech, and image generation. This page is the reference for where that catalog lives in the UI, what the tags on each model mean, and what ships out of the box.
+Every model picker in Tale — the chat's model menu, an agent's model binding, the defaults the crawler and RAG services use — draws from one catalog: the models declared on your organisation's AI providers. A fresh instance ships with a single provider, **OpenRouter**, whose one key covers chat, vision, embeddings, transcription, text-to-speech, and image generation. This page is the reference for where that catalog lives in the UI, what the tags on each model mean, and what ships out of the box.
 
 <Frame caption="The provider drawer's model list — each model carries the capability tags that decide which pickers it appears in.">
 

@@ -294,3 +294,65 @@ test('accepts an ODT upload for indexing', async ({ page, org }) => {
     timeout: TIMEOUT.VISIBLE,
   });
 });
+
+test('a second upload still works after the first indexing failure', async ({
+  page,
+  org,
+}) => {
+  // Regression for the trial report "after an indexing error, no file uploads
+  // were possible at all anymore". On the hermetic stack (no RAG backend) the
+  // first upload deterministically lands `Failed`; the fix (watchdog +
+  // actionable quota + un-wedgeable dialog) means a SECOND upload must still
+  // stage a row and reach a badge. Before the fix a stuck/failed first file
+  // could wedge the dialog latch or exhaust quota and block every later upload.
+  test.skip(
+    !isMockLlmMode(),
+    'document upload status assertion targets the hermetic stack',
+  );
+
+  const { organizationId } = org;
+  const ragStatusBadge = new RegExp(
+    `^(${t('documents.rag.status.queued')}|${t('documents.rag.status.failed')})$`,
+  );
+
+  async function uploadOne(fileName: string) {
+    await page
+      .getByRole('button', { name: t('documents.upload.importDocuments') })
+      .click();
+    await page
+      .getByRole('menuitem', { name: t('documents.upload.fromYourDevice') })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: t('documents.upload.importDocuments'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await dialog.locator('#document-file-upload').setInputFiles({
+      name: fileName,
+      mimeType: 'text/plain',
+      buffer: Buffer.from(`hello ${fileName}`),
+    });
+    await dialog
+      .getByRole('button', { name: t('documents.upload.uploadDocuments') })
+      .click();
+    const row = page.getByRole('row').filter({ hasText: fileName });
+    await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(row.getByText(ragStatusBadge).first()).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+    // Close the dialog if it stayed open, so the next upload starts clean.
+    await page.keyboard.press('Escape');
+  }
+
+  await page.goto(`/dashboard/${organizationId}/documents`);
+  await expectListSettled(
+    page,
+    t('documents.upload.importDocuments'),
+    t('documents.emptyState.title'),
+  );
+
+  const suffix = Date.now().toString(36);
+  // First file: reaches Failed (no RAG backend). Second file: must ALSO reach a
+  // badge — proving the first failure didn't block further uploads.
+  await uploadOne(`e2e-first-${suffix}.txt`);
+  await uploadOne(`e2e-second-${suffix}.txt`);
+});

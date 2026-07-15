@@ -256,6 +256,9 @@ import type * as automations_view_parse from "../automations/view_parse.js";
 import type * as bootstrap_queries from "../bootstrap/queries.js";
 import type * as branding_file_actions from "../branding/file_actions.js";
 import type * as branding_file_utils from "../branding/file_utils.js";
+import type * as browser_sessions_cookie_header from "../browser_sessions/cookie_header.js";
+import type * as browser_sessions_session_import from "../browser_sessions/session_import.js";
+import type * as browser_sessions_sessions from "../browser_sessions/sessions.js";
 import type * as changelog_actions from "../changelog/actions.js";
 import type * as changelog_internal_actions from "../changelog/internal_actions.js";
 import type * as chat_filter_events_internal_mutations from "../chat_filter_events/internal_mutations.js";
@@ -484,6 +487,8 @@ import type * as file_metadata_internal_queries from "../file_metadata/internal_
 import type * as file_metadata_mutations from "../file_metadata/mutations.js";
 import type * as file_metadata_paragraphize from "../file_metadata/paragraphize.js";
 import type * as file_metadata_queries from "../file_metadata/queries.js";
+import type * as file_metadata_rag_dispatch from "../file_metadata/rag_dispatch.js";
+import type * as file_metadata_rag_watchdog from "../file_metadata/rag_watchdog.js";
 import type * as file_metadata_source_from_provider from "../file_metadata/source_from_provider.js";
 import type * as file_metadata_transcribe_audio from "../file_metadata/transcribe_audio.js";
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
@@ -2007,6 +2012,9 @@ declare const fullApi: ApiFromModules<{
   "bootstrap/queries": typeof bootstrap_queries;
   "branding/file_actions": typeof branding_file_actions;
   "branding/file_utils": typeof branding_file_utils;
+  "browser_sessions/cookie_header": typeof browser_sessions_cookie_header;
+  "browser_sessions/session_import": typeof browser_sessions_session_import;
+  "browser_sessions/sessions": typeof browser_sessions_sessions;
   "changelog/actions": typeof changelog_actions;
   "changelog/internal_actions": typeof changelog_internal_actions;
   "chat_filter_events/internal_mutations": typeof chat_filter_events_internal_mutations;
@@ -2235,6 +2243,8 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/mutations": typeof file_metadata_mutations;
   "file_metadata/paragraphize": typeof file_metadata_paragraphize;
   "file_metadata/queries": typeof file_metadata_queries;
+  "file_metadata/rag_dispatch": typeof file_metadata_rag_dispatch;
+  "file_metadata/rag_watchdog": typeof file_metadata_rag_watchdog;
   "file_metadata/source_from_provider": typeof file_metadata_source_from_provider;
   "file_metadata/transcribe_audio": typeof file_metadata_transcribe_audio;
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;

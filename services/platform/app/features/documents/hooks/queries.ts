@@ -15,6 +15,17 @@ export function useApproxDocumentCount(organizationId: string) {
   });
 }
 
+/**
+ * The caller's upload-quota usage (used / limit bytes), so the desk can show
+ * remaining space before an upload is rejected. `limited: false` when no
+ * per-user volume quota applies — callers then render no meter.
+ */
+export function useUploadUsage(organizationId: string) {
+  return useConvexQuery(api.documents.queries.getUploadUsage, {
+    organizationId,
+  });
+}
+
 export function useDocuments(
   organizationId: string,
   options?: { enabled?: boolean },

@@ -13,7 +13,7 @@ You need a signed-in account on a workspace where chat already answers — that 
 
 You already sent a first message in the quickstart — this time watch what the agent does with it. Click **New chat**, ask something from your actual work, and expand the collapsible tool-call boxes above the reply: they show what the agent read or ran before answering.
 
-To attach a file to a single conversation, paste it, drag it into the composer, or use the attach control — the agent reads it for that chat only. [Attachments](/platform/chat/attachments) covers what is accepted.
+To attach a file to a single conversation, paste it, drag it into the chat, or use the attach control — the agent reads it for that chat only. [Attachments](/platform/chat/attachments) covers what is accepted.
 
 </Step>
 
@@ -49,7 +49,7 @@ Open **Projects** in the sidebar. A project bundles everything about one effort 
 
 <Step title="Find your way back">
 
-Chats never disappear silently. Click **Show chats** above the composer to open the history sidebar — every chat you can resume in this workspace, newest first. Renaming a chat gives it a title that survives; deleting one moves it to the workspace trash rather than destroying it.
+Chats never disappear silently. Click **Show chats** above the chat to open the history sidebar — every chat you can resume in this workspace, newest first. Renaming a chat gives it a title that survives; deleting one moves it to the workspace trash rather than destroying it.
 
 </Step>
 
@@ -57,4 +57,4 @@ Chats never disappear silently. Click **Show chats** above the composer to open 
 
 ## Where you are now
 
-You can chat, feed the workspace knowledge, and navigate shared work — the member's daily loop. The natural next reads are [Chat basics](/platform/chat/basics) for the mental model behind the composer, and [Use projects](/tutorials/member/use-projects) for a deeper project walkthrough. When you are ready to build an agent of your own, switch to the [editor journey](/get-started/editors).
+You can chat, feed the workspace knowledge, and navigate shared work — the member's daily loop. The natural next reads are [Chat basics](/platform/chat/basics) for the mental model behind the chat, and [Use projects](/tutorials/member/use-projects) for a deeper project walkthrough. When you are ready to build an agent of your own, switch to the [editor journey](/get-started/editors).

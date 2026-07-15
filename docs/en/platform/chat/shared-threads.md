@@ -19,7 +19,7 @@ Click **Share** in the chat's header. The **Share chat** dialog offers **Enable 
 
 ## What the viewer sees
 
-The viewer opens the link and lands on the chat with a banner: **You are viewing a shared chat in read-only mode**. The transcript reads exactly as the author sees it, including tool calls and citations. The composer is replaced with a single hint — **Sending a message will create your own copy of this chat** — that is the only path forward.
+The viewer opens the link and lands on the chat with a banner: **You are viewing a shared chat in read-only mode**. The transcript reads exactly as the author sees it, including tool calls and citations. The message field is replaced with a single hint — **Sending a message will create your own copy of this chat** — that is the only path forward.
 
 ## Forking a shared chat
 

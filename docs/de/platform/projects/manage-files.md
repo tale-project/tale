@@ -19,7 +19,7 @@ Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner a
 
 ## Ein durchgespielter Upload
 
-Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexed** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema referenziert, und der Agent ruft sie ab — oder tippe `@` im Composer und hefte die Datei oder gleich einen ganzen Ordner an den Turn.
+Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexed** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema referenziert, und der Agent ruft sie ab — oder tippe `@` im Chat und hefte die Datei oder gleich einen ganzen Ordner an den Turn.
 
 ## Ersetzen und Löschen
 

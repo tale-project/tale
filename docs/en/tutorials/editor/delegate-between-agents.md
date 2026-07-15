@@ -17,7 +17,7 @@ Open a chat with `Assistant` and ask for open-ended, citable work, for example: 
 
 ## Step 2 — Watch the job card
 
-The assistant calls `spawn_agent` and a **job card** appears under its turn: the worker's name, a live status, and the worker's own progress checklist filling in as it plans and works through sub-questions. The card never blocks the composer — you can keep typing while the worker runs.
+The assistant calls `spawn_agent` and a **job card** appears under its turn: the worker's name, a live status, and the worker's own progress checklist filling in as it plans and works through sub-questions. The card never blocks the chat — you can keep typing while the worker runs.
 
 If the card shows a "skipped" note, the assistant requested something outside its own grants (say, an unconnected integration); the run continues with what remains, and the note tells you what to connect for next time.
 

@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import {
+  DOCUMENT_MAX_FILE_SIZE,
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../lib/shared/file-types';
@@ -15,6 +16,10 @@ import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { markEntryChainDeleted } from '../knowledge_entries/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import {
+  RateLimitExceededError,
+  checkOrganizationRateLimit,
+} from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
@@ -200,6 +205,25 @@ export const createDocumentFromUpload = mutation({
       authUser,
     );
 
+    // Throughput guard. The `file:upload` bucket (50/min/org) was defined but
+    // never wired into the document path — a scripted or runaway client could
+    // fan out unbounded uploads, each scheduling a heavy synchronous indexing
+    // action against the shared knowledge-db pool. Consume a token here so the
+    // upload surface has a ceiling; the client maps RATE_LIMITED to a
+    // "wait a moment" toast with the retry delay.
+    try {
+      await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        throw new ConvexError({
+          code: 'RATE_LIMITED',
+          message: error.message,
+          retryAfterMs: error.retryAfter,
+        });
+      }
+      throw error;
+    }
+
     // Project-scoped upload: validate the target project before anything is
     // written so a rejected upload leaves no stranded rows behind. Mirrors
     // `assertWritable` in convex/projects/mutations.ts.
@@ -273,9 +297,43 @@ export const createDocumentFromUpload = mutation({
       args.fileSize ?? undefined,
     );
     if (!policyCheck.allowed) {
+      // Carry the machine-readable reason + usage numbers so the client can
+      // show an actionable message. In particular a full per-user volume quota
+      // (`volume_exceeded`) previously surfaced as a generic "upload failed",
+      // making an exhausted quota look like a broken uploader — the exact
+      // "no uploads possible at all anymore" report. Failed/interrupted uploads
+      // still occupy the quota until deleted, so the client tells the user to
+      // free space.
       throw new ConvexError({
         code: 'UPLOAD_POLICY_REJECTED',
         message: policyCheck.reason ?? 'Upload rejected by organization policy',
+        reasonCode: policyCheck.reasonCode,
+        ...(policyCheck.usedBytes != null && {
+          usedBytes: policyCheck.usedBytes,
+        }),
+        ...(policyCheck.limitBytes != null && {
+          limitBytes: policyCheck.limitBytes,
+        }),
+      });
+    }
+
+    // Authoritative server-side size cap. The client enforces
+    // `DOCUMENT_MAX_FILE_SIZE`, but nothing on the server did — a crafted
+    // request could store an oversized blob and schedule an indexing job that
+    // is likely to exceed the 30-min action ceiling. Read the true size from
+    // the storage system table (never trust a client-supplied `fileSize`) and
+    // reject past the product cap. An org upload policy can only narrow this
+    // further (checked above); it can't raise it, matching the client, which
+    // never lets a >100 MB document through.
+    const storageMeta = await ctx.db.system.get(args.fileId);
+    if (storageMeta && storageMeta.size > DOCUMENT_MAX_FILE_SIZE) {
+      throw new ConvexError({
+        code: 'FILE_TOO_LARGE',
+        message: `File exceeds the ${Math.round(
+          DOCUMENT_MAX_FILE_SIZE / (1024 * 1024),
+        )} MB limit`,
+        reasonCode: 'file_too_large',
+        limitBytes: DOCUMENT_MAX_FILE_SIZE,
       });
     }
 

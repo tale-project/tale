@@ -5,7 +5,7 @@ description: When the Canvas pane opens, what gets a Canvas versus inline render
 
 The **Canvas** is a second pane that opens to the right of the chat thread. It appears when the reply contains content the linear thread cannot hold well — a long code block, a Mermaid diagram, a structured document, a runnable Python script. Inline replies stay short and readable; everything else moves out of the way.
 
-The Canvas is not a richer composer, and it is not a place you edit by hand. It is a live view of the chat's workspace — the files the agent writes, the files you upload, and the files code runs produce — surfaced without your having to ask.
+The Canvas is not a richer chat, and it is not a place you edit by hand. It is a live view of the chat's workspace — the files the agent writes, the files you upload, and the files code runs produce — surfaced without your having to ask.
 
 ## What the Canvas is
 

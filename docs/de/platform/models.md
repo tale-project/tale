@@ -3,7 +3,7 @@ title: Modellkatalog
 description: Der Modellkatalog hinter jedem Picker in Tale — wo er unter Einstellungen > KI-Anbieter liegt, was die Fähigkeits-Tags bedeuten, welche Standards mitkommen und wie die Liste frisch bleibt.
 ---
 
-Jeder Modell-Picker in Tale — das Modellmenü des Composers, die Modellbindung eines Agents, die Standards, die Crawler- und RAG-Dienste nutzen — zieht aus einem Katalog: den Modellen, die auf den KI-Providern deiner Organisation deklariert sind. Eine frische Instanz bringt einen einzigen Provider mit, **OpenRouter**, dessen ein Key Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt. Diese Seite ist die Referenz dafür, wo dieser Katalog in der UI liegt, was die Tags auf jedem Modell bedeuten und was ab Werk mitkommt.
+Jeder Modell-Picker in Tale — das Modellmenü des Chats, die Modellbindung eines Agents, die Standards, die Crawler- und RAG-Dienste nutzen — zieht aus einem Katalog: den Modellen, die auf den KI-Providern deiner Organisation deklariert sind. Eine frische Instanz bringt einen einzigen Provider mit, **OpenRouter**, dessen ein Key Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt. Diese Seite ist die Referenz dafür, wo dieser Katalog in der UI liegt, was die Tags auf jedem Modell bedeuten und was ab Werk mitkommt.
 
 <Frame caption="Die Modell-Liste im Provider-Drawer — jedes Modell trägt die Fähigkeits-Tags, die entscheiden, in welchen Pickern es erscheint.">
 

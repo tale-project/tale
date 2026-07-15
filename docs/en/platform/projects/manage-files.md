@@ -19,7 +19,7 @@ Project files live in a folder tree. **New folder** creates a folder at the root
 
 ## A worked upload
 
-Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that references the topic and the agent retrieves it, or type `@` in the composer and pin the file — or a whole folder — to the turn.
+Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that references the topic and the agent retrieves it, or type `@` in the chat and pin the file — or a whole folder — to the turn.
 
 ## Replacing and deleting
 

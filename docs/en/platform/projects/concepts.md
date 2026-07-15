@@ -41,7 +41,7 @@ Sharing is by team, not by individual invitation. A project defaults to **Org-wi
 | The work has tasks, owners, and decisions     | ✓       |                  |
 | The question is one-shot                      |         | ✓                |
 
-A stand-alone chat is the right shape for exploring an answer once. The moment the context should outlive the chat, move it — the composer's **Move to project…** action carries an existing chat into a project.
+A stand-alone chat is the right shape for exploring an answer once. The moment the context should outlive the chat, move it — the chat's **Move to project…** action carries an existing chat into a project.
 
 ## Where this fits
 

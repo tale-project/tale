@@ -93,7 +93,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Chat-Grundlagen",
-      "description": "Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Composer, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird."
+      "description": "Was zwischen dem Druck auf Senden und der landenden Antwort passiert — Chat, Agent-Wahl, Modell-Auflösung, Streaming, Zitate, und wie ein Chat gespeichert wird."
     }
   },
   "de:platform/chat/overview": {
@@ -158,6 +158,14 @@
     "frontmatter": {
       "title": "Einstiege und Prompts",
       "description": "Woher die Gesprächseinstiege auf dem leeren Chat-Bildschirm kommen, und wie die Prompt-Bibliothek Prompts über Chats hinweg speichert und wiederverwendbar macht."
+    }
+  },
+  "de:platform/chat/video-links": {
+    "slug": "platform/chat/video-links",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Videolinks",
+      "description": "Füg eine Video-URL in den Chat ein, und Tale liest ihr Transkript für den Agent ein — unterstützte Plattformen, wie das Einlesen abläuft und was jeder Fehlerzustand bedeutet."
     }
   },
   "de:platform/projects/overview": {
@@ -907,6 +915,14 @@
       "description": "Wie der Caddy-Proxy TLS terminiert — selbst signiert für Development, Let's Encrypt für Produktion, external für einen vorgelagerten Proxy — plus Custom-Domain- und Custom-Cert-Setups."
     }
   },
+  "de:self-hosted/configuration/video-ingestion": {
+    "slug": "self-hosted/configuration/video-ingestion",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Video-Ingestion",
+      "description": "Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft — der eingebaute PO-Token-Provider, ein Egress-Proxy und der vorgewärmte Browser-Session-Pool."
+    }
+  },
   "de:self-hosted/configuration/data-residency": {
     "slug": "self-hosted/configuration/data-residency",
     "locale": "de",
@@ -1253,7 +1269,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bases du chat",
-      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
+      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — chat, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké."
     }
   },
   "fr:platform/chat/overview": {
@@ -1318,6 +1334,14 @@
     "frontmatter": {
       "title": "Amorces et prompts",
       "description": "D’où viennent les amorces de conversation sur l’écran de chat vide, et comment la bibliothèque de prompts te laisse enregistrer et réutiliser des prompts d’un chat à l’autre."
+    }
+  },
+  "fr:platform/chat/video-links": {
+    "slug": "platform/chat/video-links",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Liens vidéo",
+      "description": "Colle une URL de vidéo dans le chat et Tale récupère sa transcription pour l’agent — les plateformes prises en charge, le déroulé de l’ingestion et ce que signifie chaque état d’échec."
     }
   },
   "fr:platform/projects/overview": {
@@ -2067,6 +2091,14 @@
       "description": "Comment le proxy Caddy termine TLS — auto-signé pour développement, Let's Encrypt pour production, externe pour un proxy amont — plus les setups domaine personnalisé et certificat personnalisé."
     }
   },
+  "fr:self-hosted/configuration/video-ingestion": {
+    "slug": "self-hosted/configuration/video-ingestion",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ingestion vidéo",
+      "description": "Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube — le fournisseur de PO tokens intégré, un proxy de sortie et le pool de sessions de navigateur préchauffées."
+    }
+  },
   "fr:self-hosted/configuration/data-residency": {
     "slug": "self-hosted/configuration/data-residency",
     "locale": "fr",
@@ -2413,7 +2445,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat basics",
-      "description": "What happens between you hitting Send and the reply landing — composer, agent pick, model resolution, streaming, citations, and how a chat is stored."
+      "description": "What happens between you hitting Send and the reply landing — chat, agent pick, model resolution, streaming, citations, and how a chat is stored."
     }
   },
   "en:platform/chat/overview": {
@@ -2478,6 +2510,14 @@
     "frontmatter": {
       "title": "Starters and prompts",
       "description": "Where conversation starters come from on the empty Chat screen, and how the prompt library lets you save and reuse prompts across chats."
+    }
+  },
+  "en:platform/chat/video-links": {
+    "slug": "platform/chat/video-links",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Video links",
+      "description": "Paste a video URL into the chat and Tale ingests its transcript for the agent — supported platforms, the ingestion flow, and what each failure state means."
     }
   },
   "en:platform/projects/overview": {
@@ -3225,6 +3265,14 @@
     "frontmatter": {
       "title": "TLS and domains",
       "description": "How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups."
+    }
+  },
+  "en:self-hosted/configuration/video-ingestion": {
+    "slug": "self-hosted/configuration/video-ingestion",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Video ingestion",
+      "description": "Configure how a self-hosted deployment fetches video transcripts past YouTube's bot wall — the built-in PO-token provider, an egress proxy, and the pre-warmed browser-session pool."
     }
   },
   "en:self-hosted/configuration/data-residency": {

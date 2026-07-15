@@ -292,6 +292,45 @@ services:
       - sandbox
 
   # ============================================================================
+  # bgutil PO-token provider (YouTube ingestion anti-bot)
+  # ============================================================================
+  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into the
+  # convex image, so video-link ingestion survives YouTube's "confirm you're not
+  # a bot" wall on datacenter/flagged IPs — with zero operator config. Reached
+  # only by the convex container over the internal network (no published ports);
+  # video ingest degrades gracefully (no token) if it's down, so nothing
+  # depends_on it. The image tag MUST match BGUTIL_POT_VERSION in
+  # services/convex/Dockerfile — bump both together.
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
+    container_name: tale-bgutil-provider
+    # External image (not built here): pull if absent.
+    pull_policy: ${BGUTIL_PULL_POLICY:-missing}
+    # PID 1 reaper — the provider spawns short-lived headless workers.
+    init: true
+    restart: unless-stopped
+    # TCP liveness on the token port; no path assumption, works on any flavor.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('net').connect(4416,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+
+  # ============================================================================
   # Tale Platform (TanStack Start + Convex)
   # ============================================================================
   platform:

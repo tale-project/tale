@@ -44,6 +44,7 @@
           "label": "configuration",
           "pages": [
             "self-hosted/configuration/environment-reference",
+            "self-hosted/configuration/video-ingestion",
             "self-hosted/configuration/authentication",
             "self-hosted/configuration/providers",
             "self-hosted/configuration/secrets-with-sops",
@@ -120,7 +121,8 @@
             "platform/chat/deep-research",
             "platform/chat/shared-threads",
             "platform/chat/starters-and-prompts",
-            "platform/chat/canvas-pane"
+            "platform/chat/canvas-pane",
+            "platform/chat/video-links"
           ]
         },
         {

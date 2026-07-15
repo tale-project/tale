@@ -1,23 +1,23 @@
 ---
 title: Bases du chat
-description: Ce qui se passe entre l’envoi et l’arrivée de la réponse — composer, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké.
+description: Ce qui se passe entre l’envoi et l’arrivée de la réponse — chat, choix de l’agent, résolution du modèle, streaming, citations, et comment un chat est stocké.
 ---
 
-Cette page est le modèle mental pour tout ce qui vit dans l’onglet Chat. Elle nomme les parties du composeur, suit un message de la touche pressée à la réponse en streaming, et explique comment un chat est stocké une fois arrivé — lis-la une fois et le reste des pages de chat se lit comme des variations sur le même flux.
+Cette page est le modèle mental pour tout ce qui vit dans l’onglet Chat. Elle nomme les parties du chat, suit un message de la touche pressée à la réponse en streaming, et explique comment un chat est stocké une fois arrivé — lis-la une fois et le reste des pages de chat se lit comme des variations sur le même flux.
 
-<Frame caption="L’onglet Chat avec une réponse en streaming au-dessus du composeur.">
+<Frame caption="L’onglet Chat avec une réponse en streaming au-dessus du chat.">
 
 ![Un fil de chat montrant une question d’utilisateur sur des retours d’onboarding et une réponse de l’assistant contenant un tableau markdown de trois thèmes.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## Le composeur
+## Le chat
 
-Le composeur est la bande de saisie en bas de l’écran. Trois contrôles comptent : le sélecteur d’agents à gauche, le sélecteur de modèles à côté, et le champ de message avec l’envoi à droite. Les pièces jointes arrivent par collage, glisser-déposer ou le contrôle d’ajout — voir [Pièces jointes](/fr/platform/chat/attachments) pour ce qui est accepté.
+Le chat est la bande de saisie en bas de l’écran. Trois contrôles comptent : le sélecteur d’agents à gauche, le sélecteur de modèles à côté, et le champ de message avec l’envoi à droite. Les pièces jointes arrivent par collage, glisser-déposer ou le contrôle d’ajout — voir [Pièces jointes](/fr/platform/chat/attachments) pour ce qui est accepté.
 
-<Frame caption="Les contrôles du composeur — le champ de message, les sélecteurs d’agents et de modèles, et l’envoi.">
+<Frame caption="Les contrôles du chat — le champ de message, les sélecteurs d’agents et de modèles, et l’envoi.">
 
-![Le composeur de chat vide, dont le texte d’invite propose de poser une question sur les contacts, les produits ou les documents, au-dessus d’une barre d’outils qui porte les boutons de pièce jointe et de bibliothèque de prompts, le sélecteur d’agents, le sélecteur de modèles, et les boutons de sourdine, de micro et d’envoi.](/images/platform/chat-composer.webp)
+![La zone de saisie du chat, vide, dont le texte d’invite propose de poser une question sur les contacts, les produits ou les documents, au-dessus d’une barre d’outils qui porte les boutons de pièce jointe et de bibliothèque de prompts, le sélecteur d’agents, le sélecteur de modèles, et les boutons de sourdine, de micro et d’envoi.](/images/platform/chat-composer.webp)
 
 </Frame>
 
@@ -55,8 +55,8 @@ Un agent doté de l’outil human input peut s’interrompre en pleine tâche po
 
 ## Historique et recherche
 
-**Afficher l'historique** au-dessus du composeur ouvre la barre latérale d’historique — chaque chat que tu peux reprendre dans cette organisation, du plus récent au plus ancien ; en sélectionner un ouvre le transcript complet. La recherche y filtre par titre ; la recherche en texte intégral dans les corps de messages est une opération par chat, pas à l’échelle de l’organisation. Renommer un chat pose un titre personnalisé qui remplace celui généré par le modèle ; supprimer un chat le déplace dans la [Corbeille](/fr/platform/admin/governance/trash), où la rétention le balaie après la fenêtre de grâce.
+**Afficher l'historique** au-dessus du chat ouvre la barre latérale d’historique — chaque chat que tu peux reprendre dans cette organisation, du plus récent au plus ancien ; en sélectionner un ouvre le transcript complet. La recherche y filtre par titre ; la recherche en texte intégral dans les corps de messages est une opération par chat, pas à l’échelle de l’organisation. Renommer un chat pose un titre personnalisé qui remplace celui généré par le modèle ; supprimer un chat le déplace dans la [Corbeille](/fr/platform/admin/governance/trash), où la rétention le balaie après la fenêtre de grâce.
 
 ## Où ça s’inscrit
 
-Bases du chat est la page que tout le reste de la section affine : [Agents dans le chat](/fr/platform/chat/agents-in-chat) creuse le sélecteur, [Pièces jointes](/fr/platform/chat/attachments) ce que fait le téléversement, [Mode vocal](/fr/platform/chat/voice-mode) les passations STT et TTS autour du même composer. Si tu es venu ici pour construire un agent plutôt que pour en utiliser un, saute à [Concepts d’agent](/fr/platform/agents/concepts) — le modèle mental à quatre boutons est le socle sur lequel repose chaque chat avec un agent.
+Bases du chat est la page que tout le reste de la section affine : [Agents dans le chat](/fr/platform/chat/agents-in-chat) creuse le sélecteur, [Pièces jointes](/fr/platform/chat/attachments) ce que fait le téléversement, [Mode vocal](/fr/platform/chat/voice-mode) les passations STT et TTS autour du même chat. Si tu es venu ici pour construire un agent plutôt que pour en utiliser un, saute à [Concepts d’agent](/fr/platform/agents/concepts) — le modèle mental à quatre boutons est le socle sur lequel repose chaque chat avec un agent.

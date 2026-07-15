@@ -59,4 +59,4 @@ Vorgeschlagene Aufgaben, die eine Automatisierung oder ein Teammitglied hereinsy
 
 ## Wo das hingehört
 
-Projekte liegen in der Sidebar neben dem Chat, und die Übergabe ist natürlich: Eine Frage beginnt im Chat, erweist sich als größer als ein Chat und zieht in ein Projekt um — die Composer-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat hinüber. Wenn Projekte neu für dich sind, starte mit den [Projekt-Konzepten](/de/platform/projects/concepts) für das Modell und geh dann [Projekte nutzen](/de/tutorials/member/use-projects) an einem frischen Projekt von Anfang bis Ende durch.
+Projekte liegen in der Sidebar neben dem Chat, und die Übergabe ist natürlich: Eine Frage beginnt im Chat, erweist sich als größer als ein Chat und zieht in ein Projekt um — die Chat-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat hinüber. Wenn Projekte neu für dich sind, starte mit den [Projekt-Konzepten](/de/platform/projects/concepts) für das Modell und geh dann [Projekte nutzen](/de/tutorials/member/use-projects) an einem frischen Projekt von Anfang bis Ende durch.

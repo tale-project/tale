@@ -21,7 +21,7 @@ Ein Agent im Chat mit den Workflow-Tools kann darum bitten, einen Workflow zu st
 
 <Note>
 
-Der Chat-Composer ist blockiert, solange eine Anfrage aussteht — **Beantworte die ausstehende Anfrage oben, um fortzufahren**. Entscheide die Karte, bevor du die nächste Nachricht schickst.
+Der Chat ist blockiert, solange eine Anfrage aussteht — **Beantworte die ausstehende Anfrage oben, um fortzufahren**. Entscheide die Karte, bevor du die nächste Nachricht schickst.
 
 </Note>
 

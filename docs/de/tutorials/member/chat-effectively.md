@@ -9,7 +9,7 @@ Du brauchst eine Member-Rolle (das Minimum für Chat) und einen veröffentlichte
 
 ## Gewohnheit 1 — Den Agent vor der ersten Nachricht wählen
 
-Der Agent ist der Hebel mit dem höchsten Ertrag pro Klick. Der Default-Assistant ist eine leere Leinwand; ein Agent mit gebundenem Wissen, aktiven Tools und justierter Stimme schlägt ihn bei jeder nicht-generischen Frage. Öffne den Agent-Picker im Composer und wähl den Agent, dessen Scope zu deiner Frage passt — Support, Sales, Research — bevor du tippst.
+Der Agent ist der Hebel mit dem höchsten Ertrag pro Klick. Der Default-Assistant ist eine leere Leinwand; ein Agent mit gebundenem Wissen, aktiven Tools und justierter Stimme schlägt ihn bei jeder nicht-generischen Frage. Öffne den Agent-Picker im Chat und wähl den Agent, dessen Scope zu deiner Frage passt — Support, Sales, Research — bevor du tippst.
 
 Passt kein Agent, lass den Assistant an; greif nicht zu einem schief sitzenden Agent für „passt schon ungefähr". Ein schief sitzender Agent verweigert oft oder weicht vom gebundenen Wissen ab.
 

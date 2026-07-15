@@ -3,7 +3,7 @@ title: Conversation starters
 description: Authoring the suggested prompts an agent shows on its empty-chat screen — adding, ordering, translating, and the auto-translate action.
 ---
 
-A starter is a short suggested prompt the agent shows on an empty chat screen. Tap one and the text drops into the composer; the user edits if they want, then sends. Starters are the agent author's curated entry points into what the agent is for — this page is the author side; how they render to the user is [Starters and prompts](/platform/chat/starters-and-prompts).
+A starter is a short suggested prompt the agent shows on an empty chat screen. Tap one and the text drops into the chat; the user edits if they want, then sends. Starters are the agent author's curated entry points into what the agent is for — this page is the author side; how they render to the user is [Starters and prompts](/platform/chat/starters-and-prompts).
 
 <Frame caption="The Starters tab — an ordered list of prompts with locale tabs above.">
 

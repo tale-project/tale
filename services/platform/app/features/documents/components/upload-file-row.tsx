@@ -43,6 +43,9 @@ interface UploadFileRowProps {
   bytesLoaded: number;
   bytesTotal: number;
   error?: string;
+  /** Legacy format (e.g. .doc/.ppt/.xls): uploads and is downloadable, but has
+   *  no text extractor so it won't be indexed for search. Shown as a hint. */
+  notIndexable?: boolean;
   onRetry?: () => void;
   onRemove?: () => void;
 }
@@ -58,6 +61,7 @@ export const UploadFileRow = memo(function UploadFileRow({
   bytesLoaded,
   bytesTotal,
   error,
+  notIndexable,
   onRetry,
   onRemove,
 }: UploadFileRowProps) {
@@ -187,6 +191,14 @@ export const UploadFileRow = memo(function UploadFileRow({
           <CircleAlert className="mt-px size-3.5 shrink-0 text-red-600" />
           <span className="text-[11px] leading-snug text-red-800">{error}</span>
         </div>
+      )}
+
+      {/* Legacy-format hint: stored but not searchable. Hidden once the row
+          fails (the error message takes over). */}
+      {notIndexable && !isFailed && (
+        <span className="text-muted-foreground text-[11px] leading-snug">
+          {t('upload.storedButNotIndexed')}
+        </span>
       )}
     </div>
   );

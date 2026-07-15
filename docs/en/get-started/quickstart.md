@@ -45,11 +45,11 @@ Cloud instances are set up for you: fill in the [demo request form](https://tale
 
 <Step title="Open a new chat">
 
-Click **New chat** in the sidebar. The composer at the bottom of the screen is where everything starts: the agent picker on the left, the model picker beside it, and the message field with send on the right. The composer waiting with **Assistant** and **Auto** preselected means you are ready to send.
+Click **New chat** in the sidebar. The chat at the bottom of the screen is where everything starts: the agent picker on the left, the model picker beside it, and the message field with send on the right. The chat waiting with **Assistant** and **Auto** preselected means you are ready to send.
 
-<Frame caption="The composer — the message field above, the agent and model pickers and send below.">
+<Frame caption="The chat — the message field above, the agent and model pickers and send below.">
 
-![The empty chat composer, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
+![The empty chat input, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
 
 </Frame>
 

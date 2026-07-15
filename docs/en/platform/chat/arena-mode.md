@@ -9,7 +9,7 @@ Reach for Arena when picking a model has been a debate rather than a decision �
 
 ## How Arena renders
 
-Open the composer's plus menu and pick **Arena Mode** — the composer sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, a verdict row appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
+Open the chat's plus menu and pick **Arena Mode** — the chat sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, a verdict row appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
 
 <Frame caption="The same prompt answered by two models, with the verdict row beneath.">
 

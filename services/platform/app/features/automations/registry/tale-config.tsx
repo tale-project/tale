@@ -404,6 +404,7 @@ export const taleConfig: Config<TaleComponents> = {
           emptyState,
           addAction,
           addActionPlacement,
+          chrome,
           search,
           onRowClick,
         }) =>
@@ -427,6 +428,7 @@ export const taleConfig: Config<TaleComponents> = {
               emptyState={emptyState}
               addAction={addAction}
               addActionPlacement={addActionPlacement}
+              chrome={chrome}
               search={search}
               onRowClick={onRowClick}
             />

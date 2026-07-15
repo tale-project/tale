@@ -662,3 +662,41 @@ describe('Collection — search, row click, add action', () => {
     expect(applyEffect).toHaveBeenCalledWith(effect, undefined);
   });
 });
+
+describe('Collection — list chrome', () => {
+  it('renders title as a heading, keeps filters + add in the toolbar, and skips the Card section', () => {
+    paginatedReturn = paginated({ results: taskRows(1), status: 'Exhausted' });
+
+    render(
+      <Collection
+        title="VAT returns"
+        query={QUERY}
+        columns={COLUMNS}
+        perPage={50}
+        chrome="list"
+        filters={[{ field: 'status', values: ['todo', 'in_progress', 'done'] }]}
+        addAction={{
+          label: 'New quarter',
+          path: 'tasks/mutations:createTask',
+          mode: 'mutation',
+          args: { projectId: 'p1' },
+        }}
+        // Would park the button above the card in card chrome — list ignores it.
+        addActionPlacement="above"
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'VAT returns' }),
+    ).toBeInTheDocument();
+    // Section/Card chrome wraps card mode in a <section>; list does not.
+    expect(document.querySelector('section')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'New quarter' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'opt:__all__' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Task 0')).toBeInTheDocument();
+  });
+});

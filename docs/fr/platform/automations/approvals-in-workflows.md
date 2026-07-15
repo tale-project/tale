@@ -21,7 +21,7 @@ Un agent en chat doté des outils de workflow peut demander à démarrer un work
 
 <Note>
 
-Le composeur du chat est bloqué tant qu’une demande est en attente — **Réponds à la demande en attente ci-dessus pour continuer**. Décide la carte avant d’envoyer le message suivant.
+Le chat est bloqué tant qu’une demande est en attente — **Réponds à la demande en attente ci-dessus pour continuer**. Décide la carte avant d’envoyer le message suivant.
 
 </Note>
 

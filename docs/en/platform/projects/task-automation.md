@@ -22,7 +22,7 @@ Failures roll the task back to _To do_ with an explanatory comment. When a decom
 
 ## Mentions, dependencies, deadlines
 
-- **@-mention an agent** in a task comment or in the task description and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members and the project's agents; the composer previews whether each mentioned agent will actually respond (automation off, budget exhausted, paused). Editing a description triggers only newly added mentions, and anything the automation writes itself never triggers anyone.
+- **@-mention an agent** in a task comment or in the task description and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members and the project's agents; the chat previews whether each mentioned agent will actually respond (automation off, budget exhausted, paused). Editing a description triggers only newly added mentions, and anything the automation writes itself never triggers anyone.
 - When a **blocker closes**, dependent tasks get a remaining-blocker note; fully unblocked agent work restarts automatically, human work gets an inbox notification.
 - **Due dates** drive an SLA ladder: a 24h warning, an overdue nudge, then a human escalation to the project creator and org admins — repeated once more if the task stays overdue. Each level fires at most once; pushing the due date out resets the ladder.
 

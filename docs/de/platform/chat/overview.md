@@ -13,7 +13,7 @@ Chat ist der tägliche Einstiegspunkt zu Tale. Du öffnest ihn, wählst einen Ag
 
 ## Die Teile des Bildschirms
 
-Der Composer am unteren Rand trägt den Agent-Picker, den Modell-Picker (**Auto** lässt Tale für dich wählen) und das Nachrichtenfeld. **Neuer Chat** in der Sidebar startet einen frischen Chat; **Verlauf anzeigen** öffnet die Liste jedes Chats, den du fortsetzen kannst. Der Canvas öffnet rechts vom Thread, wenn der Agent etwas produziert, das die Inline-Ansicht nicht halten kann — langer Code, ein Diagramm, ein strukturiertes Dokument.
+Der Chat am unteren Rand trägt den Agent-Picker, den Modell-Picker (**Auto** lässt Tale für dich wählen) und das Nachrichtenfeld. **Neuer Chat** in der Sidebar startet einen frischen Chat; **Verlauf anzeigen** öffnet die Liste jedes Chats, den du fortsetzen kannst. Der Canvas öffnet rechts vom Thread, wenn der Agent etwas produziert, das die Inline-Ansicht nicht halten kann — langer Code, ein Diagramm, ein strukturiertes Dokument.
 
 ## Seiten in diesem Abschnitt
 
@@ -21,7 +21,7 @@ Der Composer am unteren Rand trägt den Agent-Picker, den Modell-Picker (**Auto*
 
 <Card title="Chat-Grundlagen" icon="message-circle" href="/de/platform/chat/basics">
 
-Was zwischen dem Senden und der landenden Antwort passiert — Composer, Modell-Auflösung, Streaming, Zitate.
+Was zwischen dem Senden und der landenden Antwort passiert — Chat, Modell-Auflösung, Streaming, Zitate.
 
 </Card>
 
@@ -71,4 +71,4 @@ Wann der Canvas öffnet, und was einen Canvas statt einer Inline-Darstellung bek
 
 ## Wo das hineinpasst
 
-Chat ist die Oberfläche, der jedes andere Platform-Feature letztlich dient. Agents formen seine Antworten, Wissen füttert seine Zitate, Genehmigungen unterbrechen ihn für menschliche Prüfungen, Konversationen ist eine Schwester-Inbox für Kundenkanäle statt der eigenen Threads. Die Seite, die du dir als Erstes merken solltest, ist [Chat-Grundlagen](/de/platform/chat/basics) — sobald du den Pfad vom Composer zur Antwort verstanden hast, liest sich jede andere Chat-Seite als Variation davon.
+Chat ist die Oberfläche, der jedes andere Platform-Feature letztlich dient. Agents formen seine Antworten, Wissen füttert seine Zitate, Genehmigungen unterbrechen ihn für menschliche Prüfungen, Konversationen ist eine Schwester-Inbox für Kundenkanäle statt der eigenen Threads. Die Seite, die du dir als Erstes merken solltest, ist [Chat-Grundlagen](/de/platform/chat/basics) — sobald du den Pfad vom Chat zur Antwort verstanden hast, liest sich jede andere Chat-Seite als Variation davon.

@@ -13,6 +13,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { maybeDispatchRagIndexing } from './rag_dispatch';
 
 export const saveFileMetadata = mutation({
   args: {
@@ -72,10 +73,15 @@ export const saveFileMetadata = mutation({
     if (!check.allowed) {
       // Preserve the policy's human-readable reason as structured data so the
       // composer can surface why the upload was rejected; a raw Error message
-      // is redacted to "Server Error" by Convex in prod.
+      // is redacted to "Server Error" by Convex in prod. `reasonCode` +
+      // usage bytes let the client show an actionable, localized message
+      // (e.g. a full per-user volume quota rather than a generic failure).
       throw new ConvexError({
         code: 'UPLOAD_REJECTED',
         reason: check.reason ?? 'Upload rejected by organization policy',
+        reasonCode: check.reasonCode,
+        ...(check.usedBytes != null && { usedBytes: check.usedBytes }),
+        ...(check.limitBytes != null && { limitBytes: check.limitBytes }),
       });
     }
 
@@ -177,16 +183,7 @@ export const saveFileMetadata = mutation({
       await ctx.db.patch(existing._id, patchData);
 
       if (needsRagRetry) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.file_metadata.internal_actions.uploadFileToRag,
-          {
-            organizationId: args.organizationId,
-            storageId: args.storageId,
-            fileName: args.fileName,
-            contentType: args.contentType,
-          },
-        );
+        await maybeDispatchRagIndexing(ctx, args.storageId);
       }
       if (needsTranscribeRetry) {
         await ctx.scheduler.runAfter(
@@ -224,16 +221,7 @@ export const saveFileMetadata = mutation({
     });
 
     if (shouldIndex) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.file_metadata.internal_actions.uploadFileToRag,
-        {
-          organizationId: args.organizationId,
-          storageId: args.storageId,
-          fileName: args.fileName,
-          contentType: args.contentType,
-        },
-      );
+      await maybeDispatchRagIndexing(ctx, args.storageId);
     }
 
     if (isAudio) {
