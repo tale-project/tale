@@ -127,7 +127,7 @@ export function withScriptHashes(
   };
 }
 
-export function cspDirectiveName(camel: string): string {
+function cspDirectiveName(camel: string): string {
   return camel.replace(/([A-Z])/g, '-$1').toLowerCase();
 }
 
