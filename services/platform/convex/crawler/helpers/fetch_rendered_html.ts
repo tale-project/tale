@@ -54,10 +54,14 @@ export interface FetchRenderedOptions {
   userAgent?: string;
   /**
    * Netscape cookie jar for a pre-warmed browser session (see the
-   * `browserSessions` pool). When set, both fetch paths present these cookies
-   * so a bot-walled host sees a returning visitor: the plain fetch derives a
-   * `Cookie` header from it, and the sandbox render seeds them into the
-   * headless context via `addCookies` before the first navigation.
+   * `browserSessions` pool). When set, the plain fetch derives a `Cookie`
+   * header from it so a bot-walled host sees a returning visitor.
+   *
+   * Deliberately applied to the plain-fetch path ONLY. The sandbox-render path
+   * executes its Playwright script inside `sandbox-runtime` — a lower-trust
+   * execution environment shared with agent code — so decrypted session
+   * cookies must NOT be seeded there; they stay in the Convex action layer.
+   * The sandbox render uses the session's User-Agent only.
    */
   cookieJar?: string;
   /**
@@ -84,10 +88,12 @@ export async function fetchRenderedHtml(
     options.renderContext !== undefined
   ) {
     try {
+      // NB: `cookieJar` is intentionally NOT forwarded — warmed session
+      // cookies never enter the sandbox execution environment (see the
+      // `cookieJar` doc above). Only the User-Agent crosses over.
       const rendered = await renderUrlInSandbox(options.renderContext, url, {
         timeoutMs: options.timeoutMs,
         userAgent: options.userAgent,
-        ...(options.cookieJar ? { cookieJar: options.cookieJar } : {}),
       });
       // Playwright's `page.goto` already followed redirects and threw on
       // network errors; a completed render is treated as HTTP 200. (The

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   netscapeJarToCookieHeader,
-  netscapeJarToPlaywrightCookies,
   parseNetscapeJar,
   registrableDomain,
 } from './cookie_header';
@@ -137,30 +136,5 @@ describe('netscapeJarToCookieHeader', () => {
 
   it('returns empty string for an unparseable URL', () => {
     expect(netscapeJarToCookieHeader(jar, 'not a url')).toBe('');
-  });
-});
-
-describe('netscapeJarToPlaywrightCookies', () => {
-  it('maps fields, restoring the leading dot for subdomain cookies', () => {
-    const jar = line('.youtube.com', true, '/', true, FAR_FUTURE, 'SID', 'abc');
-    const [c] = netscapeJarToPlaywrightCookies(jar);
-    expect(c).toEqual({
-      name: 'SID',
-      value: 'abc',
-      domain: '.youtube.com',
-      path: '/',
-      expires: FAR_FUTURE,
-      httpOnly: false,
-      secure: true,
-      sameSite: 'None',
-    });
-  });
-
-  it('maps a session cookie (expiry 0) to Playwright -1 and Lax', () => {
-    const jar = line('youtube.com', false, '/', false, 0, 'TMP', 'v');
-    const [c] = netscapeJarToPlaywrightCookies(jar);
-    expect(c.expires).toBe(-1);
-    expect(c.domain).toBe('youtube.com');
-    expect(c.sameSite).toBe('Lax');
   });
 });

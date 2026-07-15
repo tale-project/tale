@@ -65,42 +65,6 @@ export function parseNetscapeJar(jar: string): ParsedCookie[] {
   return cookies;
 }
 
-/** Cookie shape Playwright's `BrowserContext.addCookies` accepts. */
-export interface PlaywrightCookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  /** Unix seconds, or `-1` for a session cookie. */
-  expires: number;
-  httpOnly: boolean;
-  secure: boolean;
-  sameSite: 'Lax' | 'None' | 'Strict';
-}
-
-/**
- * Convert a Netscape jar into Playwright cookie objects for
- * `context.addCookies(...)`, so a headless render carries a pre-warmed
- * session's cookies. Subdomain cookies keep their leading dot; session cookies
- * (`expiry === 0`) map to Playwright's `-1`. `sameSite` is not encoded in the
- * Netscape format, so secure cookies default to `None` (cross-site capable) and
- * the rest to `Lax`, matching browser defaults closely enough for auth cookies.
- */
-export function netscapeJarToPlaywrightCookies(
-  jar: string,
-): PlaywrightCookie[] {
-  return parseNetscapeJar(jar).map((c) => ({
-    name: c.name,
-    value: c.value,
-    domain: c.includeSubdomains ? `.${c.domain}` : c.domain,
-    path: c.path,
-    expires: c.expiry === 0 ? -1 : c.expiry,
-    httpOnly: c.httpOnly,
-    secure: c.secure,
-    sameSite: c.secure ? 'None' : 'Lax',
-  }));
-}
-
 /**
  * Build the `Cookie:` header value from `jar` for `targetUrl`: cookies whose
  * domain and path match the URL and that haven't expired, joined `name=value`.
