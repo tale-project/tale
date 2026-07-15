@@ -19,6 +19,7 @@ import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveIntegrationsDir } from '../../integrations/file_utils';
 import { resolveKnowledgeDir } from '../../knowledge/file_utils';
+import { resolveObjectStorageDir } from '../../object_storage/file_utils';
 import { resolvePromptsDir } from '../../prompts/file_utils';
 import { resolveProvidersDir } from '../../providers/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
@@ -41,6 +42,8 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   sso: resolveSsoDir,
   // Per-org knowledge-DB connection — `resolveKnowledgeDir` returns `<org>/knowledge/`.
   knowledge: resolveKnowledgeDir,
+  // Per-org object-storage (BYO S3) connection — `<org>/object-storage/`.
+  'object-storage': resolveObjectStorageDir,
   automations: resolveAutomationsDir,
   // LEGACY-CHAIN ONLY: `workflows` left the config-domain registry when
   // standalone workflows retired (a workflow lives inline in its automation).
