@@ -19,7 +19,7 @@ import { v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internalAction } from '../_generated/server';
 import {
-  getKnowledgePool,
+  getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA,
 } from '../lib/knowledge/db/knowledge_db';
 import { withRetry } from '../lib/knowledge/db/retry';
@@ -282,7 +282,7 @@ export const updateFolderPaths = internalAction({
     const fileIds = [...deduped.keys()];
     const folderPaths = [...deduped.values()];
 
-    const sql = getKnowledgePool();
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const result = await withRetry(() =>
       sql.unsafe(
         `UPDATE ${SCHEMA}.documents d
@@ -321,7 +321,7 @@ export const updateMetadata = internalAction({
     const fileIds = [...deduped.keys()];
     const metadataValues = [...deduped.values()];
 
-    const sql = getKnowledgePool();
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const result = await withRetry(() =>
       sql.unsafe(
         `UPDATE ${SCHEMA}.documents d
