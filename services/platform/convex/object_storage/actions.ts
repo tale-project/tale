@@ -146,6 +146,58 @@ export const deleteObjectStorageConnection = action({
 });
 
 /**
+ * Kick off the per-org blob BACKFILL: move the org's pre-existing Convex
+ * `_storage` blobs into its configured bucket (full data residency). Admin
+ * gated like every other object-storage action; the long-running engine is the
+ * scheduled `backfill_actions.ts:migrateOrgBlobsToObjectStorage` internal
+ * action, and progress is polled via
+ * `backfill_queries.ts:getObjectStorageBackfillStatus`. `dryRun` only counts +
+ * samples what would move (allowed before a connection exists); a real run
+ * requires the connection up front so the admin gets an immediate error
+ * instead of a failed background run. Refuses while a run is already active
+ * (`BACKFILL_ALREADY_RUNNING`).
+ */
+export const startObjectStorageBlobBackfill = action({
+  args: {
+    organizationId: v.string(),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({ runId: v.string() }),
+  handler: async (ctx, args): Promise<{ runId: string }> => {
+    const auth = await requireObjectStorageAdmin(ctx, args.organizationId);
+    const dryRun = args.dryRun ?? false;
+    if (!dryRun) {
+      const connection: ObjectStorageConnectionView = await ctx.runAction(
+        internal.object_storage.file_actions.readConnection,
+        { orgSlug: auth.orgSlug },
+      );
+      if (!connection.configured) {
+        throw new ConvexError({
+          code: 'NOT_CONFIGURED',
+          message:
+            'Configure the object-storage connection before moving existing blobs into it.',
+        });
+      }
+    }
+    const runId = await ctx.runMutation(
+      internal.object_storage.backfill_internal.createRun,
+      {
+        organizationId: args.organizationId,
+        orgSlug: auth.orgSlug,
+        dryRun,
+        triggeredBy: auth.userId,
+      },
+    );
+    await ctx.scheduler.runAfter(
+      0,
+      internal.object_storage.backfill_actions.migrateOrgBlobsToObjectStorage,
+      { organizationId: args.organizationId, runId },
+    );
+    return { runId };
+  },
+});
+
+/**
  * Probe a candidate bucket before saving — a real PUT+GET+DELETE round-trip
  * that proves the credentials AND the bucket work. Tests the values in the
  * form; credentials are required (there is no passwordless S3).
