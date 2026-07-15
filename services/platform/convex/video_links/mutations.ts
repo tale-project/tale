@@ -622,7 +622,9 @@ export const bindCompletedJobsToMessage = mutation({
     }
 
     const out: Array<{
-      fileId: Id<'_storage'>;
+      /** Blob reference (`_storage` id or `s3:` ref) — travels as the
+       *  message-attachment fileId, whose consumers are backend-aware. */
+      fileId: string;
       fileName: string;
       fileType: string;
       fileSize: number;

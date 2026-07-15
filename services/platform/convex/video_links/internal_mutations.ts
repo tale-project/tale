@@ -3,6 +3,12 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
+import {
+  deleteBlobInMutation,
+  deleteOrgBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 const STATUS_VALIDATOR = v.union(
   v.literal('queued'),
@@ -144,7 +150,9 @@ export const updateJob = internalMutation({
       ),
     ),
     captionLang: v.optional(v.string()),
-    storageId: v.optional(v.id('_storage')),
+    // Blob reference (`_storage` id or `s3:` ref) — the orchestrator stores
+    // through the backend-aware seam.
+    storageId: v.optional(blobRefValidator),
     fileMetadataId: v.optional(v.id('fileMetadata')),
     errorReasonCode: v.optional(ERROR_REASON_CODE_VALIDATOR),
     errorMessage: v.optional(v.string()),
@@ -205,7 +213,8 @@ export const updateJob = internalMutation({
 export const insertSyntheticFileMetadata = internalMutation({
   args: {
     jobId: v.id('videoLinkJobs'),
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref).
+    storageId: blobRefValidator,
     transcript: v.string(),
     fileSize: v.number(),
     videoTitle: v.string(),
@@ -229,14 +238,14 @@ export const insertSyntheticFileMetadata = internalMutation({
     // serialized so the in-mutation check closes the structural window.
     const job = await ctx.db.get(args.jobId);
     if (!job) {
-      try {
-        await ctx.storage.delete(args.storageId);
-      } catch (err) {
-        console.warn(
-          `[video_links] orphan blob delete (erased job) failed for ${args.storageId}:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+      // Backend-aware orphan delete (`s3:` refs go through the scheduled
+      // node lane; the org is a caller arg since the job row is gone).
+      await deleteOrgBlobInMutation(
+        ctx,
+        args.organizationId,
+        args.storageId,
+        'video_links.insertSyntheticFileMetadata',
+      );
       return null;
     }
 
@@ -327,18 +336,17 @@ export const cleanupCancelledVideoLink = internalMutation({
     // — it didn't; this is the load-bearing check.
     if (job.messageBoundAt !== undefined) return;
 
-    // _storage blob: always delete if present and not message-bound.
-    // (Message-bound jobs have audio replaced by transcript already, so
-    // this branch only fires for audio blobs from failed Whisper runs.)
+    // Blob: always delete if present and not message-bound. (Message-bound
+    // jobs have audio replaced by transcript already, so this branch only
+    // fires for audio blobs from failed Whisper runs.) Backend-aware: an
+    // `s3:` ref goes through the scheduled node lane.
     if (job.storageId) {
-      try {
-        await ctx.storage.delete(job.storageId);
-      } catch (err) {
-        console.warn(
-          `[video_links] storage delete failed for job ${args.jobId}:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+      await deleteOrgBlobInMutation(
+        ctx,
+        job.organizationId,
+        job.storageId,
+        'video_links.cleanupCancelledVideoLink',
+      );
     }
 
     // fileMetadata row: only delete if it's a pure transient artifact.
@@ -363,7 +371,10 @@ export const cleanupCancelledVideoLink = internalMutation({
  */
 export const heartbeatJobByStorageId = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — the join key is the
+    // SAME string the job row's widened `storageId` carries, so S3-backed
+    // audio heartbeats exactly like Convex-backed audio.
+    storageId: blobRefValidator,
     progress: v.optional(v.string()),
   },
   async handler(ctx, args) {
@@ -483,6 +494,9 @@ export const recoverStuckVideoLinkJobs = internalMutation({
     // skipped rows similarly retain state from before cancellation.
     const gcCutoff = now - UNBOUND_GC_AGE_MS;
     const gcStatuses = ['completed', 'failed', 'skipped'] as const;
+    // GC crosses orgs — collect `s3:` refs per owning org and flush one
+    // scheduled delete per org after the sweep.
+    const s3RefsByOrg = new Map<string, string[]>();
     outer: for (const status of gcStatuses) {
       const candidates = await ctx.db
         .query('videoLinkJobs')
@@ -493,14 +507,14 @@ export const recoverStuckVideoLinkJobs = internalMutation({
         if (row.messageBoundAt !== undefined) continue;
         if (row._creationTime > gcCutoff) continue;
         if (row.storageId) {
-          try {
-            await ctx.storage.delete(row.storageId);
-          } catch (err) {
-            console.warn(
-              `[video_links] GC storage.delete failed for ${row._id}:`,
-              err instanceof Error ? err.message : err,
-            );
-          }
+          const refs = s3RefsByOrg.get(row.organizationId) ?? [];
+          await deleteBlobInMutation(
+            ctx,
+            row.storageId,
+            refs,
+            'video_links.gc',
+          );
+          if (refs.length > 0) s3RefsByOrg.set(row.organizationId, refs);
         }
         if (row.fileMetadataId) {
           try {
@@ -515,6 +529,9 @@ export const recoverStuckVideoLinkJobs = internalMutation({
         await ctx.db.delete(row._id);
         gcCount += 1;
       }
+    }
+    for (const [orgId, refs] of s3RefsByOrg) {
+      await scheduleS3BlobDeletes(ctx, orgId, refs);
     }
 
     return { recoveredCount, gcCount };

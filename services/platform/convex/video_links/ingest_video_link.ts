@@ -44,6 +44,9 @@ import {
   formatHms,
 } from '../file_metadata/paragraphize';
 import { decryptString } from '../lib/crypto/decrypt_string';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { deleteBlob, putBlob } from '../lib/storage/blob_access';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { sanitizeUntrustedField } from '../lib/untrusted_content';
 import {
   captionsToParagraphSegments,
@@ -213,15 +216,41 @@ export const ingestVideoLink = internalAction({
       return fresh.status !== 'skipped' && fresh.status !== 'failed';
     };
 
-    /** Best-effort orphan-blob cleanup when we bail between
-     * `ctx.storage.store` and the cross-table write that would record
-     * the storageId on the job row. Suppresses delete errors (the blob
-     * may have already been reaped by cascade) but logs them. */
-    const deleteOrphanBlob = async (
-      storageId: Id<'_storage'>,
-    ): Promise<void> => {
+    /** Org slug for the backend-aware blob store: an S3-backed org's
+     * transcript/audio blobs land in its own bucket. Unresolvable slug
+     * (org deleted mid-flight) falls back to Convex `_storage` — never
+     * fail an ingest over blob routing. */
+    const orgSlug = await orgSlugFromIdOrNull(ctx, job.organizationId);
+
+    /** Store a pipeline artifact through the backend-aware seam (org bucket
+     * when configured, else Convex `_storage`). */
+    const storeJobBlob = async (
+      bytes: Uint8Array,
+      contentType: string,
+    ): Promise<BlobRef> => {
+      if (orgSlug !== null) {
+        return await putBlob(ctx, orgSlug, bytes, contentType);
+      }
+      // Copy into a fresh ArrayBuffer so the Blob constructor's BlobPart
+      // constraint accepts it without an unsafe assertion.
+      const ab = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(ab).set(bytes);
+      return await ctx.storage.store(new Blob([ab], { type: contentType }));
+    };
+
+    /** Best-effort orphan-blob cleanup when we bail between the blob store
+     * and the cross-table write that would record the storageId on the job
+     * row. Suppresses delete errors (the blob may have already been reaped
+     * by cascade) but logs them. Backend-aware: `s3:` refs delete through
+     * the seam, Convex ids inline. */
+    const deleteOrphanBlob = async (storageId: BlobRef): Promise<void> => {
       try {
-        await ctx.storage.delete(storageId);
+        const convexId = convexStorageId(storageId);
+        if (convexId !== null) {
+          await ctx.storage.delete(convexId);
+        } else if (orgSlug !== null) {
+          await deleteBlob(ctx, orgSlug, storageId);
+        }
       } catch (err) {
         console.warn(
           JSON.stringify({
@@ -502,10 +531,11 @@ export const ingestVideoLink = internalAction({
                   : '';
               const fullTranscript = chapterToc + transcriptBody;
 
-              const blob = new Blob([fullTranscript], {
-                type: 'text/plain; charset=utf-8',
-              });
-              const storageId = await ctx.storage.store(blob);
+              const transcriptBytes = new TextEncoder().encode(fullTranscript);
+              const storageId = await storeJobBlob(
+                transcriptBytes,
+                'text/plain; charset=utf-8',
+              );
 
               // GDPR / cascade race window: between the storage.store
               // above and the cross-table writes below, an erasure or
@@ -547,7 +577,7 @@ export const ingestVideoLink = internalAction({
                   jobId: args.jobId,
                   storageId,
                   transcript: fullTranscript,
-                  fileSize: blob.size,
+                  fileSize: transcriptBytes.byteLength,
                   videoTitle: safeTitle ?? 'Untitled video',
                   videoUploader: safeUploader,
                   videoDurationSec: metadata.duration ?? 0,
@@ -646,8 +676,12 @@ export const ingestVideoLink = internalAction({
       if (!(await assertNotCancelled())) return;
 
       const audioBuf = await fs.readFile(audioPath);
-      const audioBlob = new Blob([audioBuf], { type: 'audio/ogg' });
-      const audioStorageId = await ctx.storage.store(audioBlob);
+      const audioBytes = new Uint8Array(
+        audioBuf.buffer,
+        audioBuf.byteOffset,
+        audioBuf.byteLength,
+      );
+      const audioStorageId = await storeJobBlob(audioBytes, 'audio/ogg');
 
       // GDPR / cascade race window: between storage.store and the
       // saveFileMetadata cross-table write below, erasure can delete
@@ -696,7 +730,7 @@ export const ingestVideoLink = internalAction({
           storageId: audioStorageId,
           fileName: `${safeTitle ?? 'video'}.ogg`,
           contentType: 'audio/ogg',
-          size: audioBlob.size,
+          size: audioBytes.byteLength,
           // 'video_link' instead of 'user' so prompt-injection-aware
           // downstream code can differentiate third-party content.
           source: 'video_link',
@@ -723,7 +757,7 @@ export const ingestVideoLink = internalAction({
           jobId: args.jobId,
           orgId: job.organizationId,
           audioStorageId,
-          audioBytes: audioBlob.size,
+          audioBytes: audioBytes.byteLength,
         }),
       );
 
