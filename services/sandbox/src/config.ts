@@ -375,15 +375,17 @@ export function loadConfig(): SpawnerConfig {
       100 * 1024 * 1024,
       { min: 1024 },
     ),
-    // Body cap on /v1/execute. The request body now carries only URL
-    // lists (workspace files, prior outputs, upload slots) — no inline
-    // content — so 2 MB is plenty for the JSON envelope + URL strings
-    // even at the MAX_FILES_PER_REQUEST (50) ceiling. Bounds the
-    // unsigned-mode OOM surface. Operators with a niche need can raise
-    // via SANDBOX_MAX_REQUEST_BODY_BYTES.
+    // Body cap on /v1/execute and the session file endpoints. /v1/execute
+    // carries URL lists, but /v1/sessions/:id/files/stage takes INLINE
+    // base64 content (bound org skills, useSkills subtrees, steer control
+    // files), so the cap must fit a real skill-bundle chunk plus JSON
+    // envelope. The platform client chunks its stage payloads well under
+    // this (session_client.ts STAGE_BODY_BUDGET_BYTES); 8 MiB leaves
+    // headroom for growth while still bounding the unsigned-mode OOM
+    // surface. Operators can tune via SANDBOX_MAX_REQUEST_BODY_BYTES.
     maxRequestBodyBytes: numEnv(
       'SANDBOX_MAX_REQUEST_BODY_BYTES',
-      2 * 1024 * 1024,
+      8 * 1024 * 1024,
       { min: 4 * 1024 },
     ),
     session: {

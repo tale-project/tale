@@ -4,7 +4,14 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import { drainSessionExecResilient, sessionCreate } from './session_client';
+import {
+  chunkStageFiles,
+  drainSessionExecResilient,
+  STAGE_BODY_BUDGET_BYTES,
+  sessionCreate,
+  sessionStageFiles,
+  type SessionStageFile,
+} from './session_client';
 
 const enc = new TextEncoder();
 
@@ -133,6 +140,83 @@ describe('drainSessionExecResilient', () => {
     // Longer timeout: the give-up path deliberately sleeps the full linear
     // backoff (0.5+1+1.5+2+2.5s ≈ 7.5s) across the 5 retries.
   }, 15_000);
+});
+
+describe('chunkStageFiles', () => {
+  const stageFile = (path: string, contentBytes: number): SessionStageFile => ({
+    path,
+    contentBase64: 'a'.repeat(contentBytes),
+  });
+
+  test('packs many files into batches whose serialized body stays under the budget', () => {
+    const budget = 1_000;
+    const files = Array.from({ length: 40 }, (_, i) =>
+      stageFile(`dir/file-${i}.txt`, 100),
+    );
+    const batches = chunkStageFiles(files, budget);
+    expect(batches.length).toBeGreaterThan(1);
+    for (const batch of batches) {
+      expect(
+        Buffer.byteLength(JSON.stringify({ files: batch }), 'utf8'),
+      ).toBeLessThanOrEqual(budget);
+    }
+    // Order and completeness: flattening the batches reproduces the input.
+    expect(batches.flat()).toEqual(files);
+  });
+
+  test('a single entry over the budget throws instead of 413ing downstream', () => {
+    expect(() => chunkStageFiles([stageFile('big.bin', 2_000)], 1_000)).toThrow(
+      /big\.bin/,
+    );
+  });
+
+  test('empty input yields no batches', () => {
+    expect(chunkStageFiles([], 1_000)).toEqual([]);
+  });
+});
+
+describe('sessionStageFiles chunking', () => {
+  test('splits an over-budget payload into sequential POSTs and merges results', async () => {
+    // Two files that cannot share one batch under the module budget: each
+    // serializes to ~0.9 MiB, together ~1.8 MiB > 1.5 MiB.
+    const big = Math.floor(STAGE_BODY_BUDGET_BYTES * 0.6);
+    const files: SessionStageFile[] = [
+      { path: 'skills/a/SKILL.md', contentBase64: 'a'.repeat(big) },
+      { path: 'skills/b/SKILL.md', contentBase64: 'b'.repeat(big) },
+    ];
+    const bodies: Array<{ files: SessionStageFile[] }> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: any, init: any) => {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const body = JSON.parse(String(init.body)) as {
+        files: SessionStageFile[];
+      };
+      bodies.push(body);
+      return new Response(
+        JSON.stringify({
+          staged: body.files.map((f) => ({ path: f.path, bytes: 1 })),
+          skipped:
+            bodies.length === 2
+              ? [{ path: 'skills/b/extra', reason: 'denied' }]
+              : [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const result = await sessionStageFiles('ses-stage', files);
+    expect(bodies.length).toBe(2);
+    expect(bodies[0]?.files.map((f) => f.path)).toEqual(['skills/a/SKILL.md']);
+    expect(bodies[1]?.files.map((f) => f.path)).toEqual(['skills/b/SKILL.md']);
+    expect(result.staged.map((s) => s.path)).toEqual([
+      'skills/a/SKILL.md',
+      'skills/b/SKILL.md',
+    ]);
+    expect(result.skipped).toEqual([
+      { path: 'skills/b/extra', reason: 'denied' },
+    ]);
+  });
 });
 
 describe('sessionCreate drain-retry', () => {

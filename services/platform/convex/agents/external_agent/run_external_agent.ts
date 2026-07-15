@@ -1044,7 +1044,7 @@ export const runExternalAgentTurn = internalAction({
         workspaceIsTale = await workspaceIsTaleRepo(sessionId, workdirRel);
       } catch (skillErr) {
         console.warn(
-          '[runExternalAgentTurn] integration skill staging failed (continuing):',
+          '[runExternalAgentTurn] skill staging failed (continuing):',
           skillErr,
         );
       }

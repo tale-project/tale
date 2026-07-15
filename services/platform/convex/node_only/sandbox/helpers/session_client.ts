@@ -480,9 +480,56 @@ export interface SessionStageResult {
   skipped: Array<{ path: string; reason: string }>;
 }
 
-/** POST /v1/sessions/:id/files/stage — write files into the session workspace.
- * Throws on transport/HTTP failure; per-file failures come back in `skipped`. */
-export async function sessionStageFiles(
+/** Client-side serialized-body budget per stage POST. Deliberately far under
+ * the spawner's maxRequestBodyBytes (2 MiB historically, 8 MiB now) so a
+ * multi-skill or fat-subtree payload never 413s regardless of which spawner
+ * build is running; the HMAC headers ride outside the body, so the envelope
+ * math below is exact. */
+export const STAGE_BODY_BUDGET_BYTES = 1.5 * 1024 * 1024;
+
+// Serialized length of the request envelope around the files array:
+// `{"files":[` + `]}`.
+const STAGE_ENVELOPE_BYTES = Buffer.byteLength('{"files":[]}', 'utf8');
+
+/**
+ * Pack stage files into batches whose SERIALIZED request body stays under
+ * `maxBodyBytes`, preserving order. Pure — exported for unit tests. Uses the
+ * exact JSON length (per-entry serialized bytes + separating commas +
+ * envelope), so a batch never exceeds the budget it was packed for. A single
+ * entry that cannot fit on its own throws: chunking cannot help an oversize
+ * file, and silently posting it would just 413 downstream.
+ */
+export function chunkStageFiles(
+  files: SessionStageFile[],
+  maxBodyBytes: number = STAGE_BODY_BUDGET_BYTES,
+): SessionStageFile[][] {
+  const batches: SessionStageFile[][] = [];
+  let batch: SessionStageFile[] = [];
+  let batchBytes = STAGE_ENVELOPE_BYTES;
+  for (const file of files) {
+    const entryBytes = Buffer.byteLength(JSON.stringify(file), 'utf8');
+    if (STAGE_ENVELOPE_BYTES + entryBytes > maxBodyBytes) {
+      throw new Error(
+        `stage file "${file.path}" serializes to ${entryBytes} bytes — over the ` +
+          `${maxBodyBytes}-byte request budget; it cannot be staged inline`,
+      );
+    }
+    const commaBytes = batch.length > 0 ? 1 : 0;
+    if (batchBytes + commaBytes + entryBytes > maxBodyBytes) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = STAGE_ENVELOPE_BYTES;
+    }
+    batch.push(file);
+    batchBytes += (batch.length > 1 ? 1 : 0) + entryBytes;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+/** One raw stage POST — no chunking. Kept private; callers go through
+ * sessionStageFiles so every payload is budget-packed. */
+async function postStageFiles(
   sessionId: string,
   files: SessionStageFile[],
 ): Promise<SessionStageResult> {
@@ -500,6 +547,24 @@ export async function sessionStageFiles(
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   return (await res.json()) as SessionStageResult;
+}
+
+/** POST /v1/sessions/:id/files/stage — write files into the session workspace.
+ * Large payloads are auto-chunked into sequential POSTs, each packed under
+ * STAGE_BODY_BUDGET_BYTES, so callers can hand over whole skill bundles
+ * without tripping the spawner's request-body cap. Throws on transport/HTTP
+ * failure of any chunk; per-file failures come back merged in `skipped`. */
+export async function sessionStageFiles(
+  sessionId: string,
+  files: SessionStageFile[],
+): Promise<SessionStageResult> {
+  const merged: SessionStageResult = { staged: [], skipped: [] };
+  for (const batch of chunkStageFiles(files)) {
+    const result = await postStageFiles(sessionId, batch);
+    merged.staged.push(...result.staged);
+    merged.skipped.push(...result.skipped);
+  }
+  return merged;
 }
 
 export interface SessionDeleteResult {

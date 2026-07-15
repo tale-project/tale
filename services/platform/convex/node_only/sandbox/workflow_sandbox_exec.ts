@@ -1495,7 +1495,7 @@ export const runSandboxAgent = internalAction({
           workspaceIsTale = await workspaceIsTaleRepo(sessionId);
         } catch (skillErr) {
           console.warn(
-            '[runSandboxAgent] integration skill staging failed (continuing):',
+            '[runSandboxAgent] skill staging failed (continuing):',
             skillErr,
           );
         }
