@@ -25,6 +25,14 @@ vi.mock('../../_generated/api', () => ({
         deleteThreadFile: 'mock-delete-thread-file',
       },
     },
+    // Backend-aware blob lanes file_write hops through (it is V8-bundled and
+    // can't import the 'use node' seam directly).
+    files: {
+      blob_actions: {
+        storeOrgBlob: 'mock-store-org-blob',
+        deleteOrgBlobs: 'mock-delete-org-blobs',
+      },
+    },
   },
   components: {
     agent: { threads: { getThread: 'mock-get-thread' } },
@@ -97,12 +105,23 @@ function createMockCtx(opts: { summary?: string }) {
       throw new Error(`unexpected runMutation ref: ${ref}`);
     },
   );
+  const runAction = vi.fn(
+    (ref: string, args: Record<string, unknown>): Promise<unknown> => {
+      calls.push({ ref, args });
+      // The backend-aware store lane returns the stored blob reference.
+      if (ref === 'mock-store-org-blob') return Promise.resolve('storage-new');
+      // The backend-aware delete lane (orphan reclaim) returns null.
+      if (ref === 'mock-delete-org-blobs') return Promise.resolve(null);
+      throw new Error(`unexpected runAction ref: ${ref}`);
+    },
+  );
   return {
     ctx: {
       organizationId: ORG_ID,
       threadId: JOB_THREAD_ID,
       runQuery,
       runMutation,
+      runAction,
       storage: {
         store: vi.fn().mockResolvedValue('storage-new'),
         delete: vi.fn(),
