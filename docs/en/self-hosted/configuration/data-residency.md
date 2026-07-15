@@ -46,6 +46,21 @@ The same ParadeDB requirement applies. The org validates its candidate database 
 
 This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
 
+An organization owner or admin can also manage this connection from the UI: **Settings > Organization data residency** reads and writes exactly these files, with the same connection test before switching. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
+
+## Per-organization object storage
+
+The same per-organization pattern covers uploaded files. A single organization can point **its own** file blobs — Knowledge Hub documents, chat attachments, audio, and generated media — at an S3-compatible bucket you provision for it (AWS S3, MinIO, Cloudflare R2, …), while every other org keeps using the deployment default. The bucket is dedicated to that organization; nothing in it is shared across organizations.
+
+The connection lives next to the knowledge one, under the organization's config directory:
+
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — region, optional endpoint (for MinIO/R2), path-style flag, bucket, and an optional key prefix.
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — the access key pair, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
+
+Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are — mixed references are supported, so you can switch at any time without migrating old blobs. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
+
+Org admins can manage this connection from **Settings > Organization data residency** too; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
+
 ## File storage on S3
 
 External file storage is all-or-nothing across Convex's storage use-cases, so you provide **five buckets** — files, exports, snapshot-imports, modules, and search — plus a region and credentials. For S3-compatible services (MinIO, Cloudflare R2) set the endpoint and enable path-style addressing.

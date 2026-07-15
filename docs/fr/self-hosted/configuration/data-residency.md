@@ -46,6 +46,21 @@ Le même prérequis ParadeDB s'applique. L'org valide sa base candidate avec un 
 
 Ce chemin retombe sans risque. Une organisation sans `connection.json` garde le `knowledge-db` par défaut du déploiement exactement comme avant, la fonctionnalité ne change donc rien pour les orgs qui n'y adhèrent pas. Deux organisations qui pointent vers la même base partagent un seul pool de connexions et — contrairement aux banques au niveau du déploiement — un changement par org ne demande aucun redémarrage de conteneur : la prochaine requête de cette org est routée vers sa propre base.
 
+Un propriétaire ou un admin de l'organisation peut aussi gérer cette connexion depuis l'UI : **Paramètres > Résidence des données de l'organisation** lit et écrit exactement ces fichiers, avec le même test de connexion avant de basculer. Les fichiers JSON sur le disque restent la source de vérité — un opérateur qui préfère les éditer à la main n'a besoin d'aucune étape UI.
+
+## Stockage d'objets par organisation
+
+Le même schéma par organisation couvre les fichiers téléversés. Une organisation seule peut pointer **ses propres** blobs de fichiers — documents du Knowledge Hub, pièces jointes de chat, audio et médias générés — vers un bucket compatible S3 que tu provisionnes pour elle (AWS S3, MinIO, Cloudflare R2, …), pendant que toutes les autres orgs gardent le défaut du déploiement. Le bucket est dédié à cette organisation ; rien de ce qu'il contient n'est partagé avec une autre.
+
+La connexion vit à côté de celle des connaissances, dans le répertoire de configuration de l'organisation :
+
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — région, endpoint optionnel (pour MinIO/R2), indicateur path-style, bucket et un préfixe de clé optionnel.
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — la paire de clés d'accès, chiffrée avec SOPS dès qu'une clé age SOPS est configurée (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
+
+Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment sans migrer les anciens blobs. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
+
+Les admins d'org gèrent aussi cette connexion dans **Paramètres > Résidence des données de l'organisation** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
+
 ## Stockage de fichiers sur S3
 
 Le stockage de fichiers externe est tout-ou-rien à travers les cas d'usage de stockage de Convex, donc tu fournis **cinq buckets** — files, exports, snapshot-imports, modules et search — plus une région et des identifiants. Pour les services compatibles S3 (MinIO, Cloudflare R2), définis l'endpoint et active l'adressage path-style.

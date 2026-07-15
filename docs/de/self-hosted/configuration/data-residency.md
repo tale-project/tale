@@ -46,6 +46,21 @@ Dieselbe ParadeDB-Voraussetzung gilt. Die Org prüft ihre Kandidaten-Datenbank m
 
 Dieser Weg fällt sicher zurück. Eine Organisation ohne `connection.json` nutzt weiter den Deployment-Default `knowledge-db` genau wie zuvor, das Feature ändert also nichts für Orgs, die sich nicht dafür entscheiden. Zwei Organisationen, die auf dieselbe Datenbank zeigen, teilen sich einen Verbindungs-Pool, und — anders als die deployment-weiten Speicher — braucht eine Änderung pro Org keinen Container-Neustart: die nächste Anfrage dieser Org wird auf ihre eigene Datenbank geleitet.
 
+Ein Inhaber oder Admin der Organisation kann diese Verbindung auch über die UI verwalten: **Einstellungen > Datenresidenz der Organisation** liest und schreibt genau diese Dateien, mit demselben Verbindungstest vor dem Umschalten. Die JSON-Dateien auf der Platte bleiben die Quelle der Wahrheit — ein Operator, der sie lieber von Hand bearbeitet, braucht keinen UI-Schritt.
+
+## Objektspeicher pro Organisation
+
+Dasselbe Pro-Organisation-Muster deckt hochgeladene Dateien ab. Eine einzelne Organisation kann **ihre eigenen** Datei-Blobs — Knowledge-Hub-Dokumente, Chat-Anhänge, Audio und generierte Medien — auf einen S3-kompatiblen Bucket ausrichten, den du für sie bereitstellst (AWS S3, MinIO, Cloudflare R2, …), während jede andere Org weiter den Deployment-Default nutzt. Der Bucket gehört dieser einen Organisation; nichts darin wird mit anderen Organisationen geteilt.
+
+Die Verbindung liegt neben der Wissens-Verbindung im Konfigurationsverzeichnis der Organisation:
+
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — Region, optionaler Endpoint (für MinIO/R2), Path-Style-Flag, Bucket und ein optionales Key-Präfix.
+- `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — das Schlüsselpaar, SOPS-verschlüsselt, sobald ein SOPS-Age-Schlüssel konfiguriert ist (siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops)).
+
+Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten, ohne alte Blobs zu migrieren. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
+
+Org-Admins verwalten auch diese Verbindung unter **Einstellungen > Datenresidenz der Organisation**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
+
 ## Dateispeicher auf S3
 
 Externer Dateispeicher ist alles-oder-nichts über die Speicher-Use-Cases von Convex hinweg, also gibst du **fünf Buckets** an — files, exports, snapshot-imports, modules und search — plus Region und Anmeldedaten. Für S3-kompatible Dienste (MinIO, Cloudflare R2) setzt du den Endpunkt und aktivierst die Path-Style-Adressierung.
