@@ -33,16 +33,16 @@ The knowledge database uses two Postgres extensions: `vector` (pgvector) for emb
 
 ## Per-organization knowledge databases
 
-The stores above are deployment-wide — every organization shares them. A single organization can instead point **its own** knowledge corpus at a Postgres you provision for it, while every other org keeps using the bundled `knowledge-db`. Reach for this when one tenant's document text must sit on infrastructure isolated from the rest — a stricter residency requirement than the deployment default satisfies.
+The stores above are deployment-wide — every organization shares them. A single organization can instead point **its own** knowledge corpus at a Postgres you provision for it, while every other org keeps using the bundled `knowledge-db`. Reach for this when one tenant's document and crawled-web content must sit on infrastructure isolated from the rest — a stricter residency requirement than the deployment default satisfies.
 
-Only the RAG corpus moves per-org: the `private_knowledge` schema — document metadata, chunk text, embeddings, and the semantic cache. The crawler's `public_web` pages stay on the deployment-default database, because web content is shared across organizations, not tenant-owned.
+The org's **entire** knowledge corpus moves — both schemas: `private_knowledge` (document metadata, chunk text, embeddings, and the semantic cache) and `public_web` (the crawler's website pages, their chunk text, and embeddings). Nothing in an organization's knowledge database is shared with any other organization.
 
 The connection lives under the organization's own config directory, not the deployment file:
 
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — host, port, database, user, and sslmode.
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — the password, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty — Tale creates the `private_knowledge` schema on first use, so you never apply the baseline migrations by hand.
+The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty — Tale creates the `private_knowledge` and `public_web` schemas on first use, so you never apply the baseline migrations by hand.
 
 This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
 
