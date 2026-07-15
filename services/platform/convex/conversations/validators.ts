@@ -83,6 +83,9 @@ export const conversationItemValidator = v.object({
   _creationTime: v.number(),
   organizationId: v.string(),
   contactId: v.optional(v.string()),
+  // Internal member owner (Better Auth userId). Surfaced so the conversation
+  // header can show the current assignee and gate the admin picker.
+  assigneeUserId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),

@@ -11,6 +11,9 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // Inbound conversation messages route to the assignee (or org admins) and
   // need a reply, so they deliver by email too — not just the in-app bell.
   'conversation_message',
+  // A conversation assigned to a member is a targeted hand-off that needs their
+  // attention, so it emails the new assignee (mirrors task_assigned).
+  'conversation_assigned',
 ] as const;
 
 type ActionableNotificationType =

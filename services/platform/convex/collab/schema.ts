@@ -39,6 +39,9 @@ export const notificationTypeValidator = v.union(
   v.literal('workforce_digest'),
   // Inbound customer message in Conversations (automation-driven).
   v.literal('conversation_message'),
+  // A conversation was assigned to a member by an admin (targeted; the new
+  // assignee is notified, mirroring task_assigned). Actionable.
+  v.literal('conversation_assigned'),
 );
 
 export const notificationActorTypeValidator = v.union(

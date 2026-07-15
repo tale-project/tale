@@ -3,6 +3,8 @@ import { ConvexError, v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import { emitAuditSuccess } from '../audit_logs/emit';
+import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import { mutationWithRLS } from '../lib/rls';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { composeEmailConversation as composeEmailConversationHelper } from './compose_email_conversation';
@@ -111,6 +113,9 @@ export const composeEmailConversation = mutationWithRLS({
     subject: v.string(),
     content: v.string(),
     from: v.optional(v.string()),
+    // Chosen assignee (Better Auth userId). Defaults to the creator; only an
+    // admin may set a different member — a non-admin pick is clamped to self.
+    assigneeUserId: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -133,24 +138,111 @@ export const composeEmailConversation = mutationWithRLS({
     conversationId: Id<'conversations'>;
     messageId: Id<'conversationMessages'>;
   }> => {
-    // Default-assign a NON-ADMIN starter as the owner; admin/owner-started
-    // threads stay unassigned (→ admin fallback until an admin assigns).
+    // The new conversation is assigned on creation — to the creator by default,
+    // or to another member only when an admin picks one.
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
     // Resolve the starter's role from the member mirror via an internal query —
     // this RLS-wrapped ctx can't read `memberMirror` directly (it's filtered),
-    // so the read runs on a raw ctx. A non-admin starter becomes the default
-    // owner; owner/admin-started threads stay unassigned (→ admin fallback until
-    // an admin assigns). Unknown role ⇒ treat as non-admin (assign the starter).
+    // so the read runs on a raw ctx. Unknown role ⇒ treat as non-admin.
     const role = await ctx.runQuery(
       internal.members.internal_queries.getMirrorMemberRole,
       { organizationId: args.organizationId, userId: authUser.userId },
     );
     const isAdmin = role === 'owner' || role === 'admin';
+    // Only an admin may hand the thread to a different member; a non-admin is
+    // always the assignee (matches the admin-only reassignment rule).
+    const assigneeUserId = isAdmin
+      ? args.assigneeUserId || authUser.userId
+      : authUser.userId;
     return await composeEmailConversationHelper(ctx, {
       ...args,
-      assigneeUserId: isAdmin ? undefined : authUser.userId,
+      assigneeUserId,
     });
+  },
+});
+
+/**
+ * Set / change / clear a conversation's assignee. **Admin-only** (owner/admin);
+ * a non-admin caller is rejected. The new assignee is notified (in-app + email)
+ * unless they assigned it to themselves. Unassigning (omit `assigneeUserId`)
+ * clears the field and notifies no one. A no-op when the assignee is unchanged.
+ *
+ * The explicit `Promise<null>` handler return type is required: without it, the
+ * `ctx.runQuery(internal.*)` below cycles `ApiFromModules` into a TS7022 cascade
+ * (see composeEmailConversation above).
+ */
+export const assignConversation = mutationWithRLS({
+  args: {
+    conversationId: v.id('conversations'),
+    // Omit ⇒ unassign. A human member userId only — conversations have no agent owners.
+    assigneeUserId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new ConvexError({
+        code: 'conversation_not_found',
+        message: 'Conversation not found',
+      });
+    }
+    // Admin gate — resolve the caller's role from the member mirror on a raw ctx
+    // (this RLS ctx can't read `memberMirror`), mirroring composeEmailConversation.
+    const role = await ctx.runQuery(
+      internal.members.internal_queries.getMirrorMemberRole,
+      { organizationId: conversation.organizationId, userId: authUser.userId },
+    );
+    if (role !== 'owner' && role !== 'admin') {
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can assign conversations',
+      });
+    }
+
+    const previousAssigneeUserId = conversation.assigneeUserId ?? null;
+    const nextAssigneeUserId = args.assigneeUserId ?? null;
+    // Unchanged ⇒ no write, no audit, no notify.
+    if (previousAssigneeUserId === nextAssigneeUserId) return null;
+
+    await ctx.db.patch(args.conversationId, {
+      assigneeUserId: nextAssigneeUserId ?? undefined,
+    });
+
+    // Audit via emitAuditSuccess — it routes the write through the internal
+    // createAuditLog on a raw ctx (atomically), because the audit-chain genesis
+    // sentinel is deny-all under RLS (#1972); the conversation domain audits
+    // this way (reopen/spam/etc.).
+    await emitAuditSuccess(ctx, {
+      auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+      action: nextAssigneeUserId
+        ? 'assign_conversation'
+        : 'unassign_conversation',
+      category: 'data',
+      resourceType: 'conversation',
+      resourceId: String(args.conversationId),
+      resourceName: conversation.subject,
+      previousState: { assigneeUserId: previousAssigneeUserId },
+      newState: { assigneeUserId: nextAssigneeUserId },
+    });
+
+    // Notify the new assignee on a raw ctx (a cross-user userNotifications write
+    // isn't allowed under RLS). Skip on unassign and on self-assignment (the
+    // emitter self-skips too, but there's no point scheduling a no-op job).
+    if (nextAssigneeUserId && nextAssigneeUserId !== authUser.userId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.conversations.internal_mutations.notifyAssigned,
+        {
+          conversationId: args.conversationId,
+          assigneeUserId: nextAssigneeUserId,
+          actorUserId: authUser.userId,
+        },
+      );
+    }
+    return null;
   },
 });
 

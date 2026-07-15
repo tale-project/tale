@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Center, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -9,8 +10,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -109,7 +116,39 @@ export function ComposeEmailPane({
     `${draftPrefix}-subject`,
     '',
   );
+  const [assigneeUserId, setAssigneeUserId, clearAssigneeUserId] =
+    usePersistedState(`${draftPrefix}-assignee`, user?.userId ?? '');
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+
+  // Default the assignee to the creator once auth resolves (a fresh draft has no
+  // stored value). Only admins can pick someone else; the field is read-only
+  // otherwise, and the server clamps a non-admin to self regardless.
+  const { members = [] } = useMembers(organizationId);
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const canReassign =
+    !!memberContext &&
+    'role' in memberContext &&
+    (memberContext.role === 'admin' || memberContext.role === 'owner');
+  useEffect(() => {
+    if (!assigneeUserId && user?.userId) setAssigneeUserId(user.userId);
+  }, [assigneeUserId, user?.userId, setAssigneeUserId]);
+
+  const assigneeOptions = useMemo<SearchableSelectOption[]>(() => {
+    const sorted = [...members].sort((a, b) =>
+      a.userId === user?.userId ? -1 : b.userId === user?.userId ? 1 : 0,
+    );
+    return sorted.map((member) => ({
+      value: member.userId,
+      label: member.displayName ?? member.email ?? member.userId,
+      description: member.userId === user?.userId ? undefined : member.email,
+      labelBadge:
+        member.userId === user?.userId ? (
+          <Badge variant="outline" className="text-[10px]">
+            {t('compose.assignYou')}
+          </Badge>
+        ) : undefined,
+    }));
+  }, [members, user?.userId, t]);
 
   // Seeded recipient (from a contact row) wins over a restored draft contact.
   useEffect(() => {
@@ -169,7 +208,14 @@ export function ComposeEmailPane({
     clearIntegrationName();
     clearSenderAddress();
     clearSubject();
-  }, [clearContactId, clearIntegrationName, clearSenderAddress, clearSubject]);
+    clearAssigneeUserId();
+  }, [
+    clearContactId,
+    clearIntegrationName,
+    clearSenderAddress,
+    clearSubject,
+    clearAssigneeUserId,
+  ]);
 
   const discardDraft = useCallback(() => {
     clearDraftFields();
@@ -235,6 +281,7 @@ export function ComposeEmailPane({
         integrationName,
         subject: subject.trim(),
         content: message,
+        ...(assigneeUserId ? { assigneeUserId } : {}),
         ...(dynamicSender && effectiveSender ? { from: effectiveSender } : {}),
         ...(uploaded?.length ? { attachments: uploaded } : {}),
       });
@@ -287,12 +334,42 @@ export function ComposeEmailPane({
 
           <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
             <Stack gap={4}>
+              {/* The "who" first — external recipient, then internal owner. */}
               <ContactRecipientPicker
                 organizationId={organizationId}
                 value={contactId || null}
                 onChange={setContactId}
               />
 
+              <SearchableSelect
+                label={t('compose.assignLabel')}
+                value={assigneeUserId || null}
+                onValueChange={setAssigneeUserId}
+                options={assigneeOptions}
+                disabled={!canReassign}
+                placeholder={t('compose.assignPlaceholder')}
+                searchPlaceholder={t('compose.assignSearch')}
+                emptyText={t('header.noMembers')}
+                aria-label={t('compose.assignLabel')}
+                optionAction={(opt) => (
+                  <AssigneeAvatar
+                    assigneeType="user"
+                    assigneeId={opt.value}
+                    name={opt.label}
+                  />
+                )}
+              />
+
+              <Input
+                label={t('compose.subject')}
+                required
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder={t('compose.subjectPlaceholder')}
+              />
+
+              {/* Sending details — demoted below the message fields; most orgs
+                  have one inbox and a fixed sender, so this is usually empty. */}
               {integrationsLoading ? null : !hasEmailIntegration ? (
                 <Text variant="muted">{t('compose.noEmailIntegration')}</Text>
               ) : (
@@ -345,14 +422,6 @@ export function ComposeEmailPane({
                     ))}
                 </>
               )}
-
-              <Input
-                label={t('compose.subject')}
-                required
-                value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                placeholder={t('compose.subjectPlaceholder')}
-              />
             </Stack>
           </div>
         </Stack>
