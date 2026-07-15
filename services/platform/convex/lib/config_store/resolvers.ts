@@ -18,6 +18,7 @@ import { resolveBrandingDir } from '../../branding/file_utils';
 import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveIntegrationsDir } from '../../integrations/file_utils';
+import { resolveKnowledgeDir } from '../../knowledge/file_utils';
 import { resolvePromptsDir } from '../../prompts/file_utils';
 import { resolveProvidersDir } from '../../providers/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
@@ -38,6 +39,8 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   governance: resolveGovernanceDir,
   // `sso` is nested under governance — `resolveSsoDir` returns `<org>/governance/sso/`.
   sso: resolveSsoDir,
+  // Per-org knowledge-DB connection — `resolveKnowledgeDir` returns `<org>/knowledge/`.
+  knowledge: resolveKnowledgeDir,
   automations: resolveAutomationsDir,
   // LEGACY-CHAIN ONLY: `workflows` left the config-domain registry when
   // standalone workflows retired (a workflow lives inline in its automation).

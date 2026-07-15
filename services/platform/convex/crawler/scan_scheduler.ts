@@ -5,13 +5,21 @@
 // crawler moved in-process, the per-step actions (discover/fetch/index) were
 // ported but this driver was not, so registered websites never got crawled.
 // `scanDueWebsites` (a Convex cron) restores that: it finds due websites and
-// schedules `scanWebsite` for each.
+// schedules `scanWebsite` for each. Every corpus read/write is routed to the
+// owning org's knowledge pool (bring-your-own or the deployment default), so the
+// crawler corpus is isolated per-org exactly like the RAG corpus.
 
 import { v } from 'convex/values';
+import type { Sql } from 'postgres';
 
-import { internal } from '../_generated/api';
+import { getString, isRecord } from '../../lib/utils/type-utils';
+import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
+import {
+  getKnowledgePoolForOrg,
+  resolveKnowledgeUrlForOrg,
+} from '../lib/knowledge/db/knowledge_db';
 import { indexPages } from './lib/indexing_service';
 import {
   countUncrawledUrls,
@@ -72,6 +80,10 @@ const sleep = (ms: number): Promise<void> =>
  * multi-thousand-page site is fully indexed across a chain of budget-sized
  * actions instead of being capped at one action's worth.
  *
+ * Every corpus operation runs on the org's own knowledge pool (`sql`), resolved
+ * once up front from `orgSlug`, so a bring-your-own database isolates the org's
+ * crawler corpus entirely — nothing reaches for the shared default pool.
+ *
  * A failure is recorded on the website row (status 'error') rather than thrown,
  * so the scheduler treats each site independently.
  */
@@ -87,6 +99,10 @@ export const scanWebsite = internalAction({
     ctx,
     { domain, orgSlug, continuation = 0 },
   ): Promise<null> => {
+    // Route every corpus read/write to the org's own knowledge pool (BYO or the
+    // deployment default) — never the shared default pool.
+    const sql = await getKnowledgePoolForOrg(orgSlug);
+
     // Best-effort push of the live corpus state onto the per-org Convex
     // `websites` row the UI reads. Called after every fetch batch so the
     // Indexed count climbs smoothly during the crawl (not only at continuation
@@ -109,12 +125,13 @@ export const scanWebsite = internalAction({
 
     // Refresh status (and `updated_at`) on every continuation so a long chain is
     // never mistaken for a stuck 'scanning' row by getDueWebsites' >2h check.
-    await updateScanStatus(domain, 'scanning');
+    await updateScanStatus(sql, domain, 'scanning');
     const deadline = Date.now() + SCAN_ACTION_BUDGET_MS;
     try {
       // 1. Discover the full frontier once per chain.
       if (continuation === 0) {
         await ctx.runAction(internal.crawler.index_pages.discoverUrls, {
+          orgSlug,
           domain,
           maxUrls: MAX_DISCOVER_URLS,
         });
@@ -136,6 +153,7 @@ export const scanWebsite = internalAction({
       //    consecutive no-progress batches.
       const STAGNANT_BATCH_LIMIT = 2;
       let prevUncrawled = await countUncrawledUrls(
+        sql,
         domain,
         MAX_FETCH_FAIL_COUNT,
       );
@@ -148,6 +166,7 @@ export const scanWebsite = internalAction({
         // Uncrawled / never-attempted URLs sort first (NULLS FIRST), so failed
         // pages are retried only after fresh ones and drop out past the budget.
         const batch = await getUrlsNeedingRecrawl(
+          sql,
           domain,
           FETCH_BATCH_SIZE,
           null,
@@ -157,12 +176,13 @@ export const scanWebsite = internalAction({
 
         const fetched = await ctx.runAction(
           internal.crawler.index_pages.fetchUrls,
-          { domain, urls: batch },
+          { orgSlug, domain, urls: batch },
         );
         // Index just the pages we fetched (chunk + embed), concurrency-bounded.
         // Indexing the batch directly is O(batch); calling indexWebsite here
         // would rescan the whole corpus each time (O(n²) over the chain).
         await indexPages(
+          sql,
           orgSlug,
           domain,
           fetched.pages.map((page) => ({
@@ -171,11 +191,12 @@ export const scanWebsite = internalAction({
             content: page.content,
           })),
         );
-        await updateLastScanned(domain);
+        await updateLastScanned(sql, domain);
         // Surface progress to the UI after each batch (crawled_count just grew).
         await pushRowSync();
 
         const nowUncrawled = await countUncrawledUrls(
+          sql,
           domain,
           MAX_FETCH_FAIL_COUNT,
         );
@@ -191,7 +212,11 @@ export const scanWebsite = internalAction({
       //    the whole site is indexed or the continuation cap is hit. Don't
       //    reschedule if we stalled on unmarkable URLs (the remainder can never
       //    be crawled — going idle is correct).
-      const remaining = await countUncrawledUrls(domain, MAX_FETCH_FAIL_COUNT);
+      const remaining = await countUncrawledUrls(
+        sql,
+        domain,
+        MAX_FETCH_FAIL_COUNT,
+      );
       if (
         remaining > 0 &&
         stagnantBatches < STAGNANT_BATCH_LIMIT &&
@@ -203,12 +228,12 @@ export const scanWebsite = internalAction({
           { domain, orgSlug, continuation: continuation + 1 },
         );
       } else {
-        await updateScanStatus(domain, 'idle');
+        await updateScanStatus(sql, domain, 'idle');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[scanWebsite] scan failed for ${domain}: ${message}`);
-      await updateScanStatus(domain, 'error', message);
+      await updateScanStatus(sql, domain, 'error', message);
     }
     // Final push for the terminal state (idle / error + final counts). The
     // per-batch syncs above keep the UI live during the crawl; this captures the
@@ -224,23 +249,114 @@ export const scanWebsite = internalAction({
  * been stuck mid-scan > 2h — see getDueWebsites). Each due site is marked
  * `scanning` up front (so the next cron tick won't re-pick it) and scanned in
  * its own scheduled action, so one slow/failing site never blocks the others.
+ *
+ * Per-org isolation: each org's crawler corpus lives in its own knowledge
+ * database (bring-your-own) or the shared deployment default, so this enumerates
+ * every org, resolves its pool, and sweeps each DISTINCT pool once — co-tenant
+ * orgs on the same database share a pool, so a URL-dedup avoids re-querying it.
+ * A single default-pool sweep would silently miss every BYO org. Best-effort per
+ * org: one org's failure (invalid BYO config, unreachable database) is logged
+ * and never aborts the sweep. Better Auth `organization` rows are cursor-
+ * paginated, matching the config-cache reconcile.
  */
 export const scanDueWebsites = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
     if (isE2ECronSuppressed()) return null;
-    const due = await getDueWebsites();
-    for (const [i, w] of due.entries()) {
-      await updateScanStatus(w.domain, 'scanning');
-      // Stagger the per-site chains instead of launching every due site at
-      // once — N concurrent chains multiply the in-process load the pacing
-      // above meters out.
-      await ctx.scheduler.runAfter(
-        i * CONTINUATION_PACING_MS,
-        internal.crawler.scan_scheduler.scanWebsite,
-        { domain: w.domain, orgSlug: w.owner_org_slug },
+
+    const seenUrls = new Set<string>();
+    let staggerIndex = 0;
+    let cursor: string | null = null;
+    let prevCursor: string | null | undefined;
+    let isDone = false;
+    let pages = 0;
+    const MAX_PAGES = 1000;
+
+    while (!isDone) {
+      if (pages++ >= MAX_PAGES) {
+        console.warn('[scanDueWebsites] org page cap hit; stopping');
+        break;
+      }
+      if (prevCursor !== undefined && cursor === prevCursor) {
+        console.warn('[scanDueWebsites] org cursor did not advance; stopping');
+        break;
+      }
+      prevCursor = cursor;
+
+      const res: unknown = await ctx.runQuery(
+        components.betterAuth.adapter.findMany,
+        {
+          model: 'organization',
+          paginationOpts: { cursor, numItems: 200 },
+          where: [],
+        },
       );
+      const page = isRecord(res) && Array.isArray(res.page) ? res.page : [];
+
+      for (const raw of page) {
+        if (!isRecord(raw)) continue;
+        const orgSlug = getString(raw, 'slug');
+        if (!orgSlug) continue;
+
+        let url: string;
+        try {
+          url = await resolveKnowledgeUrlForOrg(orgSlug);
+        } catch (err) {
+          console.warn(
+            `[scanDueWebsites] URL resolution failed for org ${orgSlug}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          continue;
+        }
+        if (seenUrls.has(url)) continue;
+
+        let sql: Sql;
+        try {
+          sql = await getKnowledgePoolForOrg(orgSlug);
+        } catch (err) {
+          console.warn(
+            `[scanDueWebsites] pool resolution failed for org ${orgSlug}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          continue;
+        }
+        seenUrls.add(url);
+
+        let due;
+        try {
+          due = await getDueWebsites(sql);
+        } catch (err) {
+          console.warn(
+            `[scanDueWebsites] due-website query failed for org ${orgSlug}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          continue;
+        }
+
+        for (const w of due) {
+          await updateScanStatus(sql, w.domain, 'scanning');
+          // Stagger the per-site chains instead of launching every due site at
+          // once — N concurrent chains multiply the in-process load the pacing
+          // above meters out.
+          await ctx.scheduler.runAfter(
+            staggerIndex * CONTINUATION_PACING_MS,
+            internal.crawler.scan_scheduler.scanWebsite,
+            { domain: w.domain, orgSlug: w.owner_org_slug },
+          );
+          staggerIndex += 1;
+        }
+      }
+
+      cursor =
+        isRecord(res) && typeof res.continueCursor === 'string'
+          ? res.continueCursor
+          : null;
+      isDone =
+        isRecord(res) && typeof res.isDone === 'boolean' ? res.isDone : true;
     }
     return null;
   },

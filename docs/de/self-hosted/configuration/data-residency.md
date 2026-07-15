@@ -31,6 +31,21 @@ Drei Speicher, jeder unabhängig und optional. Eine fehlende Einstellung bedeute
 
 Die Wissensdatenbank nutzt zwei Postgres-Erweiterungen: `vector` (pgvector) für Embeddings und `pg_search` (ParadeDB) für die Volltext-/BM25-Hybrid-Suche. Ein externes Wissens-Postgres **muss ParadeDB ausführen** (das beide bündelt), damit die Suchqualität voll erhalten bleibt. Richtest du es auf ein schlichtes Postgres aus, das nur `pgvector` hat, funktionieren Indexierung und Vektor-Suche weiter, aber die Hybrid-Suche fällt auf **reine Vektor-Suche** zurück — die BM25-Hälfte wird still übersprungen. Der Knopf **Verbindung testen** meldet die Verfügbarkeit von `pgvector` und `pg_search`, damit du das siehst, bevor du dich festlegst. Die externe Wissensdatenbank muss bereits existieren (sie kann jeden Namen tragen, den du einträgst — `tale_knowledge` per Konvention) mit den Schemata `private_knowledge` und `public_web`; die Baseline-Schema-Migrationen leben in [`services/db/migrations/`](https://github.com/tale-project/tale/tree/main/services/db/migrations) und werden per dbmate angewendet, wenn die Datenbank hochkommt.
 
+## Wissensdatenbanken pro Organisation
+
+Die Speicher oben gelten deployment-weit — jede Organisation teilt sie sich. Eine einzelne Organisation kann stattdessen **ihren eigenen** Wissens-Korpus auf ein Postgres ausrichten, das du für sie bereitstellst, während jede andere Org weiter den mitgelieferten `knowledge-db` nutzt. Greif dazu, wenn der Dokument- und Web-Crawl-Inhalt eines Mandanten auf Infrastruktur liegen muss, die vom Rest isoliert ist — eine strengere Residenz-Anforderung, als der Deployment-Default sie erfüllt.
+
+Der **gesamte** Wissens-Korpus der Org wandert — beide Schemata: `private_knowledge` (Dokumentmetadaten, Chunk-Text, Embeddings und der semantische Cache) und `public_web` (die vom Crawler erfassten Website-Seiten, ihr Chunk-Text und die Embeddings). Nichts in der Wissensdatenbank einer Organisation wird mit einer anderen Organisation geteilt.
+
+Die Verbindung liegt im eigenen Konfigurationsverzeichnis der Organisation, nicht in der Deployment-Datei:
+
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — Host, Port, Datenbank, Benutzer und sslmode.
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — das Passwort, SOPS-verschlüsselt, sobald ein SOPS-Age-Schlüssel konfiguriert ist (siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops)).
+
+Dieselbe ParadeDB-Voraussetzung gilt. Die Org prüft ihre Kandidaten-Datenbank mit einem organisationsweiten Verbindungstest, der die Verfügbarkeit von `pgvector` und `pg_search` meldet, bevor sie umschaltet; ein Ziel mit nur pgvector lässt die Suche dieser Org auf reine Vektor-Suche zurückfallen. Die Datenbank darf leer starten — Tale legt die Schemata `private_knowledge` und `public_web` beim ersten Zugriff an, du wendest die Baseline-Migrationen also nie von Hand an.
+
+Dieser Weg fällt sicher zurück. Eine Organisation ohne `connection.json` nutzt weiter den Deployment-Default `knowledge-db` genau wie zuvor, das Feature ändert also nichts für Orgs, die sich nicht dafür entscheiden. Zwei Organisationen, die auf dieselbe Datenbank zeigen, teilen sich einen Verbindungs-Pool, und — anders als die deployment-weiten Speicher — braucht eine Änderung pro Org keinen Container-Neustart: die nächste Anfrage dieser Org wird auf ihre eigene Datenbank geleitet.
+
 ## Dateispeicher auf S3
 
 Externer Dateispeicher ist alles-oder-nichts über die Speicher-Use-Cases von Convex hinweg, also gibst du **fünf Buckets** an — files, exports, snapshot-imports, modules und search — plus Region und Anmeldedaten. Für S3-kompatible Dienste (MinIO, Cloudflare R2) setzt du den Endpunkt und aktivierst die Path-Style-Adressierung.

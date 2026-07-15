@@ -101674,6 +101674,45 @@
       "required": ["title", "authMethod"],
       "type": "object"
     },
+    "knowledge.knowledgeConnectionFileSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "database": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "host": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:[\\]-]+$",
+          "type": "string"
+        },
+        "port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sslmode": {
+          "enum": ["disable", "prefer", "require", "verify-ca", "verify-full"],
+          "type": "string"
+        },
+        "user": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["host", "port", "database", "user", "sslmode"],
+      "type": "object"
+    },
+    "knowledge.knowledgeConnectionSecretsSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "password": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "organizations.memberRoleSchema": {
       "enum": ["owner", "disabled", "member", "editor", "developer", "admin"],
       "type": "string"

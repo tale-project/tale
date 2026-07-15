@@ -17,6 +17,7 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../_generated/server';
+import { getKnowledgePoolForOrg } from '../lib/knowledge/db/knowledge_db';
 import {
   registerWebsite as storeRegisterWebsite,
   getWebsite as storeGetWebsite,
@@ -66,7 +67,8 @@ export const registerWebsite = internalAction({
     scanInterval: v.optional(v.number()),
   },
   handler: async (_ctx, args) => {
-    const existing = await storeGetWebsite(args.domain);
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    const existing = await storeGetWebsite(sql, args.domain);
     if (existing && existing.status === 'deleting') {
       return {
         success: false,
@@ -74,6 +76,7 @@ export const registerWebsite = internalAction({
       };
     }
     const result = await storeRegisterWebsite(
+      sql,
       args.domain,
       args.scanInterval ?? 21600,
       args.orgSlug,
@@ -100,10 +103,11 @@ export const getWebsite = internalAction({
     domain: v.string(),
   },
   handler: async (_ctx, args) => {
-    if (!(await orgHasMembership(args.domain, args.orgSlug))) {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    if (!(await orgHasMembership(sql, args.domain, args.orgSlug))) {
       return { website: null };
     }
-    const website = await storeGetWebsite(args.domain);
+    const website = await storeGetWebsite(sql, args.domain);
     if (!website) {
       return { website: null };
     }
@@ -124,17 +128,24 @@ export const listUrls = internalAction({
     status: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (_ctx, args) => {
-    if (!(await orgHasMembership(args.domain, args.orgSlug))) {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    if (!(await orgHasMembership(sql, args.domain, args.orgSlug))) {
       return { found: false, urls: [], total: 0, offset: 0, has_more: false };
     }
-    const website = await storeGetWebsite(args.domain);
+    const website = await storeGetWebsite(sql, args.domain);
     if (!website) {
       return { found: false, urls: [], total: 0, offset: 0, has_more: false };
     }
     const offset = args.offset ?? 0;
     const limit = args.limit ?? 100;
-    const urls = await getUrlsPage(args.domain, offset, limit, args.status);
-    const total = await getTotalCount(args.domain, args.status);
+    const urls = await getUrlsPage(
+      sql,
+      args.domain,
+      offset,
+      limit,
+      args.status,
+    );
+    const total = await getTotalCount(sql, args.domain, args.status);
     return {
       found: true,
       domain: args.domain,
@@ -157,10 +168,11 @@ export const updateScanInterval = internalAction({
     scanInterval: v.number(),
   },
   handler: async (_ctx, args) => {
-    if (!(await orgHasMembership(args.domain, args.orgSlug))) {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    if (!(await orgHasMembership(sql, args.domain, args.orgSlug))) {
       return { success: false, error: `Website not found: ${args.domain}` };
     }
-    const website = await storeGetWebsite(args.domain);
+    const website = await storeGetWebsite(sql, args.domain);
     if (!website) {
       return { success: false, error: `Website not found: ${args.domain}` };
     }
@@ -170,7 +182,7 @@ export const updateScanInterval = internalAction({
         error: `Domain ${args.domain} is currently being deleted. Please retry later.`,
       };
     }
-    await storeUpdateScanInterval(args.domain, args.scanInterval);
+    await storeUpdateScanInterval(sql, args.domain, args.scanInterval);
     return {
       success: true,
       domain: args.domain,
@@ -196,7 +208,8 @@ export const deregister = internalAction({
     domain: v.string(),
   },
   handler: async (_ctx, args) => {
-    const result = await beginDelete(args.domain, args.orgSlug);
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    const result = await beginDelete(sql, args.domain, args.orgSlug);
     if (!result.removed_membership) {
       return { success: false, error: `Website not found: ${args.domain}` };
     }
@@ -209,7 +222,7 @@ export const deregister = internalAction({
     }
     // Last membership dropped — run the CASCADE inline (best-effort).
     try {
-      await executeDelete(args.domain);
+      await executeDelete(sql, args.domain);
     } catch (err) {
       console.error(
         `[crawler] background delete failed for ${args.domain}: ${err instanceof Error ? err.message : String(err)}`,
@@ -238,9 +251,10 @@ export const listPages = internalAction({
     status: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (_ctx, args) => {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const offset = args.offset ?? 0;
     const limit = args.limit ?? 100;
-    if (!(await orgHasMembership(args.domain, args.orgSlug))) {
+    if (!(await orgHasMembership(sql, args.domain, args.orgSlug))) {
       return {
         domain: args.domain,
         pages: [],
@@ -250,6 +264,7 @@ export const listPages = internalAction({
       };
     }
     const { pages, total } = await listPagesWithChunkCount(
+      sql,
       args.domain,
       offset,
       limit,
@@ -277,10 +292,11 @@ export const getPageChunks = internalAction({
     url: v.string(),
   },
   handler: async (_ctx, args) => {
-    if (!(await orgHasMembership(args.domain, args.orgSlug))) {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    if (!(await orgHasMembership(sql, args.domain, args.orgSlug))) {
       return { url: args.url, domain: args.domain, chunks: [], total: 0 };
     }
-    const chunks = await storeGetPageChunks(args.domain, args.url);
+    const chunks = await storeGetPageChunks(sql, args.domain, args.url);
     return {
       url: args.url,
       domain: args.domain,

@@ -4,6 +4,25 @@ description: Tale Cloud is the managed edition. Tale runs the stack, your data i
 kind: index
 ---
 
+<!--
+AI-CONTEXT (not rendered) — Cloud edition invariants. Read before reasoning about
+per-org config, data residency, or environment variables on Cloud:
+- Each Cloud CUSTOMER runs on its OWN DEDICATED Tale instance (single-tenant per
+  customer). "Organizations" and any per-org routing (e.g. the per-org knowledge
+  Postgres in self-hosted/configuration/data-residency) refer to orgs WITHIN a
+  single instance — NEVER across Cloud customers, which are isolated at the
+  instance boundary. So "one org can't starve other orgs" / "all other orgs" is
+  always scoped to one instance, not the Cloud fleet.
+- Cloud customers have NO access to the underlying platform: no shell, no env
+  vars, no config files. KNOWLEDGE_DATABASE_URL is the INSTANCE-WIDE default
+  knowledge database and is managed by Tale — a Cloud customer cannot read or
+  edit it. Per-org "bring your own Postgres" is therefore configured through the
+  in-app org-admin management surface (org owners/admins), which writes
+  $TALE_CONFIG_DIR/<org>/knowledge/connection.json server-side; it is never done
+  by editing env or on-disk files. Orgs without an override keep using the
+  instance default.
+-->
+
 Tale Cloud is the managed edition. Tale operates the infrastructure, your data is pinned to Switzerland or the EU, and your team's only operational concern is using the product. The codebase is identical to self-hosted; the difference is who keeps it running.
 
 This section covers the concerns specific to running on Cloud — onboarding, regions and data residency, billing, the trust posture you can hand an auditor, and how to migrate to self-hosted if your needs change. Every other feature reference lives one tab over under Platform, identical regardless of edition.

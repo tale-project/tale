@@ -4,6 +4,11 @@
  * Files are the source of truth; every consumer (the scaffolder, the file
  * watcher, the file→cache sync, the read strategies) keys off this one list.
  *
+ * Config is PER-ORG BY CONSTRUCTION — every domain loads from
+ * `<orgSlug>/<domain>/`, so an org's config is isolated by design. A config
+ * domain must never become a cross-org shared surface (see AGENTS.md → tenant
+ * isolation): nothing org-owned is shared across organizations.
+ *
  * # The two-layer split (Convex V8↔Node bundling boundary)
  *
  * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`, so a
@@ -37,6 +42,7 @@ import {
   POLICY_SCHEMAS,
   policyTypeToFileBase,
 } from '../schemas/governance';
+import { KNOWLEDGE_CONFIG_DOMAIN } from '../schemas/knowledge';
 
 /**
  * On-disk shape of a domain's catalog/data dir:
@@ -297,6 +303,20 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       schemaFor: () => ssoConnectionFileSchema,
       fileBaseFor: () => SSO_CONNECTION_KEY, // 'connection' (no extension)
     },
+  },
+  // Per-org "bring your own Postgres" for the RAG corpus. Admin-on-demand like
+  // `sso` (created by the admin action, NOT catalog-scaffolded → no
+  // `scaffoldKind`, ships no builtin default). Read NODE-DIRECT: the `'use node'`
+  // knowledge-db pool resolver reads `<org>/knowledge/connection.json` to route
+  // the org's `private_knowledge` corpus at its own Postgres, so it is NOT
+  // mirrored into `configCache` (no `v8Sync`) and needs no SSE `watcher` (the
+  // resolver re-reads on a short TTL). Absent ⇒ the org uses the
+  // deployment-default knowledge pool (zero regression).
+  {
+    name: KNOWLEDGE_CONFIG_DOMAIN, // 'knowledge'
+    layout: 'single-file',
+    readContext: 'node-direct',
+    dataModel: 'config',
   },
   // First-class automations: each `automations/<slug>/` is a bundle (manifest
   // with the inline workflow + views/scripts + the automation's own scoped

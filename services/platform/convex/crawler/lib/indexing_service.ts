@@ -15,17 +15,15 @@
  * `EmbeddingService` is built from it.
  */
 
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   chunkContent,
   buildMetadataPrefix,
 } from '../../lib/knowledge/chunking/splitter';
 import { getEmbeddingConfig } from '../../lib/knowledge/config/base';
-import {
-  getKnowledgePool,
-  PUBLIC_WEB_SCHEMA as SCHEMA,
-} from '../../lib/knowledge/db/knowledge_db';
+import { PUBLIC_WEB_SCHEMA as SCHEMA } from '../../lib/knowledge/db/knowledge_db';
+import { pinEmbeddingDimensions } from '../../lib/knowledge/db/pin_embedding_dimensions';
 import { withRetry, transactWithRetry } from '../../lib/knowledge/db/retry';
 import { EmbeddingService } from '../../lib/knowledge/embedding/service';
 import { logger } from '../../lib/knowledge/logger';
@@ -85,19 +83,48 @@ function buildEmbeddingService(orgSlug: string): EmbeddingService {
   );
 }
 
-// Track whether the HNSW index was ensured this process lifetime (mirrors the
-// `IndexingService._hnsw_ensured` instance flag — process-scoped here).
-let hnswEnsured = false;
+/**
+ * Pin `public_web.chunks.embedding` to the org's embedding dimensions — and
+ * create its HNSW index — once per knowledge-DB pool, so each org's crawler
+ * corpus (bring-your-own or the deployment default) pins its own vector column
+ * exactly like the RAG side does for `private_knowledge`. Keyed by the pool
+ * object (one pool per connection URL, so co-tenant orgs share a single pin); a
+ * failed pin is dropped so the next index attempt retries. `pinEmbeddingDimensions`
+ * is idempotent, so replaying it is safe.
+ */
+const webDimPins = new WeakMap<Sql, Promise<void>>();
+
+export async function ensureWebEmbeddingDimensionsPinned(
+  orgSlug: string,
+  sql: Sql,
+): Promise<void> {
+  const existing = webDimPins.get(sql);
+  if (existing) {
+    return existing;
+  }
+  const dims = getEmbeddingConfig(orgSlug).dimensions;
+  const pin = pinEmbeddingDimensions(sql, SCHEMA, dims).catch(
+    (err: unknown) => {
+      webDimPins.delete(sql);
+      throw err;
+    },
+  );
+  webDimPins.set(sql, pin);
+  return pin;
+}
 
 /** Index a single page: chunk + embed + store. */
 export async function indexPage(
+  sql: Sql,
   orgSlug: string,
   domain: string,
   url: string,
   title: string | null,
   content: string,
 ): Promise<IndexPageResult> {
-  const sql = getKnowledgePool();
+  // Pin the org DB's web-embedding dimensions + HNSW index once per pool before
+  // the first insert (the HNSW function throws on an unpinned vector column).
+  await ensureWebEmbeddingDimensionsPinned(orgSlug, sql);
   const contentHash = sha256(content);
   const hashes = extractParagraphHashes(content);
 
@@ -259,20 +286,6 @@ export async function indexPage(
     await transactWithRetry(sql, (tx) => storeChunks(tx));
   }
 
-  // Ensure HNSW index exists once embeddings are stored.
-  if (!hnswEnsured) {
-    try {
-      await withRetry(() =>
-        sql.unsafe(`SELECT ${SCHEMA}.create_chunks_hnsw_index()`),
-      );
-      hnswEnsured = true;
-    } catch (e) {
-      logger.warn(
-        `HNSW index creation deferred: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  }
-
   if (hasPageCounts) {
     const boilerplateCount = Object.values(pageCounts).filter(
       (c) => c > BOILERPLATE_PAGE_THRESHOLD,
@@ -289,10 +302,10 @@ export async function indexPage(
 
 /** Re-index all pages for a website. */
 export async function indexWebsite(
+  sql: Sql,
   orgSlug: string,
   domain: string,
 ): Promise<IndexWebsiteResult> {
-  const sql = getKnowledgePool();
   let indexed = 0;
   let skipped = 0;
   let failed = 0;
@@ -320,7 +333,7 @@ export async function indexWebsite(
     const results = await runWithConcurrency(
       rows,
       INDEXING_CONCURRENCY,
-      (row) => indexPage(orgSlug, domain, row.url, row.title, row.content),
+      (row) => indexPage(sql, orgSlug, domain, row.url, row.title, row.content),
     );
 
     for (const result of results) {
@@ -371,6 +384,7 @@ export interface IndexPageInput {
  * abort the batch.
  */
 export async function indexPages(
+  sql: Sql,
   orgSlug: string,
   domain: string,
   pages: IndexPageInput[],
@@ -383,7 +397,8 @@ export async function indexPages(
   const results = await runWithConcurrency(
     pages,
     INDEXING_CONCURRENCY,
-    (page) => indexPage(orgSlug, domain, page.url, page.title, page.content),
+    (page) =>
+      indexPage(sql, orgSlug, domain, page.url, page.title, page.content),
   );
 
   for (const result of results) {

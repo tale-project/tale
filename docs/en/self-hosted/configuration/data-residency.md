@@ -31,6 +31,21 @@ Three stores, each independent and optional. An absent setting means "use the bu
 
 The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The external knowledge database must already exist (it can have any name you enter — `tale_knowledge` by convention) with the `private_knowledge` and `public_web` schemas; the baseline schema migrations live in [`services/db/migrations/`](https://github.com/tale-project/tale/tree/main/services/db/migrations) and are applied via dbmate when the database comes up.
 
+## Per-organization knowledge databases
+
+The stores above are deployment-wide — every organization shares them. A single organization can instead point **its own** knowledge corpus at a Postgres you provision for it, while every other org keeps using the bundled `knowledge-db`. Reach for this when one tenant's document and crawled-web content must sit on infrastructure isolated from the rest — a stricter residency requirement than the deployment default satisfies.
+
+The org's **entire** knowledge corpus moves — both schemas: `private_knowledge` (document metadata, chunk text, embeddings, and the semantic cache) and `public_web` (the crawler's website pages, their chunk text, and embeddings). Nothing in an organization's knowledge database is shared with any other organization.
+
+The connection lives under the organization's own config directory, not the deployment file:
+
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — host, port, database, user, and sslmode.
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — the password, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
+
+The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty — Tale creates the `private_knowledge` and `public_web` schemas on first use, so you never apply the baseline migrations by hand.
+
+This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
+
 ## File storage on S3
 
 External file storage is all-or-nothing across Convex's storage use-cases, so you provide **five buckets** — files, exports, snapshot-imports, modules, and search — plus a region and credentials. For S3-compatible services (MinIO, Cloudflare R2) set the endpoint and enable path-style addressing.

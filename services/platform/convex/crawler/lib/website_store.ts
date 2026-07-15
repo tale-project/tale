@@ -8,11 +8,16 @@
  * The Python source split this into two classes:
  *   - `PgWebsiteStore` — per-domain URL operations (scoped by domain column).
  *   - `PgWebsiteStoreManager` — website registry + factory.
- * Both are flattened here into plain async functions that take `domain` as a
- * parameter. postgres.js manages its own connection pool, so there is no
- * acquire/release step — operations are wrapped in `withRetry` / `sql.begin`
- * (transactWithRetry) for transient-fault resilience, exactly mirroring the
- * asyncpg `acquire_with_retry` + `conn.transaction()` pattern.
+ * Both are flattened here into plain async functions. Every function takes the
+ * caller's resolved knowledge pool (`sql`) as its FIRST argument, so the crawler
+ * corpus is routed per-org exactly like the RAG corpus — a bring-your-own
+ * Postgres isolates an org's `public_web` data entirely, and orgs on the
+ * deployment default share it (scoped by `website_org_memberships`). Nothing
+ * reaches for a shared default pool. postgres.js manages its own connection
+ * pool, so there is no acquire/release step — operations are wrapped in
+ * `withRetry` / `sql.begin` (transactWithRetry) for transient-fault resilience,
+ * exactly mirroring the asyncpg `acquire_with_retry` + `conn.transaction()`
+ * pattern.
  *
  * SQL is reproduced byte-for-byte from the Python source, fully-qualified to the
  * `public_web` schema. asyncpg `make_interval` etc. are standard Postgres and
@@ -29,10 +34,7 @@
 
 import type { Sql } from 'postgres';
 
-import {
-  getKnowledgePool,
-  PUBLIC_WEB_SCHEMA as SCHEMA,
-} from '../../lib/knowledge/db/knowledge_db';
+import { PUBLIC_WEB_SCHEMA as SCHEMA } from '../../lib/knowledge/db/knowledge_db';
 import { withRetry, transactWithRetry } from '../../lib/knowledge/db/retry';
 import { logger } from '../../lib/knowledge/logger';
 
@@ -88,13 +90,13 @@ export interface DiscoveredUrl {
 
 /** Save discovered URLs. Returns number of newly inserted URLs (excludes dupes). */
 export async function saveDiscoveredUrls(
+  sql: Sql,
   domain: string,
   urls: DiscoveredUrl[],
 ): Promise<number> {
   if (urls.length === 0) {
     return 0;
   }
-  const sql = getKnowledgePool();
   return withRetry(() =>
     sql.begin(async (tx) => {
       const before = await tx.unsafe<{ count: string }[]>(
@@ -132,12 +134,12 @@ export interface UrlPageRow {
 }
 
 export async function getUrlsPage(
+  sql: Sql,
   domain: string,
   offset = 0,
   limit = 100,
   status?: string | null,
 ): Promise<UrlPageRow[]> {
-  const sql = getKnowledgePool();
   type Row = {
     url: string;
     content_hash: string | null;
@@ -171,12 +173,12 @@ export async function getUrlsPage(
 }
 
 export async function getUrlsNeedingRecrawl(
+  sql: Sql,
   domain: string,
   limit = 20,
   crawledBefore: number | null = null,
   maxFailCount = 10,
 ): Promise<string[]> {
-  const sql = getKnowledgePool();
   const rows = await withRetry(() => {
     if (crawledBefore !== null) {
       const ts = new Date(crawledBefore * 1000);
@@ -214,10 +216,10 @@ export async function getUrlsNeedingRecrawl(
  * from the remaining count — otherwise the loop would never terminate.
  */
 export async function countUncrawledUrls(
+  sql: Sql,
   domain: string,
   maxFailCount = 10,
 ): Promise<number> {
-  const sql = getKnowledgePool();
   const rows = await withRetry(() =>
     sql.unsafe<{ count: string }[]>(
       `SELECT COUNT(*) AS count FROM ${SCHEMA}.website_urls
@@ -230,13 +232,13 @@ export async function countUncrawledUrls(
 }
 
 export async function incrementFailCount(
+  sql: Sql,
   domain: string,
   urls: string[],
 ): Promise<void> {
   if (urls.length === 0) {
     return;
   }
-  const sql = getKnowledgePool();
   await withRetry(async () => {
     for (const url of urls) {
       await sql.unsafe(
@@ -261,13 +263,13 @@ export interface ContentHashUpdate {
 }
 
 export async function updateContentHashes(
+  sql: Sql,
   domain: string,
   updates: ContentHashUpdate[],
 ): Promise<void> {
   if (updates.length === 0) {
     return;
   }
-  const sql = getKnowledgePool();
   // `metadata`/`structured_data` are arbitrary crawled JSON (typed `unknown`);
   // pass them to sql.json (-> a proper JSONB object) at this DB boundary.
   type JsonParam = Parameters<typeof sql.json>[0];
@@ -306,13 +308,13 @@ export async function updateContentHashes(
  * requires manual database intervention.
  */
 export async function markUrlsDeleted(
+  sql: Sql,
   domain: string,
   urls: string[],
 ): Promise<void> {
   if (urls.length === 0) {
     return;
   }
-  const sql = getKnowledgePool();
   await transactWithRetry(sql, async (tx) => {
     await tx.unsafe(
       `DELETE FROM ${SCHEMA}.chunks WHERE domain = $1 AND url = ANY($2)`,
@@ -339,13 +341,13 @@ export interface CacheHeader {
 }
 
 export async function getCacheHeaders(
+  sql: Sql,
   domain: string,
   urls: string[],
 ): Promise<Record<string, CacheHeader>> {
   if (urls.length === 0) {
     return {};
   }
-  const sql = getKnowledgePool();
   const rows = await withRetry(() =>
     sql.unsafe<
       { url: string; etag: string | null; last_modified: string | null }[]
@@ -370,13 +372,13 @@ export interface CacheHeaderUpdate {
 }
 
 export async function updateCacheHeaders(
+  sql: Sql,
   domain: string,
   updates: CacheHeaderUpdate[],
 ): Promise<void> {
   if (updates.length === 0) {
     return;
   }
-  const sql = getKnowledgePool();
   await withRetry(async () => {
     for (const u of updates) {
       await sql.unsafe(
@@ -388,13 +390,13 @@ export async function updateCacheHeaders(
 }
 
 export async function touchCrawledAt(
+  sql: Sql,
   domain: string,
   urls: string[],
 ): Promise<void> {
   if (urls.length === 0) {
     return;
   }
-  const sql = getKnowledgePool();
   await withRetry(async () => {
     for (const url of urls) {
       await sql.unsafe(
@@ -406,10 +408,10 @@ export async function touchCrawledAt(
 }
 
 export async function getTotalCount(
+  sql: Sql,
   domain: string,
   status?: string | null,
 ): Promise<number> {
-  const sql = getKnowledgePool();
   const rows = await withRetry(() => {
     if (status) {
       return sql.unsafe<{ count: string }[]>(
@@ -437,13 +439,13 @@ export interface CachedPage {
 }
 
 export async function getCachedPages(
+  sql: Sql,
   domain: string,
   urls: string[],
 ): Promise<CachedPage[]> {
   if (urls.length === 0) {
     return [];
   }
-  const sql = getKnowledgePool();
   type Row = {
     url: string;
     title: string | null;
@@ -494,12 +496,12 @@ export interface PageListResult {
  * `website_urls` row to its chunk count so the caller can show indexed status.
  */
 export async function listPagesWithChunkCount(
+  sql: Sql,
   domain: string,
   offset = 0,
   limit = 100,
   status?: string | null,
 ): Promise<PageListResult> {
-  const sql = getKnowledgePool();
   type Row = {
     url: string;
     title: string | null;
@@ -585,10 +587,10 @@ export interface PageChunk {
  * Port of `services/crawler/app/routers/pages.py::get_page_chunks`.
  */
 export async function getPageChunks(
+  sql: Sql,
   domain: string,
   url: string,
 ): Promise<PageChunk[]> {
-  const sql = getKnowledgePool();
   const rows = await withRetry(() =>
     sql.unsafe<
       {
@@ -623,16 +625,20 @@ export interface RegisterWebsiteResult {
 }
 
 /**
- * Register a domain on behalf of `orgSlug`.
+ * Register a domain on behalf of `orgSlug`, on the org's resolved knowledge
+ * pool (`sql`).
  *
- * `websites` is deployment-shared content storage; the per-org boundary lives
- * in `website_org_memberships`. The first org to register a domain creates the
- * website row; subsequent orgs simply join the membership table.
+ * Within one knowledge database the crawler corpus is shared by the orgs that
+ * resolve to it — the per-org boundary is the `website_org_memberships`
+ * junction — while a bring-your-own database isolates an org's corpus entirely.
+ * The first org to register a domain in a given database creates the `websites`
+ * row; subsequent co-tenant orgs simply join the membership table.
  *
  * Returns `first_membership=true` only when this call is the first to register
  * the domain — callers use it to decide whether to trigger an immediate scan.
  */
 export async function registerWebsite(
+  sql: Sql,
   domain: string,
   scanInterval = 21600,
   orgSlug?: string,
@@ -640,7 +646,6 @@ export async function registerWebsite(
   if (!orgSlug) {
     throw new Error('registerWebsite: orgSlug is required');
   }
-  const sql = getKnowledgePool();
   const { storedScanInterval, storedStatus, membershipInserted, totalMembers } =
     await transactWithRetry(sql, async (tx) => {
       // ON CONFLICT preserves the existing scan_interval — first-org sets
@@ -711,12 +716,12 @@ export async function registerWebsite(
 }
 
 export async function updateWebsiteMetadata(
+  sql: Sql,
   domain: string,
   title: string | null = null,
   description: string | null = null,
   pageCount: number | null = null,
 ): Promise<void> {
-  const sql = getKnowledgePool();
   await withRetry(() =>
     sql.unsafe(
       `UPDATE ${SCHEMA}.websites SET
@@ -741,10 +746,10 @@ export interface BeginDeleteResult {
  * `executeDelete`, called from a background task).
  */
 export async function beginDelete(
+  sql: Sql,
   domain: string,
   orgSlug: string,
 ): Promise<BeginDeleteResult> {
-  const sql = getKnowledgePool();
   return transactWithRetry(sql, async (tx) => {
     // postgres.js exposes the affected row count on the result's `.count`.
     const deleted = await tx.unsafe(
@@ -785,8 +790,7 @@ export async function beginDelete(
  * concurrent register's ON CONFLICT DO UPDATE blocks until we commit. If any
  * membership now exists, abort the DELETE and flip status back to 'idle'.
  */
-export async function executeDelete(domain: string): Promise<void> {
-  const sql = getKnowledgePool();
+export async function executeDelete(sql: Sql, domain: string): Promise<void> {
   const aborted = await transactWithRetry(sql, async (tx) => {
     await tx.unsafe(`SET LOCAL statement_timeout = '120s'`);
     await tx.unsafe(
@@ -822,8 +826,7 @@ export async function executeDelete(domain: string): Promise<void> {
 }
 
 /** Find domains stuck in 'deleting' status (e.g. after a crash). */
-export async function recoverStuckDeletes(): Promise<string[]> {
-  const sql = getKnowledgePool();
+export async function recoverStuckDeletes(sql: Sql): Promise<string[]> {
   const rows = await withRetry(() =>
     sql.unsafe<{ domain: string }[]>(
       `SELECT domain FROM ${SCHEMA}.websites WHERE status = 'deleting'`,
@@ -848,8 +851,7 @@ export interface DueWebsite {
  * scanning/deleting, OR it has been stuck in 'scanning' for >2 hours. Each row
  * includes `owner_org_slug` — the slug of the earliest-registering org.
  */
-export async function getDueWebsites(): Promise<DueWebsite[]> {
-  const sql = getKnowledgePool();
+export async function getDueWebsites(sql: Sql): Promise<DueWebsite[]> {
   const rows = await withRetry(() =>
     sql.unsafe<DueWebsite[]>(
       `SELECT w.domain, w.status, w.scan_interval, w.last_scanned_at, w.error,
@@ -873,10 +875,10 @@ export async function getDueWebsites(): Promise<DueWebsite[]> {
 
 /** True if `orgSlug` has registered `domain` (used by per-org views). */
 export async function orgHasMembership(
+  sql: Sql,
   domain: string,
   orgSlug: string,
 ): Promise<boolean> {
-  const sql = getKnowledgePool();
   const rows = await withRetry(() =>
     sql.unsafe<{ exists: number }[]>(
       `SELECT 1 AS exists FROM ${SCHEMA}.website_org_memberships WHERE domain = $1 AND org_slug = $2`,
@@ -887,8 +889,10 @@ export async function orgHasMembership(
 }
 
 /** Return all domains the given org has registered. */
-export async function listDomainsForOrg(orgSlug: string): Promise<string[]> {
-  const sql = getKnowledgePool();
+export async function listDomainsForOrg(
+  sql: Sql,
+  orgSlug: string,
+): Promise<string[]> {
   const rows = await withRetry(() =>
     sql.unsafe<{ domain: string }[]>(
       `SELECT domain FROM ${SCHEMA}.website_org_memberships WHERE org_slug = $1 ORDER BY domain`,
@@ -899,10 +903,10 @@ export async function listDomainsForOrg(orgSlug: string): Promise<string[]> {
 }
 
 export async function updateScanInterval(
+  sql: Sql,
   domain: string,
   scanInterval: number,
 ): Promise<void> {
-  const sql = getKnowledgePool();
   await withRetry(() =>
     sql.unsafe(
       `UPDATE ${SCHEMA}.websites SET scan_interval = $2, updated_at = NOW() WHERE domain = $1`,
@@ -912,11 +916,11 @@ export async function updateScanInterval(
 }
 
 export async function updateScanStatus(
+  sql: Sql,
   domain: string,
   status: string,
   error: string | null = null,
 ): Promise<void> {
-  const sql = getKnowledgePool();
   await withRetry(() =>
     sql.unsafe(
       `UPDATE ${SCHEMA}.websites SET status = $2, error = $3, updated_at = NOW() ` +
@@ -926,8 +930,10 @@ export async function updateScanStatus(
   );
 }
 
-export async function updateLastScanned(domain: string): Promise<void> {
-  const sql = getKnowledgePool();
+export async function updateLastScanned(
+  sql: Sql,
+  domain: string,
+): Promise<void> {
   await withRetry(() =>
     sql.unsafe(
       `UPDATE ${SCHEMA}.websites SET last_scanned_at = NOW(), updated_at = NOW() WHERE domain = $1`,
@@ -952,9 +958,9 @@ export interface WebsiteRecord {
 }
 
 export async function getWebsite(
+  sql: Sql,
   domain: string,
 ): Promise<WebsiteRecord | null> {
-  const sql = getKnowledgePool();
   // Raw row shape from postgres.js: the `COUNT()`/`COALESCE(COUNT())`
   // aggregates come back as bigint strings, and `page_count` is nullable, so
   // they are typed accurately here and normalized to numbers below. Typing the

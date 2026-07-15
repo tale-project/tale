@@ -21,8 +21,9 @@ import {
 } from '../../lib/knowledge/config/base';
 import {
   closeKnowledgePool,
-  initKnowledgePool,
+  getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA,
+  resolveKnowledgeUrlForOrg,
 } from '../../lib/knowledge/db/knowledge_db';
 import { pinEmbeddingDimensions } from '../../lib/knowledge/db/pin_embedding_dimensions';
 import { withRetry } from '../../lib/knowledge/db/retry';
@@ -63,6 +64,10 @@ interface OrgClients {
   openaiClient: OpenAI;
   visionClient: VisionClient | null;
   searchService: RagSearchService;
+  /** The org's resolved knowledge pool (BYO or deployment default). */
+  sql: Sql;
+  /** The connection string `sql` is bound to — the dimension-pin key. */
+  dbUrl: string;
   lastCheck: number;
 }
 
@@ -212,9 +217,12 @@ class AsyncLock {
 export class RagService {
   initialized = false;
   private readonly initLock = new AsyncLock();
-  private sql: Sql | null = null;
-  private pinnedDims: number | null = null;
-  private readonly pinDimLock = new AsyncLock();
+  /**
+   * Pinned embedding dimensions PER connection string, so each knowledge DB
+   * (default + every BYO) pins its own single vector column independently.
+   */
+  private readonly pinnedDimsByUrl = new Map<string, number>();
+  private readonly pinDimLocks = new Map<string, AsyncLock>();
   private readonly orgClients = new LruMap<OrgClients>();
   private readonly orgLocks = new LruMap<AsyncLock>();
   private shuttingDown = false;
@@ -228,11 +236,68 @@ export class RagService {
         return;
       }
       this.shuttingDown = false;
-      this.sql = initKnowledgePool();
       this.initialized = true;
       logger.info(
-        'RagService initialized (DB pool ready; per-org clients lazy)',
+        'RagService initialized (per-org DB pools + clients resolved lazily)',
       );
+    });
+  }
+
+  /**
+   * Resolve the `private_knowledge` pool for an org (BYO or deployment default),
+   * bootstrapping a fresh BYO schema on first touch. Used by the read/delete
+   * paths that don't need the per-org LLM clients.
+   */
+  private async getSqlForOrg(orgSlug: string): Promise<Sql> {
+    if (this.shuttingDown) {
+      throw new Error('RagService is shutting down');
+    }
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return getKnowledgePoolForOrg(orgSlug);
+  }
+
+  private getPinDimLock(dbUrl: string): AsyncLock {
+    const existing = this.pinDimLocks.get(dbUrl);
+    if (existing) {
+      return existing;
+    }
+    const lock = new AsyncLock();
+    this.pinDimLocks.set(dbUrl, lock);
+    return lock;
+  }
+
+  /**
+   * Pin the embedding dimensions for a knowledge DB (keyed by connection
+   * string). The first org to initialize a given DB pins its dims; a later org
+   * on the SAME DB with different dims raises loudly. Orgs on different DBs pin
+   * independently.
+   */
+  private async pinDimsForUrl(
+    dbUrl: string,
+    sql: Sql,
+    dims: number,
+    orgSlug: string,
+  ): Promise<void> {
+    await this.getPinDimLock(dbUrl).run(async () => {
+      const pinned = this.pinnedDimsByUrl.get(dbUrl);
+      if (pinned === undefined) {
+        await pinEmbeddingDimensions(sql, SCHEMA, dims);
+        this.pinnedDimsByUrl.set(dbUrl, dims);
+        logger.info(
+          `Pinned RAG embedding dimensions to ${dims} for this knowledge DB ` +
+            `(set by org '${orgSlug}')`,
+        );
+      } else if (dims !== pinned) {
+        throw new Error(
+          `Org '${orgSlug}' embedding dimensions (${dims}) do not match the ` +
+            `pinned dimensions (${pinned}) of its knowledge database. All orgs ` +
+            `sharing one knowledge database must use the same embedding model ` +
+            `dimensions. Reconcile provider configs or give the org its own ` +
+            `knowledge database.`,
+        );
+      }
     });
   }
 
@@ -263,9 +328,6 @@ export class RagService {
     if (!this.initialized) {
       await this.initialize();
     }
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
 
     const cached = this.orgClients.get(orgSlug);
     if (cached) {
@@ -294,12 +356,13 @@ export class RagService {
     orgSlug: string,
     previous: OrgClients | null,
   ): Promise<OrgClients> {
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
-
     const llmConfig = getLlmConfig(settings, orgSlug);
-    if (previous && configEqual(llmConfig, previous.llmConfig)) {
+    const dbUrl = await resolveKnowledgeUrlForOrg(orgSlug);
+    if (
+      previous &&
+      previous.dbUrl === dbUrl &&
+      configEqual(llmConfig, previous.llmConfig)
+    ) {
       previous.lastCheck = performance.now();
       return previous;
     }
@@ -320,24 +383,8 @@ export class RagService {
     const embeddingModel = getEmbeddingConfig(orgSlug);
     const dims = embeddingModel.dimensions;
 
-    await this.pinDimLock.run(async () => {
-      if (this.pinnedDims === null) {
-        this.pinnedDims = dims;
-        if (this.sql) {
-          await pinEmbeddingDimensions(this.sql, SCHEMA, dims);
-        }
-        logger.info(
-          `Pinned RAG embedding dimensions to ${dims} (set by org '${orgSlug}')`,
-        );
-      } else if (dims !== this.pinnedDims) {
-        throw new Error(
-          `Org '${orgSlug}' embedding dimensions (${dims}) do not match the ` +
-            `pinned RAG schema dimensions (${this.pinnedDims}). All orgs sharing ` +
-            `this RAG instance must use the same embedding model dimensions. ` +
-            `Reconcile provider configs or run RAG per-org.`,
-        );
-      }
-    });
+    const sql = await getKnowledgePoolForOrg(orgSlug);
+    await this.pinDimsForUrl(dbUrl, sql, dims, orgSlug);
 
     const embeddingService = new EmbeddingService(
       llmConfig.embeddingApiKey,
@@ -373,7 +420,7 @@ export class RagService {
       );
     }
 
-    const searchService = new RagSearchService(this.sql, embeddingService);
+    const searchService = new RagSearchService(sql, embeddingService);
 
     const newClients: OrgClients = {
       llmConfig,
@@ -381,6 +428,8 @@ export class RagService {
       openaiClient,
       visionClient,
       searchService,
+      sql,
+      dbUrl,
       lastCheck: performance.now(),
     };
     this.orgClients.set(orgSlug, newClients);
@@ -415,10 +464,7 @@ export class RagService {
     } = {},
   ) {
     const clients = await this.ensureOrgClients(orgSlug);
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
-    return indexDocument(this.sql, orgSlug, fileId, content, filename, {
+    return indexDocument(clients.sql, orgSlug, fileId, content, filename, {
       embeddingService: clients.embeddingService,
       visionClient: clients.visionClient,
       chunkSize: settings.chunk_size,
@@ -569,17 +615,11 @@ export class RagService {
       returnChunks?: boolean;
     } = {},
   ): Promise<DocumentContentResult | null> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
+    const sql = await this.getSqlForOrg(orgSlug);
 
     const chunkStart = options.chunkStart ?? 1;
     const chunkEnd = options.chunkEnd ?? chunkStart + MAX_CHUNK_WINDOW - 1;
     const returnChunks = options.returnChunks ?? false;
-    const sql = this.sql;
 
     const docRows = await withRetry(() =>
       sql.unsafe<
@@ -668,13 +708,7 @@ export class RagService {
     orgSlug: string,
     fileIds: string[],
   ): Promise<Record<string, DocumentStatusRecord | null>> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
-    const sql = this.sql;
+    const sql = await this.getSqlForOrg(orgSlug);
 
     const rows = await withRetry(() =>
       sql.unsafe<
@@ -727,13 +761,7 @@ export class RagService {
   }
 
   async deleteDocument(orgSlug: string, fileId: string): Promise<DeleteResult> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-    if (this.sql === null) {
-      throw new Error('RagService not initialized: database pool is None');
-    }
-    const sql = this.sql;
+    const sql = await this.getSqlForOrg(orgSlug);
     const startTime = performance.now();
 
     const rows = await withRetry(() =>
@@ -868,6 +896,8 @@ export class RagService {
       }
     }
     this.orgClients.clear();
+    this.pinnedDimsByUrl.clear();
+    this.pinDimLocks.clear();
 
     await closeKnowledgePool();
     this.initialized = false;

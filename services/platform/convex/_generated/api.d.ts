@@ -604,6 +604,10 @@ import type * as integrations_slack_installations_schema from "../integrations/s
 import type * as integrations_test_connection from "../integrations/test_connection.js";
 import type * as integrations_types from "../integrations/types.js";
 import type * as integrations_validators from "../integrations/validators.js";
+import type * as knowledge_actions from "../knowledge/actions.js";
+import type * as knowledge_file_actions from "../knowledge/file_actions.js";
+import type * as knowledge_file_utils from "../knowledge/file_utils.js";
+import type * as knowledge_validators from "../knowledge/validators.js";
 import type * as knowledge_entries_constants from "../knowledge_entries/constants.js";
 import type * as knowledge_entries_helpers from "../knowledge_entries/helpers.js";
 import type * as knowledge_entries_internal_actions from "../knowledge_entries/internal_actions.js";
@@ -833,6 +837,7 @@ import type * as lib_knowledge_config_base from "../lib/knowledge/config/base.js
 import type * as lib_knowledge_config_org_slug from "../lib/knowledge/config/org_slug.js";
 import type * as lib_knowledge_config_providers from "../lib/knowledge/config/providers.js";
 import type * as lib_knowledge_config_sops from "../lib/knowledge/config/sops.js";
+import type * as lib_knowledge_db_ensure_knowledge_schema from "../lib/knowledge/db/ensure_knowledge_schema.js";
 import type * as lib_knowledge_db_knowledge_db from "../lib/knowledge/db/knowledge_db.js";
 import type * as lib_knowledge_db_pin_embedding_dimensions from "../lib/knowledge/db/pin_embedding_dimensions.js";
 import type * as lib_knowledge_db_retry from "../lib/knowledge/db/retry.js";
@@ -2355,6 +2360,10 @@ declare const fullApi: ApiFromModules<{
   "integrations/test_connection": typeof integrations_test_connection;
   "integrations/types": typeof integrations_types;
   "integrations/validators": typeof integrations_validators;
+  "knowledge/actions": typeof knowledge_actions;
+  "knowledge/file_actions": typeof knowledge_file_actions;
+  "knowledge/file_utils": typeof knowledge_file_utils;
+  "knowledge/validators": typeof knowledge_validators;
   "knowledge_entries/constants": typeof knowledge_entries_constants;
   "knowledge_entries/helpers": typeof knowledge_entries_helpers;
   "knowledge_entries/internal_actions": typeof knowledge_entries_internal_actions;
@@ -2584,6 +2593,7 @@ declare const fullApi: ApiFromModules<{
   "lib/knowledge/config/org_slug": typeof lib_knowledge_config_org_slug;
   "lib/knowledge/config/providers": typeof lib_knowledge_config_providers;
   "lib/knowledge/config/sops": typeof lib_knowledge_config_sops;
+  "lib/knowledge/db/ensure_knowledge_schema": typeof lib_knowledge_db_ensure_knowledge_schema;
   "lib/knowledge/db/knowledge_db": typeof lib_knowledge_db_knowledge_db;
   "lib/knowledge/db/pin_embedding_dimensions": typeof lib_knowledge_db_pin_embedding_dimensions;
   "lib/knowledge/db/retry": typeof lib_knowledge_db_retry;
