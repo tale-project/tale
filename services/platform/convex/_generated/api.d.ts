@@ -493,6 +493,7 @@ import type * as file_metadata_source_from_provider from "../file_metadata/sourc
 import type * as file_metadata_transcribe_audio from "../file_metadata/transcribe_audio.js";
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
 import type * as file_metadata_transcription_request from "../file_metadata/transcription_request.js";
+import type * as files_blob_actions from "../files/blob_actions.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as folders_access from "../folders/access.js";
@@ -918,6 +919,9 @@ import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas
 import type * as lib_skills_guidance from "../lib/skills/guidance.js";
 import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
+import type * as lib_storage_blob_access from "../lib/storage/blob_access.js";
+import type * as lib_storage_blob_ref from "../lib/storage/blob_ref.js";
+import type * as lib_storage_object_store from "../lib/storage/object_store.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
 import type * as lib_summarization_index from "../lib/summarization/index.js";
@@ -1131,6 +1135,10 @@ import type * as notifications_notify_slack from "../notifications/notify_slack.
 import type * as notifications_queries from "../notifications/queries.js";
 import type * as notifications_send_actionable_email from "../notifications/send_actionable_email.js";
 import type * as oauth2 from "../oauth2.js";
+import type * as object_storage_actions from "../object_storage/actions.js";
+import type * as object_storage_file_actions from "../object_storage/file_actions.js";
+import type * as object_storage_file_utils from "../object_storage/file_utils.js";
+import type * as object_storage_validators from "../object_storage/validators.js";
 import type * as onedrive_actions from "../onedrive/actions.js";
 import type * as onedrive_deactivate_sync_configs from "../onedrive/deactivate_sync_configs.js";
 import type * as onedrive_derive_sync_targets from "../onedrive/derive_sync_targets.js";
@@ -2249,6 +2257,7 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/transcribe_audio": typeof file_metadata_transcribe_audio;
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;
   "file_metadata/transcription_request": typeof file_metadata_transcription_request;
+  "files/blob_actions": typeof files_blob_actions;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
   "folders/access": typeof folders_access;
@@ -2674,6 +2683,9 @@ declare const fullApi: ApiFromModules<{
   "lib/skills/guidance": typeof lib_skills_guidance;
   "lib/skills/precedence": typeof lib_skills_precedence;
   "lib/sops": typeof lib_sops;
+  "lib/storage/blob_access": typeof lib_storage_blob_access;
+  "lib/storage/blob_ref": typeof lib_storage_blob_ref;
+  "lib/storage/object_store": typeof lib_storage_object_store;
   "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
   "lib/summarization/index": typeof lib_summarization_index;
@@ -2887,6 +2899,10 @@ declare const fullApi: ApiFromModules<{
   "notifications/queries": typeof notifications_queries;
   "notifications/send_actionable_email": typeof notifications_send_actionable_email;
   oauth2: typeof oauth2;
+  "object_storage/actions": typeof object_storage_actions;
+  "object_storage/file_actions": typeof object_storage_file_actions;
+  "object_storage/file_utils": typeof object_storage_file_utils;
+  "object_storage/validators": typeof object_storage_validators;
   "onedrive/actions": typeof onedrive_actions;
   "onedrive/deactivate_sync_configs": typeof onedrive_deactivate_sync_configs;
   "onedrive/derive_sync_targets": typeof onedrive_derive_sync_targets;

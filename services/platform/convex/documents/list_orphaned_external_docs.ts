@@ -1,10 +1,11 @@
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 export interface OrphanedExternalDoc {
   documentId: Id<'documents'>;
   externalItemId: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   title?: string;
 }
 
@@ -34,7 +35,7 @@ export async function listOrphanedExternalDocs(
     _id: Id<'documents'>;
     sourceProvider?: string;
     externalItemId?: string;
-    fileId?: Id<'_storage'>;
+    fileId?: BlobRef;
     title?: string;
     driveId?: string;
     lifecycleStatus?: string;

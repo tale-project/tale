@@ -61,6 +61,7 @@ import {
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
 import { restOptionsHandler } from './lib/rest/helpers';
+import { isS3Ref } from './lib/storage/blob_ref';
 import { toId } from './lib/type_cast_helpers';
 import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
 import { sanitizeError } from './lib/utils/sanitize_secrets';
@@ -138,10 +139,13 @@ http.route({
   method: 'GET',
   handler: httpAction(async (ctx, req) => {
     const url = new URL(req.url);
-    const storageId = url.searchParams.get('id');
+    // `ref` is the universal blob reference (a `_storage` id or an `s3:` ref);
+    // `id` is the legacy param (always a `_storage` id) still used by
+    // `buildDownloadUrl`. Either identifies the blob.
+    const ref = url.searchParams.get('ref') ?? url.searchParams.get('id');
     const filename = url.searchParams.get('filename');
 
-    if (!storageId) {
+    if (!ref) {
       return new Response('Missing storage ID', { status: 400 });
     }
 
@@ -161,8 +165,29 @@ http.route({
       throw error;
     }
 
+    // S3-backed blob: a V8 httpAction can't presign, so delegate to the node
+    // action and 302-redirect the browser to the short-lived presigned GET. The
+    // `org` param identifies which bucket (the ref alone doesn't).
+    if (isS3Ref(ref)) {
+      const org = url.searchParams.get('org');
+      if (!org) {
+        return new Response('Missing org for S3 blob', { status: 400 });
+      }
+      const presigned: string | null = await ctx.runAction(
+        internal.files.blob_actions.presignBlobGet,
+        { organizationId: org, ref, filename: filename ?? undefined },
+      );
+      if (!presigned) {
+        return new Response('File not found', { status: 404 });
+      }
+      return new Response(null, {
+        status: 302,
+        headers: { Location: presigned },
+      });
+    }
+
     try {
-      const blob = await ctx.storage.get(toId<'_storage'>(storageId));
+      const blob = await ctx.storage.get(toId<'_storage'>(ref));
       if (!blob) {
         return new Response('File not found', { status: 404 });
       }

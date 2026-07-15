@@ -13,12 +13,17 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { maybeDispatchRagIndexing } from './rag_dispatch';
 
 export const saveFileMetadata = mutation({
   args: {
     organizationId: v.string(),
-    storageId: v.id('_storage'),
+    // Blob reference: a Convex `_storage` id (default) OR an `s3:<key>` ref when
+    // the org has a bring-your-own bucket. The chat composer binds whichever the
+    // upload handoff returned; the RAG-index + transcription reads are
+    // backend-aware.
+    storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
     size: v.number(),
@@ -277,7 +282,10 @@ export const saveFileMetadata = mutation({
  */
 export const skipTranscription = mutation({
   args: {
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — a chat audio attachment may
+    // live in the org's own bucket. The transcription mutations key the
+    // fileMetadata row off the string form either way.
+    storageId: blobRefValidator,
     organizationId: v.string(),
   },
   async handler(ctx, args) {
@@ -337,7 +345,10 @@ export const skipTranscription = mutation({
  */
 export const retryTranscription = mutation({
   args: {
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — a chat audio attachment may
+    // live in the org's own bucket. The transcription mutations key the
+    // fileMetadata row off the string form either way.
+    storageId: blobRefValidator,
     organizationId: v.string(),
   },
   async handler(ctx, args) {

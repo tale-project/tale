@@ -14,6 +14,7 @@ import { useDocumentComparison } from '@/app/features/documents/hooks/use-docume
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -29,12 +30,12 @@ interface DocumentHistoryDialogProps {
 }
 
 type VersionPick = {
-  storageId: Id<'_storage'>;
+  storageId: BlobRef;
   fileName: string;
 };
 
 type DocumentVersionRow = {
-  storageId: Id<'_storage'>;
+  storageId: BlobRef;
   createdAt: number;
   isCurrent: boolean;
   fileName?: string;

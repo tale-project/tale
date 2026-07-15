@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 
 /** Mirrors `MAX_KB_REFERENCES` in convex/agents/chat_turn.ts. */
 export const MAX_KB_MENTIONS = 5;
@@ -14,7 +15,7 @@ export const MAX_KB_MENTIONS = 5;
 export interface KbDocumentMention {
   kind: 'document';
   documentId: Id<'documents'>;
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   title: string;
   fileType: string;
   fileSize: number;

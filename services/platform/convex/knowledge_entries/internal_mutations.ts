@@ -8,6 +8,7 @@ import type { KnowledgeWriteMetadata } from '../approvals/types';
 import { createDocument } from '../documents/create_document';
 import { getOrCreateFolderPath } from '../folders/get_or_create_path';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
+import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
 import {
   KNOWLEDGE_ENTRIES_FOLDER,
   KNOWLEDGE_SOURCE_PROVIDER,
@@ -174,7 +175,7 @@ export const updateKnowledgeWriteApprovalWithResult = internalMutation({
 export const attachEntryDocument = internalMutation({
   args: {
     entryId: v.id('knowledgeEntries'),
-    fileId: v.id('_storage'),
+    fileId: blobRefValidator,
     contentHash: v.string(),
   },
   returns: v.union(v.id('documents'), v.null()),
@@ -258,7 +259,7 @@ export const attachEntryDocument = internalMutation({
 
 async function linkFileMetadataToDocument(
   ctx: MutationCtx,
-  storageId: Id<'_storage'>,
+  storageId: BlobRef,
   documentId: Id<'documents'>,
 ): Promise<void> {
   const metadata = await ctx.db

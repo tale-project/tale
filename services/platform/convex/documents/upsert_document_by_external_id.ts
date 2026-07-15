@@ -23,6 +23,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
 import { findDocumentByExternalId } from './find_document_by_external_id';
@@ -33,7 +34,7 @@ export interface UpsertDocumentByExternalIdArgs {
   /** Optional prefix scope: docs whose folderPath equals or sits under this. */
   folderPathPrefix?: string;
   title: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   /** File extension for the document row. Sync titles are kept clean (no
    * extension), so callers derive this from the stored blob's filename and
@@ -123,14 +124,24 @@ export async function upsertDocumentByExternalId(
       if (existing.fileId === undefined) {
         contentChanged = true;
       } else {
-        const [oldBlob, newBlob] = await Promise.all([
-          ctx.db.system.get(existing.fileId),
-          ctx.db.system.get(args.fileId),
-        ]);
-        contentChanged =
-          oldBlob === null ||
-          newBlob === null ||
-          oldBlob.sha256 !== newBlob.sha256;
+        // `db.system.get` only sizes/hashes Convex `_storage` blobs. When either
+        // side is an `s3:` ref its bytes live in the org's bucket (no system
+        // row to hash), so we can't SHA-compare — treat as changed so a real
+        // update re-indexes rather than being skipped.
+        const oldConvex = convexStorageId(existing.fileId);
+        const newConvex = convexStorageId(args.fileId);
+        if (oldConvex === null || newConvex === null) {
+          contentChanged = true;
+        } else {
+          const [oldBlob, newBlob] = await Promise.all([
+            ctx.db.system.get(oldConvex),
+            ctx.db.system.get(newConvex),
+          ]);
+          contentChanged =
+            oldBlob === null ||
+            newBlob === null ||
+            oldBlob.sha256 !== newBlob.sha256;
+        }
       }
     }
     const folderChanged =

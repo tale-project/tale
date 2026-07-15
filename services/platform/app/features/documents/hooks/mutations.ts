@@ -6,6 +6,7 @@ import {
   removeItemFromListQuery,
   updateItemInListQuery,
 } from '@/app/hooks/optimistic-updates';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import {
   removeItemFromPaginatedQuery,
@@ -87,12 +88,16 @@ function uploadWithProgress(
   url: string,
   file: File,
   contentType: string,
+  // `POST` → Convex `_storage` (the response JSON carries the storageId to
+  // bind); `PUT` → the org's S3 bucket (the presigned URL, no useful body — the
+  // ref was known up front and is bound by the caller).
+  method: 'POST' | 'PUT',
   signal: AbortSignal | undefined,
   onProgress: (loaded: number, total: number) => void,
-): Promise<{ storageId: string }> {
+): Promise<{ storageId?: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
+    xhr.open(method, url);
     xhr.setRequestHeader('Content-Type', contentType);
 
     // No-progress watchdog: (re)armed on every progress tick; if it ever
@@ -120,6 +125,12 @@ function uploadWithProgress(
     xhr.addEventListener('load', () => {
       clearStall();
       if (xhr.status >= 200 && xhr.status < 300) {
+        if (method === 'PUT') {
+          // S3 PUT returns an empty body (ETag header only); the ref is bound
+          // by the caller from the handoff's `s3Ref`.
+          resolve({});
+          return;
+        }
         try {
           resolve(JSON.parse(xhr.responseText));
         } catch {
@@ -169,8 +180,11 @@ export function useDocumentUpload(options: UploadOptions) {
   const [trackedFiles, setTrackedFiles] = useState<TrackedFile[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
+  // Backend-aware upload handoff: routes to the org's own S3 bucket when
+  // configured, else Convex `_storage`. An ACTION (not a mutation) because
+  // presigning S3 needs the node runtime.
+  const { mutateAsync: generateBlobUpload } = useConvexAction(
+    api.files.blob_actions.generateBlobUpload,
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
@@ -219,24 +233,28 @@ export function useDocumentUpload(options: UploadOptions) {
       // Track the committed blob so a later document-creation failure can
       // reclaim it (the blob is committed before createDocumentFromUpload,
       // which cannot delete it itself — a throwing mutation rolls back its
-      // own storage.delete).
-      let uploadedStorageId: string | undefined;
+      // own storage.delete). The ref is a Convex `_storage` id OR an `s3:` key.
+      let uploadedRef: string | undefined;
       try {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
 
         const signal = abortControllerRef.current?.signal;
         const contentHash = await calculateFileHash(file);
-        const uploadUrl = await withDeadline(
-          generateUploadUrl({}),
+        const handoff = await withDeadline(
+          generateBlobUpload({
+            organizationId: options.organizationId,
+            contentType: resolvedType,
+          }),
           MUTATION_TIMEOUT_MS,
           signal,
         );
 
         const { storageId } = await uploadWithProgress(
-          uploadUrl,
+          handoff.url,
           file,
           resolvedType,
+          handoff.method,
           signal,
           (loaded, total) => {
             updateFileStatus(fileId, {
@@ -245,7 +263,13 @@ export function useDocumentUpload(options: UploadOptions) {
             });
           },
         );
-        uploadedStorageId = storageId;
+        // Bind the S3 ref (known up front from the handoff) or the Convex id
+        // (returned in the POST response body).
+        const boundRef = handoff.s3Ref ?? storageId;
+        if (!boundRef) {
+          throw new Error('Upload did not return a storage reference');
+        }
+        uploadedRef = boundRef;
 
         // Create document records — one per team, or one org-wide. Each
         // mutation is raced against a deadline + the abort signal so a wedged
@@ -256,7 +280,7 @@ export function useDocumentUpload(options: UploadOptions) {
             await withDeadline(
               createDocumentFromUpload({
                 organizationId: options.organizationId,
-                fileId: toId<'_storage'>(storageId),
+                fileId: boundRef,
                 fileName: file.name,
                 contentType: resolvedType,
                 contentHash,
@@ -283,7 +307,7 @@ export function useDocumentUpload(options: UploadOptions) {
           await withDeadline(
             createDocumentFromUpload({
               organizationId: options.organizationId,
-              fileId: toId<'_storage'>(storageId),
+              fileId: boundRef,
               fileName: file.name,
               contentType: resolvedType,
               contentHash,
@@ -327,10 +351,11 @@ export function useDocumentUpload(options: UploadOptions) {
         // rejection, oversize, unsupported type, a wedged create). Reclaim the
         // orphaned blob so it doesn't silently consume storage — best-effort,
         // never let a cleanup failure mask the original error.
-        if (uploadedStorageId) {
+        if (uploadedRef) {
           try {
             await deleteRejectedUploadBlob({
-              storageId: toId<'_storage'>(uploadedStorageId),
+              storageId: uploadedRef,
+              organizationId: options.organizationId,
             });
           } catch (cleanupError) {
             console.warn(
@@ -360,7 +385,7 @@ export function useDocumentUpload(options: UploadOptions) {
       }
     },
     [
-      generateUploadUrl,
+      generateBlobUpload,
       createDocumentFromUpload,
       deleteRejectedUploadBlob,
       options.organizationId,

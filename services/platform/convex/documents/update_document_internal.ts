@@ -8,13 +8,14 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 export type UpdateDocumentInternalArgs = {
   documentId: Id<'documents'>;
   title?: string;
   content?: string;
   metadata?: Record<string, unknown>;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   extension?: string;
   sourceProvider?: string;

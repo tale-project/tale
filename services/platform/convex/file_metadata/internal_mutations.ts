@@ -12,13 +12,14 @@ import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
+import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
 import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
 export const saveFileMetadata = internalMutation({
   args: {
     organizationId: v.string(),
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
     size: v.number(),
@@ -117,6 +118,9 @@ export const saveFileMetadata = internalMutation({
         await maybeDispatchRagIndexing(ctx, args.storageId);
       }
       if (needsTranscribeRetry) {
+        // `transcribeAudio` is backend-aware: it reads the source blob from
+        // Convex `_storage` OR the org's S3 bucket, so the full ref is passed
+        // through (no `_storage`-only narrowing).
         await ctx.scheduler.runAfter(
           0,
           internal.file_metadata.transcribe_audio.transcribeAudio,
@@ -156,6 +160,8 @@ export const saveFileMetadata = internalMutation({
     }
 
     if (isAudio) {
+      // `transcribeAudio` is backend-aware (reads `_storage` OR the org's S3
+      // bucket), so pass the full ref through.
       await ctx.scheduler.runAfter(
         0,
         internal.file_metadata.transcribe_audio.transcribeAudio,
@@ -202,7 +208,7 @@ export const saveFileMetadata = internalMutation({
 
 export const updateFileRagStatus = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     ragStatus: v.union(
       v.literal('queued'),
       v.literal('running'),
@@ -287,7 +293,7 @@ export const updateFileRagStatus = internalMutation({
 export const ensureFileMetadataForDocument = internalMutation({
   args: {
     organizationId: v.string(),
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     documentId: v.id('documents'),
     fileName: v.string(),
     contentType: v.optional(v.string()),
@@ -304,7 +310,10 @@ export const ensureFileMetadataForDocument = internalMutation({
       return existing._id;
     }
 
-    const sys = await ctx.db.system.get(args.storageId);
+    // `db.system.get` only knows Convex `_storage` ids; an `s3:` ref has no
+    // system row, so size/contentType fall back to the passed value / defaults.
+    const convexId = convexStorageId(args.storageId);
+    const sys = convexId ? await ctx.db.system.get(convexId) : null;
     return await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
       storageId: args.storageId,
@@ -329,7 +338,7 @@ export const ensureFileMetadataForDocument = internalMutation({
  */
 export const expireStaleRagQueue = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     staleAfterMs: v.number(),
   },
   returns: v.null(),
@@ -361,7 +370,7 @@ export const expireStaleRagQueue = internalMutation({
  */
 export const updateFileTranscription = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     transcriptionStatus: v.optional(
       v.union(
         v.literal('queued'),
@@ -433,10 +442,15 @@ export const updateFileTranscription = internalMutation({
       args.transcriptionStatus === 'failed' ||
       args.transcriptionStatus === 'skipped'
     ) {
-      const linkedJob = await ctx.db
-        .query('videoLinkJobs')
-        .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
-        .first();
+      // videoLinkJobs.storageId is a Convex `_storage` id (video-link audio is
+      // never S3); narrow the ref for the index lookup.
+      const convexAudioId = convexStorageId(args.storageId);
+      const linkedJob = convexAudioId
+        ? await ctx.db
+            .query('videoLinkJobs')
+            .withIndex('by_storageId', (q) => q.eq('storageId', convexAudioId))
+            .first()
+        : null;
       if (linkedJob && linkedJob.status === 'transcribing_handoff') {
         const nextStatus =
           args.transcriptionStatus === 'completed'
@@ -460,7 +474,7 @@ export const updateFileTranscription = internalMutation({
 
 export const updateFileVisionMetadata = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     pageCount: v.optional(v.number()),
     scannedPagesDetected: v.optional(v.number()),
     visionRequired: v.optional(v.boolean()),
@@ -502,7 +516,7 @@ export const updateFileVisionMetadata = internalMutation({
  */
 export const acquireTranscriptionLock = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     runId: v.string(),
     leaseMs: v.number(),
   },
@@ -545,7 +559,7 @@ export const acquireTranscriptionLock = internalMutation({
  */
 export const releaseTranscriptionLock = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     runId: v.string(),
   },
   returns: v.null(),
@@ -606,10 +620,15 @@ export const recoverStuckTranscriptions = internalMutation({
         // status, which means `cleanupCancelledVideoLink` never gets
         // called and the audio blob orphans. Reverse-lookup by storageId
         // (new `by_storageId` index) and flip in the same tick.
-        const linkedJob = await ctx.db
-          .query('videoLinkJobs')
-          .withIndex('by_storageId', (q) => q.eq('storageId', row.storageId))
-          .first();
+        const convexAudioId = convexStorageId(row.storageId);
+        const linkedJob = convexAudioId
+          ? await ctx.db
+              .query('videoLinkJobs')
+              .withIndex('by_storageId', (q) =>
+                q.eq('storageId', convexAudioId),
+              )
+              .first()
+          : null;
         if (linkedJob && linkedJob.status === 'transcribing_handoff') {
           await ctx.db.patch(linkedJob._id, {
             status: 'failed',
@@ -629,7 +648,7 @@ export const recoverStuckTranscriptions = internalMutation({
 
 export const linkDocumentToFile = internalMutation({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     documentId: v.id('documents'),
   },
   async handler(ctx, args) {

@@ -3,10 +3,11 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
+import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
 
 export const getByStorageId = internalQuery({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
   },
   async handler(ctx, args) {
     return await ctx.db
@@ -89,7 +90,7 @@ export const listChatAttachmentsForThread = internalQuery({
  */
 export const filterStorageIdsByCallerOrg = internalQuery({
   args: {
-    storageIds: v.array(v.id('_storage')),
+    storageIds: v.array(blobRefValidator),
     userId: v.string(),
   },
   // Returns one entry per authorized storage id with its organizationId so
@@ -100,7 +101,7 @@ export const filterStorageIdsByCallerOrg = internalQuery({
   // still reports `processing` for an orphaned (watchdog-failed) document.
   returns: v.array(
     v.object({
-      storageId: v.id('_storage'),
+      storageId: blobRefValidator,
       organizationId: v.string(),
       ragStatus: v.optional(
         v.union(
@@ -167,10 +168,10 @@ export const filterStorageIdsByCallerOrg = internalQuery({
  * defense-in-depth and a miss only loses the wrap, never poisons trust.
  */
 export const lookupVideoLinkSources = internalQuery({
-  args: { storageIds: v.array(v.id('_storage')) },
+  args: { storageIds: v.array(blobRefValidator) },
   returns: v.array(
     v.object({
-      storageId: v.id('_storage'),
+      storageId: blobRefValidator,
       sourceUrl: v.optional(v.string()),
     }),
   ),
@@ -185,9 +186,13 @@ export const lookupVideoLinkSources = internalQuery({
         .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
         .first();
       if (!meta || meta.source !== 'video_link') continue;
+      // videoLinkJobs.storageId is a Convex `_storage` id; a video-link row is
+      // always Convex-backed, so narrowing here is lossless.
+      const convexId = convexStorageId(storageId);
+      if (convexId === null) continue;
       const job = await ctx.db
         .query('videoLinkJobs')
-        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .withIndex('by_storageId', (q) => q.eq('storageId', convexId))
         .first();
       const entry: {
         storageId: (typeof args.storageIds)[number];
@@ -230,7 +235,7 @@ export const listStuckRagCandidates = internalQuery({
   },
   returns: v.array(
     v.object({
-      storageId: v.id('_storage'),
+      storageId: blobRefValidator,
       organizationId: v.string(),
       ragStatus: v.union(v.literal('queued'), v.literal('running')),
     }),
@@ -318,7 +323,7 @@ export const findCachedTranscript = internalQuery({
   args: {
     organizationId: v.string(),
     contentHash: v.string(),
-    excludeStorageId: v.id('_storage'),
+    excludeStorageId: blobRefValidator,
   },
   async handler(ctx, args) {
     for await (const row of ctx.db

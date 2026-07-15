@@ -2,13 +2,17 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { jsonRecordValidator } from '../lib/validators/json';
 
 export const documentsTable = defineTable({
   organizationId: v.string(),
   title: v.optional(v.string()),
   content: v.optional(v.string()),
-  fileId: v.optional(v.id('_storage')),
+  // Blob reference for the source file: a Convex `_storage` id (deployment
+  // default) OR an `s3:<key>` ref when the org routes blobs at its own bucket.
+  // Widened from `v.id('_storage')` — every existing id still validates.
+  fileId: v.optional(blobRefValidator),
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
   // Open string. Equal to the integration slug for integration-sourced docs
@@ -20,7 +24,7 @@ export const documentsTable = defineTable({
   siteId: v.optional(v.string()),
   driveId: v.optional(v.string()),
   contentHash: v.optional(v.string()),
-  historyFiles: v.optional(v.array(v.id('_storage'))),
+  historyFiles: v.optional(v.array(blobRefValidator)),
   teamId: v.optional(v.string()),
   // Full list of team IDs the document belongs to (multi-team). `teamId`
   // mirrors the first entry for single-team consumers.

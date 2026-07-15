@@ -1,10 +1,10 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 /**
  * A row is only a recovery candidate once its age exceeds the Convex 30-min
@@ -72,7 +72,7 @@ export const recoverStuckRagIndexing = internalAction({
     if (candidates.length === 0) return null;
 
     // One knowledge-corpus status call per distinct org.
-    const byOrg = new Map<string, Array<{ storageId: Id<'_storage'> }>>();
+    const byOrg = new Map<string, Array<{ storageId: BlobRef }>>();
     for (const c of candidates) {
       const bucket = byOrg.get(c.organizationId);
       if (bucket) bucket.push({ storageId: c.storageId });

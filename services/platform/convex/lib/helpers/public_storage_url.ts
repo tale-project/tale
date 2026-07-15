@@ -40,6 +40,22 @@ export function buildDownloadUrl(storageId: string, fileName: string): string {
 }
 
 /**
+ * Build the `/storage` route URL for an `s3:` blob reference. A Convex query
+ * cannot presign S3, so it hands the browser this URL instead; the node
+ * `/storage` httpAction resolves the org's bucket (from `org`, the Better Auth
+ * organization id) and 302-redirects to a short-lived presigned GET. `org` is
+ * REQUIRED for an S3 ref — the route needs it to address the right bucket.
+ */
+export function buildBlobServeUrl(
+  ref: string,
+  orgId: string,
+  fileName?: string,
+): string {
+  const base = `${getPublicHttpApiUrl()}/storage?ref=${encodeURIComponent(ref)}&org=${encodeURIComponent(orgId)}`;
+  return fileName ? `${base}&filename=${encodeURIComponent(fileName)}` : base;
+}
+
+/**
  * Rewrite an internal Convex URL to route through the public proxy.
  *
  * Internal URLs like `http://127.0.0.1:3210/api/storage/...` are unreachable

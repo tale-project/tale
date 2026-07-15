@@ -6,6 +6,7 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 /**
  * Check RAG indexing status for a list of files and update fileMetadata.
@@ -23,7 +24,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
  */
 export const checkFileRagStatuses = action({
   args: {
-    storageIds: v.array(v.id('_storage')),
+    storageIds: v.array(blobRefValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {

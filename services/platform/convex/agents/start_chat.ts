@@ -13,6 +13,7 @@ import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getOrganizationMember } from '../lib/rls';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { autoRouteReasonValidator } from '../streaming/validators';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
@@ -47,7 +48,7 @@ export const startChat = internalMutation({
       v.array(
         v.object({
           documentId: v.id('documents'),
-          fileId: v.id('_storage'),
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

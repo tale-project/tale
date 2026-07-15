@@ -4,7 +4,7 @@ import { useQuery } from 'convex/react';
 import { useMemo } from 'react';
 
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 
 import { isAudioOrVideo } from '../../../../lib/shared/file-types';
 import type { FileAttachment } from './use-convex-file-upload';
@@ -63,7 +63,7 @@ export function useFileTranscriptionStatus(
   const isQueryLoading = audioFileIds.length > 0 && metadata === undefined;
 
   const statusMap = useMemo(() => {
-    const map = new Map<Id<'_storage'>, FileTranscriptionInfo>();
+    const map = new Map<BlobRef, FileTranscriptionInfo>();
     if (!metadata) return map;
     for (const m of metadata) {
       map.set(m.storageId, {

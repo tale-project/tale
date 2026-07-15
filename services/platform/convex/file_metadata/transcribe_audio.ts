@@ -9,6 +9,8 @@ import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { readBlobBytes } from '../lib/storage/blob_access';
+import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
 import {
@@ -225,7 +227,11 @@ async function indexTranscriptToRag(
  */
 export const transcribeAudio = internalAction({
   args: {
-    storageId: v.id('_storage'),
+    // Audio blob reference: a Convex `_storage` id (deployment default) OR an
+    // `s3:<key>` ref when the org has a bring-your-own bucket. The source read
+    // (below) routes off the backend via `readBlobBytes`; the Convex path is
+    // byte-for-byte unchanged.
+    storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
     organizationId: v.string(),
@@ -314,10 +320,16 @@ export const transcribeAudio = internalAction({
       // Dedup: Convex stores a SHA-256 of every upload on `_storage`. If the
       // same content was already transcribed in this org, short-circuit and
       // copy the prior transcript rather than paying ffmpeg + OpenAI again.
-      const contentHash = await ctx.runQuery(
-        internal.file_metadata.internal_queries.getStorageSha256,
-        { storageId: args.storageId },
-      );
+      // An `s3:` ref has no `_storage` system row, so the checksum is
+      // unavailable — dedup gracefully degrades to off for BYO-bucket orgs
+      // (correctness preserved; at worst one duplicate Whisper run).
+      const audioConvexId = convexStorageId(args.storageId);
+      const contentHash = audioConvexId
+        ? await ctx.runQuery(
+            internal.file_metadata.internal_queries.getStorageSha256,
+            { storageId: audioConvexId },
+          )
+        : null;
 
       if (contentHash) {
         // Stamp our own row so future uploads can dedup against it too.
@@ -385,9 +397,28 @@ export const transcribeAudio = internalAction({
         organizationId: args.organizationId,
       });
 
-      const origBlob = await ctx.storage.get(args.storageId);
-      if (!origBlob) {
-        throw new Error(`Audio blob not found in storage: ${args.storageId}`);
+      // Read the source audio from whichever backend owns it. Convex `_storage`
+      // blobs stream straight from `ctx.storage` (unchanged); an `s3:` ref is
+      // fetched from the org's own bucket via the backend-aware seam (needs the
+      // slug to resolve the store).
+      let origBlob: Blob;
+      if (audioConvexId) {
+        const b = await ctx.storage.get(audioConvexId);
+        if (!b) {
+          throw new Error(`Audio blob not found in storage: ${args.storageId}`);
+        }
+        origBlob = b;
+      } else {
+        if (orgSlug === null) {
+          throw new Error(
+            `[transcribeAudio] org ${args.organizationId} unresolvable; cannot read S3 audio blob ${args.storageId}`,
+          );
+        }
+        const bytes = await readBlobBytes(ctx, orgSlug, args.storageId);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
+        origBlob = new Blob([bytes as BlobPart], {
+          type: args.contentType || 'application/octet-stream',
+        });
       }
 
       // Phase 1 — compress
@@ -463,13 +494,19 @@ export const transcribeAudio = internalAction({
         // statusChangedAt advances past the watchdog window. Generic
         // by-storageId lookup keeps transcribe_audio decoupled from
         // video_links-specific shape — see the R12 reactive-join review.
-        await ctx.runMutation(
-          internal.video_links.internal_mutations.heartbeatJobByStorageId,
-          {
-            storageId: args.storageId,
-            progress: progressLabel,
-          },
-        );
+        // Video-link audio is always a Convex `_storage` blob (yt-dlp writes it
+        // via `storage.store`); an S3-backed ref has no video-link job to
+        // heartbeat, so narrow to the Convex id (null → skip the no-op call).
+        const heartbeatStorageId = convexStorageId(args.storageId);
+        if (heartbeatStorageId) {
+          await ctx.runMutation(
+            internal.video_links.internal_mutations.heartbeatJobByStorageId,
+            {
+              storageId: heartbeatStorageId,
+              progress: progressLabel,
+            },
+          );
+        }
       }
 
       const fullTranscript = chunkParagraphs.join('\n\n');

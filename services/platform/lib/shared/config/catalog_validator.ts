@@ -55,6 +55,10 @@ import {
   knowledgeConnectionFileSchema,
   knowledgeConnectionSecretsSchema,
 } from '../schemas/knowledge';
+import {
+  objectStorageConnectionFileSchema,
+  objectStorageConnectionSecretsSchema,
+} from '../schemas/object_storage';
 import { promptJsonSchema } from '../schemas/prompts';
 import {
   providerJsonSchema,
@@ -297,6 +301,23 @@ function validateKnowledgeDir(dir: string, relPrefix: string): WalkResult {
   );
 }
 
+function validateObjectStorageDir(dir: string, relPrefix: string): WalkResult {
+  return walkFlat(
+    dir,
+    relPrefix,
+    (base, rel, out) => {
+      out.issues.push(
+        `${rel}: only connection.json lives in the object-storage domain`,
+      );
+      return undefined;
+    },
+    {
+      secretsSchema: objectStorageConnectionSecretsSchema,
+      specialFiles: { 'connection.json': objectStorageConnectionFileSchema },
+    },
+  );
+}
+
 function validateGovernanceDir(dir: string): WalkResult {
   return walkFlat(
     dir,
@@ -423,6 +444,10 @@ const DOMAIN_VALIDATORS: Record<string, DomainValidator> = {
   knowledge: {
     kind: 'walk',
     validateDir: (dir) => validateKnowledgeDir(dir, ''),
+  },
+  'object-storage': {
+    kind: 'walk',
+    validateDir: (dir) => validateObjectStorageDir(dir, ''),
   },
   automations: {
     kind: 'external-gate',

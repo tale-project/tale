@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 
 import type { FileAttachment } from './use-convex-file-upload';
@@ -55,7 +55,7 @@ export function useFileIndexingStatus(
   );
 
   const statusMap = useMemo(() => {
-    const map = new Map<Id<'_storage'>, FileIndexingInfo>();
+    const map = new Map<BlobRef, FileIndexingInfo>();
     if (!metadata) return map;
     for (const m of metadata) {
       map.set(m.storageId, {
@@ -76,7 +76,7 @@ export function useFileIndexingStatus(
   // transition (not the absolute status) means a remount that observes an
   // already-finished file stays silent, and the success toast fires exactly
   // once per upload.
-  const prevStatusRef = useRef(new Map<Id<'_storage'>, RagStatus>());
+  const prevStatusRef = useRef(new Map<BlobRef, RagStatus>());
 
   useEffect(() => {
     if (!metadata) return;

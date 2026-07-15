@@ -5,6 +5,7 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import type {
   documentItemValidator,
   documentFindResponseValidator,
@@ -60,7 +61,7 @@ export interface CreateDocumentArgs {
   title?: string;
 
   content?: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   extension?: string;
   metadata?: unknown;
@@ -117,7 +118,7 @@ export type ListDocumentsByExtensionResult = Array<{
   _id: Id<'documents'>;
   _creationTime: number;
   title?: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   extension?: string;
   metadata?: unknown;
@@ -173,8 +174,9 @@ export interface GenerateDocumentArgs {
 export interface GenerateDocumentResult {
   /** Whether the document was generated and uploaded successfully */
   success: boolean;
-  /** Convex storage id for the generated file */
-  fileStorageId: Id<'_storage'>;
+  /** Blob reference for the generated file: a Convex `_storage` id (default) OR
+   *  an `s3:<key>` ref when the org has a bring-your-own bucket. */
+  fileStorageId: BlobRef;
   /** Download URL for the generated file */
   downloadUrl: string;
   /** Final file name including extension */

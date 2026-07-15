@@ -2,10 +2,14 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const fileMetadataTable = defineTable({
   organizationId: v.string(),
-  storageId: v.id('_storage'),
+  // Blob reference: a Convex `_storage` id (default) OR an `s3:<key>` ref in the
+  // org's own bucket. Widened from `v.id('_storage')` — every existing id still
+  // validates, and the `by_storageId` index keys off the string form either way.
+  storageId: blobRefValidator,
   documentId: v.optional(v.id('documents')),
   // Open provenance string (no hard enum, so a new channel needs no schema
   // change — mirrors documents.sourceProvider). Reserved values:
