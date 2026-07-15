@@ -2088,7 +2088,7 @@
       "inboxPlaceholder": "Sélectionne une boîte",
       "fromLabel": "Expéditeur",
       "fromDomainHint": "N'importe quelle adresse sur {domain}",
-      "fromInvalid": "Saisis une adresse sur {domain}",
+      "fromLocalPlaceholder": "support",
       "from": "Expéditeur : {from}",
       "noEmailIntegration": "Connecte une intégration e-mail pour envoyer des e-mails.",
       "subject": "Objet",
@@ -2151,6 +2151,7 @@
       "noMembers": "Aucun membre trouvé",
       "unassign": "Retirer l'attribution",
       "assignError": "Impossible de mettre à jour le responsable",
+      "inboxSource": "Boîte de réception : {inbox}",
       "toast": {
         "closed": "La conversation a été fermée avec succès.",
         "closeFailed": "Une erreur inattendue s'est produite lors de la fermeture de la conversation.",

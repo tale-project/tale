@@ -7,6 +7,7 @@ import { Text } from '@tale/ui/text';
 import {
   ArrowLeft,
   Ellipsis,
+  Mail,
   MessageSquare,
   MessageSquareOff,
   ShieldX,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ContactInfoPopover } from '@/app/features/contacts/components/contact-info-popover';
 import {
   useContactById,
@@ -21,14 +23,20 @@ import {
 } from '@/app/features/contacts/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import {
+  inboundRecipientAddress,
+  resolveReplyFrom,
+} from '@/convex/conversations/reply_from';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   useCloseConversation,
   useMarkAsSpam,
   useReopenConversation,
 } from '../hooks/mutations';
+import { useEmailIntegrations } from '../hooks/queries';
 import type { ConversationWithMessages } from '../types';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
 import { DotIcon } from './dot-icon';
@@ -54,6 +62,23 @@ export function ConversationHeader({
   const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
   const pendingContactInfo = useRef(false);
   const { formatRelative } = useFormatDate();
+
+  // The org's actual "From" on THIS thread — the address the contact wrote to
+  // (or the chosen compose sender, both captured in `metadata.to`), domain-
+  // guarded against the inbox default. Reuses the send path's reply-from logic
+  // so what's shown matches what a reply actually goes out as, not the
+  // mailbox's generic default. Falls back to the inbox default, then nothing.
+  const { emailIntegrations } = useEmailIntegrations(organizationId);
+  const inbox = conversation.integrationName
+    ? emailIntegrations.find((i) => i.slug === conversation.integrationName)
+    : undefined;
+  const inboundTo = inboundRecipientAddress(
+    isRecord(conversation.metadata) ? conversation.metadata : undefined,
+  );
+  const conversationFrom = inbox?.fromAddress
+    ? resolveReplyFrom(inboundTo, inbox.fromAddress)
+    : (inboundTo ?? inbox?.fromAddress);
+  const inboxLabel = inbox?.title;
 
   const { mutate: closeConversation, isPending: isClosing } =
     useCloseConversation();
@@ -290,6 +315,22 @@ export function ConversationHeader({
               <>
                 <DotIcon className="mx-0.5 shrink-0" />
                 <span>{lastMessageTime}</span>
+              </>
+            )}
+            {conversationFrom && (
+              <>
+                <DotIcon className="mx-0.5 shrink-0" />
+                <Tooltip content={inboxLabel ?? conversationFrom}>
+                  <span
+                    className="inline-flex min-w-0 items-center gap-1"
+                    aria-label={t('header.inboxSource', {
+                      inbox: conversationFrom,
+                    })}
+                  >
+                    <Mail className="size-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{conversationFrom}</span>
+                  </span>
+                </Tooltip>
               </>
             )}
           </Row>

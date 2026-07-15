@@ -47,6 +47,56 @@ interface TokenResponse {
   };
 }
 
+/**
+ * Best-effort fetch of the connected account's send address, so compose + the
+ * conversation header can show the exact From for OAuth mailboxes. Gmail's
+ * `users.getProfile` needs only the already-granted `gmail.readonly` scope;
+ * Outlook's `/me` needs `User.Read`. Returns null on any failure — the caller
+ * treats the address as optional and never fails the connection over it.
+ */
+async function fetchOAuthAccountEmail(
+  slug: string,
+  accessToken: string,
+): Promise<string | null> {
+  const init = {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+  };
+  try {
+    if (slug === 'gmail') {
+      const res = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+        init,
+      );
+      if (!res.ok) {
+        console.warn(`[OAuth2] gmail profile fetch failed: ${res.status}`);
+        return null;
+      }
+      const body = await fetchJson<{ emailAddress?: string }>(res);
+      return typeof body.emailAddress === 'string' ? body.emailAddress : null;
+    }
+    if (slug === 'outlook') {
+      const res = await fetch('https://graph.microsoft.com/v1.0/me', init);
+      if (!res.ok) {
+        console.warn(`[OAuth2] outlook /me fetch failed: ${res.status}`);
+        return null;
+      }
+      const body = await fetchJson<{
+        mail?: string | null;
+        userPrincipalName?: string;
+      }>(res);
+      return body.mail ?? body.userPrincipalName ?? null;
+    }
+    return null;
+  } catch (error) {
+    console.warn(
+      `[OAuth2] account-email capture failed for ${slug} (non-fatal):`,
+      error,
+    );
+    return null;
+  }
+}
+
 export const handleOAuth2Callback = internalAction({
   args: {
     credentialId: v.id('integrationCredentials'),
@@ -198,6 +248,32 @@ export const handleOAuth2Callback = internalAction({
         errorMessage: undefined,
       },
     );
+
+    // Best-effort: capture the connected account's send address for OAuth
+    // mailboxes (gmail/outlook) so compose + the conversation header can show
+    // the exact From. Runs AFTER activation, so a failure here leaves a healthy
+    // connection — the address is optional and fills in on the next reconnect.
+    if (credential.slug === 'gmail' || credential.slug === 'outlook') {
+      const accountEmail = await fetchOAuthAccountEmail(
+        credential.slug,
+        tokens.access_token,
+      );
+      if (accountEmail) {
+        await ctx.runMutation(
+          internal.integrations.credential_mutations.updateCredentialsInternal,
+          {
+            credentialId: args.credentialId,
+            connectionConfig: {
+              ...credential.connectionConfig,
+              fromAddress: accountEmail,
+            },
+          },
+        );
+        debugLog(
+          `Captured ${credential.slug} account email for credential ${args.credentialId}`,
+        );
+      }
+    }
 
     debugLog(
       `OAuth2 token exchange successful for credential ${args.credentialId}`,

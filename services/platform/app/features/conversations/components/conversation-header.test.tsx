@@ -30,6 +30,12 @@ vi.mock('./conversation-assignee-picker', () => ({
   ConversationAssigneePicker: () => null,
 }));
 
+// The From-source line reads email integrations via a Convex query; stub it so
+// the header renders without a live Convex client.
+vi.mock('../hooks/queries', () => ({
+  useEmailIntegrations: () => ({ emailIntegrations: [], isLoading: false }),
+}));
+
 vi.mock('../hooks/mutations', () => ({
   useCloseConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useReopenConversation: () => ({ mutate: vi.fn(), isPending: false }),

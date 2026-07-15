@@ -51,6 +51,13 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     isInvalid?: boolean;
     label?: string;
     description?: ReactNode;
+    /**
+     * A fixed, non-editable addon rendered INSIDE the field's border, right after
+     * the value (e.g. a locked email domain `@acme.com`). The value input is
+     * transparent and content-sized so the two read as one string, and the border
+     * + focus ring live on the wrapper. Not combined with `passwordToggle`.
+     */
+    suffix?: ReactNode;
     /** Optional hover/focus tooltip on the label (the deeper "why/format"). */
     labelInfo?: ReactNode;
     required?: boolean;
@@ -72,6 +79,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       isInvalid,
       label,
       description,
+      suffix,
       labelInfo,
       required,
       wrapperClassName,
@@ -232,6 +240,73 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               className="text-destructive flex items-center gap-1.5 text-sm"
             >
               <XCircle className="size-4" aria-hidden="true" />
+              {errorMessage}
+            </p>
+          )}
+          {description && (
+            <Description id={descriptionId}>{description}</Description>
+          )}
+        </div>
+      );
+    }
+
+    if (suffix) {
+      return (
+        <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
+          {label && (
+            <Label
+              htmlFor={id}
+              required={required}
+              error={hasError}
+              info={labelInfo}
+            >
+              {label}
+            </Label>
+          )}
+          {/* The border + focus ring live on the wrapper; the input is
+              transparent and content-sized so the value and the fixed suffix
+              read as one contiguous string. Clicking anywhere in the box
+              focuses the field — the inner input owns the semantics. */}
+          {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
+          <div
+            className={cn(
+              'flex h-9 w-full items-center rounded-lg border border-transparent bg-input px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] ring-offset-background transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2',
+              showInvalid && 'border-destructive focus-within:ring-destructive',
+              showShake && 'animate-shake',
+              className,
+            )}
+            onMouseDown={(e) => {
+              if (!(e.target instanceof HTMLInputElement)) {
+                e.preventDefault();
+                e.currentTarget.querySelector('input')?.focus();
+              }
+            }}
+          >
+            <input
+              id={id}
+              type={inputType}
+              {...sensitiveAttrs}
+              className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              ref={ref}
+              required={required}
+              aria-invalid={showInvalid || undefined}
+              aria-describedby={describedBy}
+              aria-errormessage={hasError ? errorId : undefined}
+              {...props}
+              style={{ ...style, ...securityStyle }}
+            />
+            <span className="text-muted-foreground shrink-0 select-none">
+              {suffix}
+            </span>
+          </div>
+          {errorMessage && (
+            <p
+              id={errorId}
+              role="alert"
+              aria-live="polite"
+              className="text-destructive flex items-center gap-1.5 text-sm"
+            >
+              <Info className="size-4" aria-hidden="true" />
               {errorMessage}
             </p>
           )}
