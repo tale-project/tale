@@ -18,6 +18,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { fetchBlobArrayBuffer } from '../../lib/storage/blob_read_any';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError, inferContentType, sha256Hex } from './_shared';
@@ -185,8 +186,14 @@ Every result (success or failure) includes \`sandboxState\` — the current work
           };
         }
 
-        const blob = await ctx.storage.get(row.storageId);
-        if (blob === null) {
+        // Backend-aware read: `row.storageId` is a blob REFERENCE — an `s3:`
+        // ref (BYO-bucket org) fetches through the presign lane; V8-safe.
+        const read = await fetchBlobArrayBuffer(
+          ctx,
+          organizationId,
+          row.storageId,
+        );
+        if (read === null) {
           return {
             ok: false as const,
             code: 'STORAGE_MISSING' as const,
@@ -196,7 +203,7 @@ Every result (success or failure) includes \`sandboxState\` — the current work
 
         let originalContent: string;
         try {
-          const buf = Buffer.from(await blob.arrayBuffer());
+          const buf = Buffer.from(read.bytes);
           originalContent = buf.toString('utf8');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -243,15 +250,19 @@ Every result (success or failure) includes \`sandboxState\` — the current work
 
         const bytes = new TextEncoder().encode(newContent);
         const contentType = inferContentType(normalizedPath);
-        // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
-        // BlobPart constraint accepts it.
+        // Copy bytes into a fresh ArrayBuffer (exact-size) for the
+        // cross-action `v.bytes()` arg.
         const ab = new ArrayBuffer(bytes.byteLength);
         new Uint8Array(ab).set(bytes);
-        const newBlob = new Blob([ab], { type: contentType });
 
         let storageId: string;
         try {
-          storageId = await ctx.storage.store(newBlob);
+          // Backend-aware store via the node lane (this tool is bundled into
+          // the V8 workflow engine — it cannot import the 'use node' seam).
+          storageId = await ctx.runAction(
+            internal.files.blob_actions.storeOrgBlob,
+            { organizationId, bytes: ab, contentType },
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return {
@@ -268,9 +279,9 @@ Every result (success or failure) includes \`sandboxState\` — the current work
               organizationId,
               threadId: workspaceThreadId,
               path: normalizedPath,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
-              storageId: storageId as never,
-              size: newBlob.size,
+              // Blob reference string — upsertThreadFile is blobRef-wide.
+              storageId,
+              size: bytes.byteLength,
               contentType,
               sha256: await sha256Hex(bytes),
               // Provenance is the WRITER (the model), whichever root the
@@ -281,7 +292,7 @@ Every result (success or failure) includes \`sandboxState\` — the current work
           return {
             ok: true as const,
             path: normalizedPath,
-            size: newBlob.size,
+            size: bytes.byteLength,
             contentType,
             replacements,
           };
@@ -306,8 +317,11 @@ Every result (success or failure) includes \`sandboxState\` — the current work
               message: string;
             };
             try {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-              await ctx.storage.delete(storageId as never);
+              // Backend-aware orphan reclaim via the node delete lane.
+              await ctx.runAction(internal.files.blob_actions.deleteOrgBlobs, {
+                organizationId,
+                refs: [storageId],
+              });
             } catch (delErr) {
               console.warn(
                 '[file_edit] orphan storage cleanup failed:',
@@ -325,8 +339,11 @@ Every result (success or failure) includes \`sandboxState\` — the current work
             };
           }
           try {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-            await ctx.storage.delete(storageId as never);
+            // Backend-aware orphan reclaim via the node delete lane.
+            await ctx.runAction(internal.files.blob_actions.deleteOrgBlobs, {
+              organizationId,
+              refs: [storageId],
+            });
           } catch (delErr) {
             console.warn('[file_edit] orphan storage cleanup failed:', delErr);
           }

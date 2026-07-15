@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
-import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const getByStorageId = internalQuery({
   args: {
@@ -186,13 +186,12 @@ export const lookupVideoLinkSources = internalQuery({
         .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
         .first();
       if (!meta || meta.source !== 'video_link') continue;
-      // videoLinkJobs.storageId is a Convex `_storage` id; a video-link row is
-      // always Convex-backed, so narrowing here is lossless.
-      const convexId = convexStorageId(storageId);
-      if (convexId === null) continue;
+      // videoLinkJobs.storageId is a blob REFERENCE sharing the exact string
+      // this fileMetadata row carries, so the join works for `_storage` ids
+      // AND `s3:` refs alike.
       const job = await ctx.db
         .query('videoLinkJobs')
-        .withIndex('by_storageId', (q) => q.eq('storageId', convexId))
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
         .first();
       const entry: {
         storageId: (typeof args.storageIds)[number];

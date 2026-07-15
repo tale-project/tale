@@ -8,6 +8,7 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
+import { blobRefValidator } from '../../lib/storage/blob_ref';
 import {
   analyzeImage as analyzeImageHelper,
   type AnalyzeImageResult,
@@ -19,7 +20,8 @@ import {
  */
 export const analyzeImageUncached = internalAction({
   args: {
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
     question: v.optional(v.string()),
     fileName: v.optional(v.string()),
     /**

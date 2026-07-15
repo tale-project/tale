@@ -1,6 +1,7 @@
 import type { ImagePart, ModelMessage } from 'ai';
 
 import type { ActionCtx } from '../../_generated/server';
+import { fetchBlobArrayBuffer } from '../storage/blob_read_any';
 import type { FileAttachment } from './types';
 
 const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
@@ -14,7 +15,8 @@ export interface BuildInlineMultiModalPromptResult {
 /**
  * Build a multimodal user message with image bytes embedded as ImagePart.
  *
- * Reads images directly from `_storage` and inlines them. Does NOT mutate
+ * Reads image bytes through the backend-aware seam (`_storage` directly, or a
+ * presigned fetch for an `s3:`-backed org) and inlines them. Does NOT mutate
  * the agent component's file registry — that registration is upload-time
  * scope, not per-turn.
  *
@@ -27,6 +29,8 @@ export async function buildInlineMultiModalPrompt(
   params: {
     userText: string;
     imageAttachments: FileAttachment[];
+    /** Owning org (Better Auth id) — resolves the bucket for `s3:` refs. */
+    organizationId: string;
   },
 ): Promise<BuildInlineMultiModalPromptResult> {
   const { userText, imageAttachments } = params;
@@ -36,16 +40,20 @@ export async function buildInlineMultiModalPrompt(
 
   for (const att of imageAttachments) {
     try {
-      const blob = await ctx.storage.get(att.fileId);
-      if (!blob) {
+      const read = await fetchBlobArrayBuffer(
+        ctx,
+        params.organizationId,
+        att.fileId,
+      );
+      if (!read) {
         skippedImages.push({
           fileName: att.fileName,
           reason: 'not found in storage',
         });
         continue;
       }
-      if (blob.size > MAX_IMAGE_BYTES) {
-        const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+      if (read.bytes.byteLength > MAX_IMAGE_BYTES) {
+        const sizeMB = (read.bytes.byteLength / (1024 * 1024)).toFixed(2);
         const maxMB = (MAX_IMAGE_BYTES / (1024 * 1024)).toFixed(0);
         skippedImages.push({
           fileName: att.fileName,
@@ -53,11 +61,11 @@ export async function buildInlineMultiModalPrompt(
         });
         continue;
       }
-      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const bytes = new Uint8Array(read.bytes);
       imageParts.push({
         type: 'image',
         image: bytes,
-        mediaType: blob.type || att.fileType || 'image/png',
+        mediaType: read.contentType || att.fileType || 'image/png',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

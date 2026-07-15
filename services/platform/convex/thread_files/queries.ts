@@ -12,9 +12,13 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { toPublicUrl } from '../lib/helpers/public_storage_url';
+import {
+  buildBlobServeUrl,
+  toPublicUrl,
+} from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { convexStorageId, isS3Ref } from '../lib/storage/blob_ref';
 import { getBranchAncestorThreadIds } from '../threads/get_branch_ancestor_thread_ids';
 import { getDelegateSubThreadIds } from '../threads/get_delegate_sub_thread_ids';
 
@@ -210,11 +214,23 @@ export const getThreadFileContentUrl = query({
     }
     if (!row) return null;
 
-    const url = await ctx.storage.getUrl(row.storageId);
+    // Backend-aware serve: a Convex `_storage` id gets the direct (proxied)
+    // storage URL as before; an `s3:` ref gets the `/storage?ref=…&org=…`
+    // route URL — a query cannot presign S3, so the node route 302s to a
+    // short-lived presigned GET when the canvas fetches it. Mirrors
+    // files/queries.ts:resolveBlobUrl.
+    let url: string | null;
+    if (isS3Ref(row.storageId)) {
+      url = buildBlobServeUrl(String(row.storageId), row.organizationId);
+    } else {
+      const convexId = convexStorageId(row.storageId);
+      const raw = convexId === null ? null : await ctx.storage.getUrl(convexId);
+      url = raw ? toPublicUrl(raw) : null;
+    }
     if (!url) return null;
 
     return {
-      url: toPublicUrl(url),
+      url,
       size: row.size,
       contentType: row.contentType,
       renderHint: row.renderHint,

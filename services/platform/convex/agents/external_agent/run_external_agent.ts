@@ -48,9 +48,11 @@ import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
+import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { buildSkillsGuidance } from '../../lib/skills/guidance';
-import { toId } from '../../lib/type_cast_helpers';
+import { readBlobBytes } from '../../lib/storage/blob_access';
+import { blobRefValidator, convexStorageId } from '../../lib/storage/blob_ref';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
 import { stageBoundOrgSkills } from '../../node_only/sandbox/bound_org_skills';
@@ -230,14 +232,21 @@ function withErrorNote(
 
 /**
  * Stage this turn's chat attachments into the sandbox and return the prompt with
- * an absolute-path preamble appended, plus the dirs to grant the agent. The
- * heavy bytes never pass through this action: storage mints a presigned URL and
- * the in-container daemon fetches it directly (sessionStageFiles, url mode).
+ * an absolute-path preamble appended, plus the dirs to grant the agent. For a
+ * Convex `_storage` blob the heavy bytes never pass through this action:
+ * storage mints an in-sandbox-reachable URL and the in-container daemon fetches
+ * it directly (sessionStageFiles, url mode). An `s3:` blob CANNOT be fetched
+ * from the sandbox (the `--internal` sandbox net has no route to the org's S3
+ * endpoint), so its bytes are read here (node) and staged inline as base64 —
+ * bounded by MAX_INLINE_STAGE_BYTES; larger S3 attachments degrade to a
+ * "not delivered" preamble line.
  *
  * Best-effort: a storage miss or a daemon-side skip degrades to a "not
  * delivered" line in the preamble (so the agent never assumes a file it cannot
  * read), and a transport failure is swallowed — staging must not fail the turn.
  */
+const MAX_INLINE_STAGE_BYTES = 64 * 1024 * 1024;
+
 async function stageChatAttachments(
   ctx: ActionCtx,
   opts: {
@@ -250,29 +259,61 @@ async function stageChatAttachments(
     promptMessageId: string;
     sessionId: string;
     rawPrompt: string;
+    /** Org slug — resolves the bucket for `s3:`-backed attachments. */
+    orgSlug: string | null;
   },
 ): Promise<{ prompt: string; additionalDirs: string[] }> {
   const plan = buildAttachmentStagePlan(opts.promptMessageId, opts.attachments);
   const entries: {
     path: string;
-    url: string;
+    url?: string;
+    contentBase64?: string;
     absPath: string;
     fileType: string;
     diskName: string;
   }[] = [];
   for (const p of plan.planned) {
-    const raw = await ctx.storage.getUrl(toId<'_storage'>(p.fileId));
-    if (!raw) {
+    const convexId = convexStorageId(p.fileId);
+    if (convexId !== null) {
+      const raw = await ctx.storage.getUrl(convexId);
+      if (!raw) {
+        plan.skipped.push({ name: p.diskName, reason: 'not_found' });
+        continue;
+      }
+      entries.push({
+        path: p.stagePath,
+        url: toSandboxStorageUrl(raw),
+        absPath: p.absPath,
+        fileType: p.fileType,
+        diskName: p.diskName,
+      });
+      continue;
+    }
+    // S3-backed: read bytes here and stage inline (see the header comment).
+    if (opts.orgSlug === null) {
       plan.skipped.push({ name: p.diskName, reason: 'not_found' });
       continue;
     }
-    entries.push({
-      path: p.stagePath,
-      url: toSandboxStorageUrl(raw),
-      absPath: p.absPath,
-      fileType: p.fileType,
-      diskName: p.diskName,
-    });
+    if (p.fileSize > MAX_INLINE_STAGE_BYTES) {
+      plan.skipped.push({ name: p.diskName, reason: 'too_large' });
+      continue;
+    }
+    try {
+      const bytes = await readBlobBytes(ctx, opts.orgSlug, p.fileId);
+      entries.push({
+        path: p.stagePath,
+        contentBase64: Buffer.from(bytes).toString('base64'),
+        absPath: p.absPath,
+        fileType: p.fileType,
+        diskName: p.diskName,
+      });
+    } catch (err) {
+      console.warn(
+        `[runExternalAgentTurn] S3 attachment read failed for ${p.diskName}:`,
+        err instanceof Error ? err.message : err,
+      );
+      plan.skipped.push({ name: p.diskName, reason: 'not_found' });
+    }
   }
 
   const stagedOk: { absPath: string; fileType: string }[] = [];
@@ -280,7 +321,11 @@ async function stageChatAttachments(
     try {
       const result = await sessionStageFiles(
         opts.sessionId,
-        entries.map((e) => ({ path: e.path, url: e.url })),
+        entries.map((e) =>
+          e.url !== undefined
+            ? { path: e.path, url: e.url }
+            : { path: e.path, contentBase64: e.contentBase64 ?? '' },
+        ),
       );
       const skippedReason = new Map(
         result.skipped.map((s) => [s.path, s.reason]),
@@ -425,7 +470,8 @@ export const runExternalAgentTurn = internalAction({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),
@@ -439,7 +485,8 @@ export const runExternalAgentTurn = internalAction({
     referencedFiles: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),
@@ -1223,6 +1270,9 @@ export const runExternalAgentTurn = internalAction({
           promptMessageId: args.promptMessageId,
           sessionId: liveSessionId,
           rawPrompt: args.rawPrompt,
+          // Bucket resolution for `s3:`-backed attachments; null degrades
+          // those to "not delivered" (never fails the turn).
+          orgSlug: await orgSlugFromIdOrNull(ctx, args.organizationId),
         });
         promptForRun = staged.prompt;
         attachmentDirs = staged.additionalDirs;

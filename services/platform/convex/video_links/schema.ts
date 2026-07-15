@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 /**
  * Video-link ingestion jobs. One row per pasted video URL.
@@ -119,7 +120,12 @@ export const videoLinkJobsTable = defineTable({
   // Linked artifacts (populated as the pipeline advances)
   // - captions branch: storageId = transcript blob, fileMetadataId = synthetic row
   // - whisper branch:  storageId = audio blob,      fileMetadataId = audio row
-  storageId: v.optional(v.id('_storage')),
+  // Blob REFERENCE: a Convex `_storage` id (deployment default) OR an
+  // `s3:<key>` ref when the org brings its own bucket (ingest_video_link.ts
+  // routes the store through `putBlob`). Widened from `v.id('_storage')` —
+  // every existing id still validates, and the `by_storageId` join keys on
+  // the same string form the linked `fileMetadata.storageId` carries.
+  storageId: v.optional(blobRefValidator),
   fileMetadataId: v.optional(v.id('fileMetadata')),
 
   // Reserved for soft-delete / trash retention parity with other tables.

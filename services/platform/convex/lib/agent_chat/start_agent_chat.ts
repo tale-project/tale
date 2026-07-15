@@ -30,10 +30,12 @@ import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
+import { buildBlobServeUrl } from '../helpers/public_storage_url';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import { convexStorageId, isS3Ref } from '../storage/blob_ref';
 import { toId } from '../type_cast_helpers';
 import {
   appendKbReferenceBlock,
@@ -338,7 +340,12 @@ export async function startAgentChat(
   // bubble body with zero new display plumbing; folder pins get their own
   // marker → folder chip (see kb_reference_block.ts).
   const messageWithAttachments = hasAttachments
-    ? await buildMessageWithAttachments(ctx, trimmedMessage, attachments)
+    ? await buildMessageWithAttachments(
+        ctx,
+        trimmedMessage,
+        attachments,
+        organizationId,
+      )
     : trimmedMessage;
   const messageContent = appendKbReferenceBlock(
     messageWithAttachments,
@@ -709,7 +716,8 @@ export async function startAgentChat(
         // Access was already resolved + authorized in chatWithAgentTurn.
         ...(referencedFiles.length > 0 && {
           referencedFiles: referencedFiles.map((ref) => ({
-            fileId: toId<'_storage'>(ref.fileId),
+            // Raw blob reference — the receiving validator is blobRef-wide.
+            fileId: ref.fileId,
             fileName: ref.fileName,
             fileType: ref.fileType,
             fileSize: ref.fileSize,
@@ -768,7 +776,8 @@ export async function startAgentChat(
       !prewarm && referencedFiles.length > 0
         ? referencedFiles.map((ref) => ({
             documentId: toId<'documents'>(ref.documentId),
-            fileId: toId<'_storage'>(ref.fileId),
+            // Raw blob reference — the receiving validator is blobRef-wide.
+            fileId: ref.fileId,
             fileName: ref.fileName,
             fileType: ref.fileType,
             fileSize: ref.fileSize,
@@ -848,7 +857,23 @@ async function buildMessageWithAttachments(
   ctx: MutationCtx,
   message: string,
   attachments: FileAttachment[],
+  organizationId: string,
 ): Promise<string> {
+  // Backend-aware URL bake: a Convex `_storage` id gets the direct storage URL
+  // (unchanged); an `s3:` ref gets the `/storage?ref=…&org=…` route URL (a
+  // mutation cannot presign S3 — the route 302s to a short-lived presigned GET
+  // when fetched).
+  const resolveAttachmentUrl = (a: FileAttachment): Promise<string | null> => {
+    if (isS3Ref(a.fileId)) {
+      return Promise.resolve(
+        buildBlobServeUrl(String(a.fileId), organizationId, a.fileName),
+      );
+    }
+    const convexId = convexStorageId(a.fileId);
+    return convexId === null
+      ? Promise.resolve(null)
+      : ctx.storage.getUrl(convexId);
+  };
   // Separate images, text files, spreadsheets, audio, and other documents.
   // Audio is handled specially: the transcript (produced by transcribeAudio)
   // is inlined as text rather than attached as a link — bytes never reach
@@ -884,25 +909,25 @@ async function buildMessageWithAttachments(
       Promise.all(
         documentAttachments.map(async (a) => ({
           attachment: a,
-          url: await ctx.storage.getUrl(a.fileId),
+          url: await resolveAttachmentUrl(a),
         })),
       ),
       Promise.all(
         spreadsheetAttachments.map(async (a) => ({
           attachment: a,
-          url: await ctx.storage.getUrl(a.fileId),
+          url: await resolveAttachmentUrl(a),
         })),
       ),
       Promise.all(
         textFileAttachments.map(async (a) => ({
           attachment: a,
-          url: await ctx.storage.getUrl(a.fileId),
+          url: await resolveAttachmentUrl(a),
         })),
       ),
       Promise.all(
         imageAttachments.map(async (a) => ({
           attachment: a,
-          url: await ctx.storage.getUrl(a.fileId),
+          url: await resolveAttachmentUrl(a),
         })),
       ),
     ]);

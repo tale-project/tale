@@ -11,6 +11,7 @@ import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const arenaChat = action({
   args: {
@@ -24,7 +25,8 @@ export const arenaChat = action({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

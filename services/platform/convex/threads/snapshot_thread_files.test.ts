@@ -13,6 +13,14 @@ vi.mock('../_generated/api', () => ({
       internal_mutations: { upsertThreadFile: 'upsertThreadFile' },
     },
   },
+  components: {},
+}));
+
+// Backend routing is exercised by the object-storage E2E suite; here the org
+// resolves to no slug so every copy takes the Convex `_storage` path the
+// assertions below observe.
+vi.mock('../lib/helpers/org_slug', () => ({
+  orgSlugFromIdOrNull: vi.fn().mockResolvedValue(null),
 }));
 
 const { snapshotThreadFiles } = await import('./snapshot_thread_files');
@@ -65,7 +73,13 @@ function makeCtx(opts: CtxOpts) {
     storage: {
       get: vi.fn((id: string) =>
         Promise.resolve(
-          opts.missingBlobs?.has(id) ? null : ({ id } as unknown as Blob),
+          opts.missingBlobs?.has(id)
+            ? null
+            : ({
+                id,
+                type: '',
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+              } as unknown as Blob),
         ),
       ),
       store: vi.fn(() => {

@@ -35,6 +35,10 @@ import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
 import { loadActiveHolds } from '../governance/legal_hold';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import {
+  deleteBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
 import { parseSubThreadIds } from './delete_chat_thread';
 
 // Audit actions emitted by this file. Keep grep-able:
@@ -380,19 +384,22 @@ export async function cascadeDeleteThreadChildren(
         );
       }
       const ragPurgeStorageIds: string[] = [];
+      const s3FileRefs: string[] = [];
       for (const fileMeta of filesPage) {
-        try {
-          await ctx.storage.delete(fileMeta.storageId);
-        } catch (error) {
-          console.warn(
-            `[cascadeDeleteThreadChildren] storage.delete failed for ${String(fileMeta.storageId)}:`,
-            error instanceof Error ? error.message : error,
-          );
-        }
+        // Backend-aware: `fileMetadata.storageId` is a blob REFERENCE — a
+        // chat upload in a BYO-bucket org is an `s3:` ref a mutation cannot
+        // sign for, so those batch onto the scheduled node delete lane.
+        await deleteBlobInMutation(
+          ctx,
+          fileMeta.storageId,
+          s3FileRefs,
+          'cascadeDeleteThreadChildren',
+        );
         ragPurgeStorageIds.push(String(fileMeta.storageId));
         filesPageStorageIds.push(String(fileMeta.storageId));
         await ctx.db.delete(fileMeta._id);
       }
+      await scheduleS3BlobDeletes(ctx, organizationId, s3FileRefs);
       if (orgSlug !== null && ragPurgeStorageIds.length > 0) {
         await ctx.scheduler.runAfter(
           0,
@@ -419,6 +426,7 @@ export async function cascadeDeleteThreadChildren(
     .query('videoLinkJobs')
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
     .take(PAGE_SIZE);
+  const s3VideoRefs = new Map<string, string[]>();
   for (const job of videoLinksPage) {
     if (
       job.storageId &&
@@ -428,16 +436,19 @@ export async function cascadeDeleteThreadChildren(
       // diagnostic trail clean.
       !filesPageStorageIds.includes(String(job.storageId))
     ) {
-      try {
-        await ctx.storage.delete(job.storageId);
-      } catch (error) {
-        console.warn(
-          `[cascadeDeleteThreadChildren] storage.delete failed for video-link ${String(job.storageId)}:`,
-          error instanceof Error ? error.message : error,
-        );
-      }
+      const refs = s3VideoRefs.get(job.organizationId) ?? [];
+      await deleteBlobInMutation(
+        ctx,
+        job.storageId,
+        refs,
+        'cascadeDeleteThreadChildren.videoLink',
+      );
+      if (refs.length > 0) s3VideoRefs.set(job.organizationId, refs);
     }
     await ctx.db.delete(job._id);
+  }
+  for (const [orgId, refs] of s3VideoRefs) {
+    await scheduleS3BlobDeletes(ctx, orgId, refs);
   }
   if (videoLinksPage.length === PAGE_SIZE) {
     return { done: false, remaining: 1 };
@@ -456,24 +467,28 @@ export async function cascadeDeleteThreadChildren(
     .query('ttsAudioChunks')
     .withIndex('by_thread_age', (q) => q.eq('threadId', threadId))
     .take(PAGE_SIZE);
+  const s3TtsRefs = new Map<string, string[]>();
   for (const chunk of ttsPage) {
-    // db.delete BEFORE storage.delete — Convex `_storage` writes are
+    // db.delete BEFORE the blob delete — Convex `_storage` writes are
     // out-of-band and not rolled back on transaction abort, so the
     // reverse order can leave a row pointing at a dead storageId
     // (404 on `/api/tts-audio`). Matches the documented contract in
-    // `tts/cascade_helpers.ts:55-62`.
+    // `tts/cascade_helpers.ts`. `s3:` refs batch onto the scheduled lane.
     const storageId = chunk.storageId;
     await ctx.db.delete(chunk._id);
     if (storageId) {
-      try {
-        await ctx.storage.delete(storageId);
-      } catch (error) {
-        console.warn(
-          `[cascadeDeleteThreadChildren] tts storage.delete failed for ${String(storageId)}:`,
-          error instanceof Error ? error.message : error,
-        );
-      }
+      const refs = s3TtsRefs.get(chunk.organizationId) ?? [];
+      await deleteBlobInMutation(
+        ctx,
+        storageId,
+        refs,
+        'cascadeDeleteThreadChildren.tts',
+      );
+      if (refs.length > 0) s3TtsRefs.set(chunk.organizationId, refs);
     }
+  }
+  for (const [orgId, refs] of s3TtsRefs) {
+    await scheduleS3BlobDeletes(ctx, orgId, refs);
   }
   if (ttsPage.length === PAGE_SIZE) {
     return { done: false, remaining: 1 };

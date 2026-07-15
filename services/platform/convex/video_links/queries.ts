@@ -32,7 +32,8 @@ interface VideoLinkJobView {
   errorReasonCode?: string;
   errorMessage?: string;
   attempts?: number;
-  storageId?: Id<'_storage'>;
+  /** Blob reference (`_storage` id or `s3:` ref) of the transcript/audio. */
+  storageId?: string;
   /** Size in bytes of the transcript blob in `_storage`. Sourced from
    * `fileMetadata.size` — same field the bind mutation puts on the
    * outgoing attachment payload — so the client optimistic render lands a

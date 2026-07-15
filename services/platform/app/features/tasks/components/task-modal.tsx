@@ -499,7 +499,7 @@ function EditTaskBody({
       })
       .catch(onMutationError);
   };
-  const onRemoveAttachment = (fileId: Id<'_storage'>) => {
+  const onRemoveAttachment = (fileId: string) => {
     void updateTask
       .mutateAsync({
         taskId: task._id,

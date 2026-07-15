@@ -7,6 +7,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { fetchBlobArrayBuffer } from '../../lib/storage/blob_read_any';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError } from './_shared';
@@ -112,15 +113,21 @@ Every result (success or failure) includes \`sandboxState\` — the current work
           };
         }
 
-        const blob = await ctx.storage.get(row.storageId);
-        if (blob === null) {
+        // Backend-aware read: `row.storageId` is a blob REFERENCE — an `s3:`
+        // ref (BYO-bucket org) fetches through the presign lane; V8-safe.
+        const read = await fetchBlobArrayBuffer(
+          ctx,
+          organizationId,
+          row.storageId,
+        );
+        if (read === null) {
           return {
             ok: false as const,
             code: 'STORAGE_MISSING' as const,
             message: `Workspace file row exists but its storage blob is missing (storageId=${row.storageId}).`,
           };
         }
-        const buf = Buffer.from(await blob.arrayBuffer());
+        const buf = Buffer.from(read.bytes);
         const encoding = args.encoding ?? 'utf8';
         const content =
           encoding === 'base64' ? buf.toString('base64') : buf.toString('utf8');

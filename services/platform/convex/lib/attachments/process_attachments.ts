@@ -15,7 +15,6 @@ import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
-import { toId } from '../../lib/type_cast_helpers';
 import { registerFilesWithAgent } from './register_files';
 import type { FileAttachment, MessageContentPart } from './types';
 
@@ -164,6 +163,7 @@ export async function processAttachments(
         const parseResult = await parseFile(
           ctx,
           attachment.fileId,
+          config.organizationId,
           attachment.fileName,
           toolName,
           userText,
@@ -216,7 +216,11 @@ export async function processAttachments(
       try {
         const result = await ctx.runAction(
           internal.node_only.documents.internal_actions.parseExcel,
-          { storageId: toId<'_storage'>(attachment.fileId) },
+          {
+            // Raw blob reference — parseExcel is backend-aware.
+            storageId: attachment.fileId,
+            organizationId: config.organizationId,
+          },
         );
         debugLog('Parsed spreadsheet', {
           fileName: attachment.fileName,
@@ -282,7 +286,8 @@ export async function processAttachments(
     audioAttachments.map(async (attachment) => {
       const metadata = await ctx.runQuery(
         internal.file_metadata.internal_queries.getByStorageId,
-        { storageId: toId<'_storage'>(attachment.fileId) },
+        // Raw blob reference — the query keys the row off the string form.
+        { storageId: attachment.fileId },
       );
       return {
         fileName: attachment.fileName,
@@ -295,11 +300,14 @@ export async function processAttachments(
     }),
   );
 
-  // Register files with the agent component for tracking
-  await registerFilesWithAgent(ctx, [
-    ...fileAttachments,
-    ...spreadsheetAttachments,
-  ]);
+  // Register files with the agent component for tracking. `s3:`-backed
+  // attachments skip the `_storage`-only registry (the helper resolves the
+  // org's bucket itself when it meets one).
+  await registerFilesWithAgent(
+    ctx,
+    [...fileAttachments, ...spreadsheetAttachments],
+    config.organizationId,
+  );
 
   // Build prompt content with attachment info
   const text = userText || 'Please analyze the attached files.';

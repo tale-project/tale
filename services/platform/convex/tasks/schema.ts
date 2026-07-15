@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { blobRefValidator } from '../lib/storage/blob_ref';
+
 /**
  * Tasks feature schema.
  *
@@ -71,13 +73,15 @@ export const taskCreatorTypeValidator = v.union(
  * A single image/document attached to a task. Stored SELF-DESCRIBED (name +
  * MIME + size alongside the storage id) so the board/detail render without a
  * join back to `fileMetadata` — mirroring how chat messages embed their
- * attachments. `fileId` is the Convex `_storage` id; the URL is resolved at
- * render time (`getFileUrl`). The list is bounded by `TASK_MAX_ATTACHMENTS` and
- * each `fileType` is validated against `TASK_UPLOAD_ALLOWED_TYPES` in the
- * mutation layer (`validateTaskAttachments`).
+ * attachments. `fileId` is a blob REFERENCE (a Convex `_storage` id or an
+ * `s3:<key>` ref for a BYO-bucket org); the URL is resolved at render time
+ * (`getFileUrl`, backend-aware) and the delete cascade routes through
+ * `deleteStorageWithMetadata` (also backend-aware). The list is bounded by
+ * `TASK_MAX_ATTACHMENTS` and each `fileType` is validated against
+ * `TASK_UPLOAD_ALLOWED_TYPES` in the mutation layer (`validateTaskAttachments`).
  */
 export const taskAttachmentValidator = v.object({
-  fileId: v.id('_storage'),
+  fileId: blobRefValidator,
   fileName: v.string(),
   fileType: v.string(),
   fileSize: v.number(),

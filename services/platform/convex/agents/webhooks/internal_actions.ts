@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { blobRefValidator } from '../../lib/storage/blob_ref';
 
 /**
  * Merge the agent's configured system instructions with optional client-sent
@@ -32,7 +33,8 @@ export const chatViaWebhook = internalAction({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.id('_storage'),
+          // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

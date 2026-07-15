@@ -2,6 +2,8 @@ import { defineTable } from 'convex/server';
 import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
+import { blobRefValidator } from '../lib/storage/blob_ref';
+
 export const knowledgeFileRagStatusValidator = v.union(
   v.literal('queued'),
   v.literal('running'),
@@ -10,7 +12,9 @@ export const knowledgeFileRagStatusValidator = v.union(
 );
 
 export const knowledgeFileValidator = v.object({
-  fileId: v.id('_storage'),
+  // Blob reference: a Convex `_storage` id OR an `s3:<key>` ref (BYO-bucket
+  // org). Widened from `v.id('_storage')` — existing ids still validate.
+  fileId: blobRefValidator,
   fileName: v.string(),
   fileSize: v.optional(v.number()),
   extension: v.optional(v.string()),

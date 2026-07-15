@@ -11,6 +11,7 @@ import { getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { toId } from '../lib/type_cast_helpers';
+import { AUDIO_MIME_BY_FORMAT } from './audio_mime';
 import { ttsErrorCodeLiterals, type TtsErrorCode } from './error_codes';
 
 /**
@@ -243,6 +244,12 @@ export const getChunkForServe = internalQuery({
     v.null(),
     v.object({
       storageId: v.string(),
+      // Owning org + declared MIME so the route can stream an `s3:`-backed
+      // chunk (whose bytes carry no stored content type) through the node
+      // read lane. Deliberately NOT a presigned redirect — the URL must stay
+      // cookie-bound and non-replayable (see the route's doc comment).
+      organizationId: v.string(),
+      contentType: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -270,7 +277,14 @@ export const getChunkForServe = internalQuery({
       return null;
     }
 
-    return { storageId: chunk.storageId };
+    return {
+      storageId: chunk.storageId,
+      organizationId: chunk.organizationId,
+      contentType:
+        (chunk.format !== undefined
+          ? AUDIO_MIME_BY_FORMAT[chunk.format]
+          : undefined) ?? 'application/octet-stream',
+    };
   },
 });
 

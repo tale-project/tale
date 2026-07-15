@@ -5,7 +5,6 @@ import { Text } from '@tale/ui/text';
 import { Bot, Eye, Folder, Loader, RotateCcw, User, X } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import type { Id } from '@/convex/_generated/dataModel';
 import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
@@ -42,9 +41,9 @@ interface AttachmentTrayProps {
   uploadingFiles: string[];
   transcriptionStatuses?: Map<BlobRef, TranscriptionStatusInfo>;
   indexingStatuses?: Map<BlobRef, IndexingStatusInfo>;
-  retryAudioTranscription?: (fileId: Id<'_storage'>) => void;
+  retryAudioTranscription?: (fileId: string) => void;
   cancelUpload?: (fileId: string) => void;
-  removeAttachment: (fileId: Id<'_storage'>) => void;
+  removeAttachment: (fileId: string) => void;
   onPreviewImage: (preview: { src: string; alt: string }) => void;
   onPreviewTranscript: (preview: TranscriptPreview) => void;
 }

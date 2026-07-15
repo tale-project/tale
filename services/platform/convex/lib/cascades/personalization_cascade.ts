@@ -4,6 +4,11 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
 import { cascadeOnTtsForMemberRemoved } from '../../tts/cascade_helpers';
+import {
+  deleteBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../storage/blob_delete';
+import type { BlobRef } from '../storage/blob_ref';
 import { pagedHardDelete } from './paged_delete';
 
 /**
@@ -84,18 +89,25 @@ const STORAGE_DRAIN_MAX_PAGES = 15;
  */
 async function drainOrgStorageRowsPage(
   ctx: MutationCtx,
+  organizationId: string,
   takePage: (pageSize: number) => Promise<
     ReadonlyArray<{
       _id: Id<'ttsAudioChunks'> | Id<'videoLinkJobs'>;
-      storageId?: Id<'_storage'>;
+      // Blob REFERENCE (`_storage` id or `s3:` ref) — both tables' storageId
+      // fields are widened; an `s3:` ref routes through the scheduled node
+      // delete lane below (a mutation can't sign S3).
+      storageId?: BlobRef;
     }>
   >,
   label: string,
 ): Promise<{ deleted: number; exhausted: boolean }> {
   let deleted = 0;
+  const s3Refs: string[] = [];
+  const flush = () => scheduleS3BlobDeletes(ctx, organizationId, s3Refs);
   for (let page = 0; page < STORAGE_DRAIN_MAX_PAGES; page++) {
     const rows = await takePage(STORAGE_PAGE_SIZE);
     if (rows.length === 0) {
+      await flush();
       return { deleted, exhausted: false };
     }
     for (const row of rows) {
@@ -103,21 +115,16 @@ async function drainOrgStorageRowsPage(
       await ctx.db.delete(row._id);
       deleted += 1;
       if (storageId) {
-        try {
-          await ctx.storage.delete(storageId);
-        } catch (error) {
-          console.warn(
-            `[${label}] storage.delete failed for ${String(storageId)}:`,
-            error,
-          );
-        }
+        await deleteBlobInMutation(ctx, storageId, s3Refs, label);
       }
     }
     if (rows.length < STORAGE_PAGE_SIZE) {
+      await flush();
       return { deleted, exhausted: false };
     }
   }
   // Ran the full page budget with a still-full last page → assume more remain.
+  await flush();
   return { deleted, exhausted: true };
 }
 
@@ -150,6 +157,7 @@ function drainOrgPrefsPage(ctx: MutationCtx, organizationId: string) {
 function drainOrgTtsChunksPage(ctx: MutationCtx, organizationId: string) {
   return drainOrgStorageRowsPage(
     ctx,
+    organizationId,
     (n) =>
       ctx.db
         .query('ttsAudioChunks')
@@ -164,6 +172,7 @@ function drainOrgTtsChunksPage(ctx: MutationCtx, organizationId: string) {
 function drainOrgVideoLinkJobsPage(ctx: MutationCtx, organizationId: string) {
   return drainOrgStorageRowsPage(
     ctx,
+    organizationId,
     (n) =>
       ctx.db
         .query('videoLinkJobs')

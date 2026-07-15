@@ -38,7 +38,8 @@ export interface VideoLinkJob {
   errorReasonCode?: string;
   errorMessage?: string;
   attempts?: number;
-  storageId?: Id<'_storage'>;
+  /** Blob reference (`_storage` id or `s3:` ref) of the transcript/audio. */
+  storageId?: string;
   /** Size of the transcript blob from `fileMetadata.size`. Surfaced so the
    * client optimistic-render path (use-send-message.ts) can stamp the
    * same value the bind mutation puts on the outgoing attachment — keeps

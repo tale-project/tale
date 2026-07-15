@@ -369,7 +369,8 @@ export function useSendMessage({
 
       // Convert attachments format (synchronous — needed for optimistic message)
       const mutationAttachments: Array<{
-        fileId: Id<'_storage'>;
+        /** Blob reference: a Convex `_storage` id or an `s3:` ref. */
+        fileId: string;
         fileName: string;
         fileType: string;
         fileSize: number;

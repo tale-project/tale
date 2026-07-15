@@ -21,6 +21,8 @@ import {
   deleteBlob,
   generateBlobUpload as generateBlobUploadHandoff,
   getBlobUrl,
+  putBlob,
+  readBlobBytes,
 } from '../lib/storage/blob_access';
 
 export interface BlobUploadHandoff {
@@ -91,6 +93,79 @@ export const presignBlobGet = internalAction({
     return await getBlobUrl(ctx, orgSlug, args.ref, {
       filename: args.filename ?? undefined,
     });
+  },
+});
+
+/**
+ * Store bytes for an org through the backend-aware seam and return the blob
+ * reference. Internal — the lane V8 callers (agent file tools bundled into the
+ * V8 workflow engine) use to write org-owned blobs: they cannot import the
+ * `'use node'` seam themselves, so they hop through this action. Bounded by
+ * Convex's function-argument ceiling — callers own keeping their payloads
+ * small (thread files are ≤ 10 MB by THREAD_FILE_MAX_BYTES). Falls back to
+ * Convex `_storage` when the org is unresolvable (never fails a write over
+ * blob routing).
+ */
+export const storeOrgBlob = internalAction({
+  args: {
+    organizationId: v.string(),
+    bytes: v.bytes(),
+    contentType: v.string(),
+  },
+  returns: v.string(),
+  handler: async (ctx, args): Promise<string> => {
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    const bytes = new Uint8Array(args.bytes);
+    if (orgSlug === null) {
+      console.warn(
+        `[storeOrgBlob] org ${args.organizationId} unresolvable; storing in Convex _storage`,
+      );
+      return await ctx.storage.store(
+        new Blob([args.bytes], { type: args.contentType }),
+      );
+    }
+    return String(await putBlob(ctx, orgSlug, bytes, args.contentType));
+  },
+});
+
+/**
+ * Read a blob's raw bytes from whichever backend owns it. Internal — the lane
+ * V8 callers (httpActions, V8 actions) use for an `s3:` ref they cannot read
+ * themselves. Deliberately returns BYTES, not a URL: the `/api/tts-audio`
+ * route streams audio through its own cookie-authenticated response and must
+ * never hand out a bearer-replayable presigned URL. Bounded by Convex's
+ * function-result ceiling — callers own keeping their blobs small (TTS chunks
+ * are ≤ 5 MB by `MAX_AUDIO_BYTES`). Returns `null` (logged) when the org is
+ * unresolvable or the object is missing, so the route can 404 cleanly.
+ */
+export const readOrgBlob = internalAction({
+  args: {
+    organizationId: v.string(),
+    ref: v.string(),
+  },
+  returns: v.union(v.bytes(), v.null()),
+  handler: async (ctx, args): Promise<ArrayBuffer | null> => {
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[readOrgBlob] org ${args.organizationId} unresolvable; cannot read ${args.ref}`,
+      );
+      return null;
+    }
+    try {
+      const bytes = await readBlobBytes(ctx, orgSlug, args.ref);
+      // Copy into an exact-size ArrayBuffer — `bytes.buffer` may be larger
+      // than the view (offset/length), and `v.bytes()` carries ArrayBuffers.
+      const out = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(out).set(bytes);
+      return out;
+    } catch (err) {
+      console.warn('[readOrgBlob] blob read failed', {
+        ref: args.ref,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
   },
 });
 

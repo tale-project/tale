@@ -3,11 +3,17 @@
  */
 
 import type { Id } from '../../_generated/dataModel';
+import { convexStorageId } from '../storage/blob_ref';
 import type { FileAttachment } from './types';
 
 /**
  * Formats attachments as markdown for storing in message content.
  * Used when saving user messages to the thread.
+ *
+ * Convex `_storage` blobs only: an `s3:` ref is skipped (this helper's ctx
+ * shape carries no org to presign against — the live message path uses
+ * `buildMessageWithAttachments` in start_agent_chat.ts, which is
+ * backend-aware).
  *
  * @param ctx - The action or mutation context with storage access
  * @param attachments - Array of file attachments
@@ -23,7 +29,9 @@ export async function formatAttachmentsAsMarkdown(
   const fileMarkdowns: string[] = [];
 
   for (const attachment of attachments) {
-    const url = await ctx.storage.getUrl(attachment.fileId);
+    const convexId = convexStorageId(attachment.fileId);
+    if (convexId === null) continue;
+    const url = await ctx.storage.getUrl(convexId);
     if (!url) continue;
 
     if (attachment.fileType.startsWith('image/')) {

@@ -4,12 +4,12 @@ import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
 import { readJsonFile } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
 import { resolveAgentDisplay } from './config';
@@ -64,7 +64,7 @@ export function invalidateAgentListCache(orgSlug: string): void {
 interface StatusCheckArgs {
   organizationId: string;
   agentSlug: string;
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   attempt: number;
 }
 
@@ -74,7 +74,7 @@ async function updateRagInfo(
   fields: {
     organizationId: string;
     agentSlug: string;
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     ragStatus: Infer<typeof knowledgeFileRagStatusValidator>;
     ragIndexedAt?: number;
     ragError?: string;
@@ -107,7 +107,8 @@ export const indexKnowledgeFile = internalAction({
   args: {
     organizationId: v.string(),
     agentSlug: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -146,7 +147,8 @@ export const checkKnowledgeFileStatus = internalAction({
   args: {
     organizationId: v.string(),
     agentSlug: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
     attempt: v.number(),
   },
   returns: v.null(),
@@ -227,7 +229,8 @@ export const checkKnowledgeFileStatus = internalAction({
 export const deleteKnowledgeFileFromRag = internalAction({
   args: {
     organizationId: v.string(),
-    fileId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    fileId: blobRefValidator,
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {

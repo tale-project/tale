@@ -8,15 +8,18 @@ import {
   TTS_FETCH_TIMEOUT_MS,
 } from '../../lib/shared/constants/tts';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { estimateTtsCostCents } from '../governance/cost_estimation';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { SafeFetchError, safeFetchBinary } from '../lib/http/safe_fetch';
 import { rateLimiter } from '../lib/rate_limiter';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { deleteBlob, putBlob } from '../lib/storage/blob_access';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import { resolveTtsModel } from '../providers/resolve_model';
+import { AUDIO_MIME_BY_FORMAT } from './audio_mime';
 import {
   errorCodeFromCaught,
   parseRetryAfterMs,
@@ -25,15 +28,6 @@ import {
 } from './error_codes';
 
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB hard cap on provider response
-
-const AUDIO_MIME_BY_FORMAT: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  opus: 'audio/ogg; codecs=opus',
-  aac: 'audio/aac',
-  flac: 'audio/flac',
-  wav: 'audio/wav',
-  pcm: 'audio/L16; rate=24000',
-};
 
 // Error-classification types and helper live in `./error_codes.ts` so
 // they can be unit-tested without spinning up a 'use node' action runtime.
@@ -257,7 +251,12 @@ export const synthesizeChunk = action({
     const url = `${modelData.baseUrl.replace(/\/+$/, '')}/audio/speech`;
     const mime =
       AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
-    let storageId: Id<'_storage'>;
+    // Resolve the org slug once so the store below can route to the org's own
+    // bucket when configured. `reservation.organizationId` is the canonical
+    // org (derived from thread metadata by reserveChunk). An unresolvable
+    // slug falls back to Convex `_storage` — never fail a synth over routing.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, reservation.organizationId);
+    let storageId: BlobRef;
     let providerBytes = 0;
     const t0 = Date.now();
     try {
@@ -341,15 +340,30 @@ export const synthesizeChunk = action({
         );
       }
       providerBytes = response.body.size;
-      // Only re-wrap when the provider omitted Content-Type entirely. The
-      // double-wrap (`new Blob([blob])`) would otherwise force a copy of the
-      // body buffer just to override `.type`, which we don't need when the
-      // existing type is already set.
-      const typedBlob =
-        response.body.type && response.body.type !== ''
-          ? response.body
-          : new Blob([response.body], { type: mime });
-      storageId = await ctx.storage.store(typedBlob);
+      // Backend-aware store: the org's own S3 bucket when configured, else
+      // Convex `_storage` (byte-for-byte the previous behaviour). `putBlob`
+      // takes raw bytes + an explicit content type; prefer the provider's
+      // declared type, falling back to the format-derived MIME.
+      if (orgSlug !== null) {
+        const audioBytes = new Uint8Array(await response.body.arrayBuffer());
+        storageId = await putBlob(
+          ctx,
+          orgSlug,
+          audioBytes,
+          response.body.type && response.body.type !== ''
+            ? response.body.type
+            : mime,
+        );
+      } else {
+        // Only re-wrap when the provider omitted Content-Type entirely. The
+        // double-wrap (`new Blob([blob])`) would otherwise force a copy of the
+        // body buffer just to override `.type`.
+        const typedBlob =
+          response.body.type && response.body.type !== ''
+            ? response.body
+            : new Blob([response.body], { type: mime });
+        storageId = await ctx.storage.store(typedBlob);
+      }
     } catch (err) {
       const classified = errorCodeFromCaught(err);
       return markFailedAndReturn(classified.code, classified.retryAfterMs);
@@ -372,6 +386,9 @@ export const synthesizeChunk = action({
           chunkId,
           attemptCreatedAt,
           storageId,
+          // Lets the stale-blob branch reclaim an `s3:` ref even when the
+          // chunk row has vanished before this mutation lands.
+          organizationId: reservation.organizationId,
           voice: modelData.voice,
           providerName: modelData.providerName,
           modelId: modelData.modelId,
@@ -388,7 +405,15 @@ export const synthesizeChunk = action({
       }
     } catch (err) {
       try {
-        await ctx.storage.delete(storageId);
+        // Backend-aware orphan delete: an `s3:` ref (only minted when the
+        // slug resolved) goes through the seam; a Convex id keeps the
+        // direct delete.
+        const convexId = convexStorageId(storageId);
+        if (convexId !== null) {
+          await ctx.storage.delete(convexId);
+        } else if (orgSlug !== null) {
+          await deleteBlob(ctx, orgSlug, storageId);
+        }
       } catch (deleteErr) {
         console.warn(
           '[tts] failed to delete orphan blob on mark-ready throw',

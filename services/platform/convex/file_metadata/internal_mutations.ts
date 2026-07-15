@@ -442,15 +442,13 @@ export const updateFileTranscription = internalMutation({
       args.transcriptionStatus === 'failed' ||
       args.transcriptionStatus === 'skipped'
     ) {
-      // videoLinkJobs.storageId is a Convex `_storage` id (video-link audio is
-      // never S3); narrow the ref for the index lookup.
-      const convexAudioId = convexStorageId(args.storageId);
-      const linkedJob = convexAudioId
-        ? await ctx.db
-            .query('videoLinkJobs')
-            .withIndex('by_storageId', (q) => q.eq('storageId', convexAudioId))
-            .first()
-        : null;
+      // videoLinkJobs.storageId is a blob REFERENCE sharing the exact string
+      // this row carries (both are written from the same ingest), so the
+      // index join works for `_storage` ids AND `s3:` refs alike.
+      const linkedJob = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+        .first();
       if (linkedJob && linkedJob.status === 'transcribing_handoff') {
         const nextStatus =
           args.transcriptionStatus === 'completed'
@@ -619,16 +617,12 @@ export const recoverStuckTranscriptions = internalMutation({
         // transiently — but the row itself never reaches a terminal
         // status, which means `cleanupCancelledVideoLink` never gets
         // called and the audio blob orphans. Reverse-lookup by storageId
-        // (new `by_storageId` index) and flip in the same tick.
-        const convexAudioId = convexStorageId(row.storageId);
-        const linkedJob = convexAudioId
-          ? await ctx.db
-              .query('videoLinkJobs')
-              .withIndex('by_storageId', (q) =>
-                q.eq('storageId', convexAudioId),
-              )
-              .first()
-          : null;
+        // (the `by_storageId` index; joins on the raw blob REFERENCE, so
+        // `s3:`-backed audio flips terminal too) and flip in the same tick.
+        const linkedJob = await ctx.db
+          .query('videoLinkJobs')
+          .withIndex('by_storageId', (q) => q.eq('storageId', row.storageId))
+          .first();
         if (linkedJob && linkedJob.status === 'transcribing_handoff') {
           await ctx.db.patch(linkedJob._id, {
             status: 'failed',

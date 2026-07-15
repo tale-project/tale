@@ -1,3 +1,5 @@
+'use node';
+
 /**
  * File chat attachments into the thread workspace (`threadFiles`) as
  * `source: 'user_upload'` rows at `/user/uploads/<name>` — the area the
@@ -5,11 +7,15 @@
  * existed the area stayed empty forever: attachments lived only in storage +
  * fileMetadata + message parts, so workspace tools could never see them.
  *
- * Bytes are COPIED to a fresh `storageId` per row (house rule — see
+ * Bytes are COPIED to a fresh blob reference per row (house rule — see
  * `threads/snapshot_thread_files.ts`): `upsertThreadFile` deletes the previous
  * blob on replace and `file_delete` deletes it on remove, so the workspace
  * must own its blobs exclusively; the original attachment blob stays
  * referenced by the chat message parts and the agent-component file registry.
+ * Both the read of the source attachment AND the copy go through the
+ * backend-aware seam, so a BYO-bucket org's workspace copies land in its own
+ * bucket (`'use node'` — S3 signing needs the node runtime; the sole importer
+ * is the node `runAgentGeneration` action).
  *
  * Fail-open per file: a quota rejection or storage hiccup logs and skips —
  * the attachment is still usable via the pre-analyzed prompt content and the
@@ -25,6 +31,9 @@ import {
   sanitizeAttachmentName,
 } from '../../agents/external_agent/attachment_files';
 import { THREAD_FILE_MAX_BYTES } from '../../thread_files/schema';
+import { orgSlugFromIdOrNull } from '../helpers/org_slug';
+import { deleteBlob, putBlob, readBlobBytes } from '../storage/blob_access';
+import { convexStorageId, type BlobRef } from '../storage/blob_ref';
 import type { FileAttachment } from './types';
 
 const UPLOADS_PATH_PREFIX = '/user/uploads';
@@ -88,18 +97,37 @@ export async function fileAttachmentsIntoWorkspace(
   let filed = 0;
   let unchanged = 0;
   let failed = 0;
+  // Slug for the backend-aware read/copy. Unresolvable → Convex `_storage`
+  // fallback (never break the turn over blob routing).
+  const orgSlug =
+    planned.length > 0
+      ? await orgSlugFromIdOrNull(ctx, args.organizationId)
+      : null;
   await Promise.all(
     planned.map(async ({ attachment, path }) => {
       try {
-        const blob = await ctx.storage.get(attachment.fileId);
-        if (blob === null) {
-          failed += 1;
-          console.warn(
-            `[workspace_uploads] attachment blob missing for ${path} (${attachment.fileId})`,
-          );
-          return;
+        let bytes: Uint8Array;
+        const convexId = convexStorageId(attachment.fileId);
+        if (convexId !== null) {
+          const blob = await ctx.storage.get(convexId);
+          if (blob === null) {
+            failed += 1;
+            console.warn(
+              `[workspace_uploads] attachment blob missing for ${path} (${attachment.fileId})`,
+            );
+            return;
+          }
+          bytes = new Uint8Array(await blob.arrayBuffer());
+        } else {
+          if (orgSlug === null) {
+            failed += 1;
+            console.warn(
+              `[workspace_uploads] org unresolvable; cannot read S3 attachment for ${path}`,
+            );
+            return;
+          }
+          bytes = await readBlobBytes(ctx, orgSlug, attachment.fileId);
         }
-        const bytes = new Uint8Array(await blob.arrayBuffer());
         const sha256 = await sha256Hex(bytes);
         const contentType =
           attachment.fileType.trim().length > 0
@@ -119,11 +147,18 @@ export async function fileAttachmentsIntoWorkspace(
           unchanged += 1;
           return;
         }
-        const ab = new ArrayBuffer(bytes.byteLength);
-        new Uint8Array(ab).set(bytes);
-        const copyId = await ctx.storage.store(
-          new Blob([ab], { type: contentType }),
-        );
+        // Backend-aware copy: the org's own bucket when configured, else
+        // Convex `_storage` (putBlob routes; a null slug forces `_storage`).
+        let copyId: BlobRef;
+        if (orgSlug !== null) {
+          copyId = await putBlob(ctx, orgSlug, bytes, contentType);
+        } else {
+          const ab = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(ab).set(bytes);
+          copyId = await ctx.storage.store(
+            new Blob([ab], { type: contentType }),
+          );
+        }
         try {
           await ctx.runMutation(
             internal.thread_files.internal_mutations.upsertThreadFile,
@@ -148,12 +183,19 @@ export async function fileAttachmentsIntoWorkspace(
           filed += 1;
         } catch (err) {
           // Quota/validation rejection — reap the now-orphaned copy blob.
-          await ctx.storage.delete(copyId).catch((delErr: unknown) => {
+          try {
+            const copyConvexId = convexStorageId(copyId);
+            if (copyConvexId !== null) {
+              await ctx.storage.delete(copyConvexId);
+            } else if (orgSlug !== null) {
+              await deleteBlob(ctx, orgSlug, copyId);
+            }
+          } catch (delErr) {
             console.warn(
               '[workspace_uploads] orphan copy cleanup failed:',
               delErr,
             );
-          });
+          }
           throw err;
         }
       } catch (err) {

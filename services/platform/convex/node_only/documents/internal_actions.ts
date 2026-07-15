@@ -14,6 +14,9 @@ import * as XLSX from 'xlsx';
 
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
+import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
+import { readBlobBytes } from '../../lib/storage/blob_access';
+import { blobRefValidator, convexStorageId } from '../../lib/storage/blob_ref';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
@@ -95,7 +98,10 @@ export const generateExcel = internalAction({
 
 export const parseExcel = internalAction({
   args: {
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — see lib/storage/blob_ref.
+    storageId: blobRefValidator,
+    /** Owning org (Better Auth id) — required to read an `s3:` ref. */
+    organizationId: v.optional(v.string()),
   },
   returns: v.object({
     sheets: v.array(
@@ -114,13 +120,29 @@ export const parseExcel = internalAction({
   handler: async (ctx, args) => {
     debugLog('parse_excel_internal start', { storageId: args.storageId });
 
-    const blob = await ctx.storage.get(args.storageId);
-    if (!blob) {
-      throw new Error(`File not found in storage: ${args.storageId}`);
+    // Backend-aware read: `_storage` blobs stream from ctx.storage (as
+    // before); an `s3:` ref reads from the org's own bucket via the seam.
+    let bytes: Uint8Array;
+    const convexId = convexStorageId(args.storageId);
+    if (convexId !== null) {
+      const blob = await ctx.storage.get(convexId);
+      if (!blob) {
+        throw new Error(`File not found in storage: ${args.storageId}`);
+      }
+      bytes = new Uint8Array(await blob.arrayBuffer());
+    } else {
+      const orgSlug = args.organizationId
+        ? await orgSlugFromIdOrNull(ctx, args.organizationId)
+        : null;
+      if (orgSlug === null) {
+        throw new Error(
+          `Cannot read S3 blob ${args.storageId}: missing/unresolvable organizationId`,
+        );
+      }
+      bytes = await readBlobBytes(ctx, orgSlug, args.storageId);
     }
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    const workbook = XLSX.read(bytes, { type: 'array' });
 
     let totalRows = 0;
     const sheets = workbook.SheetNames.map((name) => {

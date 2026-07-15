@@ -3,10 +3,10 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -24,10 +24,15 @@ import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
 import { getAudioDuration } from '../utils/get-audio-duration';
-import { useGenerateUploadUrl } from './mutations';
 
 interface FileAttachment {
-  fileId: Id<'_storage'>;
+  /**
+   * Blob REFERENCE the upload handoff bound: a Convex `_storage` id
+   * (deployment default) or an `s3:<key>` ref when the org brings its own
+   * bucket. Travels with the message send; every server consumer is
+   * backend-aware.
+   */
+  fileId: string;
   fileName: string;
   fileType: string;
   fileSize: number;
@@ -80,7 +85,12 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const { t } = useT('chat');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  // Backend-aware upload handoff: routes to the org's own S3 bucket when
+  // configured, else Convex `_storage`. An ACTION (not a mutation) because
+  // presigning S3 needs the node runtime. Mirrors the documents uploader.
+  const { mutateAsync: generateBlobUpload } = useConvexAction(
+    api.files.blob_actions.generateBlobUpload,
+  );
   const { mutateAsync: saveFileMetadata } = useConvexMutation(
     api.file_metadata.mutations.saveFileMetadata,
   );
@@ -425,13 +435,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
           try {
             // Images were already compressed before the total-size check above.
-            const uploadUrl = await generateUploadUrl({});
+            // Backend-aware handoff: `POST` → Convex `_storage` (the response
+            // JSON carries the storageId to bind); `PUT` → the org's own S3
+            // bucket (the ref was known up front — bind `s3Ref`).
+            const contentType = resolvedType || 'application/octet-stream';
+            const handoff = await generateBlobUpload({
+              organizationId: config.organizationId,
+              contentType,
+            });
 
-            const result = await fetch(uploadUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': resolvedType || 'application/octet-stream',
-              },
+            const result = await fetch(handoff.url, {
+              method: handoff.method,
+              headers: { 'Content-Type': contentType },
               body: fileToUpload,
               signal: abortController.signal,
             });
@@ -440,15 +455,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               throw new Error(t('uploadFailed'));
             }
 
-            const { storageId } = await result.json();
-
-            if (!storageId) {
+            let boundRef = handoff.s3Ref;
+            if (!boundRef) {
+              const { storageId } = await result.json();
+              boundRef = storageId;
+            }
+            if (!boundRef) {
               throw new Error(t('uploadFailed'));
             }
 
             await saveFileMetadata({
               organizationId: config.organizationId,
-              storageId,
+              storageId: boundRef,
               fileName: fileToUpload.name,
               contentType: resolvedType || 'application/octet-stream',
               size: fileToUpload.size,
@@ -460,7 +478,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
             });
 
             const attachment: FileAttachment = {
-              fileId: storageId,
+              fileId: boundRef,
               fileName: fileToUpload.name,
               fileType: resolvedType,
               fileSize: fileToUpload.size,
@@ -541,7 +559,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       await Promise.all(uploadPromises);
     },
     [
-      generateUploadUrl,
+      generateBlobUpload,
       saveFileMetadata,
       config.organizationId,
       config.threadId,
@@ -569,7 +587,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   }, []);
 
   const removeAttachment = useCallback(
-    (fileId: Id<'_storage'>) => {
+    (fileId: string) => {
       setAttachments((prev) => {
         const attachment = prev.find((att) => att.fileId === fileId);
         if (!attachment) return prev;
@@ -597,10 +615,10 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     [skipTranscription, config.organizationId],
   );
 
-  const retryInFlightRef = useRef(new Set<Id<'_storage'>>());
+  const retryInFlightRef = useRef(new Set<string>());
 
   const retryAttachmentTranscription = useCallback(
-    (fileId: Id<'_storage'>) => {
+    (fileId: string) => {
       // Reuse the existing backend retry: resets status to `queued`, clears
       // the error, and reschedules the transcribe action. The reactive
       // transcription-status query flips the chip back to queued/running on
