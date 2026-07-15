@@ -106,6 +106,7 @@ import {
   modelCatalogSyncTable,
 } from './model_catalog/schema';
 import { notificationsTable } from './notifications/schema';
+import { objectStorageBackfillRunsTable } from './object_storage/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { projectsTable } from './projects/schema';
@@ -257,6 +258,7 @@ export default defineSchema({
   loginBlockCounters: loginBlockCountersTable,
   messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
+  objectStorageBackfillRuns: objectStorageBackfillRunsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   threadBranches: threadBranchesTable,
   threadFiles: threadFilesTable,
