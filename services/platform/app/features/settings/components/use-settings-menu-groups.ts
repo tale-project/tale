@@ -3,6 +3,7 @@ import {
   Building2,
   Bell,
   ChartColumn,
+  Database,
   Globe,
   IdCard,
   KeyRound,
@@ -135,6 +136,12 @@ export function useSettingsMenuGroups(
         key: 'enterpriseSso',
         icon: IdCard,
         path: 'enterprise-sso',
+        can: ['read', 'orgSettings'],
+      },
+      {
+        key: 'orgDataResidency',
+        icon: Database,
+        path: 'data-residency',
         can: ['read', 'orgSettings'],
       },
     ];

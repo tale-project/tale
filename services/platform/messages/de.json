@@ -112,7 +112,8 @@
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
     "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
     "deployment": "Du benötigst Admin-Berechtigungen, um auf die Deployment-Einstellungen zuzugreifen.",
-    "enterpriseSso": "Sie benötigen Administratorrechte, um auf die Enterprise-SSO-Einstellungen zuzugreifen."
+    "enterpriseSso": "Sie benötigen Administratorrechte, um auf die Enterprise-SSO-Einstellungen zuzugreifen.",
+    "orgDataResidency": "Du benötigst Admin-Berechtigungen, um die Datenresidenz der Organisation zu verwalten."
   },
   "analytics": {
     "usage": {
@@ -4490,6 +4491,10 @@
       "title": "Datenresidenz",
       "description": "Wo deine Daten gespeichert und verarbeitet werden."
     },
+    "orgDataResidency": {
+      "title": "Datenresidenz der Organisation",
+      "description": "Speichere Wissensdatenbank und hochgeladene Dateien dieser Organisation auf Infrastruktur, die du bereitstellst."
+    },
     "governance": {
       "title": "Richtlinien",
       "description": "Organisationsweite Richtlinien und System-Prompts verwalten."
@@ -4568,6 +4573,7 @@
       "primaryNavigation": "Hauptnavigation"
     },
     "dataResidency": "Datenresidenz",
+    "orgDataResidency": "Datenresidenz der Organisation",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise-SSO"
@@ -5216,6 +5222,9 @@
       },
       "dataResidency": {
         "description": "Wo deine Daten gespeichert und verarbeitet werden."
+      },
+      "orgDataResidency": {
+        "description": "Wissensdatenbank und Dateispeicher dieser Organisation auf Infrastruktur, die du bereitstellst."
       }
     },
     "tokenSources": {
@@ -7121,6 +7130,45 @@
         "secretUnreadable": "Die vorhandene Secrets-Datei lässt sich nicht entschlüsseln. Bestätige das Überschreiben, um sie zu ersetzen.",
         "configUnreadable": "Die Deployment-Konfiguration auf dem Datenträger lässt sich nicht lesen.",
         "readFailed": "Die Deployment-Konfiguration konnte nicht geladen werden: {error}"
+      }
+    },
+    "orgDataResidency": {
+      "statusDefault": "Deployment-Standard",
+      "knowledge": {
+        "title": "Wissensdatenbank",
+        "description": "Die Postgres-Datenbank mit dem Wissenskorpus dieser Organisation — extrahierte Texte und Embeddings.",
+        "note": "Ohne Verbindung liegt das Wissen dieser Organisation in der Standard-Datenbank des Deployments, pro Organisation isoliert. Mit Verbindung landen neue Wissensinhalte in der oben angegebenen Datenbank und werden dort durchsucht — das greift ab der nächsten Anfrage, ohne Neustart. Bereits gespeicherte Inhalte werden nicht kopiert.",
+        "saved": "Gespeichert — das Wissen dieser Organisation liegt jetzt in deiner Datenbank.",
+        "cleared": "Verbindung entfernt — diese Organisation nutzt wieder die Standard-Wissensdatenbank des Deployments.",
+        "clearConfirm": {
+          "title": "Wissensdatenbank-Verbindung entfernen?",
+          "description": "Wissenssuchen und neue Dokumente dieser Organisation laufen wieder über die Standard-Datenbank des Deployments. Inhalte, die bereits in deiner Datenbank liegen, bleiben dort, werden aber nicht mehr durchsucht.",
+          "confirm": "Verbindung entfernen"
+        }
+      },
+      "storage": {
+        "title": "Objektspeicher",
+        "description": "Der S3-kompatible Bucket mit den hochgeladenen Dateien dieser Organisation — Dokumente, Anhänge, Audio und generierte Medien.",
+        "bucket": "Bucket",
+        "prefix": "Key-Präfix",
+        "prefixHint": "Optionaler Namensraum im Bucket; leer legt Objekte direkt im Bucket ab.",
+        "credentialsHint": "Nur Schreiben — gespeicherte Schlüssel werden nie angezeigt. Für den Verbindungstest gib beide Schlüssel ein.",
+        "verified": "Bucket geprüft (Hochladen, Lesen, Löschen)",
+        "note": "Ohne Verbindung liegen die Dateien dieser Organisation im eingebauten Speicher des Deployments, pro Organisation isoliert. Mit Verbindung landen neue Uploads im oben angegebenen Bucket; zuvor gespeicherte Dateien bleiben lesbar, wo sie sind.",
+        "saved": "Gespeichert — neue Uploads dieser Organisation landen in deinem Bucket.",
+        "cleared": "Verbindung entfernt — neue Uploads landen wieder im eingebauten Speicher des Deployments. Dateien in deinem Bucket bleiben dort, sind für Tale aber erst wieder verfügbar, wenn du die Verbindung erneut einrichtest.",
+        "clearConfirm": {
+          "title": "Objektspeicher-Verbindung entfernen?",
+          "description": "Neue Uploads dieser Organisation landen wieder im eingebauten Speicher des Deployments. Dateien, die bereits in deinem Bucket liegen, bleiben dort — Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist.",
+          "confirm": "Verbindung entfernen"
+        }
+      },
+      "errors": {
+        "forbidden": "Du darfst die Datenresidenz dieser Organisation nicht verwalten.",
+        "invalidConnection": "Die Verbindungsdaten sind ungültig. Prüfe die Felder und versuch es erneut.",
+        "credentialsPair": "Gib Access Key ID und Secret Access Key zusammen ein.",
+        "credentialsRequired": "Gib Access Key ID und Secret Access Key ein — beim ersten Einrichten des Objektspeichers sind sie erforderlich.",
+        "readFailed": "Die gespeicherte Verbindung konnte nicht geladen werden: {error}"
       }
     }
   },

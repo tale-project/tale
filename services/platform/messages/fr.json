@@ -112,7 +112,8 @@
     "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
     "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer.",
     "deployment": "Tu dois disposer des permissions Admin pour accéder aux paramètres de déploiement.",
-    "enterpriseSso": "Vous devez disposer des autorisations Administrateur pour accéder aux paramètres SSO d'entreprise."
+    "enterpriseSso": "Vous devez disposer des autorisations Administrateur pour accéder aux paramètres SSO d'entreprise.",
+    "orgDataResidency": "Tu dois disposer des permissions Admin pour gérer la résidence des données de l'organisation."
   },
   "analytics": {
     "usage": {
@@ -4490,6 +4491,10 @@
       "title": "Résidence des données",
       "description": "Où tes données sont stockées et traitées."
     },
+    "orgDataResidency": {
+      "title": "Résidence des données de l'organisation",
+      "description": "Stocke la base de connaissances et les fichiers téléversés de cette organisation sur ton infrastructure."
+    },
     "governance": {
       "title": "Gouvernance",
       "description": "Gère les politiques de gouvernance et les prompts système."
@@ -4568,6 +4573,7 @@
       "primaryNavigation": "Navigation principale"
     },
     "dataResidency": "Résidence des données",
+    "orgDataResidency": "Résidence des données de l'organisation",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
     "enterpriseSso": "SSO d'entreprise"
@@ -5216,6 +5222,9 @@
       },
       "dataResidency": {
         "description": "Où tes données sont stockées et traitées."
+      },
+      "orgDataResidency": {
+        "description": "Pointe la base de connaissances et le stockage de fichiers de cette organisation vers ton infrastructure."
       }
     },
     "tokenSources": {
@@ -7121,6 +7130,45 @@
         "secretUnreadable": "Le fichier de secrets existant ne peut pas être déchiffré. Confirme l'écrasement pour le remplacer.",
         "configUnreadable": "La configuration du déploiement sur le disque ne peut pas être lue.",
         "readFailed": "Impossible de charger la configuration du déploiement : {error}"
+      }
+    },
+    "orgDataResidency": {
+      "statusDefault": "Défaut du déploiement",
+      "knowledge": {
+        "title": "Base de connaissances",
+        "description": "La base Postgres qui contient le corpus de connaissances de cette organisation — textes extraits et embeddings.",
+        "note": "Désactivé, les connaissances de cette organisation restent dans la base par défaut du déploiement, isolées par organisation. Activé, les nouveaux contenus sont écrits et recherchés dans la base ci-dessus — effectif dès la prochaine requête, sans redémarrage. Les contenus déjà stockés ailleurs ne sont pas copiés.",
+        "saved": "Enregistré — les connaissances de cette organisation sont désormais stockées dans ta base.",
+        "cleared": "Connexion supprimée — cette organisation utilise à nouveau la base de connaissances par défaut du déploiement.",
+        "clearConfirm": {
+          "title": "Supprimer la connexion à la base de connaissances ?",
+          "description": "Les recherches et les nouveaux documents de cette organisation repassent par la base par défaut du déploiement. Les contenus déjà écrits dans ta base y restent mais ne sont plus recherchés.",
+          "confirm": "Supprimer la connexion"
+        }
+      },
+      "storage": {
+        "title": "Stockage d'objets",
+        "description": "Le bucket compatible S3 qui contient les fichiers téléversés de cette organisation — documents, pièces jointes, audio et médias générés.",
+        "bucket": "Bucket",
+        "prefix": "Préfixe de clé",
+        "prefixHint": "Espace de noms optionnel dans le bucket ; vide, les objets sont stockés à la racine.",
+        "credentialsHint": "Écriture seule — les clés stockées ne sont jamais affichées. Saisis les deux clés pour lancer le test de connexion.",
+        "verified": "Bucket vérifié (écriture, lecture, suppression)",
+        "note": "Désactivé, les fichiers de cette organisation restent dans le stockage intégré du déploiement, isolés par organisation. Activé, les nouveaux téléversements vont dans le bucket ci-dessus ; les fichiers stockés avant le changement restent lisibles là où ils sont.",
+        "saved": "Enregistré — les nouveaux téléversements de cette organisation vont dans ton bucket.",
+        "cleared": "Connexion supprimée — les nouveaux téléversements retournent dans le stockage intégré du déploiement. Les fichiers déjà dans ton bucket y restent, mais Tale ne peut plus les lire tant que tu ne rétablis pas la connexion.",
+        "clearConfirm": {
+          "title": "Supprimer la connexion au stockage d'objets ?",
+          "description": "Les nouveaux téléversements de cette organisation retournent dans le stockage intégré du déploiement. Les fichiers déjà écrits dans ton bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie.",
+          "confirm": "Supprimer la connexion"
+        }
+      },
+      "errors": {
+        "forbidden": "Tu n'es pas autorisé à gérer la résidence des données de cette organisation.",
+        "invalidConnection": "Les paramètres de connexion sont invalides. Vérifie les champs et réessaie.",
+        "credentialsPair": "Saisis l'Access Key ID et la Secret Access Key ensemble.",
+        "credentialsRequired": "Saisis une Access Key ID et une Secret Access Key — elles sont requises à la première configuration du stockage d'objets.",
+        "readFailed": "Impossible de charger la connexion enregistrée : {error}"
       }
     }
   },
