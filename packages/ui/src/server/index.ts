@@ -1,3 +1,10 @@
+/// <reference types="bun" />
+// ^ Type-only reference for the `Bun` global (used at runtime inside
+// `startReactServer`). It replaces a former top-level `import { file } from
+// 'bun'`, which pulled these types in as a side effect but also made this
+// module un-importable under Node (breaking the prerender test that loads
+// `extractInlineScriptHashes`). A `/// <reference>` emits no runtime import.
+
 /**
  * Shared React-service bootstrap. Used by every Tale Vite/React service
  * that serves a built SPA from a `dist/` directory (web, docs, and any
@@ -22,7 +29,6 @@ import {
   negotiatePathLocale,
   type NegotiatePathLocaleResult,
 } from '@tale/ui/i18n/negotiate';
-import { file } from 'bun';
 
 import type { ArtifactsServer } from '../seo';
 import {
@@ -35,8 +41,11 @@ import {
 
 // Re-exported so existing callers (`services/web`, `services/docs`) keep
 // importing the config + default from `@tale/ui/server` unchanged. The pure
-// header logic lives in `./security-headers` so it is testable without the
-// `bun` import above.
+// header logic lives in `./security-headers`; this module deliberately avoids a
+// top-level `bun` import (it uses the `Bun` global inside `startReactServer`)
+// so a Node context — e.g. the prerender test importing
+// `extractInlineScriptHashes` — can load `@tale/ui/server` without
+// ERR_MODULE_NOT_FOUND.
 export {
   applySecurityHeaders,
   defaultReactServerSecurityHeaders,
@@ -236,14 +245,14 @@ export function startReactServer(opts: ReactServerOptions): void {
   // unknown paths; without the artifact the legacy SPA-shell fallback (200)
   // stays, so consumers migrate independently.
   async function notFoundOrShell(): Promise<Response> {
-    const notFound = file(join(distDir, '404', 'index.html'));
+    const notFound = Bun.file(join(distDir, '404', 'index.html'));
     if (await notFound.exists()) {
       return new Response(notFound, {
         status: 404,
         headers: { 'cache-control': 'no-cache' },
       });
     }
-    return new Response(file(join(distDir, 'index.html')), {
+    return new Response(Bun.file(join(distDir, 'index.html')), {
       headers: { 'cache-control': 'no-cache' },
     });
   }
@@ -263,7 +272,7 @@ export function startReactServer(opts: ReactServerOptions): void {
     }
     const resolved = resolve(distDir, rel);
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
-      const candidate = file(resolved);
+      const candidate = Bun.file(resolved);
       if (await candidate.exists()) {
         const ct = contentTypeFor(pathname);
         return new Response(candidate, {
@@ -274,7 +283,7 @@ export function startReactServer(opts: ReactServerOptions): void {
         });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
-      const routeHtml = file(join(resolved, 'index.html'));
+      const routeHtml = Bun.file(join(resolved, 'index.html'));
       if (await routeHtml.exists()) {
         return new Response(routeHtml, {
           headers: { 'cache-control': 'no-cache' },
