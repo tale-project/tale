@@ -323,7 +323,7 @@ export const findCachedTranscript = internalQuery({
   args: {
     organizationId: v.string(),
     contentHash: v.string(),
-    excludeStorageId: v.id('_storage'),
+    excludeStorageId: blobRefValidator,
   },
   async handler(ctx, args) {
     for await (const row of ctx.db

@@ -494,13 +494,19 @@ export const transcribeAudio = internalAction({
         // statusChangedAt advances past the watchdog window. Generic
         // by-storageId lookup keeps transcribe_audio decoupled from
         // video_links-specific shape — see the R12 reactive-join review.
-        await ctx.runMutation(
-          internal.video_links.internal_mutations.heartbeatJobByStorageId,
-          {
-            storageId: args.storageId,
-            progress: progressLabel,
-          },
-        );
+        // Video-link audio is always a Convex `_storage` blob (yt-dlp writes it
+        // via `storage.store`); an S3-backed ref has no video-link job to
+        // heartbeat, so narrow to the Convex id (null → skip the no-op call).
+        const heartbeatStorageId = convexStorageId(args.storageId);
+        if (heartbeatStorageId) {
+          await ctx.runMutation(
+            internal.video_links.internal_mutations.heartbeatJobByStorageId,
+            {
+              storageId: heartbeatStorageId,
+              progress: progressLabel,
+            },
+          );
+        }
       }
 
       const fullTranscript = chunkParagraphs.join('\n\n');
