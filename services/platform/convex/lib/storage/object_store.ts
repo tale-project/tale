@@ -284,9 +284,14 @@ export async function s3PresignGetUrl(
     String(opts.expiresInSec ?? DEFAULT_PRESIGN_TTL_SEC),
   );
   if (opts.filename) {
+    // The store reflects this param as a response header — strip quotes AND
+    // control chars (CR/LF/NUL…) so a hostile filename can't splice into the
+    // Content-Disposition header (mirrors the `/storage` route's sanitizer).
+    // oxlint-disable-next-line no-control-regex -- stripping control chars is the point
+    const safeName = opts.filename.replace(/["\u0000-\u001f\u007f]/g, '');
     url.searchParams.set(
       'response-content-disposition',
-      `attachment; filename="${opts.filename.replace(/"/g, '')}"`,
+      `attachment; filename="${safeName}"`,
     );
   }
   const signed = await store.client.sign(url.toString(), {

@@ -26,7 +26,12 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { encodeS3Ref, parseBlobRef, type BlobRef } from './blob_ref';
+import {
+  encodeS3Ref,
+  parseBlobRef,
+  s3KeyBelongsToOrg,
+  type BlobRef,
+} from './blob_ref';
 import {
   buildObjectKey,
   resolveOrgObjectStore,
@@ -77,7 +82,7 @@ export async function readBlobBytes(
     }
     return new Uint8Array(await blob.arrayBuffer());
   }
-  const store = await requireS3(orgSlug);
+  const store = await requireS3(orgSlug, parsed.key);
   return await s3GetObjectBytes(store, parsed.key);
 }
 
@@ -96,7 +101,7 @@ export async function deleteBlob(
     await ctx.storage.delete(parsed.storageId);
     return;
   }
-  const store = await requireS3(orgSlug);
+  const store = await requireS3(orgSlug, parsed.key);
   await s3DeleteObject(store, parsed.key);
 }
 
@@ -115,7 +120,7 @@ export async function getBlobUrl(
   if (parsed.backend === 'convex') {
     return await ctx.storage.getUrl(parsed.storageId);
   }
-  const store = await requireS3(orgSlug);
+  const store = await requireS3(orgSlug, parsed.key);
   return await s3PresignGetUrl(store, parsed.key, { filename: opts.filename });
 }
 
@@ -142,7 +147,20 @@ export async function generateBlobUpload(
   return { url, method: 'PUT', s3Ref: encodeS3Ref(key) };
 }
 
-async function requireS3(orgSlug: string): Promise<S3ObjectStore> {
+/**
+ * Resolve the org's S3 store for an operation on `key`, refusing a key outside
+ * the org's own namespace. Blob refs are client-bindable strings, so without
+ * this check a member of org A could bind org B's key and have A's read /
+ * serve / delete address B's object whenever the two orgs resolve to the same
+ * physical bucket (a supported config — `prefix` exists to share buckets).
+ * Fail-closed: a foreign or malformed key throws, it is never "not found".
+ */
+async function requireS3(orgSlug: string, key: string): Promise<S3ObjectStore> {
+  if (!s3KeyBelongsToOrg(key, orgSlug)) {
+    throw new Error(
+      `s3 blob key is outside org '${orgSlug}' namespace; refusing`,
+    );
+  }
   const store = await resolveOrgObjectStore(orgSlug);
   if (store.backend !== 's3') {
     throw new Error(

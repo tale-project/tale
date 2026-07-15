@@ -121,4 +121,31 @@ describe.skipIf(!RUN)('per-org S3 object store (MinIO round-trip)', () => {
     // at the org segment, so match `testorg/` at start OR after a prefix slash.
     expect(buildObjectKey(store, ORG)).toMatch(new RegExp(`(^|/)${ORG}/`));
   });
+
+  it('blob access refuses a key outside the org namespace (tenant isolation)', async () => {
+    // Plant a real object under a DIFFERENT org's namespace in the SAME
+    // bucket (the shared-bucket scenario `prefix` exists for), then prove the
+    // org-scoped seam refuses to read / presign / delete it even though the
+    // raw store could. Guards the client-bindable-ref hole: binding another
+    // org's `s3:` key must fail closed at every access path.
+    const foreignKey = 'other-org/6f9619ff-feed-beef';
+    await s3PutObject(
+      store,
+      foreignKey,
+      new TextEncoder().encode('foreign bytes'),
+      'text/plain',
+    );
+    const { readBlobBytes, getBlobUrl, deleteBlob } =
+      await import('./blob_access');
+    const fakeCtx = {} as Parameters<typeof readBlobBytes>[0];
+    const ref = `s3:${foreignKey}`;
+    await expect(readBlobBytes(fakeCtx, ORG, ref)).rejects.toThrow(/namespace/);
+    await expect(getBlobUrl(fakeCtx, ORG, ref)).rejects.toThrow(/namespace/);
+    await expect(deleteBlob(fakeCtx, ORG, ref)).rejects.toThrow(/namespace/);
+    // The object is untouched (refusal happened before any store call) — the
+    // OWNING org's namespace check passes and can still read it.
+    const raw = await s3GetObjectBytes(store, foreignKey);
+    expect(new TextDecoder().decode(raw)).toBe('foreign bytes');
+    await s3DeleteObject(store, foreignKey);
+  });
 });

@@ -61,3 +61,24 @@ export function convexStorageId(ref: BlobRef): StorageId | null {
   const parsed = parseBlobRef(ref);
   return parsed.backend === 'convex' ? parsed.storageId : null;
 }
+
+/**
+ * TENANT ISOLATION — does an S3 object key sit in `orgSlug`'s own namespace?
+ *
+ * `buildObjectKey` always mints `[<prefix>/]<orgSlug>/<uuid>`, so the
+ * second-to-last segment IS the owning org, regardless of the org-chosen
+ * `prefix` (and of later prefix changes — old keys still carry the slug).
+ * Blob refs are client-bindable strings (`blobRefValidator` accepts any
+ * string), so every S3 read / presign / delete MUST refuse a key outside the
+ * org's namespace — otherwise two orgs sharing one physical bucket (a
+ * supported config; `prefix` exists for exactly that) could address each
+ * other's objects by binding a foreign key. Empty segments are rejected
+ * outright (`a//b` never comes out of `buildObjectKey`).
+ */
+export function s3KeyBelongsToOrg(key: string, orgSlug: string): boolean {
+  const segments = key.split('/');
+  if (segments.length < 2 || segments.some((s) => s.length === 0)) {
+    return false;
+  }
+  return segments[segments.length - 2] === orgSlug;
+}
