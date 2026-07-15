@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
+import { generateStatefulCompose } from '../generators/generate-stateful-compose';
 import type { ServiceConfig } from '../types';
 import { createConvexService } from './create-convex-service';
 
@@ -30,7 +31,12 @@ const composePath = fileURLToPath(
 const compose = parse(readFileSync(composePath, 'utf8')) as {
   services: Record<
     string,
-    { networks?: unknown; cap_add?: string[]; stop_grace_period?: string }
+    {
+      networks?: unknown;
+      cap_add?: string[];
+      stop_grace_period?: string;
+      image?: string;
+    }
   >;
 };
 
@@ -97,5 +103,35 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     expect(
       graceSeconds(compose.services.sandbox?.stop_grace_period),
     ).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {
+  // The sidecar must exist in BOTH pipelines, on the same image tag, or one
+  // path silently loses PO tokens (YouTube bot wall returns). The tag must also
+  // match BGUTIL_POT_VERSION in services/convex/Dockerfile (checked there via
+  // the pinned SHA256) — asserted here as a constant so a bump touches both.
+  const EXPECTED_IMAGE = 'brainicism/bgutil-ytdlp-pot-provider:1.3.1';
+
+  test('compose.yml defines bgutil-provider on the pinned image', () => {
+    expect(compose.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
+  });
+
+  test('compose.yml keeps bgutil-provider on the internal network', () => {
+    expect(networkNames(compose.services['bgutil-provider']?.networks)).toEqual(
+      ['internal'],
+    );
+  });
+
+  test('CLI generator emits bgutil-provider on the same pinned image', () => {
+    const generated = parse(
+      generateStatefulCompose(config, 'tale.example'),
+    ) as {
+      services: Record<string, { image?: string; networks?: unknown }>;
+    };
+    expect(generated.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
+    expect(
+      networkNames(generated.services['bgutil-provider']?.networks),
+    ).toEqual(['internal']);
   });
 });
