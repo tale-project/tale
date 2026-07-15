@@ -82,9 +82,17 @@ Chaque réponse HTML porte un ensemble strict d'en-têtes de sécurité, et cet 
 Vérifie-le sur ton propre déploiement :
 
 - `curl -sI https://<ton-hôte>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
-- Analyse l'hôte sur [securityheaders.com](https://securityheaders.com) ou le [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory).
+- Analyse l'hôte sur [securityheaders.com](https://securityheaders.com) ou le [MDN HTTP Observatory](https://developer.mozilla.org/fr/observatory).
 
-L'isolation cross-origin (COOP/CORP) est volontairement désactivée sur l'app de la plateforme parce qu'elle ouvre des popups de connexion OAuth et peut être atteinte depuis un second hôte pour les ressources de marque ; les sites de contenu, qui ne font ni l'un ni l'autre, l'activent. HSTS n'est émis que lorsque `SITE_URL` est `https://`.
+<!--
+  The MDN Observatory UI is only localized in some languages. When adding a new
+  docs language, check whether developer.mozilla.org/<lang>/observatory exists
+  and fall back to the en-US analyze links if it does not.
+-->
+
+La démo publique est la référence en direct de ce qu’un déploiement correct rapporte : le [scan Observatory de demo.tale.dev](https://developer.mozilla.org/fr/observatory/analyze?host=demo.tale.dev) affichait A+ le 15/07/2026 — score 115/100, dix tests sur dix réussis. Le seul en-tête que le rapport liste comme non implémenté, `Cross-Origin-Resource-Policy`, ne coûte aucun point ; c’est l’exception délibérée décrite juste en dessous.
+
+L’isolation cross-origin (COOP/CORP) reste volontairement désactivée sur l’app de la plateforme : `Cross-Origin-Opener-Policy: same-origin` couperait la référence de fenêtre par laquelle un popup de connexion OAuth renvoie l’authentification terminée à l’app, et `Cross-Origin-Resource-Policy` bloquerait les ressources de marque chargées depuis un second hôte. Les sites de contenu, qui ne font ni l’un ni l’autre, activent les deux. HSTS n’est émis que lorsque `SITE_URL` est `https://`.
 
 ## Où cela s'inscrit
 
