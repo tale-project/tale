@@ -1,3 +1,10 @@
+/// <reference types="bun" />
+// ^ Type-only reference for the `Bun` global (used at runtime inside
+// `startReactServer`). It replaces a former top-level `import { file } from
+// 'bun'`, which pulled these types in as a side effect but also made this
+// module un-importable under Node (breaking the prerender test that loads
+// `extractInlineScriptHashes`). A `/// <reference>` emits no runtime import.
+
 /**
  * Shared React-service bootstrap. Used by every Tale Vite/React service
  * that serves a built SPA from a `dist/` directory (web, docs, and any
@@ -14,7 +21,7 @@
  * proper ETag handling before falling through to static serving.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
 import { serializeLocaleCookie } from '@tale/ui/i18n/cookie';
@@ -22,55 +29,28 @@ import {
   negotiatePathLocale,
   type NegotiatePathLocaleResult,
 } from '@tale/ui/i18n/negotiate';
-import { file } from 'bun';
 
 import type { ArtifactsServer } from '../seo';
+import {
+  applySecurityHeaders,
+  defaultReactServerSecurityHeaders,
+  extractInlineScriptHashes,
+  withScriptHashes,
+  type SecurityHeadersConfig,
+} from './security-headers';
 
-export interface SecurityHeadersConfig {
-  /**
-   * CSP directives in camelCase (`defaultSrc`, `scriptSrc`, …); values are
-   * source lists joined with spaces. Set to `false` to omit the header.
-   */
-  contentSecurityPolicy?: Record<string, readonly string[]> | false;
-  /**
-   * `Strict-Transport-Security` value (e.g. `'max-age=15552000'`). Only
-   * emitted on HTTPS requests. Set to `false` to omit.
-   */
-  strictTransportSecurity?: string | false;
-  xContentTypeOptions?: 'nosniff' | false;
-  xFrameOptions?: 'DENY' | 'SAMEORIGIN' | false;
-  referrerPolicy?: string | false;
-}
-
-/**
- * Sensible default for a public marketing/docs site served from a Vite
- * `dist/`. Allows inline `<script>` because docs ships a synchronous
- * theme-detection script in `index.html`; allows inline `<style>` because
- * Tailwind v4 emits a few. Override per-service if a stricter policy fits.
- *
- * No external origins are allowed by default — runtime assets must be
- * served same-origin. Same GDPR / air-gap rationale as the platform CSP.
- */
-export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
-  contentSecurityPolicy: {
-    defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'blob:'],
-    fontSrc: ["'self'", 'data:'],
-    connectSrc: ["'self'"],
-    frameAncestors: ["'none'"],
-    baseUri: ["'self'"],
-    formAction: ["'self'"],
-    objectSrc: ["'none'"],
-    mediaSrc: ["'none'"],
-  },
-  // 180 days, no `includeSubDomains` / `preload` — self-deployed operators
-  // run on varied domains and don't own preload submission.
-  strictTransportSecurity: 'max-age=15552000',
-  xContentTypeOptions: 'nosniff',
-  xFrameOptions: 'DENY',
-  referrerPolicy: 'strict-origin-when-cross-origin',
+// Re-exported so existing callers (`services/web`, `services/docs`) keep
+// importing the config + default from `@tale/ui/server` unchanged. The pure
+// header logic lives in `./security-headers`; this module deliberately avoids a
+// top-level `bun` import (it uses the `Bun` global inside `startReactServer`)
+// so a Node context — e.g. the prerender test importing
+// `extractInlineScriptHashes` — can load `@tale/ui/server` without
+// ERR_MODULE_NOT_FOUND.
+export {
+  applySecurityHeaders,
+  defaultReactServerSecurityHeaders,
+  extractInlineScriptHashes,
+  type SecurityHeadersConfig,
 };
 
 export interface ReactServerOptions {
@@ -163,51 +143,6 @@ function isSecureRequest(request: Request): boolean {
   return request.headers.get('x-forwarded-proto') === 'https';
 }
 
-function cspDirectiveName(camel: string): string {
-  return camel.replace(/([A-Z])/g, '-$1').toLowerCase();
-}
-
-function buildCspHeader(directives: Record<string, readonly string[]>): string {
-  return Object.entries(directives)
-    .map(([key, sources]) => `${cspDirectiveName(key)} ${sources.join(' ')}`)
-    .join('; ');
-}
-
-/**
- * Mutates `response.headers` in place, adding any configured security
- * headers. HSTS is skipped on plaintext HTTP so dev environments don't
- * pin themselves to https.
- */
-function applySecurityHeaders(
-  response: Response,
-  config: SecurityHeadersConfig,
-  isSecure: boolean,
-): Response {
-  if (config.contentSecurityPolicy) {
-    response.headers.set(
-      'Content-Security-Policy',
-      buildCspHeader(config.contentSecurityPolicy),
-    );
-  }
-  if (config.strictTransportSecurity && isSecure) {
-    response.headers.set(
-      'Strict-Transport-Security',
-      config.strictTransportSecurity,
-    );
-  }
-  if (config.xContentTypeOptions) {
-    response.headers.set('X-Content-Type-Options', config.xContentTypeOptions);
-  }
-  if (config.xFrameOptions) {
-    // nosemgrep: javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration -- generic config-driven header setter; the value is operator-controlled
-    response.headers.set('X-Frame-Options', config.xFrameOptions);
-  }
-  if (config.referrerPolicy) {
-    response.headers.set('Referrer-Policy', config.referrerPolicy);
-  }
-  return response;
-}
-
 async function handleArtifacts(
   artifacts: ArtifactsServer,
   request: Request,
@@ -225,6 +160,37 @@ async function handleArtifacts(
   }
 }
 
+/**
+ * Resolve the security-headers config actually used at runtime: the configured
+ * policy with its CSP `script-src` tightened to the built page's inline-script
+ * hashes (dropping `'unsafe-inline'`). Falls back to the configured policy
+ * unchanged on any miss so a hashing failure can never break inline scripts.
+ */
+function computeEffectiveSecurityHeaders(
+  config: SecurityHeadersConfig | undefined,
+  distDir: string,
+  logPrefix: string,
+): SecurityHeadersConfig | undefined {
+  if (!config?.contentSecurityPolicy) return config;
+  try {
+    const html = readFileSync(join(distDir, 'index.html'), 'utf8');
+    const hashes = extractInlineScriptHashes(html);
+    if (hashes.length === 0) {
+      console.warn(
+        `[${logPrefix}] no inline scripts in dist/index.html; keeping CSP script-src as configured`,
+      );
+      return config;
+    }
+    return withScriptHashes(config, hashes);
+  } catch (error) {
+    console.warn(
+      `[${logPrefix}] could not hash dist/index.html for CSP; keeping configured script-src:`,
+      error instanceof Error ? error.message : error,
+    );
+    return config;
+  }
+}
+
 export function startReactServer(opts: ReactServerOptions): void {
   const {
     port,
@@ -239,6 +205,18 @@ export function startReactServer(opts: ReactServerOptions): void {
     extraRoutes,
     artifacts,
   } = opts;
+
+  // Pin the CSP `script-src` to the sha256 of the built page's inline
+  // theme-flash script and drop `'unsafe-inline'` — computed once at boot from
+  // the SAME `dist/index.html` that is served, so the hash always matches the
+  // script the browser runs. On any miss (no dist, no inline script, read
+  // error) the configured policy is used unchanged, so a hashing failure can
+  // never break the theme; it just keeps the looser `'unsafe-inline'`.
+  const effectiveSecurityHeaders = computeEffectiveSecurityHeaders(
+    securityHeaders,
+    distDir,
+    logPrefix,
+  );
 
   const distPrefix = distDir + sep;
 
@@ -267,14 +245,14 @@ export function startReactServer(opts: ReactServerOptions): void {
   // unknown paths; without the artifact the legacy SPA-shell fallback (200)
   // stays, so consumers migrate independently.
   async function notFoundOrShell(): Promise<Response> {
-    const notFound = file(join(distDir, '404', 'index.html'));
+    const notFound = Bun.file(join(distDir, '404', 'index.html'));
     if (await notFound.exists()) {
       return new Response(notFound, {
         status: 404,
         headers: { 'cache-control': 'no-cache' },
       });
     }
-    return new Response(file(join(distDir, 'index.html')), {
+    return new Response(Bun.file(join(distDir, 'index.html')), {
       headers: { 'cache-control': 'no-cache' },
     });
   }
@@ -294,7 +272,7 @@ export function startReactServer(opts: ReactServerOptions): void {
     }
     const resolved = resolve(distDir, rel);
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
-      const candidate = file(resolved);
+      const candidate = Bun.file(resolved);
       if (await candidate.exists()) {
         const ct = contentTypeFor(pathname);
         return new Response(candidate, {
@@ -305,7 +283,7 @@ export function startReactServer(opts: ReactServerOptions): void {
         });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
-      const routeHtml = file(join(resolved, 'index.html'));
+      const routeHtml = Bun.file(join(resolved, 'index.html'));
       if (await routeHtml.exists()) {
         return new Response(routeHtml, {
           headers: { 'cache-control': 'no-cache' },
@@ -322,8 +300,8 @@ export function startReactServer(opts: ReactServerOptions): void {
       const url = new URL(request.url);
       const secure = isSecureRequest(request);
       const finalize = (response: Response) =>
-        securityHeaders
-          ? applySecurityHeaders(response, securityHeaders, secure)
+        effectiveSecurityHeaders
+          ? applySecurityHeaders(response, effectiveSecurityHeaders, secure)
           : response;
 
       if (url.pathname === '/api/health') {

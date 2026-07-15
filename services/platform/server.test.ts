@@ -61,6 +61,15 @@ describe('security headers', () => {
     // navigator.clipboard.readText(); an empty allowlist would emit
     // `clipboard-read=()` and silently block the read.
     expect(pp).toContain('clipboard-read=(self)');
+
+    // Hono `secureHeaders` emits these by default; pin them so a hono upgrade
+    // can't silently drop a header the OWASP Secure Headers set expects.
+    expect(res.headers.get('x-permitted-cross-domain-policies')).toBe('none');
+    expect(res.headers.get('x-xss-protection')).toBe('0');
+    expect(res.headers.get('x-download-options')).toBe('noopen');
+    expect(res.headers.get('x-dns-prefetch-control')).toBe('off');
+    // And no framework fingerprint header.
+    expect(res.headers.get('x-powered-by')).toBeNull();
   });
 
   // Regression guard for issue #1925 — "Verify the web client passes the
