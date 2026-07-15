@@ -10,7 +10,7 @@
 | Surface                | Route                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
 | Org root (→ chat)      | `/dashboard/{org}`                                                                         |
-| Chat composer          | `/dashboard/{org}/chat`                                                                    |
+| Chat input             | `/dashboard/{org}/chat`                                                                    |
 | Chat thread            | `/dashboard/{org}/chat/{threadId}`                                                         |
 | Email automation inbox | `/dashboard/{org}/automations/outlook__reply-emails` (needs an installed email automation) |
 | Contacts DataTable     | `/dashboard/{org}/contacts`                                                                |
@@ -51,7 +51,7 @@ axes** for every number, because both move it by an order of magnitude:
 >   the product. Treat dev numbers as **relative** (compare deltas / warm-vs-cold)
 >   and reserve absolute pass/fail to a **production build** (`bun run build` +
 >   serve) — note which you used.
-> - A chat turn reaches a terminal state when the composer toggles **Stop
+> - A chat turn reaches a terminal state when the chat input toggles **Stop
 >   generating** (`chat.stopGenerating`) back to **Send message** (`chat.send`).
 >   Time/await on that toggle, never on streamed text. "TTFT ≈ 150 ms" describes
 >   only the mock gateway's SSE first byte — the **observed turn round-trip** in
@@ -102,12 +102,12 @@ single warm sample.
 
 ## Boundary & error tests
 
-| ID  | Test                | Input                                                             | Expected (verifiable)                                                                                                                                                                     |
-| --- | ------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Large thread        | Open a chat thread with many messages.                            | Scroll stays responsive; no `pageerror`/console error; DOM node count does not grow unbounded (older messages are recycled).                                                              |
-| B2  | Large list          | A DataTable with hundreds of rows (`/contacts`).                  | First page renders quickly and is paginated (only one page of rows in the DOM); paging does not load the whole set at once.                                                               |
-| B3  | Slow network        | DevTools throttle to **Slow 3G**, hard-reload `/dashboard/{org}`. | Loading skeletons (`aria-busy="true"` regions) show during load with NO layout jank; the page eventually renders; no crash.                                                               |
-| B4  | Chat provider error | Send a message containing `e2e:error` in `mockA`.                 | The provider-error UI renders (HTTP 500 path); the composer recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
+| ID  | Test                | Input                                                             | Expected (verifiable)                                                                                                                                                                       |
+| --- | ------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Large thread        | Open a chat thread with many messages.                            | Scroll stays responsive; no `pageerror`/console error; DOM node count does not grow unbounded (older messages are recycled).                                                                |
+| B2  | Large list          | A DataTable with hundreds of rows (`/contacts`).                  | First page renders quickly and is paginated (only one page of rows in the DOM); paging does not load the whole set at once.                                                                 |
+| B3  | Slow network        | DevTools throttle to **Slow 3G**, hard-reload `/dashboard/{org}`. | Loading skeletons (`aria-busy="true"` regions) show during load with NO layout jank; the page eventually renders; no crash.                                                                 |
+| B4  | Chat provider error | Send a message containing `e2e:error` in `mockA`.                 | The provider-error UI renders (HTTP 500 path); the chat input recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
 
 ## Accessibility (WCAG 2.1 AA)
 

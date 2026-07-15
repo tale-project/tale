@@ -69,9 +69,7 @@ describe('ComposerModeMenu', () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole('button', { name: 'Open composer menu' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
 
     expect(
       await screen.findByRole('menuitem', { name: 'Add photos & files' }),

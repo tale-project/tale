@@ -223,7 +223,7 @@ quick pass; deep coverage lives in the per-area guides.
 | ----------------------------------------------------- | -------------------------------------------------------------- |
 | `/log-in`                                             | login form renders                                             |
 | `/dashboard/{org}`                                    | redirects into `/chat`                                         |
-| `/dashboard/{org}/chat`                               | composer + agent/model pickers + starters                      |
+| `/dashboard/{org}/chat`                               | chat input + agent/model pickers + starters                    |
 | `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state            |
 | `/dashboard/{org}/projects`                           | list or empty state                                            |
 | `/dashboard/{org}/projects/{projectId}/discussions`   | Discussions tab, list or empty state (needs a project)         |
