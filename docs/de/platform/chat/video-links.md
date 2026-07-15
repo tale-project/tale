@@ -3,13 +3,13 @@ title: Videolinks
 description: Füg eine Video-URL in den Chat ein, und Tale liest ihr Transkript für den Agent ein — unterstützte Plattformen, wie das Einlesen abläuft und was jeder Fehlerzustand bedeutet.
 ---
 
-Füg einen Videolink in den Composer ein, und Tale holt das Transkript des Videos, damit der Agent es lesen, zitieren und daraus antworten kann — kein manueller Download, kein Kopieren und Einfügen eines Transkripts. So bringst du einen Vortrag, ein Tutorial oder ein aufgezeichnetes Meeting am schnellsten in eine Antwort.
+Füg einen Videolink in den Chat ein, und Tale holt das Transkript des Videos, damit der Agent es lesen, zitieren und daraus antworten kann — kein manueller Download, kein Kopieren und Einfügen eines Transkripts. So bringst du einen Vortrag, ein Tutorial oder ein aufgezeichnetes Meeting am schnellsten in eine Antwort.
 
-Diese Seite behandelt den Videolink-Chip im Chat-Composer. Willst du Dateien statt Links einfügen, siehe [Anhänge](/de/platform/chat/attachments).
+Diese Seite behandelt den Videolink-Chip im Chat. Willst du Dateien statt Links einfügen, siehe [Anhänge](/de/platform/chat/attachments).
 
 ## Ein durchgespieltes Beispiel
 
-Füg eine YouTube-URL in den Composer ein. Tale erkennt sie als Videolink und setzt unter die Nachricht einen Chip mit dem Titel des Videos und einem Spinner. Hinter dem Chip holt Tale die Untertitel (oder, wenn es keine gibt, die Audiospur, die es transkribiert), indiziert das Transkript und schaltet den Chip auf **Bereit**. Klick **Nachricht senden**, und der Agent antwortet aus dem Transkript und zitiert die Passagen, die er genutzt hat. Ein langes Video wird im Hintergrund weiter indiziert; der Chip zeigt seinen Fortschritt, und das Transkript wird durchsuchbar, sobald die Indizierung abgeschlossen ist.
+Füg eine YouTube-URL in den Chat ein. Tale erkennt sie als Videolink und setzt unter die Nachricht einen Chip mit dem Titel des Videos und einem Spinner. Hinter dem Chip holt Tale die Untertitel (oder, wenn es keine gibt, die Audiospur, die es transkribiert), indiziert das Transkript und schaltet den Chip auf **Bereit**. Klick **Nachricht senden**, und der Agent antwortet aus dem Transkript und zitiert die Passagen, die er genutzt hat. Ein langes Video wird im Hintergrund weiter indiziert; der Chip zeigt seinen Fortschritt, und das Transkript wird durchsuchbar, sobald die Indizierung abgeschlossen ist.
 
 ## Unterstützte Plattformen
 

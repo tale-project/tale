@@ -3,13 +3,13 @@ title: Video links
 description: Paste a video URL into the chat and Tale ingests its transcript for the agent — supported platforms, the ingestion flow, and what each failure state means.
 ---
 
-Paste a video link into the composer and Tale fetches the video's transcript so the agent can read, quote, and answer from it — no manual download, no copy-paste of a transcript. It is the fastest way to bring a talk, tutorial, or recorded meeting into a reply.
+Paste a video link into the chat and Tale fetches the video's transcript so the agent can read, quote, and answer from it — no manual download, no copy-paste of a transcript. It is the fastest way to bring a talk, tutorial, or recorded meeting into a reply.
 
-This page covers the chat composer's video-link chip. For pasting files rather than links, see [Attachments](/platform/chat/attachments).
+This page covers the chat's video-link chip. For pasting files rather than links, see [Attachments](/platform/chat/attachments).
 
 ## A worked example
 
-Paste a YouTube URL into the composer. Tale recognises it as a video link and drops a chip below the message with the video's title and a spinner. Behind the chip, Tale fetches the captions (or, when there are none, the audio, which it transcribes), indexes the transcript, and flips the chip to **Ready**. **Send** the message and the agent answers from the transcript, citing the passages it used. A long video keeps indexing in the background; the chip shows its progress and the transcript becomes searchable the moment it finishes.
+Paste a YouTube URL into the chat. Tale recognises it as a video link and drops a chip below the message with the video's title and a spinner. Behind the chip, Tale fetches the captions (or, when there are none, the audio, which it transcribes), indexes the transcript, and flips the chip to **Ready**. **Send** the message and the agent answers from the transcript, citing the passages it used. A long video keeps indexing in the background; the chip shows its progress and the transcript becomes searchable the moment it finishes.
 
 ## Supported platforms
 

@@ -3,13 +3,13 @@ title: Liens vidéo
 description: Colle une URL de vidéo dans le chat et Tale récupère sa transcription pour l’agent — les plateformes prises en charge, le déroulé de l’ingestion et ce que signifie chaque état d’échec.
 ---
 
-Colle un lien vidéo dans le composeur et Tale récupère la transcription de la vidéo pour que l’agent puisse la lire, la citer et y répondre — pas de téléchargement manuel, pas de copier-coller d’une transcription. C’est le moyen le plus rapide d’amener une conférence, un tutoriel ou une réunion enregistrée dans une réponse.
+Colle un lien vidéo dans le chat et Tale récupère la transcription de la vidéo pour que l’agent puisse la lire, la citer et y répondre — pas de téléchargement manuel, pas de copier-coller d’une transcription. C’est le moyen le plus rapide d’amener une conférence, un tutoriel ou une réunion enregistrée dans une réponse.
 
-Cette page couvre la puce de lien vidéo du composeur de chat. Pour coller des fichiers plutôt que des liens, voir [Pièces jointes](/fr/platform/chat/attachments).
+Cette page couvre la puce de lien vidéo du chat. Pour coller des fichiers plutôt que des liens, voir [Pièces jointes](/fr/platform/chat/attachments).
 
 ## Un exemple déroulé
 
-Colle une URL YouTube dans le composeur. Tale la reconnaît comme un lien vidéo et dépose une puce sous le message, avec le titre de la vidéo et un spinner. Derrière la puce, Tale récupère les sous-titres (ou, à défaut, l’audio, qu’il transcrit), indexe la transcription et fait passer la puce à **Prêt**. Envoie le message et l’agent répond à partir de la transcription, en citant les passages qu’il a utilisés. Une longue vidéo continue de s’indexer en arrière-plan ; la puce affiche sa progression et la transcription devient consultable dès que l’indexation se termine.
+Colle une URL YouTube dans le chat. Tale la reconnaît comme un lien vidéo et dépose une puce sous le message, avec le titre de la vidéo et un spinner. Derrière la puce, Tale récupère les sous-titres (ou, à défaut, l’audio, qu’il transcrit), indexe la transcription et fait passer la puce à **Prêt**. Envoie le message et l’agent répond à partir de la transcription, en citant les passages qu’il a utilisés. Une longue vidéo continue de s’indexer en arrière-plan ; la puce affiche sa progression et la transcription devient consultable dès que l’indexation se termine.
 
 ## Plateformes prises en charge
 
