@@ -94,13 +94,29 @@ async function countGlobalRagInFlight(
   return inFlight;
 }
 
-/** Schedule the upload-path indexing action for a row and clear any park flag. */
+/**
+ * Schedule the indexing action for a row and clear any park flag. Both
+ * ingestion paths write `fileMetadata` rows and count against the same cap, so
+ * the dispatcher must schedule whichever action matches the row: a Document Hub
+ * row (`documentId` set, not chat-bound) indexes through the documents pipeline
+ * (`uploadDocumentToRag`); every other queued row is a plain file upload
+ * (`uploadFileToRag`). Keeps a parked hub-doc row correct when the fair promoter
+ * later dispatches it.
+ */
 async function dispatchRow(
   ctx: MutationCtx,
   row: Doc<'fileMetadata'>,
 ): Promise<void> {
   if (row.ragParked) {
     await ctx.db.patch(row._id, { ragParked: undefined });
+  }
+  if (row.documentId && !row.threadId) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documents.internal_actions.uploadDocumentToRag,
+      { documentId: row.documentId },
+    );
+    return;
   }
   await ctx.scheduler.runAfter(
     0,

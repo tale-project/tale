@@ -5,6 +5,9 @@ vi.mock('../_generated/api', () => ({
     file_metadata: {
       internal_actions: { uploadFileToRag: 'uploadFileToRag' },
     },
+    documents: {
+      internal_actions: { uploadDocumentToRag: 'uploadDocumentToRag' },
+    },
   },
 }));
 
@@ -22,11 +25,13 @@ interface Row {
   fileName: string;
   contentType: string;
   _creationTime: number;
+  documentId?: string;
+  threadId?: string;
 }
 
 function makeCtx(rows: Row[]) {
   const store = rows.map((r) => ({ ...r }));
-  const scheduled: Array<{ ref: unknown; args: { storageId: string } }> = [];
+  const scheduled: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
   const ctx = {
     db: {
       query: () => ({
@@ -61,7 +66,7 @@ function makeCtx(rows: Row[]) {
       runAfter: async (
         _d: number,
         ref: unknown,
-        args: { storageId: string },
+        args: Record<string, unknown>,
       ) => {
         scheduled.push({ ref, args });
       },
@@ -89,7 +94,26 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     await maybeDispatchRagIndexing(ctx, 'a' as never);
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0].args.storageId).toBe('a');
+    expect(scheduled[0].ref).toBe('uploadFileToRag');
     expect(store.find((r) => r._id === 'a')?.ragParked).toBeUndefined();
+  });
+
+  it('dispatches a Document Hub row through the documents pipeline', async () => {
+    // documentId set + no threadId → uploadDocumentToRag with { documentId },
+    // NOT the file-upload action. Same cap, different indexing entry point.
+    const { ctx, scheduled } = makeCtx([row('a', { documentId: 'doc1' })]);
+    await maybeDispatchRagIndexing(ctx, 'a' as never);
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].ref).toBe('uploadDocumentToRag');
+    expect(scheduled[0].args.documentId).toBe('doc1');
+  });
+
+  it('treats a chat-bound row (documentId + threadId) as a file upload', async () => {
+    const { ctx, scheduled } = makeCtx([
+      row('a', { documentId: 'doc1', threadId: 'thread1' }),
+    ]);
+    await maybeDispatchRagIndexing(ctx, 'a' as never);
+    expect(scheduled[0].ref).toBe('uploadFileToRag');
   });
 
   it('allows exactly the cap concurrently (target excluded from its own count)', async () => {
