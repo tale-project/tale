@@ -4,6 +4,11 @@
  * Files are the source of truth; every consumer (the scaffolder, the file
  * watcher, the file→cache sync, the read strategies) keys off this one list.
  *
+ * Config is PER-ORG BY CONSTRUCTION — every domain loads from
+ * `<orgSlug>/<domain>/`, so an org's config is isolated by design. A config
+ * domain must never become a cross-org shared surface (see AGENTS.md → tenant
+ * isolation): nothing org-owned is shared across organizations.
+ *
  * # The two-layer split (Convex V8↔Node bundling boundary)
  *
  * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`, so a

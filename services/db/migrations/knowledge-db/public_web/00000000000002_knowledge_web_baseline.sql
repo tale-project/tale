@@ -30,12 +30,12 @@ END; $$;
 CREATE INDEX IF NOT EXISTS idx_pw_websites_status ON public_web.websites(status);
 CREATE INDEX IF NOT EXISTS idx_pw_websites_due ON public_web.websites(status, last_scanned_at);
 
--- Per-org website membership layer.
---
--- websites / website_urls / chunks / page_paragraph_hashes remain
--- deployment-shared content storage (one canonical fetch + embed per
--- domain, independent of which org requested it). This junction table
--- tracks WHICH orgs have asked the crawler to track a given domain.
+-- Per-org website membership layer. Within one knowledge database the crawler
+-- content (websites / website_urls / chunks / page_paragraph_hashes) is shared
+-- by the orgs that resolve to it — one canonical fetch + embed per domain — and
+-- this junction table tracks WHICH orgs have asked the crawler to track a given
+-- domain. A bring-your-own database isolates an org's crawler corpus entirely;
+-- nothing in a knowledge database is shared across orgs at the database boundary.
 CREATE TABLE IF NOT EXISTS public_web.website_org_memberships (
     domain   TEXT        NOT NULL REFERENCES public_web.websites(domain) ON DELETE CASCADE,
     org_slug TEXT        NOT NULL,

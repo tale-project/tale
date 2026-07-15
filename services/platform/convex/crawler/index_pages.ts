@@ -23,6 +23,7 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../_generated/server';
+import { getKnowledgePoolForOrg } from '../lib/knowledge/db/knowledge_db';
 import { computeContentHash } from '../lib/knowledge/utils/hashing';
 import { crawlUrl, discoverUrls as libDiscoverUrls } from './lib/discovery';
 import {
@@ -48,7 +49,9 @@ export const indexPage = internalAction({
     content: v.string(),
   },
   handler: async (_ctx, args) => {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const result = await libIndexPage(
+      sql,
       args.orgSlug,
       args.domain,
       args.url,
@@ -74,7 +77,8 @@ export const indexWebsite = internalAction({
     domain: v.string(),
   },
   handler: async (_ctx, args) => {
-    const result = await libIndexWebsite(args.orgSlug, args.domain);
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    const result = await libIndexWebsite(sql, args.orgSlug, args.domain);
     return {
       success: true,
       domain: result.domain,
@@ -93,6 +97,9 @@ export const indexWebsite = internalAction({
  */
 export const discoverUrls = internalAction({
   args: {
+    // Routes the discovered URLs to the org's own knowledge pool (BYO or the
+    // deployment default) — the crawler corpus is isolated per-org.
+    orgSlug: v.string(),
     domain: v.string(),
     maxUrls: v.optional(v.number()),
     pattern: v.optional(v.union(v.string(), v.null())),
@@ -107,6 +114,7 @@ export const discoverUrls = internalAction({
     organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const discovered = await libDiscoverUrls(args.domain, {
       maxUrls: args.maxUrls ?? 100,
       pattern: args.pattern ?? null,
@@ -115,7 +123,7 @@ export const discoverUrls = internalAction({
         ? { ctx, organizationId: args.organizationId }
         : undefined,
     });
-    const inserted = await saveDiscoveredUrls(args.domain, discovered);
+    const inserted = await saveDiscoveredUrls(sql, args.domain, discovered);
     return {
       domain: args.domain,
       urls: discovered,
@@ -136,6 +144,9 @@ export const discoverUrls = internalAction({
  */
 export const fetchUrls = internalAction({
   args: {
+    // Routes fetched page content to the org's own knowledge pool (BYO or the
+    // deployment default) — the crawler corpus is isolated per-org.
+    orgSlug: v.string(),
     domain: v.string(),
     urls: v.array(v.string()),
     wordCountThreshold: v.optional(v.number()),
@@ -145,6 +156,7 @@ export const fetchUrls = internalAction({
     organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
     const timeoutMs = args.timeout;
     const renderContext = args.organizationId
       ? { ctx, organizationId: args.organizationId }
@@ -215,10 +227,10 @@ export const fetchUrls = internalAction({
     }
 
     if (updates.length > 0) {
-      await updateContentHashes(args.domain, updates);
+      await updateContentHashes(sql, args.domain, updates);
     }
     if (failedUrls.length > 0) {
-      await incrementFailCount(args.domain, failedUrls);
+      await incrementFailCount(sql, args.domain, failedUrls);
     }
 
     return {

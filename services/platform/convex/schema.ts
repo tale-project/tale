@@ -1,3 +1,14 @@
+/**
+ * Root Convex schema — the single registry of the platform's tables and fields.
+ *
+ * TENANT ISOLATION (see AGENTS.md → Non-negotiable boundaries): any table or
+ * field that holds org-owned data MUST be scoped and queried per organization
+ * (an `organizationId` column + a `by_organizationId`-style index). Nothing that
+ * belongs to one org may be shared across orgs — a new cross-org shared surface
+ * is a defect. Per-org knowledge/RAG/crawler data lives OUTSIDE Convex and is
+ * routed through `getKnowledgePoolForOrg(orgSlug)`.
+ */
+
 import { defineSchema } from 'convex/server';
 
 import { agentJobsTable } from './agent_jobs/schema';

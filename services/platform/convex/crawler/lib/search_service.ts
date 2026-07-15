@@ -6,18 +6,25 @@
  * Faithful port of `services/crawler/app/services/search_service.py`.
  *
  * BM25 full-text (pg_search / paradedb) + pgvector similarity with RRF fusion.
- * Chunks/websites are deployment-shared content, but each search is restricted
- * to domains the caller's org has registered (the `website_org_memberships`
- * EXISTS filter). The Python source resolved the active org via a global
- * `get_active_org()`; here the `orgSlug` is threaded through explicitly.
+ * The search runs on the caller org's resolved knowledge pool (bring-your-own or
+ * the deployment default), so an org's web corpus is isolated per-org exactly
+ * like the RAG corpus. Within a shared database each search is further
+ * restricted to domains the caller's org has registered (the
+ * `website_org_memberships` EXISTS filter). The Python source resolved the
+ * active org via a global `get_active_org()`; here the `orgSlug` (and its pool)
+ * is threaded through explicitly.
  *
  * The query embedding is produced by an `EmbeddingService` built from the org's
  * provider config (the Python source used a global embedding service).
  */
 
+import type { Sql } from 'postgres';
+
 import { getEmbeddingConfig } from '../../lib/knowledge/config/base';
-import { PUBLIC_WEB_SCHEMA as SCHEMA } from '../../lib/knowledge/db/knowledge_db';
-import { getKnowledgePool } from '../../lib/knowledge/db/knowledge_db';
+import {
+  getKnowledgePoolForOrg,
+  PUBLIC_WEB_SCHEMA as SCHEMA,
+} from '../../lib/knowledge/db/knowledge_db';
 import { withRetry } from '../../lib/knowledge/db/retry';
 import { EmbeddingService } from '../../lib/knowledge/embedding/service';
 import { logger } from '../../lib/knowledge/logger';
@@ -52,12 +59,12 @@ export interface SearchWebOptions {
 }
 
 async function ftsSearch(
+  sql: Sql,
   query: string,
   orgSlug: string,
   domain: string | null,
   limit: number,
 ): Promise<ChunkRow[]> {
-  const sql = getKnowledgePool();
   // Membership filter restricts the org's view to domains it has registered.
   if (domain) {
     return withRetry(() =>
@@ -95,12 +102,12 @@ async function ftsSearch(
 }
 
 async function vectorSearch(
+  sql: Sql,
   embedding: number[],
   orgSlug: string,
   domain: string | null,
   limit: number,
 ): Promise<ChunkRow[]> {
-  const sql = getKnowledgePool();
   const vecStr = JSON.stringify(embedding);
   if (domain) {
     return withRetry(() =>
@@ -198,6 +205,10 @@ export async function searchWeb(
   const limit = options.limit ?? 10;
   const similarityThreshold = options.similarityThreshold ?? 0.4;
 
+  // Route to the org's own knowledge pool (BYO or deployment default) so the
+  // web corpus stays isolated per-org — never the shared default pool.
+  const sql = await getKnowledgePoolForOrg(orgSlug);
+
   const cfg = getEmbeddingConfig(orgSlug);
   const emb = new EmbeddingService(
     cfg.apiKey,
@@ -210,10 +221,11 @@ export async function searchWeb(
   // asyncio.create_task fan-out).
   const [queryEmbedding, ftsResults] = await Promise.all([
     emb.embedQuery(query),
-    ftsSearch(query, orgSlug, domain, limit * 3),
+    ftsSearch(sql, query, orgSlug, domain, limit * 3),
   ]);
 
   let vectorResults = await vectorSearch(
+    sql,
     queryEmbedding,
     orgSlug,
     domain,

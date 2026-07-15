@@ -67,9 +67,15 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
 
     switch (params.operation) {
       case 'discover_urls':
-        return await discoverUrls(ctx, params, organizationId, timeout);
+        return await discoverUrls(
+          ctx,
+          params,
+          orgSlug,
+          organizationId,
+          timeout,
+        );
       case 'fetch_urls':
-        return await fetchUrls(ctx, params, organizationId, timeout);
+        return await fetchUrls(ctx, params, orgSlug, organizationId, timeout);
       case 'query_urls':
         return await queryUrls(ctx, params, orgSlug, timeout);
       default:
@@ -98,6 +104,7 @@ type QueryUrlsParams = Extract<
 async function discoverUrls(
   ctx: ActionCtx,
   params: DiscoverUrlsParams,
+  orgSlug: string,
   organizationId: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
@@ -121,6 +128,7 @@ async function discoverUrls(
   const result = await ctx.runAction(
     internal.crawler.index_pages.discoverUrls,
     {
+      orgSlug,
       domain,
       maxUrls,
       pattern: params.pattern ?? null,
@@ -152,6 +160,7 @@ async function discoverUrls(
 async function fetchUrls(
   ctx: ActionCtx,
   params: FetchUrlsParams,
+  orgSlug: string,
   organizationId: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
@@ -171,6 +180,7 @@ async function fetchUrls(
   debugLog(`Fetching ${params.urls.length} URLs (domain=${domain})`);
 
   const result = await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
+    orgSlug,
     domain,
     urls: params.urls,
     wordCountThreshold: params.wordCountThreshold ?? 100,

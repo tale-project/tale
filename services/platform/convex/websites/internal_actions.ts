@@ -171,7 +171,10 @@ async function fetchHomepageMetadata(
   // In-process homepage fetch (replaces external crawler POST /api/v1/urls/fetch).
   let data;
   try {
+    // `orgSlug` routes the fetched page to the org's own knowledge pool.
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
     data = await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
+      orgSlug,
       domain,
       urls: [`https://${domain}/`],
       wordCountThreshold: 0,

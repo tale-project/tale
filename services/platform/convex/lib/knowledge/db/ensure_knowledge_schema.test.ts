@@ -31,7 +31,7 @@ describe('ensureKnowledgeSchema', () => {
     expect(captured[0]).toBe(KNOWLEDGE_BOOTSTRAP_DDL);
   });
 
-  it('creates the required extension, schema, tables, and index function', () => {
+  it('creates the required extension, both schemas, tables, and index functions', () => {
     // vector is REQUIRED; pg_search is best-effort (wrapped so a plain-pgvector
     // BYO DB still bootstraps and serves vector-only search).
     expect(KNOWLEDGE_BOOTSTRAP_DDL).toContain(
@@ -53,6 +53,26 @@ describe('ensureKnowledgeSchema', () => {
     }
     expect(KNOWLEDGE_BOOTSTRAP_DDL).toContain(
       'FUNCTION private_knowledge.create_chunks_hnsw_index()',
+    );
+
+    // public_web (crawler) is bootstrapped per-org alongside private_knowledge —
+    // nothing in the knowledge DBs is shared across orgs.
+    expect(KNOWLEDGE_BOOTSTRAP_DDL).toContain(
+      'CREATE SCHEMA IF NOT EXISTS public_web;',
+    );
+    for (const table of [
+      'websites',
+      'website_org_memberships',
+      'website_urls',
+      'page_paragraph_hashes',
+      'chunks',
+    ]) {
+      expect(KNOWLEDGE_BOOTSTRAP_DDL).toContain(
+        `CREATE TABLE IF NOT EXISTS public_web.${table}`,
+      );
+    }
+    expect(KNOWLEDGE_BOOTSTRAP_DDL).toContain(
+      'FUNCTION public_web.create_chunks_hnsw_index()',
     );
   });
 
@@ -83,6 +103,37 @@ describe('ensureKnowledgeSchema', () => {
       'idx_pk_chunks_bm25',
       'idx_pk_semcache_org_expires',
       'FUNCTION private_knowledge.create_chunks_hnsw_index()',
+    ];
+    for (const anchor of anchors) {
+      expect(baseline, `baseline missing anchor: ${anchor}`).toContain(anchor);
+      expect(
+        KNOWLEDGE_BOOTSTRAP_DDL,
+        `embedded DDL missing baseline anchor: ${anchor}`,
+      ).toContain(anchor);
+    }
+  });
+
+  it('stays aligned with the public_web baseline migration (drift guard)', () => {
+    const baselinePath = fileURLToPath(
+      new URL(
+        '../../../../../db/migrations/knowledge-db/public_web/00000000000002_knowledge_web_baseline.sql',
+        import.meta.url,
+      ),
+    );
+    const baseline = readFileSync(baselinePath, 'utf8');
+    // Every object the crawler baseline defines must appear in the embedded DDL,
+    // so a baseline change that isn't mirrored here fails loudly.
+    const anchors = [
+      'CREATE SCHEMA IF NOT EXISTS public_web;',
+      'CREATE TABLE IF NOT EXISTS public_web.websites',
+      'CREATE TABLE IF NOT EXISTS public_web.website_org_memberships',
+      'CREATE TABLE IF NOT EXISTS public_web.website_urls',
+      'CREATE TABLE IF NOT EXISTS public_web.page_paragraph_hashes',
+      'CREATE TABLE IF NOT EXISTS public_web.chunks',
+      'websites_status_check',
+      'idx_website_org_memberships_by_org',
+      'idx_pw_chunks_bm25',
+      'FUNCTION public_web.create_chunks_hnsw_index()',
     ];
     for (const anchor of anchors) {
       expect(baseline, `baseline missing anchor: ${anchor}`).toContain(anchor);

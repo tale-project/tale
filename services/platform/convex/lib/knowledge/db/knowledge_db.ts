@@ -152,7 +152,19 @@ function evictIfNeeded(incomingUrl: string): void {
   }
 }
 
-/** Get the deployment-default `sql` instance, creating it on first use. */
+/**
+ * Get the DEPLOYMENT-DEFAULT `sql` instance (the shared knowledge database),
+ * creating it on first use.
+ *
+ * AI-AGENT GUARDRAIL — do NOT use this for any tenant-owned data. Nothing in the
+ * knowledge databases is shared across organizations: every per-org read/write
+ * for BOTH corpora (`private_knowledge` RAG + `public_web` crawler), their
+ * embeddings, and their caches MUST be routed through
+ * `getKnowledgePoolForOrg(orgSlug)` so a bring-your-own database isolates the
+ * org's data. After the per-org crawler refactor this has NO remaining
+ * tenant-path callers; a new call from request/scan/index/search code is almost
+ * certainly a tenant-isolation bug — resolve the org's pool instead.
+ */
 export function getKnowledgePool(): Sql {
   return getOrCreatePool(getKnowledgeDatabaseUrl());
 }
@@ -180,11 +192,17 @@ export async function resolveKnowledgeUrlForOrg(
 }
 
 /**
- * Get the `private_knowledge` pool for an org. Resolves the org's URL (BYO or
- * default), returns/creates the cached pool for it, and — for a newly-seen
- * NON-default URL — bootstraps the schema once (a BYO DB starts empty). The
- * default pool is never schema-bootstrapped here: its schema is applied at
- * startup, and the app user may lack CREATE-EXTENSION rights.
+ * Get the knowledge pool for an org — the SINGLE per-org routing entry point for
+ * BOTH corpora (`private_knowledge` RAG + `public_web` crawler). Resolves the
+ * org's URL (BYO or deployment default), returns/creates the cached pool for it,
+ * and — for a newly-seen NON-default URL — bootstraps BOTH schemas once (a BYO
+ * DB starts empty). The default pool is never schema-bootstrapped here: its
+ * schema is applied at startup, and the app user may lack CREATE-EXTENSION
+ * rights.
+ *
+ * All tenant-owned knowledge data MUST route through this, never
+ * `getKnowledgePool()` — nothing in the knowledge databases is shared across
+ * organizations.
  */
 export async function getKnowledgePoolForOrg(orgSlug: string): Promise<Sql> {
   const url = await resolveKnowledgeUrlForOrg(orgSlug);
