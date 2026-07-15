@@ -94,6 +94,7 @@
     "@tanstack/react-virtual": "3.13.26",
     "@xyflow/react": "12.10.2",
     "ai": "6.0.156",
+    "aws4fetch": "^1.0.20",
     "bcryptjs": "3.0.3",
     "better-auth": "1.6.23",
     "chokidar": "5.0.0",

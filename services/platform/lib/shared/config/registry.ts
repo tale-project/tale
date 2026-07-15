@@ -43,6 +43,7 @@ import {
   policyTypeToFileBase,
 } from '../schemas/governance';
 import { KNOWLEDGE_CONFIG_DOMAIN } from '../schemas/knowledge';
+import { OBJECT_STORAGE_CONFIG_DOMAIN } from '../schemas/object_storage';
 
 /**
  * On-disk shape of a domain's catalog/data dir:
@@ -314,6 +315,19 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   // deployment-default knowledge pool (zero regression).
   {
     name: KNOWLEDGE_CONFIG_DOMAIN, // 'knowledge'
+    layout: 'single-file',
+    readContext: 'node-direct',
+    dataModel: 'config',
+  },
+  // Per-org "bring your own object storage" for file blobs. Same shape as
+  // `knowledge`: admin-on-demand (no `scaffoldKind`, no builtin default), read
+  // NODE-DIRECT by the `'use node'` object-store resolver from
+  // `<org>/object-storage/connection.json`, so it is NOT mirrored into
+  // `configCache` (no `v8Sync`/`watcher`; the resolver re-reads on a short TTL).
+  // Absent ⇒ the org's blobs stay on the deployment-default Convex `_storage`
+  // (zero regression).
+  {
+    name: OBJECT_STORAGE_CONFIG_DOMAIN, // 'object-storage'
     layout: 'single-file',
     readContext: 'node-direct',
     dataModel: 'config',
