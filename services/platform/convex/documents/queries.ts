@@ -7,6 +7,7 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
+import { computeUploadUsage } from '../governance/upload_enforcement';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -35,6 +36,34 @@ export const approxCountDocuments = query({
       return 0;
     }
     return await countItemsInOrg(ctx.db, 'documents', args.organizationId);
+  },
+});
+
+/**
+ * The caller's upload-quota usage (used / limit bytes) for the org, so the desk
+ * can show remaining space BEFORE an upload is rejected — the fix for a full
+ * quota reading as a broken uploader. `limited: false` when no per-user volume
+ * quota applies; the UI then shows no meter.
+ */
+export const getUploadUsage = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    limited: v.boolean(),
+    usedBytes: v.number(),
+    limitBytes: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    const unlimited = { limited: false, usedBytes: 0, limitBytes: null };
+    if (!authUser) return unlimited;
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return unlimited;
+    }
+    return await computeUploadUsage(ctx, args.organizationId, authUser.userId);
   },
 });
 

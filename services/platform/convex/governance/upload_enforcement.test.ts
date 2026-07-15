@@ -46,7 +46,7 @@ const mockCtx = {
   },
 };
 
-import { checkUploadPolicy } from './upload_enforcement';
+import { checkUploadPolicy, computeUploadUsage } from './upload_enforcement';
 
 describe('checkUploadPolicy', () => {
   beforeEach(() => {
@@ -354,6 +354,57 @@ describe('checkUploadPolicy', () => {
       );
 
       expect(result.allowed).toBe(true);
+    });
+  });
+});
+
+describe('computeUploadUsage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFileMetadataRows.length = 0;
+  });
+
+  it('reports unlimited when no policy exists', async () => {
+    mockReadPolicyConfig.mockResolvedValue(null);
+    const usage = await computeUploadUsage(
+      // @ts-expect-error -- mock ctx
+      mockCtx,
+      'org-1',
+      'user-1',
+    );
+    expect(usage).toEqual({ limited: false, usedBytes: 0, limitBytes: null });
+  });
+
+  it('reports unlimited when the policy sets no per-user volume cap', async () => {
+    mockReadPolicyConfig.mockResolvedValue({ enabled: true });
+    const usage = await computeUploadUsage(
+      // @ts-expect-error -- mock ctx
+      mockCtx,
+      'org-1',
+      'user-1',
+    );
+    expect(usage.limited).toBe(false);
+  });
+
+  it('sums the user rows and returns the configured limit', async () => {
+    mockReadPolicyConfig.mockResolvedValue({
+      enabled: true,
+      maxTotalVolumeBytesPerUser: 100 * 1024 * 1024,
+    });
+    mockFileMetadataRows.push(
+      { organizationId: 'org-1', uploadedBy: 'user-1', size: 30 * 1024 * 1024 },
+      { organizationId: 'org-1', uploadedBy: 'user-1', size: 20 * 1024 * 1024 },
+    );
+    const usage = await computeUploadUsage(
+      // @ts-expect-error -- mock ctx
+      mockCtx,
+      'org-1',
+      'user-1',
+    );
+    expect(usage).toEqual({
+      limited: true,
+      usedBytes: 50 * 1024 * 1024,
+      limitBytes: 100 * 1024 * 1024,
     });
   });
 });

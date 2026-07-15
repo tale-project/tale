@@ -29,6 +29,70 @@ interface UploadCheckResult {
 }
 
 /**
+ * Sum the bytes a user has counted against their per-user upload quota. ALL of
+ * the user's `fileMetadata` rows count — including failed / unsupported uploads,
+ * because the blob is stored until deleted — so a full quota is freed by
+ * deleting files, and this is the number the UI shows so that's visible before
+ * the next upload is rejected.
+ */
+export async function computeUserUploadVolumeBytes(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+  userId: string,
+): Promise<number> {
+  let totalVolume = 0;
+  for await (const meta of ctx.db
+    .query('fileMetadata')
+    .withIndex('by_org_user', (q) =>
+      q.eq('organizationId', organizationId).eq('uploadedBy', userId),
+    )) {
+    if (meta.size != null) {
+      totalVolume += meta.size;
+    }
+  }
+  return totalVolume;
+}
+
+/** A user's upload-quota usage, for proactive display in the desk UI. */
+export interface UploadUsage {
+  /** Whether a per-user volume quota is configured (else usage is unbounded). */
+  limited: boolean;
+  usedBytes: number;
+  /** The quota in bytes, or `null` when no quota applies. */
+  limitBytes: number | null;
+}
+
+/**
+ * Resolve a user's upload-quota usage. Returns `limited: false` when the org has
+ * no upload policy or no per-user volume cap — the caller then shows nothing,
+ * avoiding a needless `fileMetadata` scan.
+ */
+export async function computeUploadUsage(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+  userId: string,
+): Promise<UploadUsage> {
+  const config = await readPolicyConfig<UploadPolicyConfig>(
+    ctx,
+    organizationId,
+    'upload_policy',
+  );
+  const limitBytes =
+    config?.enabled && config.maxTotalVolumeBytesPerUser != null
+      ? config.maxTotalVolumeBytesPerUser
+      : null;
+  if (limitBytes == null) {
+    return { limited: false, usedBytes: 0, limitBytes: null };
+  }
+  const usedBytes = await computeUserUploadVolumeBytes(
+    ctx,
+    organizationId,
+    userId,
+  );
+  return { limited: true, usedBytes, limitBytes };
+}
+
+/**
  * Check whether a file upload is allowed under governance upload policies.
  */
 export async function checkUploadPolicy(
@@ -116,16 +180,11 @@ export async function checkUploadPolicy(
   }
 
   if (config.maxTotalVolumeBytesPerUser != null) {
-    let totalVolume = 0;
-    for await (const meta of ctx.db
-      .query('fileMetadata')
-      .withIndex('by_org_user', (q) =>
-        q.eq('organizationId', organizationId).eq('uploadedBy', userId),
-      )) {
-      if (meta.size != null) {
-        totalVolume += meta.size;
-      }
-    }
+    const totalVolume = await computeUserUploadVolumeBytes(
+      ctx,
+      organizationId,
+      userId,
+    );
 
     if (totalVolume + (fileSize ?? 0) > config.maxTotalVolumeBytesPerUser) {
       const maxGB = Math.round(
