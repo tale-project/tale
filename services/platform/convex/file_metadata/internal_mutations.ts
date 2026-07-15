@@ -118,21 +118,19 @@ export const saveFileMetadata = internalMutation({
         await maybeDispatchRagIndexing(ctx, args.storageId);
       }
       if (needsTranscribeRetry) {
-        // Transcription is a Convex-`_storage`-only pipeline (audio uploads are
-        // never routed to S3); narrow the ref for the Id-typed action arg.
-        const audioId = convexStorageId(args.storageId);
-        if (audioId) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.file_metadata.transcribe_audio.transcribeAudio,
-            {
-              storageId: audioId,
-              fileName: args.fileName,
-              contentType: args.contentType,
-              organizationId: args.organizationId,
-            },
-          );
-        }
+        // `transcribeAudio` is backend-aware: it reads the source blob from
+        // Convex `_storage` OR the org's S3 bucket, so the full ref is passed
+        // through (no `_storage`-only narrowing).
+        await ctx.scheduler.runAfter(
+          0,
+          internal.file_metadata.transcribe_audio.transcribeAudio,
+          {
+            storageId: args.storageId,
+            fileName: args.fileName,
+            contentType: args.contentType,
+            organizationId: args.organizationId,
+          },
+        );
       }
 
       return existing._id;
@@ -162,20 +160,18 @@ export const saveFileMetadata = internalMutation({
     }
 
     if (isAudio) {
-      // Audio is Convex-`_storage`-only; narrow for the Id-typed action arg.
-      const audioId = convexStorageId(args.storageId);
-      if (audioId) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.file_metadata.transcribe_audio.transcribeAudio,
-          {
-            storageId: audioId,
-            fileName: args.fileName,
-            contentType: args.contentType,
-            organizationId: args.organizationId,
-          },
-        );
-      }
+      // `transcribeAudio` is backend-aware (reads `_storage` OR the org's S3
+      // bucket), so pass the full ref through.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.file_metadata.transcribe_audio.transcribeAudio,
+        {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          contentType: args.contentType,
+          organizationId: args.organizationId,
+        },
+      );
     }
 
     await ctx.scheduler.runAfter(
