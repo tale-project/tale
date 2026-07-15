@@ -31,7 +31,11 @@
 
 import { v } from 'convex/values';
 
+import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
+import { registrableDomain } from '../browser_sessions/cookie_header';
+import { decryptString } from '../lib/crypto/decrypt_string';
 import { crawlUrl } from './lib/discovery';
 
 /** Cheap content-type guess from the URL path extension. */
@@ -95,6 +99,43 @@ export const fetchAndExtract = internalAction({
     }
 
     const timeoutMs = args.timeout ?? 60_000;
+
+    // Claim a pre-warmed browser session for this host (if the pool has one) so
+    // a bot-walled site sees a returning visitor. Best-effort — any failure
+    // falls through to an ordinary fetch.
+    let cookieJar: string | undefined;
+    let sessionUserAgent: string | undefined;
+    let sessionId: Id<'browserSessions'> | undefined;
+    try {
+      const domain = registrableDomain(new URL(args.url).hostname);
+      const claimed = await ctx.runMutation(
+        internal.browser_sessions.sessions.claimBrowserSession,
+        { domain },
+      );
+      if (claimed) {
+        cookieJar = await decryptString(claimed.cookiesEncrypted);
+        sessionUserAgent = claimed.userAgent;
+        sessionId = claimed.sessionId;
+      }
+    } catch (sessionErr) {
+      console.warn(
+        '[knowledge] browser-session claim failed; fetching without one:',
+        sessionErr instanceof Error ? sessionErr.message : sessionErr,
+      );
+    }
+
+    const reportSession = async (outcome: 'ok' | 'blocked'): Promise<void> => {
+      if (sessionId === undefined) return;
+      try {
+        await ctx.runMutation(
+          internal.browser_sessions.sessions.reportBrowserSessionResult,
+          { sessionId, outcome },
+        );
+      } catch {
+        // best-effort — the sweep self-heals a missed report
+      }
+    };
+
     let result;
     try {
       result = await crawlUrl(args.url, {
@@ -102,7 +143,15 @@ export const fetchAndExtract = internalAction({
         renderContext: args.organizationId
           ? { ctx, organizationId: args.organizationId }
           : undefined,
+        ...(cookieJar ? { cookieJar } : {}),
+        ...(sessionUserAgent ? { userAgent: sessionUserAgent } : {}),
       });
+      // A 403/429 from a bot wall burns the session; anything else keeps it.
+      await reportSession(
+        result.status_code === 403 || result.status_code === 429
+          ? 'blocked'
+          : 'ok',
+      );
     } catch (error) {
       // Network-level failures (connection reset, DNS, TLS) throw out of
       // fetch instead of returning a status code — return the same structured

@@ -19,6 +19,10 @@
 import type { GenericActionCtx } from 'convex/server';
 
 import type { DataModel } from '../../_generated/dataModel';
+import {
+  netscapeJarToPlaywrightCookies,
+  type PlaywrightCookie,
+} from '../../browser_sessions/cookie_header';
 import { renderInSession } from './render_session';
 
 /**
@@ -51,6 +55,7 @@ function buildRenderScript(
   url: string,
   userAgent: string,
   timeoutMs: number,
+  cookies: PlaywrightCookie[],
 ): string {
   return [
     // The sandbox image bakes Playwright under the Playwright MCP package (NOT
@@ -67,10 +72,16 @@ function buildRenderScript(
     '  }',
     '})();',
     "const fs = require('fs');",
+    `const cookies = ${JSON.stringify(cookies)};`,
     '(async () => {',
     "  const browser = await chromium.launch({ args: ['--no-sandbox'] });",
     '  try {',
-    `    const page = await browser.newPage({ userAgent: ${JSON.stringify(userAgent)} });`,
+    // A fresh context (not the default page) so pre-warmed session cookies can
+    // be seeded before the first navigation — a bot-walled host then sees a
+    // returning visitor.
+    `    const context = await browser.newContext({ userAgent: ${JSON.stringify(userAgent)} });`,
+    '    if (cookies.length) { try { await context.addCookies(cookies); } catch (e) { console.error("addCookies failed:", String(e)); } }',
+    '    const page = await context.newPage();',
     `    const response = await page.goto(${JSON.stringify(url)}, { waitUntil: 'networkidle', timeout: ${timeoutMs} });`,
     '    const html = await page.content();',
     '    const finalUrl = page.url();',
@@ -97,15 +108,18 @@ function buildRenderScript(
 export async function renderUrlInSandbox(
   renderCtx: SandboxRenderContext,
   url: string,
-  options: { timeoutMs?: number; userAgent?: string } = {},
+  options: { timeoutMs?: number; userAgent?: string; cookieJar?: string } = {},
 ): Promise<SandboxRenderResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
   const userAgent =
     options.userAgent ??
     'Mozilla/5.0 (compatible; TaleCrawler/1.0; +https://tale.dev)';
+  const cookies = options.cookieJar
+    ? netscapeJarToPlaywrightCookies(options.cookieJar)
+    : [];
 
   const { ctx, organizationId } = renderCtx;
-  const script = buildRenderScript(url, userAgent, timeoutMs);
+  const script = buildRenderScript(url, userAgent, timeoutMs, cookies);
   const renderKey = `crawler-render-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2)}`;

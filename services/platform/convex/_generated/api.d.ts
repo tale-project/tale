@@ -256,6 +256,7 @@ import type * as automations_view_parse from "../automations/view_parse.js";
 import type * as bootstrap_queries from "../bootstrap/queries.js";
 import type * as branding_file_actions from "../branding/file_actions.js";
 import type * as branding_file_utils from "../branding/file_utils.js";
+import type * as browser_sessions_cookie_header from "../browser_sessions/cookie_header.js";
 import type * as browser_sessions_session_import from "../browser_sessions/session_import.js";
 import type * as browser_sessions_sessions from "../browser_sessions/sessions.js";
 import type * as changelog_actions from "../changelog/actions.js";
@@ -2004,6 +2005,7 @@ declare const fullApi: ApiFromModules<{
   "bootstrap/queries": typeof bootstrap_queries;
   "branding/file_actions": typeof branding_file_actions;
   "branding/file_utils": typeof branding_file_utils;
+  "browser_sessions/cookie_header": typeof browser_sessions_cookie_header;
   "browser_sessions/session_import": typeof browser_sessions_session_import;
   "browser_sessions/sessions": typeof browser_sessions_sessions;
   "changelog/actions": typeof changelog_actions;

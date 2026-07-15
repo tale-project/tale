@@ -32,6 +32,7 @@
  *    blocked by an unhealthy spawner).
  */
 
+import { netscapeJarToCookieHeader } from '../../browser_sessions/cookie_header';
 import {
   renderUrlInSandbox,
   type SandboxRenderContext,
@@ -51,6 +52,14 @@ export interface FetchRenderedResult {
 export interface FetchRenderedOptions {
   timeoutMs?: number;
   userAgent?: string;
+  /**
+   * Netscape cookie jar for a pre-warmed browser session (see the
+   * `browserSessions` pool). When set, both fetch paths present these cookies
+   * so a bot-walled host sees a returning visitor: the plain fetch derives a
+   * `Cookie` header from it, and the sandbox render seeds them into the
+   * headless context via `addCookies` before the first navigation.
+   */
+  cookieJar?: string;
   /**
    * Sandbox render context (action `ctx` + organizationId). When present AND
    * `CRAWLER_RENDER_VIA_SANDBOX=1`, the page is JS-rendered via the spawner;
@@ -78,6 +87,7 @@ export async function fetchRenderedHtml(
       const rendered = await renderUrlInSandbox(options.renderContext, url, {
         timeoutMs: options.timeoutMs,
         userAgent: options.userAgent,
+        ...(options.cookieJar ? { cookieJar: options.cookieJar } : {}),
       });
       // Playwright's `page.goto` already followed redirects and threw on
       // network errors; a completed render is treated as HTTP 200. (The
@@ -114,8 +124,14 @@ async function plainFetch(
   options: FetchRenderedOptions,
 ): Promise<FetchRenderedResult> {
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const cookieHeader = options.cookieJar
+    ? netscapeJarToCookieHeader(options.cookieJar, url)
+    : '';
   const res = await fetch(url, {
-    headers: { 'user-agent': options.userAgent ?? DEFAULT_USER_AGENT },
+    headers: {
+      'user-agent': options.userAgent ?? DEFAULT_USER_AGENT,
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
     signal: AbortSignal.timeout(timeoutMs),
     redirect: 'follow',
   });

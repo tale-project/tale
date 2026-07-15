@@ -493,12 +493,21 @@ export interface CrawlFailure {
  */
 export async function crawlUrl(
   url: string,
-  options: { timeoutMs?: number; renderContext?: SandboxRenderContext } = {},
+  options: {
+    timeoutMs?: number;
+    renderContext?: SandboxRenderContext;
+    /** Pre-warmed session cookie jar + UA (see `browserSessions`), presented so
+     *  a bot-walled host sees a returning visitor. */
+    cookieJar?: string;
+    userAgent?: string;
+  } = {},
 ): Promise<CrawledPage | CrawlFailure> {
   const timeoutMs = options.timeoutMs ?? 60_000;
   const res = await fetchRenderedHtml(url, {
     timeoutMs,
     renderContext: options.renderContext,
+    ...(options.cookieJar ? { cookieJar: options.cookieJar } : {}),
+    ...(options.userAgent ? { userAgent: options.userAgent } : {}),
   });
 
   if (res.status >= 400) {
