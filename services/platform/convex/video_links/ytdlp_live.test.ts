@@ -5,23 +5,31 @@
  * we get past YouTube's bot wall and pull a non-empty transcript.
  *
  * Gated behind `YOUTUBE_LIVE_TEST=1` so it is SKIPPED in the ordinary unit
- * suite (which has no `yt-dlp`) and RUN only by the dedicated
- * `.github/workflows/youtube-ingest.yml` job. That job runs on GitHub's
- * datacenter IPs — i.e. the exact environment where YouTube's "confirm you're
- * not a bot" wall appears — so a green run there is the real proof that
- * ingestion works from a server, not just from a residential laptop.
+ * suite and RUN only where the toolchain + a suitable egress exist: the `Unit`
+ * job in `.github/workflows/test.yml` (which sets the flag + a bgutil PO-token
+ * provider) and any developer who opts in locally. GitHub runners are DATACENTER
+ * IPs — the exact environment where YouTube's "confirm you're not a bot" wall
+ * appears — so a green CI run is the real proof that ingestion works from a
+ * server, not just from a residential laptop.
  *
- * Requires `yt-dlp`, `deno` (JS-challenge solver), and `ffmpeg` (subtitle
- * conversion) on PATH — the workflow installs them.
+ * SELF-PROVISIONING: `yt-dlp`, `deno` (JS-challenge solver), `ffmpeg` (subtitle
+ * conversion), and the bgutil PO-token plugin are NO LONGER installed by a
+ * workflow step. The `beforeAll` below calls `ensureVideoToolchain()` to
+ * download/resolve them into a per-user cache and points `ytdlp.ts` at them via
+ * `VIDEO_INGEST_BIN_DIR` / `VIDEO_INGEST_FFMPEG_LOCATION` /
+ * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` — so the very same test runs on a bare CI
+ * runner and on a laptop. It stays gated behind `YOUTUBE_LIVE_TEST=1`; the
+ * provisioning + network calls never fire in the normal suite.
  */
 import { readFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { ytdlpJson, ytdlpWriteSubs, type YtDlpMetadata } from './ytdlp';
+import { ensureVideoToolchain } from './ytdlp_toolchain';
 
 const LIVE = process.env.YOUTUBE_LIVE_TEST === '1';
 
@@ -54,6 +62,18 @@ function captionLangs(meta: YtDlpMetadata): string[] {
 describe.skipIf(!LIVE)(
   'yt-dlp live YouTube ingestion (datacenter-IP anti-bot)',
   () => {
+    // Download/resolve the yt-dlp + deno + ffmpeg + bgutil toolchain and point
+    // `ytdlp.ts` at it. Lives inside the gated `describe` so it NEVER runs (nor
+    // touches the network) in the ordinary suite. Generous timeout: a cold cache
+    // downloads two binaries and may `brew install ffmpeg` on a fresh laptop.
+    beforeAll(async () => {
+      const tc = await ensureVideoToolchain();
+      process.env.VIDEO_INGEST_BIN_DIR = tc.binDir;
+      process.env.VIDEO_INGEST_FFMPEG_LOCATION = tc.ffmpegLocation;
+      // `||=`: honour an explicit plugin dir (e.g. the CI baked path) if set.
+      process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
+    }, 600_000);
+
     it('fetches video metadata past the bot wall', async () => {
       const jobDir = await mkdtemp(join(tmpdir(), 'ytlive-meta-'));
       const meta = await withRetries(() =>

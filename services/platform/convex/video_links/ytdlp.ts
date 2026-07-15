@@ -72,12 +72,54 @@ const BASE_FLAGS: ReadonlyArray<string> = [
   '--restrict-filenames',
   '--downloader',
   'native',
-  '--ffmpeg-location',
-  '/usr/bin/ffmpeg',
+  // NOTE: `--ffmpeg-location` used to live here, hard-pinned to
+  // `/usr/bin/ffmpeg`. It moved OUT into the per-invocation
+  // `ffmpegLocationFlags(env)` so the LIVE ingest test can point yt-dlp at a
+  // self-provisioned ffmpeg (e.g. Homebrew's) discovered AFTER this array is
+  // module-cached. The production default is byte-for-byte unchanged.
   // NOTE: the `youtube:player_client=…` extractor-arg moved out of BASE_FLAGS
   // into `buildAntiBotFlags` so it can be tuned per deployment (and combined
   // with a PO token / provider) via env without editing this cached set.
 ];
+
+// ---------------------------------------------------------------------------
+// Spawn PATH + ffmpeg location — resolved from `process.env` on EVERY spawn so
+// the LIVE ingest test (`ytdlp_live.test.ts`) can inject a self-provisioned
+// toolchain (see `ytdlp_toolchain.ts`) AFTER this module is imported + cached.
+// Both keep the production defaults byte-for-byte, so an unset environment (the
+// baked convex image) behaves exactly as before.
+// ---------------------------------------------------------------------------
+
+/**
+ * PATH for the yt-dlp/ffmpeg child. Production pins the minimal set the
+ * Dockerfile installs into (`/usr/local/bin:/usr/bin:/bin`) — deliberately NOT
+ * `process.env.PATH`, so a dev host's shell PATH can't leak arbitrary binaries
+ * into the sandboxed child. `VIDEO_INGEST_BIN_DIR`, when set, is PREPENDED so a
+ * self-provisioned yt-dlp + deno (downloaded outside the pinned dirs, e.g. into
+ * a per-user cache) is found first. Read per-spawn — never baked into a cache —
+ * so the live test can set it after module load.
+ */
+export function buildSpawnPath(env: NodeJS.ProcessEnv): string {
+  const base = '/usr/local/bin:/usr/bin:/bin';
+  const extra = env.VIDEO_INGEST_BIN_DIR?.trim();
+  return extra ? `${extra}:${base}` : base;
+}
+
+/**
+ * `--ffmpeg-location` for yt-dlp's post-processing (subtitle convert + audio
+ * extract). Passed EXPLICITLY rather than resolved via PATH, so it works even
+ * when ffmpeg lives outside the pinned spawn PATH — e.g. Homebrew's
+ * `/opt/homebrew/bin/ffmpeg` on a dev laptop. Defaults to the Dockerfile's
+ * `/usr/bin/ffmpeg`; `VIDEO_INGEST_FFMPEG_LOCATION` overrides with an absolute
+ * path. Built per-invocation (NOT in the cached `BASE_FLAGS`) so the live test
+ * can point it at a self-provisioned ffmpeg after module load.
+ */
+export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
+  return [
+    '--ffmpeg-location',
+    env.VIDEO_INGEST_FFMPEG_LOCATION?.trim() || '/usr/bin/ffmpeg',
+  ];
+}
 
 // Flags whose support depends on the installed yt-dlp version. Probed
 // once via `yt-dlp --help` at first invocation and cached for the
@@ -296,7 +338,9 @@ function resolveSupportedFlags(): Promise<string[]> {
     const child = spawn(YTDLP_BIN, ['--help'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
-        PATH: '/usr/local/bin:/usr/bin:/bin',
+        // Prepends `VIDEO_INGEST_BIN_DIR` when set (see `buildSpawnPath`) so
+        // the probe hits the same yt-dlp the live test self-provisioned.
+        PATH: buildSpawnPath(process.env),
         HOME: tmpdir(),
         LANG: 'C.UTF-8',
       },
@@ -510,19 +554,32 @@ async function runYtdlp(
     // action is hard-killed — the wrapper Node process terminates but
     // ffmpeg continues to its natural exit, leaving disk/CPU usage that
     // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
-    const proc = spawn(YTDLP_BIN, [...commonFlags, ...antiBotFlags, ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      cwd: jobDir,
-      detached: true,
-      // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
-      // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
-      // tokens) would land in the child's environment.
-      env: {
-        PATH: '/usr/local/bin:/usr/bin:/bin',
-        HOME: jobDir,
-        LANG: 'C.UTF-8',
+    // `ffmpegLocationFlags` is merged in per-invocation (read from
+    // `process.env`, NOT the cached `commonFlags`) so the live test's
+    // self-provisioned ffmpeg path takes effect after module load.
+    const proc = spawn(
+      YTDLP_BIN,
+      [
+        ...commonFlags,
+        ...ffmpegLocationFlags(process.env),
+        ...antiBotFlags,
+        ...args,
+      ],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        cwd: jobDir,
+        detached: true,
+        // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
+        // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
+        // tokens) would land in the child's environment. `buildSpawnPath`
+        // keeps the pinned production PATH unless `VIDEO_INGEST_BIN_DIR` is set.
+        env: {
+          PATH: buildSpawnPath(process.env),
+          HOME: jobDir,
+          LANG: 'C.UTF-8',
+        },
       },
-    });
+    );
     let stdout = '';
     let stderr = '';
     // Cap accumulated output to prevent OOM on chatty errors. yt-dlp

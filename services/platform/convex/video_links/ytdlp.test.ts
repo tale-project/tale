@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildAntiBotFlags,
+  buildSpawnPath,
   classifyYtDlpStderr,
   cookiesFlagsFromEnv,
+  ffmpegLocationFlags,
   impersonateFlagsFromEnv,
   pluginDirFlagsFromEnv,
   proxyFlagsFromEnv,
@@ -284,5 +286,46 @@ describe('pluginDirFlagsFromEnv', () => {
     expect(
       pluginDirFlagsFromEnv({ VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/x' }, true),
     ).toEqual(['--plugin-dirs', '/x']);
+  });
+});
+
+describe('buildSpawnPath', () => {
+  it('pins the production PATH when unset', () => {
+    expect(buildSpawnPath({})).toBe('/usr/local/bin:/usr/bin:/bin');
+  });
+
+  it('prepends VIDEO_INGEST_BIN_DIR when set', () => {
+    expect(buildSpawnPath({ VIDEO_INGEST_BIN_DIR: '/cache/bin' })).toBe(
+      '/cache/bin:/usr/local/bin:/usr/bin:/bin',
+    );
+  });
+
+  it('ignores a blank override', () => {
+    expect(buildSpawnPath({ VIDEO_INGEST_BIN_DIR: '   ' })).toBe(
+      '/usr/local/bin:/usr/bin:/bin',
+    );
+  });
+});
+
+describe('ffmpegLocationFlags', () => {
+  it('defaults to the baked /usr/bin/ffmpeg', () => {
+    expect(ffmpegLocationFlags({})).toEqual([
+      '--ffmpeg-location',
+      '/usr/bin/ffmpeg',
+    ]);
+  });
+
+  it('honours VIDEO_INGEST_FFMPEG_LOCATION', () => {
+    expect(
+      ffmpegLocationFlags({
+        VIDEO_INGEST_FFMPEG_LOCATION: '/opt/homebrew/bin/ffmpeg',
+      }),
+    ).toEqual(['--ffmpeg-location', '/opt/homebrew/bin/ffmpeg']);
+  });
+
+  it('falls back to the default for a blank override', () => {
+    expect(ffmpegLocationFlags({ VIDEO_INGEST_FFMPEG_LOCATION: '  ' })).toEqual(
+      ['--ffmpeg-location', '/usr/bin/ffmpeg'],
+    );
   });
 });
