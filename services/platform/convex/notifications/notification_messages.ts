@@ -254,6 +254,9 @@ export const ACTIONABLE_INBOX_KEYS = [
   'agentEscalationBody',
   'conversationInboundMessage',
   'conversationInboundMessageBody',
+  'conversationAssigned',
+  'conversationAssignedBody',
+  'conversationAssignedByBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -276,6 +279,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     conversationInboundMessage: 'New conversation message',
     conversationInboundMessageBody:
       'From {sender}: "{subject}" — open your Inbox to reply.',
+    conversationAssigned: 'Conversation assigned to you',
+    conversationAssignedBody:
+      'You were assigned the conversation "{subject}" — open your Inbox to reply.',
+    conversationAssignedByBody:
+      '{actor} assigned you the conversation "{subject}" — open your Inbox to reply.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -297,6 +305,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     conversationInboundMessage: 'Neue Konversationsnachricht',
     conversationInboundMessageBody:
       'Von {sender}: "{subject}" — öffne deine Inbox, um zu antworten.',
+    conversationAssigned: 'Konversation dir zugewiesen',
+    conversationAssignedBody:
+      'Dir wurde die Konversation "{subject}" zugewiesen — öffne deine Inbox, um zu antworten.',
+    conversationAssignedByBody:
+      '{actor} hat dir die Konversation "{subject}" zugewiesen — öffne deine Inbox, um zu antworten.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -318,6 +331,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     conversationInboundMessage: 'Nouveau message de conversation',
     conversationInboundMessageBody:
       'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.',
+    conversationAssigned: 'Conversation assignée',
+    conversationAssignedBody:
+      "La conversation « {subject} » t'a été assignée — ouvre ta boîte de réception pour répondre.",
+    conversationAssignedByBody:
+      "{actor} t'a assigné la conversation « {subject} » — ouvre ta boîte de réception pour répondre.",
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',

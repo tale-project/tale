@@ -45,6 +45,7 @@ const PREF_FIELD: Record<
   // RETIRED type — mapping kept while the schema literal drains (see schema.ts).
   workforce_digest: 'digest',
   conversation_message: 'conversationMessages',
+  conversation_assigned: 'conversationMessages',
 };
 
 /** Tri-state email delivery toggle — independent of in-app per-type prefs. */
@@ -135,7 +136,8 @@ async function writeNotification(
       | 'task_review'
       | 'wf_execution'
       | 'runtime'
-      | 'dashboard';
+      | 'dashboard'
+      | 'conversation';
     resourceId: string;
     taskId?: Id<'tasks'>;
     actorType: 'user' | 'agent' | 'system';
@@ -288,6 +290,49 @@ export async function notifyTaskAssigned(
     resourceType: 'task',
     resourceId: String(args.task._id),
     taskId: args.task._id,
+    actorType: args.actorType,
+    actorId: args.actorId,
+  });
+}
+
+/**
+ * Notify a member that an admin assigned them a conversation. Mirrors
+ * {@link notifyTaskAssigned}: the new assignee (a human `userId` — conversations
+ * have no agent owners) gets one in-app row + an actionable email, the actor is
+ * never notified of self-assignment, and the body is locale-safe (impersonal
+ * unless the actor has a proper-noun name). Params carry `conversationId` +
+ * `conversationStatus` so the notification deep-links to the thread
+ * (`personalNotificationTarget`). No task subscriptions / activity feed here.
+ */
+export async function notifyConversationAssigned(
+  ctx: MutationCtx,
+  args: {
+    conversation: Doc<'conversations'>;
+    assigneeUserId: string | null;
+    actorType: ActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  if (!args.assigneeUserId) return;
+  // Don't notify someone who assigned the conversation to themselves.
+  if (args.actorType === 'user' && args.actorId === args.assigneeUserId) return;
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+  await writeNotification(ctx, {
+    userId: args.assigneeUserId,
+    organizationId: args.conversation.organizationId,
+    type: 'conversation_assigned',
+    titleKey: 'conversationAssigned',
+    bodyKey: actorName
+      ? 'conversationAssignedByBody'
+      : 'conversationAssignedBody',
+    params: {
+      subject: args.conversation.subject ?? '',
+      conversationId: String(args.conversation._id),
+      conversationStatus: args.conversation.status ?? 'open',
+      ...(actorName ? { actor: actorName } : {}),
+    },
+    resourceType: 'conversation',
+    resourceId: String(args.conversation._id),
     actorType: args.actorType,
     actorId: args.actorId,
   });

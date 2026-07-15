@@ -24,6 +24,12 @@ vi.mock('@/app/features/contacts/components/contact-info-popover', () => ({
   }) => <>{trigger}</>,
 }));
 
+// Stub the assignee picker (it reads live member context via Convex auth) so
+// the header renders in isolation.
+vi.mock('./conversation-assignee-picker', () => ({
+  ConversationAssigneePicker: () => null,
+}));
+
 vi.mock('../hooks/mutations', () => ({
   useCloseConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useReopenConversation: () => ({ mutate: vi.fn(), isPending: false }),

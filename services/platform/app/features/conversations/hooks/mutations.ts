@@ -49,6 +49,10 @@ export function useReopenConversation() {
   return useConvexMutation(api.conversations.mutations.reopenConversation);
 }
 
+export function useAssignConversation() {
+  return useConvexMutation(api.conversations.mutations.assignConversation);
+}
+
 export function useMarkAsRead() {
   return useConvexMutation(api.conversations.mutations.markConversationAsRead);
 }

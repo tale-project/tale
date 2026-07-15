@@ -165,7 +165,7 @@ describe('composeEmailConversation', () => {
     expect(conversation?.assigneeUserId).toBe(EDITOR);
   });
 
-  it('leaves an admin-composed conversation unassigned (admins assign deliberately)', async () => {
+  it('assigns an admin composer to themselves by default', async () => {
     const t = convexTest(schema, modules);
     const ADMIN = 'user_compose_admin';
     await seedMember(t, ADMIN, ORG, 'admin');
@@ -182,7 +182,50 @@ describe('composeEmailConversation', () => {
       });
 
     const conversation = await t.run((ctx) => ctx.db.get(conversationId));
-    expect(conversation?.assigneeUserId).toBeUndefined();
+    expect(conversation?.assigneeUserId).toBe(ADMIN);
+  });
+
+  it('lets an admin assign the new conversation to a chosen member', async () => {
+    const t = convexTest(schema, modules);
+    const ADMIN = 'user_compose_admin';
+    const OTHER = 'user_compose_other_member';
+    await seedMember(t, ADMIN, ORG, 'admin');
+    await seedMember(t, OTHER, ORG, 'editor');
+    const contactId = await seedContact(t, ORG, 'jane@acme.test');
+
+    const { conversationId } = await t
+      .withIdentity({ subject: ADMIN })
+      .mutation(api.conversations.mutations.composeEmailConversation, {
+        organizationId: ORG,
+        contactId,
+        integrationName: 'outlook',
+        subject: 'Project kickoff',
+        content: '<p>Hi</p>',
+        assigneeUserId: OTHER,
+      });
+
+    const conversation = await t.run((ctx) => ctx.db.get(conversationId));
+    expect(conversation?.assigneeUserId).toBe(OTHER);
+  });
+
+  it('clamps a non-admin composer to self even if another assignee is requested', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, EDITOR, ORG); // editor = non-admin
+    const contactId = await seedContact(t, ORG, 'jane@acme.test');
+
+    const { conversationId } = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.conversations.mutations.composeEmailConversation, {
+        organizationId: ORG,
+        contactId,
+        integrationName: 'outlook',
+        subject: 'Project kickoff',
+        content: '<p>Hi</p>',
+        assigneeUserId: 'user_someone_else',
+      });
+
+    const conversation = await t.run((ctx) => ctx.db.get(conversationId));
+    expect(conversation?.assigneeUserId).toBe(EDITOR);
   });
 
   it('sends from a chosen sender (dynamic-sender) and stamps it on the thread', async () => {

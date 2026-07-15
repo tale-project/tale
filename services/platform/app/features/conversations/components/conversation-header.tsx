@@ -30,6 +30,7 @@ import {
   useReopenConversation,
 } from '../hooks/mutations';
 import type { ConversationWithMessages } from '../types';
+import { ConversationAssigneePicker } from './conversation-assignee-picker';
 import { DotIcon } from './dot-icon';
 
 interface ConversationHeaderProps {
@@ -229,6 +230,10 @@ export function ConversationHeader({
           {conversation.subject || conversation.title}
         </Text>
         <Row gap={1} className="shrink-0">
+          <ConversationAssigneePicker
+            conversation={conversation}
+            organizationId={organizationId}
+          />
           <DropdownMenu
             trigger={
               <Button

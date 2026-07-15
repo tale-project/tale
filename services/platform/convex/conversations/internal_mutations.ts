@@ -4,6 +4,7 @@ import { getConversationMessageSortTime } from '../../lib/shared/conversations/m
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import { notifyConversationAssigned } from '../collab/notify';
 import * as ConversationsHelpers from './helpers';
 import {
   conversationStatusValidator,
@@ -202,5 +203,33 @@ export const backfillLastMessageAt = internalMutation({
       nextCursor: lastId,
       done: conversations.length < batchSize,
     };
+  },
+});
+
+/**
+ * Emit the reassignment notification on a raw ctx. `assignConversation` (an RLS
+ * mutation) schedules this after committing the assignee patch: a cross-user
+ * `userNotifications` write isn't permitted under RLS, so — like the automation
+ * fan-out (`notifyFromAutomation`) — it runs here. Re-fetches the (now patched)
+ * conversation; `notifyConversationAssigned` self-skips a self-assignment and
+ * no-ops if the conversation vanished.
+ */
+export const notifyAssigned = internalMutation({
+  args: {
+    conversationId: v.id('conversations'),
+    assigneeUserId: v.string(),
+    actorUserId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) return null;
+    await notifyConversationAssigned(ctx, {
+      conversation,
+      assigneeUserId: args.assigneeUserId,
+      actorType: 'user',
+      actorId: args.actorUserId,
+    });
+    return null;
   },
 });
