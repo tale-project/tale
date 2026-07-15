@@ -2006,7 +2006,7 @@
     "moreTabs": "Plus"
   },
   "composer": {
-    "openMenu": "Ouvrir le menu du composeur",
+    "openMenu": "Ouvrir le menu du chat",
     "addFiles": "Ajouter photos et fichiers",
     "modeHeader": "Modes",
     "capabilityHeader": "Capacités",
@@ -6336,7 +6336,7 @@
         "syncAllDone": "Capacités de catalogue remplies pour {count} modèles."
       },
       "modelHidden": "Masqué des sélecteurs de modèles",
-      "modelHiddenHelp": "Masque ce modèle dans le composeur de chat et la sélection de modèle des agents. Il reste pleinement utilisable par les agents et workflows qui le référencent déjà — utile pour les versions remplacées ou dépréciées.",
+      "modelHiddenHelp": "Masque ce modèle dans le chat et la sélection de modèle des agents. Il reste pleinement utilisable par les agents et workflows qui le référencent déjà — utile pour les versions remplacées ou dépréciées.",
       "addProvider": "Ajouter un fournisseur",
       "editProvider": "Modifier le fournisseur",
       "deleteProvider": "Supprimer le fournisseur",
@@ -7950,7 +7950,7 @@
       "emptyModelsMemberBody": "Tes administrateurs de projet ont restreint l'accès aux modèles. Contacte-les pour demander accès.",
       "saveSuccess": "Enregistré",
       "saveError": "Impossible d'enregistrer les paramètres",
-      "lockoutWarning": "Certains membres pourraient ne plus avoir aucun agent/modèle utilisable après ces restrictions. Ils verront un composer vide.",
+      "lockoutWarning": "Certains membres pourraient ne plus avoir aucun agent/modèle utilisable après ces restrictions. Ils verront un chat vide.",
       "recommendedBadge": "Recommandé",
       "sectionAgents": "Agents",
       "sectionCodingAgents": "Agents de code",

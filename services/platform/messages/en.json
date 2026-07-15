@@ -2006,7 +2006,7 @@
     "moreTabs": "More"
   },
   "composer": {
-    "openMenu": "Open composer menu",
+    "openMenu": "Open chat menu",
     "addFiles": "Add photos & files",
     "modeHeader": "Modes",
     "capabilityHeader": "Capabilities",
@@ -5293,7 +5293,7 @@
       "emptyModelsMemberBody": "Your project admin has restricted model access. Contact them to request access.",
       "saveSuccess": "Saved",
       "saveError": "Couldn't save settings",
-      "lockoutWarning": "Some members may have no usable agents/models after these restrictions are applied. They'll see an empty-state in the composer.",
+      "lockoutWarning": "Some members may have no usable agents/models after these restrictions are applied. They'll see an empty state in the chat.",
       "recommendedBadge": "Recommended",
       "sectionAgents": "Agents",
       "sectionCodingAgents": "Coding agents",
@@ -6627,7 +6627,7 @@
         "syncAllDone": "Filled catalog capabilities for {count} models."
       },
       "modelHidden": "Hidden from model pickers",
-      "modelHiddenHelp": "Hide this model from the chat composer and agent model selection. It stays fully usable by agents and workflows that already reference it — useful for superseded or deprecated versions.",
+      "modelHiddenHelp": "Hide this model from the chat and agent model selection. It stays fully usable by agents and workflows that already reference it — useful for superseded or deprecated versions.",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",

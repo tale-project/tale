@@ -2006,7 +2006,7 @@
     "moreTabs": "Mehr"
   },
   "composer": {
-    "openMenu": "Composer-Menü öffnen",
+    "openMenu": "Chat-Menü öffnen",
     "addFiles": "Fotos & Dateien hinzufügen",
     "modeHeader": "Modi",
     "capabilityHeader": "Fähigkeiten",
@@ -7950,7 +7950,7 @@
       "emptyModelsMemberBody": "Deine Projektadmins haben den Modellzugriff eingeschränkt. Kontaktiere sie, um Zugang anzufragen.",
       "saveSuccess": "Gespeichert",
       "saveError": "Einstellungen konnten nicht gespeichert werden",
-      "lockoutWarning": "Manche Mitglieder haben nach diesen Einschränkungen möglicherweise keine nutzbaren Agenten/Modelle. Sie sehen einen leeren Composer.",
+      "lockoutWarning": "Manche Mitglieder haben nach diesen Einschränkungen möglicherweise keine nutzbaren Agenten/Modelle. Sie sehen einen leeren Chat.",
       "recommendedBadge": "Empfohlen",
       "sectionAgents": "Agenten",
       "sectionCodingAgents": "Coding-Agenten",
