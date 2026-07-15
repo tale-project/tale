@@ -24,6 +24,7 @@ import {
   resolveOrgObjectStore,
   s3DeleteObject,
   s3GetObjectBytes,
+  s3HeadObject,
   s3PresignGetUrl,
   s3PutObject,
   buildObjectKey,
@@ -120,6 +121,22 @@ describe.skipIf(!RUN)('per-org S3 object store (MinIO round-trip)', () => {
     // `<prefix?>/<orgSlug>/<uuid>` — with no prefix configured the key starts
     // at the org segment, so match `testorg/` at start OR after a prefix slash.
     expect(buildObjectKey(store, ORG)).toMatch(new RegExp(`(^|/)${ORG}/`));
+  });
+
+  it('HEAD reports the AUTHORITATIVE byte size (not any client claim)', async () => {
+    // The anti-spoof crux of #2731: a presigned PUT enforces no Content-Length,
+    // so the client-declared size can't be trusted — HEAD reads the real length
+    // the store recorded. A 3 MiB object HEADs as exactly 3 MiB regardless of
+    // what the uploader declared, so `size > DOCUMENT_MAX_FILE_SIZE` on THIS
+    // value is a truthful cap check.
+    const key = buildObjectKey(store, ORG);
+    const realSize = 3 * 1024 * 1024;
+    await s3PutObject(store, key, new Uint8Array(realSize), 'application/pdf');
+    const head = await s3HeadObject(store, key);
+    expect(head?.size).toBe(realSize);
+    await s3DeleteObject(store, key);
+    // A missing object HEADs as null (never-uploaded / already-reclaimed).
+    expect(await s3HeadObject(store, key)).toBeNull();
   });
 
   it('blob access refuses a key outside the org namespace (tenant isolation)', async () => {

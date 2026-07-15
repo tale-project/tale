@@ -249,6 +249,31 @@ export async function s3GetObjectBytes(
   return new Uint8Array(await res.arrayBuffer());
 }
 
+/**
+ * HEAD an object → its size in bytes (the authoritative server-side length).
+ * Used to verify an `s3:` upload's real size against the product cap — a
+ * presigned PUT enforces no Content-Length, so the client-declared size can't
+ * be trusted. Returns `null` when the object is missing (404).
+ */
+export async function s3HeadObject(
+  store: S3ObjectStore,
+  key: string,
+): Promise<{ size: number } | null> {
+  const res = await store.client.fetch(objectUrl(store, key), {
+    method: 'HEAD',
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`S3 HEAD ${key} failed: ${res.status}`);
+  }
+  const len = res.headers.get('content-length');
+  const size = len === null ? NaN : Number(len);
+  if (!Number.isFinite(size)) {
+    throw new Error(`S3 HEAD ${key} returned no usable content-length`);
+  }
+  return { size };
+}
+
 /** DELETE an object. S3 DELETE is idempotent (204 whether or not it existed). */
 export async function s3DeleteObject(
   store: S3ObjectStore,

@@ -459,3 +459,79 @@ describe('ensureFileMetadataForDocument', () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 });
+
+async function getApplyVerifiedBlobSizeHandler() {
+  const { applyVerifiedBlobSize } = await import('./internal_mutations');
+  return (applyVerifiedBlobSize as unknown as { handler: Function }).handler;
+}
+
+describe('applyVerifiedBlobSize (#2731 authoritative S3 upload size)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const CAP = 100 * 1024 * 1024;
+
+  it('corrects the stored size within the cap, leaving status untouched', async () => {
+    // Client declared 1 KB; the real object is 5 MB (still under the cap).
+    const existing = {
+      _id: 'fm1',
+      storageId: 's3:testorg/uuid',
+      size: 1024,
+      ragStatus: 'queued',
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getApplyVerifiedBlobSizeHandler();
+
+    await handler(ctx, {
+      storageId: 's3:testorg/uuid',
+      size: 5 * 1024 * 1024,
+      overCap: false,
+      limitBytes: CAP,
+    });
+
+    // usedBytes rides on fileMetadata.size, so it is now honest (5 MB, not 1 KB).
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm1', { size: 5 * 1024 * 1024 });
+  });
+
+  it('rejects an over-cap object: corrects size AND fails the row', async () => {
+    // Client declared 1 KB; the real object is 200 MB (over the 100 MB cap).
+    const existing = {
+      _id: 'fm1',
+      storageId: 's3:testorg/uuid',
+      size: 1024,
+      ragStatus: 'queued',
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getApplyVerifiedBlobSizeHandler();
+    const realSize = 200 * 1024 * 1024;
+
+    await handler(ctx, {
+      storageId: 's3:testorg/uuid',
+      size: realSize,
+      overCap: true,
+      limitBytes: CAP,
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm1',
+      expect.objectContaining({ size: realSize, ragStatus: 'failed' }),
+    );
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragError: string };
+    expect(patchArg.ragError).toContain('100 MB limit');
+  });
+
+  it('no-ops when the row is already gone', async () => {
+    const { ctx } = createMockCtx(null);
+    const handler = await getApplyVerifiedBlobSizeHandler();
+
+    await handler(ctx, {
+      storageId: 's3:testorg/uuid',
+      size: 1,
+      overCap: false,
+      limitBytes: CAP,
+    });
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+});
