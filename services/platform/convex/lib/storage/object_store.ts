@@ -102,7 +102,7 @@ export function invalidateOrgObjectStore(orgSlug: string): void {
  * virtual-host (AWS) addressing. The key is percent-encoded per path segment
  * (S3 keys may contain `/`, which stays a separator).
  */
-function objectUrl(store: S3ObjectStore, key: string): string {
+export function objectUrl(store: S3ObjectStore, key: string): string {
   const encodedKey = key
     .split('/')
     .map((seg) => encodeURIComponent(seg))
