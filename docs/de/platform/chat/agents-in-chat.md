@@ -3,17 +3,17 @@ title: Agents im Chat
 description: Wie der Agent-Picker im Chat funktioniert — welche Agents erscheinen, was „Im Chat sichtbar" steuert, einmalige versus dauerhafte Agents, Wechsel mitten im Chat und Sub-Agent-Aufrufe.
 ---
 
-Einen Agent im Chat zu wählen ist der Unterschied zwischen einer Frage an den generischen Assistenten und einer Frage an etwas, das die Org für eine Domäne geformt hat. Der Agent-Picker ist das meistgenutzte Bedienelement im Composer; welche Agents erscheinen, wann ein Agent gesetzt bleibt und was beim Wechsel mitten im Chat passiert, ist das Thema dieser Seite.
+Einen Agent im Chat zu wählen ist der Unterschied zwischen einer Frage an den generischen Assistenten und einer Frage an etwas, das die Org für eine Domäne geformt hat. Der Agent-Picker ist das meistgenutzte Bedienelement im Chat; welche Agents erscheinen, wann ein Agent gesetzt bleibt und was beim Wechsel mitten im Chat passiert, ist das Thema dieser Seite.
 
-<Frame caption="Der geöffnete Agent-Picker über dem Composer — Auto, die installierten Agents und der Katalog-Shortcut.">
+<Frame caption="Der geöffnete Agent-Picker über dem Chat — Auto, die installierten Agents und der Katalog-Shortcut.">
 
-![Der über dem Chat-Composer geöffnete Agent-Picker zeigt ein Suchfeld, einen Auto-Eintrag, den ausgewählten Assistenten, einen Eintrag namens Automation Assistant und einen Knopf Automatisierungen durchsuchen.](/images/platform/chat-agent-picker.webp)
+![Der über dem Chat geöffnete Agent-Picker zeigt ein Suchfeld, einen Auto-Eintrag, den ausgewählten Assistenten, einen Eintrag namens Automation Assistant und einen Knopf Automatisierungen durchsuchen.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 
 ## Der Agent-Picker
 
-Klick auf den Agent-Chip am Composer (sein zugänglicher Name ist **Agent auswählen**), und der Picker öffnet mit **Agents suchen** obenauf. Die Liste zeigt **Auto** — Tale routet jede Nachricht an den Agent, der am besten passt — gefolgt von jedem Agent, auf den du Zugriff hast und der als **Im Chat sichtbar** markiert ist; Coding-Agenten bekommen einen eigenen Abschnitt **Coding-Agenten**, sobald welche sichtbar sind. Agents ohne diesen Schalter existieren in der Org, tauchen hier aber nie auf, was die Liste kurz hält. **Automatisierungen durchsuchen** unten führt zum [Automatisierungen-Katalog](/de/platform/automations/catalog) — neue Agents kommen als Teil einer Automatisierung an, die du installierst.
+Klick auf den Agent-Chip am Chat (sein zugänglicher Name ist **Agent auswählen**), und der Picker öffnet mit **Agents suchen** obenauf. Die Liste zeigt **Auto** — Tale routet jede Nachricht an den Agent, der am besten passt — gefolgt von jedem Agent, auf den du Zugriff hast und der als **Im Chat sichtbar** markiert ist; Coding-Agenten bekommen einen eigenen Abschnitt **Coding-Agenten**, sobald welche sichtbar sind. Agents ohne diesen Schalter existieren in der Org, tauchen hier aber nie auf, was die Liste kurz hält. **Automatisierungen durchsuchen** unten führt zum [Automatisierungen-Katalog](/de/platform/automations/catalog) — neue Agents kommen als Teil einer Automatisierung an, die du installierst.
 
 ## „Im Chat sichtbar"
 

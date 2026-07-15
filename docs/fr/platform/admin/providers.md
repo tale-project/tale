@@ -29,7 +29,7 @@ Pour OpenAI, Anthropic et OpenRouter, l’URL de base reste verrouillée sur l�
 
 Chaque modèle porte une ou plusieurs étiquettes de capacité — **Chat**, **Vision**, **Embedding**, **Transcription**, **Synthèse vocale**, **Génération d'images**, **Édition d'images**. Les étiquettes sont porteuses : elles décident dans quels sélecteurs un modèle apparaît et quelle capacité de la plateforme peut l’appeler. Un modèle sans étiquette correspondante n’apparaît jamais là où cette capacité est requise.
 
-**Masqué des sélecteurs de modèles** retire un modèle du composeur de chat et de la sélection de modèle des agents tout en le laissant pleinement utilisable par les agents et workflows qui le référencent déjà. C’est ainsi qu’une version supplantée ou dépréciée prend sa retraite sans casser les agents qui y sont liés.
+**Masqué des sélecteurs de modèles** retire un modèle du chat et de la sélection de modèle des agents tout en le laissant pleinement utilisable par les agents et workflows qui le référencent déjà. C’est ainsi qu’une version supplantée ou dépréciée prend sa retraite sans casser les agents qui y sont liés.
 
 ## Modèles par défaut
 

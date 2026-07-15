@@ -21,7 +21,7 @@ Clique sur **Partager** dans l’en-tête du chat. Le dialogue **Partager le cha
 
 ## Ce que voit le visiteur
 
-Le visiteur ouvre le lien et atterrit sur le chat avec une bannière : **Tu consultes un chat partagé en lecture seule**. Le transcript se lit exactement comme pour l’auteur, appels d’outils et citations compris. Le composeur est remplacé par une seule indication — **L'envoi d'un message créera ta propre copie de ce chat** — c’est le seul chemin vers l’avant.
+Le visiteur ouvre le lien et atterrit sur le chat avec une bannière : **Tu consultes un chat partagé en lecture seule**. Le transcript se lit exactement comme pour l’auteur, appels d’outils et citations compris. Le champ de message est remplacé par une seule indication — **L'envoi d'un message créera ta propre copie de ce chat** — c’est le seul chemin vers l’avant.
 
 ## Dupliquer un chat partagé
 

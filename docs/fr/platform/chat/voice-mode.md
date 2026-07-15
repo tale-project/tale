@@ -3,17 +3,17 @@ title: Mode vocal
 description: Parler au lieu de taper — comment fonctionne l’aller-retour, quel modèle gère la reconnaissance vocale, lequel gère la synthèse, et ce que couvre la frontière de confidentialité.
 ---
 
-Le mode vocal transforme le composeur en microphone. Tu parles, Tale transcrit, l’agent répond en texte, et la réponse est lue à voix haute en retour. Toute la boucle se fait sans les mains — utile quand tu marches, tu conduis (légalement), tu cuisines, ou tu en as assez de taper.
+Le mode vocal transforme le chat en microphone. Tu parles, Tale transcrit, l’agent répond en texte, et la réponse est lue à voix haute en retour. Toute la boucle se fait sans les mains — utile quand tu marches, tu conduis (légalement), tu cuisines, ou tu en as assez de taper.
 
-Le chemin vocal du composeur traverse deux fournisseurs de modèles (reconnaissance vocale, puis synthèse) et un ou deux appels d’agent entre les deux. Savoir quel fournisseur tient quel morceau de l’audio fait la différence entre « c’est pratique » et « c’est imprudent » pour les données de ton organisation.
+Le chemin vocal du chat traverse deux fournisseurs de modèles (reconnaissance vocale, puis synthèse) et un ou deux appels d’agent entre les deux. Savoir quel fournisseur tient quel morceau de l’audio fait la différence entre « c’est pratique » et « c’est imprudent » pour les données de ton organisation.
 
 ## Comment le mode vocal s’exécute
 
-Touche l’icône microphone sur le composeur et l’enregistrement démarre ; touche-la à nouveau pour arrêter. Tale téléverse le clip audio, le modèle de reconnaissance vocale le transcrit, et la transcription devient le message suivant du chat — exactement comme si tu l’avais tapée. L’agent répond en texte ; une fois la réponse complète, Tale la route vers un modèle de synthèse et joue l’audio en retour. Pendant que la réponse défile, **Arrêté** met fin à la lecture plus tôt ; **Lire la sortie vocale** rejoue la dernière réponse.
+Touche l’icône microphone sur le chat et l’enregistrement démarre ; touche-la à nouveau pour arrêter. Tale téléverse le clip audio, le modèle de reconnaissance vocale le transcrit, et la transcription devient le message suivant du chat — exactement comme si tu l’avais tapée. L’agent répond en texte ; une fois la réponse complète, Tale la route vers un modèle de synthèse et joue l’audio en retour. Pendant que la réponse défile, **Arrêté** met fin à la lecture plus tôt ; **Lire la sortie vocale** rejoue la dernière réponse.
 
 ## Passations STT et TTS
 
-Deux choix de modèles comptent, et ils se configurent séparément du modèle de chat. La **reconnaissance vocale** tourne une fois par message parlé — l’audio est téléversé, transcrit, et la transcription est ce que l’agent voit. La **synthèse vocale** tourne une fois par réponse — Tale découpe la réponse en segments de sortie vocale et streame l’audio en retour. L’agent lui-même ne change pas ; le mode vocal est une enveloppe autour du même composer.
+Deux choix de modèles comptent, et ils se configurent séparément du modèle de chat. La **reconnaissance vocale** tourne une fois par message parlé — l’audio est téléversé, transcrit, et la transcription est ce que l’agent voit. La **synthèse vocale** tourne une fois par réponse — Tale découpe la réponse en segments de sortie vocale et streame l’audio en retour. L’agent lui-même ne change pas ; le mode vocal est une enveloppe autour du même chat.
 
 ## Choisir la voix
 
@@ -44,4 +44,4 @@ La voix est plus rapide que le clavier pour des questions courtes et conversatio
 
 ## Où ça s’inscrit
 
-Le mode vocal est l’une des trois « formes d’entrée » sur le même composer : le texte (le défaut), les pièces jointes et la voix. L’histoire de la confidentialité compte le plus ici parce que deux fournisseurs supplémentaires touchent les données, donc la page à lire ensuite est [Résidence des données](/fr/cloud/data-residency) sur Cloud ou [Configuration → fournisseurs](/fr/self-hosted/configuration/providers) en auto-hébergé, selon l’édition que tu fais tourner.
+Le mode vocal est l’une des trois « formes d’entrée » sur le même chat : le texte (le défaut), les pièces jointes et la voix. L’histoire de la confidentialité compte le plus ici parce que deux fournisseurs supplémentaires touchent les données, donc la page à lire ensuite est [Résidence des données](/fr/cloud/data-residency) sur Cloud ou [Configuration → fournisseurs](/fr/self-hosted/configuration/providers) en auto-hébergé, selon l’édition que tu fais tourner.

@@ -11,13 +11,13 @@ Du brauchst die Rolle **Redakteur** oder höher (der Bereich Agenten ist für Mi
 
 <Step title="Erstelle den Agent">
 
-Für einen Agent, den Teammitglieder im Chat auswählen können, öffne **Agenten** in der Sidebar und klicke auf **Agent erstellen**. Benenne ihn nach dem Job, nicht nach der Technologie — „Support-Triage“ schlägt „GPT-Helfer“ —, denn der Name ist das, was Teammitglieder später im Composer auswählen.
+Für einen Agent, den Teammitglieder im Chat auswählen können, öffne **Agenten** in der Sidebar und klicke auf **Agent erstellen**. Benenne ihn nach dem Job, nicht nach der Technologie — „Support-Triage“ schlägt „GPT-Helfer“ —, denn der Name ist das, was Teammitglieder später im Chat auswählen.
 
 </Step>
 
 <Step title="Gib ihm eine Identität">
 
-Der Editor öffnet auf dem Tab **Allgemein**: der Anzeigename, den Teammitglieder sehen, eine einzeilige Beschreibung und der Agent-Typ. Der Schalter, der am ersten Tag zählt, ist **Im Chat sichtbar** — ohne ihn existiert der Agent zwar, aber niemand kann ihn im Composer auswählen.
+Der Editor öffnet auf dem Tab **Allgemein**: der Anzeigename, den Teammitglieder sehen, eine einzeilige Beschreibung und der Agent-Typ. Der Schalter, der am ersten Tag zählt, ist **Im Chat sichtbar** — ohne ihn existiert der Agent zwar, aber niemand kann ihn im Chat auswählen.
 
 <Frame caption="Der Tab Allgemein — Identität, Agent-Typ und Chat-Sichtbarkeit.">
 
@@ -51,7 +51,7 @@ Derselbe Tab bindet das Modell: Wähl eines aus den konfigurierten Anbietern des
 
 <Frame caption="Die Agent-Auswahl — dein neuer Agent gelistet neben den Katalog-Agents.">
 
-![Die geöffnete Agent-Auswahl des Chat-Composers, die die im Arbeitsbereich verfügbaren Agents listet.](/images/platform/chat-agent-picker.webp)
+![Die geöffnete Agent-Auswahl des Chats, die die im Arbeitsbereich verfügbaren Agents listet.](/images/platform/chat-agent-picker.webp)
 
 </Frame>
 

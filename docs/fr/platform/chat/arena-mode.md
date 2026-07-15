@@ -9,7 +9,7 @@ Va vers l’Arène quand le choix d’un modèle a été un débat plutôt qu’
 
 ## Comment l’Arène s’affiche
 
-Ouvre le menu plus du composeur et choisis **Mode Arène** — le composeur fait pousser deux sélecteurs de modèles étiquetés **Modèle A** et **Modèle B**. Envoyer un message exécute les deux modèles en parallèle ; l’écran se sépare et chaque réponse arrive en streaming dans sa propre colonne. Une fois les deux terminées, une rangée de verdict apparaît sous les colonnes avec quatre boutons : **A est meilleur**, **B est meilleur**, **Égalité**, **Les deux sont mauvais**.
+Ouvre le menu plus du chat et choisis **Mode Arène** — le chat fait pousser deux sélecteurs de modèles étiquetés **Modèle A** et **Modèle B**. Envoyer un message exécute les deux modèles en parallèle ; l’écran se sépare et chaque réponse arrive en streaming dans sa propre colonne. Une fois les deux terminées, une rangée de verdict apparaît sous les colonnes avec quatre boutons : **A est meilleur**, **B est meilleur**, **Égalité**, **Les deux sont mauvais**.
 
 <Frame caption="Le même prompt traité par deux modèles, avec la rangée de verdict en dessous.">
 

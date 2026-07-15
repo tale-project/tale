@@ -3,7 +3,7 @@ title: Deep research
 description: The Researcher agent — open-ended web research with a live to-do plan, cited sources via Tavily, and a clean PDF report at the end.
 ---
 
-Deep research is a composer mode that hands a question to a specialised **Researcher** agent. The agent plans the work as a list of sub-questions, searches the open web with Tavily, reads the most promising pages, tracks progress in a to-do card you can watch in real time, and finishes with a PDF report that cites every source it used. Reach for it when the question is open-ended, the answer needs evidence, and you would otherwise spend an hour with twenty browser tabs.
+Deep research is a chat mode that hands a question to a specialised **Researcher** agent. The agent plans the work as a list of sub-questions, searches the open web with Tavily, reads the most promising pages, tracks progress in a to-do card you can watch in real time, and finishes with a PDF report that cites every source it used. Reach for it when the question is open-ended, the answer needs evidence, and you would otherwise spend an hour with twenty browser tabs.
 
 This page covers the Deep research surface end to end — when to pick it, what the flow looks like, the budget that keeps it from running forever, and where the cited sources come from. The agent's mechanic is the same shape as every other Tale agent (see [Agent concepts](/platform/agents/concepts)); what is unusual here is the live to-do plan and the Tavily integration that drives the searches.
 
@@ -19,11 +19,11 @@ For narrow factual questions ("what is the capital of Senegal") plain chat is fa
 
 ## Open Deep research
 
-Open the composer's plus menu — modes live under its **Modes** header, and **Deep research** appears there once the Researcher agent is available. Pick it and the composer switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
+Open the chat's plus menu — modes live under its **Modes** header, and **Deep research** appears there once the Researcher agent is available. Pick it and the chat switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
 
-<Frame caption="Modes live in the composer's plus menu; entries appear as their requirements are met.">
+<Frame caption="Modes live in the chat's plus menu; entries appear as their requirements are met.">
 
-![The composer's plus menu open, showing an Add photos and files entry and a Modes section listing Arena Mode.](/images/platform/chat-composer-menu.webp)
+![The chat's plus menu open, showing an Add photos and files entry and a Modes section listing Arena Mode.](/images/platform/chat-composer-menu.webp)
 
 </Frame>
 
@@ -84,4 +84,4 @@ For Chinese, Japanese, and Korean reports the PDF renderer's font set is incompl
 
 ## Where this fits
 
-Deep research is the heaviest end of the chat composer — it does in ten minutes what an analyst would do in an afternoon. Pair this page with [Agent concepts](/platform/agents/concepts) (the four-knob model the Researcher agent is built on) and [Integrations overview](/platform/integrations/overview) (where Tavily sits alongside the other integrations the agent toolbelt can reach). If you want to build your own research-style agent rather than use the shipped one, [Create an agent](/platform/agents/create) walks the agent build end to end.
+Deep research is the heaviest end of the chat — it does in ten minutes what an analyst would do in an afternoon. Pair this page with [Agent concepts](/platform/agents/concepts) (the four-knob model the Researcher agent is built on) and [Integrations overview](/platform/integrations/overview) (where Tavily sits alongside the other integrations the agent toolbelt can reach). If you want to build your own research-style agent rather than use the shipped one, [Create an agent](/platform/agents/create) walks the agent build end to end.

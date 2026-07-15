@@ -21,7 +21,7 @@ An agent in chat with the workflow tools can ask to start a workflow. The reques
 
 <Note>
 
-The chat composer is blocked while a request is pending — **Respond to the pending request above to continue**. Decide the card before sending the next message.
+The chat is blocked while a request is pending — **Respond to the pending request above to continue**. Decide the card before sending the next message.
 
 </Note>
 
