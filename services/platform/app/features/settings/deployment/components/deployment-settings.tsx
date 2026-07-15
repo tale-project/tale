@@ -34,9 +34,9 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { TestResultLine } from '@/app/features/settings/components/test-result-line';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { mapDeploymentError } from '../deployment-errors';
@@ -165,26 +165,6 @@ function storageFromConfig(cs: StorageConfigJson | undefined): StorageForm {
     accessKeyId: '',
     secretAccessKey: '',
   };
-}
-
-/** Compact inline pass/fail line shown next to a Test button. */
-function TestResultLine({
-  result,
-  okLabel,
-}: {
-  result?: { ok: boolean; message?: string };
-  okLabel: string;
-}) {
-  const { t } = useT('settings');
-  if (!result) return null;
-  return (
-    <span
-      className={cn('text-sm', result.ok ? 'text-success' : 'text-destructive')}
-    >
-      {result.ok ? okLabel : t('dataResidency.result.failed')}
-      {result.message ? ` — ${result.message}` : ''}
-    </span>
-  );
 }
 
 function PgSection({

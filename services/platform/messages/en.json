@@ -112,7 +112,8 @@
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
     "unauthenticated": "Your session expired. Sign in again to continue.",
     "deployment": "You need Admin permissions to access deployment settings.",
-    "enterpriseSso": "You need Admin permissions to access Enterprise SSO settings."
+    "enterpriseSso": "You need Admin permissions to access Enterprise SSO settings.",
+    "orgDataResidency": "You need Admin permissions to manage the organization's data residency."
   },
   "analytics": {
     "usage": {
@@ -4502,6 +4503,10 @@
       "title": "Data residency",
       "description": "Where your data is stored and processed."
     },
+    "orgDataResidency": {
+      "title": "Organization data residency",
+      "description": "Store this organization's knowledge database and uploaded files on infrastructure you provide."
+    },
     "governance": {
       "title": "Governance",
       "description": "Manage governance policies and system prompts."
@@ -4580,6 +4585,7 @@
       "primaryNavigation": "Primary navigation"
     },
     "dataResidency": "Data residency",
+    "orgDataResidency": "Organization data residency",
     "runtimes": "Runtimes",
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO"
@@ -5519,6 +5525,9 @@
       },
       "dataResidency": {
         "description": "Where your data is stored and processed."
+      },
+      "orgDataResidency": {
+        "description": "Point this organization's knowledge database and file storage at infrastructure you provide."
       }
     },
     "tokenSources": {
@@ -7424,6 +7433,45 @@
         "secretUnreadable": "The existing secrets file can't be decrypted. Confirm overwrite to replace it.",
         "configUnreadable": "The deployment configuration on disk can't be read.",
         "readFailed": "Couldn't load the deployment configuration: {error}"
+      }
+    },
+    "orgDataResidency": {
+      "statusDefault": "Deployment default",
+      "knowledge": {
+        "title": "Knowledge database",
+        "description": "The Postgres database holding this organization's knowledge corpus — extracted text and embeddings.",
+        "note": "Off, this organization's knowledge lives in the deployment's default database, isolated per organization. On, new knowledge content is written to and searched in the database above — it applies on the next request, no restart needed. Content already ingested elsewhere is not copied over.",
+        "saved": "Saved — this organization's knowledge now lives in your database.",
+        "cleared": "Connection removed — this organization is back on the deployment's default knowledge database.",
+        "clearConfirm": {
+          "title": "Remove the knowledge database connection?",
+          "description": "Knowledge searches and new documents for this organization go back to the deployment's default database. Content already ingested into your database stays there but is no longer searched.",
+          "confirm": "Remove connection"
+        }
+      },
+      "storage": {
+        "title": "Object storage",
+        "description": "The S3-compatible bucket holding this organization's uploaded files — documents, attachments, audio, and generated media.",
+        "bucket": "Bucket",
+        "prefix": "Key prefix",
+        "prefixHint": "Optional namespace inside the bucket; blank stores objects at the bucket root.",
+        "credentialsHint": "Write-only — stored keys are never shown. Enter both keys to run the connection test.",
+        "verified": "Bucket verified (upload, read, delete)",
+        "note": "Off, this organization's files live in the deployment's built-in storage, isolated per organization. On, new uploads go to the bucket above; files stored before the switch stay readable where they are.",
+        "saved": "Saved — this organization's new uploads go to your bucket.",
+        "cleared": "Connection removed — new uploads go back to the deployment's built-in storage. Files already in your bucket stay there but are unavailable to Tale until you reconnect it.",
+        "clearConfirm": {
+          "title": "Remove the object-storage connection?",
+          "description": "New uploads for this organization go back to the deployment's built-in storage. Files already written to your bucket stay there, but Tale can no longer read them until the connection is added again.",
+          "confirm": "Remove connection"
+        }
+      },
+      "errors": {
+        "forbidden": "You're not allowed to manage this organization's data residency.",
+        "invalidConnection": "The connection settings are invalid. Check the fields and try again.",
+        "credentialsPair": "Enter the access key ID and the secret access key together.",
+        "credentialsRequired": "Enter an access key ID and secret access key — they're required the first time object storage is configured.",
+        "readFailed": "Couldn't load the stored connection: {error}"
       }
     }
   },

@@ -168,6 +168,12 @@ export function SettingsRail({
         matchMode: 'startsWith',
         can: ['read', 'orgSettings'],
       },
+      {
+        kind: 'leaf',
+        labelKey: 'orgDataResidency',
+        path: 'data-residency',
+        can: ['read', 'orgSettings'],
+      },
     ];
 
     const development: RailItem[] = [
