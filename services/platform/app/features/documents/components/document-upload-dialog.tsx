@@ -17,13 +17,14 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
   isAllowedDocumentUpload,
+  isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { useDocumentUpload } from '../hooks/mutations';
-import { useFolder } from '../hooks/queries';
+import { useFolder, useUploadUsage } from '../hooks/queries';
 import { TeamMultiSelect } from './team-multi-select';
 import { UploadFileRow } from './upload-file-row';
 
@@ -60,6 +61,9 @@ export function DocumentUploadDialog({
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
   const policyLimits = useUploadPolicy(organizationId);
+  // Proactive quota meter — only rendered when the org enforces a per-user
+  // volume cap, so a full quota is visible before it rejects an upload.
+  const { data: uploadUsage } = useUploadUsage(organizationId);
 
   // A team-scoped folder forces its team on every document created inside it
   // (the create mutation overrides teamId with the folder's). Lock the team
@@ -302,6 +306,16 @@ export function DocumentUploadDialog({
           </FileUpload.DropZone>
         </FileUpload.Root>
 
+        {/* Upload-quota meter (only when a per-user volume cap is enforced) */}
+        {uploadUsage?.limited && uploadUsage.limitBytes != null && (
+          <span className="text-muted-foreground px-1 text-xs">
+            {tDocuments('upload.quotaUsage', {
+              used: formatBytes(uploadUsage.usedBytes),
+              limit: formatBytes(uploadUsage.limitBytes),
+            })}
+          </span>
+        )}
+
         {/* Team selection */}
         <Stack gap={2}>
           <span className="text-muted-foreground text-sm font-medium">
@@ -373,6 +387,12 @@ export function DocumentUploadDialog({
                 bytesLoaded={tracked.bytesLoaded}
                 bytesTotal={tracked.bytesTotal}
                 error={tracked.error}
+                notIndexable={
+                  !isRagIndexableFile(
+                    tracked.file.name,
+                    resolveFileType(tracked.file.name, tracked.file.type),
+                  )
+                }
                 onRetry={() => handleRetryFile(tracked.id)}
                 onRemove={
                   tracked.status === 'pending' || tracked.status === 'completed'

@@ -10,6 +10,7 @@ import {
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { maybeDispatchRagIndexing } from '../file_metadata/rag_dispatch';
 
 /**
  * Enqueue `uploadDocumentToRag` when the blob is indexable and not already
@@ -42,6 +43,28 @@ export async function scheduleHubDocumentRagIndexing(
     return false;
   }
 
+  // Route through the same per-org + global concurrency cap as the direct
+  // upload path so a bulk import (e.g. OneDrive) can't fire dozens of
+  // `uploadDocumentToRag` actions at once and saturate the shared knowledge-db
+  // pool. Mark the row `queued` (so the dispatcher's guard passes and it counts
+  // against the cap), then let `maybeDispatchRagIndexing` dispatch it now or
+  // park it for the fair promoter — which dispatches `uploadDocumentToRag`
+  // because the row carries `documentId` (see `dispatchRow`).
+  if (fm) {
+    await ctx.db.patch(fm._id, {
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragParked: undefined,
+      ragQueuedAt: Date.now(),
+    });
+    await maybeDispatchRagIndexing(ctx, fileId);
+    return true;
+  }
+
+  // No `fileMetadata` row yet (workflow-created / legacy file-backed docs):
+  // dispatch directly — `uploadDocumentToRag` creates the row via
+  // `ensureFileMetadataForDocument`, and the watchdog covers it.
   await ctx.scheduler.runAfter(
     0,
     internal.documents.internal_actions.uploadDocumentToRag,

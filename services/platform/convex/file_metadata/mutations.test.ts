@@ -40,6 +40,17 @@ vi.mock('../lib/rate_limiter/helpers', () => ({
   RateLimitExceededError: class extends Error {},
 }));
 
+// The per-org concurrency cap: saveFileMetadata now delegates RAG scheduling to
+// maybeDispatchRagIndexing (which queries the DB to count in-flight jobs). Mock
+// it here and assert delegation; the real dispatch/promote logic is covered by
+// rag_dispatch.test.ts.
+const mockMaybeDispatchRagIndexing = vi.fn();
+vi.mock('./rag_dispatch', () => ({
+  maybeDispatchRagIndexing: (...args: unknown[]) =>
+    mockMaybeDispatchRagIndexing(...args),
+  promoteQueuedRagJobs: vi.fn(),
+}));
+
 vi.mock('../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
@@ -264,11 +275,7 @@ describe('saveFileMetadata (public)', () => {
         ragQueuedAt: undefined,
       }),
     );
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 
   it('patches existing file metadata by storageId', async () => {
@@ -328,11 +335,7 @@ describe('saveFileMetadata (public)', () => {
       size: 1024,
       uploadedBy: 'user_1',
     });
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 
   it('reschedules RAG when existing row previously failed', async () => {
@@ -362,11 +365,7 @@ describe('saveFileMetadata (public)', () => {
       ragProgress: undefined,
       ragQueuedAt: expect.any(Number),
     });
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).toHaveBeenCalledWith(ctx, 'storage_1');
   });
 
   it('does not queue RAG for formats the RAG service cannot index', async () => {
@@ -387,11 +386,7 @@ describe('saveFileMetadata (public)', () => {
         ragQueuedAt: undefined,
       }),
     );
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 
   it('does not queue RAG for extension-less files with unknown MIME', async () => {
@@ -409,11 +404,7 @@ describe('saveFileMetadata (public)', () => {
       'fileMetadata',
       expect.objectContaining({ ragStatus: undefined }),
     );
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -439,11 +430,7 @@ describe('saveFileMetadata (public)', () => {
         ragQueuedAt: expect.any(Number),
       }),
     );
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).toHaveBeenCalledWith(ctx, 'storage_1');
   });
 
   it('clears stale failed RAG state on non-indexable re-upload without re-queueing', async () => {
@@ -477,11 +464,7 @@ describe('saveFileMetadata (public)', () => {
       ragProgress: undefined,
       ragQueuedAt: undefined,
     });
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
-      0,
-      'mock',
-      expect.objectContaining({ storageId: 'storage_1' }),
-    );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 
   it('queries by storageId index', async () => {

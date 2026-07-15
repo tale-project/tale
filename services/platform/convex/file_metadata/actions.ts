@@ -50,6 +50,22 @@ export const checkFileRagStatuses = action({
       return null;
     }
 
+    // Skip rows already in a terminal state. Beyond the obvious wasted work,
+    // this is a correctness guard: the RAG watchdog can mark a stuck row
+    // `'failed'` while its knowledge-corpus document is still an orphaned
+    // `processing` row. Without this filter, an open chat's poll would read
+    // that `processing` status and flip the row back to `'running'`, undoing
+    // the watchdog and polling forever. The server poller already guards this
+    // (`pollFileRagStatus` returns early on terminal status); this is the
+    // client-poll counterpart.
+    const pollable = allowed.filter(
+      (a) =>
+        a.ragStatus !== 'completed' &&
+        a.ragStatus !== 'failed' &&
+        a.ragStatus !== 'unsupported',
+    );
+    if (pollable.length === 0) return null;
+
     // Group authorized storage ids by org so we can issue one RAG call
     // per distinct org. The cache means each org slug is resolved once
     // even when many files belong to the same org.
@@ -57,7 +73,7 @@ export const checkFileRagStatuses = action({
       string,
       Array<(typeof args.storageIds)[number]>
     >();
-    for (const { storageId, organizationId } of allowed) {
+    for (const { storageId, organizationId } of pollable) {
       const bucket = orgIdsToFiles.get(organizationId);
       if (bucket) bucket.push(storageId);
       else orgIdsToFiles.set(organizationId, [storageId]);
@@ -113,7 +129,7 @@ export const checkFileRagStatuses = action({
     }
 
     const statuses = mergedStatuses;
-    const allAuthorizedStorageIds = allowed.map((a) => a.storageId);
+    const allAuthorizedStorageIds = pollable.map((a) => a.storageId);
 
     for (const storageId of allAuthorizedStorageIds) {
       const docStatus = statuses[storageId];

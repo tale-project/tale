@@ -51,6 +51,10 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 let mockFolderData: { teamId?: string } | undefined = undefined;
 vi.mock('../hooks/queries', () => ({
   useFolder: () => ({ data: mockFolderData }),
+  // No per-user volume quota by default → the dialog renders no usage meter.
+  useUploadUsage: () => ({
+    data: { limited: false, usedBytes: 0, limitBytes: null },
+  }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({

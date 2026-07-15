@@ -6,10 +6,21 @@ import { isRecord, getBoolean, getString } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
+import {
+  RateLimitExceededError,
+  checkUserRateLimit,
+} from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
+
+// Matches the RAG watchdog's stale threshold (> the 30-min Convex action
+// ceiling). A `running`/`queued` row younger than this has a live indexing
+// job; a retry would double-index against the shared knowledge-db pool. Older
+// than this, the in-flight job is dead (Convex killed it) and the watchdog
+// hasn't swept yet — allow the user to self-recover immediately.
+const IN_FLIGHT_STALE_MS = 35 * 60 * 1000;
 
 export const retryRagIndexing = action({
   args: {
@@ -27,6 +38,20 @@ export const retryRagIndexing = action({
       const authUser = await getAuthUserIdentity(ctx);
       if (!authUser) {
         return { success: false, error: 'Unauthenticated' };
+      }
+
+      // Throttle retries per user. Re-indexing runs the full synchronous
+      // extract/chunk/embed inline in this public action; mashing "Retry" on
+      // several large docs otherwise fires concurrent heavy jobs at the shared
+      // knowledge-db pool. The `file:rag-retry` bucket (10/min) existed but was
+      // never wired.
+      try {
+        await checkUserRateLimit(ctx, 'file:rag-retry', authUser.userId);
+      } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return { success: false, error: error.message };
+        }
+        throw error;
       }
 
       const document = await ctx.runQuery(
@@ -72,6 +97,25 @@ export const retryRagIndexing = action({
           error:
             "This file type has no text extractor and can't be indexed for RAG search. Convert it to a supported format (PDF, DOCX, TXT, …) and re-upload.",
         };
+      }
+
+      // In-flight guard: a `running` (or freshly `queued`) row already has a
+      // live indexing job — re-running `ragAction.execute` now would index the
+      // same file twice concurrently. Only block while the job could still be
+      // alive; past the watchdog's stale threshold the prior job is dead, so a
+      // retry is the user's fast path to recovery (before the 5-min cron).
+      if (
+        fileMetadata &&
+        (fileMetadata.ragStatus === 'running' ||
+          fileMetadata.ragStatus === 'queued')
+      ) {
+        const clock = fileMetadata.ragQueuedAt ?? fileMetadata._creationTime;
+        if (Date.now() - clock < IN_FLIGHT_STALE_MS) {
+          return {
+            success: false,
+            error: 'Indexing is already in progress for this file.',
+          };
+        }
       }
 
       // Self-heal the canonical RAG-status home before writing status:

@@ -41,6 +41,25 @@ vi.mock('../_generated/api', () => ({
   },
 }));
 
+// Mock the rate-limiter helpers so the real module chain
+// (`rate_limiter/index` → `components.rateLimiter`) is never loaded — the
+// `../_generated/api` mock above deliberately omits `components`. `mockCheckOrgRateLimit`
+// defaults to a no-op (allowed); a test can make it throw to assert the
+// RATE_LIMITED path.
+const mockCheckOrgRateLimit = vi.fn();
+class MockRateLimitExceededError extends Error {
+  readonly retryAfter: number;
+  constructor(message: string, retryAfter = 1000) {
+    super(message);
+    this.name = 'RateLimitExceededError';
+    this.retryAfter = retryAfter;
+  }
+}
+vi.mock('../lib/rate_limiter/helpers', () => ({
+  checkOrganizationRateLimit: () => mockCheckOrgRateLimit(),
+  RateLimitExceededError: MockRateLimitExceededError,
+}));
+
 const mockGetAuthUser = vi.fn();
 vi.mock('../auth', () => ({
   authComponent: {
@@ -82,8 +101,9 @@ vi.mock('./update_document', () => ({
   updateDocument: vi.fn(),
 }));
 
+const mockCheckUploadPolicy = vi.fn(async () => ({ allowed: true }));
 vi.mock('../governance/upload_enforcement', () => ({
-  checkUploadPolicy: vi.fn().mockResolvedValue({ allowed: true }),
+  checkUploadPolicy: () => mockCheckUploadPolicy(),
 }));
 
 vi.mock('./validators', () => ({
@@ -106,6 +126,12 @@ function createMockCtx() {
       get: vi.fn().mockResolvedValue(null),
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
+      // Authoritative blob size lookup for the server-side size cap. Default
+      // to null (blob metadata absent) so the cap is a no-op unless a test
+      // opts in by returning a size.
+      system: {
+        get: vi.fn().mockResolvedValue(null),
+      },
     },
     auth: {
       // Production now reads JWT identity via getAuthUserIdentity, which
@@ -214,6 +240,72 @@ describe('createDocumentFromUpload', () => {
         sourceProvider: 'upload',
       }),
     );
+  });
+
+  it('surfaces a full volume quota as actionable structured data', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    mockCheckUploadPolicy.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'Total upload volume would exceed the 1 GB limit',
+      reasonCode: 'volume_exceeded',
+      usedBytes: 1024 * 1024 * 1024,
+      limitBytes: 1024 * 1024 * 1024,
+    } as Awaited<ReturnType<typeof mockCheckUploadPolicy>>);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: {
+        code: 'UPLOAD_POLICY_REJECTED',
+        reasonCode: 'volume_exceeded',
+        usedBytes: 1024 * 1024 * 1024,
+        limitBytes: 1024 * 1024 * 1024,
+      },
+    });
+  });
+
+  it('rejects an oversized blob past the product cap (authoritative size)', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // 200 MB — over the 100 MB DOCUMENT_MAX_FILE_SIZE. The client-supplied
+    // `fileSize` (2 KB in baseArgs) is deliberately ignored in favour of the
+    // storage system-table size.
+    ctx.db.system.get = vi.fn().mockResolvedValue({ size: 200 * 1024 * 1024 });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: { code: 'FILE_TOO_LARGE', reasonCode: 'file_too_large' },
+    });
+  });
+
+  it('accepts a large blob just under the product cap (near-100 MB)', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // 99 MB — a large but valid file, just under the 100 MB
+    // DOCUMENT_MAX_FILE_SIZE. Regression guard for S4.3: large files must pass
+    // the authoritative size check and proceed to creation/indexing, not be
+    // falsely rejected. The client-supplied 2 KB `fileSize` is ignored in
+    // favour of the storage system-table size.
+    ctx.db.system.get = vi.fn().mockResolvedValue({ size: 99 * 1024 * 1024 });
+    const handler = await getHandler();
+
+    const result = await handler(ctx, baseArgs);
+
+    expect(result).toEqual({ success: true, documentId: 'doc_created' });
+    expect(mockCreateDocument).toHaveBeenCalled();
+  });
+
+  it('maps a rate-limit rejection to RATE_LIMITED', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    mockCheckOrgRateLimit.mockImplementationOnce(() => {
+      throw new MockRateLimitExceededError('slow down', 5000);
+    });
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: { code: 'RATE_LIMITED', retryAfterMs: 5000 },
+    });
   });
 
   it('validates folder exists and belongs to org', async () => {

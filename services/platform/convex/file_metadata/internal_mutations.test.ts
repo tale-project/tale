@@ -31,6 +31,14 @@ vi.mock('../lib/rate_limiter/helpers', () => ({
   RateLimitExceededError: class extends Error {},
 }));
 
+// The concurrency cap's dispatch/promote helpers query the DB; mock them so
+// unit tests of saveFileMetadata / updateFileRagStatus don't need a live index.
+// The real logic is covered by rag_dispatch.test.ts.
+vi.mock('./rag_dispatch', () => ({
+  maybeDispatchRagIndexing: vi.fn(),
+  promoteQueuedRagJobs: vi.fn(),
+}));
+
 vi.mock('../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },

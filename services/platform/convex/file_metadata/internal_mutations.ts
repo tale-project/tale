@@ -12,6 +12,7 @@ import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
+import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
 export const saveFileMetadata = internalMutation({
@@ -113,16 +114,7 @@ export const saveFileMetadata = internalMutation({
       await ctx.db.patch(existing._id, patchData);
 
       if (needsRagRetry) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.file_metadata.internal_actions.uploadFileToRag,
-          {
-            organizationId: args.organizationId,
-            storageId: args.storageId,
-            fileName: args.fileName,
-            contentType: args.contentType,
-          },
-        );
+        await maybeDispatchRagIndexing(ctx, args.storageId);
       }
       if (needsTranscribeRetry) {
         await ctx.scheduler.runAfter(
@@ -160,16 +152,7 @@ export const saveFileMetadata = internalMutation({
     });
 
     if (shouldIndex && scheduleRag) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.file_metadata.internal_actions.uploadFileToRag,
-        {
-          organizationId: args.organizationId,
-          storageId: args.storageId,
-          fileName: args.fileName,
-          contentType: args.contentType,
-        },
-      );
+      await maybeDispatchRagIndexing(ctx, args.storageId);
     }
 
     if (isAudio) {
@@ -261,8 +244,18 @@ export const updateFileRagStatus = internalMutation({
         args.ragStatus === 'completed'
           ? Math.floor(Date.now() / 1000)
           : metadata.ragIndexedAt,
+      // A terminal row is no longer parked/in-flight; clear the park flag so a
+      // later re-queue starts clean and the promotion count is accurate.
+      ...(isTerminal && metadata.ragParked ? { ragParked: undefined } : {}),
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
+
+    // A terminal transition frees an indexing slot — fairly promote parked jobs
+    // (oldest-first across orgs, still per-org-capped) so the shared global
+    // budget drains as jobs finish.
+    if (isTerminal) {
+      await promoteQueuedRagJobs(ctx);
+    }
 
     // Sync ocrApplied to linked document so the list view can show it
     if (args.ocrApplied != null && metadata.documentId) {

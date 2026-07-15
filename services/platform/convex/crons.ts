@@ -150,6 +150,22 @@ cron(
   {},
 );
 
+// RAG indexing watchdog. Same shape as the transcription sweep above: Convex
+// hard-kills an action at 30 min without running its catch block, so a large
+// file (or a backend restart mid-index) leaves `fileMetadata.ragStatus` stuck
+// at 'running'/'queued' forever — the desk has no client poller to time it
+// out. Reconciles each stale row against the knowledge corpus, then adopts a
+// late 'completed' or fails it with a retryable message. Own cron entry so a
+// throw here can't disable a sibling watchdog. This is the fix for "after an
+// indexing error, no files index anymore" — without it, a single stuck job
+// stayed stuck and its blob kept consuming the per-user upload-volume quota.
+cron(
+  'recover stuck rag indexing (every 5 min)',
+  '*/5 * * * *',
+  internal.file_metadata.rag_watchdog.recoverStuckRagIndexing,
+  {},
+);
+
 // Browser-session pool sweep — expire past-TTL warmed sessions, recover cooled
 // ones whose quiet period elapsed (so a transiently rate-limited session is
 // reused rather than discarded), and prune long-expired rows. Every 10 min
@@ -160,7 +176,6 @@ cron(
   internal.browser_sessions.sessions.sweepBrowserSessions,
   {},
 );
-
 // Sandbox SESSION slot reclamation — flip a leaked session row (a throw between
 // reserve and the spawner create returning, or a container reaped out-of-band)
 // past its hard lifetime to `expired` so it stops pinning the per-(org) and

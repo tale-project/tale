@@ -487,6 +487,8 @@ import type * as file_metadata_internal_queries from "../file_metadata/internal_
 import type * as file_metadata_mutations from "../file_metadata/mutations.js";
 import type * as file_metadata_paragraphize from "../file_metadata/paragraphize.js";
 import type * as file_metadata_queries from "../file_metadata/queries.js";
+import type * as file_metadata_rag_dispatch from "../file_metadata/rag_dispatch.js";
+import type * as file_metadata_rag_watchdog from "../file_metadata/rag_watchdog.js";
 import type * as file_metadata_source_from_provider from "../file_metadata/source_from_provider.js";
 import type * as file_metadata_transcribe_audio from "../file_metadata/transcribe_audio.js";
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
@@ -2236,6 +2238,8 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/mutations": typeof file_metadata_mutations;
   "file_metadata/paragraphize": typeof file_metadata_paragraphize;
   "file_metadata/queries": typeof file_metadata_queries;
+  "file_metadata/rag_dispatch": typeof file_metadata_rag_dispatch;
+  "file_metadata/rag_watchdog": typeof file_metadata_rag_watchdog;
   "file_metadata/source_from_provider": typeof file_metadata_source_from_provider;
   "file_metadata/transcribe_audio": typeof file_metadata_transcribe_audio;
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;

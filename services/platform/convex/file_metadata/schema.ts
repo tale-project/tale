@@ -49,6 +49,15 @@ export const fileMetadataTable = defineTable({
   // (e.g. scheduled action silently failed before hitting the service).
   // Falls back to _creationTime when absent on older rows.
   ragQueuedAt: v.optional(v.number()),
+  // Per-org indexing concurrency cap. When the upload path enqueues a file
+  // but the org is already at its in-flight limit, the row is inserted as
+  // `'queued'` with `ragParked: true` and its indexing action is NOT
+  // scheduled — it waits. `promoteQueuedRagJobs` clears the flag and
+  // schedules the action when a slot frees (on each terminal transition).
+  // A `'queued'` row WITHOUT this flag is in flight (its action is scheduled
+  // or running), which is also the safe reading for legacy rows and for the
+  // Hub/retry paths that don't park — so only the cap ever sets it.
+  ragParked: v.optional(v.boolean()),
   // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by
   // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds
@@ -173,4 +182,12 @@ export const fileMetadataTable = defineTable({
   // `'skipped'` / unset and an unindexed scan was paying for those on
   // every tick (round-2 M2). Indexing on the status field plus
   // `_creationTime` lets the cron iterate the tiny live set directly.
-  .index('by_transcriptionStatus', ['transcriptionStatus']);
+  .index('by_transcriptionStatus', ['transcriptionStatus'])
+  // RAG watchdog sweep: the `recoverStuckRagIndexing` cron runs every 5
+  // minutes and only cares about rows still in flight (`'queued'` /
+  // `'running'`). Same rationale as `by_transcriptionStatus` — index on
+  // the status field so the cron iterates only the tiny live set instead
+  // of scanning the whole table (which is dominated by `'completed'` /
+  // terminal rows) every tick. `_creationTime` is the implicit trailing
+  // key, giving age-ordered iteration for free.
+  .index('by_ragStatus', ['ragStatus']);
