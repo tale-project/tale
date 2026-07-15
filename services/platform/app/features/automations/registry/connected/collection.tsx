@@ -31,7 +31,8 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, VStack } from '@tale/ui/layout';
-import { ChevronDown, ListChecks } from 'lucide-react';
+import { Text } from '@tale/ui/text';
+import { ChevronDown, ListChecks, Plus } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import {
@@ -154,8 +155,15 @@ export interface CollectionProps {
   addAction?: RowActionSpec;
   /** Where the `addAction` sits: `toolbar` (default — inside the card's
    *  filter row) or `above` (a right-aligned button in its own row OUTSIDE
-   *  the card, for a view-level primary create like "New quarter"). */
+   *  the card, for a view-level primary create like "New quarter").
+   *  Ignored when `chrome` is `list` (toolbar is the list pattern). */
   addActionPlacement?: 'toolbar' | 'above';
+  /**
+   * Frame chrome: `card` (default — titled Section/Card with filters in the
+   * header) or `list` (entity-list pattern — title above, arg filters + Plus
+   * add on the DataTable toolbar, bordered grid only).
+   */
+  chrome?: 'card' | 'list';
   /** Managed client-side search over the given row fields. */
   search?: CollectionSearchSpec;
   /** Effect applied when a row is clicked (`$selected.*` binds the row). */
@@ -359,8 +367,8 @@ type CollectionDataSource =
 
 /**
  * The shared body: `useListPage` over the normalized data source → the rich
- * `DataTable`, framed by `BlockFrame` + `BindingStates` so the card chrome
- * (and optional title / arg-filter bar) wraps every body state.
+ * `DataTable`. Card chrome frames with `BlockFrame` + `BindingStates`; list
+ * chrome is title + DataTable toolbar (arg filters + Plus add) with no Card.
  */
 function CollectionBody({
   title,
@@ -379,6 +387,7 @@ function CollectionBody({
   emptyState,
   addAction,
   addActionPlacement = 'toolbar',
+  chrome = 'card',
   search,
   onRowClick,
   filterBar,
@@ -403,10 +412,14 @@ function CollectionBody({
     addAction,
     addFormFields ? () => setAddFormOpen(true) : undefined,
   );
+  const listChrome = chrome === 'list';
   // `above` lifts the create button out of the card into its own row; the
-  // toolbar then carries no add action.
-  const aboveCard = addActionPlacement === 'above';
-  const tableAddAction = aboveCard ? undefined : boundAddAction;
+  // toolbar then carries no add action. List chrome always uses the toolbar.
+  const aboveCard = !listChrome && addActionPlacement === 'above';
+  const tableAddAction =
+    aboveCard || !boundAddAction
+      ? undefined
+      : { ...boundAddAction, icon: Plus };
 
   const clientFilters = (filters ?? []).filter((f) => f.mode === 'client');
 
@@ -567,88 +580,105 @@ function CollectionBody({
       </Row>
     ) : null;
 
+  const showFilterBar = !blocked && !needsConfig;
+  const table = (
+    <DataTable<BoundRow>
+      columns={columnDefs}
+      data={rows}
+      getRowId={tableProps.getRowId}
+      search={tableProps.search}
+      filters={tableProps.filters}
+      onClearFilters={tableProps.onClearFilters}
+      isLoading={isLoading}
+      {...(infinite && showInfinite
+        ? {
+            // Explicit "Load more" — a block is a card among page content,
+            // so it never auto-loads on scroll (parity with the pre-
+            // convergence button). List chrome keeps the same contract.
+            infiniteScroll: { ...infinite, autoLoad: false },
+          }
+        : {})}
+      emptyState={{
+        title: emptyState?.titleKey ?? t('binding.empty'),
+        description: emptyState?.descriptionKey,
+      }}
+      addAction={tableAddAction}
+      filtersContent={listChrome && showFilterBar ? filterBar : undefined}
+      enableExpanding={subjectType !== undefined || subjectUpload !== undefined}
+      autoExpandRowIds={autoExpandRowIds}
+      renderExpandedRow={
+        subjectType !== undefined || subjectUpload !== undefined
+          ? (row) => {
+              const folderRaw = subjectUpload
+                ? row.original[subjectUpload.folderIdField]
+                : undefined;
+              // `folderExists === false` = the bound folder was deleted
+              // (the query stamps it); the card then shows a recover/remove
+              // notice instead of a doomed upload zone.
+              const orphaned = row.original.folderExists === false;
+              const inputCard =
+                typeof folderRaw === 'string' ? (
+                  <FolderUploadCard folderId={folderRaw} orphaned={orphaned} />
+                ) : undefined;
+              const rawId = subjectType
+                ? row.original[subjectIdField]
+                : undefined;
+              if (subjectType && typeof rawId === 'string') {
+                return (
+                  <SubjectRun
+                    subjectType={subjectType}
+                    subjectId={rawId}
+                    input={inputCard}
+                    promisedOutcomes={subjectOutcome?.promises}
+                  />
+                );
+              }
+              return inputCard ? <div className="pt-3">{inputCard}</div> : null;
+            }
+          : undefined
+      }
+      onRowClick={
+        onRowClick
+          ? (row) => applyEffect(onRowClick, undefined, row.original)
+          : undefined
+      }
+      clickableRows={onRowClick !== undefined}
+    />
+  );
+
+  const bindingBody = (
+    <BindingStates
+      blocked={blocked}
+      path={query.path}
+      needsConfig={needsConfig && !awaitingState && !needsProject}
+      needsProject={needsProject}
+      awaitingState={awaitingState}
+    >
+      {table}
+    </BindingStates>
+  );
+
+  if (listChrome) {
+    return (
+      <VStack gap={3}>
+        {resolvedTitle ? (
+          <Text as="h3" className="font-semibold">
+            {resolvedTitle}
+          </Text>
+        ) : null}
+        {bindingBody}
+        {addFormDialog}
+      </VStack>
+    );
+  }
+
   const card = (
     <BlockFrame
       title={resolvedTitle}
       icon={resolvedTitle ? ListChecks : undefined}
-      actions={blocked || needsConfig ? undefined : filterBar}
+      actions={showFilterBar ? filterBar : undefined}
     >
-      <BindingStates
-        blocked={blocked}
-        path={query.path}
-        needsConfig={needsConfig && !awaitingState && !needsProject}
-        needsProject={needsProject}
-        awaitingState={awaitingState}
-      >
-        <DataTable<BoundRow>
-          columns={columnDefs}
-          data={rows}
-          getRowId={tableProps.getRowId}
-          search={tableProps.search}
-          filters={tableProps.filters}
-          onClearFilters={tableProps.onClearFilters}
-          isLoading={isLoading}
-          {...(infinite && showInfinite
-            ? {
-                // Explicit "Load more" — a block is a card among page content,
-                // so it never auto-loads on scroll (parity with the pre-
-                // convergence button).
-                infiniteScroll: { ...infinite, autoLoad: false },
-              }
-            : {})}
-          emptyState={{
-            title: emptyState?.titleKey ?? t('binding.empty'),
-            description: emptyState?.descriptionKey,
-          }}
-          addAction={tableAddAction}
-          enableExpanding={
-            subjectType !== undefined || subjectUpload !== undefined
-          }
-          autoExpandRowIds={autoExpandRowIds}
-          renderExpandedRow={
-            subjectType !== undefined || subjectUpload !== undefined
-              ? (row) => {
-                  const folderRaw = subjectUpload
-                    ? row.original[subjectUpload.folderIdField]
-                    : undefined;
-                  // `folderExists === false` = the bound folder was deleted
-                  // (the query stamps it); the card then shows a recover/remove
-                  // notice instead of a doomed upload zone.
-                  const orphaned = row.original.folderExists === false;
-                  const inputCard =
-                    typeof folderRaw === 'string' ? (
-                      <FolderUploadCard
-                        folderId={folderRaw}
-                        orphaned={orphaned}
-                      />
-                    ) : undefined;
-                  const rawId = subjectType
-                    ? row.original[subjectIdField]
-                    : undefined;
-                  if (subjectType && typeof rawId === 'string') {
-                    return (
-                      <SubjectRun
-                        subjectType={subjectType}
-                        subjectId={rawId}
-                        input={inputCard}
-                        promisedOutcomes={subjectOutcome?.promises}
-                      />
-                    );
-                  }
-                  return inputCard ? (
-                    <div className="pt-3">{inputCard}</div>
-                  ) : null;
-                }
-              : undefined
-          }
-          onRowClick={
-            onRowClick
-              ? (row) => applyEffect(onRowClick, undefined, row.original)
-              : undefined
-          }
-          clickableRows={onRowClick !== undefined}
-        />
-      </BindingStates>
+      {bindingBody}
       {addFormDialog}
     </BlockFrame>
   );
