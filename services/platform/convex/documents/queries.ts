@@ -13,6 +13,7 @@ import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { isActiveDocument } from './_helpers';
 import { canReadDocument, hasKnowledgeHubDocumentAccess } from './access';
@@ -192,7 +193,7 @@ export const searchDocumentsForMention = query({
 });
 
 const documentVersionValidator = v.object({
-  storageId: v.id('_storage'),
+  storageId: blobRefValidator,
   createdAt: v.number(),
   isCurrent: v.boolean(),
   fileName: v.optional(v.string()),

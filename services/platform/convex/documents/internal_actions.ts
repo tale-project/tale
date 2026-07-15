@@ -13,6 +13,7 @@ import type { Id } from '../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 // `generate_document` / `generate_docx` are `'use node'` modules and are NOT
@@ -194,7 +195,7 @@ export const deleteDocumentFromRag = internalAction({
      * scheduled jobs from earlier code keep working.
      */
     expectedExternalItemId: v.optional(v.string()),
-    expectedFileId: v.optional(v.id('_storage')),
+    expectedFileId: v.optional(blobRefValidator),
     /**
      * Sync-reconcile only: forwarded to `deleteDocumentById` so the
      * mutation reaps now-empty ancestor folders up to (but not
@@ -356,7 +357,7 @@ export const uploadDocumentToRag = internalAction({
     // server poll on the fileMetadata row (keyed by the document's storageId).
     // storageId is hoisted so the catch can still mark failure when the upload
     // throws after the document is resolved.
-    let storageId: Id<'_storage'> | null = null;
+    let storageId: BlobRef | null = null;
     try {
       const document = await ctx.runQuery(
         internal.documents.internal_queries.getDocumentByIdRaw,
@@ -450,7 +451,7 @@ export const uploadDocumentToRag = internalAction({
 export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
-    oldFileId: v.id('_storage'),
+    oldFileId: blobRefValidator,
     /** Optional for backward compatibility with in-flight scheduled jobs.
      * New scheduler callers always pass it; when missing we fall back
      * to the current document's organizationId (which may have changed
@@ -619,7 +620,7 @@ export const syncRagFolderPaths = internalAction({
     organizationId: v.string(),
     updates: v.array(
       v.object({
-        fileId: v.id('_storage'),
+        fileId: blobRefValidator,
         /** New folder path; omitted clears it (document moved to the root). */
         folderPath: v.optional(v.string()),
       }),

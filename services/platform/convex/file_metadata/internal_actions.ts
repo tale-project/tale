@@ -12,6 +12,8 @@ import { extractDocumentMetadata } from '../crawler/lib/document_metadata';
 import { getPollingInterval } from '../documents/internal_actions';
 import { isUpstreamHttpError } from '../lib/errors/upstream_http_error';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { readBlobBytes } from '../lib/storage/blob_access';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
@@ -31,7 +33,7 @@ const MAX_POLL_ATTEMPTS = 50;
 export const uploadFileToRag = internalAction({
   args: {
     organizationId: v.string(),
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
   },
@@ -98,7 +100,7 @@ export const uploadFileToRag = internalAction({
  */
 export const pollFileRagStatus = internalAction({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     organizationId: v.string(),
     attempt: v.number(),
   },
@@ -263,7 +265,7 @@ const EXTRACT_METADATA_RETRY_DELAYS = [30_000, 60_000, 120_000];
  */
 export const extractFileMetadata = internalAction({
   args: {
-    storageId: v.id('_storage'),
+    storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
     organizationId: v.string(),
@@ -293,15 +295,25 @@ export const extractFileMetadata = internalAction({
     // call.
     if (ext && EXTRACT_METADATA_EXTENSIONS.has(ext)) {
       try {
-        const fileBlob = await ctx.storage.get(args.storageId);
-        if (!fileBlob) {
+        // Read via the backend-aware seam: a Convex `_storage` id streams from
+        // `_storage`; an `s3:` ref is fetched from the org's own bucket (needs
+        // the slug to resolve the store).
+        const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+        if (orgSlug === null) {
+          console.warn(
+            `[extractFileMetadata] org ${args.organizationId} unresolvable for ${args.storageId}, skipping`,
+          );
+          return null;
+        }
+        let bytes: Uint8Array;
+        try {
+          bytes = await readBlobBytes(ctx, orgSlug, args.storageId);
+        } catch {
           console.warn(
             `[extractFileMetadata] No blob for file ${args.storageId}, skipping`,
           );
           return null;
         }
-
-        const bytes = new Uint8Array(await fileBlob.arrayBuffer());
         const meta = await extractDocumentMetadata(bytes, ext);
 
         const pageCount = meta.pageCount;

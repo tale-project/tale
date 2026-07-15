@@ -19,6 +19,7 @@ import { DataNoticeFooter } from '@/app/features/governance/components/data-noti
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
@@ -136,7 +137,7 @@ interface ChatInputProps extends Omit<
   fileUploadDisabled?: boolean;
   isIndexing?: boolean;
   indexingStatuses?: Map<
-    Id<'_storage'>,
+    BlobRef,
     { status?: string; error?: string; progress?: string }
   >;
   /** True while any audio attachment is still `queued` or `running`, or the
@@ -144,7 +145,7 @@ interface ChatInputProps extends Omit<
    * never sees a "pending" transcript. */
   isTranscribing?: boolean;
   transcriptionStatuses?: Map<
-    Id<'_storage'>,
+    BlobRef,
     {
       status?: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
       error?: string;

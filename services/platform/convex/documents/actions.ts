@@ -4,13 +4,13 @@ import { v } from 'convex/values';
 
 import { isRecord, getBoolean, getString } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import {
   RateLimitExceededError,
   checkUserRateLimit,
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
@@ -33,7 +33,7 @@ export const retryRagIndexing = action({
   handler: async (ctx, args) => {
     // RAG status is canonical on fileMetadata.ragStatus; hoist storageId so the
     // catch can mark failure after the document is resolved.
-    let storageId: Id<'_storage'> | null = null;
+    let storageId: BlobRef | null = null;
     try {
       const authUser = await getAuthUserIdentity(ctx);
       if (!authUser) {

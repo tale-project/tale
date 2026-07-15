@@ -54,6 +54,7 @@ export async function putBlob(
 ): Promise<BlobRef> {
   const store = await resolveOrgObjectStore(orgSlug);
   if (store.backend === 'convex') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
     const blob = new Blob([bytes as BlobPart], { type: contentType });
     return await ctx.storage.store(blob);
   }

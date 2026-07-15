@@ -46,6 +46,7 @@ import {
 } from '../governance/sanitize';
 import { runGenerationCore } from '../lib/agent_chat/internal_actions';
 import { userContextValidator } from '../lib/agent_response/validators';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import type { AutoRouteReason } from '../streaming/validators';
@@ -113,7 +114,7 @@ export const runChatTurnGeneration = internalAction({
       v.array(
         v.object({
           documentId: v.id('documents'),
-          fileId: v.id('_storage'),
+          fileId: blobRefValidator,
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

@@ -29,6 +29,7 @@ import type { PaginationResult } from 'convex/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { documentsSearchStrategy, runEntitySearch } from '../lib/search';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import { isActiveDocument } from './_helpers';
 import { hasKnowledgeHubDocumentAccess } from './access';
 
@@ -40,7 +41,7 @@ const MAX_PROJECT_SCAN = 1000;
 
 export interface MentionDocumentResult {
   documentId: Id<'documents'>;
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   /** Display title — document title, falling back to the blob's file name. */
   title: string;
   fileType: string;

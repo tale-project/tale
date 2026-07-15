@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const getUserStorageUsage = query({
   args: {
@@ -67,11 +68,11 @@ export const getByDocumentId = query({
 export const getByStorageIds = query({
   args: {
     organizationId: v.string(),
-    storageIds: v.array(v.id('_storage')),
+    storageIds: v.array(blobRefValidator),
   },
   returns: v.array(
     v.object({
-      storageId: v.id('_storage'),
+      storageId: blobRefValidator,
       documentId: v.optional(v.id('documents')),
       fileName: v.string(),
       contentType: v.string(),

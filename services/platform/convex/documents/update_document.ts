@@ -9,6 +9,7 @@ import { isRecord } from '../../lib/utils/type-utils';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import { extractExtension } from './extract_extension';
 import { teamIdsToFields } from './team_fields';
 
@@ -19,7 +20,7 @@ export async function updateDocument(
     title?: string;
     content?: string;
     metadata?: unknown;
-    fileId?: Id<'_storage'>;
+    fileId?: BlobRef;
     mimeType?: string;
     extension?: string;
     sourceProvider?: string;

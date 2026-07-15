@@ -4,11 +4,12 @@
  * from `fileMetadata` when present (upsert keeps prior blobs + their rows).
  */
 
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 export type DocumentVersionEntry = {
-  storageId: Id<'_storage'>;
+  storageId: BlobRef;
   createdAt: number;
   isCurrent: boolean;
   fileName?: string;
@@ -21,7 +22,7 @@ export async function listDocumentVersionsForDoc(
   doc: Doc<'documents'>,
 ): Promise<DocumentVersionEntry[]> {
   const history = doc.historyFiles ?? [];
-  const ordered: Array<{ storageId: Id<'_storage'>; isCurrent: boolean }> = [];
+  const ordered: Array<{ storageId: BlobRef; isCurrent: boolean }> = [];
   const seen = new Set<string>();
 
   if (doc.fileId) {

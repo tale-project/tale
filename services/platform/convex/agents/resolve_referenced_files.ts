@@ -23,6 +23,7 @@ import {
   isProjectScopedDocument,
 } from '../documents/access';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 /** Hard cap on `@`-mentioned knowledge-base documents per turn. Mirrored by
  *  the composer (`MAX_KB_MENTIONS` in use-kb-mentions.ts). */
@@ -32,7 +33,7 @@ export const MAX_KB_REFERENCES = 5;
  *  scheduled-action payload. */
 export interface ResolvedKbReference {
   documentId: Id<'documents'>;
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   fileName: string;
   fileType: string;
   fileSize: number;

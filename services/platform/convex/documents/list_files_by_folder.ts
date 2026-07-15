@@ -1,10 +1,11 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { findFolderByPath } from '../folders/find_folder_by_path';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import { isActiveDocument } from './_helpers';
 
 export interface FolderFile {
-  fileId: Id<'_storage'>;
+  fileId: BlobRef;
   name: string;
 }
 

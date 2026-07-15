@@ -8,12 +8,18 @@
  * the org's own bucket). This is the ONLY module that knows the encoding.
  */
 
-import { v } from 'convex/values';
+import { v, type GenericId } from 'convex/values';
 
-import type { Id } from '../../_generated/dataModel';
+// Use `GenericId` from `convex/values` — NOT `Id` from `_generated/dataModel`.
+// This module's `blobRefValidator` is imported BY the schema (documents /
+// fileMetadata), and `dataModel`'s `Id` is derived FROM the schema, so importing
+// `Id` here would close a schema↔dataModel type cycle that poisons every
+// query/mutation ctx type (TS2719). `GenericId<'_storage'>` is identical to
+// `Id<'_storage'>` but schema-independent.
+type StorageId = GenericId<'_storage'>;
 
 /** A stored blob reference: a Convex `_storage` id, or an `s3:`-prefixed key. */
-export type BlobRef = Id<'_storage'> | string;
+export type BlobRef = StorageId | string;
 
 const S3_PREFIX = 's3:';
 
@@ -30,7 +36,7 @@ export function encodeS3Ref(key: string): string {
 }
 
 export type ParsedBlobRef =
-  | { backend: 'convex'; storageId: Id<'_storage'> }
+  | { backend: 'convex'; storageId: StorageId }
   | { backend: 's3'; key: string };
 
 /**
@@ -41,7 +47,8 @@ export function parseBlobRef(ref: BlobRef): ParsedBlobRef {
   if (typeof ref === 'string' && ref.startsWith(S3_PREFIX)) {
     return { backend: 's3', key: ref.slice(S3_PREFIX.length) };
   }
-  return { backend: 'convex', storageId: ref as Id<'_storage'> };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a non-`s3:` ref is a Convex `_storage` id by construction
+  return { backend: 'convex', storageId: ref as StorageId };
 }
 
 /** True when a stored reference points at the org's S3 bucket (not `_storage`). */
@@ -50,7 +57,7 @@ export function isS3Ref(ref: BlobRef): boolean {
 }
 
 /** The Convex storage id of a convex-backed ref, or null for an S3 ref. */
-export function convexStorageId(ref: BlobRef): Id<'_storage'> | null {
+export function convexStorageId(ref: BlobRef): StorageId | null {
   const parsed = parseBlobRef(ref);
   return parsed.backend === 'convex' ? parsed.storageId : null;
 }

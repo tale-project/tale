@@ -5,6 +5,7 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import type {
   documentItemValidator,
   documentFindResponseValidator,
@@ -60,7 +61,7 @@ export interface CreateDocumentArgs {
   title?: string;
 
   content?: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   extension?: string;
   metadata?: unknown;
@@ -117,7 +118,7 @@ export type ListDocumentsByExtensionResult = Array<{
   _id: Id<'documents'>;
   _creationTime: number;
   title?: string;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   mimeType?: string;
   extension?: string;
   metadata?: unknown;

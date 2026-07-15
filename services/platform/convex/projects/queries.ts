@@ -15,6 +15,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { listByOrganizationHandler } from '../members/queries';
 import { isHiddenFromChatHistory } from '../threads/list_threads';
 import {
@@ -287,7 +288,7 @@ export const listProjectDocuments = query({
       _id: v.id('documents'),
       _creationTime: v.number(),
       title: v.optional(v.string()),
-      fileId: v.optional(v.id('_storage')),
+      fileId: v.optional(blobRefValidator),
       mimeType: v.optional(v.string()),
       extension: v.optional(v.string()),
       folderId: v.optional(v.id('folders')),

@@ -6,6 +6,7 @@ import { Bot, Eye, Folder, Loader, RotateCcw, User, X } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { middleEllipsis } from '@/lib/utils/format/file';
@@ -39,8 +40,8 @@ interface AttachmentTrayProps {
   imageAttachments: FileAttachment[];
   fileAttachments: FileAttachment[];
   uploadingFiles: string[];
-  transcriptionStatuses?: Map<Id<'_storage'>, TranscriptionStatusInfo>;
-  indexingStatuses?: Map<Id<'_storage'>, IndexingStatusInfo>;
+  transcriptionStatuses?: Map<BlobRef, TranscriptionStatusInfo>;
+  indexingStatuses?: Map<BlobRef, IndexingStatusInfo>;
   retryAudioTranscription?: (fileId: Id<'_storage'>) => void;
   cancelUpload?: (fileId: string) => void;
   removeAttachment: (fileId: Id<'_storage'>) => void;

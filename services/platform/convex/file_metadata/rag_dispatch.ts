@@ -1,7 +1,8 @@
 import type { GenericMutationCtx } from 'convex/server';
 
 import { internal } from '../_generated/api';
-import type { DataModel, Doc, Id } from '../_generated/dataModel';
+import type { DataModel, Doc } from '../_generated/dataModel';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 type MutationCtx = GenericMutationCtx<DataModel>;
 
@@ -39,7 +40,7 @@ export const MAX_CONCURRENT_RAG_INDEXING_GLOBAL = 8;
 async function countRagInFlight(
   ctx: MutationCtx,
   organizationId: string,
-  excludeStorageId?: Id<'_storage'>,
+  excludeStorageId?: BlobRef,
 ): Promise<number> {
   let inFlight = 0;
   for await (const row of ctx.db
@@ -72,7 +73,7 @@ async function countRagInFlight(
  */
 async function countGlobalRagInFlight(
   ctx: MutationCtx,
-  excludeStorageId?: Id<'_storage'>,
+  excludeStorageId?: BlobRef,
 ): Promise<number> {
   let inFlight = 0;
   for await (const row of ctx.db
@@ -139,7 +140,7 @@ async function dispatchRow(
  */
 export async function maybeDispatchRagIndexing(
   ctx: MutationCtx,
-  storageId: Id<'_storage'>,
+  storageId: BlobRef,
 ): Promise<void> {
   const row = await ctx.db
     .query('fileMetadata')

@@ -17,13 +17,13 @@
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
-import { internalAction } from '../_generated/server';
+import { internalAction, type ActionCtx } from '../_generated/server';
 import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA,
 } from '../lib/knowledge/db/knowledge_db';
 import { withRetry } from '../lib/knowledge/db/retry';
-import { toId } from '../lib/type_cast_helpers';
+import { readBlobBytes } from '../lib/storage/blob_access';
 import { validateMetadataObject } from './lib/document_metadata';
 import { normalizeFolderPath } from './lib/folder_path';
 import {
@@ -37,15 +37,19 @@ function toIso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
 }
 
-/** Resolve upload bytes from a storage id (preferred) or inline base64. */
-async function resolveUploadBytes(
-  // The caller passes a Convex `_storage` id for the uploaded file. The bytes
-  // are read here so the ported indexing pipeline gets a `Uint8Array`.
-  storageBlob: Blob | null,
+/**
+ * Resolve upload bytes from a stored blob reference (a Convex `_storage` id OR
+ * an `s3:<key>` ref — `readBlobBytes` routes to the org's backend) or, when the
+ * caller already holds the bytes, from inline base64.
+ */
+async function readUploadBytes(
+  ctx: ActionCtx,
+  orgSlug: string,
+  ref: string | null | undefined,
   base64Content: string | null,
 ): Promise<Uint8Array> {
-  if (storageBlob) {
-    return new Uint8Array(await storageBlob.arrayBuffer());
+  if (ref != null && ref !== '') {
+    return await readBlobBytes(ctx, orgSlug, ref);
   }
   if (base64Content != null) {
     return new Uint8Array(Buffer.from(base64Content, 'base64'));
@@ -58,20 +62,22 @@ export const upload = internalAction({
     orgSlug: v.string(),
     fileId: v.string(),
     filename: v.string(),
-    // TODO(rewire): the caller passes a Convex `_storage` id for the uploaded
-    // file; the bytes are read here via `ctx.storage.get`. `content` is an
-    // alternative inline base64 path for callers that already hold the bytes.
+    // A stored blob reference for the uploaded file: a Convex `_storage` id OR
+    // an `s3:<key>` ref (the bytes are read via `readBlobBytes`, which routes to
+    // the org's backend). `content` is an alternative inline base64 path for
+    // callers that already hold the bytes.
     storageId: v.optional(v.union(v.string(), v.null())),
     content: v.optional(v.union(v.string(), v.null())),
     sourceCreatedAt: v.optional(v.union(v.number(), v.null())),
     sourceModifiedAt: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    const storageBlob =
-      args.storageId != null && args.storageId !== ''
-        ? await ctx.storage.get(toId<'_storage'>(args.storageId))
-        : null;
-    const bytes = await resolveUploadBytes(storageBlob, args.content ?? null);
+    const bytes = await readUploadBytes(
+      ctx,
+      args.orgSlug,
+      args.storageId,
+      args.content ?? null,
+    );
 
     const sourceCreatedAt =
       args.sourceCreatedAt != null ? new Date(args.sourceCreatedAt) : null;
@@ -231,21 +237,16 @@ export const compareFiles = internalAction({
     maxChanges: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    const baseBlob =
-      args.baseStorageId != null && args.baseStorageId !== ''
-        ? await ctx.storage.get(toId<'_storage'>(args.baseStorageId))
-        : null;
-    const comparisonBlob =
-      args.comparisonStorageId != null && args.comparisonStorageId !== ''
-        ? await ctx.storage.get(toId<'_storage'>(args.comparisonStorageId))
-        : null;
-
-    const baseBytes = await resolveUploadBytes(
-      baseBlob,
+    const baseBytes = await readUploadBytes(
+      ctx,
+      args.orgSlug,
+      args.baseStorageId,
       args.baseContent ?? null,
     );
-    const comparisonBytes = await resolveUploadBytes(
-      comparisonBlob,
+    const comparisonBytes = await readUploadBytes(
+      ctx,
+      args.orgSlug,
+      args.comparisonStorageId,
       args.comparisonContent ?? null,
     );
 

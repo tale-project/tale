@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { toId } from '../lib/type_cast_helpers';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { checkMembership } from './check_membership';
@@ -256,7 +257,7 @@ export const listFilesByFolderInternal = internalQuery({
     v.null(),
     v.array(
       v.object({
-        fileId: v.id('_storage'),
+        fileId: blobRefValidator,
         name: v.string(),
       }),
     ),

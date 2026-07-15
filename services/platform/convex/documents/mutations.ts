@@ -22,6 +22,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
 import { hasTeamAccess } from '../lib/team_access';
 import { stopSyncForDeletedDocument } from '../onedrive/deactivate_sync_configs';
 import { checkProjectAccess } from '../projects/access';
@@ -41,7 +42,7 @@ export const updateDocument = mutation({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     metadata: v.optional(jsonValueValidator),
-    fileId: v.optional(v.id('_storage')),
+    fileId: v.optional(blobRefValidator),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
@@ -173,7 +174,7 @@ export const deleteDocument = mutation({
 export const createDocumentFromUpload = mutation({
   args: {
     organizationId: v.string(),
-    fileId: v.id('_storage'),
+    fileId: blobRefValidator,
     fileName: v.string(),
     contentType: v.optional(v.string()),
     contentHash: v.optional(v.string()),
@@ -325,7 +326,17 @@ export const createDocumentFromUpload = mutation({
     // reject past the product cap. An org upload policy can only narrow this
     // further (checked above); it can't raise it, matching the client, which
     // never lets a >100 MB document through.
-    const storageMeta = await ctx.db.system.get(args.fileId);
+    // `db.system.get` only sizes Convex `_storage` blobs. An `s3:` ref lives in
+    // the org's OWN bucket (the org's storage cost, not the deployment's), so
+    // the authoritative server-side probe isn't available — fall back to the
+    // client-declared `fileSize` for the product cap (the upload policy above
+    // already gated on it).
+    const convexFileId = convexStorageId(args.fileId);
+    const storageMeta = convexFileId
+      ? await ctx.db.system.get(convexFileId)
+      : args.fileSize != null
+        ? { size: args.fileSize }
+        : null;
     if (storageMeta && storageMeta.size > DOCUMENT_MAX_FILE_SIZE) {
       throw new ConvexError({
         code: 'FILE_TOO_LARGE',

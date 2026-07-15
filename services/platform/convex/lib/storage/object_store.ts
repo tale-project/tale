@@ -29,6 +29,7 @@ import { AwsClient } from 'aws4fetch';
 import {
   readOrgObjectStorageConnection,
   type ObjectStorageConnectionFile,
+  type ObjectStorageConnectionSecrets,
 } from '../../object_storage/file_utils';
 
 /** Deployment default: blobs live in Convex `_storage` (per-org logical scope). */
@@ -76,20 +77,54 @@ export async function resolveOrgObjectStore(
   if (resolved === null) {
     store = CONVEX_STORE;
   } else {
-    store = {
-      backend: 's3',
-      client: new AwsClient({
-        accessKeyId: resolved.secrets.accessKeyId,
-        secretAccessKey: resolved.secrets.secretAccessKey,
-        region: resolved.connection.region,
-        service: 's3',
-      }),
-      config: resolved.connection,
-    };
+    store = buildS3ObjectStore(resolved.connection, resolved.secrets);
     console.info(`Resolved per-org S3 object store for org '${orgSlug}'`);
   }
   orgStoreCache.set(orgSlug, { store, expires: now + ORG_STORE_TTL_MS });
   return store;
+}
+
+/**
+ * Build an `S3ObjectStore` from a connection + credentials WITHOUT touching disk
+ * — the shared constructor for both `resolveOrgObjectStore` (which reads the
+ * org's config) and the admin test-connection probe (which validates values
+ * from the form before they are ever persisted).
+ */
+export function buildS3ObjectStore(
+  connection: ObjectStorageConnectionFile,
+  secrets: ObjectStorageConnectionSecrets,
+): S3ObjectStore {
+  return {
+    backend: 's3',
+    client: new AwsClient({
+      accessKeyId: secrets.accessKeyId,
+      secretAccessKey: secrets.secretAccessKey,
+      region: connection.region,
+      service: 's3',
+    }),
+    config: connection,
+  };
+}
+
+/**
+ * Round-trip a throwaway probe object (PUT → GET → DELETE) against the store to
+ * prove the credentials AND the bucket are usable before the admin saves the
+ * config. Throws on any step failure (surfaced to the admin as the test result);
+ * always attempts the cleanup DELETE even when the GET assertion fails.
+ */
+export async function probeS3ObjectStore(store: S3ObjectStore): Promise<void> {
+  const key = buildObjectKey(store, '__tale_probe__');
+  const expected = `tale-object-storage-probe ${new Date().toISOString()}`;
+  const body = new TextEncoder().encode(expected);
+  await s3PutObject(store, key, body, 'text/plain; charset=utf-8');
+  try {
+    const got = await s3GetObjectBytes(store, key);
+    if (new TextDecoder().decode(got) !== expected) {
+      throw new Error('probe object read back with unexpected content');
+    }
+  } finally {
+    await s3DeleteObject(store, key);
+  }
 }
 
 /** Drop the cached store resolution for an org (call after a config change). */
@@ -127,7 +162,7 @@ export function objectUrl(store: S3ObjectStore, key: string): string {
 export function buildObjectKey(store: S3ObjectStore, orgSlug: string): string {
   const prefix = store.config.prefix?.replace(/^\/+|\/+$/g, '');
   const parts = [prefix, orgSlug, randomUUID()].filter(
-    (p): p is string => Boolean(p) && p!.length > 0,
+    (p): p is string => typeof p === 'string' && p.length > 0,
   );
   return parts.join('/');
 }
@@ -144,6 +179,7 @@ export async function s3PutObject(
     // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
     // the cast is only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
     // DOM `BufferSource` shape — it is a valid `BodyInit` at runtime.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- valid BodyInit at runtime (see above)
     body: body as BodyInit,
     headers: { 'content-type': contentType },
   });

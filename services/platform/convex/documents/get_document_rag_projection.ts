@@ -12,8 +12,9 @@
  * `not_indexed`.
  */
 
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 export interface DocumentRagProjection {
   status?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
@@ -64,7 +65,7 @@ export async function getDocumentRagProjectionBatch(
 
   // Deduplicate fileIds so a blob shared by multiple docs is fetched once.
   const seen = new Set<string>();
-  const uniqueFileIds: Id<'_storage'>[] = [];
+  const uniqueFileIds: BlobRef[] = [];
   for (const d of docs) {
     if (!d.fileId) continue;
     const key = String(d.fileId);

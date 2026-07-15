@@ -12,6 +12,7 @@ import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
 import { buildFolderPath } from '../folders/queries';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import {
   budgetTake,
   chargeReadBudget,
@@ -460,7 +461,7 @@ export const moveResource = internalMutation({
       // external-sync reconcile (which matches on folderPath / folderPathPrefix)
       // mis-matches the relocated subtree and re-creates duplicates.
       const ragFolderPathUpdates: Array<{
-        fileId: Id<'_storage'>;
+        fileId: BlobRef;
         folderPath?: string;
       }> = [];
       await fixupMovedFolderDescendants(
@@ -884,7 +885,7 @@ async function fixupMovedFolderDescendants(
   depth: number,
   budget: ReadBudget,
   ragFolderPathUpdates: Array<{
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     folderPath?: string;
   }>,
 ): Promise<void> {
@@ -935,7 +936,7 @@ async function fixupMovedFolderDescendants(
 async function purgeOldBlob(
   ctx: MutationCtx,
   organizationId: string,
-  oldFileId: Id<'_storage'>,
+  oldFileId: BlobRef,
 ): Promise<void> {
   // Refcount guard. COPY shares the source doc's storageId (createDocument is
   // called with fileId: src.fileId — Convex _storage is content-addressed), so
@@ -980,9 +981,20 @@ async function purgeOldBlob(
       documentId: undefined,
     });
   }
-  try {
-    await ctx.storage.delete(oldFileId);
-  } catch (err) {
-    console.warn('[webdav] purgeOldBlob storage.delete failed', err);
+  const convexId = convexStorageId(oldFileId);
+  if (convexId !== null) {
+    try {
+      await ctx.storage.delete(convexId);
+    } catch (err) {
+      console.warn('[webdav] purgeOldBlob storage.delete failed', err);
+    }
+  } else {
+    // S3-backed old blob: a mutation can't sign an S3 delete, so schedule the
+    // org-scoped node action (best-effort, idempotent).
+    await ctx.scheduler.runAfter(
+      0,
+      internal.files.blob_actions.deleteOrgBlobs,
+      { organizationId, refs: [String(oldFileId)] },
+    );
   }
 }

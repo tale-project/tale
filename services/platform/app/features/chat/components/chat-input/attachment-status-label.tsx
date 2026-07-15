@@ -4,7 +4,7 @@ import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Loader } from 'lucide-react';
 
-import type { Id } from '@/convex/_generated/dataModel';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize } from '@/lib/utils/format/file';
@@ -29,8 +29,8 @@ export interface IndexingStatusInfo {
 
 interface AttachmentStatusLabelProps {
   attachment: FileAttachment;
-  transcriptionStatuses?: Map<Id<'_storage'>, TranscriptionStatusInfo>;
-  indexingStatuses?: Map<Id<'_storage'>, IndexingStatusInfo>;
+  transcriptionStatuses?: Map<BlobRef, TranscriptionStatusInfo>;
+  indexingStatuses?: Map<BlobRef, IndexingStatusInfo>;
 }
 
 /**

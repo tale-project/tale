@@ -5,6 +5,7 @@ import { internalMutation } from '../_generated/server';
 import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors';
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { createDocument as createDocumentHelper } from './create_document';
 import { scheduleHubDocumentRagIndexing as scheduleHubDocumentRagIndexingImpl } from './schedule_hub_document_rag_indexing';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
@@ -17,7 +18,7 @@ export const updateDocument = internalMutation({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
-    fileId: v.optional(v.id('_storage')),
+    fileId: v.optional(blobRefValidator),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
@@ -171,7 +172,7 @@ export const createDocument = internalMutation({
     organizationId: v.string(),
     title: v.string(),
     content: v.optional(v.string()),
-    fileId: v.optional(v.id('_storage')),
+    fileId: v.optional(blobRefValidator),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
@@ -195,7 +196,7 @@ export const upsertDocumentByExternalId = internalMutation({
     externalItemId: v.string(),
     folderPathPrefix: v.optional(v.string()),
     title: v.string(),
-    fileId: v.optional(v.id('_storage')),
+    fileId: v.optional(blobRefValidator),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
     sourceProvider: v.optional(v.string()),

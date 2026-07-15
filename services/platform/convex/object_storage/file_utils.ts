@@ -179,6 +179,7 @@ async function readObjectStorageSecrets(
       throw new Error(
         `object-storage credentials missing for org '${orgSlug}': ` +
           `${OBJECT_STORAGE_CONNECTION_KEY}.secrets.json not found`,
+        { cause: err },
       );
     }
     throw err;
