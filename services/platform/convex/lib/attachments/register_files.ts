@@ -1,7 +1,12 @@
-'use node';
-
 /**
  * Register files with the agent component for proper tracking.
+ *
+ * V8-SAFE (no `'use node'`): this module is imported by V8 callers
+ * (`process_attachments.ts`, `index.ts`), so it must NOT pull the `'use node'`
+ * blob seam (`blob_access.ts` → S3 signer → `node:fs`). The `s3:` branch reads
+ * via the backend-aware V8 lane `blob_read_any`, which delegates the actual
+ * presign to a node action through `ctx.runAction` — so the node work happens
+ * in an action, and this file stays V8.
  */
 
 import { getFile } from '@convex-dev/agent';
@@ -9,8 +14,10 @@ import { getFile } from '@convex-dev/agent';
 import { components } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../debug_log';
-import { orgSlugFromIdOrNull } from '../helpers/org_slug';
-import { getBlobUrl, readBlobBytes } from '../storage/blob_access';
+import {
+  fetchBlobArrayBuffer,
+  getBlobFetchUrl,
+} from '../storage/blob_read_any';
 import { convexStorageId } from '../storage/blob_ref';
 import type { FileAttachment, RegisteredFile } from './types';
 
@@ -46,12 +53,6 @@ export async function registerFilesWithAgent(
   attachments: FileAttachment[],
   organizationId: string,
 ): Promise<RegisteredFile[]> {
-  // Lazy, once-per-call slug resolution shared by every `s3:` attachment.
-  let orgSlugPromise: Promise<string | null> | undefined;
-  const resolveSlug = () => {
-    orgSlugPromise ??= orgSlugFromIdOrNull(ctx, organizationId);
-    return orgSlugPromise;
-  };
   const results = await Promise.all(
     attachments.map(async (attachment): Promise<RegisteredFile | null> => {
       try {
@@ -59,30 +60,42 @@ export async function registerFilesWithAgent(
         const isImage = attachment.fileType.startsWith('image/');
 
         if (convexId === null) {
-          const orgSlug = await resolveSlug();
-          if (orgSlug === null) {
-            debugLog(
-              `Org unresolvable; cannot presign S3 file: ${attachment.fileId}`,
-            );
-            return null;
-          }
-          // S3-backed: presign a short-lived GET and build the parts directly.
-          const fileUrl = await getBlobUrl(ctx, orgSlug, attachment.fileId, {
-            filename: attachment.fileName,
-          });
+          // S3-backed: presign a short-lived GET via the V8-safe read lane
+          // (it resolves the org's bucket from `organizationId` and presigns
+          // in a node action). Build the AI-SDK parts directly — an `s3:` blob
+          // is not tracked in the agent component's `_storage`-only registry.
+          const fileUrl = await getBlobFetchUrl(
+            ctx,
+            organizationId,
+            attachment.fileId,
+          );
           if (!fileUrl) {
             debugLog(`Could not presign URL for file: ${attachment.fileId}`);
             return null;
           }
           // Inline the bytes for images (external vision APIs can't always
           // follow short-lived presigned URLs before they expire mid-retry).
-          const imagePart = isImage
-            ? ({
-                type: 'image' as const,
-                image: await readBlobBytes(ctx, orgSlug, attachment.fileId),
+          let imagePart:
+            | {
+                readonly type: 'image';
+                readonly image: Uint8Array;
+                readonly mediaType: string;
+              }
+            | undefined;
+          if (isImage) {
+            const read = await fetchBlobArrayBuffer(
+              ctx,
+              organizationId,
+              attachment.fileId,
+            );
+            if (read) {
+              imagePart = {
+                type: 'image',
+                image: new Uint8Array(read.bytes),
                 mediaType: attachment.fileType,
-              } as const)
-            : undefined;
+              } as const;
+            }
+          }
           return {
             storageId: attachment.fileId,
             imagePart,
