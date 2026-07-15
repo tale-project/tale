@@ -2520,6 +2520,7 @@
       "uploadFailed": "Upload fehlgeschlagen",
       "uploadFailedRetry": "Upload fehlgeschlagen. Bitte prüfe deine Verbindung und versuche es erneut.",
       "quotaExceeded": "Speicherkontingent voll — {used} von {limit} belegt. Lösche Dateien, um Platz zu schaffen (fehlgeschlagene Uploads zählen mit).",
+      "quotaUsage": "{used} von {limit} belegt",
       "rateLimited": "Zu viele Uploads auf einmal. Warte einen Moment und versuche es erneut.",
       "fileTooLargeLimit": "Datei überschreitet das Limit von {limit}.",
       "uploadTimedOut": "Zeitüberschreitung beim Upload. Prüfe deine Verbindung und versuche es erneut.",
