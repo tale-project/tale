@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
 import { createControllerService } from '../services/create-controller-service';
 import { createConvexService } from '../services/create-convex-service';
 import { createDbService } from '../services/create-db-service';
@@ -24,6 +25,9 @@ export function generateStatefulCompose(
     'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
+    // Third-party sidecar; deploy.ts brings it up best-effort after core
+    // services (not in the always-roll tier — see the service comment).
+    'bgutil-provider': createBgutilProviderService(config),
   };
   // Opt-in: emit the privileged restart sidecar only when a shared HMAC token
   // is configured (it exits without one anyway). Operators who want one-click

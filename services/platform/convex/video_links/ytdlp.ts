@@ -28,11 +28,25 @@
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 
 const YTDLP_BIN = 'yt-dlp';
+
+/**
+ * Where `services/convex/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
+ * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
+ * Both are present only in the self-hosted image + stack; when the plugin dir
+ * exists we default the plugin path and provider URL so PO tokens work with
+ * ZERO operator config (mirrors `knowledge_db.ts`'s `knowledge-db` fallback).
+ * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL` override.
+ * Evaluated once at module load — cheap, and the image layout never changes at
+ * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
+ */
+const BAKED_YTDLP_PLUGIN_DIR = '/opt/yt-dlp/plugins';
+const DEFAULT_POT_PROVIDER_URL = 'http://bgutil-provider:4416';
+const HAS_BAKED_YTDLP_PLUGIN = existsSync(BAKED_YTDLP_PLUGIN_DIR);
 
 // Flags supported by every yt-dlp release we care about (≥ 2024.04).
 const BASE_FLAGS: ReadonlyArray<string> = [
@@ -60,8 +74,9 @@ const BASE_FLAGS: ReadonlyArray<string> = [
   'native',
   '--ffmpeg-location',
   '/usr/bin/ffmpeg',
-  '--extractor-args',
-  'youtube:player_client=default,tv_simply',
+  // NOTE: the `youtube:player_client=…` extractor-arg moved out of BASE_FLAGS
+  // into `buildAntiBotFlags` so it can be tuned per deployment (and combined
+  // with a PO token / provider) via env without editing this cached set.
 ];
 
 // Flags whose support depends on the installed yt-dlp version. Probed
@@ -88,6 +103,183 @@ const OPTIONAL_FLAGS: ReadonlyArray<OptionalFlag> = [
   // entirely internal. The probe machinery stays in place for when a
   // genuinely version-gated flag lands.
 ];
+
+// ---------------------------------------------------------------------------
+// Anti-bot-detection flags (built per invocation from deployment env)
+//
+// YouTube walls automated access from datacenter/server IPs with a
+// "Sign in to confirm you're not a bot" challenge. Nothing here is a
+// guaranteed bypass — YouTube's countermeasures are adversarial and change
+// weekly — but each option makes traffic look more legitimate. In order of
+// leverage: a clean egress IP (residential/ISP proxy) > a PO-token provider >
+// guest cookies > client tuning. All are OPT-IN via env so the default build
+// is unchanged. Flags are built as ARGV (never child env — the spawn env is
+// deliberately stripped of secrets), and every credential-bearing value is
+// covered by the stderr sanitizer below.
+// ---------------------------------------------------------------------------
+
+/** Proxy schemes yt-dlp understands (`utils/networking.py`). */
+const SUPPORTED_PROXY_SCHEMES = new Set([
+  'http:',
+  'https:',
+  'socks4:',
+  'socks4a:',
+  'socks5:',
+  'socks5h:',
+]);
+
+/**
+ * `--proxy` from `VIDEO_INGEST_PROXY_URL`. The single highest-leverage
+ * mitigation: routing extraction through a residential/ISP egress moves it off
+ * the deployment's flagged datacenter IP. Prefer `socks5h://` so DNS also
+ * resolves at the proxy. Invalid values are logged (redacted) and ignored
+ * rather than failing ingestion outright.
+ */
+export function proxyFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
+  const raw = env.VIDEO_INGEST_PROXY_URL?.trim();
+  if (!raw) return [];
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    console.warn('[ytdlp] VIDEO_INGEST_PROXY_URL is not a valid URL; ignoring');
+    return [];
+  }
+  if (!SUPPORTED_PROXY_SCHEMES.has(url.protocol)) {
+    console.warn(
+      `[ytdlp] VIDEO_INGEST_PROXY_URL scheme "${url.protocol}" is unsupported; ignoring`,
+    );
+    return [];
+  }
+  return ['--proxy', raw];
+}
+
+/** Default YouTube player clients. `default` (= android_vr, web_safari) needs
+ * no PO token; `tv_simply` is a lightweight fallback. Operators running a PO
+ * token provider can widen this to e.g. `default,mweb` via env. */
+const DEFAULT_YOUTUBE_PLAYER_CLIENT = 'default,tv_simply';
+
+/**
+ * `--extractor-args` for YouTube: the player-client list (env-tunable) plus an
+ * optional manually-supplied PO token, and — separately — a PO-token provider
+ * base URL (the bgutil HTTP provider). The provider is the sustainable way to
+ * supply the GVS tokens that dissolve the bot wall for `mweb`/`web`/`tv_simply`
+ * on a flagged IP; a manually-pinned token is video-ID-bound and short-lived,
+ * so it's mainly for testing. Harmless for non-YouTube extractors (yt-dlp
+ * ignores extractor-args that don't match the active extractor).
+ */
+/**
+ * A pre-warmed session drawn from the pool for a single yt-dlp invocation: a
+ * cookie jar already written to the job dir, plus optional YouTube visitor data
+ * / PO token. Preferred over the env-configured equivalents when present.
+ */
+export interface YtdlpSession {
+  cookiesFile?: string;
+  visitorData?: string;
+  poToken?: string;
+}
+
+export function youtubeExtractorArgsFromEnv(
+  env: NodeJS.ProcessEnv,
+  session?: YtdlpSession,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+): string[] {
+  const client =
+    env.VIDEO_INGEST_PLAYER_CLIENT?.trim() || DEFAULT_YOUTUBE_PLAYER_CLIENT;
+  const parts = [`player_client=${client}`];
+  const poToken = session?.poToken?.trim() || env.VIDEO_INGEST_PO_TOKEN?.trim();
+  if (poToken) parts.push(`po_token=${poToken}`);
+  const visitorData = session?.visitorData?.trim();
+  if (visitorData) parts.push(`visitor_data=${visitorData}`);
+  const flags = ['--extractor-args', `youtube:${parts.join(';')}`];
+
+  // Explicit env wins; otherwise, when the bgutil plugin is baked into the
+  // image, default to the compose sidecar so PO tokens work out of the box.
+  const providerUrl =
+    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
+    (hasBakedPlugin ? DEFAULT_POT_PROVIDER_URL : undefined);
+  if (providerUrl) {
+    if (URL.canParse(providerUrl)) {
+      flags.push(
+        '--extractor-args',
+        `youtubepot-bgutilhttp:base_url=${providerUrl}`,
+      );
+    } else {
+      console.warn(
+        '[ytdlp] VIDEO_INGEST_POT_PROVIDER_URL is not a valid URL; ignoring',
+      );
+    }
+  }
+  return flags;
+}
+
+/**
+ * `--cookies <file>` from `VIDEO_INGEST_COOKIES_FILE`. A Netscape cookie jar
+ * captured from an anonymous incognito session raises the guest rate limit and
+ * softens the bot wall with no account-ban risk; an authenticated jar unlocks
+ * gated content but risks the account (operator's call). The path itself isn't
+ * secret; the jar file lives on the operator's disk and is never read here.
+ */
+export function cookiesFlagsFromEnv(
+  env: NodeJS.ProcessEnv,
+  session?: YtdlpSession,
+): string[] {
+  // A pooled session's freshly-written jar takes precedence over the static
+  // env-configured path.
+  const path =
+    session?.cookiesFile?.trim() || env.VIDEO_INGEST_COOKIES_FILE?.trim();
+  return path ? ['--cookies', path] : [];
+}
+
+/**
+ * `--plugin-dirs <dir>` from `VIDEO_INGEST_YTDLP_PLUGIN_DIRS`. Points yt-dlp at
+ * a plugins directory (e.g. where the bgutil PO-token-provider plugin is baked
+ * into the image) — needed because the spawn sets `HOME` to the throwaway job
+ * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Falls back to
+ * the baked plugin dir when it exists, so the self-hosted image needs no config.
+ */
+export function pluginDirFlagsFromEnv(
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+): string[] {
+  const dir =
+    env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim() ||
+    (hasBakedPlugin ? BAKED_YTDLP_PLUGIN_DIR : undefined);
+  return dir ? ['--plugin-dirs', dir] : [];
+}
+
+/**
+ * `--impersonate <target>` (e.g. `safari`) from `VIDEO_INGEST_IMPERSONATE`.
+ * Matches the TLS/JA3 fingerprint to a real browser for the web clients.
+ * Requires `curl_cffi` in the image, so it stays opt-in — an unset default can
+ * never break a build that lacks it.
+ */
+export function impersonateFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
+  const target = env.VIDEO_INGEST_IMPERSONATE?.trim();
+  return target ? ['--impersonate', target] : [];
+}
+
+/** Always-on light request pacing — keeps the per-IP request rate under
+ * YouTube's guest ceiling without meaningfully slowing a single video. */
+const STEALTH_FLAGS: ReadonlyArray<string> = ['--sleep-requests', '1'];
+
+/**
+ * Assemble every anti-bot flag from the environment. Order is irrelevant to
+ * yt-dlp; grouped by concern for readability.
+ */
+export function buildAntiBotFlags(
+  env: NodeJS.ProcessEnv,
+  session?: YtdlpSession,
+): string[] {
+  return [
+    ...proxyFlagsFromEnv(env),
+    ...pluginDirFlagsFromEnv(env),
+    ...cookiesFlagsFromEnv(env, session),
+    ...impersonateFlagsFromEnv(env),
+    ...youtubeExtractorArgsFromEnv(env, session),
+    ...STEALTH_FLAGS,
+  ];
+}
 
 /**
  * Lazy probe of `yt-dlp --help`. The result is cached for the lifetime
@@ -154,6 +346,14 @@ const SANITIZE_PATTERNS: ReadonlyArray<readonly [RegExp, Replacement]> = [
   [/--password\s+\S+/gi, '--password <redacted>'],
   [/--cookies(-from-browser)?\s+\S+/gi, '--cookies <redacted>'],
   [/--proxy\s+\S+/gi, '--proxy <redacted>'],
+  // Inline credentials in ANY scheme URL (socks included), e.g. a bare
+  // `socks5h://user:pass@host:1080` echoed in a connection error without the
+  // `--proxy` prefix (the `https?://` rule above only covers http/https).
+  // Preserve scheme+host, drop `user:pass@`.
+  [
+    /\b([a-z][a-z0-9+.-]*:\/\/)[^\s:@/]+:[^\s@/]+@/gi,
+    (m: string): string => `${m.slice(0, m.indexOf('//') + 2)}<redacted>@`,
+  ],
   [/Authorization:\s*\S+/gi, 'Authorization: <redacted>'],
   // Cookie / Set-Cookie headers: yt-dlp -v dumps full cookie jars on
   // some failure paths. Strip the whole header value, not just the
@@ -178,7 +378,7 @@ const SANITIZE_PATTERNS: ReadonlyArray<readonly [RegExp, Replacement]> = [
   ],
 ];
 
-function sanitizeStderr(raw: string): string {
+export function sanitizeStderr(raw: string): string {
   let out = raw;
   for (const [re, sub] of SANITIZE_PATTERNS) {
     // String.replace's overload signature accepts either a string or a
@@ -235,7 +435,7 @@ export class YtDlpError extends Error {
  *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
  *    Caller should alert loudly, not silently retry.
  */
-function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
+export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   const s = stderr.toLowerCase();
   if (
     s.includes('sign in to confirm') ||
@@ -293,10 +493,16 @@ async function runYtdlp(
   args: string[],
   jobDir: string,
   timeoutMs: number,
+  session?: YtdlpSession,
 ): Promise<YtDlpSpawnResult> {
   // Resolve the flag set the installed yt-dlp actually accepts. First
   // call probes `--help` and caches; subsequent calls are free.
   const commonFlags = await resolveSupportedFlags();
+  // Anti-bot flags are rebuilt per call (cheap) so an operator can change
+  // proxy / provider / cookies config without restarting — env is re-read
+  // from `process.env`, which the deployment env-sync keeps current. A pooled
+  // session (if provided) supplies its own cookie jar + visitor data.
+  const antiBotFlags = buildAntiBotFlags(process.env, session);
   return new Promise((resolve, reject) => {
     // `detached: true` puts the child in its own process group so we can
     // signal the whole group with `process.kill(-pid, ...)` on timeout.
@@ -304,7 +510,7 @@ async function runYtdlp(
     // action is hard-killed — the wrapper Node process terminates but
     // ffmpeg continues to its natural exit, leaving disk/CPU usage that
     // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
-    const proc = spawn(YTDLP_BIN, [...commonFlags, ...args], {
+    const proc = spawn(YTDLP_BIN, [...commonFlags, ...antiBotFlags, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: jobDir,
       detached: true,
@@ -573,8 +779,14 @@ export async function ytdlpJson(
   url: string,
   jobDir: string,
   timeoutMs = 90_000,
+  session?: YtdlpSession,
 ): Promise<YtDlpMetadata> {
-  const { stdout } = await runYtdlp(['-J', '--', url], jobDir, timeoutMs);
+  const { stdout } = await runYtdlp(
+    ['-J', '--', url],
+    jobDir,
+    timeoutMs,
+    session,
+  );
   // `-J` produces a single JSON object on stdout. For non-playlist URLs
   // we asked for, it's the video info_dict directly.
   let parsed: unknown;
@@ -627,6 +839,7 @@ export async function ytdlpWriteSubs(
      * (used when no manual track in the desired language exists). */
     includeAutoGenerated?: boolean;
     timeoutMs?: number;
+    session?: YtdlpSession;
   } = {},
 ): Promise<string | null> {
   if (!LANG_TOKEN_RE.test(lang)) {
@@ -640,7 +853,13 @@ export async function ytdlpWriteSubs(
     '--write-subs',
     ...(opts.includeAutoGenerated ? ['--write-auto-subs'] : []),
     '--sub-format',
-    'json3/srv3/ttml/vtt/best',
+    // Prefer native VTT: YouTube (and Vimeo/Dailymotion) serve it directly, so
+    // `--convert-subs vtt` is a no-op and no ffmpeg conversion runs. json3 is
+    // deliberately EXCLUDED — yt-dlp converts it to VTT via ffmpeg, which cannot
+    // read json3 and fails with "Invalid data found when processing input",
+    // dropping the whole transcript. srv3/ttml remain as ffmpeg-convertible
+    // fallbacks for the rare source without a native VTT track.
+    'vtt/srv3/ttml/best',
     '--convert-subs',
     'vtt',
     '--sub-langs',
@@ -668,7 +887,7 @@ export async function ytdlpWriteSubs(
     '--',
     url,
   ];
-  await runYtdlp(args, jobDir, opts.timeoutMs ?? 90_000);
+  await runYtdlp(args, jobDir, opts.timeoutMs ?? 90_000, opts.session);
 
   // Find the .vtt file yt-dlp wrote. It uses the video id + lang code
   // suffix, e.g. `<id>.en.vtt`.
@@ -696,6 +915,7 @@ export async function ytdlpExtractAudio(
   url: string,
   jobDir: string,
   timeoutMs = 15 * 60_000,
+  session?: YtdlpSession,
 ): Promise<string> {
   const args = [
     '-x',
@@ -719,7 +939,7 @@ export async function ytdlpExtractAudio(
     '--',
     url,
   ];
-  await runYtdlp(args, jobDir, timeoutMs);
+  await runYtdlp(args, jobDir, timeoutMs, session);
 
   const entries = await fs.readdir(jobDir);
   const audio = entries.find((e) => e.endsWith('.ogg'));

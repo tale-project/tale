@@ -75,6 +75,17 @@ Halt die Liste kurz und bevorzuge spezifische Hosts gegenüber Wildcards. Paket-
 
 Die Hash-Kette des Audit-Logs wird automatisch jede Nacht verifiziert. Jeder Bruch löst einen kritischen Security-Alert an die Org-Admins aus — in der Notification-Glocke und, wenn Slack verbunden ist, in deinem Slack-Channel —, sodass Manipulation auffällt, auch wenn niemand die Logs beobachtet. Dieselbe Verifikation kannst du jederzeit on demand von der Admin-Audit-Log-Seite aus neu walken.
 
+## HTTP-Sicherheitsheader
+
+Jede HTML-Antwort trägt einen strengen Satz an Sicherheitsheadern, und der Satz ist durch Tests abgesichert, sodass ein Upgrade keinen davon unbemerkt fallen lassen kann. Der Plattform-Webclient (`services/platform`) sendet eine Nonce-basierte Content-Security-Policy ohne `unsafe-inline`-Skripte, HSTS über HTTPS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` zusammen mit CSP `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, eine restriktive `Permissions-Policy` und `X-Permitted-Cross-Domain-Policies: none`. Er erreicht A+ im MDN HTTP Observatory, und diese Note wird von der CI-Testsuite abgesichert — die Bewertung ist in Tests nachgebildet, die den Build bei jeder Regression scheitern lassen. Die Marketing-Seite und die Docs-Seite liefern dieselbe Header-Familie und ergänzen `Cross-Origin-Opener-Policy` und `Cross-Origin-Resource-Policy` mit `same-origin`.
+
+Gegen die eigene Bereitstellung prüfen:
+
+- `curl -sI https://<dein-host>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
+- Den Host auf [securityheaders.com](https://securityheaders.com) oder im [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory) scannen.
+
+Cross-Origin-Isolation (COOP/CORP) ist auf der Plattform-App bewusst deaktiviert, weil sie OAuth-Anmelde-Popups öffnet und für Branding-Assets von einem zweiten Host erreichbar sein kann; die Content-Seiten, die keines von beidem tun, aktivieren sie. HSTS wird nur ausgegeben, wenn `SITE_URL` `https://` ist.
+
 ## Wo das hingehört
 
 Hardening ist keine Ein-Durchgangs-Aufgabe — die Liste oben ist das, was du vor dem Launch walkst und nach jedem Upgrade oder nach jeder Änderung der Netzwerk-Form neu walkst. Das nächste, was es wert ist, danach zu lesen, ist die Zeile oben, die du noch nicht gemacht hast.

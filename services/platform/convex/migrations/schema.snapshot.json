@@ -2390,6 +2390,104 @@
         "optional": false
       }
     },
+    "browserSessions": {
+      "cookiesEncrypted": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "createdBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "domain": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "expiresAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "failureCount": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "label": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "lastUsedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "poToken": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "source": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "imported"
+            },
+            {
+              "type": "literal",
+              "value": "warmed"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "healthy"
+            },
+            {
+              "type": "literal",
+              "value": "cooling"
+            },
+            {
+              "type": "literal",
+              "value": "expired"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "userAgent": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "visitorData": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      }
+    },
     "chatFilterEvents": {
       "actorType": {
         "ft": {

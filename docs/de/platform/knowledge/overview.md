@@ -17,6 +17,12 @@ Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die
 
 Die Form, die du wählst, entscheidet, wie ein Agent den Inhalt nutzen kann — deshalb ist [Strukturierte Daten](/de/platform/knowledge/structured-data) eine Entscheidungsseite, nicht nur eine Referenz.
 
+## Wo der Index liegt
+
+Indexierte Inhalte werden in Tales eingebaute Vektordatenbank eingebettet — einen **PostgreSQL**-Speicher (ParadeDB), der `pgvector`-Embeddings mit Keyword-Suche (BM25) kombiniert und beide fusioniert, sodass die Suche sowohl semantische Treffer als auch exakte Begriffe erfasst. Er kommt mit der Plattform, es gibt also nichts zusätzlich zu lizenzieren oder zu betreiben, und Suche, Zitate, team-bezogene Berechtigungen und DSGVO-Löschung arbeiten alle auf einem Speicher. Embeddings stammen vom konfigurierten Embedding-Provider der Organisation, sodass du das Modell wählst, ohne etwas darunter anzufassen.
+
+**Bring deine eigene Vektordatenbank mit — es ist Postgres.** Weil der Vektorspeicher PostgreSQL ist, kannst du Tales Wissensdatenbank statt auf die mitgelieferte auf jedes von dir betriebene verwaltete PostgreSQL zeigen (mit den Erweiterungen `pgvector` und `pg_search`/ParadeDB) — deine Daten, deine Infrastruktur, deine Region. Du setzt die Verbindung über die Deployment-Variable `KNOWLEDGE_DATABASE_URL`, gleich für eine selbst gehostete Bereitstellung und eine dedizierte Cloud-Instanz. Tale kann die Verbindung und das Vorhandensein der nötigen Erweiterungen prüfen, bevor du umstellst. Siehe [Datenresidenz](/de/self-hosted/configuration/data-residency) für die Verbindungsdetails und die Erweiterungs-Voraussetzungen.
+
 ## Wie Agenten hineingreifen
 
 Ein Agent sieht die ganze Bibliothek nicht von selbst. Der Tab **Wissen** des Agenten steuert seinen Abruf-Umfang — welche Teile der Bibliothek er zur Antwortzeit durchsucht —, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Den Abruf treiben die RAG-getaggten Tools des Agenten, und jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Agent-Wissen](/de/platform/agents/knowledge).

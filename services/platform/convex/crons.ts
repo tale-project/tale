@@ -166,6 +166,16 @@ cron(
   {},
 );
 
+// Browser-session pool sweep — expire past-TTL warmed sessions, recover cooled
+// ones whose quiet period elapsed (so a transiently rate-limited session is
+// reused rather than discarded), and prune long-expired rows. Every 10 min
+// keeps cooling recovery timely for a small pool.
+cron(
+  'sweep browser sessions (every 10 min)',
+  '*/10 * * * *',
+  internal.browser_sessions.sessions.sweepBrowserSessions,
+  {},
+);
 // Sandbox SESSION slot reclamation — flip a leaked session row (a throw between
 // reserve and the spawner create returning, or a container reaped out-of-band)
 // past its hard lifetime to `expired` so it stops pinning the per-(org) and

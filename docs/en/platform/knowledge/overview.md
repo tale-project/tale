@@ -17,6 +17,12 @@ Everything in the area is one of two shapes. **Indexed content** — the files i
 
 The shape you pick decides how an agent can use the content, which is why [Structured data](/platform/knowledge/structured-data) is a decision page, not just a reference.
 
+## Where the index lives
+
+Indexed content is embedded into Tale's built-in vector database — a **PostgreSQL** store (ParadeDB) that combines `pgvector` embeddings with keyword (BM25) search and fuses the two, so retrieval catches both semantic matches and exact terms. It ships with the platform, so there's nothing extra to license or operate, and retrieval, citations, per-team permissions, and GDPR erasure all act on one store. Embeddings come from the org's configured embedding provider, so you choose the model without touching anything beneath it.
+
+**Bring your own vector database — it's Postgres.** Because the vector store is PostgreSQL, you can point Tale's knowledge database at any managed PostgreSQL you run (with the `pgvector` and `pg_search`/ParadeDB extensions) instead of the bundled one — your data, your infrastructure, your region. You set its connection with the `KNOWLEDGE_DATABASE_URL` deployment variable, the same way for a self-hosted deployment and a dedicated cloud instance. Tale can verify the connection and that the required extensions are present before you cut over. See [Data residency](/self-hosted/configuration/data-residency) for the connection details and the extension prerequisites.
+
 ## How agents reach in
 
 An agent does not see the whole library by default. The agent's **Knowledge** tab controls its retrieval scope — which parts of the library it searches at reply time — and team-scoped items stay invisible to agents and members outside the team. Retrieval is driven by the agent's RAG-tagged tools, and every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Agent knowledge](/platform/agents/knowledge).

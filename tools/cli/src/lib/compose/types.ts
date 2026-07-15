@@ -14,6 +14,11 @@ export const DEFAULT_LOGGING: LoggingConfig = {
 export interface ComposeService {
   image: string;
   container_name?: string;
+  // `init: true` runs an init process (PID 1 reaper) — needed by sidecars that
+  // spawn short-lived child processes (e.g. the bgutil provider's headless
+  // workers). `pull_policy` is emitted for third-party images not built here.
+  init?: boolean;
+  pull_policy?: string;
   stop_grace_period?: string;
   shm_size?: string;
   ports?: string[];

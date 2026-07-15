@@ -32,6 +32,7 @@
  *    blocked by an unhealthy spawner).
  */
 
+import { netscapeJarToCookieHeader } from '../../browser_sessions/cookie_header';
 import {
   renderUrlInSandbox,
   type SandboxRenderContext,
@@ -51,6 +52,18 @@ export interface FetchRenderedResult {
 export interface FetchRenderedOptions {
   timeoutMs?: number;
   userAgent?: string;
+  /**
+   * Netscape cookie jar for a pre-warmed browser session (see the
+   * `browserSessions` pool). When set, the plain fetch derives a `Cookie`
+   * header from it so a bot-walled host sees a returning visitor.
+   *
+   * Deliberately applied to the plain-fetch path ONLY. The sandbox-render path
+   * executes its Playwright script inside `sandbox-runtime` — a lower-trust
+   * execution environment shared with agent code — so decrypted session
+   * cookies must NOT be seeded there; they stay in the Convex action layer.
+   * The sandbox render uses the session's User-Agent only.
+   */
+  cookieJar?: string;
   /**
    * Sandbox render context (action `ctx` + organizationId). When present AND
    * `CRAWLER_RENDER_VIA_SANDBOX=1`, the page is JS-rendered via the spawner;
@@ -75,6 +88,9 @@ export async function fetchRenderedHtml(
     options.renderContext !== undefined
   ) {
     try {
+      // NB: `cookieJar` is intentionally NOT forwarded — warmed session
+      // cookies never enter the sandbox execution environment (see the
+      // `cookieJar` doc above). Only the User-Agent crosses over.
       const rendered = await renderUrlInSandbox(options.renderContext, url, {
         timeoutMs: options.timeoutMs,
         userAgent: options.userAgent,
@@ -114,8 +130,14 @@ async function plainFetch(
   options: FetchRenderedOptions,
 ): Promise<FetchRenderedResult> {
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const cookieHeader = options.cookieJar
+    ? netscapeJarToCookieHeader(options.cookieJar, url)
+    : '';
   const res = await fetch(url, {
-    headers: { 'user-agent': options.userAgent ?? DEFAULT_USER_AGENT },
+    headers: {
+      'user-agent': options.userAgent ?? DEFAULT_USER_AGENT,
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
     signal: AbortSignal.timeout(timeoutMs),
     redirect: 'follow',
   });

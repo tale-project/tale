@@ -67,7 +67,12 @@
     },
     "test": {
       "dependsOn": ["setup"],
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "YOUTUBE_LIVE_TEST",
+        "VIDEO_INGEST_YTDLP_PLUGIN_DIRS",
+        "VIDEO_INGEST_POT_PROVIDER_URL"
+      ]
     },
     "test:watch": {
       "dependsOn": ["setup"],
