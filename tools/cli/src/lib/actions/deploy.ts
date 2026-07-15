@@ -435,6 +435,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
               `${prefix}Would deploy controller sidecar (separate, non-blocking)`,
             );
           }
+          logger.info(
+            `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
+          );
         } else {
           // Drain in-flight chat generations before the in-place recreate kills
           // them. Best-effort (see drain-convex.ts); the recovery watchdog
@@ -526,6 +529,30 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 );
               }
             }
+          }
+
+          // bgutil PO-token provider — brought up SEPARATELY and best-effort,
+          // like the controller above. It's a third-party image (not a
+          // `tale-*` build in the always-roll tier), so a pull/start failure
+          // must never fail the core deploy, and YouTube ingestion degrades
+          // gracefully (no PO token) if it never starts. Always attempted —
+          // it's the zero-config path, not opt-in.
+          const bgutilUp = await dockerCompose(
+            statefulCompose,
+            [
+              'up',
+              '-d',
+              ...(options.forceRecreate ? ['--force-recreate'] : []),
+              'bgutil-provider',
+            ],
+            { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
+          );
+          if (!bgutilUp.success) {
+            logger.warn(
+              `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+            );
+          } else {
+            startedContainers.push(`${getProjectId()}-bgutil-provider`);
           }
         }
       }

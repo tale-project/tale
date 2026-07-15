@@ -28,11 +28,25 @@
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 
 const YTDLP_BIN = 'yt-dlp';
+
+/**
+ * Where `services/convex/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
+ * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
+ * Both are present only in the self-hosted image + stack; when the plugin dir
+ * exists we default the plugin path and provider URL so PO tokens work with
+ * ZERO operator config (mirrors `knowledge_db.ts`'s `knowledge-db` fallback).
+ * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL` override.
+ * Evaluated once at module load — cheap, and the image layout never changes at
+ * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
+ */
+const BAKED_YTDLP_PLUGIN_DIR = '/opt/yt-dlp/plugins';
+const DEFAULT_POT_PROVIDER_URL = 'http://bgutil-provider:4416';
+const HAS_BAKED_YTDLP_PLUGIN = existsSync(BAKED_YTDLP_PLUGIN_DIR);
 
 // Flags supported by every yt-dlp release we care about (≥ 2024.04).
 const BASE_FLAGS: ReadonlyArray<string> = [
@@ -168,6 +182,7 @@ export interface YtdlpSession {
 export function youtubeExtractorArgsFromEnv(
   env: NodeJS.ProcessEnv,
   session?: YtdlpSession,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
 ): string[] {
   const client =
     env.VIDEO_INGEST_PLAYER_CLIENT?.trim() || DEFAULT_YOUTUBE_PLAYER_CLIENT;
@@ -178,7 +193,11 @@ export function youtubeExtractorArgsFromEnv(
   if (visitorData) parts.push(`visitor_data=${visitorData}`);
   const flags = ['--extractor-args', `youtube:${parts.join(';')}`];
 
-  const providerUrl = env.VIDEO_INGEST_POT_PROVIDER_URL?.trim();
+  // Explicit env wins; otherwise, when the bgutil plugin is baked into the
+  // image, default to the compose sidecar so PO tokens work out of the box.
+  const providerUrl =
+    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
+    (hasBakedPlugin ? DEFAULT_POT_PROVIDER_URL : undefined);
   if (providerUrl) {
     if (URL.canParse(providerUrl)) {
       flags.push(
@@ -216,11 +235,16 @@ export function cookiesFlagsFromEnv(
  * `--plugin-dirs <dir>` from `VIDEO_INGEST_YTDLP_PLUGIN_DIRS`. Points yt-dlp at
  * a plugins directory (e.g. where the bgutil PO-token-provider plugin is baked
  * into the image) — needed because the spawn sets `HOME` to the throwaway job
- * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Unset by
- * default; harmless when the dir has no plugins.
+ * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Falls back to
+ * the baked plugin dir when it exists, so the self-hosted image needs no config.
  */
-export function pluginDirFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
-  const dir = env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim();
+export function pluginDirFlagsFromEnv(
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+): string[] {
+  const dir =
+    env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim() ||
+    (hasBakedPlugin ? BAKED_YTDLP_PLUGIN_DIR : undefined);
   return dir ? ['--plugin-dirs', dir] : [];
 }
 

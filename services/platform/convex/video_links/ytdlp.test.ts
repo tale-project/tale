@@ -129,6 +129,32 @@ describe('youtubeExtractorArgsFromEnv', () => {
     expect(flags.join(' ')).not.toContain('bgutil');
     warn.mockRestore();
   });
+
+  it('defaults the provider URL to the compose sidecar when the plugin is baked in', () => {
+    // hasBakedPlugin=true simulates the self-hosted image where the bgutil
+    // plugin dir exists; no operator env is needed.
+    const flags = youtubeExtractorArgsFromEnv({}, undefined, true);
+    expect(flags).toContain(
+      'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416',
+    );
+  });
+
+  it('does not default the provider URL without the baked plugin', () => {
+    const flags = youtubeExtractorArgsFromEnv({}, undefined, false);
+    expect(flags.join(' ')).not.toContain('bgutil');
+  });
+
+  it('lets an explicit provider URL override the baked default', () => {
+    const flags = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_POT_PROVIDER_URL: 'http://custom:9999' },
+      undefined,
+      true,
+    );
+    expect(flags).toContain(
+      'youtubepot-bgutilhttp:base_url=http://custom:9999',
+    );
+    expect(flags.join(' ')).not.toContain('bgutil-provider');
+  });
 });
 
 describe('cookies / impersonate flags', () => {
@@ -245,5 +271,18 @@ describe('pluginDirFlagsFromEnv', () => {
         VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/etc/yt-dlp/plugins',
       }),
     ).toEqual(['--plugin-dirs', '/etc/yt-dlp/plugins']);
+  });
+
+  it('falls back to the baked plugin dir when it exists', () => {
+    expect(pluginDirFlagsFromEnv({}, true)).toEqual([
+      '--plugin-dirs',
+      '/opt/yt-dlp/plugins',
+    ]);
+  });
+
+  it('prefers an explicit env dir over the baked default', () => {
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/x' }, true),
+    ).toEqual(['--plugin-dirs', '/x']);
   });
 });
