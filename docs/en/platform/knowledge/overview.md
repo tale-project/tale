@@ -19,9 +19,9 @@ The shape you pick decides how an agent can use the content, which is why [Struc
 
 ## Where the index lives
 
-Indexed content is embedded into Tale's built-in vector database — a Postgres store (ParadeDB) that combines `pgvector` embeddings with keyword (BM25) search and fuses the two, so retrieval catches both semantic matches and exact terms. There is nothing to connect, license, or run separately: the vector store ships with the platform, which is what lets retrieval, citations, per-team permissions, and GDPR erasure all act on one store instead of a bolt-on service. Embeddings come from the org's configured embedding provider, so you choose the model without touching anything beneath it.
+Indexed content is embedded into Tale's built-in vector database — a **PostgreSQL** store (ParadeDB) that combines `pgvector` embeddings with keyword (BM25) search and fuses the two, so retrieval catches both semantic matches and exact terms. It ships with the platform, so there's nothing extra to license or operate, and retrieval, citations, per-team permissions, and GDPR erasure all act on one store. Embeddings come from the org's configured embedding provider, so you choose the model without touching anything beneath it.
 
-External vector engines — Pinecone, Weaviate, Qdrant, and the like — are not attachable, by design, and not needed. A self-hosted deployment that must keep the corpus on its own infrastructure can point the knowledge database at a managed Postgres it runs; see [Data residency](/self-hosted/configuration/data-residency).
+**Bring your own vector database — it's Postgres.** Because the vector store is PostgreSQL, you can point Tale's knowledge database at any managed PostgreSQL you run (with the `pgvector` and `pg_search`/ParadeDB extensions) instead of the bundled one — your data, your infrastructure, your region. You set its connection with the `KNOWLEDGE_DATABASE_URL` deployment variable, the same way for a self-hosted deployment and a dedicated cloud instance. Tale can verify the connection and that the required extensions are present before you cut over. See [Data residency](/self-hosted/configuration/data-residency) for the connection details and the extension prerequisites.
 
 ## How agents reach in
 
