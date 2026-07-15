@@ -2,6 +2,10 @@ import { v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
+import {
+  deleteBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
 
 const PAGE_SIZE = 200;
 // 7 days — matches the retention contract documented on `ttsAudioChunks`.
@@ -42,6 +46,7 @@ export async function cascadeDeleteMessageChildren(
   },
 ): Promise<{ deleted: number }> {
   let deleted = 0;
+  const s3Refs: string[] = [];
   for (const messageId of args.messageIds) {
     for await (const chunk of ctx.db
       .query('ttsAudioChunks')
@@ -60,22 +65,22 @@ export async function cascadeDeleteMessageChildren(
       // post-blob abort would leave the row pointing at a dead storageId
       // (404 on `/api/tts-audio`). Reversed order means a `db.delete`
       // failure aborts cleanly with both row+blob intact; a later
-      // `storage.delete` failure only leaks a blob, which the daily
-      // `gcOrgTtsChunks` cron sweeps as defence-in-depth.
+      // blob-delete failure only leaks a blob, which the daily
+      // `gcOrgTtsChunks` cron sweeps as defence-in-depth. `s3:` refs are
+      // batched onto the scheduled node lane below (a mutation can't sign S3).
       await ctx.db.delete(chunk._id);
       if (chunk.storageId) {
-        try {
-          await ctx.storage.delete(chunk.storageId);
-        } catch (err) {
-          console.warn(
-            '[tts.cascadeDeleteMessageChildren] storage.delete failed',
-            err,
-          );
-        }
+        await deleteBlobInMutation(
+          ctx,
+          chunk.storageId,
+          s3Refs,
+          'tts.cascadeDeleteMessageChildren',
+        );
       }
       deleted += 1;
     }
   }
+  await scheduleS3BlobDeletes(ctx, args.organizationId, s3Refs);
   return { deleted };
 }
 
@@ -93,6 +98,7 @@ export async function cascadeOnTtsForMemberRemoved(
   organizationId: string,
 ): Promise<{ deleted: number }> {
   let deleted = 0;
+  const s3Refs: string[] = [];
   // Cap the scan at 30 pages (×200 = 6K writes) to stay under Convex's
   // ~8K per-mutation write budget. Whatever doesn't fit gets reaped by
   // the daily cron — still inside the 30-day Art 12(3) window.
@@ -105,23 +111,22 @@ export async function cascadeOnTtsForMemberRemoved(
       .take(PAGE_SIZE);
     if (page.length === 0) break;
     for (const row of page) {
-      // db.delete before storage.delete — see comment in
+      // db.delete before the blob delete — see comment in
       // `cascadeDeleteMessageChildren` for the rationale.
       await ctx.db.delete(row._id);
       if (row.storageId) {
-        try {
-          await ctx.storage.delete(row.storageId);
-        } catch (err) {
-          console.warn(
-            '[tts.cascadeOnTtsForMemberRemoved] storage.delete failed',
-            err,
-          );
-        }
+        await deleteBlobInMutation(
+          ctx,
+          row.storageId,
+          s3Refs,
+          'tts.cascadeOnTtsForMemberRemoved',
+        );
       }
       deleted += 1;
     }
     if (page.length < PAGE_SIZE) break;
   }
+  await scheduleS3BlobDeletes(ctx, organizationId, s3Refs);
   return { deleted };
 }
 
@@ -209,19 +214,22 @@ export const gcOrgTtsChunks = internalMutation({
       // this orgId.
       if (stale.length === 0) continue;
       orgsScanned += 1;
+      const s3Refs: string[] = [];
       for (const row of stale) {
-        // db.delete before storage.delete — see comment in
+        // db.delete before the blob delete — see comment in
         // `cascadeDeleteMessageChildren` for the rationale.
         await ctx.db.delete(row._id);
         if (row.storageId) {
-          try {
-            await ctx.storage.delete(row.storageId);
-          } catch (err) {
-            console.warn('[tts.gcOrgTtsChunks] storage.delete failed', err);
-          }
+          await deleteBlobInMutation(
+            ctx,
+            row.storageId,
+            s3Refs,
+            'tts.gcOrgTtsChunks',
+          );
         }
         rowsDeleted += 1;
       }
+      await scheduleS3BlobDeletes(ctx, orgId, s3Refs);
     }
 
     // Persist the cursor for the next run. A wrap-around resets

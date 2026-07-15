@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { ttsErrorCodeLiterals } from './error_codes';
 
 /**
@@ -68,7 +69,11 @@ export const ttsAudioChunksTable = defineTable({
   agentSlug: v.optional(v.string()),
   index: v.number(),
   text: v.string(),
-  storageId: v.optional(v.id('_storage')),
+  // Audio blob reference: a Convex `_storage` id (deployment default) OR an
+  // `s3:<key>` ref when the org brings its own bucket (synthesize.ts routes the
+  // store through `putBlob`). Widened from `v.id('_storage')` — every existing
+  // id still validates. Serving stays chunkId-keyed via `/api/tts-audio`.
+  storageId: v.optional(blobRefValidator),
   status: v.union(
     v.literal('pending'),
     v.literal('ready'),

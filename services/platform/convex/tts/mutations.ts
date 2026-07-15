@@ -23,6 +23,12 @@ import { rateLimiter } from '../lib/rate_limiter';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import {
+  deleteBlobInMutation,
+  deleteOrgBlobInMutation,
+  scheduleS3BlobDeletes,
+} from '../lib/storage/blob_delete';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { ttsErrorCodeLiterals } from './error_codes';
 
@@ -222,7 +228,9 @@ export const reserveChunk = internalMutation({
   returns: v.union(
     v.object({
       kind: v.literal('ready'),
-      storageId: v.id('_storage'),
+      // Blob reference (`_storage` id or `s3:` ref) — the schema field is
+      // widened, so a cache hit must echo whichever form the row holds.
+      storageId: blobRefValidator,
       voice: v.optional(v.string()),
       format: v.optional(
         v.union(...audioFormatLiterals.map((literal) => v.literal(literal))),
@@ -449,14 +457,14 @@ export const reserveChunk = internalMutation({
       // retry that follows the upload step would leak its blob until the
       // 7-day org sweep eventually catches it.
       if (existing.storageId) {
-        try {
-          await ctx.storage.delete(existing.storageId);
-        } catch (err) {
-          console.warn(
-            '[tts.reserveChunk] failed to delete prior blob',
-            sanitizeError(err),
-          );
-        }
+        // Backend-aware: `s3:` refs route through the scheduled node lane
+        // (a mutation can't sign S3); Convex ids keep the inline delete.
+        await deleteOrgBlobInMutation(
+          ctx,
+          organizationId,
+          existing.storageId,
+          'tts.reserveChunk',
+        );
       }
       await ctx.db.patch(existing._id, {
         status: 'pending' as const,
@@ -525,19 +533,17 @@ export const reserveChunk = internalMutation({
       sameKey.sort((a, b) => a._creationTime - b._creationTime);
       const winner = sameKey[0];
       for (const dup of sameKey.slice(1)) {
-        // db.delete first; storage.delete is best-effort (no blob is
+        // db.delete first; the blob delete is best-effort (no blob is
         // attached at reserve-time anyway since storageId is filled in
         // by markChunkReadyAndRecordUsage, but guard for safety).
         await ctx.db.delete(dup._id);
         if (dup.storageId) {
-          try {
-            await ctx.storage.delete(dup.storageId);
-          } catch (err) {
-            console.warn(
-              '[tts.reserveChunk] dedupe storage.delete failed',
-              sanitizeError(err),
-            );
-          }
+          await deleteOrgBlobInMutation(
+            ctx,
+            organizationId,
+            dup.storageId,
+            'tts.reserveChunk.dedupe',
+          );
         }
       }
       // Cross-field identity guard mirrors the early-`existing` path —
@@ -598,7 +604,15 @@ export const markChunkReadyAndRecordUsage = internalMutation({
   args: {
     chunkId: v.id('ttsAudioChunks'),
     attemptCreatedAt: v.number(),
-    storageId: v.id('_storage'),
+    // Blob reference (`_storage` id or `s3:` ref) — synthesize.ts routes the
+    // store through the backend-aware seam.
+    storageId: blobRefValidator,
+    /**
+     * Owning org — needed ONLY to reclaim a stale `s3:` blob when the row has
+     * vanished (cascade-deleted) before this mutation lands; a live row
+     * carries its own organizationId.
+     */
+    organizationId: v.optional(v.string()),
     voice: v.string(),
     providerName: v.string(),
     modelId: v.string(),
@@ -617,14 +631,23 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       row.attemptCreatedAt !== args.attemptCreatedAt
     ) {
       // Stale attempt or row vanished (cascade deleted, etc.). Delete the
-      // incoming blob inline so it doesn't leak — no other code path
-      // references it.
-      try {
-        await ctx.storage.delete(args.storageId);
-      } catch (err) {
+      // incoming blob so it doesn't leak — no other code path references it.
+      // A Convex id deletes inline (as before); an `s3:` ref needs an org to
+      // address the bucket — prefer the row's, fall back to the caller's.
+      const s3Refs: string[] = [];
+      await deleteBlobInMutation(
+        ctx,
+        args.storageId,
+        s3Refs,
+        'tts.markReady.stale',
+      );
+      const orgForDelete = row?.organizationId ?? args.organizationId;
+      if (orgForDelete !== undefined) {
+        await scheduleS3BlobDeletes(ctx, orgForDelete, s3Refs);
+      } else if (s3Refs.length > 0) {
         console.warn(
-          '[tts.markReady] failed to delete stale blob',
-          sanitizeError(err),
+          '[tts.markReady] stale s3 blob has no resolvable org; skipping delete',
+          { chunkId: args.chunkId },
         );
       }
       return { stale: true };
@@ -832,18 +855,19 @@ export const maybeCleanupChunks = internalMutation({
         q.eq('threadId', args.threadId).lt('createdAt', cutoff),
       )
       .take(args.limit);
+    // Collect `s3:` refs per owning org and flush ONE scheduled delete per
+    // org after the loop (a mutation can't sign S3; see blob_delete.ts).
+    const s3RefsByOrg = new Map<string, string[]>();
     for (const row of candidates) {
       if (row.storageId) {
-        try {
-          await ctx.storage.delete(row.storageId);
-        } catch (err) {
-          console.warn(
-            '[tts.cleanup] failed to delete storage blob',
-            sanitizeError(err),
-          );
-        }
+        const s3Refs = s3RefsByOrg.get(row.organizationId) ?? [];
+        await deleteBlobInMutation(ctx, row.storageId, s3Refs, 'tts.cleanup');
+        if (s3Refs.length > 0) s3RefsByOrg.set(row.organizationId, s3Refs);
       }
       await ctx.db.delete(row._id);
+    }
+    for (const [orgId, refs] of s3RefsByOrg) {
+      await scheduleS3BlobDeletes(ctx, orgId, refs);
     }
     return null;
   },

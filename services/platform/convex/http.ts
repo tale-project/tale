@@ -375,13 +375,37 @@ http.route({
     }
 
     try {
-      const blob = await ctx.storage.get(toId<'_storage'>(chunk.storageId));
-      if (!blob) {
-        return new Response('Not found', { status: 404 });
+      // Resolve the bytes from whichever backend owns them. An `s3:`-backed
+      // chunk is read through the node lane and STREAMED through this
+      // response — deliberately NOT a 302 to a presigned URL: this route's
+      // security model is a per-request cookie-bound membership check, and a
+      // presigned URL would be bearer-replayable by anyone who intercepts it.
+      let body: Blob | ArrayBuffer;
+      let contentType: string;
+      let contentLength: number;
+      if (isS3Ref(chunk.storageId)) {
+        const bytes: ArrayBuffer | null = await ctx.runAction(
+          internal.files.blob_actions.readOrgBlob,
+          { organizationId: chunk.organizationId, ref: chunk.storageId },
+        );
+        if (!bytes) {
+          return new Response('Not found', { status: 404 });
+        }
+        body = bytes;
+        contentType = chunk.contentType;
+        contentLength = bytes.byteLength;
+      } else {
+        const blob = await ctx.storage.get(toId<'_storage'>(chunk.storageId));
+        if (!blob) {
+          return new Response('Not found', { status: 404 });
+        }
+        body = blob;
+        contentType = blob.type || 'application/octet-stream';
+        contentLength = blob.size;
       }
       const headers: Record<string, string> = {
-        'Content-Type': blob.type || 'application/octet-stream',
-        'Content-Length': blob.size.toString(),
+        'Content-Type': contentType,
+        'Content-Length': contentLength.toString(),
         // `max-age=0, must-revalidate` (not `no-store`): keep the bytes
         // in the browser's HTTP cache for in-tab replay efficiency, but
         // force a conditional round-trip back to this route on every
@@ -404,7 +428,7 @@ http.route({
         // (no byte exfil without CORS, but a privacy surprise).
         'Cross-Origin-Resource-Policy': 'same-origin',
       };
-      return new Response(blob, { status: 200, headers });
+      return new Response(body, { status: 200, headers });
     } catch (error) {
       // Sanitize before logging — `ctx.storage.get` failures can carry
       // signed URLs / headers / IPs in their `.message` or `.stack`.
