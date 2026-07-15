@@ -31,6 +31,21 @@ Trois banques de données, chacune indépendante et optionnelle. Un réglage abs
 
 La base de connaissances utilise deux extensions Postgres : `vector` (pgvector) pour les embeddings et `pg_search` (ParadeDB) pour la recherche hybride plein texte/BM25. Un Postgres de connaissances externe **doit faire tourner ParadeDB** (qui regroupe les deux) pour une qualité de recherche complète. Si tu le pointes vers un Postgres simple qui n'a que `pgvector`, l'indexation et la recherche vectorielle fonctionnent toujours, mais la recherche hybride se réduit à du **vectoriel seul** — la moitié BM25 est silencieusement sautée. Le bouton **Tester la connexion** signale la disponibilité de `pgvector` et de `pg_search` pour que tu le voies avant de t'engager. La base de connaissances externe doit déjà exister (elle peut porter n'importe quel nom que tu saisis — `tale_knowledge` par convention) avec les schémas `private_knowledge` et `public_web` ; les migrations de schéma de base vivent dans [`services/db/migrations/`](https://github.com/tale-project/tale/tree/main/services/db/migrations) et sont appliquées via dbmate quand la base démarre.
 
+## Bases de connaissances par organisation
+
+Les banques ci-dessus sont au niveau du déploiement — chaque organisation les partage. Une organisation seule peut au contraire pointer **son propre** corpus de connaissances vers un Postgres que tu provisionnes pour elle, pendant que toutes les autres orgs gardent le `knowledge-db` fourni. Réserve cela aux cas où le texte des documents d'un locataire doit résider sur une infrastructure isolée du reste — une exigence de résidence plus stricte que ce que le défaut du déploiement satisfait.
+
+Seul le corpus RAG se déplace par org : le schéma `private_knowledge` — métadonnées des documents, texte des fragments, embeddings et cache sémantique. Les pages `public_web` du crawler restent sur la base par défaut du déploiement, car le contenu web est partagé entre organisations et n'appartient pas à un locataire.
+
+La connexion vit dans le répertoire de configuration propre à l'organisation, pas dans le fichier de déploiement :
+
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — hôte, port, base, utilisateur et sslmode.
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — le mot de passe, chiffré avec SOPS dès qu'une clé age SOPS est configurée (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
+
+Le même prérequis ParadeDB s'applique. L'org valide sa base candidate avec un test de connexion à l'échelle de l'organisation qui signale la disponibilité de `pgvector` et `pg_search` avant de basculer ; une cible avec seulement pgvector réduit la recherche de cette org au vectoriel seul. La base peut démarrer vide — Tale crée le schéma `private_knowledge` au premier accès, tu n'appliques donc jamais les migrations de base à la main.
+
+Ce chemin retombe sans risque. Une organisation sans `connection.json` garde le `knowledge-db` par défaut du déploiement exactement comme avant, la fonctionnalité ne change donc rien pour les orgs qui n'y adhèrent pas. Deux organisations qui pointent vers la même base partagent un seul pool de connexions et — contrairement aux banques au niveau du déploiement — un changement par org ne demande aucun redémarrage de conteneur : la prochaine requête de cette org est routée vers sa propre base.
+
 ## Stockage de fichiers sur S3
 
 Le stockage de fichiers externe est tout-ou-rien à travers les cas d'usage de stockage de Convex, donc tu fournis **cinq buckets** — files, exports, snapshot-imports, modules et search — plus une région et des identifiants. Pour les services compatibles S3 (MinIO, Cloudflare R2), définis l'endpoint et active l'adressage path-style.
