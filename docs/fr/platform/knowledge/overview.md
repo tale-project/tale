@@ -17,6 +17,12 @@ Tout ce que contient l’espace prend l’une de deux formes. Le **contenu index
 
 La forme que tu choisis décide de la façon dont un agent peut exploiter le contenu — c’est pourquoi [Données structurées](/fr/platform/knowledge/structured-data) est une page de décision, pas seulement une référence.
 
+## Où réside l'index
+
+Le contenu indexé est intégré dans la base de données vectorielle intégrée de Tale — un stockage **PostgreSQL** (ParadeDB) qui combine les embeddings `pgvector` avec la recherche par mots-clés (BM25) et fusionne les deux, de sorte que la recherche capte à la fois les correspondances sémantiques et les termes exacts. Il est livré avec la plateforme : rien de plus à licencier ni à exploiter, et la recherche, les citations, les permissions par équipe et l'effacement RGPD agissent tous sur un seul stockage. Les embeddings proviennent du fournisseur d'embeddings configuré par l'organisation, donc tu choisis le modèle sans toucher à ce qui est en dessous.
+
+**Apporte ta propre base de données vectorielle — c'est du Postgres.** Comme le stockage vectoriel est PostgreSQL, tu peux pointer la base de connaissances de Tale vers n'importe quel PostgreSQL géré que tu exploites (avec les extensions `pgvector` et `pg_search`/ParadeDB) au lieu de celui fourni — tes données, ton infrastructure, ta région. Tu renseignes la connexion via la variable de déploiement `KNOWLEDGE_DATABASE_URL`, de la même façon pour un déploiement auto-hébergé et une instance cloud dédiée. Tale peut vérifier la connexion et la présence des extensions requises avant que tu bascules. Voir [Résidence des données](/fr/self-hosted/configuration/data-residency) pour les détails de connexion et les prérequis d'extensions.
+
 ## Comment les agents y puisent
 
 Un agent ne voit pas toute la bibliothèque par défaut. L’onglet **Base de connaissances** de l’agent contrôle son périmètre de récupération — les parties de la bibliothèque qu’il interroge au moment de répondre — et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. La récupération passe par les outils RAG de l’agent, et chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Connaissances de l’agent](/fr/platform/agents/knowledge).
