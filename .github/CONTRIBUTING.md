@@ -53,6 +53,12 @@ faster format/lint/typecheck/test subset while iterating.
 - **ENVIRONMENT_FALLBACK warning**: the platform build may print an
   `ENVIRONMENT_FALLBACK` error. It is a Convex-specific warning and does not prevent
   successful builds.
+- **GitHub Code Quality is disabled**: the `github-code-quality` default setup was
+  turned off (Settings → Security → Code quality, or
+  `PATCH /repos/.../code-quality/setup` with `state: not-configured`). It reported
+  persistent false positives on this repo (e.g. Convex `"use node"` as an unknown
+  directive). Keep it off; lint and SAST stay with oxlint and Opengrep
+  (`bun run check` / `bun run lint:sast`).
 
 ## Reporting bugs & ideas
 
