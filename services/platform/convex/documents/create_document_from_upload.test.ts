@@ -278,6 +278,23 @@ describe('createDocumentFromUpload', () => {
     });
   });
 
+  it('accepts a large blob just under the product cap (near-100 MB)', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // 99 MB — a large but valid file, just under the 100 MB
+    // DOCUMENT_MAX_FILE_SIZE. Regression guard for S4.3: large files must pass
+    // the authoritative size check and proceed to creation/indexing, not be
+    // falsely rejected. The client-supplied 2 KB `fileSize` is ignored in
+    // favour of the storage system-table size.
+    ctx.db.system.get = vi.fn().mockResolvedValue({ size: 99 * 1024 * 1024 });
+    const handler = await getHandler();
+
+    const result = await handler(ctx, baseArgs);
+
+    expect(result).toEqual({ success: true, documentId: 'doc_created' });
+    expect(mockCreateDocument).toHaveBeenCalled();
+  });
+
   it('maps a rate-limit rejection to RATE_LIMITED', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     mockCheckOrgRateLimit.mockImplementationOnce(() => {
