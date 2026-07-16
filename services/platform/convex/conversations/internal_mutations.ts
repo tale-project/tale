@@ -4,7 +4,10 @@ import { getConversationMessageSortTime } from '../../lib/shared/conversations/m
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
-import { notifyConversationAssigned } from '../collab/notify';
+import {
+  notifyConversationAssigned,
+  notifyConversationAssignedTeam,
+} from '../collab/notify';
 import * as ConversationsHelpers from './helpers';
 import {
   conversationStatusValidator,
@@ -229,6 +232,32 @@ export const notifyAssigned = internalMutation({
       assigneeUserId: args.assigneeUserId,
       actorType: 'user',
       actorId: args.actorUserId,
+    });
+    return null;
+  },
+});
+
+/**
+ * Team counterpart of {@link notifyAssigned}. `assignConversationTeam` schedules
+ * this after committing the team patch; it re-fetches the (now patched)
+ * conversation and fans the notification out to the team's members (the actor
+ * excluded) on a raw ctx, since a cross-user `userNotifications` write isn't
+ * permitted under RLS.
+ */
+export const notifyAssignedTeam = internalMutation({
+  args: {
+    conversationId: v.id('conversations'),
+    assigneeTeamId: v.string(),
+    actorUserId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) return null;
+    await notifyConversationAssignedTeam(ctx, {
+      conversation,
+      teamId: args.assigneeTeamId,
+      actorUserId: args.actorUserId,
     });
     return null;
   },

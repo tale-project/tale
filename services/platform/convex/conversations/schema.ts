@@ -20,6 +20,11 @@ export const conversationsTable = defineTable({
   // members only — notifications only ever target a user. Absent ⇒ unassigned,
   // and message/assignment notifications fall back to org admins.
   assigneeUserId: v.optional(v.string()),
+  // The internal team this conversation is queued to (Better Auth teamId). A
+  // team "queue" — may be set alongside assigneeUserId (an individual owner
+  // within/for that team). Absent ⇒ not team-queued. Drives team-scoped
+  // visibility when the org's conversation_access policy is on.
+  assigneeTeamId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(
@@ -49,6 +54,10 @@ export const conversationsTable = defineTable({
   .index('by_organizationId_and_priority', ['organizationId', 'priority'])
   .index('by_organizationId_and_contactId', ['organizationId', 'contactId'])
   .index('by_organizationId_and_assignee', ['organizationId', 'assigneeUserId'])
+  .index('by_organizationId_and_assigneeTeam', [
+    'organizationId',
+    'assigneeTeamId',
+  ])
   .index('by_organizationId_and_direction', ['organizationId', 'direction'])
   .index('by_organizationId_and_channel', ['organizationId', 'channel'])
   .index('by_organizationId_and_type', ['organizationId', 'type'])

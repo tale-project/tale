@@ -98,8 +98,16 @@
               },
               "fileId": {
                 "fieldType": {
-                  "tableName": "_storage",
-                  "type": "id"
+                  "type": "union",
+                  "value": [
+                    {
+                      "tableName": "_storage",
+                      "type": "id"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
                 },
                 "optional": false
               },
@@ -2433,6 +2441,12 @@
         },
         "optional": true
       },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "poToken": {
         "ft": {
           "type": "string"
@@ -3240,6 +3254,12 @@
       }
     },
     "conversations": {
+      "assigneeTeamId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "assigneeUserId": {
         "ft": {
           "type": "string"
@@ -3423,8 +3443,16 @@
       },
       "fileId": {
         "ft": {
-          "tableName": "_storage",
-          "type": "id"
+          "type": "union",
+          "value": [
+            {
+              "tableName": "_storage",
+              "type": "id"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "optional": true
       },
@@ -3445,8 +3473,16 @@
         "ft": {
           "type": "array",
           "value": {
-            "tableName": "_storage",
-            "type": "id"
+            "type": "union",
+            "value": [
+              {
+                "tableName": "_storage",
+                "type": "id"
+              },
+              {
+                "type": "string"
+              }
+            ]
           }
         },
         "optional": true
@@ -4126,8 +4162,16 @@
       },
       "storageId": {
         "ft": {
-          "tableName": "_storage",
-          "type": "id"
+          "type": "union",
+          "value": [
+            {
+              "tableName": "_storage",
+              "type": "id"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "optional": false
       },
@@ -6979,6 +7023,193 @@
       "titleKey": {
         "ft": {
           "type": "string"
+        },
+        "optional": false
+      }
+    },
+    "objectStorageBackfillRuns": {
+      "bytesMigrated": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "candidateBytes": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "candidates": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "continuation": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "cursor": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "dryRun": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "failed": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "finishedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "lastError": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "migrated": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "orgSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "phase": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "documents"
+            },
+            {
+              "type": "literal",
+              "value": "fileMetadata"
+            },
+            {
+              "type": "literal",
+              "value": "done"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "rowsScanned": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "sample": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "name": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": true
+              },
+              "ref": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "size": {
+                "fieldType": {
+                  "type": "number"
+                },
+                "optional": true
+              },
+              "table": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": false
+      },
+      "skipped": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "startedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "running"
+            },
+            {
+              "type": "literal",
+              "value": "completed"
+            },
+            {
+              "type": "literal",
+              "value": "failed"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "triggeredBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "updatedAt": {
+        "ft": {
+          "type": "number"
         },
         "optional": false
       }
@@ -11038,8 +11269,16 @@
             "value": {
               "fileId": {
                 "fieldType": {
-                  "tableName": "_storage",
-                  "type": "id"
+                  "type": "union",
+                  "value": [
+                    {
+                      "tableName": "_storage",
+                      "type": "id"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
                 },
                 "optional": false
               },
@@ -11481,8 +11720,16 @@
       },
       "storageId": {
         "ft": {
-          "tableName": "_storage",
-          "type": "id"
+          "type": "union",
+          "value": [
+            {
+              "tableName": "_storage",
+              "type": "id"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "optional": false
       },
@@ -12703,8 +12950,16 @@
       },
       "storageId": {
         "ft": {
-          "tableName": "_storage",
-          "type": "id"
+          "type": "union",
+          "value": [
+            {
+              "tableName": "_storage",
+              "type": "id"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "optional": true
       },
@@ -13397,6 +13652,10 @@
             {
               "type": "literal",
               "value": "conversation_message"
+            },
+            {
+              "type": "literal",
+              "value": "conversation_assigned"
             }
           ]
         },
@@ -13649,8 +13908,16 @@
       },
       "storageId": {
         "ft": {
-          "tableName": "_storage",
-          "type": "id"
+          "type": "union",
+          "value": [
+            {
+              "tableName": "_storage",
+              "type": "id"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "optional": true
       },

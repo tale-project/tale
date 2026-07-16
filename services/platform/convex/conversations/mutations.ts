@@ -246,6 +246,103 @@ export const assignConversation = mutationWithRLS({
   },
 });
 
+/**
+ * Set / change / clear the **team** a conversation is queued to. The team
+ * dimension is parallel to (and independent of) {@link assignConversation}'s
+ * individual owner — both may be set. **Admin-only** (owner/admin); a non-admin
+ * caller is rejected. The team's members (except the actor) are notified
+ * in-app. Un-queueing (omit `assigneeTeamId`) clears the field and notifies no
+ * one. A no-op when the team is unchanged.
+ *
+ * The explicit `Promise<null>` handler return type is required for the same
+ * reason as {@link assignConversation}: the `ctx.runQuery(internal.*)` calls
+ * below otherwise cycle `ApiFromModules` into a TS7022 cascade.
+ */
+export const assignConversationTeam = mutationWithRLS({
+  args: {
+    conversationId: v.id('conversations'),
+    // Omit ⇒ un-queue. A Better Auth teamId within the conversation's org.
+    assigneeTeamId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new ConvexError({
+        code: 'conversation_not_found',
+        message: 'Conversation not found',
+      });
+    }
+    // Admin gate — resolve the caller's role from the member mirror on a raw ctx
+    // (this RLS ctx can't read `memberMirror`), mirroring assignConversation.
+    const role = await ctx.runQuery(
+      internal.members.internal_queries.getMirrorMemberRole,
+      { organizationId: conversation.organizationId, userId: authUser.userId },
+    );
+    if (role !== 'owner' && role !== 'admin') {
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can assign conversations',
+      });
+    }
+
+    const previousAssigneeTeamId = conversation.assigneeTeamId ?? null;
+    const nextAssigneeTeamId = args.assigneeTeamId ?? null;
+    // Unchanged ⇒ no write, no audit, no notify.
+    if (previousAssigneeTeamId === nextAssigneeTeamId) return null;
+
+    // The target team must belong to the conversation's org — defense-in-depth
+    // over the org-check-first RLS. Validate on a raw ctx via the members query.
+    if (nextAssigneeTeamId) {
+      const teamOrgId = await ctx.runQuery(
+        internal.members.internal_queries.getTeamOrganizationId,
+        { teamId: nextAssigneeTeamId },
+      );
+      if (teamOrgId !== conversation.organizationId) {
+        throw new ConvexError({
+          code: 'team_not_in_org',
+          message: 'Team does not belong to this organization',
+        });
+      }
+    }
+
+    await ctx.db.patch(args.conversationId, {
+      assigneeTeamId: nextAssigneeTeamId ?? undefined,
+    });
+
+    await emitAuditSuccess(ctx, {
+      auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+      action: nextAssigneeTeamId
+        ? 'assign_conversation_team'
+        : 'unassign_conversation_team',
+      category: 'data',
+      resourceType: 'conversation',
+      resourceId: String(args.conversationId),
+      resourceName: conversation.subject,
+      previousState: { assigneeTeamId: previousAssigneeTeamId },
+      newState: { assigneeTeamId: nextAssigneeTeamId },
+    });
+
+    // Notify the team's members (the fan-out excludes the actor) on a raw ctx —
+    // a cross-user userNotifications write isn't allowed under RLS. Skip on
+    // un-queue (no one to tell).
+    if (nextAssigneeTeamId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.conversations.internal_mutations.notifyAssignedTeam,
+        {
+          conversationId: args.conversationId,
+          assigneeTeamId: nextAssigneeTeamId,
+          actorUserId: authUser.userId,
+        },
+      );
+    }
+    return null;
+  },
+});
+
 export const bulkReplyToConversations = mutationWithRLS({
   args: {
     conversationIds: v.array(v.id('conversations')),

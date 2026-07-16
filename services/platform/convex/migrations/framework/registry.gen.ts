@@ -893,6 +893,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.3.4/46_add_conversation_assignee_team",
+    semver: "0.3.4",
+    numericId: 46,
+    slug: "add_conversation_assignee_team",
+    title: "Add optional conversations.assigneeTeamId team-queue field",
+    description: "Adds the optional conversations.assigneeTeamId (team queue owner) set alongside assigneeUserId. Purely additive: up is a documented no-op and down drops the field to re-validate against the pre-change schema. Reference-only, the runner never executes it.",
+    kind: 'reference',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(

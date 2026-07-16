@@ -86,6 +86,9 @@ export const conversationItemValidator = v.object({
   // Internal member owner (Better Auth userId). Surfaced so the conversation
   // header can show the current assignee and gate the admin picker.
   assigneeUserId: v.optional(v.string()),
+  // Internal team the conversation is queued to (Better Auth teamId). Surfaced
+  // so the header can show the team chip and gate the admin picker.
+  assigneeTeamId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),

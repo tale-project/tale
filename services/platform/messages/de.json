@@ -2136,9 +2136,8 @@
       "markAsSpam": "Als Spam markieren",
       "markingAsSpam": "Wird als Spam markiert...",
       "assignee": "Zuständig",
-      "assign": "Einem Mitglied zuweisen",
+      "assign": "Zuweisen",
       "assignedTo": "Zuständig: {name}",
-      "assignSearch": "Mitglieder suchen",
       "noMembers": "Keine Mitglieder gefunden",
       "unassign": "Zuweisung aufheben",
       "assignError": "Zuständigkeit konnte nicht aktualisiert werden",
@@ -2150,7 +2149,14 @@
         "reopenFailed": "Beim erneuten Öffnen der Konversation ist ein unerwarteter Fehler aufgetreten.",
         "markedAsSpam": "Konversation wurde als Spam markiert.",
         "markAsSpamFailed": "Beim Markieren der Konversation als Spam ist ein unerwarteter Fehler aufgetreten."
-      }
+      },
+      "assignedTeam": "Team",
+      "assignedToTeam": "An {name} zugewiesen",
+      "unassignTeam": "Team entfernen",
+      "peopleSection": "Personen",
+      "teamsSection": "Team",
+      "assignSearchAll": "Personen und Teams suchen",
+      "noAssignees": "Keine Personen oder Teams gefunden"
     },
     "editor": {
       "noContent": "Kein Inhalt zum Verbessern",
@@ -7218,7 +7224,10 @@
     "email": {
       "cta": "In Tale öffnen",
       "footer": "Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast."
-    }
+    },
+    "conversationTeamAssigned": "Konversation deinem Team zugewiesen",
+    "conversationTeamAssignedBody": "Die Konversation \"{subject}\" wurde deinem Team zugewiesen — öffne deine Inbox, um zu antworten.",
+    "conversationTeamAssignedByBody": "{actor} hat die Konversation \"{subject}\" deinem Team zugewiesen — öffne deine Inbox, um zu antworten."
   },
   "projectSecrets": {
     "title": "Umgebung",
