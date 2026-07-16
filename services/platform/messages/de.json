@@ -806,20 +806,10 @@
       "env": {
         "title": "Umgebung & Secrets — {name}",
         "description": "Umgebungsvariablen und Secrets für die Läufe dieses Agenten. Secrets werden verschlüsselt gespeichert, maskiert angezeigt und erst zur Laufzeit entschlüsselt.",
-        "none": "Noch keine Umgebungsvariablen.",
-        "keyPlaceholder": "NAME",
-        "valuePlaceholder": "Wert",
-        "secret": "Secret",
-        "secretKept": "•••••••• (unverändert)",
-        "add": "Variable hinzufügen",
-        "remove": "Entfernen",
         "save": "Speichern",
         "saving": "Wird gespeichert…",
         "cancel": "Abbrechen",
-        "saved": "Umgebung gespeichert",
-        "saveError": "Umgebung konnte nicht gespeichert werden",
-        "badKey": "„{key}“ ist kein gültiger Umgebungsvariablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
-        "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
+        "saveError": "Umgebung konnte nicht gespeichert werden"
       }
     },
     "workflow": {
