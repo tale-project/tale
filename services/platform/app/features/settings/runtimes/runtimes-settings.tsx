@@ -163,7 +163,10 @@ export function RuntimesSettings({
         </Text>
       </SettingsSection>
 
-      <SettingsSection title={t('list.title')}>
+      <SettingsSection
+        className="border-border border-t pt-8"
+        title={t('list.title')}
+      >
         {daemons.length === 0 ? (
           <EmptyState
             icon={Cpu}

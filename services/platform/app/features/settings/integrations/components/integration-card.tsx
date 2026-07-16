@@ -76,7 +76,7 @@ export function IntegrationCard({
       title={title}
       description={description ?? title}
       badge={badge}
-      meta={<CatalogLabels labels={labels} />}
+      meta={<CatalogLabels labels={labels} tone="quiet" />}
       onClick={onClick}
       disabled={disabled}
       ariaLabel={title}

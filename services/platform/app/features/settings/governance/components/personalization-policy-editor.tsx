@@ -92,6 +92,9 @@ function PersonalizationPolicyToggle({
   return (
     <Skeletonize loading={isLoading} label={t(titleKey)}>
       <SettingsSection
+        // Always a later chapter on Policies & limits (after Budgets / Upload /
+        // Retention / Feature flags) — both toggles get the shared divider.
+        className="border-border border-t pt-8"
         title={t(titleKey)}
         description={t(descriptionKey)}
         action={

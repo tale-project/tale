@@ -26,7 +26,7 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useChatAgents: () => ({
     agents: [{ name: 'claude-code', primaryBehavior: 'external-agent' }],
   }),
-  useThreadSandboxState: () => undefined,
+  useThreadSandboxState: () => ({ state: null, isLoading: false }),
   useSessionProgress: () => undefined,
 }));
 

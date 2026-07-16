@@ -583,6 +583,9 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   return (
     <Skeletonize loading={loading} label={t('modelAccess.title')}>
       <SettingsSection
+        // Section divider matches Preferences / Account: first block on the
+        // page stays plain; later chapters get a hairline + pt-8.
+        className="border-border border-t pt-8"
         title={t('modelAccess.title')}
         description={t('modelAccess.description')}
         action={

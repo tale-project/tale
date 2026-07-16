@@ -177,6 +177,9 @@ function WorkspaceFileTree({
         });
       } catch (err) {
         console.error('[workspace-files] listWorkspaceDir failed', err);
+        // Clear the body's "unknown" overlay so we don't spin forever when the
+        // probe throws — the tree node itself carries the error (#2712).
+        onSessionRunningRef.current(true);
         setNodes((prev) => {
           const next = new Map(prev);
           next.set(dirPath, {
@@ -757,21 +760,23 @@ function WorkspaceFilesBody({
 }: WorkspaceFilesBodyProps) {
   const { t } = useT('chat');
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [sessionRunning, setSessionRunning] = useState(true);
+  // `null` = probe not answered yet. Never seed `true` — that flashes the tree
+  // loading spinner before "Workspace not running" when the session is stopped
+  // (#2712). Keep the tree mounted under a loading overlay so the first
+  // `listWorkspaceDir` can still report the real state.
+  const [sessionRunning, setSessionRunning] = useState<boolean | null>(null);
 
   const handleSelectFile = useCallback((p: string) => setSelectedPath(p), []);
 
-  // An explicit Refresh re-probes a stopped session without remounting the body
-  // (a remount would collapse the tree's expanded folders and drop the open
-  // file — the very thing the user wants to keep). Flipping back to "running"
-  // re-mounts the tree, whose first load reports the real state and flips this
-  // back to stopped if the session is still down. When already running this is a
-  // no-op, and the tree refreshes its expanded dirs in place off `refreshNonce`.
+  // An explicit Refresh re-probes without collapsing the tree's expanded
+  // folders / open file. Reset to unknown so we show one stable loading frame
+  // until `listWorkspaceDir` answers — not an optimistic "running" that can
+  // flicker into SessionStoppedState.
   useEffect(() => {
-    setSessionRunning(true);
+    setSessionRunning(null);
   }, [refreshNonce]);
 
-  if (!sessionRunning) {
+  if (sessionRunning === false) {
     return <SessionStoppedState />;
   }
 
@@ -779,7 +784,17 @@ function WorkspaceFilesBody({
     // Provider sits above the `key={selectedPath}` viewer below (which remounts
     // per file) so the wrap / Source-Preview preferences hold as you browse.
     <CanvasPreferencesProvider>
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
+        {sessionRunning === null ? (
+          <Stack
+            gap={3}
+            className="bg-background absolute inset-0 z-10 items-center justify-center p-8"
+          >
+            <Spinner
+              label={t('workspaceFiles.loading', { defaultValue: 'Loading' })}
+            />
+          </Stack>
+        ) : null}
         {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
           (the conventional file-explorer left/right layout). */}
         <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">

@@ -3214,31 +3214,25 @@
     },
     "guardrailsOverview": {
       "title": "Guardrails overview",
-      "description": "Read-only snapshot of the three filter layers. Each one runs in order per message: chat_filter → PII → moderation_provider.",
+      "description": "Filter layers run in this order on every message.",
       "statusCards": {
+        "on": "On",
+        "off": "Off",
+        "notConfigured": "Not configured",
         "contentSafety": {
           "title": "Content safety",
           "description": "Word lists and admin-supplied regex patterns.",
-          "disabled": "Disabled — add a category and enable to start filtering.",
-          "appliesTo": "Applies to: {targets}",
-          "categories": "Categories: {count}",
-          "maskReplacement": "Mask replacement: {value}"
+          "summary": "{count} categories · {targets}"
         },
         "pii": {
           "title": "PII detection",
           "description": "Built-in patterns for emails, phones, IDs, etc.",
-          "disabled": "Disabled — PII detection is off for this organization.",
-          "mode": "Mode: {mode}",
-          "patterns": "Patterns: {builtIn} built-in + {custom} custom"
+          "summary": "Mode: {mode}"
         },
         "moderation": {
           "title": "Moderation provider",
           "description": "External classifier (OpenAI / Azure / Perspective / custom).",
-          "disabled": "Disabled — no external moderation API configured.",
-          "provider": "Provider: {value}",
-          "appliesTo": "Applies to: {targets}",
-          "mappings": "Mappings: {count}",
-          "failBehavior": "Fail behavior: in={input}, out={output}"
+          "summary": "{value}"
         }
       },
       "filterNames": {
@@ -3264,7 +3258,10 @@
         "columnKind": "Kind",
         "columnCategories": "Categories",
         "columnMatches": "Matches",
-        "empty": "No events yet. Detections from flag / mask / block modes will appear here once chat traffic starts flowing.",
+        "empty": {
+          "title": "No events yet",
+          "description": "Detections from flag / mask / block modes will appear here once chat traffic starts flowing."
+        },
         "viewEventAria": "View event {id}"
       },
       "eventDetails": {
@@ -3347,7 +3344,7 @@
     },
     "moderationProvider": {
       "title": "Moderation provider",
-      "description": "Send chat messages to an external classifier (OpenAI Moderation, Azure Content Safety, Perspective, or any custom HTTPS endpoint). Paste the API key in the 'API key' section below — it's AES-encrypted server-side — and reference it in any header value as `{secretPlaceholder}`.",
+      "description": "Classify chat messages with an external moderation API (OpenAI, Azure, Perspective, or custom).",
       "cannotManage": "You need admin permissions to configure the moderation provider.",
       "enabled": "Enabled",
       "enableLabel": "Enable moderation provider",

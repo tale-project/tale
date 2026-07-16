@@ -40,26 +40,24 @@ export function TwoFactorLowBackupCodesBanner({
     count === 1 ? 'lowBackupCodes.titleOne' : 'lowBackupCodes.titleOther';
 
   return (
-    <div className="px-4 pt-2">
-      <Row
-        role="status"
-        gap={2}
-        wrap
-        className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
+    <Row
+      role="status"
+      gap={2}
+      wrap
+      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
+    >
+      <span className="grow">
+        <span className="font-medium">{t(titleKey, { count })}</span>
+        {' — '}
+        {t('lowBackupCodes.body')}
+      </span>
+      <Link
+        to="/dashboard/$id/settings/account"
+        params={{ id: organizationId }}
+        className="underline underline-offset-2"
       >
-        <span className="grow">
-          <span className="font-medium">{t(titleKey, { count })}</span>
-          {' — '}
-          {t('lowBackupCodes.body')}
-        </span>
-        <Link
-          to="/dashboard/$id/settings/account"
-          params={{ id: organizationId }}
-          className="underline underline-offset-2"
-        >
-          {t('lowBackupCodes.regenerateLink')}
-        </Link>
-      </Row>
-    </div>
+        {t('lowBackupCodes.regenerateLink')}
+      </Link>
+    </Row>
   );
 }

@@ -22,8 +22,8 @@ import { useProvisioningStatus, useRetryProvisioning } from '../hooks/actions';
  * providers + governance included — and the derived status self-clears once
  * the files land.
  *
- * Mirrors the TwoFactor banners' structure deliberately (same mount point,
- * same warning colours) so the shell banners feel consistent.
+ * Mirrors the TwoFactor banners' structure deliberately (same shell mount
+ * above nav + main, same warning colours) so the shell banners feel consistent.
  */
 export function ProvisioningBanner({
   organizationId,
@@ -57,28 +57,28 @@ export function ProvisioningBanner({
     }
   };
 
+  // Full-bleed strip above the dashboard chrome (not an inset card in main) so
+  // the chat/page header stays aligned with the nav rail.
   return (
-    <div className="px-4 pt-2">
-      <Row
-        role="status"
-        gap={2}
-        wrap
-        className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
+    <Row
+      role="status"
+      gap={2}
+      wrap
+      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
+    >
+      <span className="grow">
+        <span className="font-medium">{t('banner.title')}</span>
+        {' — '}
+        {t('banner.body')}
+      </span>
+      <Button
+        variant="secondary"
+        size="sm"
+        isLoading={isPending}
+        onClick={() => void handleRetry()}
       >
-        <span className="grow">
-          <span className="font-medium">{t('banner.title')}</span>
-          {' — '}
-          {t('banner.body')}
-        </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          isLoading={isPending}
-          onClick={() => void handleRetry()}
-        >
-          {isPending ? t('banner.retrying') : t('banner.retry')}
-        </Button>
-      </Row>
-    </div>
+        {isPending ? t('banner.retrying') : t('banner.retry')}
+      </Button>
+    </Row>
   );
 }

@@ -183,7 +183,7 @@ export function ChatDashboardSidebar({
   return (
     <aside
       aria-label={t('unifiedSidebar.landmark')}
-      className="bg-background border-border relative hidden h-full shrink-0 border-r md:flex"
+      className="bg-background relative hidden h-full shrink-0 md:flex"
     >
       <m.div
         id="chat-history-panel"
@@ -193,9 +193,12 @@ export function ChatDashboardSidebar({
         className="relative overflow-hidden"
         aria-hidden={!isHistoryOpen}
       >
+        {/* Border lives on the fixed-width panel so `overflow-hidden` clips it
+            when collapsed — otherwise a zero-width aside still paints border-r
+            on top of main's border-l and the divider looks double-thick. */}
         <Stack
           gap={0}
-          className="bg-background h-full overflow-hidden"
+          className="bg-background border-border h-full overflow-hidden border-r"
           style={{ width: HISTORY_PANEL_WIDTH }}
         >
           <ChatHistorySidebar organizationId={organizationId} />

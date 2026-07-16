@@ -79,6 +79,12 @@ export function AutomationMarker({
 
 /** Manifest `labels` on catalog cards and the panel/page header — the shared
  *  {@link CatalogLabels} renderer under the automation-feature name. */
-export function AutomationLabels({ labels }: { labels?: string[] }) {
-  return <CatalogLabels labels={labels} />;
+export function AutomationLabels({
+  labels,
+  tone = 'badge',
+}: {
+  labels?: string[];
+  tone?: 'badge' | 'quiet';
+}) {
+  return <CatalogLabels labels={labels} tone={tone} />;
 }

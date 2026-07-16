@@ -10,6 +10,7 @@ import {
   CatalogGridSkeleton,
 } from './catalog-card-skeleton';
 import { CatalogCard, CatalogCardIcon, CatalogGrid } from './catalog-grid';
+import { CatalogLabels } from './catalog-labels';
 import { CatalogSection, groupCatalogItems } from './catalog-section';
 import { CatalogToolbar } from './catalog-toolbar';
 
@@ -35,8 +36,8 @@ import { useCatalogSearch } from '@/app/components/catalog/use-catalog-search';
 \`\`\`
 
 Slot rules: the \`badge\` slot owns install/liveness state badges (dot only on
-liveness, e.g. Connected); the \`meta\` slot owns label/requirement chips; the
-\`description\` is text-only.
+liveness, e.g. Connected); the \`meta\` slot owns quiet labels under the title;
+the \`description\` is text-only and full-bleed under the icon+title row.
         `,
       },
     },
@@ -58,10 +59,7 @@ export const CardAnatomy: StoryObj = {
         description="Handles outbound outreach and keeps the pipeline tidy."
         badge={<Badge variant="green">Installed</Badge>}
         meta={
-          <>
-            <Badge variant="outline">Sales</Badge>
-            <Badge variant="outline">Requires GitHub</Badge>
-          </>
+          <CatalogLabels labels={['Sales', 'Requires GitHub']} tone="quiet" />
         }
         actions={
           <>
@@ -76,7 +74,7 @@ export const CardAnatomy: StoryObj = {
     docs: {
       description: {
         story:
-          'Full card anatomy: media tile, title, state badge, text-only description, meta chips, footer actions.',
+          'Full card anatomy: media tile, title, state badge, meta chips, text-only description, footer actions.',
       },
     },
   },

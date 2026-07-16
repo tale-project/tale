@@ -477,10 +477,10 @@ export function ModerationProviderConfigView({
   return (
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
       <SettingsSection
+        id="guardrails-moderation"
+        className="border-border border-t pt-8"
         title={t('moderationProvider.title')}
-        description={t('moderationProvider.description', {
-          secretPlaceholder: '{{secret}}',
-        })}
+        description={t('moderationProvider.description')}
         action={
           <Switch
             label={t('moderationProvider.enableLabel')}

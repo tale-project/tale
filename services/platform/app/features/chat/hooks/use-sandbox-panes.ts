@@ -37,6 +37,6 @@ export function useSandboxPanesAvailable(
   const isExternal = active?.primaryBehavior === 'external-agent';
   // Only subscribe on external-agent threads — a normal chat thread passes
   // undefined (→ 'skip'), so it costs no live subscription.
-  const state = useThreadSandboxState(isExternal ? threadId : undefined);
+  const { state } = useThreadSandboxState(isExternal ? threadId : undefined);
   return isExternal && !!state;
 }

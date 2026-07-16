@@ -602,7 +602,7 @@ export function AutomationsGrid({
         }
         meta={
           automation.labels && automation.labels.length > 0 ? (
-            <AutomationLabels labels={automation.labels} />
+            <AutomationLabels labels={automation.labels} tone="quiet" />
           ) : undefined
         }
         // Every installed automation opens its org-level page — the tabbed
