@@ -184,6 +184,8 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   return (
     <Skeletonize loading={isLoading} label={t('pii.title')}>
       <SettingsSection
+        id="guardrails-pii"
+        className="border-border border-t pt-8"
         title={t('pii.title')}
         description={t('pii.description')}
         action={

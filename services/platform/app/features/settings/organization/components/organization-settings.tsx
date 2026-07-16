@@ -262,6 +262,7 @@ function DangerZoneSection({
 
   return (
     <SettingsSection
+      className="border-border border-t pt-8"
       title={tSettings('organization.dangerZoneTitle')}
       description={tSettings('organization.dangerZoneDescription')}
     >

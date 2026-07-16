@@ -312,7 +312,7 @@ export function SkillsCatalog({
                   </Badge>
                 ) : undefined
               }
-              meta={<CatalogLabels labels={row.labels} />}
+              meta={<CatalogLabels labels={row.labels} tone="quiet" />}
               onClick={() => setDetailSlug(row.slug)}
               ariaLabel={row.name}
               menu={

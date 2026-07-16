@@ -147,6 +147,7 @@ export function SessionIdleTimeoutEditor({
   return (
     <Skeletonize loading={isLoading} label={t('sessionIdleTimeout.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('sessionIdleTimeout.title')}
         description={t('sessionIdleTimeout.description')}
         action={

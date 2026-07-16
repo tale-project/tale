@@ -4,12 +4,26 @@ import { Badge } from '@tale/ui/badge';
 import { HStack } from '@tale/ui/layout';
 
 /**
- * Definition `labels` as muted outline badges — the ONE label-chip renderer
- * for every catalog card's `meta` slot (automations, skills, integrations)
- * and the detail panel/page headers, so labels read identically everywhere.
+ * Definition `labels` — the ONE label renderer for catalog cards and detail
+ * headers. Cards use `tone="quiet"` (muted inline text under the title, so
+ * labels don't compete with the title); panels/headers keep outline badges.
  */
-export function CatalogLabels({ labels }: { labels?: string[] }) {
+export function CatalogLabels({
+  labels,
+  tone = 'badge',
+}: {
+  labels?: string[];
+  /** `quiet` = muted "A · B" under a card title; `badge` = outline chips. */
+  tone?: 'badge' | 'quiet';
+}) {
   if (!labels || labels.length === 0) return null;
+  if (tone === 'quiet') {
+    return (
+      <p className="text-muted-foreground line-clamp-1 text-xs leading-4">
+        {labels.join(' · ')}
+      </p>
+    );
+  }
   return (
     <HStack gap={1} className="flex-wrap">
       {labels.map((label) => (

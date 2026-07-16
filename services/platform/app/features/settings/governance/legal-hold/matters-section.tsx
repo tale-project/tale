@@ -130,6 +130,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
   return (
     <>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
         action={

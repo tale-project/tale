@@ -166,8 +166,8 @@ export function RequestsListSection({
         header: t('dataSubjectRequests.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
         // Sized so the column total stays ≤ 940px (the DataTable min-width
-        // floor) and the table fits the settings content column on common
-        // laptop widths instead of clipping behind a horizontal scroll.
+        // floor). The page uses the shared `max-w-3xl` settings measure, so
+        // the table scrolls horizontally inside that cap on narrower panes.
         size: 140,
       },
     ],
@@ -181,6 +181,7 @@ export function RequestsListSection({
   return (
     <>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('dataSubjectRequests.title')}
         description={t('dataSubjectRequests.description')}
         action={

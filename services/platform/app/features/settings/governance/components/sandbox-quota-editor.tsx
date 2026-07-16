@@ -121,6 +121,7 @@ export function SandboxQuotaEditor({
   return (
     <Skeletonize loading={isLoading} label={t('sandboxQuota.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('sandboxQuota.title')}
         description={t('sandboxQuota.description')}
       >

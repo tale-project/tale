@@ -3221,31 +3221,25 @@
     },
     "guardrailsOverview": {
       "title": "Vue d'ensemble des guardrails",
-      "description": "Instantané en lecture seule des trois couches de filtrage. Chacune s'exécute dans l'ordre par message : chat_filter → PII → moderation_provider.",
+      "description": "Les couches de filtrage s'exécutent dans cet ordre pour chaque message.",
       "statusCards": {
+        "on": "Actif",
+        "off": "Inactif",
+        "notConfigured": "Non configuré",
         "contentSafety": {
           "title": "Sécurité du contenu",
           "description": "Listes de mots et motifs regex fournis par l'admin.",
-          "disabled": "Désactivé — ajoute une catégorie et active-la pour commencer le filtrage.",
-          "appliesTo": "S'applique à : {targets}",
-          "categories": "Catégories : {count}",
-          "maskReplacement": "Remplacement du masque : {value}"
+          "summary": "{count} catégories · {targets}"
         },
         "pii": {
           "title": "Détection DCP",
           "description": "Motifs intégrés pour emails, téléphones, identifiants, etc.",
-          "disabled": "Désactivé — la détection DCP est désactivée pour cette organisation.",
-          "mode": "Mode : {mode}",
-          "patterns": "Motifs : {builtIn} intégrés + {custom} personnalisés"
+          "summary": "Mode : {mode}"
         },
         "moderation": {
           "title": "Fournisseur de modération",
           "description": "Classifieur externe (OpenAI / Azure / Perspective / personnalisé).",
-          "disabled": "Désactivé — aucune API de modération externe configurée.",
-          "provider": "Fournisseur : {value}",
-          "appliesTo": "S'applique à : {targets}",
-          "mappings": "Correspondances : {count}",
-          "failBehavior": "Comportement en cas d'échec : entrée={input}, sortie={output}"
+          "summary": "{value}"
         }
       },
       "filterNames": {
@@ -3271,7 +3265,10 @@
         "columnKind": "Type",
         "columnCategories": "Catégories",
         "columnMatches": "Correspondances",
-        "empty": "Aucun événement pour le moment. Les détections des modes flag / mask / block apparaîtront ici dès que le trafic de chat commencera.",
+        "empty": {
+          "title": "Aucun événement pour le moment",
+          "description": "Les détections des modes flag / mask / block apparaîtront ici dès que le trafic de chat commencera."
+        },
         "viewEventAria": "Voir l'événement {id}"
       },
       "eventDetails": {
@@ -3354,7 +3351,7 @@
     },
     "moderationProvider": {
       "title": "Fournisseur de modération",
-      "description": "Envoie les messages de chat vers un classifieur externe (OpenAI Moderation, Azure Content Safety, Perspective ou tout endpoint HTTPS personnalisé). Colle la clé API dans la section « Clé API » ci-dessous — elle est chiffrée AES côté serveur — et référence-la dans la valeur d'un header avec `{secretPlaceholder}`.",
+      "description": "Classifie les messages de chat avec une API de modération externe (OpenAI, Azure, Perspective ou personnalisée).",
       "cannotManage": "Tu as besoin de droits admin pour configurer le fournisseur de modération.",
       "enabled": "Activé",
       "enableLabel": "Activer le fournisseur de modération",

@@ -70,13 +70,37 @@ describe('GuardrailsOverview', () => {
       );
       // No table rendered for the empty-state — the real "no events" copy is.
       expect(container.querySelectorAll('tbody tr')).toHaveLength(0);
-      expect(screen.getByText(/no events yet/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /no events yet/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/detections from flag \/ mask \/ block/i),
+      ).toBeInTheDocument();
     });
 
     it('is not marked busy once loaded', () => {
       setLoaded();
       render(<GuardrailsOverview organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('shows lean status cards with jump links and no instructional body copy', () => {
+      setLoaded();
+      render(<GuardrailsOverview organizationId="org-1" />);
+
+      expect(screen.getAllByText('Not configured').length).toBeGreaterThan(0);
+      expect(screen.getByText('Off')).toBeInTheDocument();
+      expect(screen.queryByText(/^Disabled/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/add a category/i)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /content safety/i }),
+      ).toHaveAttribute('href', '#guardrails-content-safety');
+      expect(
+        screen.getByRole('link', { name: /pii detection/i }),
+      ).toHaveAttribute('href', '#guardrails-pii');
+      expect(
+        screen.getByRole('link', { name: /moderation provider/i }),
+      ).toHaveAttribute('href', '#guardrails-moderation');
     });
   });
 

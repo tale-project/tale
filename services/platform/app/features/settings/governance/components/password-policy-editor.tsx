@@ -176,6 +176,7 @@ export function PasswordPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('passwordPolicy.title')}
         description={t('passwordPolicy.description')}
       >

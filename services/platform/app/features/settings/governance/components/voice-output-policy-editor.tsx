@@ -82,6 +82,7 @@ export function VoiceOutputPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('voiceOutput.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('voiceOutput.title')}
         description={t('voiceOutput.description')}
         action={

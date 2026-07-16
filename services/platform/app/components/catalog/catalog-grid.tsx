@@ -17,7 +17,7 @@ const catalogCardSurfaceClass = 'dark:bg-card';
  *
  * `CatalogCard` is the catalog-specific composition of the `@tale/ui/card`
  * primitive: a single `padding="md"` box with the catalog slots (media, title,
- * badge, description, meta, actions). The grid and media tile delegate straight
+ * badge, meta, description, actions). The grid and media tile delegate straight
  * to the shared `CardGrid` / `CardMedia` so every catalog stays aligned with the
  * rest of the app's cards.
  */
@@ -51,18 +51,19 @@ interface CatalogCardProps {
   title: ReactNode;
   /**
    * TEXT-ONLY summary (it renders inside a `<p>` and clamps to two lines).
-   * Badges, label chips, and any other block content belong in the `badge` /
-   * `meta` slots — an element inside the description is invalid HTML. The
-   * two-line box is RESERVED even when absent/short, so cards never stagger.
+   * Sits under the icon+title row and left-aligns with the icon edge
+   * (full-bleed body), not indented beside the media tile — keeps the card
+   * visually balanced. Badges and chips belong in `badge` / `meta` — an
+   * element inside the description is invalid HTML. The two-line box is
+   * RESERVED even when absent/short, so cards never stagger.
    */
   description?: ReactNode;
   /** Top-right slot — owns the card's status badge(s). Its row height is
    *  reserved either way. */
   badge?: ReactNode;
   /**
-   * Meta row under the description — owns the card's label/requirement chips
-   * (e.g. `LabelBadges`, provenance chips). Never fold these into
-   * `description` or the `actions` footer. The row is reserved even when
+   * Meta row directly under the title — quiet labels / requirement cues.
+   * Scan order is title → meta → description. The row is reserved even when
    * empty, so labelled and unlabelled cards share one anatomy.
    */
   meta?: ReactNode;
@@ -90,10 +91,11 @@ interface CatalogCardProps {
    * A corner ⋯ menu overlaid OUTSIDE the card's own click target — for a card
    * that's both a click target (`onClick`) and carries row-level actions (e.g.
    * an install/reinstall/uninstall menu). Only meaningful alongside `onClick`
-   * with no `actions` (the card's interactive form). Rendered bottom-right, as
-   * a SIBLING of the card's button, so a real interactive control never nests
-   * inside another button (invalid HTML / an a11y violation) — same pattern as
-   * `McpServerCard`.
+   * with no `actions` (the card's interactive form). Rendered top-right so it
+   * balances the icon and doesn't leave a hollow band under the description,
+   * as a SIBLING of the card's button, so a real interactive control never
+   * nests inside another button (invalid HTML / an a11y violation) — same
+   * pattern as `McpServerCard`.
    */
   menu?: ReactNode;
 }
@@ -117,13 +119,16 @@ export function CatalogCard({
 
   const inner = (
     <>
+      {/* Readable scan: icon + title/meta on one row; description full-bleed
+          under that row, left edge flush with the icon (not indented into the
+          text column) so hierarchy stays balanced. */}
       <div className="flex items-start gap-3">
         {media ? <div className="shrink-0">{media}</div> : null}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {/* Every slot RESERVES its space (`min-h-*`) whether or not the card
-              fills it — a card with no badge, a one-line description, or no
-              labels must render the exact same anatomy as its densest
-              neighbor, so a grid row never staggers. */}
+              fills it — a card with no badge or no labels must render the
+              same anatomy as its densest neighbor, so a grid row never
+              staggers. */}
           {/* FIXED height (`h-6.5` = a Badge's outer box) with vertical
               centering — the title must sit at the same y whether or not a
               badge is present, and the row must never grow. */}
@@ -133,14 +138,14 @@ export function CatalogCard({
             </span>
             {badge ? <span className="shrink-0">{badge}</span> : null}
           </div>
-          <p className="text-muted-foreground line-clamp-2 min-h-[2lh] text-sm leading-snug">
-            {description}
-          </p>
+          <div className="flex min-h-4 items-center">{meta}</div>
         </div>
       </div>
-      <div className="mt-2 flex min-h-6 flex-wrap items-center gap-1.5">
-        {meta}
-      </div>
+      {/* Clear band break under the icon+title header so the full-bleed
+          description doesn't feel jammed into the meta line. */}
+      <p className="text-muted-foreground mt-3 line-clamp-2 min-h-[2lh] text-sm leading-snug">
+        {description}
+      </p>
       {actions ? (
         // `relative` lifts the footer above the stretched `link` overlay
         // (positioned siblings paint in DOM order), keeping every action
@@ -165,9 +170,9 @@ export function CatalogCard({
           // raisable. Rest stays flat, matching the app's other surfaces.
           'h-full hover:shadow-card-hover',
           catalogCardSurfaceClass,
-          // Reserve room for the overlaid corner menu so it never sits on top
-          // of the card's own content (badge/meta chips).
-          menu && 'pb-10',
+          // Reserve the top-right for the overlaid ⋯ so title/badge never sit
+          // under it.
+          menu && 'pr-10',
           active && 'ring-2 ring-primary',
           className,
         )}
@@ -193,7 +198,7 @@ export function CatalogCard({
             which adds one defensively on its own trigger button — a plain
             wrapping `div` with a click handler would trip the a11y
             static-element-interactions lint anyway). */}
-        <div className="absolute right-3 bottom-3 z-10">{menu}</div>
+        <div className="absolute top-3 right-3 z-10">{menu}</div>
       </div>
     );
   }

@@ -332,65 +332,72 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
-              <div className="flex h-full w-full flex-col overflow-hidden md:flex-row">
-                {/* Safe-area inset clears the notch; the inner fixed-height row
-                    vertically centers the title and profile button so neither
-                    sits high/low in the bar on notch devices. */}
-                <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                  <Row gap={2} className="min-h-12">
-                    <div className="min-w-0 flex-1">
-                      <AdaptiveHeaderSlot />
-                    </div>
-                    <UserButton align="end" />
-                  </Row>
-                </header>
+              {/* Shell alerts sit above nav + main so page headers (chat toolbar,
+                  AdaptiveHeader, etc.) stay flush with the rail — nesting them
+                  inside #main-content pushed those headers down and looked broken. */}
+              <div className="flex h-full w-full flex-col overflow-hidden">
+                {hasRole && (
+                  <TwoFactorGraceBanner organizationId={organizationId} />
+                )}
+                {hasRole && (
+                  <TwoFactorLowBackupCodesBanner
+                    organizationId={organizationId}
+                  />
+                )}
+                {hasRole && (
+                  <ProvisioningBanner organizationId={organizationId} />
+                )}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+                  {/* Safe-area inset clears the notch; the inner fixed-height row
+                      vertically centers the title and profile button so neither
+                      sits high/low in the bar on notch devices. */}
+                  <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                    <Row gap={2} className="min-h-12">
+                      <div className="min-w-0 flex-1">
+                        <AdaptiveHeaderSlot />
+                      </div>
+                      <UserButton align="end" />
+                    </Row>
+                  </header>
 
-                <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                  {hasRole ? (
-                    <Navigation organizationId={organizationId} />
-                  ) : (
-                    <NavRailPlaceholder />
+                  <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+                    {hasRole ? (
+                      <Navigation organizationId={organizationId} />
+                    ) : (
+                      <NavRailPlaceholder />
+                    )}
+                  </div>
+
+                  <Stack
+                    id="main-content"
+                    as="main"
+                    tabIndex={-1}
+                    gap={0}
+                    className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+                  >
+                    {hasRole && <ChangelogToastTrigger />}
+                    {hasRole ? (
+                      isSwitching ? (
+                        <FullPageCenter>
+                          <VStack gap={3} align="center">
+                            <Spinner
+                              size="lg"
+                              label={tSettings('organization.switchingLabel')}
+                            />
+                            <Text variant="muted" className="text-sm">
+                              {tSettings('organization.switching')}
+                            </Text>
+                          </VStack>
+                        </FullPageCenter>
+                      ) : (
+                        <Outlet />
+                      )
+                    ) : null}
+                  </Stack>
+                  {hasRole && (
+                    <MobileBottomNav organizationId={organizationId} />
                   )}
                 </div>
-
-                <Stack
-                  id="main-content"
-                  as="main"
-                  tabIndex={-1}
-                  gap={0}
-                  className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
-                >
-                  {hasRole && (
-                    <TwoFactorGraceBanner organizationId={organizationId} />
-                  )}
-                  {hasRole && (
-                    <TwoFactorLowBackupCodesBanner
-                      organizationId={organizationId}
-                    />
-                  )}
-                  {hasRole && (
-                    <ProvisioningBanner organizationId={organizationId} />
-                  )}
-                  {hasRole && <ChangelogToastTrigger />}
-                  {hasRole ? (
-                    isSwitching ? (
-                      <FullPageCenter>
-                        <VStack gap={3} align="center">
-                          <Spinner
-                            size="lg"
-                            label={tSettings('organization.switchingLabel')}
-                          />
-                          <Text variant="muted" className="text-sm">
-                            {tSettings('organization.switching')}
-                          </Text>
-                        </VStack>
-                      </FullPageCenter>
-                    ) : (
-                      <Outlet />
-                    )
-                  ) : null}
-                </Stack>
-                {hasRole && <MobileBottomNav organizationId={organizationId} />}
               </div>
             </AdaptiveHeaderProvider>
           </DirtyBlockerProvider>

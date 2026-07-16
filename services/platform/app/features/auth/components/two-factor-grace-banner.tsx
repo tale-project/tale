@@ -38,28 +38,26 @@ export function TwoFactorGraceBanner({
   const titleKey = remainingDays === 1 ? 'grace.titleOne' : 'grace.titleOther';
 
   return (
-    <div className="px-4 pt-2">
-      <Row
-        role="status"
-        gap={2}
-        wrap
-        className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
-      >
-        <span className="grow">
-          <span className="font-medium">
-            {t(titleKey, { days: remainingDays })}
-          </span>
-          {' — '}
-          {t('grace.body')}
+    <Row
+      role="status"
+      gap={2}
+      wrap
+      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
+    >
+      <span className="grow">
+        <span className="font-medium">
+          {t(titleKey, { days: remainingDays })}
         </span>
-        <Link
-          to="/dashboard/$id/settings/account"
-          params={{ id: organizationId }}
-          className="underline underline-offset-2"
-        >
-          {t('grace.setupLink')}
-        </Link>
-      </Row>
-    </div>
+        {' — '}
+        {t('grace.body')}
+      </span>
+      <Link
+        to="/dashboard/$id/settings/account"
+        params={{ id: organizationId }}
+        className="underline underline-offset-2"
+      >
+        {t('grace.setupLink')}
+      </Link>
+    </Row>
   );
 }

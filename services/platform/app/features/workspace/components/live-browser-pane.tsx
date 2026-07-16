@@ -137,6 +137,11 @@ function attachClipboardBridge(rfb: RFB, container: HTMLElement): () => void {
 
 interface ScreencastViewportProps {
   threadId: string;
+  /**
+   * False while sandbox readiness is still loading. Distinct from
+   * `sessionActive`: unknown must show Connecting, not the gated empty (#2712).
+   */
+  sessionReady: boolean;
   /** Whether the agent's session is actively running a turn / warm. */
   sessionActive: boolean;
   /** When true, connect for human takeover (`?control=1` → writable x11vnc) and
@@ -159,6 +164,7 @@ interface ScreencastViewportProps {
  */
 function ScreencastViewport({
   threadId,
+  sessionReady,
   sessionActive,
   control,
 }: ScreencastViewportProps) {
@@ -248,6 +254,31 @@ function ScreencastViewport({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, connectNonce, control, sessionActive]);
 
+  const connectingOverlay = (
+    <Row gap={0} justify="center" className="absolute inset-0">
+      <Stack gap={2} className="items-center">
+        <Spinner
+          label={t('liveBrowser.connecting', {
+            defaultValue: 'Connecting',
+          })}
+        />
+        <Text variant="caption" className="text-white/70">
+          {t('liveBrowser.connecting', { defaultValue: 'Connecting…' })}
+        </Text>
+      </Stack>
+    </Row>
+  );
+
+  // Readiness unknown: keep a stable Connecting frame — never the gated empty
+  // — until sandbox state has resolved (#2712). No socket yet (host unmounted).
+  if (!sessionReady) {
+    return (
+      <div className="relative min-h-0 flex-1 bg-black">
+        {connectingOverlay}
+      </div>
+    );
+  }
+
   // Gated empty state: nothing is being driven, so don't even open a socket —
   // tell the user to start a turn.
   if (!sessionActive) {
@@ -302,20 +333,7 @@ function ScreencastViewport({
         </span>
       )}
 
-      {status === 'connecting' && (
-        <Row gap={0} justify="center" className="absolute inset-0">
-          <Stack gap={2} className="items-center">
-            <Spinner
-              label={t('liveBrowser.connecting', {
-                defaultValue: 'Connecting',
-              })}
-            />
-            <Text variant="caption" className="text-white/70">
-              {t('liveBrowser.connecting', { defaultValue: 'Connecting…' })}
-            </Text>
-          </Stack>
-        </Row>
-      )}
+      {status === 'connecting' && connectingOverlay}
 
       {status === 'disconnected' && (
         <Row gap={0} justify="center" className="absolute inset-0 p-8">
@@ -392,6 +410,7 @@ function ControlToggle({
  *  this body owns only the RFB host (which must stay mounted) and the dialog. */
 function LiveBrowserBody({
   threadId,
+  sessionReady,
   sessionActive,
   control,
   confirmOpen,
@@ -400,6 +419,7 @@ function LiveBrowserBody({
   onReset,
 }: {
   threadId: string;
+  sessionReady: boolean;
   sessionActive: boolean;
   control: boolean;
   confirmOpen: boolean;
@@ -412,6 +432,7 @@ function LiveBrowserBody({
     <div className="flex min-h-0 flex-1 flex-col">
       <ScreencastViewport
         threadId={threadId}
+        sessionReady={sessionReady}
         sessionActive={sessionActive}
         control={control}
       />
@@ -462,9 +483,11 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
   // "Active" = there's something worth streaming: a turn is actively running,
   // or the sandbox is warm (`active`). A `stopped`/`creating`/`degraded`
   // session (or no live op) shows the gated empty state instead of opening a
-  // socket that would only stare at a black frame.
-  const state = useThreadSandboxState(threadId);
+  // socket that would only stare at a black frame. While sandbox state is
+  // still loading, keep Connecting — never the gated empty (#2712).
+  const { state, isLoading: stateLoading } = useThreadSandboxState(threadId);
   const progress = useSessionProgress(threadId);
+  const sessionReady = !stateLoading;
   const running =
     progress?.status === 'running' &&
     (progress.agentIdleAt == null ||
@@ -510,10 +533,10 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
 
     const headerActions: ReactNode = (
       <>
-        {sessionActive && (
+        {sessionReady && sessionActive && (
           <ControlToggle control={control} onToggle={setControl} />
         )}
-        {sessionActive && (
+        {sessionReady && sessionActive && (
           <Tooltip
             content={t('liveBrowser.reset', {
               defaultValue: 'Reset browser (clears logins)',
@@ -546,6 +569,7 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
       body: (
         <LiveBrowserBody
           threadId={threadId}
+          sessionReady={sessionReady}
           sessionActive={sessionActive}
           control={control}
           confirmOpen={confirmOpen}
@@ -561,6 +585,7 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
     t,
     control,
     setControl,
+    sessionReady,
     sessionActive,
     confirmOpen,
     resetting,

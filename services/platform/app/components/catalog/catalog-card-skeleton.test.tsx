@@ -54,7 +54,7 @@ describe('CatalogCardSkeleton', () => {
     expect(container.getElementsByClassName('h-8 w-20').length).toBe(0);
   });
 
-  it('masks the bottom-right overflow menu on the menu variant', () => {
+  it('masks the top-right overflow menu on the menu variant', () => {
     const { container } = render(
       <Skeletonize loading label="Catalog">
         <CatalogGridSkeleton cards={3} menu />

@@ -96,7 +96,7 @@ export function SandboxChip({
   // Only subscribe on external-agent threads — a normal chat thread passes
   // `undefined` (→ 'skip'), so it costs no live subscription / indexed read.
   const gatedThreadId = isExternal ? threadId : undefined;
-  const state = useThreadSandboxState(gatedThreadId);
+  const { state } = useThreadSandboxState(gatedThreadId);
   const progress = useSessionProgress(gatedThreadId);
   const { data: meta } = useConvexQuery(
     api.threads.queries.getThreadMeta,

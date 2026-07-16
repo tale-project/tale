@@ -158,6 +158,7 @@ export function TwoFactorPolicyEditor({
   return (
     <Skeletonize loading={loading} label={t('twoFactorPolicy.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('twoFactorPolicy.title')}
         description={t('twoFactorPolicy.description')}
         action={

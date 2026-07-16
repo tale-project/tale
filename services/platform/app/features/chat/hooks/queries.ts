@@ -382,16 +382,24 @@ export function isAgentLingeringSteerReady(
 
 /**
  * The thread's live sandbox-session lifecycle state (creating/active/degraded/
- * stopped + pinned), for the ambient "Sandbox" status pill. Null for normal
- * chat threads or threads with no live sandbox. Composed with
- * `useSessionProgress` (the live op) to show "Working" while a turn runs.
+ * stopped + pinned), for the ambient "Sandbox" status pill. `state` is null for
+ * normal chat threads or threads with no live sandbox. `isLoading` means
+ * readiness is still unknown — true until this thread's query has fetched at
+ * least once (not merely `isLoading`/`isFetching`: those are false while the
+ * query is auth-gated/`enabled:false`, which would flash the Live browser
+ * gated empty before Connecting — #2712). Skipped when `threadId` is absent.
+ * Composed with `useSessionProgress` (the live op) to show "Working" while a
+ * turn runs.
  */
 export function useThreadSandboxState(threadId: string | null | undefined) {
-  const { data } = useConvexQuery(
+  const { data, isFetched } = useConvexQuery(
     api.sandbox.session_queries_public.getThreadSandboxState,
     threadId ? { threadId } : 'skip',
   );
-  return data ?? null;
+  return {
+    state: data ?? null,
+    isLoading: Boolean(threadId) && !isFetched,
+  };
 }
 
 export function useActiveApprovals(organizationId: string) {

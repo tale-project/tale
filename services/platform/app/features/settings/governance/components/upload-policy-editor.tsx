@@ -233,6 +233,7 @@ export function UploadPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
       <SettingsSection
+        className="border-border border-t pt-8"
         title={t('uploadPolicy.title')}
         description={t('uploadPolicy.description')}
         action={

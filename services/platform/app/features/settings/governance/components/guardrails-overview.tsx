@@ -6,7 +6,7 @@ import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
-import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import {
   Table,
@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
-import { Copy, Info, ShieldAlert } from 'lucide-react';
+import { Copy, Fingerprint, ListFilter, Shield } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -61,63 +61,59 @@ interface GuardrailsOverviewProps {
   organizationId: string;
 }
 
+type OffKind = 'off' | 'not_configured';
+
 interface StatusCardProps {
   title: string;
   description: string;
   enabled: boolean;
-  details: string[];
-  disabledReason: string;
+  /** One short summary when on. Omitted when off — sections below explain why. */
+  summary?: string;
+  offKind: OffKind;
+  href: string;
   icon: LucideIcon;
 }
 
+/** Lean status card: title, blurb, state, optional on-summary. Whole card jumps. */
 function StatusCard({
   title,
   description,
   enabled,
-  details,
-  disabledReason,
+  summary,
+  offKind,
+  href,
   icon: Icon,
 }: StatusCardProps) {
-  const { t: tCommon } = useT('common');
-  // Inside a loading `<Skeletonize>` the enabled/disabled state and the detail
-  // strings aren't known yet, so render the icon + a masked details block
-  // (instead of misleadingly flashing the "Disabled" badge). The title /
-  // description are static and always render their real text.
+  const { t } = useT('governance');
   const loading = useSkeleton();
+  const statusLabel = enabled
+    ? t('guardrailsOverview.statusCards.on')
+    : offKind === 'not_configured'
+      ? t('guardrailsOverview.statusCards.notConfigured')
+      : t('guardrailsOverview.statusCards.off');
+
   return (
-    <Card padding="md">
-      <Row gap={2} className="mb-2">
-        <Icon
-          className={
-            enabled && !loading
-              ? 'text-success size-4'
-              : 'text-muted-foreground size-4'
-          }
-          aria-hidden
-        />
-        <div className="font-medium">{title}</div>
-      </Row>
-      <div className="text-muted-foreground mb-3 text-xs">{description}</div>
-      {loading ? (
-        <div className="text-xs">
-          <SkeletonText lines={3} />
-        </div>
-      ) : enabled ? (
-        <ul className="text-xs">
-          {details.map((detail) => (
-            <li key={detail} className="py-0.5">
-              {detail}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="space-y-2">
-          <Badge variant="outline" icon={Info} className="mt-auto">
-            {tCommon('status.disabled')}
-          </Badge>
-          <p className="text-muted-foreground text-xs">{disabledReason}</p>
-        </div>
-      )}
+    <Card padding="md" asChild interactive>
+      <a href={href}>
+        <Row gap={2} className="mb-1">
+          <Icon
+            className={
+              enabled && !loading
+                ? 'text-success size-4'
+                : 'text-muted-foreground size-4'
+            }
+            aria-hidden
+          />
+          <div className="font-medium">{title}</div>
+        </Row>
+        <p className="text-muted-foreground mb-3 text-xs">{description}</p>
+        <Badge variant={enabled && !loading ? 'green' : 'slate'}>
+          {statusLabel}
+        </Badge>
+        {enabled && summary && !loading ? (
+          <p className="text-muted-foreground mt-2 text-xs">{summary}</p>
+        ) : null}
+      </a>
     </Card>
   );
 }
@@ -157,36 +153,23 @@ export function GuardrailsOverview({
 
   const isLoading = piiLoading || chatFilterLoading || moderationLoading;
 
-  const chatFilterDetails: string[] = chatFilterEnabled
-    ? [
-        t('guardrailsOverview.statusCards.contentSafety.appliesTo', {
-          targets: (chatFilterConfig?.appliesTo ?? ['input']).join(', '),
-        }),
-        t('guardrailsOverview.statusCards.contentSafety.categories', {
-          count: chatFilterConfig?.categories?.length ?? 0,
-        }),
-        t('guardrailsOverview.statusCards.contentSafety.maskReplacement', {
-          value: chatFilterConfig?.maskReplacement ?? '[BLOCKED]',
-        }),
-      ]
-    : [];
+  const chatFilterSummary = chatFilterEnabled
+    ? t('guardrailsOverview.statusCards.contentSafety.summary', {
+        count: chatFilterConfig?.categories?.length ?? 0,
+        targets: (chatFilterConfig?.appliesTo ?? ['input']).join(', '),
+      })
+    : undefined;
 
   const piiEnabled = !!piiPolicy?.enabled;
   const piiParsed = piiPolicy
     ? piiConfigSchema.safeParse(piiPolicy.config)
     : null;
   const piiConfig = piiParsed?.success ? piiParsed.data : undefined;
-  const piiDetails: string[] = piiEnabled
-    ? [
-        t('guardrailsOverview.statusCards.pii.mode', {
-          mode: piiConfig?.mode ?? 'mask',
-        }),
-        t('guardrailsOverview.statusCards.pii.patterns', {
-          builtIn: piiConfig?.enabledPatterns?.length ?? 0,
-          custom: piiConfig?.customPatterns?.length ?? 0,
-        }),
-      ]
-    : [];
+  const piiSummary = piiEnabled
+    ? t('guardrailsOverview.statusCards.pii.summary', {
+        mode: piiConfig?.mode ?? 'mask',
+      })
+    : undefined;
 
   const moderationEnabled = !!moderationPolicy?.enabled;
   const moderationParsed = moderationPolicy
@@ -195,23 +178,11 @@ export function GuardrailsOverview({
   const moderationConfig = moderationParsed?.success
     ? moderationParsed.data
     : undefined;
-  const moderationDetails: string[] = moderationEnabled
-    ? [
-        t('guardrailsOverview.statusCards.moderation.provider', {
-          value: moderationConfig?.responseShape?.type ?? 'custom_jsonpath',
-        }),
-        t('guardrailsOverview.statusCards.moderation.appliesTo', {
-          targets: (moderationConfig?.appliesTo ?? ['input']).join(', '),
-        }),
-        t('guardrailsOverview.statusCards.moderation.mappings', {
-          count: moderationConfig?.categoryMappings?.length ?? 0,
-        }),
-        t('guardrailsOverview.statusCards.moderation.failBehavior', {
-          input: moderationConfig?.failBehavior?.input ?? 'open',
-          output: moderationConfig?.failBehavior?.output ?? 'closed',
-        }),
-      ]
-    : [];
+  const moderationSummary = moderationEnabled
+    ? t('guardrailsOverview.statusCards.moderation.summary', {
+        value: moderationConfig?.responseShape?.type ?? 'custom_jsonpath',
+      })
+    : undefined;
 
   return (
     <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
@@ -226,19 +197,23 @@ export function GuardrailsOverview({
               'guardrailsOverview.statusCards.contentSafety.description',
             )}
             enabled={chatFilterEnabled}
-            details={chatFilterDetails}
-            disabledReason={t(
-              'guardrailsOverview.statusCards.contentSafety.disabled',
-            )}
-            icon={ShieldAlert}
+            summary={chatFilterSummary}
+            offKind={
+              (chatFilterConfig?.categories?.length ?? 0) === 0
+                ? 'not_configured'
+                : 'off'
+            }
+            href="#guardrails-content-safety"
+            icon={ListFilter}
           />
           <StatusCard
             title={t('guardrailsOverview.statusCards.pii.title')}
             description={t('guardrailsOverview.statusCards.pii.description')}
             enabled={piiEnabled}
-            details={piiDetails}
-            disabledReason={t('guardrailsOverview.statusCards.pii.disabled')}
-            icon={ShieldAlert}
+            summary={piiSummary}
+            offKind="off"
+            href="#guardrails-pii"
+            icon={Fingerprint}
           />
           <StatusCard
             title={t('guardrailsOverview.statusCards.moderation.title')}
@@ -246,11 +221,10 @@ export function GuardrailsOverview({
               'guardrailsOverview.statusCards.moderation.description',
             )}
             enabled={moderationEnabled}
-            details={moderationDetails}
-            disabledReason={t(
-              'guardrailsOverview.statusCards.moderation.disabled',
-            )}
-            icon={ShieldAlert}
+            summary={moderationSummary}
+            offKind={moderationConfig?.endpoint?.url ? 'off' : 'not_configured'}
+            href="#guardrails-moderation"
+            icon={Shield}
           />
         </Grid>
 
@@ -385,8 +359,14 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
       </Row>
 
       {!isLoading && (!events || events.length === 0) ? (
-        // Real empty-state only once the read has settled with zero rows.
-        <EmptyState title={t('guardrailsOverview.recentEvents.empty')} />
+        // Same bordered shell as the table below so empty/loaded don't jump
+        // chrome. EmptyState itself is borderless by design.
+        <div className="border-border overflow-hidden rounded-lg border">
+          <EmptyState
+            title={t('guardrailsOverview.recentEvents.empty.title')}
+            description={t('guardrailsOverview.recentEvents.empty.description')}
+          />
+        </div>
       ) : (
         // While loading, render the SAME table shell with placeholder rows
         // (wrapped in `<Skeletonize>` so the masked cells announce "Loading"
