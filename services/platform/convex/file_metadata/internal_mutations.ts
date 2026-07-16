@@ -243,6 +243,17 @@ export const updateFileRagStatus = internalMutation({
       .first();
     if (!metadata) return;
 
+    // Success is terminal for a given content: once `completed`, a straggling
+    // `failed` write (a killed sibling dispatcher's catch, a dying poll chain)
+    // must not pollute it. A legitimate re-index of CHANGED content always
+    // passes through `queued` first, which stays allowed.
+    if (args.ragStatus === 'failed' && metadata.ragStatus === 'completed') {
+      console.info(
+        `[updateFileRagStatus] ignoring stale failed write for completed ${args.storageId}`,
+      );
+      return;
+    }
+
     const isTerminal =
       args.ragStatus === 'completed' || args.ragStatus === 'failed';
 
@@ -263,11 +274,14 @@ export const updateFileRagStatus = internalMutation({
       ragError: failureReason,
       ragProgress: isTerminal ? undefined : args.ragProgress,
       // Stamp when re-queued so the watchdog can time it out. Clear on
-      // terminal states so a later re-queue starts its own clock.
+      // completion so a later re-queue starts its own clock — but KEEP it on
+      // `failed`: the watchdog's failed-row reconcile uses it to bound which
+      // recent failures are still worth checking against the corpus (a late
+      // completion self-heals the row instead of demanding a manual retry).
       ragQueuedAt:
         args.ragStatus === 'queued'
           ? Date.now()
-          : isTerminal
+          : args.ragStatus === 'completed'
             ? undefined
             : metadata.ragQueuedAt,
       // Canonical completion timestamp (replaces documents.ragInfo.indexedAt).

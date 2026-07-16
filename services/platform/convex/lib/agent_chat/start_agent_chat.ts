@@ -15,7 +15,11 @@ import { listMessages, saveMessage } from '@convex-dev/agent';
 import type { FunctionArgs } from 'convex/server';
 
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
-import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
+import {
+  formatVideoLinkAttachmentMarkdown,
+  resolveTranscriptRetrievalTool,
+  type TranscriptRetrievalTool,
+} from '../../../lib/shared/video-link-markdown';
 import { components, internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import { checkAgentRunAllowedHelper } from '../../agents/guardrails/budget_guard';
@@ -345,6 +349,10 @@ export async function startAgentChat(
         trimmedMessage,
         attachments,
         organizationId,
+        // The transcript hint must only name a retrieval tool this agent
+        // actually has — instructing the model to call an unregistered tool
+        // dead-ends the turn (#2760).
+        resolveTranscriptRetrievalTool(agentConfig),
       )
     : trimmedMessage;
   const messageContent = appendKbReferenceBlock(
@@ -858,6 +866,7 @@ async function buildMessageWithAttachments(
   message: string,
   attachments: FileAttachment[],
   organizationId: string,
+  transcriptRetrievalTool: TranscriptRetrievalTool,
 ): Promise<string> {
   // Backend-aware URL bake: a Convex `_storage` id gets the direct storage URL
   // (unchanged); an `s3:` ref gets the `/storage?ref=…&org=…` route URL (a
@@ -1060,12 +1069,21 @@ async function buildMessageWithAttachments(
               sourcePlatform,
               videoDurationSec:
                 videoDurationSec ?? meta.transcriptionDurationSec,
+              retrievalTool: transcriptRetrievalTool,
             }),
           );
           continue;
         }
+        // The access sentence must only name a tool this agent has (#2760);
+        // the document_retrieve wording is the historical template.
+        const accessSentence =
+          transcriptRetrievalTool === 'document_retrieve'
+            ? `Call document_retrieve with fileId=${attachment.fileId} to read the full text`
+            : transcriptRetrievalTool === 'rag_search'
+              ? 'Search its contents with rag_search'
+              : 'No retrieval tool is available in this chat to read it';
         audioMarkdown.push(
-          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. Call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. ${accessSentence}\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       } else {
         const reason =

@@ -16,7 +16,9 @@ interface DocumentPreviewMarkdownProps {
 
 export function DocumentPreviewMarkdown({ url }: DocumentPreviewMarkdownProps) {
   const { t } = useT('documents');
-  const { data: content, isLoading, error } = useTextPreview(url);
+  const { data, isLoading, error } = useTextPreview(url);
+  const content = data?.text;
+  const truncated = data?.truncated ?? false;
 
   return (
     <PreviewPane>
@@ -30,6 +32,16 @@ export function DocumentPreviewMarkdown({ url }: DocumentPreviewMarkdownProps) {
       {!isLoading && error && (
         <Text as="div" variant="error" align="center" className="mt-4">
           {t('preview.failedToLoad')}
+        </Text>
+      )}
+      {!isLoading && !error && truncated && (
+        <Text
+          as="div"
+          variant="muted"
+          align="center"
+          className="mx-auto mb-3 w-full max-w-3xl"
+        >
+          {t('preview.truncatedNotice')}
         </Text>
       )}
       {!isLoading && !error && content !== null && content !== undefined && (

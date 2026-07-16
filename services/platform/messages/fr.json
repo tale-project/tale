@@ -2490,6 +2490,7 @@
       "downloadFailed": "Échec du téléchargement du fichier",
       "notAvailable": "Aperçu non disponible",
       "notAvailableDescription": "Ce type de fichier ne peut pas être prévisualisé. Merci de télécharger le fichier pour consulter son contenu.",
+      "truncatedNotice": "Ce fichier est trop volumineux pour un aperçu complet — seul le début est affiché. Merci de télécharger le fichier pour tout consulter.",
       "download": "Télécharger",
       "document": "Document",
       "title": "Aperçu du document",

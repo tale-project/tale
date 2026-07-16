@@ -18,6 +18,12 @@ import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 const MAX_POLL_ATTEMPTS = 50;
+/**
+ * A corpus row updated within this window is an actively progressing sliced
+ * indexing run — the poll chain keeps its tight cadence (and resets its
+ * backoff) so the user sees live progress for however long the run takes.
+ */
+const PROGRESS_FRESH_MS = 10 * 60 * 1000;
 
 /**
  * Upload a file to the RAG service for indexing, then start a server-driven
@@ -122,16 +128,13 @@ export const pollFileRagStatus = internalAction({
     }
 
     if (args.attempt > MAX_POLL_ATTEMPTS) {
+      // Do NOT fail the row here: sliced indexing (#2752) legitimately
+      // outlives this poll chain on large documents. Ownership hands over to
+      // the rag watchdog, which reconciles against the corpus row — adopting
+      // a late `completed`/`failed` (with its REAL error) and only declaring
+      // a `processing` row dead once it stops moving for the stale window.
       console.warn(
-        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}`,
-      );
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        {
-          storageId: args.storageId,
-          ragStatus: 'failed',
-          ragError: `Status check timed out after ${MAX_POLL_ATTEMPTS} attempts`,
-        },
+        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}; leaving status to the rag watchdog`,
       );
       return null;
     }
@@ -175,6 +178,7 @@ export const pollFileRagStatus = internalAction({
         progress_phase: string | null;
         progress_detail: string | null;
         ocr_applied: boolean | null;
+        updated_at: string | null;
       } | null;
       try {
         const result = await ctx.runAction(internal.rag.documents.getStatuses, {
@@ -234,6 +238,29 @@ export const pollFileRagStatus = internalAction({
           internal.file_metadata.internal_mutations.updateFileRagStatus,
           { storageId: args.storageId, ragStatus: 'running', ragProgress },
         );
+        // A FRESH corpus row means batches are actively committing (sliced
+        // indexing touches `updated_at` per batch): keep the tight early
+        // cadence and reset the backoff so a long healthy index shows live
+        // progress instead of a 15-45 min stale badge. Only a row that has
+        // stopped moving walks the backoff toward the watchdog.
+        const updatedAtMs = docStatus.updated_at
+          ? Date.parse(docStatus.updated_at)
+          : Number.NaN;
+        const fresh =
+          Number.isFinite(updatedAtMs) &&
+          Date.now() - updatedAtMs < PROGRESS_FRESH_MS;
+        if (fresh) {
+          await ctx.scheduler.runAfter(
+            getPollingInterval(1),
+            internal.file_metadata.internal_actions.pollFileRagStatus,
+            {
+              storageId: args.storageId,
+              organizationId: args.organizationId,
+              attempt: 2,
+            },
+          );
+          return null;
+        }
       }
       await reschedule();
     } catch (error) {

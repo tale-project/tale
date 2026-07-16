@@ -628,3 +628,44 @@ describe('applyVerifiedBlobSize (#2731 authoritative S3 upload size)', () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 });
+
+describe('updateFileRagStatus terminal-success monotonicity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A straggling writer (killed sibling dispatcher, dying poll chain) must not
+  // pollute a completed index with a late `failed` — success is terminal for a
+  // given content; a legitimate re-index passes through `queued` first.
+  it('ignores a failed write when the row is already completed', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      storageId: 'storage_1',
+      ragStatus: 'completed',
+    });
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: 'straggler error',
+    });
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('still allows a re-queue after completion (content changed)', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      storageId: 'storage_1',
+      ragStatus: 'completed',
+    });
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, { storageId: 'storage_1', ragStatus: 'queued' });
+
+    expect(ctx.db.patch).toHaveBeenCalledTimes(1);
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragStatus: string };
+    expect(patchArg.ragStatus).toBe('queued');
+  });
+});

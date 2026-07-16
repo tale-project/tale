@@ -42,12 +42,14 @@ const handler = (recoverStuckRagIndexing as unknown as Handler).handler;
 type Candidate = {
   storageId: string;
   organizationId: string;
-  ragStatus: 'queued' | 'running';
+  ragStatus: 'queued' | 'running' | 'failed';
+  ragError?: string;
 };
 type DocStatus = {
   status: string;
   error: string | null;
   ocr_applied: boolean | null;
+  updated_at?: string | null;
 };
 
 function createCtx(opts: {
@@ -153,6 +155,50 @@ describe('recoverStuckRagIndexing watchdog', () => {
     expect(String(mutationCalls[0].args.ragError)).toMatch(/interrupted/i);
   });
 
+  it('leaves a FRESH processing row alone — a live sliced indexing run (#2752)', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+      ],
+      statuses: {
+        [STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          // A batch committed moments ago — the store loop is alive.
+          updated_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls).toHaveLength(0);
+  });
+
+  it('fails a processing row whose corpus row stopped moving for the stale window', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+      ],
+      statuses: {
+        [STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          updated_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(),
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls[0].args).toMatchObject({
+      storageId: STORAGE,
+      ragStatus: 'failed',
+    });
+  });
+
   it('fails a queued row the corpus never ingested (null status)', async () => {
     const { ctx, mutationCalls } = createCtx({
       candidates: [
@@ -245,5 +291,141 @@ describe('recoverStuckRagIndexing watchdog', () => {
       fileIds: ['a', 'b'],
     });
     expect(mutationCalls).toHaveLength(2);
+  });
+});
+
+describe('failed-row reconcile (self-heal)', () => {
+  const FAILED_STORAGE = 's_failed';
+
+  it('adopts a late completion for a falsely failed row', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        {
+          storageId: FAILED_STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'failed',
+        },
+      ],
+      statuses: {
+        [FAILED_STORAGE]: {
+          status: 'completed',
+          error: null,
+          ocr_applied: null,
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls[0].args).toMatchObject({
+      storageId: FAILED_STORAGE,
+      ragStatus: 'completed',
+    });
+  });
+
+  it('flips a failed row back to running while the corpus chain is live', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        {
+          storageId: FAILED_STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'failed',
+        },
+      ],
+      statuses: {
+        [FAILED_STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          updated_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls[0].args).toMatchObject({
+      storageId: FAILED_STORAGE,
+      ragStatus: 'running',
+    });
+  });
+
+  it('refreshes a failed row with the corpus real error, once', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        {
+          storageId: FAILED_STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'failed',
+          ragError: 'Indexing was interrupted (generic)',
+        },
+      ],
+      statuses: {
+        [FAILED_STORAGE]: {
+          status: 'failed',
+          error: 'project size limit (512 MB) has been exceeded',
+          ocr_applied: null,
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls[0].args).toMatchObject({
+      storageId: FAILED_STORAGE,
+      ragStatus: 'failed',
+      ragError: 'project size limit (512 MB) has been exceeded',
+    });
+  });
+
+  it('does not rewrite a failed row already carrying the same corpus error', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        {
+          storageId: FAILED_STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'failed',
+          ragError: 'boom',
+        },
+      ],
+      statuses: {
+        [FAILED_STORAGE]: {
+          status: 'failed',
+          error: 'boom',
+          ocr_applied: null,
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls).toHaveLength(0);
+  });
+
+  it('leaves a failed row alone when the corpus job is dead (stale/null)', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        {
+          storageId: FAILED_STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'failed',
+          ragError: 'real error text',
+        },
+        { storageId: 'gone', organizationId: 'org_1', ragStatus: 'failed' },
+      ],
+      statuses: {
+        [FAILED_STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          updated_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(),
+        },
+        gone: null,
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls).toHaveLength(0);
   });
 });

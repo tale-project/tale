@@ -2490,6 +2490,7 @@
       "downloadFailed": "Failed to download the file",
       "notAvailable": "Preview not available",
       "notAvailableDescription": "This file type cannot be previewed. Please download the file to view its contents.",
+      "truncatedNotice": "This file is too large to preview in full — showing the beginning. Download the file to view everything.",
       "download": "Download",
       "document": "Document",
       "title": "Document preview",

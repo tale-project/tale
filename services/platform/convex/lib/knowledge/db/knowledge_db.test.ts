@@ -31,10 +31,14 @@ const { postgresMock, created } = vi.hoisted(() => {
 vi.mock('postgres', () => ({ default: postgresMock }));
 
 import {
+  bm25Available,
   closeKnowledgePool,
   getKnowledgeDatabaseUrl,
   getKnowledgePool,
   getKnowledgePoolForOrg,
+  isUndefinedFunction,
+  isUndefinedSchema,
+  markBm25Unavailable,
 } from './knowledge_db';
 
 /** The pools are fakes; view them as `FakePool` to read the recorded spies. */
@@ -137,5 +141,81 @@ describe('knowledge-db pool cache', () => {
     postgresMock.mockClear();
     getKnowledgePool();
     expect(postgresMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BM25 capability probe', () => {
+  /** Callable fake Sql: the tagged-template probe hits the function itself. */
+  function makeProbeSql(behavior: () => Promise<unknown[]>): {
+    sql: Sql;
+    calls: { count: number };
+  } {
+    const calls = { count: 0 };
+    const fn = (async () => {
+      calls.count += 1;
+      return behavior();
+    }) as unknown as Sql;
+    return { sql: fn, calls };
+  }
+
+  it('probes pg_extension once per pool and caches a negative answer', async () => {
+    const { sql, calls } = makeProbeSql(async () => []);
+    await expect(bm25Available(sql)).resolves.toBe(false);
+    await expect(bm25Available(sql)).resolves.toBe(false);
+    expect(calls.count).toBe(1);
+  });
+
+  it('caches a positive answer', async () => {
+    const { sql, calls } = makeProbeSql(async () => [{ '?column?': 1 }]);
+    await expect(bm25Available(sql)).resolves.toBe(true);
+    await expect(bm25Available(sql)).resolves.toBe(true);
+    expect(calls.count).toBe(1);
+  });
+
+  it('assumes available on a failed probe and does not cache it', async () => {
+    let attempts = 0;
+    const { sql, calls } = makeProbeSql(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error('connection refused');
+      }
+      return [];
+    });
+    // Failed probe → optimistic true, uncached.
+    await expect(bm25Available(sql)).resolves.toBe(true);
+    // Next call re-probes and lands the real (negative) answer.
+    await expect(bm25Available(sql)).resolves.toBe(false);
+    expect(calls.count).toBe(2);
+  });
+
+  it('markBm25Unavailable overrides the cached capability', async () => {
+    const { sql, calls } = makeProbeSql(async () => [{ '?column?': 1 }]);
+    await expect(bm25Available(sql)).resolves.toBe(true);
+    markBm25Unavailable(sql);
+    await expect(bm25Available(sql)).resolves.toBe(false);
+    expect(calls.count).toBe(1);
+  });
+});
+
+describe('pg SQLSTATE helpers', () => {
+  function pgError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code });
+  }
+
+  it('isUndefinedSchema matches 3F000 (schema "paradedb" does not exist)', () => {
+    expect(
+      isUndefinedSchema(pgError('3F000', 'schema "paradedb" does not exist')),
+    ).toBe(true);
+    expect(isUndefinedSchema(pgError('42P01', 'no table'))).toBe(false);
+    expect(isUndefinedSchema(new Error('plain'))).toBe(false);
+  });
+
+  it('isUndefinedFunction matches 42883', () => {
+    expect(
+      isUndefinedFunction(
+        pgError('42883', 'operator does not exist: uuid @@@ text'),
+      ),
+    ).toBe(true);
+    expect(isUndefinedFunction(pgError('3F000', 'schema'))).toBe(false);
   });
 });
