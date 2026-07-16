@@ -957,16 +957,22 @@ export async function ytdlpWriteSubs(
 }
 
 /**
- * Download + extract audio to an opus-in-ogg `.ogg` file (Whisper-
- * accepted; matches `audio_preprocess.ts:113-119` convention).
+ * Download + extract audio to an `.mp3` file.
  *
  * Phase C of the orchestrator — wall-clock 15min covers most 4h videos
  * on a reasonable network.
  *
- * yt-dlp's `vorbis` post-processor produces opus-in-ogg with `.ogg`
- * extension. We DO NOT pass `--audio-format opus` because that produces
- * a raw `.opus` file which OpenAI's Whisper API rejects (the codec is
- * fine, the extension/MIME is not).
+ * mp3 (libmp3lame) — NOT `vorbis` (libvorbis) — because libvorbis is absent
+ * from common ffmpeg builds (notably Homebrew's `ffmpeg` formula ships
+ * `--enable-libmp3lame`/`--enable-libopus` but NOT `--enable-libvorbis`), so
+ * `--audio-format vorbis` failed the whole ingest with "Encoder not found" on
+ * every macOS dev/self-host box. libmp3lame is present in Homebrew AND Debian
+ * ffmpeg. The exact intermediate codec barely matters: `audio_preprocess.ts`
+ * re-encodes this file to 32 kbps Opus-in-OGG (libopus) before Whisper, so this
+ * only has to be a compressed file ffmpeg can read back. We avoid a raw
+ * `.opus`/`--audio-format opus` output because that path is what the re-encode
+ * later standardizes anyway; a fixed, universally-decodable `.mp3` keeps the
+ * extension deterministic for the store + the tmp round-trip.
  */
 export async function ytdlpExtractAudio(
   url: string,
@@ -977,7 +983,7 @@ export async function ytdlpExtractAudio(
   const args = [
     '-x',
     '--audio-format',
-    'vorbis',
+    'mp3',
     '--audio-quality',
     '0',
     '--max-filesize',
@@ -999,11 +1005,11 @@ export async function ytdlpExtractAudio(
   await runYtdlp(args, jobDir, timeoutMs, session);
 
   const entries = await fs.readdir(jobDir);
-  const audio = entries.find((e) => e.endsWith('.ogg'));
+  const audio = entries.find((e) => e.endsWith('.mp3'));
   if (!audio) {
     throw new YtDlpError(
       'outputValidationFailed',
-      'yt-dlp did not produce expected .ogg output',
+      'yt-dlp did not produce expected .mp3 output',
       '',
     );
   }

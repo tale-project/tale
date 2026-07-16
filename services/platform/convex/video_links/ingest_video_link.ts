@@ -681,7 +681,7 @@ export const ingestVideoLink = internalAction({
         audioBuf.byteOffset,
         audioBuf.byteLength,
       );
-      const audioStorageId = await storeJobBlob(audioBytes, 'audio/ogg');
+      const audioStorageId = await storeJobBlob(audioBytes, 'audio/mpeg');
 
       // GDPR / cascade race window: between storage.store and the
       // saveFileMetadata cross-table write below, erasure can delete
@@ -728,8 +728,8 @@ export const ingestVideoLink = internalAction({
         {
           organizationId: job.organizationId,
           storageId: audioStorageId,
-          fileName: `${safeTitle ?? 'video'}.ogg`,
-          contentType: 'audio/ogg',
+          fileName: `${safeTitle ?? 'video'}.mp3`,
+          contentType: 'audio/mpeg',
           size: audioBytes.byteLength,
           // 'video_link' instead of 'user' so prompt-injection-aware
           // downstream code can differentiate third-party content.
