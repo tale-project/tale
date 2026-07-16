@@ -409,6 +409,80 @@ describe('handleWorkflowComplete', () => {
     expect(completeArgs.output).toBeNull();
   });
 
+  // Regression: a `respond` step whose sandbox run threw (rethrow disposition
+  // skips finalize) and whose failure a loop's continueOnError absorbed left
+  // its taskAgentRun `running` forever — the drain used to fire only on
+  // canceled/failed terminals.
+  it('drains still-running taskAgentRuns as failed on a SUCCESS terminal', async () => {
+    const exec = {
+      _id: 'exec_1',
+      organizationId: 'org_1',
+      workflowSlug: 'mention-workflow',
+      triggerData: {},
+      status: 'running',
+      output: null,
+    };
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
+      exec,
+      execAfterCompletion,
+    });
+
+    await handleWorkflowComplete(ctx, {
+      workflowId: 'component_wf_1',
+      context: { executionId: 'exec_1' },
+      result: { kind: 'success', returnValue: undefined },
+    });
+
+    const drainCalls = schedulerRunAfterArgs.filter(
+      ([, , callArgs]) =>
+        callArgs &&
+        typeof callArgs === 'object' &&
+        'wfExecutionId' in callArgs &&
+        'status' in callArgs,
+    );
+    expect(drainCalls.length).toBe(1);
+    const [, , drainArgs] = drainCalls[0];
+    expect(drainArgs).toMatchObject({
+      wfExecutionId: 'exec_1',
+      status: 'failed',
+      outcome: 'error',
+    });
+  });
+
+  it('drains still-running taskAgentRuns as timed_out on cancel', async () => {
+    const exec = {
+      _id: 'exec_1',
+      organizationId: 'org_1',
+      workflowSlug: 'cancelled-workflow',
+      triggerData: {},
+      status: 'running',
+    };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({ exec });
+
+    await handleWorkflowComplete(ctx, {
+      workflowId: 'component_wf_1',
+      context: { executionId: 'exec_1' },
+      result: { kind: 'canceled' },
+    });
+
+    const drainCalls = schedulerRunAfterArgs.filter(
+      ([, , callArgs]) =>
+        callArgs &&
+        typeof callArgs === 'object' &&
+        'wfExecutionId' in callArgs &&
+        'status' in callArgs,
+    );
+    expect(drainCalls.length).toBe(1);
+    const [, , drainArgs] = drainCalls[0];
+    expect(drainArgs).toMatchObject({
+      wfExecutionId: 'exec_1',
+      status: 'timed_out',
+      outcome: 'error',
+      error: 'workflow canceled',
+    });
+  });
+
   it('emits workflow.completed event even when completeExecution is skipped', async () => {
     // This simulates a scenario where the execution was already completed
     // by a prior call but events haven't been emitted yet (shouldn't normally

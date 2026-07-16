@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bypassedLaneIndexes,
   dedupeSpineLanes,
+  isAgentRunAction,
   isStepVisible,
   stepTreatment,
   type SpineLaneInput,
@@ -123,6 +124,75 @@ describe('stepTreatment', () => {
 
   it('an unannotated non-plumbing step (e.g. sandbox) shows normally', () => {
     expect(stepTreatment({ stepType: 'sandbox', hasUi: false })).toBe('normal');
+  });
+
+  // Regression: react-to-mentions' unannotated `respond` step (agent
+  // run_on_task) collapsed out as plumbing, so the live-run view rendered
+  // nothing while the agent worked in the sandbox.
+  it('an unannotated agent run_on_task action is core work, not plumbing', () => {
+    expect(
+      stepTreatment({
+        stepType: 'action',
+        hasUi: false,
+        actionType: 'agent',
+        actionOperation: 'run_on_task',
+      }),
+    ).toBe('normal');
+  });
+
+  it('agent bookkeeping actions (reassign, budget check) stay hidden', () => {
+    for (const actionOperation of [
+      'reassign_or_unassign',
+      'check_run_budget',
+      'requeue_queued_runs',
+    ]) {
+      expect(
+        stepTreatment({
+          stepType: 'action',
+          hasUi: false,
+          actionType: 'agent',
+          actionOperation,
+        }),
+      ).toBe('hidden');
+    }
+  });
+
+  it('a non-agent action with an operation param stays hidden', () => {
+    expect(
+      stepTreatment({
+        stepType: 'action',
+        hasUi: false,
+        actionType: 'task',
+        actionOperation: 'run_on_task',
+      }),
+    ).toBe('hidden');
+  });
+});
+
+describe('isAgentRunAction', () => {
+  it('true only for agent actions with a run operation', () => {
+    expect(
+      isAgentRunAction({
+        stepType: 'action',
+        actionType: 'agent',
+        actionOperation: 'run_on_task',
+      }),
+    ).toBe(true);
+    expect(
+      isAgentRunAction({
+        stepType: 'action',
+        actionType: 'agent',
+        actionOperation: 'check_run_budget',
+      }),
+    ).toBe(false);
+    expect(
+      isAgentRunAction({
+        stepType: 'sandbox',
+        actionType: 'agent',
+        actionOperation: 'run_on_task',
+      }),
+    ).toBe(false);
+    expect(isAgentRunAction({ stepType: 'action' })).toBe(false);
   });
 });
 

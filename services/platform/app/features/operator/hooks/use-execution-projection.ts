@@ -20,6 +20,7 @@ import {
 import {
   bypassedLaneIndexes,
   dedupeSpineLanes,
+  isAgentRunAction,
   isStepVisible,
   stepTreatment,
 } from '@/lib/shared/platform/step_display';
@@ -43,6 +44,11 @@ interface DefinitionStep {
   stepType: string;
   ui?: StepUiAnnotation;
   role?: string;
+  /** `action` steps: the action's `config.type` (e.g. `'agent'`) — feeds the
+   * `step_display` policy so agent-running actions stay visible. */
+  actionType?: string;
+  /** `action` steps: the action's `parameters.operation` (e.g. `'run_on_task'`). */
+  actionOperation?: string;
   /** The step's own inline i18n (`workflowStepI18nSchema`) — resolved via
    * `resolveWorkflowStepText`; when present it wins over `ui.labelKey`. */
   i18n?: WorkflowStepI18n;
@@ -130,6 +136,17 @@ function parseDefinitionSteps(config: unknown): DefinitionStep[] {
     if (i18n !== undefined) step.i18n = i18n;
     const promisedTitle = parsePromisedTitle(raw.config);
     if (promisedTitle !== undefined) step.promisedTitle = promisedTitle;
+    if (isRecord(raw.config)) {
+      if (typeof raw.config.type === 'string') {
+        step.actionType = raw.config.type;
+      }
+      if (
+        isRecord(raw.config.parameters) &&
+        typeof raw.config.parameters.operation === 'string'
+      ) {
+        step.actionOperation = raw.config.parameters.operation;
+      }
+    }
     out.push(step);
   }
   return out;
@@ -175,12 +192,18 @@ function displayInput(step: DefinitionStep): {
   stepType: string;
   hasUi: boolean;
   display?: string;
+  actionType?: string;
+  actionOperation?: string;
 } {
   return {
     stepType: step.stepType,
     hasUi: step.ui !== undefined,
     ...(step.ui?.params?.display !== undefined && {
       display: step.ui.params.display,
+    }),
+    ...(step.actionType !== undefined && { actionType: step.actionType }),
+    ...(step.actionOperation !== undefined && {
+      actionOperation: step.actionOperation,
     }),
   };
 }
@@ -251,7 +274,19 @@ function projectStep(
     locale: string;
   },
 ): StepProjection {
-  const render = resolveRenderKind(step.ui);
+  const hasLiveFeed =
+    (opts.liveParts !== undefined && opts.liveParts.length > 0) ||
+    (opts.liveProgress !== undefined && opts.liveProgress.trim() !== '');
+  // Durable agent actions (and sandbox steps) stream into liveParts — promote
+  // to the stream panel even when the pack left `ui.render` unannotated
+  // (defaults to `status`, which has no transcript). An agent-RUN action stays
+  // `stream` after the run too: its live op is torn down at step end, but the
+  // persisted output carries the harvested `summary` — the `status` panel
+  // would show "No details" over a report that exists.
+  const render: RenderKind =
+    hasLiveFeed || (step.ui?.render === undefined && isAgentRunAction(step))
+      ? 'stream'
+      : resolveRenderKind(step.ui);
   const interaction = RENDER_KIND_META[render].interaction;
   // Inline i18n, once authored on a step, wins outright over the platform
   // `ui.labelKey` catalog lookup — the labelKey path is kept ONLY when the
@@ -318,21 +353,19 @@ export function useExecutionProjection(args: {
   const workflowSlug = statuses.data?.execution.workflowSlug;
   const definition = useReadWorkflow(args.organizationId, workflowSlug);
 
-  // The running `sandbox` step (if any) whose live agent op we subscribe to —
-  // its progress feeds the stream panel so it shows live work, not raw JSON.
+  // The running step (if any) whose live agent op we subscribe to — durable
+  // sandbox work may sit inside a workflow `sandbox` step OR an `agent` action
+  // that calls `runSandboxAgent` (preferDurableStepForTasks). Both key the op
+  // by (executionId, stepSlug); `getWorkflowSandboxOp` returns null when no
+  // agent-run op exists, so subscribing for every running step is safe.
   const runningSandboxStepSlug = useMemo<string | null>(() => {
     const live = statuses.data;
     if (!live || live.execution.status !== 'running') return null;
     const slug = live.execution.currentStepSlug;
     if (slug === undefined) return null;
     if (live.nodes[slug]?.status !== 'running') return null;
-    const def = definition.data;
-    const defStep = parseDefinitionSteps(
-      def && def.ok ? def.config : undefined,
-    ).find((s) => s.stepSlug === slug);
-    const stepType = defStep?.stepType ?? live.nodes[slug]?.stepType;
-    return stepType === 'sandbox' ? slug : null;
-  }, [statuses.data, definition.data]);
+    return slug;
+  }, [statuses.data]);
 
   // Called UNCONDITIONALLY (Rules of Hooks): `'skip'` is Convex's no-subscription
   // sentinel passed as the ARGS, not a React conditional around the hook — so it

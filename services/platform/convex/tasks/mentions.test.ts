@@ -38,6 +38,12 @@ describe('parseMentionTokens', () => {
       're-searcher_1',
     ]);
   });
+
+  it('keeps pack agent slugs with slashes intact', () => {
+    expect(
+      parseMentionTokens('请继续 @github/create-pull-requests/pr-creator 再试'),
+    ).toEqual(['github/create-pull-requests/pr-creator']);
+  });
 });
 
 describe('resolveMentions', () => {
@@ -45,6 +51,25 @@ describe('resolveMentions', () => {
     expect(resolveMentions(['alice', 'researcher'], directory)).toEqual([
       { type: 'user', id: 'user-alice' },
       { type: 'agent', id: 'researcher' },
+    ]);
+  });
+
+  it('resolves slash pack-agent slugs from the directory', () => {
+    const withPack: MentionDirectoryEntry[] = [
+      ...directory,
+      {
+        type: 'agent',
+        id: 'github/create-pull-requests/pr-creator',
+        handles: ['github/create-pull-requests/pr-creator'],
+      },
+    ];
+    expect(
+      extractMentions(
+        '@github/create-pull-requests/pr-creator try again',
+        withPack,
+      ),
+    ).toEqual([
+      { type: 'agent', id: 'github/create-pull-requests/pr-creator' },
     ]);
   });
 
@@ -139,5 +164,18 @@ describe('addedMentions', () => {
   it('returns everything when previous is empty (create)', () => {
     const next = extractMentions('@alice and @bob', directory);
     expect(addedMentions([], next)).toEqual(next);
+  });
+
+  // Comment edits reuse the same helper as description edits
+  // (`editTaskDiscussionMessage` → `addedMentions` → `comment.mentioned`).
+  it('flags an @agent added when editing a comment that had none', () => {
+    const previous = extractMentions('already fixed', directory);
+    const next = extractMentions(
+      'already fixed @researcher try again',
+      directory,
+    );
+    expect(addedMentions(previous, next)).toEqual([
+      { type: 'agent', id: 'researcher' },
+    ]);
   });
 });

@@ -35,6 +35,7 @@ import { type Infer, v } from 'convex/values';
 
 import {
   usesGateway,
+  getCredentialPolicy,
   getSkillsStageDir,
 } from '../../../lib/agent-adapters/credential-policy';
 import {
@@ -51,6 +52,7 @@ import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { inferContentType } from '../../agent_tools/files/_shared';
 import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
+import { ackRunInProgress } from '../../agents/run_status_ack';
 import {
   resolveAutomationAssetPathChecked,
   splitAutomationAssetRef,
@@ -72,6 +74,7 @@ import {
   workflowRunOwnerId,
   type SandboxSessionScope,
 } from '../../sandbox/session_naming';
+import { taskAgentRunTriggerValidator } from '../../task_metrics/schema';
 import type { UiTimelinePart } from './agent_message_parts';
 import {
   isRetryableExecutionError,
@@ -111,6 +114,10 @@ import {
 import { runAgentInSessionImpl } from './run_agent';
 import { runAndHarvestInSession } from './session_exec';
 import { collectStageSkillFiles } from './stage_skills';
+import {
+  findRunningPeerRun,
+  trySteerIntoRunningTaskRun,
+} from './steer_task_run';
 import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
@@ -580,6 +587,16 @@ export const sandboxRunResultValidator = v.object({
    * vocabulary so a generic loop's `check_refused` can route it to a quiet
    * rollback instead of a noisy failure comment. */
   refusedReason: v.optional(v.string()),
+  /** The admitted `taskAgentRuns` id (task-bound agent runs only). Set on
+   * TERMINAL results so workflow packs can branch admitted-but-failed
+   * (`check_admitted` → explain + roll back) apart from never-admitted
+   * refusals — the inline path has always returned it; without this the
+   * durable path made every failure look refused. */
+  runId: v.optional(v.string()),
+  /** True when this mention was DELIVERED INTO an already-running run on the
+   * same (task, agent) instead of starting a new one — no run row exists and
+   * the pack must skip its status choreography (the live run owns it). */
+  steered: v.optional(v.boolean()),
   /** Park-on-capacity: set with `status:'awaiting_capacity'` to suggest how long
    * the durable handler should sleep before re-entering (the spawner's
    * `retry-after` on a global 429; absent → the per-org poll backoff). */
@@ -892,6 +909,13 @@ export const runSandboxAgent = internalAction({
     taskId: v.optional(v.id('tasks')),
     wfExecutionId: v.optional(v.id('wfExecutions')),
     workflowSlug: v.optional(v.string()),
+    // What initiated the run (mention/assignment/…) — recorded on the
+    // taskAgentRun row the task Activity renders. Absent ⇒ 'manual'.
+    trigger: v.optional(taskAgentRunTriggerValidator),
+    /** Mention runs: the raw mentioning text (comment body / description) —
+     * what the same-(task, agent) serializer steers into an already-running
+     * run. The composed `instructions` prompt is NOT suitable for steering. */
+    steerContext: v.optional(v.string()),
     instructions: v.optional(v.string()),
     budget: v.object({
       maxCents: v.number(),
@@ -956,7 +980,16 @@ export const runSandboxAgent = internalAction({
     let visionTool = false;
     let visionModel: string | undefined; // gateway model id the MCP server calls
     let visionModelRef: string | undefined; // tale ref added to the VK allowlist
-    if (!byo && modelRef && modelRef !== 'default') {
+    // BYO ids (config-driven): a catalog-shaped modelRef (the shipped defaults)
+    // names the model by its GATEWAY id, which the runtime's own backend does
+    // not know — translate per the adapter's dialect exactly like the chat path
+    // (run_external_agent): the vendor-native `nativeModelId` for a
+    // direct-to-vendor runtime (Claude Code → Anthropic), the catalog id itself
+    // for an OpenRouter-style backend. A raw user-typed id matches no catalog
+    // entry and passes through unchanged (no override).
+    let byoNativeModel: string | undefined;
+    let byoCatalogModel: string | undefined;
+    if (modelRef && modelRef !== 'default') {
       try {
         const parsed = parseModelRef(modelRef);
         const catalog = await ctx.runAction(
@@ -969,7 +1002,11 @@ export const runSandboxAgent = internalAction({
             (parsed.providerName === undefined ||
               c.providerName === parsed.providerName),
         );
-        if (!(agentEntry?.tags.includes('vision') ?? false)) {
+        if (byo) {
+          byoNativeModel = agentEntry?.nativeModelId;
+          byoCatalogModel = agentEntry?.id;
+        }
+        if (!byo && !(agentEntry?.tags.includes('vision') ?? false)) {
           const vision = await resolveLanguageModel(ctx, {
             tag: 'vision',
             organizationId: args.organizationId,
@@ -984,11 +1021,11 @@ export const runSandboxAgent = internalAction({
         }
       } catch (err) {
         // No vision model configured (resolveLanguageModel throws) or the
-        // catalog is unavailable — skip the polyfill (the agent just can't read
-        // images this run, as today). Never fail the run over a missing
-        // convenience tool.
+        // catalog is unavailable — skip the polyfill and the BYO id mapping
+        // (the agent runs on the raw ref, as today). Never fail the run over a
+        // convenience feature.
         console.warn(
-          '[runSandboxAgent] vision polyfill resolution skipped:',
+          '[runSandboxAgent] model catalog resolution skipped:',
           err,
         );
       }
@@ -1155,6 +1192,7 @@ export const runSandboxAgent = internalAction({
         summary,
         outputFileIds,
         durationMs: Date.now() - startedAt,
+        ...(taskRunId !== null && { runId: String(taskRunId) }),
         error: `agent run exceeded its wall-clock budget (${args.budget.maxWallClockMs}ms)`,
       };
     }
@@ -1170,6 +1208,83 @@ export const runSandboxAgent = internalAction({
     try {
       if (!resuming) {
         // ===== FRESH segment: full session setup (steps 0–6) =================
+        // 0. Same-(task, agent) mention SERIALIZER — before admission, so a
+        // steered/waiting mention allocates nothing. A mention that arrives
+        // while this agent is already running on this task must never spawn a
+        // second parallel sandbox (two clones racing one branch). Preferred:
+        // STEER — stage the comment into the LIVE exec (the running sandbox
+        // simply continues with it) and finish this run as `steered`. Not
+        // steerable (idle / non-steering runtime / stage failure): WAIT — poll
+        // the peer row inside this action window and hand off via the
+        // 'running' port (checkpoint-less re-entry re-runs this fresh path)
+        // until the peer finalizes, then proceed as a normal fresh run. A peer
+        // row with NO live exec behind it is a zombie (the stuck-sweep's
+        // business) — proceed rather than wait on it.
+        if (taskId !== undefined && args.trigger === 'mention') {
+          let peer = await findRunningPeerRun(ctx, {
+            organizationId: args.organizationId,
+            taskId,
+            agentSlug: args.agentSlug,
+            ownWfExecutionId: args.wfExecutionId,
+            ownStepSlug: args.stepSlug,
+          });
+          if (peer !== null) {
+            const steerText = args.steerContext?.trim();
+            if (steerText !== undefined && steerText !== '') {
+              // The framing must carry the SAME authorization the mention
+              // flow's fresh-run prompt carries ("you were @-mentioned — read
+              // it and act on it"), plus a verifiable anchor (the comment is
+              // on the task record, checkable with the task tools): a bare
+              // "new comment: …" interjection mid-run reads as an untrusted
+              // injection under the working agreement and gets refused.
+              const steer = await trySteerIntoRunningTaskRun(ctx, {
+                peer,
+                text: [
+                  `You were @-mentioned in a new comment on the task you are currently working on. Because your run is already active, the platform's mention flow delivers the comment into this run instead of starting a second parallel one — this message is that delivery, not part of the original prompt. You can verify the comment on the task's own comment thread with your task tools.`,
+                  `The mentioning comment:\n\n${steerText}`,
+                  `Treat it exactly as you would a task comment addressed to you: act on it as part of your current work if it fits your working agreement, or address it in your reply/summary — and decline politely there if it asks for something outside your abilities or your agreement.`,
+                ].join('\n\n'),
+              });
+              if (steer.steered) {
+                return {
+                  mode: 'agent',
+                  ok: true,
+                  status: 'completed',
+                  steered: true,
+                  outputFileIds: [],
+                  summary: `Delivered the mention into ${args.agentSlug}'s already-running run on this task — the same sandbox continues with it.`,
+                };
+              }
+              if (steer.reason === 'no_live_op') peer = null;
+            }
+            if (peer !== null) {
+              // WAIT: bounded to this action window minus a teardown margin;
+              // 20s cadence (the peer's finalize is a mutation edge, not a
+              // wake event we can await here).
+              const waitDeadline = Date.now() + ACTION_WINDOW_MS - 60_000;
+              while (peer !== null && Date.now() < waitDeadline) {
+                await new Promise((r) => setTimeout(r, 20_000));
+                peer = await findRunningPeerRun(ctx, {
+                  organizationId: args.organizationId,
+                  taskId,
+                  agentSlug: args.agentSlug,
+                  ownWfExecutionId: args.wfExecutionId,
+                  ownStepSlug: args.stepSlug,
+                });
+              }
+              if (peer !== null) {
+                // Still busy — hand off; the engine re-enters this step and the
+                // fresh path re-checks. No admission happened, so nothing leaks.
+                return {
+                  mode: 'agent',
+                  ok: false,
+                  status: 'running',
+                  outputFileIds: [],
+                };
+              }
+            }
+          }
+        }
         // 0a. Task-metrics admission FIRST — before any session/VK/compute is
         // built, so a budget/concurrency/circuit refusal allocates nothing. The
         // returned runId is carried across segments via the checkpoint.
@@ -1180,7 +1295,7 @@ export const runSandboxAgent = internalAction({
               organizationId: args.organizationId,
               taskId,
               agentSlug: args.agentSlug,
-              trigger: 'manual',
+              trigger: args.trigger ?? 'manual',
               ...(args.wfExecutionId !== undefined && {
                 wfExecutionId: args.wfExecutionId,
               }),
@@ -1226,6 +1341,29 @@ export const runSandboxAgent = internalAction({
             };
           }
           taskRunId = admission.runId;
+          // Admitted — only now may the run show as In progress (#2604). The
+          // shared helper gates by trigger (assignment always; mention only
+          // for the task's own assignee still at To do) so the durable path
+          // acks exactly like the inline loop.
+          try {
+            await ackRunInProgress(ctx, {
+              organizationId: args.organizationId,
+              agentSlug: args.agentSlug,
+              taskId,
+              trigger: args.trigger ?? 'manual',
+              ...(args.wfExecutionId !== undefined && {
+                wfExecutionId: String(args.wfExecutionId),
+              }),
+              ...(args.workflowSlug !== undefined && {
+                workflowSlug: args.workflowSlug,
+              }),
+            });
+          } catch (ackErr) {
+            console.warn(
+              '[runSandboxAgent] In-progress ack failed (run continues):',
+              ackErr,
+            );
+          }
         }
 
         // 0. Opportunistic backstop: reap this org's leaked workflow_run
@@ -1240,6 +1378,26 @@ export const runSandboxAgent = internalAction({
         // reaps the orphan rather than duplicating), OR reuse a workflow-scoped
         // session already live from a prior step in this execution.
         if (!reusingSharedSession) {
+          // Retry-reap contract, the FRESH-orphan half: a prior attempt of
+          // THIS step that died without its finally (engine kill, deploy swap)
+          // leaves a live row under our own deterministic sessionId — young
+          // enough that the TTL-gated stale reaper above ignores it, so the
+          // reserve's per-owner cap would throw QUOTA_EXCEEDED ("already has
+          // an active sandbox session") and fail every retry. Any live row
+          // under our own id is by construction that orphan (the engine never
+          // runs one step twice concurrently; resume segments re-attach and
+          // never reach this path) — tear it down, then reserve fresh.
+          const ownOrphan = await ctx.runQuery(
+            internal.sandbox.session_queries.getSessionBySessionId,
+            { sessionId },
+          );
+          if (ownOrphan !== null) {
+            console.warn(
+              '[runSandboxAgent] reaping own-step orphan session before reserve:',
+              sessionId,
+            );
+            await teardownAgentSession(ctx, args.organizationId, sessionId);
+          }
           const rowId: Id<'sandboxSessions'> = await ctx.runMutation(
             internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
             {
@@ -1601,12 +1759,17 @@ export const runSandboxAgent = internalAction({
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
       // MANAGED (gateway): the gateway-format ref resolves to the gateway's model
-      // id. BYO / env-backed (e.g. Cursor): the vendor-native id passes through
-      // raw — gateway routing would mint nonsense ids the CLI rejects.
+      // id. BYO: the id the runtime's own backend knows — the catalog-mapped
+      // vendor-native/catalog id resolved above (raw pass-through when the
+      // catalog didn't match). Gateway routing on a BYO ref would hand the CLI
+      // a colon-qualified Tale ref its vendor API rejects as an unknown model.
       const useModel = resolveExternalAgentExecModel({
         byo,
         gatewayRun,
         modelRef: modelRef ?? 'default',
+        byoModelIdSource: getCredentialPolicy(productKind).byoModelIdSource,
+        byoNativeModel,
+        byoCatalogModel,
         toGatewayModel: (ref) => resolveGatewayRoutingFromRef(ref).gatewayModel,
       });
       // Seed the resumed segment with the op's accumulated transcript so it
@@ -2177,6 +2340,7 @@ export const runSandboxAgent = internalAction({
           stdoutPreview: result.finalText.slice(0, 2000),
         }),
         durationMs: Date.now() - startedAt,
+        ...(taskRunId !== null && { runId: String(taskRunId) }),
         ...(!ok && {
           error:
             terminalStatus === 'timeout'
@@ -2286,7 +2450,12 @@ export const runSandboxAgent = internalAction({
           );
         }
       }
-      return fail(e instanceof Error ? e.message : String(e));
+      return {
+        ...fail(e instanceof Error ? e.message : String(e)),
+        // Admitted (a run row exists) — let the pack's `check_admitted`
+        // branch route this to explain + roll back, not to "refused".
+        ...(taskRunId !== null && { runId: String(taskRunId) }),
+      };
     } finally {
       // Teardown UNLESS we handed off mid-run (then the session + VK + exec must
       // survive to the next segment) OR this step opts into a workflow-scoped

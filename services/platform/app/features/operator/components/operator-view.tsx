@@ -50,6 +50,17 @@ export function OperatorView({
   };
 
   const hasProcess = processSteps.length > 0 || projection.stages.length > 0;
+  // While a run is live (or a step already carries a live transcript), open
+  // Run details so the agent feed is visible without an extra click — the
+  // task Activity "Running" dialog otherwise looks empty.
+  const detailsOpenByDefault =
+    projection.status === 'running' ||
+    projection.status === 'pending' ||
+    processSteps.some(
+      (s) =>
+        (s.liveParts !== undefined && s.liveParts.length > 0) ||
+        s.partState === 'running',
+    );
 
   return (
     <VStack gap={4}>
@@ -59,6 +70,7 @@ export function OperatorView({
       {beforeDetails}
       {hasProcess ? (
         <CollapsibleDetails
+          open={detailsOpenByDefault ? true : undefined}
           summary={
             <Text as="span" className="font-medium">
               {t('section.runDetails', { defaultValue: 'Run details' })}
@@ -67,7 +79,13 @@ export function OperatorView({
         >
           <VStack gap={3} className="mt-3">
             <StageTimeline projection={projection} />
-            {processSteps.map((step) => renderStep(step))}
+            {processSteps.map((step) =>
+              renderStep(
+                step,
+                step.partState === 'running' ||
+                  (step.liveParts !== undefined && step.liveParts.length > 0),
+              ),
+            )}
           </VStack>
         </CollapsibleDetails>
       ) : null}

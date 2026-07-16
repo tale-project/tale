@@ -42,7 +42,9 @@ export const TASK_OPS_PACK_SLUGS: readonly string[] = [
   'projects/tasks/run-assigned',
   'projects/tasks/triage-unassigned',
   'projects/tasks/react-to-mentions',
-  'projects/tasks/review-completed-work',
+  // 'projects/tasks/review-completed-work' RETIRED 2026-07-16: the review
+  // approval card is gone — In review IS the review queue; humans complete
+  // (drag to Done) or send rework via an @assignee mention.
   'projects/tasks/sweep-stale-work',
   'projects/tasks/start-queued-work',
   'projects/tasks/archive-closed',

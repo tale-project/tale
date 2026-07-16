@@ -83,7 +83,8 @@ function loadPack(): PackWorkflow[] {
   const packSlugs = collectSlugs(AUTOMATIONS_DIR).filter((slug) =>
     slug.startsWith('projects/tasks/'),
   );
-  expect(packSlugs.length).toBeGreaterThanOrEqual(11);
+  // 10 after the review-gate retirement (2026-07-16) — a floor, not a census.
+  expect(packSlugs.length).toBeGreaterThanOrEqual(10);
   return packSlugs.map((slug) => {
     const manifest: unknown = JSON.parse(
       readFileSync(
@@ -223,14 +224,18 @@ describe('task-ops pack: structure', () => {
 });
 
 describe('task-ops pack: loop-safety invariants', () => {
-  it("(ii) review-gate is the only workflow that sets a task to 'done'", () => {
+  it("(ii) NO pack workflow sets a task to 'done' — Done stays a human decision", () => {
+    // The review-gate automation (the one sanctioned done-setter) was retired
+    // 2026-07-16 with its approval card: In review IS the review queue, and
+    // only a human moves work to Done.
     for (const wf of pack) {
       for (const step of wf.steps) {
         const action = actionOp(step);
         if (action?.type !== 'task' || action.op !== 'update_status') continue;
-        if (actionParams(step).status === 'done') {
-          expect(wf.slug).toBe('projects/tasks/review-completed-work');
-        }
+        expect(
+          actionParams(step).status,
+          `${wf.slug}:${step.stepSlug} must not set 'done'`,
+        ).not.toBe('done');
       }
     }
   });

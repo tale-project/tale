@@ -72,7 +72,9 @@ export function StreamPanel({ part }: { part: RenderPart }) {
   }
 
   // The agent-run handoff summary, when present, is the headline of the feed.
-  const summary = pickString(out, 'summary');
+  // `text` is the agent ACTION's field for the same report (run_on_task rides
+  // the action envelope); `summary` wins when both exist.
+  const summary = pickString(out, 'summary', 'text');
 
   if (
     entries.length === 0 &&

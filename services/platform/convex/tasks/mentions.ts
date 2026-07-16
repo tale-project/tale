@@ -11,7 +11,7 @@
  * embedded in a word.
  */
 
-const MENTION_RE = /(?:^|\s)@([a-zA-Z0-9._-]+)/g;
+const MENTION_RE = /(?:^|\s)@([a-zA-Z0-9._/-]+)/g;
 
 export type MentionActorType = 'user' | 'agent';
 
@@ -118,9 +118,10 @@ export function findUnresolvedMentionTokens(
 }
 
 /**
- * Mentions present in `next` but not `previous` — what a description EDIT
- * newly introduces. Editing prose around an existing `@mention` must not
- * re-notify (or re-trigger) the actors already mentioned before the edit.
+ * Mentions present in `next` but not `previous` — what a description or
+ * comment EDIT newly introduces. Editing prose around an existing `@mention`
+ * must not re-notify (or re-trigger) the actors already mentioned before the
+ * edit.
  */
 export function addedMentions(
   previous: ResolvedMention[],

@@ -7404,6 +7404,13 @@
         "automation_disabled": "Aufgaben-Automatisierung ist aus",
         "budget_paused": "Monatsbudget aufgebraucht",
         "task_circuit_breaker": "Agenten-Läufe sind auf dieser Aufgabe pausiert"
+      },
+      "detail": {
+        "openAria": "{status}-Details für {agent} öffnen",
+        "runningTitle": "{agent} — laufender Durchlauf",
+        "failedTitle": "{agent} — Durchlauf fehlgeschlagen",
+        "completedTitle": "{agent} — Durchlauf-Details",
+        "noLiveDetail": "Für diesen Durchlauf gibt es kein Live-Transkript."
       }
     },
     "timeline": {

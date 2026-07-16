@@ -83,6 +83,7 @@ async function seedRunningRun(
     wfExecutionId: Id<'wfExecutions'>;
     stepSlug: string;
     agentSlug: string;
+    trigger?: 'manual' | 'mention' | 'assignment';
   },
 ): Promise<Id<'taskAgentRuns'>> {
   return t.run((ctx) =>
@@ -91,7 +92,7 @@ async function seedRunningRun(
       projectId: args.projectId,
       taskId: args.taskId,
       agentSlug: args.agentSlug,
-      trigger: 'manual',
+      trigger: args.trigger ?? 'manual',
       wfExecutionId: args.wfExecutionId,
       stepSlug: args.stepSlug,
       status: 'running',
@@ -204,6 +205,96 @@ describe('startTaskAgentRun dedup (park-reentry counter-leak fix)', () => {
 });
 
 describe('finalizeRunsForExecution (terminal-edge drain)', () => {
+  // Regression: the admission ack (`ackRunInProgress`) had flipped the task to
+  // In progress, then the assignee's run died via a THROWN failure the loop
+  // absorbed — no pack rollback ever ran and the board claimed work forever.
+  it('schedules the In progress → To do board repair for an orphaned assignee run', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, projectId } = await seedTask(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, {
+        assigneeType: 'agent',
+        assigneeId: 'a1',
+        status: 'in_progress',
+      });
+    });
+    const wfExecutionId = await seedExec(t);
+    await seedRunningRun(t, {
+      taskId,
+      projectId,
+      wfExecutionId,
+      stepSlug: 'respond',
+      agentSlug: 'a1',
+      trigger: 'mention',
+    });
+    await seedCounter(t, 'org', 1);
+    await seedCounter(t, 'agent:a1', 1);
+
+    await t.mutation(
+      internal.task_metrics.internal_mutations.finalizeRunsForExecution,
+      { wfExecutionId, status: 'failed', outcome: 'error' },
+    );
+
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const repair = scheduled.find(
+      (s) =>
+        s.name.includes('agentUpdateTaskStatus') &&
+        (s.args[0] as { status?: string; taskId?: string }).status === 'todo',
+    );
+    expect(repair).toBeDefined();
+  });
+
+  it('never repairs when the run agent is not the assignee (or trigger is pack-owned)', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, projectId } = await seedTask(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, {
+        assigneeType: 'agent',
+        assigneeId: 'someone-else',
+        status: 'in_progress',
+      });
+    });
+    const wfExecutionId = await seedExec(t);
+    await seedRunningRun(t, {
+      taskId,
+      projectId,
+      wfExecutionId,
+      stepSlug: 'respond',
+      agentSlug: 'a1',
+      trigger: 'mention',
+    });
+    const wfExecutionId2 = await seedExec(t);
+    await seedRunningRun(t, {
+      taskId,
+      projectId,
+      wfExecutionId: wfExecutionId2,
+      stepSlug: 's1',
+      agentSlug: 'someone-else',
+      trigger: 'manual',
+    });
+    await seedCounter(t, 'org', 2);
+    await seedCounter(t, 'agent:a1', 1);
+    await seedCounter(t, 'agent:someone-else', 1);
+
+    await t.mutation(
+      internal.task_metrics.internal_mutations.finalizeRunsForExecution,
+      { wfExecutionId, status: 'failed', outcome: 'error' },
+    );
+    await t.mutation(
+      internal.task_metrics.internal_mutations.finalizeRunsForExecution,
+      { wfExecutionId: wfExecutionId2, status: 'failed', outcome: 'error' },
+    );
+
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    expect(
+      scheduled.some((s) => s.name.includes('agentUpdateTaskStatus')),
+    ).toBe(false);
+  });
+
   it('finalizes every running run for the execution and decrements both counters', async () => {
     const t = convexTest(schema, modules);
     const { taskId, projectId } = await seedTask(t);

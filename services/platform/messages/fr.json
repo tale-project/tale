@@ -7404,6 +7404,13 @@
         "automation_disabled": "l'automatisation des tâches est désactivée",
         "budget_paused": "budget mensuel épuisé",
         "task_circuit_breaker": "les exécutions d'agents sont en pause sur cette tâche"
+      },
+      "detail": {
+        "openAria": "Ouvrir les détails {status} pour {agent}",
+        "runningTitle": "{agent} — exécution en cours",
+        "failedTitle": "{agent} — exécution échouée",
+        "completedTitle": "{agent} — détails de l'exécution",
+        "noLiveDetail": "Aucun transcript en direct n'est disponible pour cette exécution."
       }
     },
     "timeline": {

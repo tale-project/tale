@@ -19,12 +19,43 @@ export type StepTreatment = 'hidden' | 'gate' | 'normal';
 /** Step types that are pure structure, never shown. */
 const STRUCTURAL_TYPES = new Set(['start', 'trigger', 'output']);
 
+/** Agent-action operations that RUN an agent on a subject — live core work
+ * with a durable sandbox transcript the user watches, unlike the roster and
+ * bookkeeping operations (budget checks, reassignment, requeues) that stay
+ * plumbing. Without this carve-out an unannotated `respond` step (the pack
+ * mention/assignment reaction) collapses out and the run view shows nothing
+ * while the agent works. */
+const AGENT_RUN_OPERATIONS = new Set([
+  'run_on_task',
+  'run_on_discussion',
+  'decompose_task',
+]);
+
 interface StepDisplayInput {
   stepType: string;
   /** Whether the step carries a `ui` annotation (the opt-in to be shown). */
   hasUi: boolean;
   /** The step's `ui.params.display`, when present (e.g. `'gate'`). */
   display?: string;
+  /** For `action` steps: the action's `config.type` (e.g. `'agent'`). */
+  actionType?: string;
+  /** For `action` steps: the action's `parameters.operation`. */
+  actionOperation?: string;
+}
+
+/** An `action` step that RUNS an agent (vs agent bookkeeping) — shown as core
+ * work by `stepTreatment` and rendered as a `stream` transcript by the run
+ * view even without a `ui` annotation. */
+export function isAgentRunAction(input: {
+  stepType: string;
+  actionType?: string;
+  actionOperation?: string;
+}): boolean {
+  return (
+    input.stepType === 'action' &&
+    input.actionType === 'agent' &&
+    AGENT_RUN_OPERATIONS.has(input.actionOperation ?? '')
+  );
 }
 
 /**
@@ -35,14 +66,21 @@ export function stepTreatment({
   stepType,
   hasUi,
   display,
+  actionType,
+  actionOperation,
 }: StepDisplayInput): StepTreatment {
   if (STRUCTURAL_TYPES.has(stepType)) return 'hidden';
   if (display === 'gate') return 'gate';
   if (hasUi) return 'normal';
   // Unannotated: routing conditions and bare status-bump actions are plumbing;
-  // an LLM decision step stays as a quiet gate; anything else (e.g. a sandbox
-  // agent run) is core work and shows normally.
-  if (stepType === 'condition' || stepType === 'action') return 'hidden';
+  // an LLM decision step stays as a quiet gate; anything else (a sandbox agent
+  // run, an agent-running action) is core work and shows normally.
+  if (stepType === 'condition') return 'hidden';
+  if (stepType === 'action') {
+    return isAgentRunAction({ stepType, actionType, actionOperation })
+      ? 'normal'
+      : 'hidden';
+  }
   if (stepType === 'llm') return 'gate';
   return 'normal';
 }

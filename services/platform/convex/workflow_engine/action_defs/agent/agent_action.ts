@@ -78,6 +78,11 @@ type AgentActionParams =
       taskId: string;
     }
   | {
+      operation: 'get_running_run';
+      agentSlug: string;
+      taskId: string;
+    }
+  | {
       operation: 'get_org_role';
       agentSlug: string;
     }
@@ -145,6 +150,11 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
     }),
     v.object({
       operation: v.literal('check_run_budget'),
+      agentSlug: v.string(),
+      taskId: v.id('tasks'),
+    }),
+    v.object({
+      operation: v.literal('get_running_run'),
       agentSlug: v.string(),
       taskId: v.id('tasks'),
     }),
@@ -221,6 +231,10 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
                 taskId: toId<'tasks'>(params.taskId),
                 wfExecutionId: toId<'wfExecutions'>(extras.executionId),
                 ...(workflowSlug !== undefined && { workflowSlug }),
+                trigger: params.trigger,
+                ...(params.promptContext !== undefined && {
+                  steerContext: params.promptContext,
+                }),
                 instructions: plan.prompt,
                 budget: plan.budget,
                 inputs: [],
@@ -233,7 +247,21 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
               // 'running' port → the engine re-enters this step (next segment).
               status: sandbox.status,
               external: false,
-              ...(sandbox.summary !== undefined && { text: sandbox.summary }),
+              // Admitted-run marker: packs branch `check_admitted` on it —
+              // admitted-but-failed explains + rolls back; refused stays quiet.
+              ...(sandbox.runId !== undefined && { runId: sandbox.runId }),
+              // Steered marker: the mention was injected into an already-
+              // running run — the pack must skip its status choreography.
+              ...(sandbox.steered !== undefined && {
+                steered: sandbox.steered,
+              }),
+              ...(sandbox.summary !== undefined && {
+                text: sandbox.summary,
+                // The operator stream panel headlines `summary` (the same field
+                // a sandbox STEP persists) — `text` stays for workflow
+                // templates that already consume it.
+                summary: sandbox.summary,
+              }),
               ...(sandbox.error !== undefined && { error: sandbox.error }),
               ...(sandbox.refusedReason !== undefined && {
                 refusedReason: sandbox.refusedReason,
@@ -305,6 +333,25 @@ export const agentAction: ActionDefinition<AgentActionParams> = {
           },
         );
         return { operation: 'check_run_budget', ...result };
+      }
+
+      case 'get_running_run': {
+        // Busy probe for sweep workflows: is this agent ALREADY running on
+        // this task? The PR-review cron skips busy tasks instead of stacking
+        // a parallel review every tick (reviews outlive the 5-min cadence).
+        const running = await ctx.runQuery(
+          internal.task_metrics.internal_queries.getRunningRunForTaskAgent,
+          {
+            organizationId,
+            taskId: toId<'tasks'>(params.taskId),
+            agentSlug: params.agentSlug,
+          },
+        );
+        return {
+          operation: 'get_running_run',
+          running: running !== null,
+          ...(running !== null && { startedAt: running.startedAt }),
+        };
       }
 
       case 'get_org_role': {

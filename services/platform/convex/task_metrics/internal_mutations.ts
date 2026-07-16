@@ -23,6 +23,7 @@
 
 import { v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import {
@@ -441,6 +442,41 @@ export const finalizeRunsForExecution = internalMutation({
         error: args.error,
       });
       finalized += 1;
+      // Board repair: an assignment/assignee-mention run was acked In progress
+      // at admission (`ackRunInProgress`); when it dies without its pack's own
+      // rollback ever running (a thrown failure the loop absorbed, retry
+      // exhaustion, a cancel), the task would keep claiming work is happening.
+      // Undo exactly what the ack did — agent-assigned + In progress → To do —
+      // mirroring run-assigned's rollback. Scheduled (not inline) so the tasks
+      // domain owns the write path, events, and activity attribution.
+      if (run.trigger === 'assignment' || run.trigger === 'mention') {
+        const task = await ctx.db.get(run.taskId);
+        if (
+          task !== null &&
+          task.assigneeType === 'agent' &&
+          task.assigneeId === run.agentSlug &&
+          task.status === 'in_progress'
+        ) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.tasks.internal_mutations.agentUpdateTaskStatus,
+            {
+              organizationId: run.organizationId,
+              actorId: 'workflow',
+              taskId: run.taskId,
+              status: 'todo',
+              attribution: {
+                ...(run.workflowSlug !== undefined && {
+                  workflowSlug: run.workflowSlug,
+                }),
+                ...(run.wfExecutionId !== undefined && {
+                  wfExecutionId: run.wfExecutionId,
+                }),
+              },
+            },
+          );
+        }
+      }
     }
     return { finalized };
   },

@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Bot } from 'lucide-react';
@@ -9,7 +8,6 @@ import { useMemo } from 'react';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
@@ -29,13 +27,7 @@ import {
 } from '../utils/task-timeline';
 import { AssigneeAvatar } from './assignee-avatar';
 import { TaskActorName } from './task-actor-preview-popover';
-
-const STATUS_BADGE: Record<string, string> = {
-  running: 'text-primary border-primary/40',
-  completed: 'text-green-600 dark:text-green-400 border-green-500/40',
-  failed: 'text-red-600 dark:text-red-400 border-red-500/40',
-  timed_out: 'text-amber-600 dark:text-amber-400 border-amber-500/40',
-};
+import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
 
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString(undefined, {
@@ -121,12 +113,11 @@ export function TaskTimeline({
                         preview={agentPreview}
                         name={agentPreview.name}
                       />
-                      <Badge
-                        variant="outline"
-                        className={cn('text-[10px]', STATUS_BADGE[run.status])}
-                      >
-                        {t(`agentRuns.status.${run.status}`)}
-                      </Badge>
+                      <TaskAgentRunStatusBadge
+                        organizationId={organizationId}
+                        run={run}
+                        agentName={agentPreview.name}
+                      />
                       <span>
                         {t(`agentRuns.trigger.${run.trigger}`)}
                         {run.durationMs !== undefined

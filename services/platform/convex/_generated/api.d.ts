@@ -200,6 +200,7 @@ import type * as agents_resolve_referenced_folders from "../agents/resolve_refer
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
 import type * as agents_run_agent_on_task from "../agents/run_agent_on_task.js";
+import type * as agents_run_status_ack from "../agents/run_status_ack.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
 import type * as agents_start_chat from "../agents/start_chat.js";
 import type * as agents_task_ops from "../agents/task_ops.js";
@@ -1110,6 +1111,7 @@ import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/s
 import type * as node_only_sandbox_stage_skills from "../node_only/sandbox/stage_skills.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
+import type * as node_only_sandbox_steer_task_run from "../node_only/sandbox/steer_task_run.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
 import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thread_session.js";
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
@@ -1971,6 +1973,7 @@ declare const fullApi: ApiFromModules<{
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
   "agents/run_agent_on_task": typeof agents_run_agent_on_task;
+  "agents/run_status_ack": typeof agents_run_status_ack;
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
   "agents/start_chat": typeof agents_start_chat;
   "agents/task_ops": typeof agents_task_ops;
@@ -2881,6 +2884,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/stage_skills": typeof node_only_sandbox_stage_skills;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
+  "node_only/sandbox/steer_task_run": typeof node_only_sandbox_steer_task_run;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
   "node_only/sandbox/thread_session": typeof node_only_sandbox_thread_session;
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
