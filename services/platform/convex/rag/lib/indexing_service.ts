@@ -219,8 +219,17 @@ export interface PrepareDocumentOptions {
  * text file → tens of thousands of chunks) would otherwise materialize every
  * embedding vector in memory at once (~600 MB at 1536 dims, more at 4096),
  * OOM-killing the Convex action before it can store anything. `storePreparedDocument`
- * embeds one bounded batch at a time as it inserts, so peak memory stays flat
- * regardless of document size.
+ * embeds one bounded batch at a time as it inserts, so the EMBEDDING peak stays
+ * flat regardless of document size.
+ *
+ * The rest of preparation does NOT: `extractedText` (the whole document as one
+ * UTF-16 string) and the `chunks` array (every chunk, with overlap) are both
+ * held in memory here, so this function's peak still scales with document size —
+ * a 100 MB text file drives the node executor to ~1.5 GB RSS and can OOM the
+ * single inline action under concurrent load. That is the residual large-file
+ * fragility tracked in #2752 (a retry dedups against the already-stored chunks);
+ * a full fix streams extract→chunk→embed→store without materializing the chunk
+ * array. Do not restate this as "flat regardless of size".
  */
 export async function prepareDocument(
   contentBytes: Uint8Array,
