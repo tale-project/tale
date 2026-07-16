@@ -471,6 +471,12 @@ export async function notifyTaskComment(
     mentions: Array<{ type: 'user' | 'agent'; id: string }>;
     actorType: ActorType;
     actorId: string;
+    /**
+     * When false, only newly mentioned humans are notified (comment *edit*
+     * fan-out). Defaults to true so a fresh comment still alerts other
+     * subscribers with `task_commented`.
+     */
+    notifySubscribers?: boolean;
   },
 ): Promise<void> {
   // The commenter (if human) starts following the task.
@@ -517,6 +523,8 @@ export async function notifyTaskComment(
       actorId: args.actorId,
     });
   }
+
+  if (args.notifySubscribers === false) return;
 
   // Other subscribers get a comment notification (skip actor + already-mentioned).
   const subscribers = withoutActor(

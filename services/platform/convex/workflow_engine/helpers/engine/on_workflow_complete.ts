@@ -142,26 +142,38 @@ export async function handleWorkflowComplete(
       wfExecutionId: String(exec._id),
     },
   );
-  // Drain any still-`running` taskAgentRuns this execution left behind — on an
-  // ABNORMAL terminal only. A cancelled/failed workflow tears down without
-  // running each agent run's own finalize, orphaning the `running` rows so
-  // their `agentRunCounters` decrement never fires; the stuck-run sweep only
-  // reclaims them an hour later, so the org concurrency cap wedges every run in
-  // the meantime. `startTaskAgentRun`'s dedup keeps this to one row per step.
-  // Gated to failed/canceled: on `success` each run finalized itself with its
-  // true status, and draining would race that to a wrong `timed_out`.
-  if (kind === 'canceled' || kind === 'failed') {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.task_metrics.internal_mutations.finalizeRunsForExecution,
-      {
-        wfExecutionId: toId<'wfExecutions'>(exec._id),
-        status: 'timed_out',
-        outcome: 'error',
-        error: kind === 'canceled' ? 'workflow canceled' : 'workflow failed',
-      },
-    );
-  }
+  // Drain any still-`running` taskAgentRuns this execution left behind — on
+  // EVERY terminal edge. A cancelled/failed workflow tears down without running
+  // each agent run's own finalize; a SUCCESSFUL completion can strand one too:
+  // a run that threw an infrastructure error deliberately skips finalize (the
+  // step retry is meant to re-admit the same row), but when the workflow
+  // ABSORBS that step failure instead — a loop step's `continueOnError`, a
+  // routed failure port — no retry ever comes and the row stays `running`. In
+  // both cases the `agentRunCounters` decrement never fires and the task
+  // Activity shows a run that is not running; the stuck-run sweep only reclaims
+  // it an hour later. Safe on success: runs finalize INSIDE the step action
+  // before it returns, so by the terminal edge a still-`running` row is by
+  // definition orphaned. Idempotent via `finalizeRun`'s status guard;
+  // `startTaskAgentRun`'s dedup keeps this to one row per step.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.task_metrics.internal_mutations.finalizeRunsForExecution,
+    {
+      wfExecutionId: toId<'wfExecutions'>(exec._id),
+      outcome: 'error',
+      ...(kind === 'canceled' || kind === 'failed'
+        ? {
+            status: 'timed_out' as const,
+            error:
+              kind === 'canceled' ? 'workflow canceled' : 'workflow failed',
+          }
+        : {
+            status: 'failed' as const,
+            error:
+              'agent run never finalized; the workflow absorbed its step failure',
+          }),
+    },
+  );
 }
 
 async function updateTriggeringApprovalStatus(

@@ -21,7 +21,7 @@ import { memberHandleVariants } from '../lib/mention-handles';
 
 /** Same boundary rule as the server parser (`convex/tasks/mentions.ts`):
  *  `@` at string start or after whitespace, so emails never match. */
-const MENTION_SPLIT_RE = /(^|\s)@([a-zA-Z0-9._-]+)/g;
+const MENTION_SPLIT_RE = /(^|\s)@([a-zA-Z0-9._/-]+)/g;
 
 interface ResolvedHandle {
   name: string;

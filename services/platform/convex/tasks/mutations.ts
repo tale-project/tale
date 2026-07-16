@@ -254,6 +254,50 @@ async function fanOutDescriptionMentions(
   });
 }
 
+/**
+ * Fan-out for NEWLY added `@mentions` on a task COMMENT edit — mirrors
+ * `addTaskComment`'s mention half (`notifyTaskComment` + `comment.mentioned`)
+ * without re-alerting subscribers as if a fresh comment were posted, and
+ * without emitting `comment.created`. Callers pass only `addedMentions(...)`.
+ */
+async function fanOutCommentEditMentions(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    commentId: string;
+    body: string;
+    mentions: ResolvedMention[];
+    actorId: string;
+  },
+): Promise<void> {
+  if (args.mentions.length === 0) return;
+  await notifyTaskComment(ctx, {
+    task: args.task,
+    commentId: args.commentId,
+    mentions: args.mentions,
+    actorType: 'user',
+    actorId: args.actorId,
+    notifySubscribers: false,
+  });
+  const comment: CommentEventComment = {
+    body: args.body,
+    projectId: String(args.task.projectId),
+    taskId: String(args.task._id),
+    mentions: args.mentions,
+  };
+  await emitEvent(ctx, {
+    organizationId: args.task.organizationId,
+    eventType: 'comment.mentioned',
+    eventData: {
+      comment,
+      taskId: String(args.task._id),
+      mentions: args.mentions,
+      actorType: 'user',
+      actorId: args.actorId,
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -1160,6 +1204,9 @@ export const editTaskDiscussionMessage = mutation({
       directory.entries,
       directory.permissiveAgents,
     );
+    // Same contract as description edits: only NEWLY added @mentions notify /
+    // wake agents. Rewording around an existing mention must not re-trigger.
+    const newlyAdded = addedMentions(meta.mentions ?? [], mentions);
 
     // Patch the message body in the store, then re-parse mentions + stamp the
     // edit marker in the meta row (the store has neither field).
@@ -1172,6 +1219,14 @@ export const editTaskDiscussionMessage = mutation({
       editedAt: Date.now(),
     });
 
+    await fanOutCommentEditMentions(ctx, {
+      task,
+      commentId: args.messageId,
+      body,
+      mentions: newlyAdded,
+      actorId: auth.userId,
+    });
+
     await createAuditLog(ctx, {
       organizationId: meta.organizationId,
       actorId: auth.userId,
@@ -1182,7 +1237,10 @@ export const editTaskDiscussionMessage = mutation({
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
       resourceId: args.messageId,
       resourceName: task.title,
-      metadata: { taskId: String(meta.taskId) },
+      metadata: {
+        taskId: String(meta.taskId),
+        addedMentionCount: newlyAdded.length,
+      },
       status: 'success',
     });
 

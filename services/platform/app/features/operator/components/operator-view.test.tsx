@@ -113,5 +113,7 @@ describe('OperatorView layout', () => {
     expect(screen.getByTestId('part-Approve')).toBeInTheDocument();
     const details = screen.getByText('Run details').closest('details');
     expect(details?.contains(screen.getByTestId('part-Approve'))).toBe(false);
+    // Live runs open Run details so the agent transcript is visible immediately.
+    expect(details).toHaveAttribute('open');
   });
 });

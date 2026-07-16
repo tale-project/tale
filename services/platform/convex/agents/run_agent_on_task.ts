@@ -47,6 +47,7 @@ import { wrapUntrusted } from '../lib/untrusted_content';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { taskAgentRunTriggerValidator } from '../task_metrics/schema';
 import { ensureAgentsProvisioned } from './provision_defaults';
+import { ackRunInProgress } from './run_status_ack';
 
 const DEFAULT_RUN_TIMEOUT_MS = 8 * 60 * 1000;
 /** Hard ceiling under the Convex action limit, whatever the agent config says. */
@@ -358,36 +359,21 @@ interface RunAttribution {
 }
 
 /**
- * Acknowledge an ASSIGNMENT run as In progress — strictly AFTER admission.
- * The run-assigned-task pack used to ack before dispatching the run, which
- * flashed To do → In progress → To do whenever admission refused (#2604);
- * the ack now lives on the admitted side of the gate. Assignment-only:
- * mention/revision/SLA runs own their own status choreography in their
- * packs. Actor + attribution mirror the pack's former `update_status` step
- * (workflow sentinel), so the timeline reads identically. Idempotent — the
- * mutation no-ops when the task is already In progress (old per-org pack
- * copies that still ack pre-run stay compatible).
+ * Acknowledge an admitted run as In progress — strictly AFTER admission
+ * (#2604: the run-assigned-task pack used to ack before dispatching, which
+ * flashed To do → In progress → To do whenever admission refused). The
+ * trigger semantics (assignment always; mention only for the task's own
+ * assignee still at To do; everything else pack-owned) live in the SHARED
+ * `ackRunInProgress` so the durable sandbox path can never diverge. Actor +
+ * attribution mirror the pack's former `update_status` step (workflow
+ * sentinel), so the timeline reads identically. Idempotent — the mutation
+ * no-ops when the task is already In progress.
  */
 async function ackAssignmentInProgress(
   ctx: ActionCtx,
   args: RunAttribution,
 ): Promise<void> {
-  if (args.trigger !== 'assignment') return;
-  await ctx.runMutation(
-    internal.tasks.internal_mutations.agentUpdateTaskStatus,
-    {
-      organizationId: args.organizationId,
-      actorId: 'workflow',
-      taskId: args.taskId,
-      status: 'in_progress',
-      attribution: {
-        workflowSlug: args.workflowSlug,
-        wfExecutionId: args.wfExecutionId
-          ? toId<'wfExecutions'>(args.wfExecutionId)
-          : undefined,
-      },
-    },
-  );
+  await ackRunInProgress(ctx, args);
 }
 
 /**

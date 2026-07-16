@@ -17,7 +17,7 @@
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "triggers": {
       "events": [
         {
@@ -97,6 +97,95 @@
             "trigger": "mention",
             "instructions": "You were @-mentioned on this task — in a comment or in the task description (the mentioning text is in the trigger context below). Read it, do what it asks of you using your task tools, and post your reply as a task comment. If it asks something outside your abilities, reply with a comment saying so precisely. If the request conflicts with your working agreement, decline politely in a comment.",
             "promptContext": "{{input.comment.body || input.task.description || ''}}"
+          }
+        },
+        "nextSteps": {
+          "success": "fetch_task"
+        }
+      },
+      {
+        "stepSlug": "fetch_task",
+        "name": "Fetch the task's current state",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "get",
+            "taskId": "{{input.taskId}}"
+          }
+        },
+        "nextSteps": {
+          "success": "check_advance"
+        }
+      },
+      {
+        "stepSlug": "check_advance",
+        "name": "Assignee finished its assigned work?",
+        "stepType": "condition",
+        "config": {
+          "expression": "steps.respond.output.data.ok == true && steps.respond.output.data.external != true && steps.fetch_task.output.data.task.assigneeType == 'agent' && steps.fetch_task.output.data.task.assigneeId == loop.item.id && (steps.fetch_task.output.data.task.status == 'todo' || steps.fetch_task.output.data.task.status == 'in_progress')",
+          "description": "A mention is conversation by default and never moves the board. The one exception: the mentioned agent IS the task's assignee (the mention is a retry/continue of its assigned work) and its run succeeded in-platform — park the task at In review exactly like run-assigned does, so a successful mention-retry closes the assignment loop instead of stranding the task. In progress counts because run admission acks the assignee-mention run In progress (ackRunInProgress); done/cancelled/already-in-review and external dispatches stay untouched."
+        },
+        "nextSteps": {
+          "true": "to_review",
+          "false": "check_failed"
+        }
+      },
+      {
+        "stepSlug": "to_review",
+        "name": "Park at In review (human gate)",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "update_status",
+            "taskId": "{{input.taskId}}",
+            "status": "in_review"
+          }
+        },
+        "nextSteps": {
+          "success": "loop_mentions"
+        }
+      },
+      {
+        "stepSlug": "check_failed",
+        "name": "Admitted assignee run failed?",
+        "stepType": "condition",
+        "config": {
+          "expression": "steps.respond.output.data.ok != true && steps.respond.output.data.runId && steps.fetch_task.output.data.task.assigneeType == 'agent' && steps.fetch_task.output.data.task.assigneeId == loop.item.id && steps.fetch_task.output.data.task.status == 'in_progress'",
+          "description": "Roll back ONLY what the admission ack moved: an ADMITTED run (a run row exists — `runId`) by the task's own assignee that failed and left the task In progress. Refusals never touched the status (no ack pre-admission, #2604) and non-assignee mentions never ack, so both fall through quietly."
+        },
+        "nextSteps": {
+          "true": "fail_comment",
+          "false": "loop_mentions"
+        }
+      },
+      {
+        "stepSlug": "fail_comment",
+        "name": "Explain the failure",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "comment",
+            "taskId": "{{input.taskId}}",
+            "body": "[automated] ⚠️ {{loop.item.id}} could not complete this task: {{steps.respond.output.data.error || 'unknown error'}} — returned to To do."
+          }
+        },
+        "nextSteps": {
+          "success": "rollback"
+        }
+      },
+      {
+        "stepSlug": "rollback",
+        "name": "Roll back to To do",
+        "stepType": "action",
+        "config": {
+          "type": "task",
+          "parameters": {
+            "operation": "update_status",
+            "taskId": "{{input.taskId}}",
+            "status": "todo"
           }
         },
         "nextSteps": {

@@ -7695,6 +7695,13 @@
         "automation_disabled": "task automation is off",
         "budget_paused": "monthly budget exhausted",
         "task_circuit_breaker": "agent runs are paused on this task"
+      },
+      "detail": {
+        "openAria": "Open {status} details for {agent}",
+        "runningTitle": "{agent} — live run",
+        "failedTitle": "{agent} — run failed",
+        "completedTitle": "{agent} — run details",
+        "noLiveDetail": "No live transcript is available for this run."
       }
     },
     "timeline": {

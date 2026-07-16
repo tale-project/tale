@@ -200,6 +200,7 @@ import type * as agents_resolve_referenced_folders from "../agents/resolve_refer
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
 import type * as agents_run_agent_on_task from "../agents/run_agent_on_task.js";
+import type * as agents_run_status_ack from "../agents/run_status_ack.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
 import type * as agents_start_chat from "../agents/start_chat.js";
 import type * as agents_task_ops from "../agents/task_ops.js";
@@ -1971,6 +1972,7 @@ declare const fullApi: ApiFromModules<{
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;
   "agents/run_agent_on_task": typeof agents_run_agent_on_task;
+  "agents/run_status_ack": typeof agents_run_status_ack;
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
   "agents/start_chat": typeof agents_start_chat;
   "agents/task_ops": typeof agents_task_ops;

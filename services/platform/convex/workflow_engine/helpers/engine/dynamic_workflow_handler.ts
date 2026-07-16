@@ -7,6 +7,7 @@ import type { RetryBehavior } from '@convex-dev/workpool';
 import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
+import { isAgentRunAction } from '../../../../lib/shared/platform/step_display';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
@@ -46,11 +47,29 @@ export type DynamicWorkflowArgs = {
   debugMode?: boolean;
 };
 
-// Default retry for DURABLE sandbox steps (see the call site): a long run is a
-// sequence of segments across action boundaries, and a single transient hard-kill
-// on any one would otherwise be fatal. The retry resumes from the checkpoint, so
-// these attempts re-attach rather than restart the agent's work.
+// Default retry for DURABLE sandbox steps and agent-RUN action steps (see the
+// call site): a long run is a sequence of segments across action boundaries,
+// and a single transient hard-kill on any one would otherwise be fatal. The
+// retry resumes from the checkpoint, so these attempts re-attach rather than
+// restart the agent's work.
 const DEFAULT_SANDBOX_RETRY_POLICY = { maxRetries: 4, backoffMs: 3000 };
+
+/** An `action` step that RUNS an agent (`run_on_task` / `run_on_discussion` /
+ * `decompose_task`) — the durable sandbox path behind it deliberately throws
+ * retryable infrastructure errors, so these steps need the sandbox retry
+ * default. Same concept as the run-view policy (`isAgentRunAction`). */
+function isAgentRunActionStep(stepDef: StepDefinition): boolean {
+  if (stepDef.stepType !== 'action') return false;
+  const config = isRecord(stepDef.config) ? stepDef.config : undefined;
+  const params = isRecord(config?.parameters) ? config.parameters : undefined;
+  return isAgentRunAction({
+    stepType: stepDef.stepType,
+    ...(typeof config?.type === 'string' && { actionType: config.type }),
+    ...(typeof params?.operation === 'string' && {
+      actionOperation: params.operation,
+    }),
+  });
+}
 
 function buildRetryBehaviorFromPolicy(policy?: {
   maxRetries: number;
@@ -208,11 +227,15 @@ export async function handleDynamicWorkflow(
     // the still-running exec, or cleanly restarts if the container is gone). A
     // clean {ok:false} is NOT a throw, so genuine agent failures still flow to
     // the following condition rather than being retried. Explicit step- or
-    // workflow-level policy still wins.
+    // workflow-level policy still wins. Agent-RUN actions (run_on_task etc.)
+    // are the same durable machinery behind an `action` step (an agent flagged
+    // `preferDurableStepForTasks` runs a sandbox segment chain that THROWS
+    // retryable infrastructure errors expecting exactly this retry) — without
+    // the default, one transient upstream blip failed the whole mention run.
     const effectiveRetryPolicy =
       stepRetryPolicy ??
       workflowRetryPolicy ??
-      (stepDef.stepType === 'sandbox'
+      (stepDef.stepType === 'sandbox' || isAgentRunActionStep(stepDef)
         ? DEFAULT_SANDBOX_RETRY_POLICY
         : undefined);
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
