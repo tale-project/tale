@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { UserPlus } from 'lucide-react';
+import { Check, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -9,16 +9,27 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useAssignConversation } from '../hooks/mutations';
+import {
+  useAssignConversation,
+  useAssignConversationTeam,
+} from '../hooks/mutations';
 import type { ConversationWithMessages } from '../types';
 
-const UNASSIGN_VALUE = '__unassign__';
+// One flat option list carries two independent dimensions; the prefixes route a
+// pick to the right mutation, and the sentinels drive the per-dimension clears.
+const USER_PREFIX = 'user:';
+const TEAM_PREFIX = 'team:';
+const PEOPLE_HEADER = '__people_header__';
+const TEAM_HEADER = '__team_header__';
+const UNASSIGN_USER = '__unassign_user__';
+const UNASSIGN_TEAM = '__unassign_team__';
 
 interface ConversationAssigneePickerProps {
   conversation: ConversationWithMessages;
@@ -26,10 +37,14 @@ interface ConversationAssigneePickerProps {
 }
 
 /**
- * Header control for a conversation's assignee. Admins get a searchable member
- * picker (with an Unassign action); everyone else sees the current assignee
- * read-only. Assignment is admin-only server-side too (`assignConversation`),
- * so this only gates the affordance.
+ * Header control for a conversation's assignment. One searchable picker with
+ * two labelled sections and two INDEPENDENT dimensions — a **People** owner
+ * (`assigneeUserId`) and a **Team** queue (`assigneeTeamId`); both can be set at
+ * once (shared-inbox model: route to a team, a person claims it). Picking from
+ * a section updates only that dimension; the footer clears each separately.
+ * Admins get the picker; everyone else sees the current assignment read-only.
+ * Both mutations are admin-only server-side too (`assignConversation` /
+ * `assignConversationTeam`), so this only gates the affordance.
  */
 export function ConversationAssigneePicker({
   conversation,
@@ -42,112 +57,210 @@ export function ConversationAssigneePicker({
     'role' in memberContext &&
     (memberContext.role === 'admin' || memberContext.role === 'owner');
   const { members = [] } = useMembers(organizationId);
+  const { teams = [] } = useOrgTeams();
   const { mutate: assignConversation } = useAssignConversation();
+  const { mutate: assignConversationTeam } = useAssignConversationTeam();
   const [open, setOpen] = useState(false);
 
   const assigneeUserId = conversation.assigneeUserId ?? null;
+  const assigneeTeamId = conversation.assigneeTeamId ?? null;
   const assignee = members.find((m) => m.userId === assigneeUserId);
   const assigneeName = assignee?.displayName ?? assignee?.email;
+  const team = teams.find((tm) => tm.id === assigneeTeamId);
+  const teamName = team?.name;
 
-  const avatar = assigneeUserId ? (
-    <AssigneeAvatar
-      assigneeType="user"
-      assigneeId={assigneeUserId}
-      name={assigneeName}
-      size="sm"
-    />
-  ) : (
-    <UserPlus className="text-muted-foreground size-4 shrink-0" />
-  );
+  // Trigger chips — the team queue and/or the individual owner, or a bare
+  // "Assign" affordance when neither is set.
+  const teamChip = assigneeTeamId ? (
+    <span className="flex items-center gap-1.5">
+      <Users className="text-muted-foreground size-4 shrink-0" />
+      <span className="max-w-[8rem] truncate text-sm">
+        {teamName ?? t('header.assignedTeam')}
+      </span>
+    </span>
+  ) : null;
+  const personChip = assigneeUserId ? (
+    <span className="flex items-center gap-1.5">
+      <AssigneeAvatar
+        assigneeType="user"
+        assigneeId={assigneeUserId}
+        name={assigneeName}
+        size="sm"
+      />
+      <span className="max-w-[8rem] truncate text-sm">
+        {assigneeName ?? t('header.assignee')}
+      </span>
+    </span>
+  ) : null;
+  const chips =
+    teamChip || personChip ? (
+      <span className="flex items-center gap-2">
+        {teamChip}
+        {personChip}
+      </span>
+    ) : (
+      <span className="flex items-center gap-1.5">
+        <UserPlus className="text-muted-foreground size-4 shrink-0" />
+        <span className="text-sm">{t('header.assign')}</span>
+      </span>
+    );
 
-  // Show the assignee's name (or "Assign") beside the avatar — a legible
-  // control, not a bare icon.
-  const triggerText = assigneeUserId
-    ? (assigneeName ?? t('header.assignee'))
-    : t('header.assign');
-  const assignedLabel = assigneeName
-    ? t('header.assignedTo', { name: assigneeName })
-    : t('header.assignee');
-  const chip = (
-    <>
-      {avatar}
-      <span className="max-w-[10rem] truncate text-sm">{triggerText}</span>
-    </>
-  );
+  // Compose a read-out of the current assignment for the trigger's aria-label.
+  const parts: string[] = [];
+  if (teamName) parts.push(t('header.assignedToTeam', { name: teamName }));
+  if (assigneeName) parts.push(t('header.assignedTo', { name: assigneeName }));
+  const assignedLabel =
+    parts.length > 0 ? parts.join(' · ') : t('header.assign');
 
-  // Non-admins: read-only. Show who's assigned; render nothing when unassigned.
+  // Non-admins: read-only. Show the current assignment; nothing when unset.
   if (!isAdmin) {
-    if (!assigneeUserId) return null;
+    if (!assigneeUserId && !assigneeTeamId) return null;
     return (
       <span
-        className="text-muted-foreground flex items-center gap-1.5"
+        className="text-muted-foreground flex items-center gap-2"
         aria-label={assignedLabel}
       >
-        {chip}
+        {chips}
       </span>
     );
   }
 
-  const options: SearchableSelectOption[] = members.map((member) => ({
-    value: member.userId,
-    label: member.displayName ?? member.email ?? member.userId,
-  }));
+  // Only render a section when it has rows, so an empty org has no dangling
+  // header. When both are empty the picker falls through to `emptyText`.
+  const options: SearchableSelectOption[] = [];
+  if (members.length > 0) {
+    options.push({
+      value: PEOPLE_HEADER,
+      label: t('header.peopleSection'),
+      isSectionHeader: true,
+    });
+    for (const member of members) {
+      options.push({
+        value: `${USER_PREFIX}${member.userId}`,
+        label: member.displayName ?? member.email ?? member.userId,
+      });
+    }
+  }
+  if (teams.length > 0) {
+    options.push({
+      value: TEAM_HEADER,
+      label: t('header.teamsSection'),
+      isSectionHeader: true,
+    });
+    for (const tm of teams) {
+      options.push({ value: `${TEAM_PREFIX}${tm.id}`, label: tm.name });
+    }
+  }
 
   function handleValueChange(value: string) {
     setOpen(false);
-    const nextAssignee = value === UNASSIGN_VALUE ? undefined : value;
-    if ((assigneeUserId ?? undefined) === nextAssignee) return;
-    assignConversation(
-      {
-        conversationId: toId<'conversations'>(conversation._id),
-        assigneeUserId: nextAssignee,
-      },
-      {
-        onError: () =>
-          toast({ title: t('header.assignError'), variant: 'destructive' }),
-      },
-    );
+    const onError = {
+      onError: () =>
+        toast({ title: t('header.assignError'), variant: 'destructive' }),
+    };
+    const conversationId = toId<'conversations'>(conversation._id);
+
+    if (value === UNASSIGN_USER) {
+      if (!assigneeUserId) return;
+      assignConversation(
+        { conversationId, assigneeUserId: undefined },
+        onError,
+      );
+      return;
+    }
+    if (value === UNASSIGN_TEAM) {
+      if (!assigneeTeamId) return;
+      assignConversationTeam(
+        { conversationId, assigneeTeamId: undefined },
+        onError,
+      );
+      return;
+    }
+    if (value.startsWith(USER_PREFIX)) {
+      const next = value.slice(USER_PREFIX.length);
+      if ((assigneeUserId ?? undefined) === next) return;
+      assignConversation({ conversationId, assigneeUserId: next }, onError);
+      return;
+    }
+    if (value.startsWith(TEAM_PREFIX)) {
+      const next = value.slice(TEAM_PREFIX.length);
+      if ((assigneeTeamId ?? undefined) === next) return;
+      assignConversationTeam({ conversationId, assigneeTeamId: next }, onError);
+    }
   }
 
   return (
     <SearchableSelect
       open={open}
       onOpenChange={setOpen}
-      value={assigneeUserId}
+      // Two dimensions can be selected at once, so there is no single controlled
+      // value — the current pick in each section is marked via `optionAction`.
+      value={null}
       onValueChange={handleValueChange}
       options={options}
       align="end"
       modal
-      searchPlaceholder={t('header.assignSearch')}
-      emptyText={t('header.noMembers')}
+      searchPlaceholder={t('header.assignSearchAll')}
+      emptyText={t('header.noAssignees')}
       aria-label={t('header.assignee')}
       trigger={
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5"
-          aria-label={assigneeUserId ? assignedLabel : t('header.assign')}
+          className="gap-2"
+          aria-label={assignedLabel}
         >
-          {chip}
+          {chips}
         </Button>
       }
-      optionAction={(opt) => (
-        <AssigneeAvatar
-          assigneeType="user"
-          assigneeId={opt.value}
-          name={opt.label}
-        />
-      )}
+      optionAction={(opt) => {
+        if (opt.value.startsWith(USER_PREFIX)) {
+          const uid = opt.value.slice(USER_PREFIX.length);
+          return (
+            <span className="flex items-center gap-1.5">
+              {assigneeUserId === uid && (
+                <Check className="text-primary size-4 shrink-0" />
+              )}
+              <AssigneeAvatar
+                assigneeType="user"
+                assigneeId={uid}
+                name={opt.label}
+              />
+            </span>
+          );
+        }
+        if (opt.value.startsWith(TEAM_PREFIX)) {
+          const tid = opt.value.slice(TEAM_PREFIX.length);
+          return assigneeTeamId === tid ? (
+            <Check className="text-primary size-4 shrink-0" />
+          ) : null;
+        }
+        return null;
+      }}
       footer={
-        assigneeUserId ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => handleValueChange(UNASSIGN_VALUE)}
-          >
-            {t('header.unassign')}
-          </Button>
+        assigneeUserId || assigneeTeamId ? (
+          <div className="flex flex-col">
+            {assigneeUserId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => handleValueChange(UNASSIGN_USER)}
+              >
+                {t('header.unassign')}
+              </Button>
+            )}
+            {assigneeTeamId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => handleValueChange(UNASSIGN_TEAM)}
+              >
+                {t('header.unassignTeam')}
+              </Button>
+            )}
+          </div>
         ) : undefined
       }
     />

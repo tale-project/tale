@@ -51,3 +51,26 @@ export const getMirrorMemberRole = internalQuery({
     return row?.role ?? null;
   },
 });
+
+/**
+ * The organization a team belongs to, read from the Better Auth `team` table on
+ * a raw ctx (mirrors {@link listByTeam}'s team lookup). Exists so an RLS-wrapped
+ * mutation can validate that a team it is about to queue a conversation to
+ * belongs to that conversation's org — defense-in-depth, since RLS already
+ * blocks cross-org conversation access. Returns null when the team is unknown.
+ */
+export const getTeamOrganizationId = internalQuery({
+  args: {
+    teamId: v.string(),
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const team = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'team',
+      where: [{ field: '_id', value: args.teamId, operator: 'eq' }],
+    });
+    return team && typeof team.organizationId === 'string'
+      ? team.organizationId
+      : null;
+  },
+});

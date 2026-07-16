@@ -2136,9 +2136,8 @@
       "markAsSpam": "Mark as spam",
       "markingAsSpam": "Marking as spam...",
       "assignee": "Assignee",
-      "assign": "Assign to a member",
+      "assign": "Assign",
       "assignedTo": "Assigned to {name}",
-      "assignSearch": "Search members",
       "noMembers": "No members found",
       "unassign": "Unassign",
       "assignError": "Couldn't update the assignee",
@@ -2150,7 +2149,14 @@
         "reopenFailed": "An unexpected error occurred while reopening the conversation.",
         "markedAsSpam": "Conversation has been marked as spam successfully.",
         "markAsSpamFailed": "An unexpected error occurred while marking the conversation as spam."
-      }
+      },
+      "assignedTeam": "Team",
+      "assignedToTeam": "Queued to {name}",
+      "unassignTeam": "Remove team",
+      "peopleSection": "People",
+      "teamsSection": "Team",
+      "assignSearchAll": "Search people and teams",
+      "noAssignees": "No people or teams found"
     },
     "editor": {
       "noContent": "No content to improve",
@@ -7509,7 +7515,10 @@
     "email": {
       "cta": "Open in Tale",
       "footer": "You received this email because you have notifications enabled in Tale."
-    }
+    },
+    "conversationTeamAssigned": "Conversation queued to your team",
+    "conversationTeamAssignedBody": "The conversation \"{subject}\" was queued to your team — open your Inbox to reply.",
+    "conversationTeamAssignedByBody": "{actor} queued the conversation \"{subject}\" to your team — open your Inbox to reply."
   },
   "projectSecrets": {
     "title": "Environment",

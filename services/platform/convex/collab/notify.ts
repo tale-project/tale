@@ -338,6 +338,66 @@ export async function notifyConversationAssigned(
   });
 }
 
+/** Cap on a per-team assignment fan-out — matches the automation fan-out bound
+ *  (`collab/internal_mutations.ts` MAX_RECIPIENTS). */
+const MAX_TEAM_ASSIGN_RECIPIENTS = 500;
+
+/**
+ * Notify a team's members that an admin queued a conversation to their team —
+ * the team counterpart of {@link notifyConversationAssigned}. One in-app row +
+ * actionable email per member (read from the local `teamMemberMirror`), the
+ * actor is never notified, users are de-duped across membership rows, and the
+ * fan-out is bounded at {@link MAX_TEAM_ASSIGN_RECIPIENTS}. Reuses the
+ * `conversation_assigned` type (no schema change) with a team-specific,
+ * locale-safe body (impersonal unless the actor has a proper-noun name).
+ */
+export async function notifyConversationAssignedTeam(
+  ctx: MutationCtx,
+  args: {
+    conversation: Doc<'conversations'>;
+    teamId: string;
+    // The admin who queued it, or null for a system/routing assignment
+    // (impersonal body, and no actor to self-skip).
+    actorUserId: string | null;
+  },
+): Promise<void> {
+  const actorName = args.actorUserId
+    ? await resolveUserDisplayName(ctx, args.actorUserId)
+    : null;
+  const seen = new Set<string>();
+  let notified = 0;
+  for await (const row of ctx.db
+    .query('teamMemberMirror')
+    .withIndex('by_teamId', (q) => q.eq('teamId', args.teamId))) {
+    // Never notify the acting admin of their own action; de-dupe a user who
+    // appears in more than one membership row.
+    if (args.actorUserId && row.userId === args.actorUserId) continue;
+    if (seen.has(row.userId)) continue;
+    seen.add(row.userId);
+    if (notified >= MAX_TEAM_ASSIGN_RECIPIENTS) break;
+    notified++;
+    await writeNotification(ctx, {
+      userId: row.userId,
+      organizationId: args.conversation.organizationId,
+      type: 'conversation_assigned',
+      titleKey: 'conversationTeamAssigned',
+      bodyKey: actorName
+        ? 'conversationTeamAssignedByBody'
+        : 'conversationTeamAssignedBody',
+      params: {
+        subject: args.conversation.subject ?? '',
+        conversationId: String(args.conversation._id),
+        conversationStatus: args.conversation.status ?? 'open',
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'conversation',
+      resourceId: String(args.conversation._id),
+      actorType: args.actorUserId ? 'user' : 'system',
+      actorId: args.actorUserId ?? undefined,
+    });
+  }
+}
+
 /**
  * Mention fan-out for the task BODY (description) — the counterpart of the
  * mention half of {@link notifyTaskComment} for `@`s typed into the task

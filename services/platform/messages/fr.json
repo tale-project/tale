@@ -2136,9 +2136,8 @@
       "markAsSpam": "Marquer comme spam",
       "markingAsSpam": "Marquage comme spam...",
       "assignee": "Responsable",
-      "assign": "Attribuer à un membre",
+      "assign": "Assigner",
       "assignedTo": "Attribué à {name}",
-      "assignSearch": "Rechercher des membres",
       "noMembers": "Aucun membre trouvé",
       "unassign": "Retirer l'attribution",
       "assignError": "Impossible de mettre à jour le responsable",
@@ -2150,7 +2149,14 @@
         "reopenFailed": "Une erreur inattendue s'est produite lors de la réouverture de la conversation.",
         "markedAsSpam": "La conversation a été marquée comme spam avec succès.",
         "markAsSpamFailed": "Une erreur inattendue s'est produite lors du marquage de la conversation comme spam."
-      }
+      },
+      "assignedTeam": "Équipe",
+      "assignedToTeam": "Assignée à {name}",
+      "unassignTeam": "Retirer l'équipe",
+      "peopleSection": "Personnes",
+      "teamsSection": "Équipe",
+      "assignSearchAll": "Rechercher des personnes et des équipes",
+      "noAssignees": "Aucune personne ou équipe trouvée"
     },
     "editor": {
       "noContent": "Aucun contenu à améliorer",
@@ -7218,7 +7224,10 @@
     "email": {
       "cta": "Ouvrir dans Tale",
       "footer": "Tu reçois cet e-mail parce que tu as activé les notifications dans Tale."
-    }
+    },
+    "conversationTeamAssigned": "Conversation assignée à ton équipe",
+    "conversationTeamAssignedBody": "La conversation « {subject} » a été assignée à ton équipe — ouvre ta boîte de réception pour répondre.",
+    "conversationTeamAssignedByBody": "{actor} a assigné la conversation « {subject} » à ton équipe — ouvre ta boîte de réception pour répondre."
   },
   "projectSecrets": {
     "title": "Environnement",
