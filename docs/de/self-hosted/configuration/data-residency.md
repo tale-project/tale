@@ -57,9 +57,25 @@ Die Verbindung liegt neben der Wissens-Verbindung im Konfigurationsverzeichnis d
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — Region, optionaler Endpoint (für MinIO/R2), Path-Style-Flag, Bucket und ein optionales Key-Präfix.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — das Schlüsselpaar, SOPS-verschlüsselt, sobald ein SOPS-Age-Schlüssel konfiguriert ist (siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops)).
 
-Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten, ohne alte Blobs zu migrieren. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
+Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten. Früher gespeicherte Dateien bleiben im Convex-Speicher, bis du sie mit dem Blob-Backfill unten verlagerst. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
 
 Org-Admins verwalten auch diese Verbindung unter **Einstellungen > Datenresidenz der Organisation**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
+
+### Vorhandene Dateien in den Bucket verschieben
+
+Den Bucket zu verbinden leitet nur **neue** Uploads um; die Blobs, die vor der Verbindung geschrieben wurden, bleiben in Convex' `_storage` und funktionieren weiter über die gemischten Referenzen oben. Um auch diese Historie auf deine eigene Infrastruktur zu holen — der eigentliche Sinn der Datenresidenz — führe den **Blob-Backfill** aus: eine Operator-Aktion, die jeden vorhandenen Blob in den Bucket der Org kopiert, prüft, dass er Byte für Byte identisch zurückkommt, jede referenzierende Zeile umschreibt und die Convex-Kopie löscht.
+
+Führe ihn aus einer Shell mit Convex-CLI-Zugriff aus und übergib die ID der Organisation. Mach zuerst einen Probelauf, um zu sehen, was verschoben würde, dann den echten Lauf:
+
+```bash
+# Probelauf — zählt und sampelt, was verschoben würde, schreibt nichts:
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
+
+# Der echte Lauf — lass dryRun weg, sobald die Zahlen stimmen:
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
+```
+
+Der Backfill ist **idempotent** und **org-gebunden**: Er verschiebt nur die Blobs dieser Organisation, überspringt alles, was schon im Bucket liegt, und lässt jede Convex-Quelle stehen, bis ihre Kopie verifiziert ist — ein erneuter Lauf nach einer Unterbrechung setzt also sicher fort. Ein echter Lauf braucht die zuvor konfigurierte Bucket-Verbindung; ein Probelauf nicht. Das ist bewusst **keine** versionierte Framework-Migration — er läuft auf Abruf, pro Organisation, wenn du die Historie eines Mandanten verlagern willst, nicht an einer Release-Grenze.
 
 ## Dateispeicher auf S3
 

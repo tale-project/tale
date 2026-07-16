@@ -57,9 +57,25 @@ The connection lives next to the knowledge one, under the organization's config 
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — region, optional endpoint (for MinIO/R2), path-style flag, bucket, and an optional key prefix.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — the access key pair, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are — mixed references are supported, so you can switch at any time without migrating old blobs. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
+Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in Convex storage — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
 
 Org admins can manage this connection from **Settings > Organization data residency** too; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
+
+### Moving pre-existing files into the bucket
+
+Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in Convex's `_storage` and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: an operator action that copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the Convex copy.
+
+Run it from a shell with Convex CLI access, passing the organization's id. Dry-run first to see what would move, then run it for real:
+
+```bash
+# Dry run — counts and samples what would move, writes nothing:
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
+
+# The real move — drop dryRun once the counts look right:
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
+```
+
+The backfill is **idempotent** and **org-scoped**: it moves only that organization's blobs, skips anything already in the bucket, and leaves each Convex source in place until its copy is verified — so a re-run after an interruption resumes safely. A real run needs the bucket connection configured first; a dry run does not. This is deliberately **not** a versioned framework migration — it runs on demand, per organization, when you choose to relocate a tenant's history, not at a release boundary.
 
 ## File storage on S3
 
