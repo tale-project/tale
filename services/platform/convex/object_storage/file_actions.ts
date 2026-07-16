@@ -41,6 +41,7 @@ import {
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import {
   parseObjectStorageConnectionJson,
+  readObjectStorageSecrets,
   resolveObjectStorageConnectionFilePath,
   resolveObjectStorageConnectionSecretsFilePath,
   resolveObjectStorageHistoryDir,
@@ -218,17 +219,36 @@ export const deleteConnection = internalAction({
 export const probeConnection = internalAction({
   args: {
     ...objectStorageConnectionArgs,
-    accessKeyId: v.string(),
-    secretAccessKey: v.string(),
+    accessKeyId: v.optional(v.string()),
+    secretAccessKey: v.optional(v.string()),
+    // When set and no credential pair is supplied, the probe reuses the org's
+    // already stored keys. This is what makes "Save, then Test" work: Save
+    // blanks the write-only key fields, so the follow-up Test carries no keys —
+    // without this fallback the probe could not test a valid saved connection
+    // (S3 has no passwordless mode, so blank keys can only mean "reuse stored").
+    // Mirrors `knowledge/file_actions.ts` probeConnection.
+    orgSlug: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (_ctx, args): Promise<ObjectStorageProbeResult> => {
     try {
       gateEndpoint(args.endpoint);
-      const store = buildS3ObjectStore(connectionFromArgs(args), {
-        accessKeyId: args.accessKeyId,
-        secretAccessKey: args.secretAccessKey,
-      });
+      const credentials =
+        args.accessKeyId && args.secretAccessKey
+          ? {
+              accessKeyId: args.accessKeyId,
+              secretAccessKey: args.secretAccessKey,
+            }
+          : args.orgSlug
+            ? await readObjectStorageSecrets(args.orgSlug)
+            : undefined;
+      if (!credentials) {
+        return {
+          ok: false,
+          error: 'Enter the access key ID and the secret access key to test.',
+        };
+      }
+      const store = buildS3ObjectStore(connectionFromArgs(args), credentials);
       await probeS3ObjectStore(store);
       return { ok: true };
     } catch (err) {

@@ -7445,7 +7445,7 @@
         "bucket": "Bucket",
         "prefix": "Key prefix",
         "prefixHint": "Optional namespace inside the bucket; blank stores objects at the bucket root.",
-        "credentialsHint": "Write-only — stored keys are never shown. Enter both keys to run the connection test.",
+        "credentialsHint": "Write-only — stored keys are never shown. Enter both keys, or leave both blank to test the stored keys.",
         "verified": "Bucket verified (upload, read, delete)",
         "note": "Off, this organization's files live in the deployment's built-in storage, isolated per organization. On, new uploads go to the bucket above; files stored before the switch stay readable where they are.",
         "saved": "Saved — this organization's new uploads go to your bucket.",

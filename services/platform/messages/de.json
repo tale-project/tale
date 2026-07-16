@@ -7154,7 +7154,7 @@
         "bucket": "Bucket",
         "prefix": "Key-Präfix",
         "prefixHint": "Optionaler Namensraum im Bucket; leer legt Objekte direkt im Bucket ab.",
-        "credentialsHint": "Nur Schreiben — gespeicherte Schlüssel werden nie angezeigt. Für den Verbindungstest gib beide Schlüssel ein.",
+        "credentialsHint": "Nur Schreiben — gespeicherte Schlüssel werden nie angezeigt. Gib beide Schlüssel ein oder lass beide leer, um die gespeicherten Schlüssel zu testen.",
         "verified": "Bucket geprüft (Hochladen, Lesen, Löschen)",
         "note": "Ohne Verbindung liegen die Dateien dieser Organisation im eingebauten Speicher des Deployments, pro Organisation isoliert. Mit Verbindung landen neue Uploads im oben angegebenen Bucket; zuvor gespeicherte Dateien bleiben lesbar, wo sie sind.",
         "saved": "Gespeichert — neue Uploads dieser Organisation landen in deinem Bucket.",
