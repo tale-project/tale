@@ -47,7 +47,7 @@ export function resolveTranscriptRetrievalTool(agentConfig: {
 }
 
 /** The tool-aware "how to read the transcript" fragment of the hint line. */
-export function transcriptAccessHint(tool: TranscriptRetrievalTool): string {
+function transcriptAccessHint(tool: TranscriptRetrievalTool): string {
   if (tool === 'document_retrieve') {
     return 'call document_retrieve(fileId) to read';
   }
