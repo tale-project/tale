@@ -14,6 +14,49 @@
  */
 import { sanitizeUntrustedField } from './sanitize-untrusted-field';
 
+/**
+ * Which retrieval tool the transcript hint may reference. The hint must never
+ * instruct the model to call a tool the agent does not have (#2760) — the
+ * runtime rejects the call and the turn dead-ends. `null` = the agent has no
+ * way to read the indexed transcript.
+ */
+export type TranscriptRetrievalTool = 'document_retrieve' | 'rag_search' | null;
+
+/**
+ * Resolve which retrieval tool the transcript hint may point at, mirroring the
+ * chat tool filter (`internal_actions.ts`): `document_retrieve` survives only
+ * when listed in the agent's tools; `rag_search` additionally requires a
+ * tool-capable knowledge mode.
+ */
+export function resolveTranscriptRetrievalTool(agentConfig: {
+  convexToolNames?: readonly string[];
+  knowledgeMode?: string;
+}): TranscriptRetrievalTool {
+  const tools = agentConfig.convexToolNames ?? [];
+  if (tools.includes('document_retrieve')) {
+    return 'document_retrieve';
+  }
+  if (
+    tools.includes('rag_search') &&
+    (agentConfig.knowledgeMode === 'tool' ||
+      agentConfig.knowledgeMode === 'both')
+  ) {
+    return 'rag_search';
+  }
+  return null;
+}
+
+/** The tool-aware "how to read the transcript" fragment of the hint line. */
+export function transcriptAccessHint(tool: TranscriptRetrievalTool): string {
+  if (tool === 'document_retrieve') {
+    return 'call document_retrieve(fileId) to read';
+  }
+  if (tool === 'rag_search') {
+    return 'search its contents with rag_search';
+  }
+  return 'no retrieval tool is available in this chat to read it';
+}
+
 interface VideoLinkAttachmentMarkdownInput {
   fileId: string;
   fileName: string;
@@ -26,6 +69,13 @@ interface VideoLinkAttachmentMarkdownInput {
    * `videoLinkJobs.videoDurationSec ?? fileMetadata.transcriptionDurationSec
    * ?? 0`; client passes `videoLinkJob.videoDurationSec ?? 0`. */
   videoDurationSec?: number;
+  /**
+   * Which retrieval tool the hint may reference; defaults to
+   * `document_retrieve` (the historical template). Pass the resolved value
+   * from `resolveTranscriptRetrievalTool` so the hint never names a tool the
+   * agent lacks.
+   */
+  retrievalTool?: TranscriptRetrievalTool;
 }
 
 export function formatVideoLinkAttachmentMarkdown(
@@ -49,5 +99,10 @@ export function formatVideoLinkAttachmentMarkdown(
     durSec >= 3600
       ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
       : `${Math.round(durSec / 60)}m`;
-  return `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote}) — transcript indexed; call document_retrieve(fileId) to read\n*(fileId: ${input.fileId} | fileName: ${input.fileName} | fileType: ${input.fileType} | fileSize: ${input.fileSize})*`;
+  const accessHint = transcriptAccessHint(
+    input.retrievalTool === undefined
+      ? 'document_retrieve'
+      : input.retrievalTool,
+  );
+  return `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote}) — transcript indexed; ${accessHint}\n*(fileId: ${input.fileId} | fileName: ${input.fileName} | fileType: ${input.fileType} | fileSize: ${input.fileSize})*`;
 }

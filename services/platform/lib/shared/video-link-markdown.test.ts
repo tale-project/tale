@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatVideoLinkAttachmentMarkdown } from './video-link-markdown';
+import {
+  formatVideoLinkAttachmentMarkdown,
+  resolveTranscriptRetrievalTool,
+} from './video-link-markdown';
 
 /**
  * Golden tests: the output here must stay byte-identical to the inline
@@ -137,5 +140,86 @@ describe('formatVideoLinkAttachmentMarkdown', () => {
       videoTitle: 'Mystery',
     });
     expect(out).toContain('(video, 0m)');
+  });
+});
+
+/**
+ * Regression guards for #2760: the hint must never instruct the model to call
+ * a tool the agent does not have — the runtime rejects the call and the turn
+ * dead-ends with "unavailable tool 'document_retrieve'".
+ */
+describe('resolveTranscriptRetrievalTool', () => {
+  it('prefers document_retrieve when the agent has it', () => {
+    expect(
+      resolveTranscriptRetrievalTool({
+        convexToolNames: ['rag_search', 'document_retrieve'],
+        knowledgeMode: 'tool',
+      }),
+    ).toBe('document_retrieve');
+  });
+
+  it('falls back to rag_search only with a tool-capable knowledge mode', () => {
+    expect(
+      resolveTranscriptRetrievalTool({
+        convexToolNames: ['rag_search'],
+        knowledgeMode: 'both',
+      }),
+    ).toBe('rag_search');
+    expect(
+      resolveTranscriptRetrievalTool({
+        convexToolNames: ['rag_search'],
+        knowledgeMode: 'context',
+      }),
+    ).toBe(null);
+  });
+
+  it('returns null for an agent with no retrieval tool at all', () => {
+    expect(
+      resolveTranscriptRetrievalTool({
+        convexToolNames: ['file_write', 'update_todos'],
+        knowledgeMode: 'tool',
+      }),
+    ).toBe(null);
+    expect(resolveTranscriptRetrievalTool({})).toBe(null);
+  });
+});
+
+describe('formatVideoLinkAttachmentMarkdown retrieval-tool variants', () => {
+  const base = {
+    fileId: 'kg2_xyz',
+    fileName: 'clip.mp4',
+    fileType: 'video/mp4',
+    fileSize: 1024,
+    videoTitle: 'Untitled',
+    videoDurationSec: 60,
+  };
+
+  it('keeps the golden document_retrieve wording when the tool is available', () => {
+    const explicit = formatVideoLinkAttachmentMarkdown({
+      ...base,
+      retrievalTool: 'document_retrieve',
+    });
+    const defaulted = formatVideoLinkAttachmentMarkdown(base);
+    expect(explicit).toBe(defaulted);
+    expect(explicit).toContain('call document_retrieve(fileId) to read');
+  });
+
+  it('points at rag_search when that is the only retrieval tool', () => {
+    const out = formatVideoLinkAttachmentMarkdown({
+      ...base,
+      retrievalTool: 'rag_search',
+    });
+    expect(out).toContain('search its contents with rag_search');
+    expect(out).not.toContain('document_retrieve');
+  });
+
+  it('never names a tool when the agent has none', () => {
+    const out = formatVideoLinkAttachmentMarkdown({
+      ...base,
+      retrievalTool: null,
+    });
+    expect(out).toContain('no retrieval tool is available in this chat');
+    expect(out).not.toContain('document_retrieve');
+    expect(out).not.toContain('rag_search');
   });
 });
