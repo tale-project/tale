@@ -69,6 +69,39 @@ export const generateBlobUpload = action({
 });
 
 /**
+ * Backend-aware upload handoff for the WebDAV PUT path. Unlike the public
+ * `generateBlobUpload`, this bypasses Better Auth — the WebDAV Hono layer has
+ * already done its Basic-auth check and passes the authenticated principal's
+ * `organizationId`. Internal (admin-key ConvexHttpClient only). Returns the raw
+ * Convex POST url (the WebDAV layer re-homes it onto the reachable backend
+ * origin itself) or a presigned S3 PUT. An unresolvable org falls back to
+ * Convex `_storage` — the backfill relocates it later.
+ */
+export const generateWebdavBlobUpload = internalAction({
+  args: {
+    organizationId: v.string(),
+    contentType: v.optional(v.string()),
+  },
+  returns: v.object({
+    url: v.string(),
+    method: v.union(v.literal('POST'), v.literal('PUT')),
+    s3Ref: v.optional(v.string()),
+  }),
+  handler: async (ctx, args): Promise<BlobUploadHandoff> => {
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[generateWebdavBlobUpload] org ${args.organizationId} unresolvable; using Convex _storage`,
+      );
+      return { url: await ctx.storage.generateUploadUrl(), method: 'POST' };
+    }
+    return await generateBlobUploadHandoff(ctx, orgSlug, {
+      contentType: args.contentType,
+    });
+  },
+});
+
+/**
  * Presign a short-lived GET URL for an `s3:` blob so the V8 `/storage` httpAction
  * (which cannot sign S3 requests) can 302-redirect the browser to it. Resolves
  * the org's bucket from `organizationId`; returns `null` when the org is

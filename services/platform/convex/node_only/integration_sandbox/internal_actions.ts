@@ -14,7 +14,11 @@ import {
 } from '../../../lib/shared/schemas/utils/json-value';
 import { internalAction } from '../../_generated/server';
 import { executeIntegrationImpl } from './execute_integration_impl';
-import { createConvexStorageProvider } from './helpers';
+// Imported directly (not via ./helpers): this provider routes through the
+// per-org blob seam (`putBlob` → node-only S3 signing), so it's `'use node'`.
+// Re-exporting it from the V8 `./helpers` barrel would drag `node:*` builtins
+// into the barrel's V8 bundle and break the Convex deploy.
+import { createConvexStorageProvider } from './helpers/create_convex_storage_provider';
 import type { IntegrationExecutionResult } from './types';
 
 /**

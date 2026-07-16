@@ -142,32 +142,59 @@ export async function handlePut(
     };
   }
 
+  const contentType =
+    req.headers.get('content-type') ?? 'application/octet-stream';
+
   // Two-step upload:
-  // 1) Ask Convex for a presigned URL
-  // 2) Stream the bytes to that URL — returns { storageId }
-  // Convex returns the URL with its self-reported origin (127.0.0.1:3210
-  // self-hosted), unreachable from this container; re-home it onto the
-  // reachable backend origin (CONVEX_URL) before fetching. See ctx.ts.
-  const rawUploadUrl: unknown = await ctx.convex.mutation(
-    anyApi.webdav.tree_mutations.generateWebdavUploadUrl,
-    {},
-  );
-  if (typeof rawUploadUrl !== 'string') {
-    console.error(
-      '[webdav] PUT generateWebdavUploadUrl returned non-string',
-      rawUploadUrl,
+  // 1) Ask Convex for an upload target — backend-aware: the org's own S3 bucket
+  //    (a presigned PUT) when configured, else Convex `_storage` (a
+  //    generateUploadUrl POST). A chunked PUT (no Content-Length) can't target
+  //    a presigned S3 PUT — they require a known length — so those fall back to
+  //    the Convex `_storage` POST (native chunked ingest); the idempotent
+  //    per-org blob backfill relocates such a blob into the bucket later.
+  // 2) Stream the bytes to that target.
+  // A Convex POST url self-reports an origin (127.0.0.1:3210 self-hosted)
+  // unreachable from this container; re-home it onto the reachable backend
+  // origin (CONVEX_URL). A presigned S3 PUT already addresses the org's public
+  // endpoint — leave it untouched. See ctx.ts.
+  let uploadTarget: { url: string; method: 'POST' | 'PUT'; s3Ref?: string };
+  if (declaredSize !== null) {
+    const handoff: unknown = await ctx.convex.action(
+      anyApi.files.blob_actions.generateWebdavBlobUpload,
+      { organizationId: auth.organizationId, contentType },
     );
-    return { status: 502, headers: {}, body: 'Upload URL unavailable' };
+    if (!isUploadHandoff(handoff)) {
+      console.error(
+        '[webdav] PUT generateWebdavBlobUpload returned malformed handoff',
+        handoff,
+      );
+      return { status: 502, headers: {}, body: 'Upload URL unavailable' };
+    }
+    uploadTarget = handoff;
+  } else {
+    const rawUploadUrl: unknown = await ctx.convex.mutation(
+      anyApi.webdav.tree_mutations.generateWebdavUploadUrl,
+      {},
+    );
+    if (typeof rawUploadUrl !== 'string') {
+      console.error(
+        '[webdav] PUT generateWebdavUploadUrl returned non-string',
+        rawUploadUrl,
+      );
+      return { status: 502, headers: {}, body: 'Upload URL unavailable' };
+    }
+    uploadTarget = { url: rawUploadUrl, method: 'POST' };
   }
-  const uploadUrl = rewriteStorageOrigin(rawUploadUrl, ctx.convexApiUrl);
+  const uploadUrl =
+    uploadTarget.method === 'POST'
+      ? rewriteStorageOrigin(uploadTarget.url, ctx.convexApiUrl)
+      : uploadTarget.url;
 
   // Wrap the body in a counter so we can fail the request if the
   // client sent more bytes than Content-Length (or no Content-Length)
   // promised. Falls through when there is no body (Length: 0 PUT).
   const { body, sizeOf } = wrapWithCap(req.body, WEBDAV_MAX_PUT_BYTES);
 
-  const contentType =
-    req.headers.get('content-type') ?? 'application/octet-stream';
   const uploadHeaders: Record<string, string> = { 'Content-Type': contentType };
   if (declaredSize !== null) {
     uploadHeaders['Content-Length'] = String(declaredSize);
@@ -176,7 +203,7 @@ export async function handlePut(
   let upload: Response;
   try {
     upload = await fetch(uploadUrl, {
-      method: 'POST',
+      method: uploadTarget.method,
       headers: uploadHeaders,
       body: body ?? new Uint8Array(),
       // duplex:'half' is required by undici when the body is a stream.
@@ -209,8 +236,12 @@ export async function handlePut(
     console.warn('[webdav] PUT upload failed', upload.status, txt);
     return { status: 502, headers: {}, body: 'Upload failed' };
   }
-  const uploadResp: unknown = await upload.json().catch(() => null);
-  const storageId = extractStorageId(uploadResp);
+  // Convex POST returns `{ storageId }` in its body; an S3 PUT returns no body
+  // — the ref (the object key) was known up front and handed back as `s3Ref`.
+  const storageId =
+    uploadTarget.method === 'PUT'
+      ? (uploadTarget.s3Ref ?? null)
+      : extractStorageId(await upload.json().catch(() => null));
   if (!storageId) {
     return {
       status: 502,
@@ -248,7 +279,10 @@ export async function handlePut(
     // sync-client race). Fire-and-forget — the client still gets the real
     // error below.
     void ctx.convex
-      .mutation(anyApi.webdav.tree_mutations.deleteWebdavBlob, { storageId })
+      .mutation(anyApi.webdav.tree_mutations.deleteWebdavBlob, {
+        storageId,
+        organizationId: auth.organizationId,
+      })
       .catch((e: unknown) =>
         console.warn('[webdav] PUT orphan-blob cleanup failed', e),
       );
@@ -298,6 +332,18 @@ function extractStorageId(payload: unknown): string | null {
   if (!('storageId' in payload)) return null;
   const candidate: unknown = payload.storageId;
   return typeof candidate === 'string' ? candidate : null;
+}
+
+// Shape guard for the backend-aware upload handoff returned by
+// files.blob_actions.generateWebdavBlobUpload (crosses the ConvexHttpClient
+// boundary as `unknown`).
+function isUploadHandoff(
+  value: unknown,
+): value is { url: string; method: 'POST' | 'PUT'; s3Ref?: string } {
+  if (typeof value !== 'object' || value === null) return false;
+  const url: unknown = (value as { url?: unknown }).url;
+  const method: unknown = (value as { method?: unknown }).method;
+  return typeof url === 'string' && (method === 'POST' || method === 'PUT');
 }
 
 function extractReason(err: unknown): string | null {

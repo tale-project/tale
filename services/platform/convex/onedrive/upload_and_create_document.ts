@@ -3,7 +3,7 @@
  */
 
 import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
+import type { BlobRef } from '../lib/storage/blob_ref';
 
 export interface OneDriveMetadata extends Record<string, unknown> {
   oneDriveItemId?: string;
@@ -12,18 +12,20 @@ export interface OneDriveMetadata extends Record<string, unknown> {
 
 export interface UploadAndCreateDocResult {
   success: boolean;
-  fileId?: Id<'_storage'>;
+  fileId?: BlobRef;
   documentId?: Id<'documents'>;
   error?: string;
 }
 
 export interface UploadAndCreateDocDependencies {
-  storageStore: ActionCtx['storage']['store'];
+  /** Store the bytes for the org and return the blob reference (a Convex
+   *  `_storage` id or an `s3:` ref when the org has its own bucket). */
+  storageStore: (blob: Blob) => Promise<BlobRef>;
   createDocument: (args: {
     organizationId: string;
     title: string;
 
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     mimeType?: string;
     metadata: Record<string, unknown>;
     sourceProvider?: 'onedrive' | 'upload';
@@ -33,21 +35,21 @@ export interface UploadAndCreateDocDependencies {
   updateDocument: (args: {
     documentId: Id<'documents'>;
     title: string;
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     mimeType?: string;
     metadata: Record<string, unknown>;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
   }) => Promise<void>;
   saveFileMetadata: (
-    storageId: Id<'_storage'>,
+    storageId: BlobRef,
     fileName: string,
     contentType: string,
     size: number,
     documentId: Id<'documents'>,
   ) => Promise<void>;
   linkDocumentToFile?: (
-    storageId: Id<'_storage'>,
+    storageId: BlobRef,
     documentId: Id<'documents'>,
   ) => Promise<void>;
   scheduleHubDocumentRagIndexing?: (

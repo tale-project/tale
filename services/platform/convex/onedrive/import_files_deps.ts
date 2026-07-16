@@ -21,10 +21,10 @@ export function createImportFilesDeps(
     // Streams the file into storage inside a 'use node' action so the bytes
     // never enter this (possibly 64 MB) isolate — see stream_to_storage.ts.
     downloadToStorage: (streamArgs) =>
-      ctx.runAction(
-        internal.onedrive.internal_actions.streamItemToStorage,
-        streamArgs,
-      ),
+      ctx.runAction(internal.onedrive.internal_actions.streamItemToStorage, {
+        ...streamArgs,
+        organizationId,
+      }),
     findDocumentByExternalId: async (findArgs) => {
       const doc = await ctx.runQuery(
         internal.documents.internal_queries.findDocumentByExternalId,

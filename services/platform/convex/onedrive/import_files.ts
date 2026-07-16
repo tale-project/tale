@@ -4,6 +4,7 @@
 
 import { resolveFileType } from '../../lib/shared/file-types';
 import type { Id } from '../_generated/dataModel';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import { deriveSyncTargets, type SyncTarget } from './derive_sync_targets';
 
 export interface ImportItem {
@@ -64,7 +65,7 @@ export interface ImportFilesDependencies {
     driveId?: string;
   }) => Promise<{
     success: boolean;
-    storageId?: Id<'_storage'>;
+    storageId?: BlobRef;
     mimeType?: string;
     size?: number;
     error?: string;
@@ -76,7 +77,7 @@ export interface ImportFilesDependencies {
   createDocument: (args: {
     organizationId: string;
     title: string;
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     mimeType?: string;
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
@@ -89,7 +90,7 @@ export interface ImportFilesDependencies {
   updateDocument: (args: {
     documentId: Id<'documents'>;
     title: string;
-    fileId: Id<'_storage'>;
+    fileId: BlobRef;
     mimeType?: string;
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
@@ -105,14 +106,14 @@ export interface ImportFilesDependencies {
     teamId?: string,
   ) => Promise<Id<'folders'> | undefined>;
   saveFileMetadata: (
-    storageId: Id<'_storage'>,
+    storageId: BlobRef,
     fileName: string,
     contentType: string,
     size: number,
     documentId: Id<'documents'>,
   ) => Promise<void>;
   linkDocumentToFile?: (
-    storageId: Id<'_storage'>,
+    storageId: BlobRef,
     documentId: Id<'documents'>,
   ) => Promise<void>;
   /** Queue RAG indexing after the document row and folder path exist. */

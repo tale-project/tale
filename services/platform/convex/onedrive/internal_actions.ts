@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { listFolderContents as listFolderContentsImpl } from './list_folder_contents';
 import { readFile as readFileImpl } from './read_file';
@@ -150,10 +151,13 @@ export const streamItemToStorage = internalAction({
     token: v.string(),
     siteId: v.optional(v.string()),
     driveId: v.optional(v.string()),
+    // Routes the streamed store to the org's own bucket when configured; the
+    // returned `storageId` is then an `s3:` ref rather than a `_storage` id.
+    organizationId: v.string(),
   },
   returns: v.object({
     success: v.boolean(),
-    storageId: v.optional(v.id('_storage')),
+    storageId: v.optional(blobRefValidator),
     mimeType: v.optional(v.string()),
     size: v.optional(v.number()),
     error: v.optional(v.string()),
@@ -175,7 +179,7 @@ export const uploadToStorage = internalAction({
   },
   returns: v.object({
     success: v.boolean(),
-    fileId: v.optional(v.id('_storage')),
+    fileId: v.optional(blobRefValidator),
     documentId: v.optional(v.id('documents')),
     error: v.optional(v.string()),
   }),

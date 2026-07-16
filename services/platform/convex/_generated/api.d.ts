@@ -921,6 +921,7 @@ import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
 import type * as lib_storage_blob_access from "../lib/storage/blob_access.js";
 import type * as lib_storage_blob_delete from "../lib/storage/blob_delete.js";
+import type * as lib_storage_blob_read_any from "../lib/storage/blob_read_any.js";
 import type * as lib_storage_blob_ref from "../lib/storage/blob_ref.js";
 import type * as lib_storage_object_store from "../lib/storage/object_store.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
@@ -1150,7 +1151,6 @@ import type * as onedrive_download_and_store_file from "../onedrive/download_and
 import type * as onedrive_download_file from "../onedrive/download_file.js";
 import type * as onedrive_get_file_metadata from "../onedrive/get_file_metadata.js";
 import type * as onedrive_get_user_token from "../onedrive/get_user_token.js";
-import type * as onedrive_helpers from "../onedrive/helpers.js";
 import type * as onedrive_import_files from "../onedrive/import_files.js";
 import type * as onedrive_import_files_deps from "../onedrive/import_files_deps.js";
 import type * as onedrive_internal_actions from "../onedrive/internal_actions.js";
@@ -1455,6 +1455,7 @@ import type * as video_links_mutations from "../video_links/mutations.js";
 import type * as video_links_queries from "../video_links/queries.js";
 import type * as video_links_url_safety from "../video_links/url_safety.js";
 import type * as video_links_ytdlp from "../video_links/ytdlp.js";
+import type * as video_links_ytdlp_toolchain from "../video_links/ytdlp_toolchain.js";
 import type * as webdav_app_password_mutations from "../webdav/app_password_mutations.js";
 import type * as webdav_app_password_queries from "../webdav/app_password_queries.js";
 import type * as webdav_bulk_budget from "../webdav/bulk_budget.js";
@@ -2690,6 +2691,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sops": typeof lib_sops;
   "lib/storage/blob_access": typeof lib_storage_blob_access;
   "lib/storage/blob_delete": typeof lib_storage_blob_delete;
+  "lib/storage/blob_read_any": typeof lib_storage_blob_read_any;
   "lib/storage/blob_ref": typeof lib_storage_blob_ref;
   "lib/storage/object_store": typeof lib_storage_object_store;
   "lib/strip_nulls": typeof lib_strip_nulls;
@@ -2919,7 +2921,6 @@ declare const fullApi: ApiFromModules<{
   "onedrive/download_file": typeof onedrive_download_file;
   "onedrive/get_file_metadata": typeof onedrive_get_file_metadata;
   "onedrive/get_user_token": typeof onedrive_get_user_token;
-  "onedrive/helpers": typeof onedrive_helpers;
   "onedrive/import_files": typeof onedrive_import_files;
   "onedrive/import_files_deps": typeof onedrive_import_files_deps;
   "onedrive/internal_actions": typeof onedrive_internal_actions;
@@ -3224,6 +3225,7 @@ declare const fullApi: ApiFromModules<{
   "video_links/queries": typeof video_links_queries;
   "video_links/url_safety": typeof video_links_url_safety;
   "video_links/ytdlp": typeof video_links_ytdlp;
+  "video_links/ytdlp_toolchain": typeof video_links_ytdlp_toolchain;
   "webdav/app_password_mutations": typeof webdav_app_password_mutations;
   "webdav/app_password_queries": typeof webdav_app_password_queries;
   "webdav/bulk_budget": typeof webdav_bulk_budget;
