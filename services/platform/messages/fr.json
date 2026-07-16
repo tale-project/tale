@@ -806,20 +806,10 @@
       "env": {
         "title": "Environnement et secrets — {name}",
         "description": "Variables d'environnement et secrets injectés dans les exécutions de cet agent. Les secrets sont chiffrés au repos, affichés masqués et déchiffrés uniquement à l'exécution.",
-        "none": "Aucune variable d'environnement pour l'instant.",
-        "keyPlaceholder": "NOM",
-        "valuePlaceholder": "valeur",
-        "secret": "Secret",
-        "secretKept": "•••••••• (inchangé)",
-        "add": "Ajouter une variable",
-        "remove": "Supprimer",
         "save": "Enregistrer",
         "saving": "Enregistrement…",
         "cancel": "Annuler",
-        "saved": "Environnement enregistré",
-        "saveError": "Impossible d'enregistrer l'environnement",
-        "badKey": "« {key} » n'est pas un nom de variable d'environnement valide (lettres, chiffres, underscore ; ne commence pas par un chiffre).",
-        "dupKey": "Nom de variable en double — chaque NOM doit être unique."
+        "saveError": "Impossible d'enregistrer l'environnement"
       }
     },
     "workflow": {

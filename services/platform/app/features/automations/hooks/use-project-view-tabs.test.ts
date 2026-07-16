@@ -107,4 +107,19 @@ describe('useProjectViewTabs', () => {
     const { result } = renderHook(() => useProjectViewTabs(ORG, PROJECT));
     expect(result.current).toEqual([]);
   });
+
+  it('encodes path-shaped automation slugs as one URL segment in view hrefs', () => {
+    boundFixture = [{ automationSlug: 'github/create-pull-requests' }];
+    installedFixture = [
+      {
+        slug: 'github/create-pull-requests',
+        scope: 'project',
+        views: [{ id: 'desk', title: 'Desk' }],
+      },
+    ];
+    const { result } = renderHook(() => useProjectViewTabs(ORG, PROJECT));
+    expect(result.current[0]?.href).toBe(
+      `/dashboard/${ORG}/projects/${PROJECT}/views/github__create-pull-requests/desk`,
+    );
+  });
 });

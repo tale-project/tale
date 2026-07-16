@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 
 import type { TabNavigationItem } from '@/app/components/ui/navigation/tab-navigation';
 import type { Id } from '@/convex/_generated/dataModel';
+import { automationSlugToParam } from '@/lib/shared/schemas/automations';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { startCase } from '@/lib/utils/string';
 
@@ -43,7 +44,7 @@ export function useProjectViewTabs(
               view.title);
           return {
             label: title ?? startCase(routeId),
-            href: `/dashboard/${organizationId}/projects/${projectId}/views/${automation.slug}/${routeId}`,
+            href: `/dashboard/${organizationId}/projects/${projectId}/views/${automationSlugToParam(automation.slug)}/${routeId}`,
             matchMode: 'exact',
           };
         });

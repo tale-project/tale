@@ -2,6 +2,10 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  automationSlugToParam,
+  paramToAutomationSlug,
+} from '@/lib/shared/schemas/automations';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 /**
@@ -30,6 +34,18 @@ const ProjectAutomationViewPage = lazyComponent(
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/views/$automationSlug/$viewId',
 )({
+  // Same `/` ↔ `__` codec as the automations `$automationSlug` layouts: a
+  // path-shaped slug is one URL segment here too.
+  params: {
+    parse: (raw: { automationSlug: string; viewId: string }) => ({
+      automationSlug: paramToAutomationSlug(raw.automationSlug),
+      viewId: raw.viewId,
+    }),
+    stringify: (parsed: { automationSlug: string; viewId: string }) => ({
+      automationSlug: automationSlugToParam(parsed.automationSlug),
+      viewId: parsed.viewId,
+    }),
+  },
   // Warm the page chunk during the loader (tab links preload on render).
   loader: () => {
     void import('@/app/features/automations/components/project-automation-view-page');

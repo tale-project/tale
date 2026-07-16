@@ -117,4 +117,43 @@ describe('EnvVarListEditor — Save dirty state', () => {
     fireEvent.focus(screen.getByDisplayValue('sk-****xyz'));
     expect(saveBtn).toBeDisabled();
   });
+
+  it('saves a token-source binding with the selected slug', async () => {
+    const onSet = vi.fn().mockResolvedValue(undefined);
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EnvVarListEditor
+        rows={[
+          { key: 'ANTHROPIC_AUTH_TOKEN', isSecret: true, maskedValue: '••••' },
+        ]}
+        isLoading={false}
+        tokenSources={[
+          { slug: 'pool-a', displayName: 'Pool A' },
+          { slug: 'pool-b', displayName: 'Pool B' },
+        ]}
+        onSet={onSet}
+        onDelete={onDelete}
+      />,
+    );
+
+    // Type chooser appears when token sources are provided.
+    const typeSelect = screen.getByRole('combobox', { name: 'Type' });
+    fireEvent.click(typeSelect);
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'Token source' }),
+    );
+
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    expect(saveBtn).toBeEnabled();
+    fireEvent.click(saveBtn);
+
+    await waitFor(() =>
+      expect(onSet).toHaveBeenCalledWith({
+        key: 'ANTHROPIC_AUTH_TOKEN',
+        value: '',
+        isSecret: true,
+        tokenSourceSlug: 'pool-a',
+      }),
+    );
+  });
 });
