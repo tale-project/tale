@@ -4,7 +4,11 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { toPublicUrl } from '../lib/helpers/public_storage_url';
+import {
+  buildBlobServeUrl,
+  toPublicUrl,
+} from '../lib/helpers/public_storage_url';
+import { convexStorageId, isS3Ref } from '../lib/storage/blob_ref';
 import { extractExtension } from './extract_extension';
 import {
   type DocumentRagProjection,
@@ -155,14 +159,16 @@ export async function transformDocumentsBatch(
     .map((doc) => doc.createdBy)
     .filter((id): id is string => !!id);
 
-  const fileIds = documents
-    .map((doc) => doc.fileId)
-    .filter((id): id is NonNullable<Doc<'documents'>['fileId']> => !!id);
+  const fileRefs = documents.flatMap((doc) =>
+    doc.fileId
+      ? [{ fileId: doc.fileId, organizationId: doc.organizationId }]
+      : [],
+  );
 
   // Batch fetch user names, storage URLs, and RAG status projections in parallel
   const [userNamesMap, storageUrlsMap, ragProjectionMap] = await Promise.all([
     getUserNamesBatch(ctx, userIds),
-    batchGetStorageUrls(ctx, fileIds),
+    batchGetStorageUrls(ctx, fileRefs),
     getDocumentRagProjectionBatch(ctx, documents),
   ]);
 
@@ -177,33 +183,46 @@ export async function transformDocumentsBatch(
 }
 
 /**
- * Batch fetch storage URLs for multiple file IDs
+ * Batch fetch storage URLs for multiple file refs
  */
 async function batchGetStorageUrls(
   ctx: QueryCtx,
-  fileIds: NonNullable<Doc<'documents'>['fileId']>[],
+  fileRefs: {
+    fileId: NonNullable<Doc<'documents'>['fileId']>;
+    organizationId: string;
+  }[],
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
 
-  if (fileIds.length === 0) {
+  if (fileRefs.length === 0) {
     return result;
   }
 
-  // Deduplicate file IDs using string representation
+  // Deduplicate file refs using string representation
   const seenIds = new Set<string>();
-  const uniqueIds: NonNullable<Doc<'documents'>['fileId']>[] = [];
-  for (const id of fileIds) {
-    const key = String(id);
+  const uniqueRefs: typeof fileRefs = [];
+  for (const ref of fileRefs) {
+    const key = String(ref.fileId);
     if (!seenIds.has(key)) {
       seenIds.add(key);
-      uniqueIds.push(id);
+      uniqueRefs.push(ref);
     }
   }
 
-  // Fetch all URLs in parallel and rewrite to public-facing URLs
-  const urlPromises = uniqueIds.map(async (fileId) => {
-    const url = await ctx.storage.getUrl(fileId);
-    return { fileId: String(fileId), url: url ? toPublicUrl(url) : url };
+  // Fetch all URLs in parallel and rewrite to public-facing URLs. A Convex
+  // `_storage` id gets the direct (proxied) storage URL; an `s3:` ref gets the
+  // `/storage?ref=…&org=…` route URL — a query cannot presign S3, so the node
+  // route 302s to a short-lived presigned GET (mirrors thread_files/queries.ts).
+  const urlPromises = uniqueRefs.map(async ({ fileId, organizationId }) => {
+    if (isS3Ref(fileId)) {
+      return {
+        fileId: String(fileId),
+        url: buildBlobServeUrl(String(fileId), organizationId),
+      };
+    }
+    const convexId = convexStorageId(fileId);
+    const raw = convexId === null ? null : await ctx.storage.getUrl(convexId);
+    return { fileId: String(fileId), url: raw ? toPublicUrl(raw) : raw };
   });
 
   const urls = await Promise.all(urlPromises);

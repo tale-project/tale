@@ -4,7 +4,11 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import {
+  buildBlobServeUrl,
+  buildDownloadUrl,
+} from '../lib/helpers/public_storage_url';
+import { isS3Ref } from '../lib/storage/blob_ref';
 
 export async function generateSignedUrl(
   ctx: QueryCtx,
@@ -25,8 +29,18 @@ export async function generateSignedUrl(
     };
   }
 
+  // An `s3:` blob is served through the node `/storage` route (which presigns
+  // + 302-redirects); the `org` param addresses the right bucket. A Convex
+  // blob keeps the direct `/storage?id=` download URL.
+  const fileName = document.title ?? 'download';
   return {
     success: true,
-    url: buildDownloadUrl(document.fileId, document.title ?? 'download'),
+    url: isS3Ref(document.fileId)
+      ? buildBlobServeUrl(
+          String(document.fileId),
+          document.organizationId,
+          fileName,
+        )
+      : buildDownloadUrl(document.fileId, fileName),
   };
 }
