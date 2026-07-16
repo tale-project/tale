@@ -45,6 +45,16 @@ export interface IndexResult {
   chunks_created: number;
   skipped: boolean;
   skip_reason: string | null;
+  /**
+   * True when a `deadline` stopped the store loop before every chunk was
+   * committed. The document row stays `processing` with its committed chunk
+   * prefix in place; the caller schedules a continuation, which resumes from
+   * `MAX(chunk_index) + 1` (#2752 — never re-run the whole pipeline inside one
+   * wall-clock-capped action).
+   */
+  partial?: boolean;
+  /** Total chunks the document produces (present alongside `partial`). */
+  chunks_total?: number;
 }
 
 export interface PreparedDocument {
@@ -403,13 +413,19 @@ async function cloneFromExisting(
   sourceModifiedAt: Date | null,
 ): Promise<IndexResult | null> {
   const existing = await withRetry(() =>
-    sql.unsafe<{ id: string; content_hash: string }[]>(
-      `SELECT id, content_hash FROM ${SCHEMA}.documents
+    sql.unsafe<{ id: string; content_hash: string; status: string }[]>(
+      `SELECT id, content_hash, status FROM ${SCHEMA}.documents
        WHERE org_slug = $1 AND file_id = $2`,
       [orgSlug, fileId],
     ),
   );
-  if (existing[0]?.content_hash === contentHash) {
+  // Only a COMPLETED own row counts as unchanged — a `processing` row with the
+  // same hash is a partially stored document (interrupted slice) that the
+  // clone below (or the resume path) must finish (#2752).
+  if (
+    existing[0]?.content_hash === contentHash &&
+    existing[0]?.status === 'completed'
+  ) {
     logger.info(`Document ${fileId} content unchanged, skipping (clone path)`);
     return {
       success: true,
@@ -450,39 +466,88 @@ async function cloneFromExisting(
   return null;
 }
 
-async function doStore(
+interface StoreClaim {
+  docUuid: string;
+  /** First chunk index this run still has to store (committed prefix length). */
+  resumeFrom: number;
+  /** Content unchanged AND every chunk already committed — nothing to do. */
+  skipped: boolean;
+}
+
+/**
+ * Phase A — claim (or refresh) the document row in one SHORT transaction.
+ *
+ * The committed chunk prefix is the resume checkpoint (#2752): on an unchanged
+ * content hash the existing chunks are kept and storing resumes after them; only
+ * a CHANGED hash wipes the chunks for a full rewrite. The row stays
+ * `processing` until phase C stamps `completed`.
+ */
+async function claimDocumentRow(
   sql: Sql,
   orgSlug: string,
   fileId: string,
   filename: string,
   prepared: PreparedDocument,
-  embeddingService: EmbeddingService,
-): Promise<IndexResult> {
+): Promise<StoreClaim> {
   return withRetry(() =>
     sql.begin(async (tx) => {
-      const docRows = await tx.unsafe<{ id: string; is_insert: boolean }[]>(
-        `INSERT INTO ${SCHEMA}.documents
-            (org_slug, file_id, filename, content_hash, status, chunks_count,
-             source_created_at, source_modified_at, ocr_applied)
-         VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8)
-         ON CONFLICT (org_slug, file_id)
-         DO UPDATE SET
-             filename = EXCLUDED.filename,
-             content_hash = EXCLUDED.content_hash,
-             status = 'completed',
-             chunks_count = EXCLUDED.chunks_count,
-             source_created_at = EXCLUDED.source_created_at,
-             source_modified_at = EXCLUDED.source_modified_at,
-             ocr_applied = EXCLUDED.ocr_applied,
-             error = NULL,
-             progress_phase = NULL,
-             progress_detail = NULL,
-             updated_at = NOW()
-         WHERE ${SCHEMA}.documents.content_hash IS DISTINCT FROM EXCLUDED.content_hash
-         RETURNING id, (xmax = 0) AS is_insert`,
+      const existing = await tx.unsafe<
+        { id: string; content_hash: string | null; status: string }[]
+      >(
+        `SELECT id, content_hash, status FROM ${SCHEMA}.documents
+         WHERE org_slug = $1 AND file_id = $2
+         FOR UPDATE`,
+        [orgSlug, fileId],
+      );
+
+      if (existing.length === 0) {
+        const inserted = await tx.unsafe<{ id: string }[]>(
+          `INSERT INTO ${SCHEMA}.documents
+              (org_slug, file_id, filename, content_hash, status, chunks_count,
+               source_created_at, source_modified_at, ocr_applied)
+           VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7, $8)
+           RETURNING id`,
+          [
+            orgSlug,
+            fileId,
+            filename,
+            prepared.contentHash,
+            prepared.chunks.length,
+            prepared.sourceCreatedAt,
+            prepared.sourceModifiedAt,
+            prepared.visionUsed,
+          ],
+        );
+        return { docUuid: inserted[0].id, resumeFrom: 0, skipped: false };
+      }
+
+      const row = existing[0];
+      const sameContent = row.content_hash === prepared.contentHash;
+      const storedRows = await tx.unsafe<{ next_index: number }[]>(
+        `SELECT COALESCE(MAX(chunk_index) + 1, 0)::int AS next_index
+         FROM ${SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2`,
+        [row.id, orgSlug],
+      );
+      const storedPrefix = sameContent ? (storedRows[0]?.next_index ?? 0) : 0;
+
+      if (
+        sameContent &&
+        row.status === 'completed' &&
+        storedPrefix >= prepared.chunks.length
+      ) {
+        return { docUuid: row.id, resumeFrom: storedPrefix, skipped: true };
+      }
+
+      await tx.unsafe(
+        `UPDATE ${SCHEMA}.documents
+         SET filename = $3, content_hash = $4, status = 'processing',
+             chunks_count = $5, source_created_at = $6,
+             source_modified_at = $7, ocr_applied = $8,
+             error = NULL, updated_at = NOW()
+         WHERE id = $1 AND org_slug = $2`,
         [
+          row.id,
           orgSlug,
-          fileId,
           filename,
           prepared.contentHash,
           prepared.chunks.length,
@@ -491,72 +556,205 @@ async function doStore(
           prepared.visionUsed,
         ],
       );
-
-      const docRow = docRows[0];
-      if (!docRow) {
-        return {
-          success: true,
-          file_id: fileId,
-          chunks_created: 0,
-          skipped: true,
-          skip_reason: 'content_unchanged',
-        } satisfies IndexResult;
-      }
-
-      const docUuid = docRow.id;
-      if (!docRow.is_insert) {
+      if (!sameContent) {
         await tx.unsafe(
           `DELETE FROM ${SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2`,
-          [docUuid, orgSlug],
+          [row.id, orgSlug],
         );
       }
+      return { docUuid: row.id, resumeFrom: storedPrefix, skipped: false };
+    }),
+  );
+}
 
-      // Embed + insert one bounded batch at a time so peak memory never scales
-      // with document size: only `MAX_BATCH_SIZE` embedding vectors are held at
-      // once, not one per chunk for the whole document (which OOM-killed the
-      // action on large files — see `prepareDocument`).
-      for (
-        let start = 0;
-        start < prepared.chunks.length;
-        start += MAX_BATCH_SIZE
-      ) {
-        const batch = prepared.chunks.slice(start, start + MAX_BATCH_SIZE);
-        const embeddings = await embeddingService.embedTexts(
-          batch.map((c) => c.content),
-        );
-        for (let j = 0; j < batch.length; j += 1) {
-          const chunk = batch[j];
-          const embedding = embeddings[j];
-          await tx.unsafe(
-            `INSERT INTO ${SCHEMA}.chunks
-                (document_id, org_slug, chunk_index, chunk_content,
-                 content_hash, embedding,
-                 core_content, prefix_overlap, suffix_overlap)
-             VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9)`,
-            [
-              docUuid,
-              orgSlug,
-              chunk.index,
-              chunk.content,
-              computeContentHash(Buffer.from(chunk.content, 'utf-8')),
-              JSON.stringify(embedding),
-              chunk.coreContent,
-              chunk.prefixOverlap,
-              chunk.suffixOverlap,
-            ],
-          );
-        }
+/** Multi-row chunk INSERT (one statement per embed batch, 9 params per row). */
+function buildChunkInsert(
+  docUuid: string,
+  orgSlug: string,
+  batch: ContentChunk[],
+  embeddings: number[][],
+): { text: string; params: (string | number | null)[] } {
+  const values: string[] = [];
+  const params: (string | number | null)[] = [];
+  for (let j = 0; j < batch.length; j += 1) {
+    const chunk = batch[j];
+    const base = params.length;
+    values.push(
+      `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, ` +
+        `$${base + 6}::vector, $${base + 7}, $${base + 8}, $${base + 9})`,
+    );
+    params.push(
+      docUuid,
+      orgSlug,
+      chunk.index,
+      chunk.content,
+      computeContentHash(Buffer.from(chunk.content, 'utf-8')),
+      JSON.stringify(embeddings[j]),
+      chunk.coreContent,
+      chunk.prefixOverlap,
+      chunk.suffixOverlap,
+    );
+  }
+  const text =
+    `INSERT INTO ${SCHEMA}.chunks
+        (document_id, org_slug, chunk_index, chunk_content,
+         content_hash, embedding,
+         core_content, prefix_overlap, suffix_overlap)
+     VALUES ` + values.join(', ');
+  return { text, params };
+}
+
+/** Phase B batch-commit outcome (see `storeBatch`). */
+type BatchCommit = { kind: 'stored' | 'raced'; next: number } | null;
+
+/**
+ * Commit ONE embedded batch in its own short transaction. Under the row lock
+ * the committed prefix is re-read: a concurrent indexer of the same document
+ * (e.g. the historical double-dispatch of `uploadFileToRag` +
+ * `uploadDocumentToRag`) may have advanced it — then this batch is dropped and
+ * the caller continues from the new prefix, so the in-order prefix invariant
+ * holds with any number of writers. Returns null when the document was
+ * superseded (content hash changed under us) — the other writer owns it now.
+ */
+async function storeBatch(
+  sql: Sql,
+  orgSlug: string,
+  docUuid: string,
+  contentHash: string,
+  totalChunks: number,
+  start: number,
+  batch: ContentChunk[],
+  embeddings: number[][],
+): Promise<BatchCommit> {
+  return withRetry(() =>
+    sql.begin(async (tx) => {
+      const docRows = await tx.unsafe<{ content_hash: string | null }[]>(
+        `SELECT content_hash FROM ${SCHEMA}.documents
+         WHERE id = $1 AND org_slug = $2
+         FOR UPDATE`,
+        [docUuid, orgSlug],
+      );
+      if (docRows.length === 0 || docRows[0].content_hash !== contentHash) {
+        return null;
       }
+      const nextRows = await tx.unsafe<{ next_index: number }[]>(
+        `SELECT COALESCE(MAX(chunk_index) + 1, 0)::int AS next_index
+         FROM ${SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2`,
+        [docUuid, orgSlug],
+      );
+      const next = nextRows[0]?.next_index ?? 0;
+      if (next !== start) {
+        return { kind: 'raced', next };
+      }
+      const insert = buildChunkInsert(docUuid, orgSlug, batch, embeddings);
+      await tx.unsafe(insert.text, insert.params);
+      await tx.unsafe(
+        `UPDATE ${SCHEMA}.documents
+         SET progress_phase = 'storing', progress_detail = $3, updated_at = NOW()
+         WHERE id = $1 AND org_slug = $2`,
+        [docUuid, orgSlug, `${start + batch.length}/${totalChunks}`],
+      );
+      return { kind: 'stored', next: start + batch.length };
+    }),
+  );
+}
 
+async function doStore(
+  sql: Sql,
+  orgSlug: string,
+  fileId: string,
+  filename: string,
+  prepared: PreparedDocument,
+  embeddingService: EmbeddingService,
+  deadline: number | undefined,
+): Promise<IndexResult> {
+  const claim = await claimDocumentRow(
+    sql,
+    orgSlug,
+    fileId,
+    filename,
+    prepared,
+  );
+  if (claim.skipped) {
+    return {
+      success: true,
+      file_id: fileId,
+      chunks_created: 0,
+      skipped: true,
+      skip_reason: 'content_unchanged',
+    };
+  }
+
+  // Embed + commit one bounded batch at a time: memory stays flat regardless
+  // of document size (#2744), and every committed batch is durable progress a
+  // continuation resumes from (#2752) — the old single big transaction rolled
+  // ALL chunks back when the action hit its wall-clock cap, leaving a large
+  // document permanently unindexable on slow store/embed paths.
+  let start = claim.resumeFrom;
+  while (start < prepared.chunks.length) {
+    // ≥1 batch commits per invocation before a deadline yield, so a
+    // continuation chain always makes forward progress and cannot spin.
+    if (
+      deadline !== undefined &&
+      start > claim.resumeFrom &&
+      Date.now() > deadline
+    ) {
       return {
         success: true,
         file_id: fileId,
-        chunks_created: prepared.chunks.length,
+        chunks_created: start - claim.resumeFrom,
         skipped: false,
         skip_reason: null,
-      } satisfies IndexResult;
-    }),
-  );
+        partial: true,
+        chunks_total: prepared.chunks.length,
+      };
+    }
+    const batch = prepared.chunks.slice(start, start + MAX_BATCH_SIZE);
+    const embeddings = await embeddingService.embedTexts(
+      batch.map((c) => c.content),
+    );
+    const committed = await storeBatch(
+      sql,
+      orgSlug,
+      claim.docUuid,
+      prepared.contentHash,
+      prepared.chunks.length,
+      start,
+      batch,
+      embeddings,
+    );
+    if (committed === null) {
+      logger.warn(
+        `Document ${fileId} superseded by a concurrent reindex, stopping this run`,
+      );
+      return {
+        success: true,
+        file_id: fileId,
+        chunks_created: start - claim.resumeFrom,
+        skipped: true,
+        skip_reason: 'superseded_by_concurrent_reindex',
+      };
+    }
+    start = committed.next;
+  }
+
+  await withRetry(async () => {
+    await sql.unsafe(
+      `UPDATE ${SCHEMA}.documents
+       SET status = 'completed', chunks_count = $3, error = NULL,
+           progress_phase = NULL, progress_detail = NULL, updated_at = NOW()
+       WHERE id = $1 AND org_slug = $2 AND content_hash = $4`,
+      [claim.docUuid, orgSlug, prepared.chunks.length, prepared.contentHash],
+    );
+  });
+
+  return {
+    success: true,
+    file_id: fileId,
+    chunks_created: prepared.chunks.length,
+    skipped: false,
+    skip_reason: null,
+  };
 }
 
 export async function storePreparedDocument(
@@ -566,6 +764,7 @@ export async function storePreparedDocument(
   filename: string,
   prepared: PreparedDocument,
   embeddingService: EmbeddingService,
+  options: { deadline?: number } = {},
 ): Promise<IndexResult> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -576,9 +775,16 @@ export async function storePreparedDocument(
         filename,
         prepared,
         embeddingService,
+        options.deadline,
       );
-      if (result.skipped) {
-        logger.info(`Document ${fileId} content unchanged, skipping`);
+      if (result.partial) {
+        logger.info(
+          `Indexed document ${fileId}: ${result.chunks_created} chunks this slice, yielding for continuation`,
+        );
+      } else if (result.skipped) {
+        logger.info(
+          `Document ${fileId} ${result.skip_reason ?? 'skipped'}, skipping`,
+        );
       } else {
         logger.info(
           `Indexed document ${fileId}: ${result.chunks_created} chunks`,
@@ -597,6 +803,28 @@ export async function storePreparedDocument(
   throw new Error('storePreparedDocument: exhausted retries');
 }
 
+/**
+ * Mark a document `failed` with an honest error — used when a continuation
+ * chain gives up (slice cap exceeded, unrecoverable slice error) so the row
+ * never sticks at `processing` and the status poller can surface the failure.
+ */
+export async function markDocumentFailed(
+  sql: Sql,
+  orgSlug: string,
+  fileId: string,
+  error: string,
+): Promise<void> {
+  await withRetry(async () => {
+    await sql.unsafe(
+      `UPDATE ${SCHEMA}.documents
+       SET status = 'failed', error = $3,
+           progress_phase = NULL, progress_detail = NULL, updated_at = NOW()
+       WHERE org_slug = $1 AND file_id = $2`,
+      [orgSlug, fileId, error],
+    );
+  });
+}
+
 export interface IndexDocumentOptions {
   embeddingService: EmbeddingService;
   visionClient?: VisionClient | null;
@@ -604,6 +832,13 @@ export interface IndexDocumentOptions {
   chunkOverlap?: number;
   sourceCreatedAt?: Date | null;
   sourceModifiedAt?: Date | null;
+  /**
+   * Epoch-ms soft stop for the store loop: past it, the run commits its
+   * current batch, returns `partial: true`, and the caller schedules a
+   * continuation (#2752). Soft — extraction and the in-flight batch finish
+   * first, so set it well inside the action's hard wall-clock cap.
+   */
+  deadline?: number;
 }
 
 /** Index a document: extract, chunk, embed, and store (with dedup/clone). */
@@ -644,10 +879,13 @@ export async function indexDocument(
     };
   }
 
-  // Fast path: same file_id within this org with unchanged content AND chunks.
+  // Fast path: same file_id within this org with unchanged content AND a
+  // COMPLETED index. A `processing` row with the same hash is a partially
+  // stored document (an interrupted prior slice) — it must fall through to the
+  // store path, which resumes after the committed chunk prefix (#2752).
   const ownRows = await withRetry(() =>
-    sql.unsafe<{ content_hash: string; chunk_count: number }[]>(
-      `SELECT d.content_hash,
+    sql.unsafe<{ content_hash: string; status: string; chunk_count: number }[]>(
+      `SELECT d.content_hash, d.status,
               (SELECT COUNT(*)::int
                FROM ${SCHEMA}.chunks c
                WHERE c.document_id = d.id AND c.org_slug = $1) AS chunk_count
@@ -657,7 +895,12 @@ export async function indexDocument(
     ),
   );
   const ownRow = ownRows[0];
-  if (ownRow && ownRow.content_hash === contentHash && ownRow.chunk_count > 0) {
+  if (
+    ownRow &&
+    ownRow.content_hash === contentHash &&
+    ownRow.status === 'completed' &&
+    ownRow.chunk_count > 0
+  ) {
     logger.info(
       `Document ${fileId} content unchanged with ${ownRow.chunk_count} chunks, skipping (early dedup)`,
     );
@@ -744,5 +987,6 @@ export async function indexDocument(
     filename,
     prepared,
     options.embeddingService,
+    { deadline: options.deadline },
   );
 }

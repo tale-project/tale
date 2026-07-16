@@ -17,6 +17,7 @@
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
+import { internal } from '../_generated/api';
 import { internalAction, type ActionCtx } from '../_generated/server';
 import {
   getKnowledgePoolForOrg,
@@ -26,6 +27,7 @@ import { withRetry } from '../lib/knowledge/db/retry';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { validateMetadataObject } from './lib/document_metadata';
 import { normalizeFolderPath } from './lib/folder_path';
+import { markDocumentFailed } from './lib/indexing_service';
 import {
   ragService,
   type DocumentContentResult,
@@ -57,6 +59,29 @@ async function readUploadBytes(
   throw new Error('upload requires either storageId or base64 content');
 }
 
+/**
+ * Wall-clock budget for ONE upload/indexing slice (#2752). Indexing a
+ * near-cap document (extract → chunk → embed → store tens of thousands of
+ * chunks) can far exceed a single Convex action's wall-clock limit — observed
+ * as a kill at exactly ~300 s that rolled back every chunk and left the file
+ * permanently unindexable. Past this soft budget the store loop commits its
+ * in-flight batch, returns `partial`, and `upload` schedules itself as a
+ * continuation that resumes from the committed chunk prefix. Keep the default
+ * comfortably inside the deployment's action cap.
+ */
+function indexSliceBudgetMs(): number {
+  const raw = process.env.RAG_INDEX_SLICE_BUDGET_MS;
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 210_000;
+}
+
+/**
+ * Continuation-chain backstop: every slice commits at least one batch, so this
+ * only trips when something pathological keeps yielding without finishing
+ * (~48 slices × 3.5 min ≈ 2.8 h of pure indexing).
+ */
+const MAX_INDEX_SLICES = 48;
+
 export const upload = internalAction({
   args: {
     orgSlug: v.string(),
@@ -70,34 +95,88 @@ export const upload = internalAction({
     content: v.optional(v.union(v.string(), v.null())),
     sourceCreatedAt: v.optional(v.union(v.number(), v.null())),
     sourceModifiedAt: v.optional(v.union(v.number(), v.null())),
+    // 1-based continuation counter; set only by the self-scheduled slices.
+    sliceAttempt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const bytes = await readUploadBytes(
-      ctx,
-      args.orgSlug,
-      args.storageId,
-      args.content ?? null,
-    );
+    const deadline = Date.now() + indexSliceBudgetMs();
+    const sliceAttempt = args.sliceAttempt ?? 1;
+    try {
+      const bytes = await readUploadBytes(
+        ctx,
+        args.orgSlug,
+        args.storageId,
+        args.content ?? null,
+      );
 
-    const sourceCreatedAt =
-      args.sourceCreatedAt != null ? new Date(args.sourceCreatedAt) : null;
-    const sourceModifiedAt =
-      args.sourceModifiedAt != null ? new Date(args.sourceModifiedAt) : null;
+      const sourceCreatedAt =
+        args.sourceCreatedAt != null ? new Date(args.sourceCreatedAt) : null;
+      const sourceModifiedAt =
+        args.sourceModifiedAt != null ? new Date(args.sourceModifiedAt) : null;
 
-    const result = await ragService.addDocument(
-      args.orgSlug,
-      bytes,
-      args.fileId,
-      args.filename,
-      { sourceCreatedAt, sourceModifiedAt },
-    );
-    return {
-      success: result.success,
-      file_id: result.file_id,
-      chunks_created: result.chunks_created,
-      skipped: result.skipped,
-      skip_reason: result.skip_reason,
-    };
+      const result = await ragService.addDocument(
+        args.orgSlug,
+        bytes,
+        args.fileId,
+        args.filename,
+        { sourceCreatedAt, sourceModifiedAt, deadline },
+      );
+
+      if (result.partial) {
+        if (sliceAttempt >= MAX_INDEX_SLICES) {
+          const error =
+            `Indexing did not finish within ${MAX_INDEX_SLICES} continuation ` +
+            `slices (${result.chunks_total ?? '?'} chunks total)`;
+          const sql = await getKnowledgePoolForOrg(args.orgSlug);
+          await markDocumentFailed(sql, args.orgSlug, args.fileId, error);
+          return {
+            success: false,
+            file_id: result.file_id,
+            chunks_created: result.chunks_created,
+            skipped: false,
+            skip_reason: null,
+            partial: false,
+          };
+        }
+        await ctx.scheduler.runAfter(0, internal.rag.documents.upload, {
+          orgSlug: args.orgSlug,
+          fileId: args.fileId,
+          filename: args.filename,
+          storageId: args.storageId ?? null,
+          content: args.content ?? null,
+          sourceCreatedAt: args.sourceCreatedAt ?? null,
+          sourceModifiedAt: args.sourceModifiedAt ?? null,
+          sliceAttempt: sliceAttempt + 1,
+        });
+      }
+
+      return {
+        success: result.success,
+        file_id: result.file_id,
+        chunks_created: result.chunks_created,
+        skipped: result.skipped,
+        skip_reason: result.skip_reason,
+        partial: result.partial ?? false,
+      };
+    } catch (err) {
+      // A continuation slice has no awaiting parent to surface the failure
+      // (the original caller returned slices ago) — stamp the document row
+      // failed so the status poller reports a terminal state instead of an
+      // eternal `processing`, then rethrow for the action log.
+      if (sliceAttempt > 1) {
+        const message = err instanceof Error ? err.message : String(err);
+        try {
+          const sql = await getKnowledgePoolForOrg(args.orgSlug);
+          await markDocumentFailed(sql, args.orgSlug, args.fileId, message);
+        } catch (markErr) {
+          console.error(
+            `[rag.documents.upload] failed to mark ${args.fileId} failed after slice error:`,
+            markErr,
+          );
+        }
+      }
+      throw err;
+    }
   },
 });
 

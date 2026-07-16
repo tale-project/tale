@@ -461,6 +461,7 @@ export class RagService {
     options: {
       sourceCreatedAt?: Date | null;
       sourceModifiedAt?: Date | null;
+      deadline?: number;
     } = {},
   ) {
     const clients = await this.ensureOrgClients(orgSlug);
@@ -471,6 +472,7 @@ export class RagService {
       chunkOverlap: settings.chunk_overlap,
       sourceCreatedAt: options.sourceCreatedAt,
       sourceModifiedAt: options.sourceModifiedAt,
+      deadline: options.deadline,
     });
   }
 
