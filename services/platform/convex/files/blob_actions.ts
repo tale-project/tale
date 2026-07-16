@@ -13,6 +13,8 @@
 
 import { v } from 'convex/values';
 
+import { DOCUMENT_MAX_FILE_SIZE } from '../../lib/shared/file-types';
+import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -21,8 +23,10 @@ import {
   deleteBlob,
   generateBlobUpload as generateBlobUploadHandoff,
   getBlobUrl,
+  isS3Ref,
   putBlob,
   readBlobBytes,
+  s3BlobSize,
 } from '../lib/storage/blob_access';
 
 export interface BlobUploadHandoff {
@@ -234,6 +238,66 @@ export const deleteOrgBlobs = internalAction({
           err: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+    return null;
+  },
+});
+
+/**
+ * Verify an `s3:` upload's REAL size against the product cap and correct the
+ * row the binder created from the client-declared size. A presigned PUT
+ * enforces no Content-Length, so a member could declare 1 KB and PUT gigabytes,
+ * bypassing `DOCUMENT_MAX_FILE_SIZE` + the volume quota. Scheduled (best-effort)
+ * from the binders right after an `s3:` ref is bound. HEAD the object → write
+ * the authoritative size (so `computeUserUploadVolumeBytes` is honest); if it
+ * is over the cap, mark the row failed AND delete the oversize object from the
+ * org's bucket. No-op for Convex refs (their size is authoritative at bind) and
+ * for a missing object (never-uploaded / already-reclaimed).
+ */
+export const verifyS3BlobSize = internalAction({
+  args: {
+    storageId: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (!isS3Ref(args.storageId)) return null;
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[verifyS3BlobSize] org ${args.organizationId} unresolvable; cannot verify ${args.storageId}`,
+      );
+      return null;
+    }
+    let size: number | null;
+    try {
+      size = await s3BlobSize(orgSlug, args.storageId);
+    } catch (err) {
+      // A HEAD failure must not wedge the upload — log and leave the
+      // client-declared size in place (the upload policy already gated on it).
+      console.warn('[verifyS3BlobSize] HEAD failed', {
+        ref: args.storageId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+    if (size === null) return null;
+
+    const overCap = size > DOCUMENT_MAX_FILE_SIZE;
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.applyVerifiedBlobSize,
+      {
+        storageId: args.storageId,
+        size,
+        overCap,
+        limitBytes: DOCUMENT_MAX_FILE_SIZE,
+      },
+    );
+    if (overCap) {
+      await deleteBlob(ctx, orgSlug, args.storageId);
+      console.warn(
+        `[verifyS3BlobSize] rejected oversize s3 upload ${args.storageId}: ${size} > ${DOCUMENT_MAX_FILE_SIZE} bytes; row failed, object deleted`,
+      );
     }
     return null;
   },

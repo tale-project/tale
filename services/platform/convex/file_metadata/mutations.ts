@@ -13,7 +13,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { blobRefValidator } from '../lib/storage/blob_ref';
+import { blobRefValidator, isS3Ref } from '../lib/storage/blob_ref';
 import { maybeDispatchRagIndexing } from './rag_dispatch';
 
 export const saveFileMetadata = mutation({
@@ -252,6 +252,19 @@ export const saveFileMetadata = mutation({
         organizationId: args.organizationId,
       },
     );
+
+    // An `s3:` blob was uploaded by a presigned PUT (no Content-Length gate),
+    // so verify its real size server-side and reject/correct past the cap.
+    if (isS3Ref(args.storageId)) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.files.blob_actions.verifyS3BlobSize,
+        {
+          storageId: String(args.storageId),
+          organizationId: args.organizationId,
+        },
+      );
+    }
 
     try {
       await checkOrganizationRateLimit(
