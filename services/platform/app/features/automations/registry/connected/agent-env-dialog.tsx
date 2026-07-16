@@ -28,6 +28,7 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundAction } from '../../hooks/use-bound-action';
 import { useBoundQuery } from '../../hooks/use-bound-query';
@@ -37,6 +38,26 @@ export interface AgentEnvDialogProps {
   agentSlug: string | null;
   displayName: string;
   onClose: () => void;
+}
+
+/** Map the allowlisted `listAgentEnv` payload into `EnvVarListEditor` rows
+ *  without an unsafe cast (`useBoundQuery` returns `unknown`). */
+function toLoadedEnvVars(data: unknown): LoadedEnvVar[] | undefined {
+  if (data === undefined) return undefined;
+  if (!Array.isArray(data)) return [];
+  return data.filter(isRecord).map((r) => {
+    const key = typeof r.key === 'string' ? r.key : '';
+    const row: LoadedEnvVar = {
+      key,
+      isSecret: r.isSecret === true,
+    };
+    if (typeof r.value === 'string') row.value = r.value;
+    if (typeof r.maskedValue === 'string') row.maskedValue = r.maskedValue;
+    if (typeof r.tokenSourceSlug === 'string') {
+      row.tokenSourceSlug = r.tokenSourceSlug;
+    }
+    return row;
+  });
 }
 
 /** The editor body — mounted only while the dialog is open, so the bound query
@@ -93,6 +114,11 @@ function EnvEditor({
     }
   };
 
+  const sourceOptions: TokenSourceOption[] = (tokenSources ?? []).map((s) => ({
+    slug: s.slug,
+    displayName: s.displayName,
+  }));
+
   return (
     <VStack gap={4}>
       <VStack gap={1}>
@@ -105,11 +131,11 @@ function EnvEditor({
       </VStack>
 
       <EnvVarListEditor
-        rows={data as LoadedEnvVar[] | undefined}
+        rows={toLoadedEnvVars(data)}
         isLoading={isLoading}
         externalSave
         onEditorState={setEditorState}
-        tokenSources={(tokenSources ?? []) as TokenSourceOption[]}
+        tokenSources={sourceOptions}
         onSet={async ({ key, value, isSecret, tokenSourceSlug }) => {
           await setRef.current.dispatch({
             organizationId: '$orgId',
