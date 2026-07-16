@@ -4060,6 +4060,13 @@
     },
     "errors": {
       "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
+    },
+    "conversationAccess": {
+      "title": "Accès aux conversations",
+      "description": "Lorsque cette option est activée, une conversation affectée à une équipe n'est visible que par cette équipe, et une conversation assignée à une personne n'est visible que par elle. Les conversations non assignées restent visibles par tous ; les administrateurs voient toujours toutes les conversations.",
+      "enabledLabel": "Restreindre les conversations assignées",
+      "saved": "Politique d'accès aux conversations mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la politique d'accès aux conversations"
     }
   },
   "metrics": {

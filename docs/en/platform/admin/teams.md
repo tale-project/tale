@@ -21,7 +21,7 @@ A team holds membership and a set of resources scoped to it. The resources are:
 - **Prompts** — saved prompts with `Team` visibility appear only to that team's members. Personal prompts stay private to their owner; Global prompts are visible org-wide.
 - **Projects** — projects can be assigned to a team; the team's members inherit project access without being added one by one.
 - **Integrations** — integrations restricted to certain teams (under the **Allowed teams** lever on **Settings > Integrations**) only appear in pickers for those teams.
-- **Conversations** — customer-channel conversations can be routed to a team; the inbox filter respects the team scope.
+- **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Whether that assignment also _restricts_ who can see the conversation is the opt-in **Conversation access** policy under [Governance](/platform/admin/governance/policies-and-limits); with it off, conversations stay visible org-wide.
 
 A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
 

@@ -5,7 +5,8 @@
 import type { Rules } from 'convex-helpers/server/rowLevelSecurity';
 
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
-import type { DataModel } from '../../../_generated/dataModel';
+import { isRecord } from '../../../../lib/utils/type-utils';
+import type { DataModel, Doc, Id } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
 import { hasKnowledgeHubDocumentAccess } from '../../../documents/access';
 import { getUserTeamIds } from '../../get_user_teams';
@@ -18,6 +19,7 @@ import type {
   RLSRuleContext,
 } from '../types';
 import { authorizeRls } from './access_control';
+import { isAdmin } from './role_helpers';
 
 /**
  * Define RLS rules for all tables
@@ -59,6 +61,70 @@ export async function rlsRules(
     return (teamIdsPromise ??= user?.userId
       ? getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids))
       : Promise.resolve(new Set<string>()));
+  };
+
+  // Conversation access control (opt-in per org — the `conversation_access`
+  // governance policy). One indexed configCache read per org per request,
+  // memoized: when disabled the conversations rules short-circuit to today's
+  // org-wide behaviour WITHOUT resolving teams (preserving the lazy-teams win).
+  // configCache carries no RLS rule, so this reads on the raw ctx, exactly like
+  // getUserTeamIds.
+  const restrictAssignedPromises = new Map<string, Promise<boolean>>();
+  const resolveRestrictAssigned = (orgId: string): Promise<boolean> => {
+    let promise = restrictAssignedPromises.get(orgId);
+    if (!promise) {
+      promise = ctx.db
+        .query('configCache')
+        .withIndex('by_org_domain_key', (q) =>
+          q
+            .eq('organizationId', orgId)
+            .eq('domain', 'governance')
+            .eq('key', 'conversation_access'),
+        )
+        .first()
+        .then((row) => {
+          const config = row?.config;
+          return isRecord(config) && config.restrictAssigned === true;
+        });
+      restrictAssignedPromises.set(orgId, promise);
+    }
+    return promise;
+  };
+
+  // Assignment-scope predicate, evaluated ONLY when the policy is on: admins and
+  // owners see everything; an unassigned conversation is the shared org pool;
+  // otherwise the caller must be the individual owner or a member of the queued
+  // team (the union when both are set).
+  const passesAssignmentScope = async (
+    conversation: Doc<'conversations'>,
+    role: MemberRole | undefined,
+  ): Promise<boolean> => {
+    if (isAdmin(role)) return true;
+    const { assigneeUserId, assigneeTeamId } = conversation;
+    if (!assigneeUserId && !assigneeTeamId) return true;
+    if (assigneeUserId && assigneeUserId === user?.userId) return true;
+    if (assigneeTeamId && (await resolveTeamIds()).has(assigneeTeamId)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Parent-conversation cache for conversationMessages scoping — one get per
+  // conversation per request instead of one per message when a thread loads.
+  const parentConversationPromises = new Map<
+    string,
+    Promise<Doc<'conversations'> | null>
+  >();
+  const getParentConversation = (
+    conversationId: Id<'conversations'>,
+  ): Promise<Doc<'conversations'> | null> => {
+    const key = String(conversationId);
+    let promise = parentConversationPromises.get(key);
+    if (!promise) {
+      promise = ctx.db.get(conversationId);
+      parentConversationPromises.set(key, promise);
+    }
+    return promise;
   };
 
   return {
@@ -294,7 +360,15 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === conversation.organizationId,
         );
-        return authorizeRls(membership?.role, 'conversations', 'read');
+        if (!authorizeRls(membership?.role, 'conversations', 'read')) {
+          return false;
+        }
+        // Opt-in assignment privacy. Disabled ⇒ today's org-wide visibility
+        // (no team resolve); enabled ⇒ scope to the owner / queued team / admin.
+        if (!(await resolveRestrictAssigned(conversation.organizationId))) {
+          return true;
+        }
+        return passesAssignmentScope(conversation, membership?.role);
       },
       modify: async (_, conversation) => {
         if (!user) return false;
@@ -302,7 +376,13 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === conversation.organizationId,
         );
-        return authorizeRls(membership?.role, 'conversations', 'write');
+        if (!authorizeRls(membership?.role, 'conversations', 'write')) {
+          return false;
+        }
+        if (!(await resolveRestrictAssigned(conversation.organizationId))) {
+          return true;
+        }
+        return passesAssignmentScope(conversation, membership?.role);
       },
       insert: async ({ user: ruleUser }, conversation) => {
         if (!ruleUser) return false;
@@ -322,7 +402,18 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === message.organizationId,
         );
-        return authorizeRls(membership?.role, 'conversationMessages', 'read');
+        if (!authorizeRls(membership?.role, 'conversationMessages', 'read')) {
+          return false;
+        }
+        // Messages inherit their conversation's assignment privacy. Disabled ⇒
+        // short-circuit (no parent get); enabled ⇒ scope by the parent, failing
+        // closed if the parent has somehow vanished.
+        if (!(await resolveRestrictAssigned(message.organizationId))) {
+          return true;
+        }
+        const parent = await getParentConversation(message.conversationId);
+        if (!parent) return false;
+        return passesAssignmentScope(parent, membership?.role);
       },
       modify: async (_, message) => {
         if (!user) return false;
@@ -330,7 +421,15 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === message.organizationId,
         );
-        return authorizeRls(membership?.role, 'conversationMessages', 'write');
+        if (!authorizeRls(membership?.role, 'conversationMessages', 'write')) {
+          return false;
+        }
+        if (!(await resolveRestrictAssigned(message.organizationId))) {
+          return true;
+        }
+        const parent = await getParentConversation(message.conversationId);
+        if (!parent) return false;
+        return passesAssignmentScope(parent, membership?.role);
       },
       insert: async ({ user: ruleUser }, message) => {
         if (!ruleUser) return false;

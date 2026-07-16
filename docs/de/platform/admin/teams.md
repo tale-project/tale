@@ -21,7 +21,7 @@ Ein Team hält Mitgliedschaft und eine Menge ihm zugeordneter Ressourcen. Die Re
 - **Prompts** — gespeicherte Prompts mit Sichtbarkeit `Team` erscheinen nur für die Mitglieder dieses Teams. Persönliche Prompts bleiben privat beim Eigentümer; Globale Prompts sind organisationsweit sichtbar.
 - **Projekte** — Projekte können einem Team zugewiesen werden; die Mitglieder des Teams erben den Projekt-Zugriff, ohne einzeln hinzugefügt zu werden.
 - **Integrationen** — Integrationen, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Integrationen**), erscheinen nur in Pickern dieser Teams.
-- **Konversationen** — Kundenkanal-Konversationen können an ein Team geroutet werden; der Inbox-Filter respektiert den Team-Scope.
+- **Konversationen** — eine Konversation kann zusätzlich zu einer zuständigen Person auch einem Team zugewiesen werden, über die Zuweisungs-Auswahl in ihrer Kopfzeile. Ob diese Zuweisung auch _einschränkt_, wer die Konversation sehen kann, regelt die optionale Richtlinie **Konversationszugriff** unter [Governance](/de/platform/admin/governance/policies-and-limits); ist sie aus, bleiben Konversationen organisationsweit sichtbar.
 
 Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _zusätzliche_ Eingrenzungsebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
 
