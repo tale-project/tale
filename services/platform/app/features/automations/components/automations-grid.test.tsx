@@ -566,11 +566,15 @@ describe('AutomationsGrid tabs + badges', () => {
 
     renderAllTab(<AutomationsGrid organizationId="org_1" />);
 
-    const label = screen.getByText('GitHub');
-    expect(label).toBeInTheDocument();
-    // Invalid-nesting regression: the label chips must not render inside the
-    // description <p>.
-    expect(label.closest('p')).toBeNull();
+    // Quiet tone renders the labels as one muted "A · B" line in the card's
+    // meta row (see CatalogLabels) — a node of its own.
+    const labels = screen.getByText('GitHub · Email');
+    expect(labels).toBeInTheDocument();
+    // Regression guard: the labels must never be concatenated into the
+    // description paragraph.
+    expect(screen.getByText('A discoverable automation.')).not.toContainElement(
+      labels,
+    );
   });
 });
 
