@@ -132,8 +132,12 @@ Start with the [contributing guide](.github/CONTRIBUTING.md) and [contributor se
 
 Tale is [MIT-licensed](LICENSE).
 
----
+## Star History
 
-## Star history
-
-[![Star History Chart](https://api.star-history.com/svg?repos=tale-project/tale&type=date&legend=top-left)](https://www.star-history.com/#tale-project/tale&type=date&legend=top-left)
+<a href="https://www.star-history.com/?repos=tale-project%2Ftale&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tale-project/tale&type=date&theme=dark&legend=top-left&sealed_token=QQ7jRkA-kcGWHW7hES6gDAnN_iUmNNiNL1WJAcUCDEPJGpUMe5rwPOHP2IQV4k17HGAd83jhXu3Tc1Oi8sFuqd-gEM_rAf92ixz0vKdM1H29A7TGueyNB0FfAStEcq0nlKl1wpm-neReULNnZ7LqMbm4y9qAReoOLF1Aho8gy-jDt_hKAmMDS8gZbEbl" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tale-project/tale&type=date&legend=top-left&sealed_token=QQ7jRkA-kcGWHW7hES6gDAnN_iUmNNiNL1WJAcUCDEPJGpUMe5rwPOHP2IQV4k17HGAd83jhXu3Tc1Oi8sFuqd-gEM_rAf92ixz0vKdM1H29A7TGueyNB0FfAStEcq0nlKl1wpm-neReULNnZ7LqMbm4y9qAReoOLF1Aho8gy-jDt_hKAmMDS8gZbEbl" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tale-project/tale&type=date&legend=top-left&sealed_token=QQ7jRkA-kcGWHW7hES6gDAnN_iUmNNiNL1WJAcUCDEPJGpUMe5rwPOHP2IQV4k17HGAd83jhXu3Tc1Oi8sFuqd-gEM_rAf92ixz0vKdM1H29A7TGueyNB0FfAStEcq0nlKl1wpm-neReULNnZ7LqMbm4y9qAReoOLF1Aho8gy-jDt_hKAmMDS8gZbEbl" />
+ </picture>
+</a>
