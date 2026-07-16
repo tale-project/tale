@@ -13,6 +13,7 @@ import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
+import { applyAddressRouting } from './address_routing';
 import { createConversation } from './create_conversation';
 import type { CreateConversationArgs } from './types';
 
@@ -145,6 +146,15 @@ export async function createConversationWithMessage(
       unread_count: args.initialMessage.isCustomer ? 1 : 0,
     },
   });
+
+  // Address routing (governance feature): auto-assign a new inbound conversation
+  // to the team/person mapped to the address it was sent to, BEFORE the
+  // message-received event is emitted so downstream (notifications) observes the
+  // assignment. Gated by the org's `conversation_routing` policy — no rule / no
+  // match is a quiet no-op. Not an automation: applied inline during ingest.
+  if (direction === 'inbound') {
+    await applyAddressRouting(ctx, conversation);
+  }
 
   await AuditLogHelpers.logSuccess(ctx, {
     auditCtx: {
