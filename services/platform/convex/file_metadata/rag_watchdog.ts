@@ -25,6 +25,13 @@ const STALE_AFTER_MS = 35 * 60 * 1000;
 const MAX_PER_RUN = 200;
 
 /**
+ * How far back `failed` rows stay in the reconcile sweep. Recent failures may
+ * be false (a straggling writer beat a live indexing chain) and self-heal when
+ * the corpus reaches its real terminal state; older ones are settled history.
+ */
+const FAILED_RECONCILE_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+/**
  * Detail stored on `ragError` when a row is failed by the watchdog. English,
  * matching every other server-written `ragError` (the UI badge label is
  * localized separately). Names the cause and the remedy — the desk "Retry
@@ -50,10 +57,18 @@ const INTERRUPTED_MESSAGE =
  * a file whose indexing actually SUCCEEDED (but whose poll chain died before
  * writing `'completed'`) is adopted as completed instead of being wrongly
  * failed. Only fails a row when the corpus was reachable and reports the
- * document as still `processing` (a >35-min-old processing row is dead) or
- * absent (`null` — never ingested). A corpus lookup that THROWS (knowledge-db
+ * document as dead: `processing` counts as dead only once the corpus row has
+ * stopped moving for the stale window (sliced indexing touches it per batch),
+ * `null` means never ingested. A corpus lookup that THROWS (knowledge-db
  * transient fault) is left for the next tick rather than failing the whole
  * org's rows — the cross-org failure-propagation hazard the chat poller guards.
+ *
+ * RECENT `failed` rows are reconciled too, so a false failure self-heals
+ * without a manual retry: a straggling writer (killed sibling dispatcher, dead
+ * poll chain) may have stamped `failed` while the indexing chain lived on —
+ * when the corpus later reads `completed` the row is adopted, while a live
+ * fresh-`processing` corpus flips it back to `running`, and a corpus-side
+ * `failed` refreshes the row with the REAL terminal error.
  *
  * Scheduled from `crons.ts` every 5 minutes; suppressed under E2E (the
  * hermetic stack has no knowledge DB, so every upload deterministically fails
@@ -67,16 +82,30 @@ export const recoverStuckRagIndexing = internalAction({
 
     const candidates = await ctx.runQuery(
       internal.file_metadata.internal_queries.listStuckRagCandidates,
-      { staleBeforeMs: Date.now() - STALE_AFTER_MS, limit: MAX_PER_RUN },
+      {
+        staleBeforeMs: Date.now() - STALE_AFTER_MS,
+        failedAfterMs: Date.now() - FAILED_RECONCILE_WINDOW_MS,
+        limit: MAX_PER_RUN,
+      },
     );
     if (candidates.length === 0) return null;
 
     // One knowledge-corpus status call per distinct org.
-    const byOrg = new Map<string, Array<{ storageId: BlobRef }>>();
+    type CandidateRow = {
+      storageId: BlobRef;
+      ragStatus: 'queued' | 'running' | 'failed';
+      ragError?: string;
+    };
+    const byOrg = new Map<string, CandidateRow[]>();
     for (const c of candidates) {
+      const entry: CandidateRow = {
+        storageId: c.storageId,
+        ragStatus: c.ragStatus,
+        ...(c.ragError !== undefined && { ragError: c.ragError }),
+      };
       const bucket = byOrg.get(c.organizationId);
-      if (bucket) bucket.push({ storageId: c.storageId });
-      else byOrg.set(c.organizationId, [{ storageId: c.storageId }]);
+      if (bucket) bucket.push(entry);
+      else byOrg.set(c.organizationId, [entry]);
     }
 
     for (const [organizationId, rows] of byOrg) {
@@ -87,6 +116,7 @@ export const recoverStuckRagIndexing = internalAction({
       // `pollFileRagStatus`'s unresolvable-org branch.
       if (orgSlug === null) {
         for (const row of rows) {
+          if (row.ragStatus === 'failed') continue;
           await ctx.runMutation(
             internal.file_metadata.internal_mutations.updateFileRagStatus,
             {
@@ -143,12 +173,18 @@ export const recoverStuckRagIndexing = internalAction({
         }
 
         if (docStatus?.status === 'failed') {
+          const realError = docStatus.error || INTERRUPTED_MESSAGE;
+          // Already failed with the same text → nothing to reconcile; without
+          // this the failed-row sweep would rewrite the row every tick.
+          if (row.ragStatus === 'failed' && row.ragError === realError) {
+            continue;
+          }
           await ctx.runMutation(
             internal.file_metadata.internal_mutations.updateFileRagStatus,
             {
               storageId: row.storageId,
               ragStatus: 'failed',
-              ragError: docStatus.error || INTERRUPTED_MESSAGE,
+              ragError: realError,
             },
           );
           continue;
@@ -168,8 +204,24 @@ export const recoverStuckRagIndexing = internalAction({
             Number.isFinite(updatedAtMs) &&
             Date.now() - updatedAtMs < STALE_AFTER_MS;
           if (fresh) {
+            // A failed row with a LIVE corpus chain is a false failure (a
+            // straggling writer lost the race) — flip it back to running so
+            // the user watches real progress instead of a wrong error.
+            if (row.ragStatus === 'failed') {
+              await ctx.runMutation(
+                internal.file_metadata.internal_mutations.updateFileRagStatus,
+                { storageId: row.storageId, ragStatus: 'running' },
+              );
+            }
             continue;
           }
+        }
+
+        // Dead job (stale processing or never ingested): an already-failed row
+        // is already terminal — never overwrite its (possibly real) error with
+        // the generic interrupted text.
+        if (row.ragStatus === 'failed') {
+          continue;
         }
 
         // Stale `processing` (no batch committed for the whole stale window)

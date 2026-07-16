@@ -43,6 +43,19 @@ export async function scheduleHubDocumentRagIndexing(
     return false;
   }
 
+  // A `queued` row already has a dispatched (or parked) job. Re-dispatching
+  // here double-indexed every hub upload: the binder's insert-time dispatch
+  // fires before the document link lands (choosing `uploadFileToRag`), then
+  // this ran again with the link in place — TWO racing indexers per file,
+  // doubled embedding spend, and two writers fighting over `ragStatus`. The
+  // in-flight job reads `fileMetadata.documentId` at EXECUTION time (see
+  // `upload_document.ts`), so it picks up the hub folder metadata without a
+  // second dispatch. A queued job that dies pre-`running` is reclaimed by the
+  // rag watchdog, same as any other queued death.
+  if (fm?.ragStatus === 'queued') {
+    return false;
+  }
+
   // Route through the same per-org + global concurrency cap as the direct
   // upload path so a bulk import (e.g. OneDrive) can't fire dozens of
   // `uploadDocumentToRag` actions at once and saturate the shared knowledge-db

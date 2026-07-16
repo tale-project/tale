@@ -36,6 +36,7 @@ vi.mock('../workflow_engine/action_defs/rag/rag_action', () => ({
   ragAction: {},
 }));
 
+import { getPollingInterval } from '../documents/internal_actions';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { pollFileRagStatus } from './internal_actions';
 
@@ -58,6 +59,7 @@ interface SerializedStatus {
   source_created_at: string | null;
   source_modified_at: string | null;
   ocr_applied: boolean | null;
+  updated_at: string | null;
 }
 
 function status(overrides: Partial<SerializedStatus>): SerializedStatus {
@@ -69,6 +71,7 @@ function status(overrides: Partial<SerializedStatus>): SerializedStatus {
     source_created_at: null,
     source_modified_at: null,
     ocr_applied: null,
+    updated_at: null,
     ...overrides,
   };
 }
@@ -225,5 +228,60 @@ describe('pollFileRagStatus', () => {
       ragProgress: 'embedding 3/10',
     });
     expect(runAfter).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('progress-aware cadence (#2752)', () => {
+  it('keeps the tight cadence and resets the backoff while the corpus row is fresh', async () => {
+    const { ctx, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'running' },
+      {
+        statuses: {
+          s1: status({
+            status: 'processing',
+            progress_phase: 'storing',
+            progress_detail: '5000/86589',
+            updated_at: new Date(Date.now() - 30_000).toISOString(),
+          }),
+        },
+      },
+    );
+
+    // Deep into the backoff (attempt 40 → 75-min interval pre-fix).
+    await handler(ctx, {
+      storageId: 's1',
+      organizationId: 'org1',
+      attempt: 40,
+    });
+
+    expect(runAfter).toHaveBeenCalledTimes(1);
+    // Interval computed for a RESET attempt (tight cadence), not attempt 40.
+    expect(vi.mocked(getPollingInterval)).toHaveBeenLastCalledWith(1);
+    const [, , schedArgs] = runAfter.mock.calls[0];
+    expect((schedArgs as { attempt: number }).attempt).toBe(2);
+  });
+
+  it('walks the backoff when the corpus row has stopped moving', async () => {
+    const { ctx, runAfter } = createCtx(
+      { _id: 'fm1', ragStatus: 'running' },
+      {
+        statuses: {
+          s1: status({
+            status: 'processing',
+            updated_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+          }),
+        },
+      },
+    );
+
+    await handler(ctx, {
+      storageId: 's1',
+      organizationId: 'org1',
+      attempt: 40,
+    });
+
+    expect(runAfter).toHaveBeenCalledTimes(1);
+    const [, , schedArgs] = runAfter.mock.calls[0];
+    expect((schedArgs as { attempt: number }).attempt).toBe(41);
   });
 });

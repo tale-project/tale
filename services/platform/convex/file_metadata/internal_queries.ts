@@ -230,20 +230,33 @@ export const lookupVideoLinkSources = internalQuery({
 export const listStuckRagCandidates = internalQuery({
   args: {
     staleBeforeMs: v.number(),
+    /**
+     * Include `failed` rows whose job clock is AFTER this — recent failures
+     * the watchdog reconciles against the corpus so a late completion (or the
+     * real terminal error) self-heals the row instead of demanding a manual
+     * retry. Older failures are settled history and skipped.
+     */
+    failedAfterMs: v.optional(v.number()),
     limit: v.number(),
   },
   returns: v.array(
     v.object({
       storageId: blobRefValidator,
       organizationId: v.string(),
-      ragStatus: v.union(v.literal('queued'), v.literal('running')),
+      ragStatus: v.union(
+        v.literal('queued'),
+        v.literal('running'),
+        v.literal('failed'),
+      ),
+      ragError: v.optional(v.string()),
     }),
   ),
   async handler(ctx, args) {
     const results: Array<{
       storageId: Doc<'fileMetadata'>['storageId'];
       organizationId: string;
-      ragStatus: 'queued' | 'running';
+      ragStatus: 'queued' | 'running' | 'failed';
+      ragError?: string;
     }> = [];
     for (const status of ['running', 'queued'] as const) {
       for await (const row of ctx.db
@@ -259,6 +272,22 @@ export const listStuckRagCandidates = internalQuery({
             storageId: row.storageId,
             organizationId: row.organizationId,
             ragStatus: status,
+          });
+          if (results.length >= args.limit) return results;
+        }
+      }
+    }
+    if (args.failedAfterMs !== undefined) {
+      for await (const row of ctx.db
+        .query('fileMetadata')
+        .withIndex('by_ragStatus', (q) => q.eq('ragStatus', 'failed'))) {
+        const clock = row.ragQueuedAt ?? row._creationTime;
+        if (clock >= args.failedAfterMs) {
+          results.push({
+            storageId: row.storageId,
+            organizationId: row.organizationId,
+            ragStatus: 'failed',
+            ...(row.ragError !== undefined && { ragError: row.ragError }),
           });
           if (results.length >= args.limit) return results;
         }
