@@ -246,9 +246,21 @@ export const updateFileRagStatus = internalMutation({
     const isTerminal =
       args.ragStatus === 'completed' || args.ragStatus === 'failed';
 
+    // Never persist an empty failure reason: an interrupted indexing action
+    // (e.g. a killed/timed-out job) surfaces an Error with no message, which
+    // flowed through as `ragError: ''` and rendered as a bare "Unknown error"
+    // with nothing actionable. Fall back to a plain, honest default so the row
+    // at least says a retry is the next step.
+    const failureReason =
+      args.ragStatus === 'failed'
+        ? args.ragError && args.ragError.trim().length > 0
+          ? args.ragError
+          : 'Indexing did not finish. Retry to index this document.'
+        : undefined;
+
     await ctx.db.patch(metadata._id, {
       ragStatus: args.ragStatus,
-      ragError: args.ragStatus === 'failed' ? args.ragError : undefined,
+      ragError: failureReason,
       ragProgress: isTerminal ? undefined : args.ragProgress,
       // Stamp when re-queued so the watchdog can time it out. Clear on
       // terminal states so a later re-queue starts its own clock.

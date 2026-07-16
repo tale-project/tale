@@ -374,6 +374,99 @@ describe('updateFileRagStatus ragIndexedAt units', () => {
   });
 });
 
+describe('updateFileRagStatus ragError default (empty-failure guard)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const DEFAULT_FAILURE =
+    'Indexing did not finish. Retry to index this document.';
+
+  function failingCtx() {
+    // A row mid-flight that is about to be marked failed.
+    return createMockCtx({
+      _id: 'fm_1',
+      storageId: 'storage_1',
+      ragStatus: 'running',
+      ragQueuedAt: 1,
+    });
+  }
+
+  // Regression guard: an interrupted indexing action (killed/timed-out job)
+  // surfaces an Error with no message, which flowed through as `ragError: ''`
+  // and rendered as a bare "Unknown error" with nothing actionable. A failed
+  // row must always carry a non-empty, actionable reason instead.
+  it('substitutes a non-empty default when ragError is missing on failure', async () => {
+    const { ctx } = failingCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, { storageId: 'storage_1', ragStatus: 'failed' });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragError: string };
+    expect(patchArg.ragError).toBe(DEFAULT_FAILURE);
+    expect(patchArg.ragError).not.toBe('');
+    expect(patchArg.ragError.length).toBeGreaterThan(0);
+  });
+
+  it('substitutes the default when ragError is an empty string on failure', async () => {
+    const { ctx } = failingCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: '',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragError: string };
+    expect(patchArg.ragError).toBe(DEFAULT_FAILURE);
+  });
+
+  it('substitutes the default when ragError is whitespace-only on failure', async () => {
+    const { ctx } = failingCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: '   ',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragError: string };
+    expect(patchArg.ragError).toBe(DEFAULT_FAILURE);
+  });
+
+  it('preserves a provided non-empty ragError verbatim on failure', async () => {
+    const { ctx } = failingCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: 'OCR engine crashed while parsing page 3',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as { ragError: string };
+    expect(patchArg.ragError).toBe('OCR engine crashed while parsing page 3');
+  });
+
+  it('leaves ragError undefined for a non-failed transition', async () => {
+    const { ctx } = failingCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'completed',
+      ragError: 'ignored on success',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as {
+      ragError: string | undefined;
+    };
+    expect(patchArg.ragError).toBeUndefined();
+  });
+});
+
 describe('ensureFileMetadataForDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks();
