@@ -24,7 +24,10 @@ import {
   PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA,
 } from '../../lib/knowledge/db/knowledge_db';
 import { withRetry } from '../../lib/knowledge/db/retry';
-import type { EmbeddingService } from '../../lib/knowledge/embedding/service';
+import {
+  type EmbeddingService,
+  MAX_BATCH_SIZE,
+} from '../../lib/knowledge/embedding/service';
 import { extractText } from '../../lib/knowledge/extraction/router';
 import { logger } from '../../lib/knowledge/logger';
 import { computeContentHash } from '../../lib/knowledge/utils/hashing';
@@ -47,7 +50,6 @@ export interface IndexResult {
 export interface PreparedDocument {
   contentHash: string;
   chunks: ContentChunk[];
-  embeddings: number[][];
   visionUsed: boolean;
   sourceCreatedAt: Date | null;
   sourceModifiedAt: Date | null;
@@ -204,14 +206,22 @@ function makeExtractionProgressCallback(
 }
 
 export interface PrepareDocumentOptions {
-  embeddingService: EmbeddingService;
   visionClient?: VisionClient | null;
   chunkSize?: number;
   chunkOverlap?: number;
   onProgress?: (pagesDone: number, totalPages: number) => void;
 }
 
-/** Extract, chunk, and embed a document. Returns null if no usable text. */
+/**
+ * Extract and chunk a document. Returns null if no usable text.
+ *
+ * Embedding is deliberately NOT done here: a large document (e.g. a 100 MB
+ * text file → tens of thousands of chunks) would otherwise materialize every
+ * embedding vector in memory at once (~600 MB at 1536 dims, more at 4096),
+ * OOM-killing the Convex action before it can store anything. `storePreparedDocument`
+ * embeds one bounded batch at a time as it inserts, so peak memory stays flat
+ * regardless of document size.
+ */
 export async function prepareDocument(
   contentBytes: Uint8Array,
   filename: string,
@@ -248,14 +258,9 @@ export async function prepareDocument(
     return null;
   }
 
-  const embeddings = await options.embeddingService.embedTexts(
-    chunks.map((c) => c.content),
-  );
-
   return {
     contentHash,
     chunks,
-    embeddings,
     visionUsed,
     sourceCreatedAt,
     sourceModifiedAt,
@@ -451,6 +456,7 @@ async function doStore(
   fileId: string,
   filename: string,
   prepared: PreparedDocument,
+  embeddingService: EmbeddingService,
 ): Promise<IndexResult> {
   return withRetry(() =>
     sql.begin(async (tx) => {
@@ -505,27 +511,41 @@ async function doStore(
         );
       }
 
-      for (let i = 0; i < prepared.chunks.length; i += 1) {
-        const chunk = prepared.chunks[i];
-        const embedding = prepared.embeddings[i];
-        await tx.unsafe(
-          `INSERT INTO ${SCHEMA}.chunks
-              (document_id, org_slug, chunk_index, chunk_content,
-               content_hash, embedding,
-               core_content, prefix_overlap, suffix_overlap)
-           VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9)`,
-          [
-            docUuid,
-            orgSlug,
-            chunk.index,
-            chunk.content,
-            computeContentHash(Buffer.from(chunk.content, 'utf-8')),
-            JSON.stringify(embedding),
-            chunk.coreContent,
-            chunk.prefixOverlap,
-            chunk.suffixOverlap,
-          ],
+      // Embed + insert one bounded batch at a time so peak memory never scales
+      // with document size: only `MAX_BATCH_SIZE` embedding vectors are held at
+      // once, not one per chunk for the whole document (which OOM-killed the
+      // action on large files — see `prepareDocument`).
+      for (
+        let start = 0;
+        start < prepared.chunks.length;
+        start += MAX_BATCH_SIZE
+      ) {
+        const batch = prepared.chunks.slice(start, start + MAX_BATCH_SIZE);
+        const embeddings = await embeddingService.embedTexts(
+          batch.map((c) => c.content),
         );
+        for (let j = 0; j < batch.length; j += 1) {
+          const chunk = batch[j];
+          const embedding = embeddings[j];
+          await tx.unsafe(
+            `INSERT INTO ${SCHEMA}.chunks
+                (document_id, org_slug, chunk_index, chunk_content,
+                 content_hash, embedding,
+                 core_content, prefix_overlap, suffix_overlap)
+             VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9)`,
+            [
+              docUuid,
+              orgSlug,
+              chunk.index,
+              chunk.content,
+              computeContentHash(Buffer.from(chunk.content, 'utf-8')),
+              JSON.stringify(embedding),
+              chunk.coreContent,
+              chunk.prefixOverlap,
+              chunk.suffixOverlap,
+            ],
+          );
+        }
       }
 
       return {
@@ -545,10 +565,18 @@ export async function storePreparedDocument(
   fileId: string,
   filename: string,
   prepared: PreparedDocument,
+  embeddingService: EmbeddingService,
 ): Promise<IndexResult> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const result = await doStore(sql, orgSlug, fileId, filename, prepared);
+      const result = await doStore(
+        sql,
+        orgSlug,
+        fileId,
+        filename,
+        prepared,
+        embeddingService,
+      );
       if (result.skipped) {
         logger.info(`Document ${fileId} content unchanged, skipping`);
       } else {
@@ -675,7 +703,6 @@ export async function indexDocument(
   await updateProgress(sql, orgSlug, fileId, 'extracting', '');
 
   let prepared = await prepareDocument(contentBytes, filename, {
-    embeddingService: options.embeddingService,
     visionClient: options.visionClient,
     chunkSize: options.chunkSize,
     chunkOverlap: options.chunkOverlap,
@@ -710,5 +737,12 @@ export async function indexDocument(
 
   await updateProgress(sql, orgSlug, fileId, 'storing', '');
 
-  return storePreparedDocument(sql, orgSlug, fileId, filename, prepared);
+  return storePreparedDocument(
+    sql,
+    orgSlug,
+    fileId,
+    filename,
+    prepared,
+    options.embeddingService,
+  );
 }

@@ -277,7 +277,15 @@ export const insertSyntheticFileMetadata = internalMutation({
       transcriptionStatus: 'completed',
       transcriptionDurationSec: args.videoDurationSec,
       // RAG indexing happens via the scheduled uploadFileToRag below.
+      // Set BOTH statuses: `transcriptRagStatus` drives the composer chip
+      // (use-file-transcription-status.ts), while the CANONICAL `ragStatus` is
+      // what `pollFileRagStatus` advances and `document_retrieve` gates on. The
+      // audio path (transcribe_audio.ts) already writes both; the captions path
+      // must too, or the poller short-circuits on an undefined `ragStatus`
+      // (internal_actions.ts:117) and the agent can never retrieve the
+      // transcript ("still being indexed" forever), even though it is indexed.
       transcriptRagStatus: 'queued',
+      ragStatus: 'queued',
       // Provenance fields (sourceUrl/sourcePlatform/videoTitle/uploader/
       // duration) are NOT written here — `start_agent_chat.ts` JOINs
       // videoLinkJobs by storageId for live state.

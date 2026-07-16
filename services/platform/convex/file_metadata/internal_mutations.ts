@@ -12,7 +12,11 @@ import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
-import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
+import {
+  blobRefValidator,
+  convexStorageId,
+  isS3Ref,
+} from '../lib/storage/blob_ref';
 import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
@@ -185,6 +189,19 @@ export const saveFileMetadata = internalMutation({
       },
     );
 
+    // An `s3:` blob was uploaded by a presigned PUT (no Content-Length gate),
+    // so verify its real size server-side and reject/correct past the cap.
+    if (isS3Ref(args.storageId)) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.files.blob_actions.verifyS3BlobSize,
+        {
+          storageId: String(args.storageId),
+          organizationId: args.organizationId,
+        },
+      );
+    }
+
     try {
       await checkOrganizationRateLimit(
         ctx,
@@ -272,6 +289,45 @@ export const updateFileRagStatus = internalMutation({
         });
       }
     }
+  },
+});
+
+/**
+ * Record the authoritative byte size of an `s3:`-backed blob (from a server
+ * HEAD), correcting the row that was created with the client-declared size — a
+ * presigned PUT enforces no Content-Length. When the real size is over the
+ * product cap, mark the row `ragStatus: 'failed'` with a size error so the user
+ * sees why (the blob itself is deleted by the caller). The corrected `size`
+ * flows into `computeUserUploadVolumeBytes` so volume accounting is honest;
+ * per the existing quota model a failed row counts until the user deletes it.
+ */
+export const applyVerifiedBlobSize = internalMutation({
+  args: {
+    storageId: blobRefValidator,
+    size: v.number(),
+    overCap: v.boolean(),
+    limitBytes: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return null;
+
+    const overCapPatch = args.overCap
+      ? {
+          ragStatus: 'failed' as const,
+          ragError: `File exceeds the ${Math.round(
+            args.limitBytes / (1024 * 1024),
+          )} MB limit`,
+          ragQueuedAt: undefined,
+          ragProgress: undefined,
+        }
+      : {};
+    await ctx.db.patch(metadata._id, { size: args.size, ...overCapPatch });
+    return null;
   },
 });
 

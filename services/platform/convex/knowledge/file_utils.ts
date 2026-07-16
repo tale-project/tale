@@ -161,7 +161,7 @@ export async function readOrgKnowledgeConnection(
  * `''` (passwordless auth is valid). Present-but-undecryptable → throws (fail
  * closed).
  */
-async function readKnowledgePassword(orgSlug: string): Promise<string> {
+export async function readKnowledgePassword(orgSlug: string): Promise<string> {
   const secretsPath = resolveKnowledgeConnectionSecretsFilePath(orgSlug);
   let raw: Record<string, unknown>;
   try {

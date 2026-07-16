@@ -173,10 +173,24 @@ http.route({
       if (!org) {
         return new Response('Missing org for S3 blob', { status: 400 });
       }
-      const presigned: string | null = await ctx.runAction(
-        internal.files.blob_actions.presignBlobGet,
-        { organizationId: org, ref, filename: filename ?? undefined },
-      );
+      // Fail closed as 404, never 500: presign throws for a key outside the
+      // org's namespace (s3KeyBelongsToOrg) and for an org with no object
+      // storage configured — neither is a server fault, and 404 doesn't leak
+      // whether the object exists.
+      let presigned: string | null;
+      try {
+        presigned = await ctx.runAction(
+          internal.files.blob_actions.presignBlobGet,
+          { organizationId: org, ref, filename: filename ?? undefined },
+        );
+      } catch (error) {
+        console.warn(
+          `[storage] refused s3 blob serve for org ${org}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        presigned = null;
+      }
       if (!presigned) {
         return new Response('File not found', { status: 404 });
       }

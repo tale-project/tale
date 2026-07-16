@@ -37,6 +37,7 @@ import {
   resolveOrgObjectStore,
   s3DeleteObject,
   s3GetObjectBytes,
+  s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
   s3PutObject,
@@ -84,6 +85,24 @@ export async function readBlobBytes(
   }
   const store = await requireS3(orgSlug, parsed.key);
   return await s3GetObjectBytes(store, parsed.key);
+}
+
+/**
+ * The authoritative byte size of an S3-backed blob (a server HEAD), or `null`
+ * for a Convex ref (its size is authoritative at bind time via the `_storage`
+ * system row) or a missing object. Namespace-guarded via `requireS3`, so an
+ * org can only probe keys in its own namespace. Used to verify an `s3:` upload
+ * against the product cap — a presigned PUT enforces no Content-Length.
+ */
+export async function s3BlobSize(
+  orgSlug: string,
+  ref: BlobRef,
+): Promise<number | null> {
+  const parsed = parseBlobRef(ref);
+  if (parsed.backend !== 's3') return null;
+  const store = await requireS3(orgSlug, parsed.key);
+  const head = await s3HeadObject(store, parsed.key);
+  return head?.size ?? null;
 }
 
 /**
