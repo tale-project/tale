@@ -123,6 +123,42 @@ describe('AssigneePicker', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the non-code warning out of compact pickers that omit task context', () => {
+    render(
+      <AssigneePicker
+        organizationId="org-1"
+        assigneeType="agent"
+        assigneeId="software-developer"
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText('tasks.assignee.nonCodeWarning'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('places afterTrigger beside the avatar, above the non-code warning', () => {
+    render(
+      <AssigneePicker
+        organizationId="org-1"
+        assigneeType="agent"
+        assigneeId="software-developer"
+        taskTitle="Write quarterly summary"
+        afterTrigger={<span>Software Developer</span>}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+
+    const warning = screen.getByText('tasks.assignee.nonCodeWarning');
+    const name = screen.getByText('Software Developer');
+    expect(
+      warning.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+  });
+
   it('hints that only live agents are listed, when the Agents section is present (#2610)', async () => {
     const { user } = render(
       <AssigneePicker

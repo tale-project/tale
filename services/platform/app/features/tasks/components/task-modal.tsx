@@ -210,8 +210,8 @@ function PropertyField({
     );
   }
   return (
-    <Row gap={2} className="min-h-7">
-      <span className="text-muted-foreground w-20 shrink-0 text-xs font-medium">
+    <Row gap={2} align="start" className="min-h-7 shrink-0">
+      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
@@ -732,36 +732,36 @@ function EditTaskBody({
               />
             </PropertyField>
             <PropertyField label={t('fields.assignee')}>
-              <div className="flex min-w-0 items-center gap-1.5">
-                <AssigneePicker
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  assigneeType={task.assigneeType}
-                  assigneeId={task.assigneeId}
-                  taskTitle={task.title}
-                  taskDescription={task.description}
-                  taskLabels={task.labels}
-                  disabled={!canMutate}
-                  align="end"
-                  onAssign={(assigneeType, assigneeId) =>
-                    void assignTask
-                      .mutateAsync({
-                        taskId: task._id,
-                        assigneeType,
-                        assigneeId,
-                      })
-                      .catch(onMutationError)
-                  }
-                  onUnassign={() =>
-                    void assignTask
-                      .mutateAsync({ taskId: task._id })
-                      .catch(onMutationError)
-                  }
-                />
-                <span className="text-foreground min-w-0 truncate text-sm">
-                  {assigneeName}
-                </span>
-              </div>
+              <AssigneePicker
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+                assigneeType={task.assigneeType}
+                assigneeId={task.assigneeId}
+                taskTitle={task.title}
+                taskDescription={task.description}
+                taskLabels={task.labels}
+                disabled={!canMutate}
+                align="end"
+                afterTrigger={
+                  <span className="text-foreground min-w-0 truncate text-sm">
+                    {assigneeName}
+                  </span>
+                }
+                onAssign={(assigneeType, assigneeId) =>
+                  void assignTask
+                    .mutateAsync({
+                      taskId: task._id,
+                      assigneeType,
+                      assigneeId,
+                    })
+                    .catch(onMutationError)
+                }
+                onUnassign={() =>
+                  void assignTask
+                    .mutateAsync({ taskId: task._id })
+                    .catch(onMutationError)
+                }
+              />
             </PropertyField>
             <PropertyField label={t('dueDate.label')}>
               <DatePicker
