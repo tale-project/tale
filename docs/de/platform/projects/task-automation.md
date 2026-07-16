@@ -1,6 +1,6 @@
 ---
 title: Aufgaben-Automatisierung
-description: Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter.
+description: Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter.
 ---
 
 Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task-Ops-Paket** — elf dateibasierte Workflows, die jede Organisation erhält — deckt den gesamten Lebenszyklus ab: Triage, Ausführung, Review, Eskalation, SLA-Durchsetzung und Aufräumen. Jeder Workflow ist eine schlichte JSON-Datei, die deiner Organisation gehört: Schwellwerte anpassen, Prompts bearbeiten oder einzelne Trigger direkt am Workflow deaktivieren. Eine Aufgabe, die eine Automatisierung vorschlägt, liegt im [Backlog](/de/platform/projects/backlog), bis ein Mensch sie startet — von diesem Moment an ist sie eine Board-Aufgabe wie jede andere und tritt in die Schleife unten ein.
@@ -16,7 +16,7 @@ Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task
 1. **Zuweisen** an einen Agenten (oder die _Triage für Unzugewiesenes_ bewertet und routet neue Aufgaben automatisch — sichere Treffer werden direkt zugewiesen, der Rest bekommt einen Vorschlags-Kommentar).
 2. Der Agent **bestätigt** (Aufgabe wandert nach _In Bearbeitung_), arbeitet in seinem eigenen Aufgaben-Thread mit den Task-Werkzeugen und postet sein Ergebnis als Kommentar.
 3. Die Aufgabe parkt bei **_In Prüfung_** — Agenten können niemals _Erledigt_ setzen; diese Regel wird serverseitig erzwungen, unabhängig von jeder Workflow-Konfiguration.
-4. Ein Mensch **gibt frei** (der einzige automatisierte Weg zu _Erledigt_) oder **fordert Änderungen an** — das Feedback reaktiviert denselben Agenten im gemeinsamen Thread und öffnet ein frisches Review-Gate. Reviews lassen sich aus dem Aufgaben-Detail oder direkt aus der Inbox beantworten.
+4. Ein Mensch **prüft direkt aus der Spalte _In Prüfung_** — das Aufgaben-Detail bringt alles Nötige mit: den Bericht des Agenten, das Live-Protokoll hinter jedem Aktivitäts-Badge und die Kommentare. Zum Abschließen die Aufgabe nach _Erledigt_ ziehen; für Nacharbeit den Zugewiesenen per @-Erwähnung ansprechen — ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Nacharbeits-Lauf und parkt die Aufgabe wieder bei _In Prüfung_. Keine Freigabe-Karte unterbricht den Fluss — und keine Automatisierung setzt je _Erledigt_.
 
 Fehlschläge rollen die Aufgabe mit erklärendem Kommentar nach _Zu erledigen_ zurück. Hat eine zerlegte Wurzel-Aufgabe Unteraufgaben, wartet die übergeordnete Aufgabe, bis die letzte Unteraufgabe schließt, und rollt dann nach _In Prüfung_ hoch.
 
@@ -54,4 +54,4 @@ Die Governance-Richtlinie `task_automation` trägt den Hauptschalter: Schaltest 
 
 ## Wo das hingehört
 
-Aufgaben-Automatisierung macht aus dem Projekt-Board eine Delegationsfläche statt einer To-do-Liste: Ein Mensch weist zu oder gibt frei, das Paket erledigt alles dazwischen, und das Review-Gate sorgt dafür, dass _Erledigt_ eine menschliche Entscheidung bleibt. Die natürliche nächste Lektüre ist [Backlog](/de/platform/projects/backlog) dafür, wie vorgeschlagene Arbeit in die Schleife gelangt, und [Der Workflow-Editor](/de/platform/automations/editor) fürs Feintuning der paketeigenen Workflows.
+Aufgaben-Automatisierung macht aus dem Projekt-Board eine Delegationsfläche statt einer To-do-Liste: Ein Mensch weist zu und schließt ab, das Paket erledigt alles dazwischen, und _Erledigt_ bleibt eine menschliche Entscheidung. Die natürliche nächste Lektüre ist [Backlog](/de/platform/projects/backlog) dafür, wie vorgeschlagene Arbeit in die Schleife gelangt, und [Der Workflow-Editor](/de/platform/automations/editor) fürs Feintuning der paketeigenen Workflows.

@@ -1,6 +1,6 @@
 ---
 title: Automatisation des tâches
-description: Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence.
+description: Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, la revue directement via le statut En revue, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence.
 ---
 
 Affecter une tâche du tableau à un agent IA la met au travail. Le **pack task-ops** — onze workflows en fichiers, provisionnés pour chaque organisation — couvre tout le cycle de vie : triage, exécution, revue, escalade, tenue des SLA et nettoyage. Chaque workflow est un simple fichier JSON que ton organisation possède : ajuste les seuils, édite les prompts ou désactive des déclencheurs individuels sur le workflow lui-même. Une tâche qu’une automatisation propose reste dans le [Backlog](/fr/platform/projects/backlog) jusqu’à ce qu’un humain la Démarre — à partir de ce moment, c’est une tâche de tableau comme une autre et elle entre dans la boucle ci-dessous.
@@ -16,7 +16,7 @@ Affecter une tâche du tableau à un agent IA la met au travail. Le **pack task-
 1. **Affecte** une tâche à un agent (ou laisse le _triage des non-affectées_ noter et router automatiquement les nouvelles tâches — les correspondances très sûres s’affectent seules, les autres reçoivent un commentaire de suggestion).
 2. L’agent **accuse réception** (la tâche passe à _En cours_), travaille dans son propre fil de tâche avec les outils de tâches et publie son résultat en commentaire.
 3. La tâche se gare en **_En revue_** — les agents ne peuvent jamais poser _Terminé_ ; la règle est appliquée côté serveur, quelle que soit la configuration des workflows.
-4. Un humain **approuve** (le seul chemin automatisé vers _Terminé_) ou **demande des modifications** avec un retour, ce qui réengage le même agent sur le fil partagé et ouvre un nouveau portail de revue. Les revues se traitent depuis la fiche de tâche ou directement depuis la Boîte de réception.
+4. Un humain **passe en revue depuis la colonne _En revue_** — la fiche de tâche réunit tout le nécessaire : le rapport de l'agent, la transcription en direct derrière chaque badge d'activité et les commentaires. Glissez la tâche vers _Terminé_ pour la clore, ou renvoyez un retour en @-mentionnant l'assigné : un agent en cours d'exécution intègre le commentaire en plein travail, un agent inactif lance une reprise et regare la tâche en _En revue_. Aucune carte d'approbation n'interrompt le flux — et aucune automatisation ne pose jamais _Terminé_.
 
 Les échecs ramènent la tâche à _À faire_ avec un commentaire d’explication. Quand une tâche racine décomposée a des sous-tâches, la tâche parente attend la fermeture de la dernière sous-tâche, puis remonte en _En revue_.
 
@@ -54,4 +54,4 @@ La politique de gouvernance `task_automation` porte l’interrupteur principal :
 
 ## Où cela s’inscrit
 
-L’automatisation des tâches est ce qui transforme le tableau du projet d’une liste de choses à faire en une surface de délégation : un humain affecte ou approuve, le pack fait tourner tout ce qu’il y a entre les deux, et le portail de revue garde _Terminé_ comme décision humaine. La lecture suivante naturelle est [Backlog du projet](/fr/platform/projects/backlog) pour la façon dont le travail proposé entre dans la boucle, et [L’éditeur de workflow](/fr/platform/automations/editor) pour ajuster les workflows du pack lui-même.
+L’automatisation des tâches est ce qui transforme le tableau du projet d’une liste de choses à faire en une surface de délégation : un humain affecte et clôture, le pack fait tourner tout ce qu’il y a entre les deux, et _Terminé_ reste une décision humaine. La lecture suivante naturelle est [Backlog du projet](/fr/platform/projects/backlog) pour la façon dont le travail proposé entre dans la boucle, et [L’éditeur de workflow](/fr/platform/automations/editor) pour ajuster les workflows du pack lui-même.
