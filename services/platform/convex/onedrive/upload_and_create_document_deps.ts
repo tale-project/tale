@@ -1,9 +1,16 @@
+'use node';
+
 /**
- * Upload and Create Document Dependencies - Factory for creating dependencies
+ * Upload and Create Document Dependencies - Factory for creating dependencies.
+ * `'use node'`: routes stored bytes through the per-org blob seam (`putBlob`),
+ * which signs S3 requests + reads config — node-only. Imported only by the
+ * `'use node'` OneDrive internal actions.
  */
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { putBlob } from '../lib/storage/blob_access';
 import type { UploadAndCreateDocDependencies } from './upload_and_create_document';
 
 /**
@@ -14,7 +21,24 @@ export function createUploadAndCreateDocDeps(
   organizationId: string,
 ): UploadAndCreateDocDependencies {
   return {
-    storageStore: async (blob) => ctx.storage.store(blob),
+    storageStore: async (blob) => {
+      // Route the bytes to the org's own bucket when configured, else Convex
+      // `_storage`. An unresolvable org must not fail the import — fall back to
+      // `_storage` (the backfill relocates it later). The blob is already fully
+      // buffered (it arrived as an action `v.bytes()` arg), so `putBlob` adds
+      // no memory ceiling beyond what the caller already paid.
+      const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+      if (orgSlug === null) {
+        return await ctx.storage.store(blob);
+      }
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      return await putBlob(
+        ctx,
+        orgSlug,
+        bytes,
+        blob.type || 'application/octet-stream',
+      );
+    },
     createDocument: async (args) => {
       const documentId = await ctx.runMutation(
         internal.documents.internal_mutations.createDocument,

@@ -12,7 +12,11 @@ import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
 import { buildFolderPath } from '../folders/queries';
-import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
+import {
+  blobRefValidator,
+  convexStorageId,
+  type BlobRef,
+} from '../lib/storage/blob_ref';
 import {
   budgetTake,
   chargeReadBudget,
@@ -48,7 +52,11 @@ function nfc(s: string): string {
 
 // Internal generate-upload-url for the WebDAV PUT path. Mirrors
 // files/mutations.generateUploadUrl but bypasses Better Auth — Hono
-// has already done its own Basic-auth check.
+// has already done its own Basic-auth check. Used only for the
+// unknown-Content-Length fallback (a chunked PUT can't target an S3
+// presigned PUT); the sized path routes through the backend-aware
+// files.blob_actions.generateWebdavBlobUpload so BYO-bucket orgs land
+// WebDAV files in their own bucket.
 export const generateWebdavUploadUrl = internalMutation({
   args: {},
   async handler(ctx) {
@@ -63,25 +71,47 @@ export const generateWebdavUploadUrl = internalMutation({
 // sweep only enumerates fileMetadata rows, so the blob would leak forever.
 // The PUT handler calls this from its ingest catch. Idempotent.
 export const deleteWebdavBlob = internalMutation({
-  args: { storageId: v.id('_storage') },
+  args: {
+    storageId: blobRefValidator,
+    // Required to reclaim an `s3:` blob (a mutation can't sign an S3 delete, so
+    // it schedules the org-scoped node action). Omit only for Convex refs.
+    organizationId: v.optional(v.string()),
+  },
   async handler(ctx, args) {
-    try {
-      await ctx.storage.delete(args.storageId);
-    } catch (err) {
-      console.warn('[webdav] deleteWebdavBlob failed', err);
+    const convexId = convexStorageId(args.storageId);
+    if (convexId !== null) {
+      try {
+        await ctx.storage.delete(convexId);
+      } catch (err) {
+        console.warn('[webdav] deleteWebdavBlob failed', err);
+      }
+      return;
     }
+    if (args.organizationId === undefined) {
+      console.warn(
+        '[webdav] deleteWebdavBlob: s3 ref without organizationId; cannot reclaim',
+        args.storageId,
+      );
+      return;
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.files.blob_actions.deleteOrgBlobs,
+      { organizationId: args.organizationId, refs: [String(args.storageId)] },
+    );
   },
 });
 
-// PUT entry point. Hono has already written the blob to _storage and
-// holds the storageId; this mutation either creates or replaces the
-// document row. Returns { created: true } / { created: false } so the
-// caller can pick 201 vs 204.
+// PUT entry point. Hono has already written the blob to the org's store
+// (Convex `_storage` or the org's own S3 bucket) and holds the reference;
+// this mutation either creates or replaces the document row. Returns
+// { created: true } / { created: false } so the caller can pick 201 vs 204.
 export const ingestPutBlob = internalMutation({
   args: {
     organizationId: v.string(),
     pathSegments: v.array(v.string()),
-    storageId: v.id('_storage'),
+    // A Convex `_storage` id OR an `s3:` ref when the org has its own bucket.
+    storageId: blobRefValidator,
     contentType: v.string(),
     size: v.number(),
     userId: v.string(),
@@ -178,10 +208,17 @@ export const ingestPutBlob = internalMutation({
 
     // Pull the sha256 Convex computes on upload — fileMetadata stores
     // it but documents.contentHash is the field most reads go through.
-    const sha256 = await ctx.runQuery(
-      internal.file_metadata.internal_queries.getStorageSha256,
-      { storageId: args.storageId },
-    );
+    // Only Convex `_storage` blobs get an automatic hash; an S3-backed
+    // upload has none here, so contentHash stays undefined (change
+    // detection falls back to size/mtime for those rows).
+    const convexBlobId = convexStorageId(args.storageId);
+    const sha256 =
+      convexBlobId !== null
+        ? await ctx.runQuery(
+            internal.file_metadata.internal_queries.getStorageSha256,
+            { storageId: convexBlobId },
+          )
+        : null;
 
     const sourceModifiedAt = args.sourceModifiedAtMs ?? Date.now();
 

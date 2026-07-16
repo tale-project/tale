@@ -730,3 +730,65 @@ describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
     expect(doc?.lifecycleStatus).toBe('active'); // pre-walk refused before trashing
   });
 });
+
+describe('webdav tree_mutations — per-org blob seam (s3: refs, #2737)', () => {
+  it('ingestPutBlob accepts an s3: ref: fileId is the ref, no Convex sha256', async () => {
+    const t = convexTest(schema, modules);
+    const s3Ref = `s3:${ORG}/uuid-webdav-1`;
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.ingestPutBlob,
+      {
+        organizationId: ORG,
+        pathSegments: ['from-webdav.pdf'],
+        // A BYO-bucket org's WebDAV PUT lands the bytes in S3; the ref is the
+        // object key, not a Convex `_storage` id.
+        storageId: s3Ref,
+        contentType: 'application/pdf',
+        size: 2048,
+        userId: USER,
+      },
+    );
+    expect(result.created).toBe(true);
+    const doc = await t.run(async (ctx) => ctx.db.get(result.documentId));
+    expect(doc?.fileId).toBe(s3Ref);
+    // S3 blobs have no Convex-computed hash — contentHash must stay undefined
+    // (change detection falls back to size/mtime), never crash on the missing
+    // `_storage` object.
+    expect(doc?.contentHash).toBeUndefined();
+    const fm = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('fileMetadata').collect();
+      return rows.find((r) => r.storageId === s3Ref) ?? null;
+    });
+    expect(fm?.storageId).toBe(s3Ref);
+  });
+
+  it('deleteWebdavBlob schedules the S3 delete action for an s3: ref', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.webdav.tree_mutations.deleteWebdavBlob, {
+      storageId: `s3:${ORG}/orphan-1`,
+      organizationId: ORG,
+    });
+    const scheduled = await t.run(async (ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    expect(scheduled.some((s) => s.name.includes('deleteOrgBlobs'))).toBe(true);
+  });
+
+  it('deleteWebdavBlob deletes a Convex _storage ref inline (no schedule)', async () => {
+    const t = convexTest(schema, modules);
+    const id = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(['y'], { type: 'text/plain' })),
+    );
+    await t.mutation(internal.webdav.tree_mutations.deleteWebdavBlob, {
+      storageId: id,
+    });
+    const gone = await t.run(async (ctx) => ctx.storage.getUrl(id));
+    expect(gone).toBeNull();
+    const scheduled = await t.run(async (ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    expect(scheduled.some((s) => s.name.includes('deleteOrgBlobs'))).toBe(
+      false,
+    );
+  });
+});
