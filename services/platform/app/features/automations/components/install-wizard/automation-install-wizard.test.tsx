@@ -65,6 +65,11 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
 vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: [], isLoading: false }),
 }));
+// AgentSecretsStep lists token sources via useActionQuery (useAction under the
+// hood). Without this mock the tree throws "Could not find Convex client".
+vi.mock('@/app/hooks/use-action-query', () => ({
+  useActionQuery: () => ({ data: [] }),
+}));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: [] }),
