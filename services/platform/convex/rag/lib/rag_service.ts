@@ -91,6 +91,12 @@ export interface DocumentStatusRecord {
   source_created_at: Date | null;
   source_modified_at: Date | null;
   ocr_applied: boolean | null;
+  /**
+   * Row freshness — the store loop touches it on every committed batch, so a
+   * `processing` row with a recent `updated_at` is a LIVE sliced indexing run
+   * (#2752), not a dead one. The watchdog keys its dead-job decision on this.
+   */
+  updated_at: Date | null;
 }
 
 export interface DeleteResult {
@@ -723,11 +729,12 @@ export class RagService {
           source_created_at: Date | null;
           source_modified_at: Date | null;
           ocr_applied: boolean | null;
+          updated_at: Date | null;
         }[]
       >(
         `SELECT DISTINCT ON (file_id)
             file_id, status, error, progress_phase, progress_detail,
-            source_created_at, source_modified_at, ocr_applied
+            source_created_at, source_modified_at, ocr_applied, updated_at
          FROM ${SCHEMA}.documents
          WHERE org_slug = $1 AND file_id = ANY($2)
          ORDER BY file_id,
@@ -752,6 +759,7 @@ export class RagService {
         source_created_at: row.source_created_at,
         source_modified_at: row.source_modified_at,
         ocr_applied: row.ocr_applied,
+        updated_at: row.updated_at,
       });
     }
 

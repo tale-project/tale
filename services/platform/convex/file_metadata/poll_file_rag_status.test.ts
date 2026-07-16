@@ -122,18 +122,18 @@ describe('pollFileRagStatus', () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
-  it('marks failed (no lookup) past MAX_POLL_ATTEMPTS', async () => {
-    const { ctx, runMutation, runAction } = createCtx({
+  it('stops WITHOUT failing past MAX_POLL_ATTEMPTS — the watchdog owns the long tail', async () => {
+    // Sliced indexing (#2752) legitimately outlives the poll chain on large
+    // documents; failing here false-failed live runs. The freshness-aware rag
+    // watchdog reconciles the row against the corpus instead.
+    const { ctx, runMutation, runAction, runAfter } = createCtx({
       _id: 'fm1',
       ragStatus: 'running',
     });
     await handler(ctx, { ...baseArgs, attempt: 51 });
     expect(runAction).not.toHaveBeenCalled();
-    expect(runMutation).toHaveBeenCalledWith('updateFileRagStatus', {
-      storageId: 's1',
-      ragStatus: 'failed',
-      ragError: expect.stringContaining('timed out'),
-    });
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(runAfter).not.toHaveBeenCalled();
   });
 
   it('marks failed (no lookup, no retry) when the org slug is unresolvable', async () => {

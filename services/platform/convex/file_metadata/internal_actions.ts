@@ -122,16 +122,13 @@ export const pollFileRagStatus = internalAction({
     }
 
     if (args.attempt > MAX_POLL_ATTEMPTS) {
+      // Do NOT fail the row here: sliced indexing (#2752) legitimately
+      // outlives this poll chain on large documents. Ownership hands over to
+      // the rag watchdog, which reconciles against the corpus row — adopting
+      // a late `completed`/`failed` (with its REAL error) and only declaring
+      // a `processing` row dead once it stops moving for the stale window.
       console.warn(
-        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}`,
-      );
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        {
-          storageId: args.storageId,
-          ragStatus: 'failed',
-          ragError: `Status check timed out after ${MAX_POLL_ATTEMPTS} attempts`,
-        },
+        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}; leaving status to the rag watchdog`,
       );
       return null;
     }

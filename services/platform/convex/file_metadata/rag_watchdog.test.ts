@@ -48,6 +48,7 @@ type DocStatus = {
   status: string;
   error: string | null;
   ocr_applied: boolean | null;
+  updated_at?: string | null;
 };
 
 function createCtx(opts: {
@@ -151,6 +152,50 @@ describe('recoverStuckRagIndexing watchdog', () => {
       ragStatus: 'failed',
     });
     expect(String(mutationCalls[0].args.ragError)).toMatch(/interrupted/i);
+  });
+
+  it('leaves a FRESH processing row alone — a live sliced indexing run (#2752)', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+      ],
+      statuses: {
+        [STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          // A batch committed moments ago — the store loop is alive.
+          updated_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls).toHaveLength(0);
+  });
+
+  it('fails a processing row whose corpus row stopped moving for the stale window', async () => {
+    const { ctx, mutationCalls } = createCtx({
+      candidates: [
+        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+      ],
+      statuses: {
+        [STORAGE]: {
+          status: 'processing',
+          error: null,
+          ocr_applied: null,
+          updated_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(),
+        },
+      },
+    });
+
+    await handler(ctx);
+
+    expect(mutationCalls[0].args).toMatchObject({
+      storageId: STORAGE,
+      ragStatus: 'failed',
+    });
   });
 
   it('fails a queued row the corpus never ingested (null status)', async () => {

@@ -105,6 +105,7 @@ export const recoverStuckRagIndexing = internalAction({
           status: string;
           error: string | null;
           ocr_applied: boolean | null;
+          updated_at: string | null;
         } | null
       > = {};
       try {
@@ -153,10 +154,29 @@ export const recoverStuckRagIndexing = internalAction({
           continue;
         }
 
-        // `processing` (a >35-min-old corpus row whose indexer is dead) or
-        // `null` (never ingested): the job is not going to finish. Fail with
-        // a retryable message. The corpus was reachable (getStatuses did not
-        // throw), so this is a confirmed dead job, not a reachability blip.
+        // A `processing` corpus row is no longer dead just because the
+        // fileMetadata row is old: sliced indexing (#2752) keeps a large
+        // document legitimately `processing` for hours, touching the row's
+        // `updated_at` on every committed batch. Only declare it dead when the
+        // row itself has stopped moving for the stale window — a live run is
+        // left alone for the next tick.
+        if (docStatus?.status === 'processing') {
+          const updatedAtMs = docStatus.updated_at
+            ? Date.parse(docStatus.updated_at)
+            : Number.NaN;
+          const fresh =
+            Number.isFinite(updatedAtMs) &&
+            Date.now() - updatedAtMs < STALE_AFTER_MS;
+          if (fresh) {
+            continue;
+          }
+        }
+
+        // Stale `processing` (no batch committed for the whole stale window)
+        // or `null` (never ingested): the job is not going to finish. Fail
+        // with a retryable message. The corpus was reachable (getStatuses did
+        // not throw), so this is a confirmed dead job, not a reachability
+        // blip.
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileRagStatus,
           {

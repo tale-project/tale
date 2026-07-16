@@ -236,6 +236,7 @@ function serializeStatus(record: DocumentStatusRecord): {
   source_created_at: string | null;
   source_modified_at: string | null;
   ocr_applied: boolean | null;
+  updated_at: string | null;
 } {
   return {
     status: record.status,
@@ -245,6 +246,7 @@ function serializeStatus(record: DocumentStatusRecord): {
     source_created_at: toIso(record.source_created_at),
     source_modified_at: toIso(record.source_modified_at),
     ocr_applied: record.ocr_applied,
+    updated_at: toIso(record.updated_at),
   };
 }
 
