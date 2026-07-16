@@ -24,10 +24,14 @@ import { mergeRrf } from '../../lib/knowledge/retrieval/rrf';
 type SqlParam = string | number | boolean | null | Date | string[] | number[];
 
 import {
+  bm25Available,
   isDataCorrupted,
   isInternalError,
   isUndefinedColumn,
+  isUndefinedFunction,
+  isUndefinedSchema,
   isUndefinedTable,
+  markBm25Unavailable,
   PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA,
 } from '../../lib/knowledge/db/knowledge_db';
 import { logger } from '../../lib/knowledge/logger';
@@ -201,6 +205,12 @@ export class RagSearchService {
     folderPath: string | null | undefined,
     metadataFilters: Record<string, MetadataFilterValue> | null | undefined,
   ): Promise<ChunkRow[]> {
+    // A database without pg_search (any managed Postgres) cannot run the
+    // `paradedb.*` SQL below — skip the BM25 leg entirely so the search
+    // degrades to vector-only instead of throwing (#2755).
+    if (!(await bm25Available(this.sql))) {
+      return [];
+    }
     const { clause, params } = this.buildScopeClause(
       orgSlug,
       fileIds,
@@ -232,6 +242,15 @@ export class RagSearchService {
       }
       if (isInternalError(err)) {
         logger.warn(`FTS search failed: ${errMsg(err)}`);
+        return [];
+      }
+      if (isUndefinedSchema(err) || isUndefinedFunction(err)) {
+        // pg_search vanished (or the capability probe raced a DROP): remember
+        // the answer so later searches skip the leg without erroring again.
+        markBm25Unavailable(this.sql);
+        logger.warn(
+          `BM25 unavailable on this database, falling back to vector-only: ${errMsg(err)}`,
+        );
         return [];
       }
       throw err;

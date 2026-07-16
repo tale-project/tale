@@ -22,7 +22,11 @@ import type { Sql } from 'postgres';
 
 import { getEmbeddingConfig } from '../../lib/knowledge/config/base';
 import {
+  bm25Available,
   getKnowledgePoolForOrg,
+  isUndefinedFunction,
+  isUndefinedSchema,
+  markBm25Unavailable,
   PUBLIC_WEB_SCHEMA as SCHEMA,
 } from '../../lib/knowledge/db/knowledge_db';
 import { withRetry } from '../../lib/knowledge/db/retry';
@@ -65,11 +69,18 @@ async function ftsSearch(
   domain: string | null,
   limit: number,
 ): Promise<ChunkRow[]> {
-  // Membership filter restricts the org's view to domains it has registered.
-  if (domain) {
-    return withRetry(() =>
-      sql.unsafe<ChunkRow[]>(
-        `SELECT c.id, c.url, c.title, c.chunk_content, c.core_content, c.chunk_index,
+  // A database without pg_search (any managed Postgres) cannot run the
+  // `paradedb.*` SQL below — skip the BM25 leg so web search degrades to
+  // vector-only instead of throwing (#2755).
+  if (!(await bm25Available(sql))) {
+    return [];
+  }
+  try {
+    // Membership filter restricts the org's view to domains it has registered.
+    if (domain) {
+      return await withRetry(() =>
+        sql.unsafe<ChunkRow[]>(
+          `SELECT c.id, c.url, c.title, c.chunk_content, c.core_content, c.chunk_index,
                               paradedb.score(c.id) AS score
                        FROM ${SCHEMA}.chunks c
                        WHERE c.id @@@ paradedb.match('chunk_content', $1)
@@ -80,13 +91,13 @@ async function ftsSearch(
                          )
                        ORDER BY score DESC
                        LIMIT $4`,
-        [query, domain, orgSlug, limit],
-      ),
-    );
-  }
-  return withRetry(() =>
-    sql.unsafe<ChunkRow[]>(
-      `SELECT c.id, c.url, c.title, c.chunk_content, c.core_content, c.chunk_index,
+          [query, domain, orgSlug, limit],
+        ),
+      );
+    }
+    return await withRetry(() =>
+      sql.unsafe<ChunkRow[]>(
+        `SELECT c.id, c.url, c.title, c.chunk_content, c.core_content, c.chunk_index,
                               paradedb.score(c.id) AS score
                        FROM ${SCHEMA}.chunks c
                        WHERE c.id @@@ paradedb.match('chunk_content', $1)
@@ -96,9 +107,21 @@ async function ftsSearch(
                          )
                        ORDER BY score DESC
                        LIMIT $3`,
-      [query, orgSlug, limit],
-    ),
-  );
+        [query, orgSlug, limit],
+      ),
+    );
+  } catch (err) {
+    if (isUndefinedSchema(err) || isUndefinedFunction(err)) {
+      markBm25Unavailable(sql);
+      logger.warn(
+        `BM25 unavailable on this database, web search falling back to vector-only: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return [];
+    }
+    throw err;
+  }
 }
 
 async function vectorSearch(

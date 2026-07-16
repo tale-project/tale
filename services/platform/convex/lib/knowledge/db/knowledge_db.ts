@@ -227,6 +227,63 @@ function ensureSchemaOnce(url: string, sql: Sql): Promise<void> {
   return p;
 }
 
+/**
+ * Per-pool BM25 (ParadeDB `pg_search`) capability, probed lazily once per pool.
+ * A BYO database without the extension (any managed Postgres — RDS, Neon, …)
+ * must degrade to vector-only search instead of erroring on `paradedb.*` SQL
+ * (#2755): the schema bootstrap already skips the extension gracefully, and the
+ * search services consult this before issuing the BM25 leg. Keyed by the `Sql`
+ * instance so pool eviction drops the entry with the pool.
+ */
+const bm25Capability = new WeakMap<Sql, Promise<boolean>>();
+
+/**
+ * Whether the database behind `sql` has `pg_search` installed. Probed once per
+ * pool via `pg_extension`; a FAILED probe is not cached and reports `true` so a
+ * transient connectivity error never silently degrades a ParadeDB to
+ * vector-only (the search-side error fallback still catches a truly missing
+ * extension).
+ */
+export function bm25Available(sql: Sql): Promise<boolean> {
+  const cached = bm25Capability.get(sql);
+  if (cached) {
+    return cached;
+  }
+  const probe = (async (): Promise<boolean> => {
+    try {
+      const rows = await sql`
+        SELECT 1 FROM pg_extension WHERE extname = 'pg_search'
+      `;
+      const available = rows.length > 0;
+      if (!available) {
+        logger.info(
+          'pg_search not installed on this knowledge database — BM25 disabled, searches run vector-only',
+        );
+      }
+      return available;
+    } catch (err) {
+      bm25Capability.delete(sql);
+      logger.warn(
+        `BM25 capability probe failed (assuming available): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return true;
+    }
+  })();
+  bm25Capability.set(sql, probe);
+  return probe;
+}
+
+/**
+ * Record that BM25 is unavailable on the database behind `sql` — called by the
+ * search services when a `paradedb.*` query fails with a missing-schema/function
+ * error, so subsequent searches skip the BM25 leg without re-erroring.
+ */
+export function markBm25Unavailable(sql: Sql): void {
+  bm25Capability.set(sql, Promise.resolve(false));
+}
+
 /** Drop the cached org→URL resolution for an org (call after a config change). */
 export function invalidateOrgKnowledgeUrl(orgSlug: string): void {
   orgUrlCache.delete(orgSlug);
@@ -265,6 +322,22 @@ export function isUndefinedColumn(err: unknown): boolean {
 /** 54000 = program_limit_exceeded. */
 export function isProgramLimitExceeded(err: unknown): boolean {
   return pgCode(err) === '54000';
+}
+
+/**
+ * 3F000 = invalid_schema_name — e.g. `paradedb.match(...)` on a database
+ * without `pg_search` ("schema \"paradedb\" does not exist").
+ */
+export function isUndefinedSchema(err: unknown): boolean {
+  return pgCode(err) === '3F000';
+}
+
+/**
+ * 42883 = undefined_function — e.g. the `@@@` operator or `paradedb.score()`
+ * when `pg_search` is missing or only partially installed.
+ */
+export function isUndefinedFunction(err: unknown): boolean {
+  return pgCode(err) === '42883';
 }
 
 /** XX000 = internal_error (used for BM25/HNSW corruption signalling). */
