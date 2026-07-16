@@ -21,7 +21,7 @@ Une équipe porte l’appartenance et un ensemble de ressources qui lui sont cad
 - **Prompts** — les prompts enregistrés avec visibilité `Équipe` n’apparaissent que pour les membres de cette équipe. Les prompts personnels restent privés à leur propriétaire ; les prompts Globaux sont visibles à l’échelle de l’org.
 - **Projets** — les projets peuvent être assignés à une équipe ; les membres de l’équipe héritent de l’accès au projet sans être ajoutés un par un.
 - **Intégrations** — les intégrations restreintes à certaines équipes (sous le levier **Équipes autorisées** dans **Paramètres > Intégrations**) n’apparaissent que dans les pickers de ces équipes.
-- **Conversations** — les conversations de canal client peuvent être routées vers une équipe ; le filtre de l’inbox respecte le cadre équipe.
+- **Conversations** — une conversation peut être assignée à une équipe autant qu’à un responsable individuel, depuis le sélecteur d’assignation de son en-tête. Le fait que cette assignation _restreigne_ aussi qui peut voir la conversation relève de la politique optionnelle **Accès aux conversations** sous [Gouvernance](/fr/platform/admin/governance/policies-and-limits) ; désactivée, les conversations restent visibles à l’échelle de l’organisation.
 
 Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l’autorise. Les équipes sont une couche de cadrage _additive_ — elles rétrécissent la visibilité, jamais ne l’élargissent.
 

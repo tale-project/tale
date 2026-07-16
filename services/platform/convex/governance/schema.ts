@@ -72,6 +72,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // per-tenant slice. Config shape: `sandboxQuotaConfigSchema`
   // (lib/shared/schemas/governance.ts).
   'sandbox_quota',
+  // Opt-in per-org conversation access control. Missing row ⇒ disabled ⇒
+  // org-wide conversation visibility (today's behaviour). Config shape:
+  // `conversationAccessConfigSchema` (lib/shared/schemas/governance.ts).
+  'conversation_access',
 ] as const;
 
 const policyTypeValidator = v.union(

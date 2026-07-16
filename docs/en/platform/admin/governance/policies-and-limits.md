@@ -41,6 +41,12 @@ The window can only tighten the deployment-wide limit, never loosen it. Self-hos
 
 Enforcement has two halves. The watchdog in the browser ends open, visible sessions on the minute. Closed tabs and abandoned devices are caught server-side by a revocation sweep that runs about every five minutes — a session can therefore outlive the window by a few minutes; when you state the control to an auditor, count the window plus roughly half an hour in the worst case. Every server-side revocation lands in the [audit log](/platform/admin/governance/audit-logs) as `session.idle_revoked`. One caveat for trusted-headers deployments: the reverse proxy owns authentication there, so a revoked session is re-established as soon as the member confirms the sign-in notice — pair the policy with an idle timeout on the proxy or IdP side for a real lockout.
 
+## Conversation access
+
+By default every member with inbox access sees every conversation in the organization. Under **Settings > Governance > Policies & limits**, open **Conversation access** and turn on **Restrict assigned conversations** to make an assigned conversation private: one assigned to a team is visible only to that team's members, and one assigned to a person only to that person. Unassigned conversations stay a shared org-wide pool anyone can pick up, and admins and owners always see everything.
+
+The switch is off for existing organizations, so nothing changes until an admin turns it on. Visibility follows the [team](/platform/admin/teams) and the member a conversation is assigned to — both set from the assignee picker in the conversation header. Pair it with the **Route inbound conversations by address** automation to file mail straight into the right team's inbox the moment it arrives.
+
 ## Where this fits
 
 Policies and limits is the budget and gate layer that protects the org from runaway spend and unintended access. Pair it with [content and models](/platform/admin/governance/content-models) so the model the budget caps is also the one the access list permits, and with [retention policy on the same page](#retention-bounds-and-approvals) so the data the org keeps is bounded too. The companion is [audit logs](/platform/admin/governance/audit-logs) — every policy change here lands there as a permanent record.

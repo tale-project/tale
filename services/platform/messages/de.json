@@ -4060,6 +4060,13 @@
     },
     "errors": {
       "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
+    },
+    "conversationAccess": {
+      "title": "Konversationszugriff",
+      "description": "Wenn aktiviert, ist eine einem Team zugewiesene Konversation nur für dieses Team sichtbar und eine einer Person zugewiesene nur für sie. Nicht zugewiesene Konversationen bleiben für alle sichtbar; Admins sehen immer alle Konversationen.",
+      "enabledLabel": "Zugewiesene Konversationen einschränken",
+      "saved": "Richtlinie für Konversationszugriff aktualisiert",
+      "saveFailed": "Richtlinie für Konversationszugriff konnte nicht gespeichert werden"
     }
   },
   "metrics": {
