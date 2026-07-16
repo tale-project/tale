@@ -13,6 +13,7 @@ import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
 import { TASK_METRIC_ACTIONS } from '../tasks/helpers';
+import { RUN_STUCK_AFTER_MS } from './constants';
 
 const ACTIVITY_SCAN_CAP = 2000;
 const RUNS_SCAN_CAP = 1000;
@@ -173,5 +174,61 @@ export const getDailySummaryInternal = internalQuery({
       openBreakers,
       capped,
     };
+  },
+});
+
+/**
+ * The newest still-`running` run for one (task, agent) — the busy signal the
+ * mention-run serializer keys on (steer into the live run, else wait). The
+ * caller's OWN (wfExecutionId, stepSlug) identity is excluded: a step retry's
+ * orphaned row is deliberately left `running` so the retry re-admits via
+ * `startTaskAgentRun`'s dedup — matching it here would deadlock the retry
+ * against itself. Scan bounded to the stuck-sweep horizon (older `running`
+ * rows are reclaimed zombies, not live work).
+ */
+export const getRunningRunForTaskAgent = internalQuery({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    agentSlug: v.string(),
+    excludeWfExecutionId: v.optional(v.id('wfExecutions')),
+    excludeStepSlug: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      runId: v.id('taskAgentRuns'),
+      wfExecutionId: v.optional(v.id('wfExecutions')),
+      stepSlug: v.optional(v.string()),
+      startedAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const staleCutoff = Date.now() - 2 * RUN_STUCK_AFTER_MS;
+    for await (const run of ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_task_started', (q) => q.eq('taskId', args.taskId))
+      .order('desc')) {
+      if (run.startedAt < staleCutoff) break;
+      if (run.status !== 'running') continue;
+      if (run.organizationId !== args.organizationId) continue;
+      if (run.agentSlug !== args.agentSlug) continue;
+      if (
+        args.excludeWfExecutionId !== undefined &&
+        run.wfExecutionId === args.excludeWfExecutionId &&
+        run.stepSlug === args.excludeStepSlug
+      ) {
+        continue;
+      }
+      return {
+        runId: run._id,
+        ...(run.wfExecutionId !== undefined && {
+          wfExecutionId: run.wfExecutionId,
+        }),
+        ...(run.stepSlug !== undefined && { stepSlug: run.stepSlug }),
+        startedAt: run.startedAt,
+      };
+    }
+    return null;
   },
 });

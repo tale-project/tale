@@ -17,7 +17,7 @@
   "labels": ["Tasks"],
   "scope": "org",
   "workflow": {
-    "version": "1.1.0",
+    "version": "1.2.0",
     "triggers": {
       "events": [
         {
@@ -123,8 +123,8 @@
         "name": "Assignee finished its assigned work?",
         "stepType": "condition",
         "config": {
-          "expression": "steps.respond.output.data.ok == true && steps.respond.output.data.external != true && steps.fetch_task.output.data.task.assigneeType == 'agent' && steps.fetch_task.output.data.task.assigneeId == loop.item.id && (steps.fetch_task.output.data.task.status == 'todo' || steps.fetch_task.output.data.task.status == 'in_progress')",
-          "description": "A mention is conversation by default and never moves the board. The one exception: the mentioned agent IS the task's assignee (the mention is a retry/continue of its assigned work) and its run succeeded in-platform — park the task at In review exactly like run-assigned does, so a successful mention-retry closes the assignment loop instead of stranding the task. In progress counts because run admission acks the assignee-mention run In progress (ackRunInProgress); done/cancelled/already-in-review and external dispatches stay untouched."
+          "expression": "steps.respond.output.data.ok == true && steps.respond.output.data.steered != true && steps.respond.output.data.external != true && steps.fetch_task.output.data.task.assigneeType == 'agent' && steps.fetch_task.output.data.task.assigneeId == loop.item.id && (steps.fetch_task.output.data.task.status == 'todo' || steps.fetch_task.output.data.task.status == 'in_progress')",
+          "description": "A mention is conversation by default and never moves the board. The one exception: the mentioned agent IS the task's assignee (the mention is a retry/continue of its assigned work) and its run succeeded in-platform — park the task at In review exactly like run-assigned does, so a successful mention-retry closes the assignment loop instead of stranding the task. In progress counts because run admission acks the assignee-mention run In progress (ackRunInProgress); done/cancelled/already-in-review and external dispatches stay untouched. A STEERED result (the mention was injected into an already-running run on this task) is not a completed run — the live run owns the choreography, so skip."
         },
         "nextSteps": {
           "true": "to_review",

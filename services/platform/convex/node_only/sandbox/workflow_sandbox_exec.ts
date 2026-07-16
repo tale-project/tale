@@ -115,6 +115,10 @@ import { runAgentInSessionImpl } from './run_agent';
 import { runAndHarvestInSession } from './session_exec';
 import { collectStageSkillFiles } from './stage_skills';
 import {
+  findRunningPeerRun,
+  trySteerIntoRunningTaskRun,
+} from './steer_task_run';
+import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
   SUMMARY_REENTRY_PROMPT,
@@ -589,6 +593,10 @@ export const sandboxRunResultValidator = v.object({
    * refusals — the inline path has always returned it; without this the
    * durable path made every failure look refused. */
   runId: v.optional(v.string()),
+  /** True when this mention was DELIVERED INTO an already-running run on the
+   * same (task, agent) instead of starting a new one — no run row exists and
+   * the pack must skip its status choreography (the live run owns it). */
+  steered: v.optional(v.boolean()),
   /** Park-on-capacity: set with `status:'awaiting_capacity'` to suggest how long
    * the durable handler should sleep before re-entering (the spawner's
    * `retry-after` on a global 429; absent → the per-org poll backoff). */
@@ -904,6 +912,10 @@ export const runSandboxAgent = internalAction({
     // What initiated the run (mention/assignment/…) — recorded on the
     // taskAgentRun row the task Activity renders. Absent ⇒ 'manual'.
     trigger: v.optional(taskAgentRunTriggerValidator),
+    /** Mention runs: the raw mentioning text (comment body / description) —
+     * what the same-(task, agent) serializer steers into an already-running
+     * run. The composed `instructions` prompt is NOT suitable for steering. */
+    steerContext: v.optional(v.string()),
     instructions: v.optional(v.string()),
     budget: v.object({
       maxCents: v.number(),
@@ -1196,6 +1208,73 @@ export const runSandboxAgent = internalAction({
     try {
       if (!resuming) {
         // ===== FRESH segment: full session setup (steps 0–6) =================
+        // 0. Same-(task, agent) mention SERIALIZER — before admission, so a
+        // steered/waiting mention allocates nothing. A mention that arrives
+        // while this agent is already running on this task must never spawn a
+        // second parallel sandbox (two clones racing one branch). Preferred:
+        // STEER — stage the comment into the LIVE exec (the running sandbox
+        // simply continues with it) and finish this run as `steered`. Not
+        // steerable (idle / non-steering runtime / stage failure): WAIT — poll
+        // the peer row inside this action window and hand off via the
+        // 'running' port (checkpoint-less re-entry re-runs this fresh path)
+        // until the peer finalizes, then proceed as a normal fresh run. A peer
+        // row with NO live exec behind it is a zombie (the stuck-sweep's
+        // business) — proceed rather than wait on it.
+        if (taskId !== undefined && args.trigger === 'mention') {
+          let peer = await findRunningPeerRun(ctx, {
+            organizationId: args.organizationId,
+            taskId,
+            agentSlug: args.agentSlug,
+            ownWfExecutionId: args.wfExecutionId,
+            ownStepSlug: args.stepSlug,
+          });
+          if (peer !== null) {
+            const steerText = args.steerContext?.trim();
+            if (steerText !== undefined && steerText !== '') {
+              const steer = await trySteerIntoRunningTaskRun(ctx, {
+                peer,
+                text: `New comment on the task you are working on:\n\n${steerText}\n\nIncorporate it into your current run.`,
+              });
+              if (steer.steered) {
+                return {
+                  mode: 'agent',
+                  ok: true,
+                  status: 'completed',
+                  steered: true,
+                  outputFileIds: [],
+                  summary: `Delivered the mention into ${args.agentSlug}'s already-running run on this task — the same sandbox continues with it.`,
+                };
+              }
+              if (steer.reason === 'no_live_op') peer = null;
+            }
+            if (peer !== null) {
+              // WAIT: bounded to this action window minus a teardown margin;
+              // 20s cadence (the peer's finalize is a mutation edge, not a
+              // wake event we can await here).
+              const waitDeadline = Date.now() + ACTION_WINDOW_MS - 60_000;
+              while (peer !== null && Date.now() < waitDeadline) {
+                await new Promise((r) => setTimeout(r, 20_000));
+                peer = await findRunningPeerRun(ctx, {
+                  organizationId: args.organizationId,
+                  taskId,
+                  agentSlug: args.agentSlug,
+                  ownWfExecutionId: args.wfExecutionId,
+                  ownStepSlug: args.stepSlug,
+                });
+              }
+              if (peer !== null) {
+                // Still busy — hand off; the engine re-enters this step and the
+                // fresh path re-checks. No admission happened, so nothing leaks.
+                return {
+                  mode: 'agent',
+                  ok: false,
+                  status: 'running',
+                  outputFileIds: [],
+                };
+              }
+            }
+          }
+        }
         // 0a. Task-metrics admission FIRST — before any session/VK/compute is
         // built, so a budget/concurrency/circuit refusal allocates nothing. The
         // returned runId is carried across segments via the checkpoint.
@@ -1289,6 +1368,26 @@ export const runSandboxAgent = internalAction({
         // reaps the orphan rather than duplicating), OR reuse a workflow-scoped
         // session already live from a prior step in this execution.
         if (!reusingSharedSession) {
+          // Retry-reap contract, the FRESH-orphan half: a prior attempt of
+          // THIS step that died without its finally (engine kill, deploy swap)
+          // leaves a live row under our own deterministic sessionId — young
+          // enough that the TTL-gated stale reaper above ignores it, so the
+          // reserve's per-owner cap would throw QUOTA_EXCEEDED ("already has
+          // an active sandbox session") and fail every retry. Any live row
+          // under our own id is by construction that orphan (the engine never
+          // runs one step twice concurrently; resume segments re-attach and
+          // never reach this path) — tear it down, then reserve fresh.
+          const ownOrphan = await ctx.runQuery(
+            internal.sandbox.session_queries.getSessionBySessionId,
+            { sessionId },
+          );
+          if (ownOrphan !== null) {
+            console.warn(
+              '[runSandboxAgent] reaping own-step orphan session before reserve:',
+              sessionId,
+            );
+            await teardownAgentSession(ctx, args.organizationId, sessionId);
+          }
           const rowId: Id<'sandboxSessions'> = await ctx.runMutation(
             internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
             {

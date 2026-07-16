@@ -28,22 +28,31 @@ export interface RunAckTaskState {
   status: string;
 }
 
-/** Pure decision — unit-testable without a backend. `task` is only consulted
- * for mention runs (pass null when the task could not be loaded). */
+/** Pure decision — unit-testable without a backend. EVERY ack requires the
+ * run's agent to BE the task's assignee: a genuine assignment run satisfies it
+ * by construction, while a pack that reuses the `assignment` label for a
+ * non-assignee sweep (the PR-review app's cron reviewing the CREATOR's task)
+ * must not yank the board — that ack pulled a task out of In review while the
+ * human review-gate card sat on it. Mentions additionally require the task to
+ * still sit at To do (a retry of assigned work, not a side question). */
 export function shouldAckRunInProgress(args: {
   trigger?: string | undefined;
   agentSlug: string;
   task: RunAckTaskState | null;
 }): boolean {
-  if (args.trigger === 'assignment') return true;
-  if (args.trigger !== 'mention') return false;
+  if (args.trigger !== 'assignment' && args.trigger !== 'mention') {
+    return false;
+  }
   const task = args.task;
-  return (
-    task !== null &&
-    task.assigneeType === 'agent' &&
-    task.assigneeId === args.agentSlug &&
-    task.status === 'todo'
-  );
+  if (
+    task === null ||
+    task.assigneeType !== 'agent' ||
+    task.assigneeId !== args.agentSlug
+  ) {
+    return false;
+  }
+  if (args.trigger === 'mention') return task.status === 'todo';
+  return true;
 }
 
 export interface RunAckArgs {
@@ -59,7 +68,7 @@ export async function ackRunInProgress(
   ctx: ActionCtx,
   args: RunAckArgs,
 ): Promise<void> {
-  const needsTask = args.trigger === 'mention';
+  const needsTask = args.trigger === 'mention' || args.trigger === 'assignment';
   const task = needsTask
     ? await ctx.runQuery(internal.tasks.internal_queries.getTaskByIdInternal, {
         taskId: args.taskId,

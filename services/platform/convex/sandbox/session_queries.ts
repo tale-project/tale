@@ -170,6 +170,62 @@ export const getRunningAgentRunByThread = internalQuery({
   },
 });
 
+/** The SESSION's currently-running agent-run op joined with its session's
+ * agentKind — the steer target for a WORKFLOW task run (keyed by the
+ * deterministic (executionId, stepSlug) session id, which has no threadId).
+ * Null when no agent turn is live in the session. Mirrors
+ * `getRunningAgentRunByThread`, including the `agentIdleAt` linger marker a
+ * file-stage must respect. */
+export const getRunningAgentRunBySession = internalQuery({
+  args: { sessionId: v.string() },
+  returns: v.union(
+    v.object({
+      sessionId: v.string(),
+      execId: v.string(),
+      agentKind: v.optional(v.string()),
+      agentIdleAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    let latest: {
+      execId: string;
+      startedAt: number;
+      agentIdleAt?: number;
+    } | null = null;
+    for await (const row of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.kind !== 'agent-run' || row.status !== 'running') continue;
+      if (latest === null || row.startedAt > latest.startedAt) {
+        latest = {
+          execId: row.execId,
+          startedAt: row.startedAt,
+          ...(row.agentIdleAt !== undefined && {
+            agentIdleAt: row.agentIdleAt,
+          }),
+        };
+      }
+    }
+    if (latest === null) return null;
+    let agentKind: string | undefined;
+    for await (const session of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      agentKind = session.agentKind;
+      break;
+    }
+    return {
+      sessionId: args.sessionId,
+      execId: latest.execId,
+      ...(agentKind !== undefined && { agentKind }),
+      ...(latest.agentIdleAt !== undefined && {
+        agentIdleAt: latest.agentIdleAt,
+      }),
+    };
+  },
+});
+
 /** Abandoned agent-run ops: `running`, not yet finalized, with a heartbeat gone
  * stale (the draining action died — crash / hard action-ceiling kill). The
  * RESTORATIVE recovery watchdog probes each exec's liveness and either resumes
