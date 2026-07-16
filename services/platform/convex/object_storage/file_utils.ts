@@ -167,7 +167,7 @@ export async function readOrgObjectStorageConnection(
  * absent/undecryptable sidecar throws — fail closed rather than sign requests
  * with no key.
  */
-async function readObjectStorageSecrets(
+export async function readObjectStorageSecrets(
   orgSlug: string,
 ): Promise<ObjectStorageConnectionSecrets> {
   const secretsPath = resolveObjectStorageConnectionSecretsFilePath(orgSlug);

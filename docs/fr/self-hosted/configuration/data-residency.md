@@ -57,9 +57,25 @@ La connexion vit à côté de celle des connaissances, dans le répertoire de co
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — région, endpoint optionnel (pour MinIO/R2), indicateur path-style, bucket et un préfixe de clé optionnel.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — la paire de clés d'accès, chiffrée avec SOPS dès qu'une clé age SOPS est configurée (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
 
-Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment sans migrer les anciens blobs. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
+Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment. Les fichiers stockés plus tôt restent dans le stockage Convex jusqu'à ce que tu les relocalises avec le backfill de blobs ci-dessous. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
 
 Les admins d'org gèrent aussi cette connexion dans **Paramètres > Résidence des données de l'organisation** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
+
+### Déplacer les fichiers pré-existants dans le bucket
+
+Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le `_storage` de Convex et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : une action d'opérateur qui copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie Convex.
+
+Lance-le depuis un shell ayant accès à la CLI Convex, en passant l'id de l'organisation. Fais d'abord un essai à blanc pour voir ce qui serait déplacé, puis le vrai lancement :
+
+```bash
+# Essai à blanc — compte et échantillonne ce qui serait déplacé, n'écrit rien :
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
+
+# Le vrai lancement — retire dryRun une fois les comptes vérifiés :
+bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
+```
+
+Le backfill est **idempotent** et **limité à l'org** : il ne déplace que les blobs de cette organisation, saute tout ce qui est déjà dans le bucket, et laisse chaque source Convex en place tant que sa copie n'est pas vérifiée — un nouveau lancement après une interruption reprend donc sans risque. Un vrai lancement exige que la connexion au bucket soit déjà configurée ; un essai à blanc, non. Ce n'est délibérément **pas** une migration de framework versionnée — il tourne à la demande, par organisation, quand tu choisis de relocaliser l'historique d'un locataire, pas à une frontière de version.
 
 ## Stockage de fichiers sur S3
 

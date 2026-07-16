@@ -347,10 +347,23 @@ export async function s3PresignPutUrl(
   return signed.url;
 }
 
-/** Read a short slice of an error response body for diagnostics (never throws). */
+/**
+ * Summarize an S3 error response for diagnostics (never throws). S3-compatible
+ * stores answer failures with an XML `<Error><Code>…</Code><Message>…</Message>`
+ * document; surfacing the parsed `Code`/`Message` gives a legible one-liner
+ * (e.g. `SignatureDoesNotMatch: The request signature we calculated…`) instead
+ * of a raw XML blob that the admin form truncates mid-tag. Falls back to a
+ * trimmed slice of the raw body when the payload isn't the expected XML shape.
+ */
 async function safeErrorBody(res: Response): Promise<string> {
   try {
-    return (await res.text()).slice(0, 300);
+    const body = await res.text();
+    const code = /<Code>([^<]+)<\/Code>/.exec(body)?.[1]?.trim();
+    const message = /<Message>([^<]+)<\/Message>/.exec(body)?.[1]?.trim();
+    if (code && message) return `${code}: ${message}`;
+    if (code) return code;
+    if (message) return message;
+    return body.trim().slice(0, 300);
   } catch {
     return '(unreadable body)';
   }

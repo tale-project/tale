@@ -5,11 +5,13 @@ import { pgConnectionSchema } from './deployment';
 /**
  * Per-organization "bring your own Postgres" for the knowledge/RAG corpus.
  *
- * An org may point its `private_knowledge` (RAG) corpus — document metadata,
- * chunk text, embeddings, the BM25 index, the semantic cache — at its OWN
- * managed Postgres (pgvector + `pg_search`/ParadeDB) instead of the bundled,
- * deployment-wide `knowledge-db`. The crawler `public_web` corpus is org-shared
- * web content and ALWAYS stays on the deployment-default pool.
+ * An org may point its knowledge corpus — document metadata, chunk text,
+ * embeddings, the BM25 index, the semantic cache — at its OWN managed Postgres
+ * (pgvector + `pg_search`/ParadeDB) instead of the bundled, deployment-wide
+ * `knowledge-db`. `getKnowledgePoolForOrg(orgSlug)` routes BOTH corpora that
+ * live on this database — `private_knowledge` (RAG) AND `public_web` (the
+ * crawler's per-org web content) — to the org's own DB, so a bring-your-own
+ * database isolates every knowledge schema the org owns, never just the RAG one.
  *
  * This is a file-based config domain like `sso`: admin-created on demand, one
  * file per org, no builtin catalog. On disk (mirrors `providers`/`sso`):

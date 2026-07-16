@@ -306,7 +306,7 @@ describe('OrgDataResidencySettings', () => {
     });
   });
 
-  it('runs the bucket probe only once both keys are typed, then shows the verified line', async () => {
+  it('probes with a typed key pair, then shows the verified line', async () => {
     setStorageFixture({
       configured: true,
       region: 'eu-central-1',
@@ -319,10 +319,6 @@ describe('OrgDataResidencySettings', () => {
     const { user } = render(
       <OrgDataResidencySettings organizationId="org-1" />,
     );
-
-    // The S3 probe needs a typed key pair — stored keys are never read back.
-    const testButton = screen.getByRole('button', { name: 'Test connection' });
-    expect(testButton).toBeDisabled();
 
     await user.type(
       screen.getByRole('textbox', { name: 'Access key ID' }),
@@ -345,6 +341,59 @@ describe('OrgDataResidencySettings', () => {
       accessKeyId: 'AKIA123',
       secretAccessKey: 'shhh',
     });
+  });
+
+  it('tests a stored connection with blank key fields (reuses the stored keys)', async () => {
+    setStorageFixture({
+      configured: true,
+      region: 'eu-central-1',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+      hasCredentials: true,
+    });
+    testStorage.mockResolvedValue({ ok: true });
+
+    const { user } = render(
+      <OrgDataResidencySettings organizationId="org-1" />,
+    );
+
+    // Stored credentials → Test is enabled with the write-only fields blank,
+    // so a saved connection can be re-tested (Save clears the key fields). The
+    // probe carries no keys; the server reuses the org's stored sidecar.
+    const testButton = screen.getByRole('button', { name: 'Test connection' });
+    expect(testButton).toBeEnabled();
+    await user.click(testButton);
+
+    expect(
+      await screen.findByText(/Bucket verified \(upload, read, delete\)/),
+    ).toBeInTheDocument();
+    expect(testStorage).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      region: 'eu-central-1',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+    });
+    const call = testStorage.mock.calls[0]?.[0] ?? {};
+    expect(call).not.toHaveProperty('accessKeyId');
+    expect(call).not.toHaveProperty('secretAccessKey');
+  });
+
+  it('keeps the bucket probe disabled with blank fields when NO keys are stored', () => {
+    setStorageFixture({
+      configured: true,
+      region: 'eu-central-1',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+      hasCredentials: false,
+    });
+
+    render(<OrgDataResidencySettings organizationId="org-1" />);
+
+    // First-time config (no stored sidecar): a blank-field probe has nothing to
+    // authenticate with, so Test stays off until both keys are entered.
+    expect(
+      screen.getByRole('button', { name: 'Test connection' }),
+    ).toBeDisabled();
   });
 
   it('asks for confirmation before removing a stored connection', async () => {

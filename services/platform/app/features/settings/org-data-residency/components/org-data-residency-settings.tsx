@@ -500,10 +500,17 @@ function StorageSection({
 
   const dirty = !structuralEqual(form, baseline);
   const busy = save.isPending || remove.isPending;
-  // The S3 probe always needs a key pair (stored keys are never read back
-  // into the form), so Test stays off until both are entered.
-  const canTest =
+  // Test with EITHER a freshly entered key pair OR — once keys are stored —
+  // no keys at all (the server reuses the sidecar). This is what makes
+  // "Save, then Test" work: Save clears the write-only fields, so a follow-up
+  // Test carries no keys but must still validate the stored connection. A
+  // half-entered pair (one field filled) stays off — the probe needs both.
+  const bothKeysEntered =
     form.accessKeyId.length > 0 && form.secretAccessKey.length > 0;
+  const noKeysEntered =
+    form.accessKeyId.length === 0 && form.secretAccessKey.length === 0;
+  const canTest =
+    bothKeysEntered || (noKeysEntered && (view?.hasCredentials ?? false));
 
   function setForm(next: StorageForm) {
     if (feedback?.kind === 'error') setFeedback(null);
@@ -546,8 +553,13 @@ function StorageSection({
     try {
       const res: StorageProbeResult = await test.mutateAsync({
         ...buildCoordinates(),
-        accessKeyId: form.accessKeyId,
-        secretAccessKey: form.secretAccessKey,
+        // Omit blank keys so the server reuses the stored sidecar (canTest only
+        // allows a blank-field test when keys are already stored); a typed pair
+        // is sent verbatim to probe it before saving.
+        ...(form.accessKeyId ? { accessKeyId: form.accessKeyId } : {}),
+        ...(form.secretAccessKey
+          ? { secretAccessKey: form.secretAccessKey }
+          : {}),
       });
       setTestResult({ ok: res.ok, message: res.error || undefined });
     } catch (err) {

@@ -206,12 +206,15 @@ export const testObjectStorageConnection = action({
   args: {
     organizationId: v.string(),
     ...objectStorageConnectionArgs,
-    accessKeyId: v.string(),
-    secretAccessKey: v.string(),
+    // Both blank reuses the org's stored keys (the natural "Save, then Test"
+    // flow: Save clears the write-only fields). Both present tests the entered
+    // pair before it is saved.
+    accessKeyId: v.optional(v.string()),
+    secretAccessKey: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<ObjectStorageProbeResult> => {
-    await requireObjectStorageAdmin(ctx, args.organizationId);
+    const auth = await requireObjectStorageAdmin(ctx, args.organizationId);
     const parsed = objectStorageConnectionFileSchema.safeParse({
       region: args.region,
       endpoint: args.endpoint,
@@ -236,6 +239,9 @@ export const testObjectStorageConnection = action({
       prefix: parsed.data.prefix,
       accessKeyId: args.accessKeyId,
       secretAccessKey: args.secretAccessKey,
+      // Lets the probe reuse the stored keys when the write-only fields are left
+      // blank (the natural "Save, then Test" flow).
+      orgSlug: auth.orgSlug,
     });
   },
 });

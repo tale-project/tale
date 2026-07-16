@@ -7154,7 +7154,7 @@
         "bucket": "Bucket",
         "prefix": "Préfixe de clé",
         "prefixHint": "Espace de noms optionnel dans le bucket ; vide, les objets sont stockés à la racine.",
-        "credentialsHint": "Écriture seule — les clés stockées ne sont jamais affichées. Saisis les deux clés pour lancer le test de connexion.",
+        "credentialsHint": "Écriture seule — les clés stockées ne sont jamais affichées. Saisis les deux clés, ou laisse-les vides pour tester les clés enregistrées.",
         "verified": "Bucket vérifié (écriture, lecture, suppression)",
         "note": "Désactivé, les fichiers de cette organisation restent dans le stockage intégré du déploiement, isolés par organisation. Activé, les nouveaux téléversements vont dans le bucket ci-dessus ; les fichiers stockés avant le changement restent lisibles là où ils sont.",
         "saved": "Enregistré — les nouveaux téléversements de cette organisation vont dans ton bucket.",
