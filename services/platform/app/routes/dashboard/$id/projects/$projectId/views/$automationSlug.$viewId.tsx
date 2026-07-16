@@ -37,11 +37,13 @@ export const Route = createFileRoute(
   // Same `/` ↔ `__` codec as the automations `$automationSlug` layouts: a
   // path-shaped slug is one URL segment here too.
   params: {
-    parse: (raw: { automationSlug: string }) => ({
+    parse: (raw: { automationSlug: string; viewId: string }) => ({
       automationSlug: paramToAutomationSlug(raw.automationSlug),
+      viewId: raw.viewId,
     }),
-    stringify: (parsed: { automationSlug: string }) => ({
+    stringify: (parsed: { automationSlug: string; viewId: string }) => ({
       automationSlug: automationSlugToParam(parsed.automationSlug),
+      viewId: parsed.viewId,
     }),
   },
   // Warm the page chunk during the loader (tab links preload on render).
