@@ -42,6 +42,7 @@ export function AssigneePicker({
   taskTitle,
   taskDescription,
   taskLabels,
+  afterTrigger,
 }: {
   organizationId: string;
   projectId?: string;
@@ -52,9 +53,12 @@ export function AssigneePicker({
   size?: 'sm' | 'md';
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
+  /** When set, enables the coding-agent / non-code-task guidance under the trigger. */
   taskTitle?: string;
   taskDescription?: string;
   taskLabels?: string[];
+  /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
+  afterTrigger?: ReactNode;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -72,7 +76,14 @@ export function AssigneePicker({
       ? agents.find((a) => a.id === assigneeId)
       : undefined;
 
+  // Only when the caller supplied task context (modal) — compact board/list
+  // pickers omit these props and must stay a single avatar control.
+  const hasTaskContext =
+    taskTitle !== undefined ||
+    taskDescription !== undefined ||
+    taskLabels !== undefined;
   const showNonCodeWarning =
+    hasTaskContext &&
     assignedAgent?.displayCategory === 'coding-agent' &&
     !looksLikeCodeTask({
       title: taskTitle,
@@ -173,9 +184,12 @@ export function AssigneePicker({
 
   if (disabled) {
     return (
-      <Tooltip content={label}>
-        <span className="inline-flex">{avatar}</span>
-      </Tooltip>
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <Tooltip content={label}>
+          <span className="inline-flex">{avatar}</span>
+        </Tooltip>
+        {afterTrigger}
+      </span>
     );
   }
 
@@ -203,73 +217,95 @@ export function AssigneePicker({
     </Button>
   );
 
-  return (
+  const select = (
+    <SearchableSelect
+      value={value}
+      onValueChange={handleSelect}
+      options={options}
+      open={open}
+      onOpenChange={setOpen}
+      align={align}
+      modal
+      trigger={trigger}
+      searchPlaceholder={t('assignee.search')}
+      emptyText={tCommon('search.noResults')}
+      aria-label={t('fields.assignee')}
+      optionAction={(opt) => {
+        if (opt.isSectionHeader) return null;
+        const isAgent = opt.value.startsWith('agent:');
+        const id = opt.value.slice(opt.value.indexOf(':') + 1);
+        return (
+          <AssigneeAvatar
+            assigneeType={isAgent ? 'agent' : 'user'}
+            assigneeId={id}
+            name={opt.label}
+          />
+        );
+      }}
+      footer={
+        <Stack gap={0}>
+          {/* #2610: only installed + enabled agents ever reach this list
+              — a connected integration alone does not make its bundled
+              agents assignable, so a familiar name (e.g. an
+              integration's own agent) can be legitimately absent, up to
+              and including the whole Agents section. Always shown (not
+              gated on the section being non-empty) so that exact "why
+              can't I find it" case still gets an answer. */}
+          <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
+            {t('assignee.liveAgentsOnly')}
+          </Text>
+          {assigneeId && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start"
+              icon={UserX}
+              onClick={() => {
+                onUnassign();
+                setOpen(false);
+              }}
+            >
+              {t('assignee.unassign')}
+            </Button>
+          )}
+        </Stack>
+      }
+    />
+  );
+
+  const triggerRow = (
     <Tooltip content={label}>
       {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
       <span
-        className="inline-flex flex-col items-end gap-1"
+        className="inline-flex min-w-0 items-center gap-1.5"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <SearchableSelect
-          value={value}
-          onValueChange={handleSelect}
-          options={options}
-          open={open}
-          onOpenChange={setOpen}
-          align={align}
-          modal
-          trigger={trigger}
-          searchPlaceholder={t('assignee.search')}
-          emptyText={tCommon('search.noResults')}
-          aria-label={t('fields.assignee')}
-          optionAction={(opt) => {
-            if (opt.isSectionHeader) return null;
-            const isAgent = opt.value.startsWith('agent:');
-            const id = opt.value.slice(opt.value.indexOf(':') + 1);
-            return (
-              <AssigneeAvatar
-                assigneeType={isAgent ? 'agent' : 'user'}
-                assigneeId={id}
-                name={opt.label}
-              />
-            );
-          }}
-          footer={
-            <Stack gap={0}>
-              {/* #2610: only installed + enabled agents ever reach this list
-                  — a connected integration alone does not make its bundled
-                  agents assignable, so a familiar name (e.g. an
-                  integration's own agent) can be legitimately absent, up to
-                  and including the whole Agents section. Always shown (not
-                  gated on the section being non-empty) so that exact "why
-                  can't I find it" case still gets an answer. */}
-              <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
-                {t('assignee.liveAgentsOnly')}
-              </Text>
-              {assigneeId && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full justify-start"
-                  icon={UserX}
-                  onClick={() => {
-                    onUnassign();
-                    setOpen(false);
-                  }}
-                >
-                  {t('assignee.unassign')}
-                </Button>
-              )}
-            </Stack>
-          }
-        />
-        {showNonCodeWarning && (
-          <Text variant="muted" className="max-w-56 text-right text-xs">
-            {t('assignee.nonCodeWarning')}
-          </Text>
-        )}
+        {select}
+        {afterTrigger}
       </span>
     </Tooltip>
+  );
+
+  if (!showNonCodeWarning) {
+    return triggerRow;
+  }
+
+  // Full-width under the avatar row — never beside it. The task-modal side
+  // panel is a constrained flex column that shrinks PropertyField rows to
+  // min-h-7; a tall warning inlined next to the avatar overflowed and
+  // painted over Status/Priority/Due date.
+  return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary
+    <span
+      className="flex w-full min-w-0 flex-col gap-1"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {triggerRow}
+      <Text variant="muted" className="text-xs text-pretty">
+        {t('assignee.nonCodeWarning')}
+      </Text>
+    </span>
   );
 }

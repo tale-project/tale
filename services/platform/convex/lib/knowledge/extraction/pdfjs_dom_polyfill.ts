@@ -257,24 +257,61 @@ class Path2DPolyfill {
 
 let installed = false;
 
-/**
- * Idempotently install the globals pdfjs needs, BEFORE pdfjs is imported.
- * Only fills gaps so a real browser/runtime global (or @napi-rs/canvas, if it
- * ever does load) still wins.
- *
- * Besides the DOM globals, pdfjs 5.x's modern build calls ES2025 APIs
- * unconditionally — `Promise.try` in its message handler, the `Uint8Array`
- * base64 codecs on font/signature paths — which Node 22 (V8 12.4) doesn't
- * ship. Fill those too; removable once the runtime moves to Node ≥24.
- */
-export function installPdfjsDomGlobals(): void {
-  if (installed) return;
-  installed = true;
-  const g = globalThis as Record<string, unknown>;
-  g.DOMMatrix ??= DOMMatrixPolyfill;
-  g.ImageData ??= ImageDataPolyfill;
-  g.Path2D ??= Path2DPolyfill;
+type Base64Alphabet = 'base64' | 'base64url';
 
+type ToBase64Options = {
+  alphabet?: Base64Alphabet;
+  omitPadding?: boolean;
+};
+
+type FromBase64Options = {
+  alphabet?: Base64Alphabet;
+};
+
+/**
+ * ES2025 `Uint8Array` base64 codecs — Node 22 lacks them; pdfjs 5.x calls them
+ * unconditionally. jose's CompactEncrypt also prefers `toBase64` when present
+ * and passes `{ alphabet: 'base64url', omitPadding: true }`. A shim that
+ * ignores those options poisons every later encrypt in the same Node worker
+ * (integration credentials, OAuth tokens, …) with std-base64 JWE that
+ * `compactDecrypt` rejects.
+ */
+function toBase64Shim(this: Uint8Array, options?: ToBase64Options): string {
+  const encoding: BufferEncoding =
+    options?.alphabet === 'base64url' ? 'base64url' : 'base64';
+  let out = Buffer.from(this.buffer, this.byteOffset, this.byteLength).toString(
+    encoding,
+  );
+  // Node's `base64url` codec already omits padding; std `base64` does not.
+  if (options?.omitPadding) out = out.replace(/=+$/, '');
+  return out;
+}
+
+function fromBase64Shim(
+  base64: string,
+  options?: FromBase64Options,
+): Uint8Array {
+  const encoding: BufferEncoding =
+    options?.alphabet === 'base64url' ? 'base64url' : 'base64';
+  // Copy the Buffer view — never wrap buf.buffer (shared allocation pool).
+  return new Uint8Array(Buffer.from(base64, encoding));
+}
+
+function toBase64IgnoresBase64urlAlphabet(): boolean {
+  const toBase64 = Reflect.get(Uint8Array.prototype, 'toBase64');
+  if (typeof toBase64 !== 'function') return false;
+  try {
+    const probe = new Uint8Array([0xff, 0xfe, 0xfd, 0x00, 0x01]);
+    const out = Reflect.apply(toBase64, probe, [
+      { alphabet: 'base64url', omitPadding: true },
+    ]);
+    return typeof out !== 'string' || /[+=/]/.test(out);
+  } catch {
+    return true;
+  }
+}
+
+function ensureEs2025Shims(): void {
   // The lib.esnext types declare these, so `typeof` guards compile cleanly;
   // Object.defineProperty sidesteps matching the full declared signatures
   // (options bags, overloads) that the simple fills don't implement.
@@ -286,30 +323,62 @@ export function installPdfjsDomGlobals(): void {
       configurable: true,
     });
   }
-  if (typeof Uint8Array.fromBase64 !== 'function') {
+
+  // Install when missing, or replace a process-global poison shim that
+  // ignores `alphabet` (regression: always-`base64` loop). Native Node ≥24
+  // / Bun implementations honor options and win the probe below.
+  const needBase64Codecs =
+    typeof Uint8Array.fromBase64 !== 'function' ||
+    typeof Uint8Array.prototype.toBase64 !== 'function' ||
+    toBase64IgnoresBase64urlAlphabet();
+  if (needBase64Codecs) {
     Object.defineProperty(Uint8Array, 'fromBase64', {
-      value: (s: string) => new Uint8Array(Buffer.from(s, 'base64')),
+      value: fromBase64Shim,
+      writable: true,
+      configurable: true,
+    });
+    // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a correct native implementation wins
+    Object.defineProperty(Uint8Array.prototype, 'toBase64', {
+      value: toBase64Shim,
       writable: true,
       configurable: true,
     });
   }
-  for (const [name, encoding] of [
-    ['toBase64', 'base64'],
-    ['toHex', 'hex'],
-  ] as const) {
-    if (typeof Uint8Array.prototype[name] !== 'function') {
-      // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
-      Object.defineProperty(Uint8Array.prototype, name, {
-        value: function (this: Uint8Array) {
-          return Buffer.from(
-            this.buffer,
-            this.byteOffset,
-            this.byteLength,
-          ).toString(encoding);
-        },
-        writable: true,
-        configurable: true,
-      });
-    }
+  if (typeof Uint8Array.prototype.toHex !== 'function') {
+    // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
+    Object.defineProperty(Uint8Array.prototype, 'toHex', {
+      value: function (this: Uint8Array) {
+        return Buffer.from(
+          this.buffer,
+          this.byteOffset,
+          this.byteLength,
+        ).toString('hex');
+      },
+      writable: true,
+      configurable: true,
+    });
   }
+}
+
+/**
+ * Idempotently install the globals pdfjs needs, BEFORE pdfjs is imported.
+ * Only fills gaps so a real browser/runtime global (or @napi-rs/canvas, if it
+ * ever does load) still wins.
+ *
+ * Besides the DOM globals, pdfjs 5.x's modern build calls ES2025 APIs
+ * unconditionally — `Promise.try` in its message handler, the `Uint8Array`
+ * base64 codecs on font/signature paths — which Node 22 (V8 12.4) doesn't
+ * ship. Fill those too; removable once the runtime moves to Node ≥24.
+ *
+ * ES2025 shims re-run on every call so a hot reload can replace a previously
+ * installed options-blind `toBase64` without restarting the Node worker.
+ */
+export function installPdfjsDomGlobals(): void {
+  ensureEs2025Shims();
+  if (installed) return;
+  installed = true;
+  const g = globalThis as Record<string, unknown>;
+  g.DOMMatrix ??= DOMMatrixPolyfill;
+  g.ImageData ??= ImageDataPolyfill;
+  g.Path2D ??= Path2DPolyfill;
 }
