@@ -52,10 +52,10 @@ interface CatalogCardProps {
   /**
    * TEXT-ONLY summary (it renders inside a `<p>` and clamps to two lines).
    * Sits under the icon+title row and left-aligns with the icon edge
-   * (Anthropic-style full-bleed), not indented beside the media tile.
-   * Badges and chips belong in `badge` / `meta` — an element inside the
-   * description is invalid HTML. The two-line box is RESERVED even when
-   * absent/short, so cards never stagger.
+   * (full-bleed body), not indented beside the media tile — keeps the card
+   * visually balanced. Badges and chips belong in `badge` / `meta` — an
+   * element inside the description is invalid HTML. The two-line box is
+   * RESERVED even when absent/short, so cards never stagger.
    */
   description?: ReactNode;
   /** Top-right slot — owns the card's status badge(s). Its row height is
@@ -91,10 +91,11 @@ interface CatalogCardProps {
    * A corner ⋯ menu overlaid OUTSIDE the card's own click target — for a card
    * that's both a click target (`onClick`) and carries row-level actions (e.g.
    * an install/reinstall/uninstall menu). Only meaningful alongside `onClick`
-   * with no `actions` (the card's interactive form). Rendered top-right (same
-   * corner as Anthropic's +), as a SIBLING of the card's button, so a real
-   * interactive control never nests inside another button (invalid HTML / an
-   * a11y violation) — same pattern as `McpServerCard`.
+   * with no `actions` (the card's interactive form). Rendered top-right so it
+   * balances the icon and doesn't leave a hollow band under the description,
+   * as a SIBLING of the card's button, so a real interactive control never
+   * nests inside another button (invalid HTML / an a11y violation) — same
+   * pattern as `McpServerCard`.
    */
   menu?: ReactNode;
 }
@@ -118,9 +119,9 @@ export function CatalogCard({
 
   const inner = (
     <>
-      {/* Anthropic-style scan: icon + title/meta on one row; description
-          full-bleed under that row, left edge flush with the icon (not
-          indented into the text column). */}
+      {/* Readable scan: icon + title/meta on one row; description full-bleed
+          under that row, left edge flush with the icon (not indented into the
+          text column) so hierarchy stays balanced. */}
       <div className="flex items-start gap-3">
         {media ? <div className="shrink-0">{media}</div> : null}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -140,9 +141,8 @@ export function CatalogCard({
           <div className="flex min-h-4 items-center">{meta}</div>
         </div>
       </div>
-      {/* Clear band break under the icon+title header (Anthropic's air before
-          the body) so the full-bleed description doesn't feel jammed into the
-          meta line. */}
+      {/* Clear band break under the icon+title header so the full-bleed
+          description doesn't feel jammed into the meta line. */}
       <p className="text-muted-foreground mt-3 line-clamp-2 min-h-[2lh] text-sm leading-snug">
         {description}
       </p>
@@ -171,7 +171,7 @@ export function CatalogCard({
           'h-full hover:shadow-card-hover',
           catalogCardSurfaceClass,
           // Reserve the top-right for the overlaid ⋯ so title/badge never sit
-          // under it (Anthropic parks + in this same corner).
+          // under it.
           menu && 'pr-10',
           active && 'ring-2 ring-primary',
           className,

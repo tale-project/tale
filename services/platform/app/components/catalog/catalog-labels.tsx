@@ -5,8 +5,8 @@ import { HStack } from '@tale/ui/layout';
 
 /**
  * Definition `labels` — the ONE label renderer for catalog cards and detail
- * headers. Cards use `tone="quiet"` (muted inline text under the title, like
- * Claude's brand line); panels/headers keep outline badges.
+ * headers. Cards use `tone="quiet"` (muted inline text under the title, so
+ * labels don't compete with the title); panels/headers keep outline badges.
  */
 export function CatalogLabels({
   labels,
