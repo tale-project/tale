@@ -12,13 +12,13 @@ vi.mock('@/lib/i18n/client', () => ({
       if (key === 'agentRuns.status.running') return 'Running';
       if (key === 'agentRuns.status.failed') return 'Failed';
       if (key === 'agentRuns.detail.openAria') {
-        return `Open ${values?.status} details for ${values?.agent}`;
+        return `Open ${String(values?.status)} details for ${String(values?.agent)}`;
       }
       if (key === 'agentRuns.detail.runningTitle') {
-        return `${values?.agent} — live run`;
+        return `${String(values?.agent)} — live run`;
       }
       if (key === 'agentRuns.detail.failedTitle') {
-        return `${values?.agent} — run failed`;
+        return `${String(values?.agent)} — run failed`;
       }
       if (key === 'agentRuns.detail.noLiveDetail') {
         return 'No live transcript is available for this run.';
