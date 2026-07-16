@@ -247,6 +247,40 @@ function ensureLocalAdminKey() {
   }
 }
 
+// Video-link ingestion (chat "paste a YouTube URL") spawns yt-dlp + ffmpeg from
+// a Convex node action. Production BAKES those binaries into the convex image on
+// pinned paths; a host `bun dev` backend has neither, so ingestion used to fail
+// "yt-dlp binary not found" until the operator hand-set VIDEO_INGEST_* (#2746).
+// Reuse the SAME self-provisioner the live YouTube test uses — download yt-dlp +
+// deno into a per-user cache, resolve ffmpeg — and export the paths the node
+// action reads (VIDEO_INGEST_BIN_DIR / _FFMPEG_LOCATION / _YTDLP_PLUGIN_DIRS).
+// The explicit-value-wins rule (only fill gaps) lets a self-hoster pin their own
+// baked paths. Best-effort: a download/network failure warns and continues —
+// video ingestion is optional and the rest of the stack must still boot. The
+// exported vars are synced into the Convex deployment env by the caller.
+async function provisionVideoToolchain(): Promise<void> {
+  if (
+    process.env.VIDEO_INGEST_BIN_DIR &&
+    process.env.VIDEO_INGEST_FFMPEG_LOCATION
+  ) {
+    return; // Operator pinned both — respect it, skip the download.
+  }
+  try {
+    const { ensureVideoToolchain } =
+      await import('../convex/video_links/ytdlp_toolchain');
+    const tc = await ensureVideoToolchain();
+    process.env.VIDEO_INGEST_BIN_DIR ||= tc.binDir;
+    process.env.VIDEO_INGEST_FFMPEG_LOCATION ||= tc.ffmpegLocation;
+    process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
+  } catch (err) {
+    warnLine(
+      'Video toolchain provisioning failed — pasting a video link in chat ' +
+        "won't produce a transcript until it's installed. Underlying: " +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
+}
+
 function loadEnvFiles() {
   // Lowest → highest precedence; a later file's value wins on collision
   // (platform overrides repo, `.local` overrides base).
@@ -1132,6 +1166,17 @@ export async function runDevFleet() {
       ensureLocalAdminKey();
     }
 
+    // Download/resolve yt-dlp + deno + ffmpeg before the env sync so their paths
+    // are in process.env when the explicit-key loop below pushes them to Convex.
+    // Own step (own progress line) because a cold cache downloads two binaries.
+    await runStep(
+      {
+        active: 'Provisioning video toolchain',
+        done: 'Video toolchain ready',
+      },
+      provisionVideoToolchain,
+    );
+
     try {
       await runStep(
         {
@@ -1147,11 +1192,18 @@ export async function runDevFleet() {
             { label: 'env' },
           );
 
-          // Sync TALE_CONFIG_DIR + the seed catalog explicitly — both are set
-          // dynamically (envNormalizeCommon), not in any .env file, and Convex
-          // reads them from the deployment env (else new-org seeding falls back
-          // to the live `default` org and AGENTS_DIR/etc. resolve wrong).
-          for (const key of ['TALE_CONFIG_DIR', 'TALE_CONFIG_BUILTIN_DIR']) {
+          // Sync the orchestrator-managed keys explicitly — each is set
+          // dynamically (envNormalizeCommon / provisionVideoToolchain), not in
+          // any .env file, and Convex reads them from the deployment env (else
+          // new-org seeding falls back to the live `default` org, and the video
+          // node action can't find yt-dlp/ffmpeg → chat video links fail).
+          for (const key of [
+            'TALE_CONFIG_DIR',
+            'TALE_CONFIG_BUILTIN_DIR',
+            'VIDEO_INGEST_BIN_DIR',
+            'VIDEO_INGEST_FFMPEG_LOCATION',
+            'VIDEO_INGEST_YTDLP_PLUGIN_DIRS',
+          ]) {
             const value = process.env[key];
             if (value) {
               await runCommand(
