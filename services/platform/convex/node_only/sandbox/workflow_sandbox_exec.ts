@@ -1231,9 +1231,19 @@ export const runSandboxAgent = internalAction({
           if (peer !== null) {
             const steerText = args.steerContext?.trim();
             if (steerText !== undefined && steerText !== '') {
+              // The framing must carry the SAME authorization the mention
+              // flow's fresh-run prompt carries ("you were @-mentioned — read
+              // it and act on it"), plus a verifiable anchor (the comment is
+              // on the task record, checkable with the task tools): a bare
+              // "new comment: …" interjection mid-run reads as an untrusted
+              // injection under the working agreement and gets refused.
               const steer = await trySteerIntoRunningTaskRun(ctx, {
                 peer,
-                text: `New comment on the task you are working on:\n\n${steerText}\n\nIncorporate it into your current run.`,
+                text: [
+                  `You were @-mentioned in a new comment on the task you are currently working on. Because your run is already active, the platform's mention flow delivers the comment into this run instead of starting a second parallel one — this message is that delivery, not part of the original prompt. You can verify the comment on the task's own comment thread with your task tools.`,
+                  `The mentioning comment:\n\n${steerText}`,
+                  `Treat it exactly as you would a task comment addressed to you: act on it as part of your current work if it fits your working agreement, or address it in your reply/summary — and decline politely there if it asks for something outside your abilities or your agreement.`,
+                ].join('\n\n'),
               });
               if (steer.steered) {
                 return {
