@@ -50,6 +50,7 @@ import { useUrlState } from '@/app/hooks/use-url-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
+import { automationSlugToParam } from '@/lib/shared/schemas/automations';
 import { resolveLocalizedProp } from '@/lib/shared/utils/resolve-automation-locale';
 import { startCase } from '@/lib/utils/string';
 
@@ -585,11 +586,14 @@ function InstalledAutomationBody({
   // Real links through the shared strip: every tab navigates the SAME route
   // with its `?tab=` value (the default tab clears it), so deep links and
   // back/forward keep working while the strip stays the one every settings
-  // page renders.
+  // page renders. `automationSlug` from the route is the decoded path
+  // (`github/create-pull-requests`); string hrefs must `__`-encode it so
+  // `/` does not become an extra path segment (TabNavigation uses raw `to=`).
+  const slugParam = automationSlugToParam(automationSlug);
   const basePath =
     projectId !== undefined
-      ? `/dashboard/${organizationId}/projects/${projectId}/automations/${automationSlug}`
-      : `/dashboard/${organizationId}/automations/${automationSlug}`;
+      ? `/dashboard/${organizationId}/projects/${projectId}/automations/${slugParam}`
+      : `/dashboard/${organizationId}/automations/${slugParam}`;
   const navItems: TabNavigationItem[] = tabItems.map((item) => ({
     label: item.label,
     href: basePath,

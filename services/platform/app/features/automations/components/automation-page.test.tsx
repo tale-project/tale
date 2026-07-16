@@ -587,6 +587,54 @@ describe('AutomationPage developer tabs (Editor/Executions/Triggers/Configuratio
     expect(screen.getByTestId('editor-tab')).toBeInTheDocument();
   });
 
+  it('encodes path-shaped slugs as one URL segment in every tab href', () => {
+    // Nested slugs decode to `github/create-pull-requests` in params; string
+    // tab hrefs must `__`-encode or `/` becomes an extra path segment → 404.
+    const nestedSlug = 'github/create-pull-requests';
+    abilityMock.can.mockReturnValue(true);
+    const automation = catalogAutomation({
+      slug: nestedSlug,
+      name: 'Create GitHub pull requests',
+      workflows: [`${nestedSlug}/main`],
+      views: [],
+    });
+    useAutomationsMock.mockReturnValue({
+      automations: [automation],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationCatalogMock.mockReturnValue({
+      automations: [],
+      isLoading: false,
+      error: null,
+    });
+    useAutomationInstallStatesMock.mockReturnValue({
+      bySlug: new Map([
+        [nestedSlug, { status: 'active', blockedIntegrations: [] }],
+      ]),
+      isLoading: false,
+    });
+
+    render(
+      <AutomationPage organizationId="org_1" automationSlug={nestedSlug} />,
+    );
+
+    const encoded = '/dashboard/org_1/automations/github__create-pull-requests';
+    // Default tab (Editor) clears `?tab=`; every other tab keeps the encoded segment.
+    expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute(
+      'href',
+      encoded,
+    );
+    expect(screen.getByRole('tab', { name: 'Triggers' })).toHaveAttribute(
+      'href',
+      `${encoded}?tab=triggers`,
+    );
+    expect(screen.getByRole('tab', { name: 'Configuration' })).toHaveAttribute(
+      'href',
+      `${encoded}?tab=configuration`,
+    );
+  });
+
   it('puts JSON view tabs after the developer tabs', () => {
     abilityMock.can.mockReturnValue(true);
     installSampleAutomation(
