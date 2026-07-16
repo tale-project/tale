@@ -298,13 +298,14 @@ function fromBase64Shim(
 }
 
 function toBase64IgnoresBase64urlAlphabet(): boolean {
-  if (typeof Uint8Array.prototype.toBase64 !== 'function') return false;
+  const toBase64 = Reflect.get(Uint8Array.prototype, 'toBase64');
+  if (typeof toBase64 !== 'function') return false;
   try {
     const probe = new Uint8Array([0xff, 0xfe, 0xfd, 0x00, 0x01]);
-    const out = (
-      Uint8Array.prototype.toBase64 as (options?: ToBase64Options) => string
-    ).call(probe, { alphabet: 'base64url', omitPadding: true });
-    return /[+=/]/.test(out);
+    const out = Reflect.apply(toBase64, probe, [
+      { alphabet: 'base64url', omitPadding: true },
+    ]);
+    return typeof out !== 'string' || /[+=/]/.test(out);
   } catch {
     return true;
   }

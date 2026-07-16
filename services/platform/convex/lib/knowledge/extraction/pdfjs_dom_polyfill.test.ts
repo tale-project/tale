@@ -7,6 +7,7 @@ const PROBE = new Uint8Array([0xff, 0xfe, 0xfd, 0x00, 0x01]);
 
 /** The options-blind shim that poisoned Convex Node workers after #2414. */
 function installBrokenToBase64Shim(): void {
+  // oxlint-disable-next-line no-extend-native -- test installs a deliberate poison shim
   Object.defineProperty(Uint8Array.prototype, 'toBase64', {
     value: function (this: Uint8Array) {
       return Buffer.from(

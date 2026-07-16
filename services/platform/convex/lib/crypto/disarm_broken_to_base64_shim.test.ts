@@ -5,6 +5,7 @@ import { disarmBrokenToBase64Shim } from './disarm_broken_to_base64_shim';
 
 describe('disarmBrokenToBase64Shim', () => {
   it('removes an options-blind toBase64 so jose emits base64url JWE', async () => {
+    // oxlint-disable-next-line no-extend-native -- test installs a deliberate poison shim
     Object.defineProperty(Uint8Array.prototype, 'toBase64', {
       value: function (this: Uint8Array) {
         return Buffer.from(
@@ -28,6 +29,7 @@ describe('disarmBrokenToBase64Shim', () => {
   });
 
   it('leaves a correct toBase64 alone', () => {
+    // oxlint-disable-next-line no-extend-native -- test installs a correct options-aware shim
     Object.defineProperty(Uint8Array.prototype, 'toBase64', {
       value: function (
         this: Uint8Array,

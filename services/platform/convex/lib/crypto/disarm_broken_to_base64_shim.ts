@@ -8,16 +8,14 @@
  * Correct native / options-aware shims are left alone.
  */
 export function disarmBrokenToBase64Shim(): void {
-  if (typeof Uint8Array.prototype.toBase64 !== 'function') return;
+  const toBase64 = Reflect.get(Uint8Array.prototype, 'toBase64');
+  if (typeof toBase64 !== 'function') return;
   try {
     const probe = new Uint8Array([0xff, 0xfe, 0xfd, 0x00, 0x01]);
-    const out = (
-      Uint8Array.prototype.toBase64 as (options?: {
-        alphabet?: 'base64' | 'base64url';
-        omitPadding?: boolean;
-      }) => string
-    ).call(probe, { alphabet: 'base64url', omitPadding: true });
-    if (!/[+=/]/.test(out)) return;
+    const out = Reflect.apply(toBase64, probe, [
+      { alphabet: 'base64url', omitPadding: true },
+    ]);
+    if (typeof out === 'string' && !/[+=/]/.test(out)) return;
   } catch {
     // Treat a throwing shim as broken too.
   }
