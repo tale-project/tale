@@ -4060,11 +4060,39 @@
       "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
     },
     "conversationAccess": {
-      "title": "Accès aux conversations",
-      "description": "Lorsque cette option est activée, une conversation affectée à une équipe n'est visible que par cette équipe, et une conversation assignée à une personne n'est visible que par elle. Les conversations non assignées restent visibles par tous ; les administrateurs voient toujours toutes les conversations.",
-      "enabledLabel": "Restreindre les conversations assignées",
+      "title": "Contrôle selon l'assignation des conversations",
+      "description": "Lorsque cette option est activée, une conversation assignée à une équipe n'est visible que par les membres de cette équipe, et une conversation assignée à une personne n'est visible que par elle. Les conversations non assignées restent visibles par tous ; les administrateurs voient toujours toutes les conversations.",
+      "enabledLabel": "Activé pour cette organisation",
       "saved": "Politique d'accès aux conversations mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique d'accès aux conversations"
+    },
+    "conversationRouting": {
+      "title": "Routage des conversations",
+      "description": "Acheminer les nouvelles conversations entrantes vers une équipe ou une personne selon l'adresse à laquelle elles ont été envoyées. Les règles s'appliquent automatiquement dès l'arrivée du courrier.",
+      "addRule": "Ajouter une règle",
+      "editRule": "Modifier la règle",
+      "deleteRule": "Supprimer la règle",
+      "address": "Adresse",
+      "addressPlaceholder": "facturation@votreentreprise.com",
+      "invalidAddress": "Saisis une adresse e-mail valide",
+      "assignedTo": "Assigné à",
+      "actions": "Actions",
+      "noRulesTitle": "Aucune règle de routage",
+      "noRulesDescription": "Ajoute une règle pour assigner automatiquement les conversations entrantes selon l'adresse de destination.",
+      "removeRuleConfirmTitle": "Supprimer la règle de routage ?",
+      "removeRuleConfirmDescription": "Les nouvelles conversations envoyées à cette adresse ne seront plus assignées automatiquement.",
+      "removeRuleConfirmAction": "Supprimer",
+      "confirm": "Enregistrer la règle",
+      "saved": "Règles de routage mises à jour",
+      "saveFailed": "Échec de l'enregistrement des règles de routage",
+      "routeTo": "Assigner à",
+      "routeToPlaceholder": "Sélectionner une équipe ou une personne",
+      "peopleSection": "Personnes",
+      "teamsSection": "Équipes",
+      "searchAssignees": "Rechercher des personnes et des équipes",
+      "noAssignees": "Aucune personne ou équipe trouvée",
+      "removePerson": "Retirer la personne",
+      "removeTeam": "Retirer l'équipe"
     }
   },
   "metrics": {

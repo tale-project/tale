@@ -399,6 +399,46 @@ export async function notifyConversationAssignedTeam(
 }
 
 /**
+ * Notify on a SYSTEM-initiated assignment (address routing at ingest) —
+ * impersonal bodies, no actor. Notifies the newly-set individual owner and/or
+ * fans out to the newly-queued team. Only the dimensions actually set by the
+ * routing rule are passed, so no one is re-notified for an unchanged field.
+ */
+export async function notifyConversationRouted(
+  ctx: MutationCtx,
+  args: {
+    conversation: Doc<'conversations'>;
+    assigneeUserId?: string;
+    assigneeTeamId?: string;
+  },
+): Promise<void> {
+  if (args.assigneeUserId) {
+    await writeNotification(ctx, {
+      userId: args.assigneeUserId,
+      organizationId: args.conversation.organizationId,
+      type: 'conversation_assigned',
+      titleKey: 'conversationAssigned',
+      bodyKey: 'conversationAssignedBody',
+      params: {
+        subject: args.conversation.subject ?? '',
+        conversationId: String(args.conversation._id),
+        conversationStatus: args.conversation.status ?? 'open',
+      },
+      resourceType: 'conversation',
+      resourceId: String(args.conversation._id),
+      actorType: 'system',
+    });
+  }
+  if (args.assigneeTeamId) {
+    await notifyConversationAssignedTeam(ctx, {
+      conversation: args.conversation,
+      teamId: args.assigneeTeamId,
+      actorUserId: null,
+    });
+  }
+}
+
+/**
  * Mention fan-out for the task BODY (description) — the counterpart of the
  * mention half of {@link notifyTaskComment} for `@`s typed into the task
  * description on create/edit. Callers pass only the NEWLY added mentions so

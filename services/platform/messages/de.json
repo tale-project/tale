@@ -4060,11 +4060,39 @@
       "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
     },
     "conversationAccess": {
-      "title": "Konversationszugriff",
-      "description": "Wenn aktiviert, ist eine einem Team zugewiesene Konversation nur für dieses Team sichtbar und eine einer Person zugewiesene nur für sie. Nicht zugewiesene Konversationen bleiben für alle sichtbar; Admins sehen immer alle Konversationen.",
-      "enabledLabel": "Zugewiesene Konversationen einschränken",
+      "title": "Konversationssteuerung nach Zuständigkeit",
+      "description": "Wenn aktiv, ist eine einem Team zugewiesene Konversation nur für die Mitglieder dieses Teams sichtbar und eine einer Person zugewiesene nur für diese Person. Nicht zugewiesene Konversationen bleiben für alle sichtbar; Admins sehen immer alle Konversationen.",
+      "enabledLabel": "Für diese Organisation aktiviert",
       "saved": "Richtlinie für Konversationszugriff aktualisiert",
       "saveFailed": "Richtlinie für Konversationszugriff konnte nicht gespeichert werden"
+    },
+    "conversationRouting": {
+      "title": "Konversations-Routing",
+      "description": "Neue eingehende Konversationen anhand der Adresse, an die sie gesendet wurden, an ein Team oder eine Person weiterleiten. Die Regeln greifen automatisch, sobald Post eintrifft.",
+      "addRule": "Regel hinzufügen",
+      "editRule": "Regel bearbeiten",
+      "deleteRule": "Regel löschen",
+      "address": "Adresse",
+      "addressPlaceholder": "rechnung@deinefirma.de",
+      "invalidAddress": "Gib eine gültige E-Mail-Adresse ein",
+      "assignedTo": "Zugewiesen an",
+      "actions": "Aktionen",
+      "noRulesTitle": "Keine Routing-Regeln",
+      "noRulesDescription": "Füge eine Regel hinzu, um eingehende Konversationen anhand der Zieladresse automatisch zuzuweisen.",
+      "removeRuleConfirmTitle": "Routing-Regel entfernen?",
+      "removeRuleConfirmDescription": "Neue Konversationen an diese Adresse werden nicht mehr automatisch zugewiesen.",
+      "removeRuleConfirmAction": "Entfernen",
+      "confirm": "Regel speichern",
+      "saved": "Routing-Regeln aktualisiert",
+      "saveFailed": "Routing-Regeln konnten nicht gespeichert werden",
+      "routeTo": "Zuweisen an",
+      "routeToPlaceholder": "Team oder Person auswählen",
+      "peopleSection": "Personen",
+      "teamsSection": "Teams",
+      "searchAssignees": "Personen und Teams suchen",
+      "noAssignees": "Keine Personen oder Teams gefunden",
+      "removePerson": "Person entfernen",
+      "removeTeam": "Team entfernen"
     }
   },
   "metrics": {

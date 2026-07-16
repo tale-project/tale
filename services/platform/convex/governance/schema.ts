@@ -76,6 +76,11 @@ export const GOVERNANCE_POLICY_TYPES = [
   // org-wide conversation visibility (today's behaviour). Config shape:
   // `conversationAccessConfigSchema` (lib/shared/schemas/governance.ts).
   'conversation_access',
+  // Address→assignee routing rules, applied inline when an inbound
+  // conversation is created (a governance feature, not an automation).
+  // Missing row ⇒ no routing. Config shape: `conversationRoutingConfigSchema`
+  // (lib/shared/schemas/governance.ts).
+  'conversation_routing',
 ] as const;
 
 const policyTypeValidator = v.union(

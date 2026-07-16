@@ -67,6 +67,10 @@ export const POLICY_TYPES = [
   // assigned conversations are private to their team / owner; admins see all.
   // See `conversationAccessConfigSchema`; enforced in the conversations RLS rules.
   'conversation_access',
+  // Address→assignee routing rules, applied inline when an inbound conversation
+  // is created (a governance feature, not an automation). Missing row / empty
+  // rules ⇒ no routing. See `conversationRoutingConfigSchema`.
+  'conversation_routing',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -821,6 +825,30 @@ export const conversationAccessConfigSchema = z.object({
 });
 
 /**
+ * Address→assignee routing rules. Each rule maps an inbound recipient address to
+ * a team and/or a person; the built-in ingest hook (`applyAddressRouting`)
+ * assigns a newly-ingested, still-unassigned conversation by matching its
+ * `metadata.to[0].address` (case-insensitive, exact) against these rules in
+ * order. Missing row / empty `rules` ⇒ no routing.
+ */
+export const conversationRoutingConfigSchema = z.object({
+  rules: z
+    .array(
+      z.object({
+        address: z.string().email(),
+        teamId: z.string().optional(),
+        userId: z.string().optional(),
+      }),
+    )
+    .default([]),
+});
+export type ConversationRoutingConfig = z.infer<
+  typeof conversationRoutingConfigSchema
+>;
+export type ConversationRoutingRule =
+  ConversationRoutingConfig['rules'][number];
+
+/**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
  * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
@@ -857,6 +885,7 @@ export const POLICY_SCHEMAS = {
   model_sync: modelSyncConfigSchema,
   sandbox_quota: sandboxQuotaConfigSchema,
   conversation_access: conversationAccessConfigSchema,
+  conversation_routing: conversationRoutingConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the
