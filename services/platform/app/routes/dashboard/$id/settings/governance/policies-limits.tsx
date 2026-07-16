@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { ConversationAccessPolicyEditor } from '@/app/features/settings/governance/components/conversation-access-policy-editor';
+import { ConversationRoutingPolicyEditor } from '@/app/features/settings/governance/components/conversation-routing-policy-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
 import { PersonalizationPolicyEditor } from '@/app/features/settings/governance/components/personalization-policy-editor';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
@@ -27,6 +28,7 @@ export const Route = createFileRoute(
       'voice_output',
       'sandbox_quota',
       'conversation_access',
+      'conversation_routing',
     ]).catch((error: unknown) => {
       console.warn('Failed to preload policies-limits policies', error);
     }),
@@ -46,6 +48,7 @@ function PoliciesLimitsRoute() {
       <VoiceOutputPolicyEditor organizationId={organizationId} />
       <SandboxQuotaEditor organizationId={organizationId} />
       <ConversationAccessPolicyEditor organizationId={organizationId} />
+      <ConversationRoutingPolicyEditor organizationId={organizationId} />
     </SettingsPage>
   );
 }

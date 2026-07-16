@@ -41,11 +41,17 @@ The window can only tighten the deployment-wide limit, never loosen it. Self-hos
 
 Enforcement has two halves. The watchdog in the browser ends open, visible sessions on the minute. Closed tabs and abandoned devices are caught server-side by a revocation sweep that runs about every five minutes — a session can therefore outlive the window by a few minutes; when you state the control to an auditor, count the window plus roughly half an hour in the worst case. Every server-side revocation lands in the [audit log](/platform/admin/governance/audit-logs) as `session.idle_revoked`. One caveat for trusted-headers deployments: the reverse proxy owns authentication there, so a revoked session is re-established as soon as the member confirms the sign-in notice — pair the policy with an idle timeout on the proxy or IdP side for a real lockout.
 
-## Conversation access
+## Conversation assignee control
 
-By default every member with inbox access sees every conversation in the organization. Under **Settings > Governance > Policies & limits**, open **Conversation access** and turn on **Restrict assigned conversations** to make an assigned conversation private: one assigned to a team is visible only to that team's members, and one assigned to a person only to that person. Unassigned conversations stay a shared org-wide pool anyone can pick up, and admins and owners always see everything.
+By default every member with inbox access sees every conversation in the organization. Under **Settings > Governance > Policies & limits**, open **Conversation assignee control** and turn on **Enabled for this organization** to make an assigned conversation private: one assigned to a team is visible only to that team's members, and one assigned to a person only to that person. Unassigned conversations stay a shared org-wide pool anyone can pick up, and admins and owners always see everything.
 
-The switch is off for existing organizations, so nothing changes until an admin turns it on. Visibility follows the [team](/platform/admin/teams) and the member a conversation is assigned to — both set from the assignee picker in the conversation header. Pair it with the **Route inbound conversations by address** automation to file mail straight into the right team's inbox the moment it arrives.
+The switch is off for existing organizations, so nothing changes until an admin turns it on. Visibility follows the [team](/platform/admin/teams) and the member a conversation is assigned to — both set from the assignee picker in the conversation header.
+
+## Conversation routing
+
+Inbound mail lands unassigned unless a routing rule claims it. Under **Settings > Governance > Policies & limits**, open **Conversation routing** and add a rule mapping a recipient address to a team, a person, or both: the next conversation that arrives at that address is assigned the moment it is created, before anyone opens the inbox. A rule matches the address the sender wrote to — the conversation's `To` — case-insensitively; an address with no rule stays unassigned in the shared pool.
+
+Routing only ever assigns; it never reassigns a conversation that already has an owner or team, so a reply threading into an existing thread is left alone. Pair it with **Conversation assignee control** above to make routed mail private to the team it lands in the instant it arrives. A rule pointing at a since-deleted team or person is skipped — the conversation still arrives, just unassigned.
 
 ## Where this fits
 
