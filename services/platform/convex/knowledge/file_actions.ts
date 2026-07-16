@@ -40,6 +40,7 @@ import {
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import {
   parseKnowledgeConnectionJson,
+  readKnowledgePassword,
   resolveKnowledgeConnectionFilePath,
   resolveKnowledgeConnectionSecretsFilePath,
   resolveKnowledgeHistoryDir,
@@ -210,12 +211,26 @@ export const probeConnection = internalAction({
   args: {
     ...knowledgeConnectionArgs,
     password: v.optional(v.union(v.string(), v.null())),
+    // When set and no password is supplied, the probe reuses the org's already
+    // stored secret. This is what makes "Save, then Test" work: Save blanks the
+    // write-only password field, so the follow-up Test carries no password —
+    // without this fallback the probe would authenticate with an empty string
+    // and fail against a valid saved connection (contradicting the field hint
+    // "leave blank to keep the stored value").
+    orgSlug: v.optional(v.string()),
   },
   // `v.any()` (matching the deployment probe) — the handler's explicit return
   // type keeps the api types honest; the UI contract uses optional fields.
   returns: v.any(),
   handler: async (_ctx, args): Promise<KnowledgeConnectionProbeResult> => {
     checkProviderHostPolicy(`http://${args.host}:${args.port}`);
+
+    const password =
+      args.password != null && args.password !== ''
+        ? args.password
+        : args.orgSlug
+          ? await readKnowledgePassword(args.orgSlug)
+          : '';
 
     let data: DatastoreTestResult;
     try {
@@ -224,7 +239,7 @@ export const probeConnection = internalAction({
         port: args.port,
         database: args.database,
         user: args.user,
-        password: args.password ?? '',
+        password,
         sslmode: args.sslmode,
       });
     } catch (err) {

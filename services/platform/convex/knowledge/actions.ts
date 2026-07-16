@@ -135,7 +135,7 @@ export const testKnowledgeConnection = action({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<KnowledgeConnectionProbeResult> => {
-    await requireKnowledgeAdmin(ctx, args.organizationId);
+    const auth = await requireKnowledgeAdmin(ctx, args.organizationId);
     const parsed = knowledgeConnectionFileSchema.safeParse({
       host: args.host,
       port: args.port,
@@ -156,6 +156,9 @@ export const testKnowledgeConnection = action({
       user: parsed.data.user,
       sslmode: parsed.data.sslmode,
       password: args.password ?? undefined,
+      // Lets the probe reuse the stored secret when the write-only password
+      // field is left blank (the natural "Save, then Test" flow).
+      orgSlug: auth.orgSlug,
     });
   },
 });

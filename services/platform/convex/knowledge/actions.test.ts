@@ -99,6 +99,9 @@ describe('testKnowledgeConnection (the org connection test)', () => {
       user: 'acme',
       sslmode: 'require',
       password: 'pw',
+      // Passed so the probe can fall back to the stored secret when the
+      // write-only password field is left blank on a re-test after Save.
+      orgSlug: 'acme',
     });
     expect(result).toEqual({ ok: true, vectorAvailable: true });
   });
@@ -113,6 +116,17 @@ describe('testKnowledgeConnection (the org connection test)', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Invalid knowledge connection/);
     expect(ctx.runAction).not.toHaveBeenCalled();
+  });
+
+  it('still passes orgSlug when the password is omitted (stored-secret fallback for Save-then-Test)', async () => {
+    setCaller('admin', true);
+    const ctx = makeCtx({ ok: true });
+    const { password: _password, ...withoutPassword } = VALID;
+    await asAction(testKnowledgeConnection).handler(ctx, withoutPassword);
+    expect(ctx.runAction).toHaveBeenCalledWith(
+      'probeConnection',
+      expect.objectContaining({ orgSlug: 'acme', password: undefined }),
+    );
   });
 });
 
