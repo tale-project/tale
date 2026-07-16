@@ -2484,6 +2484,7 @@
       "downloadFailed": "Datei konnte nicht heruntergeladen werden",
       "notAvailable": "Vorschau nicht verfügbar",
       "notAvailableDescription": "Dieser Dateityp kann nicht in der Vorschau angezeigt werden. Bitte lade die Datei herunter, um den Inhalt anzuzeigen.",
+      "truncatedNotice": "Diese Datei ist zu groß für eine vollständige Vorschau — angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.",
       "download": "Herunterladen",
       "document": "Dokument",
       "title": "Dokumentvorschau",

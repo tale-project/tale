@@ -14,7 +14,10 @@ import {
   getTextFileCategory,
 } from '@/lib/utils/text-file-types';
 
-import { useTextPreview } from '../hooks/use-document-preview';
+import {
+  TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS,
+  useTextPreview,
+} from '../hooks/use-document-preview';
 import { PreviewPane } from './preview-pane';
 
 interface DocumentPreviewTextProps {
@@ -28,7 +31,9 @@ export function DocumentPreviewText({
 }: DocumentPreviewTextProps) {
   const { t } = useT('documents');
   const { resolvedTheme } = useTheme();
-  const { data: content, isLoading, error } = useTextPreview(url);
+  const { data, isLoading, error } = useTextPreview(url);
+  const content = data?.text;
+  const truncated = data?.truncated ?? false;
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
 
   const ext = getFileExtensionLower(fileName || '');
@@ -43,6 +48,8 @@ export function DocumentPreviewText({
   useEffect(() => {
     setHighlightedHtml(null);
     if (!content || !isCodeFile || !ext) return undefined;
+    // Tokenizing a huge buffer hangs the tab — plain text beats a frozen page.
+    if (content.length > TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS) return undefined;
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
@@ -73,6 +80,16 @@ export function DocumentPreviewText({
       {!isLoading && error && (
         <Text as="div" variant="error" align="center" className="mt-4">
           {t('preview.failedToLoad')}
+        </Text>
+      )}
+      {!isLoading && !error && truncated && (
+        <Text
+          as="div"
+          variant="muted"
+          align="center"
+          className="mx-auto mb-3 w-full max-w-4xl"
+        >
+          {t('preview.truncatedNotice')}
         </Text>
       )}
       {!isLoading &&
