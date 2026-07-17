@@ -5,7 +5,7 @@
       "episode": "ep1-welcome",
       "locale": "de",
       "kind": "video",
-      "durationSec": 206.2,
+      "durationSec": 208.2,
       "width": 1920,
       "height": 1080
     },
@@ -14,7 +14,7 @@
       "episode": "ep1-welcome",
       "locale": "de",
       "kind": "captions",
-      "durationSec": 206.2
+      "durationSec": 208.2
     },
     {
       "file": "videos/tutorials/ep1-welcome.de.webp",
@@ -53,7 +53,7 @@
       "episode": "ep1-welcome",
       "locale": "fr",
       "kind": "video",
-      "durationSec": 167.3,
+      "durationSec": 169.3,
       "width": 1920,
       "height": 1080
     },
@@ -62,7 +62,7 @@
       "episode": "ep1-welcome",
       "locale": "fr",
       "kind": "captions",
-      "durationSec": 167.3
+      "durationSec": 169.3
     },
     {
       "file": "videos/tutorials/ep1-welcome.fr.webp",

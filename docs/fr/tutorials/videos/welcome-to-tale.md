@@ -5,7 +5,7 @@ description: Une visite de trois minutes — le chat ancré dans tes propres doc
 
 L'épisode d'ouverture montre l'espace de travail une fois, de bout en bout, et nomme les trois idées auxquelles la série revient sans cesse : des réponses que tu peux vérifier, de l'automatisation sous supervision humaine, et le contrôle de l'endroit où vivent tes données et des modèles qui y touchent. Regarde-le avant le démarrage rapide, et le reste de la documentation te semblera déjà familier.
 
-<Video src="/videos/tutorials/ep1-welcome.fr.mp4" poster="/videos/tutorials/ep1-welcome.fr.webp" captions="/videos/tutorials/ep1-welcome.fr.vtt" lang="fr" title="Épisode 1 — Bienvenue dans Tale" caption="Épisode 1 — Bienvenue dans Tale (2:46, sous-titres disponibles)">
+<Video src="/videos/tutorials/ep1-welcome.fr.mp4" poster="/videos/tutorials/ep1-welcome.fr.webp" captions="/videos/tutorials/ep1-welcome.fr.vtt" lang="fr" title="Épisode 1 — Bienvenue dans Tale" caption="Épisode 1 — Bienvenue dans Tale (2:49, sous-titres disponibles)">
 
 </Video>
 
