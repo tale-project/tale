@@ -51,8 +51,14 @@ Die menschliche Hälfte des Vertrauens: die Rollenleiter, Teams als Wissenswänd
 
 </Card>
 
+<Card title="Episode 7 — Integrationen & die Außenwelt" icon="play" href="/de/tutorials/videos/integrations">
+
+Connectoren zum Lesen vor dem Öffnen, MCP-Werkzeuge mit Freigabe-Flags und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
+
+</Card>
+
 </CardGroup>
 
 ## Die Serie danach
 
-Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Integrationen, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.
+Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.

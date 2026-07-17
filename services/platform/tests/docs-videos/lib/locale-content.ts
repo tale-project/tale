@@ -21,6 +21,7 @@ import type {
 import {
   DEMO_DISCUSSIONS,
   DEMO_DOCUMENTS,
+  DEMO_MCP_SERVER,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_PRODUCTS,
   DEMO_PROJECT_FILES,
@@ -36,6 +37,13 @@ interface VideoDemoContent {
   readonly products: readonly DemoProduct[];
   /** Team names are on-camera DATA — native per locale (Episode 8). */
   readonly teams: readonly string[];
+  /** The MCP server row (Episode 7) — native display name. */
+  readonly mcpServer: {
+    name: string;
+    displayName: string;
+    description: string;
+    url: string;
+  };
   /** The relaunch project's attached files (Episode 6) — native names. */
   readonly projectFiles: readonly DemoDocument[];
   /** The relaunch project's discussions (Episode 6). */
@@ -389,6 +397,22 @@ const FR_DISCUSSIONS = [
   },
 ] as const;
 
+const DE_MCP_SERVER = {
+  name: 'internes-wiki',
+  displayName: 'Internes Wiki',
+  description:
+    'Durchsucht das Engineering-Wiki und die Design-Entscheidungen von Nordlicht.',
+  url: 'https://mcp.nordlicht.example/mcp',
+} as const;
+
+const FR_MCP_SERVER = {
+  name: 'wiki-interne',
+  displayName: 'Wiki interne',
+  description:
+    'Recherche dans le wiki d’ingénierie et les décisions de design d’Aurore.',
+  url: 'https://mcp.aurore.example/mcp',
+} as const;
+
 const CONTENT: Record<Locale, VideoDemoContent> = {
   en: {
     projects: DEMO_PROJECTS,
@@ -396,6 +420,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     knowledgeEntries: DEMO_KNOWLEDGE_ENTRIES,
     products: DEMO_PRODUCTS,
     teams: DEMO_TEAMS,
+    mcpServer: DEMO_MCP_SERVER,
     projectFiles: DEMO_PROJECT_FILES,
     discussions: DEMO_DISCUSSIONS,
     discussionTitle: 'Keep the legacy blog URLs after relaunch?',
@@ -413,6 +438,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     knowledgeEntries: DE_KNOWLEDGE,
     products: DE_PRODUCTS,
     teams: DE_TEAMS,
+    mcpServer: DE_MCP_SERVER,
     projectFiles: DE_PROJECT_FILES,
     discussions: DE_DISCUSSIONS,
     discussionTitle: 'Alte Blog-URLs nach dem Relaunch behalten?',
@@ -430,6 +456,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     knowledgeEntries: FR_KNOWLEDGE,
     products: FR_PRODUCTS,
     teams: FR_TEAMS,
+    mcpServer: FR_MCP_SERVER,
     projectFiles: FR_PROJECT_FILES,
     discussions: FR_DISCUSSIONS,
     discussionTitle: 'Conserver les anciennes URL du blog après la refonte ?',

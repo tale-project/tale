@@ -433,6 +433,78 @@
       "height": 1080
     },
     {
+      "file": "videos/tutorials/ep7-integrations.de.mp4",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 172.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.de.vtt",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 172.2
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.de.webp",
+      "episode": "ep7-integrations",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.en.mp4",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 150.4,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.en.vtt",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 150.4
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.en.webp",
+      "episode": "ep7-integrations",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.fr.mp4",
+      "episode": "ep7-integrations",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 138.3,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.fr.vtt",
+      "episode": "ep7-integrations",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 138.3
+    },
+    {
+      "file": "videos/tutorials/ep7-integrations.fr.webp",
+      "episode": "ep7-integrations",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
       "file": "videos/tutorials/ep8-people.de.mp4",
       "episode": "ep8-people",
       "locale": "de",

@@ -5,6 +5,12 @@ description: Les systèmes tiers auxquels Tale se connecte — le catalogue sous
 
 Les intégrations sont les ponts entre Tale et le reste de ta stack : les agents les appellent comme outils, les workflows les appellent à leurs étapes, et le pipeline de connaissances tire des documents à travers elles. L’org connecte chacune une seule fois sous **Paramètres > Intégrations** ; à partir de là, tout dans Tale peut l’utiliser sans se ré-authentifier. Cette vue d’ensemble nomme le catalogue livré et les deux façons de l’étendre.
 
+Tu préfères regarder d’abord ? L’épisode 7 parcourt les portes vers l’extérieur — connecteurs, MCP et frontières — en deux minutes et demie, sous-titres compris.
+
+<Video src="/videos/tutorials/ep7-integrations.fr.mp4" poster="/videos/tutorials/ep7-integrations.fr.webp" captions="/videos/tutorials/ep7-integrations.fr.vtt" lang="fr" title="Épisode 7 — Intégrations & le monde extérieur" caption="Épisode 7 — Intégrations & le monde extérieur (2:18)">
+
+</Video>
+
 <Frame caption="Paramètres > Intégrations sur l’onglet Toutes les intégrations — le catalogue complet, chaque carte à un Connecter de distance.">
 
 ![La page Intégrations des Paramètres montrant un champ de recherche, un bouton Ajouter une intégration et une grille de cartes de douze services dont Confluence, GitHub, Gmail, Slack et Twilio.](/images/platform/integrations-catalog.webp)

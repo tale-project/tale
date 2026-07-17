@@ -5,6 +5,7 @@
  * menu, the MCP servers surface, and the run-code policy. No mutations.
  */
 
+import { videoContentFor } from '../../lib/locale-content';
 import {
   spaNavigate,
   type SceneChoreography,
@@ -106,12 +107,16 @@ export const SCENES: readonly SceneChoreography[] = [
       await cursor.click(page.getByRole('button', { name: /Tavily/ }).first());
       const panel = page.getByRole('dialog').last();
       await panel.waitFor({ state: 'visible', timeout: 15_000 });
-      const operations = panel.getByText(/Operations/i).first();
+      const operations = panel
+        .getByText(rt.t('settings.integrations.upload.operations'))
+        .first();
       await operations.waitFor({ state: 'visible', timeout: 15_000 });
       await cue(5.0);
       await cursor.hover(operations);
       await cue(8.6);
-      const hosts = panel.getByText(/Allowed hosts/i).first();
+      const hosts = panel
+        .getByText(rt.t('settings.integrations.upload.allowedHosts'))
+        .first();
       if (await hosts.isVisible().catch(() => false)) {
         await cursor.hover(hosts);
       }
@@ -146,7 +151,9 @@ export const SCENES: readonly SceneChoreography[] = [
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
       await spaNavigate(page, `/dashboard/${ctx.orgId}/settings/api/mcp`);
-      const server = page.getByText('Internal Wiki').first();
+      const server = page
+        .getByText(videoContentFor(ctx.locale).mcpServer.displayName)
+        .first();
       await server.waitFor({ state: 'visible', timeout: 30_000 });
       await cue(5.0);
       await cursor.hover(server);
@@ -158,7 +165,9 @@ export const SCENES: readonly SceneChoreography[] = [
     run: async (rt) => {
       const { page, cursor, cue } = rt;
       await cue(2.0);
-      const row = page.getByText('Internal Wiki').first();
+      const row = page
+        .getByText(videoContentFor(rt.ctx.locale).mcpServer.displayName)
+        .first();
       await cursor.click(row);
       await page
         .waitForLoadState('networkidle', { timeout: 8_000 })

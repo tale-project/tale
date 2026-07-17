@@ -5,6 +5,12 @@ description: Die Drittsysteme, mit denen sich Tale verbindet — der Katalog unt
 
 Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks: Agents rufen sie als Tools auf, Workflows rufen sie in Schritten auf, und die Wissens-Pipeline zieht Dokumente durch sie hindurch. Die Organisation verbindet jede genau einmal unter **Einstellungen > Integrationen**; von da an kann alles in Tale sie nutzen, ohne sich neu zu authentifizieren. Diese Übersicht benennt den mitgelieferten Katalog und die zwei Wege, ihn zu erweitern.
 
+Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
+
+<Video src="/videos/tutorials/ep7-integrations.de.mp4" poster="/videos/tutorials/ep7-integrations.de.webp" captions="/videos/tutorials/ep7-integrations.de.vtt" lang="de" title="Episode 7 — Integrationen & die Außenwelt" caption="Episode 7 — Integrationen & die Außenwelt (2:52)">
+
+</Video>
+
 <Frame caption="Einstellungen > Integrationen auf dem Tab Alle Integrationen — der volle Katalog, jede Karte ein Verbinden entfernt.">
 
 ![Die Seite Einstellungen Integrationen mit einem Suchfeld, einem Button Integration hinzufügen und einem Kartenraster aus zwölf Diensten, darunter Confluence, GitHub, Gmail, Slack und Twilio.](/images/platform/integrations-catalog.webp)

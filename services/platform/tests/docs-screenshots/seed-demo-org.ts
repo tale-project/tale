@@ -897,13 +897,22 @@ async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
 }
 
 /** One MCP server (Settings > API > MCP), so the list is not an empty state. */
-async function ensureMcpServer(page: Page, orgId: string): Promise<void> {
+async function ensureMcpServer(
+  page: Page,
+  orgId: string,
+  server: {
+    name: string;
+    displayName: string;
+    description: string;
+    url: string;
+  } = DEMO_MCP_SERVER,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/api/mcp`);
   const addButton = page
     .getByRole('button', { name: t('mcpServers.addServer') })
     .first();
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  if (await isPresent(page.getByText(DEMO_MCP_SERVER.displayName))) return;
+  if (await isPresent(page.getByText(server.displayName))) return;
 
   await addButton.click();
   // The add surface is a Sheet, but Radix gives it role=dialog.
@@ -913,20 +922,18 @@ async function ensureMcpServer(page: Page, orgId: string): Promise<void> {
   // a prefix of "Display name" — only an anchored label hits the right input.
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.name')))
-    .fill(DEMO_MCP_SERVER.name);
+    .fill(server.name);
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.displayName')))
-    .fill(DEMO_MCP_SERVER.displayName);
+    .fill(server.displayName);
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.description')))
-    .fill(DEMO_MCP_SERVER.description);
-  await sheet
-    .getByLabel(labelStart(t('mcpServers.form.url')))
-    .fill(DEMO_MCP_SERVER.url);
+    .fill(server.description);
+  await sheet.getByLabel(labelStart(t('mcpServers.form.url'))).fill(server.url);
   await sheet.getByRole('button', { name: t('mcpServers.form.save') }).click();
-  await expect(page.getByText(DEMO_MCP_SERVER.displayName).first()).toBeVisible(
-    { timeout: TIMEOUT.PERSIST },
-  );
+  await expect(page.getByText(server.displayName).first()).toBeVisible({
+    timeout: TIMEOUT.PERSIST,
+  });
 }
 
 /** Per-user custom instructions (Settings > Preferences). */
@@ -1256,6 +1263,12 @@ export async function seedVideoLocaleOrg(
     readonly products: readonly DemoProduct[];
     readonly teams: readonly string[];
     readonly projectFiles: readonly DemoDocument[];
+    readonly mcpServer: {
+      name: string;
+      displayName: string;
+      description: string;
+      url: string;
+    };
     readonly discussions: readonly (typeof DEMO_DISCUSSIONS)[number][];
   },
 ): Promise<Map<string, string>> {
@@ -1278,6 +1291,9 @@ export async function seedVideoLocaleOrg(
   );
   await step('members', () => ensureMembers(page, orgId));
   await step('teams', () => ensureTeams(page, orgId, content.teams));
+  await step('mcp server', () =>
+    ensureMcpServer(page, orgId, content.mcpServer),
+  );
   const relaunch = projects.get(content.projects[0]?.name ?? '');
   if (relaunch) {
     await step('project files', () =>
