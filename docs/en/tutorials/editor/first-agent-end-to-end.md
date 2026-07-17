@@ -9,14 +9,14 @@ You need an Editor role and a configured chat-tagged model on the org's provider
 
 ## Before you begin
 
-Confirm three things. Your role is at least Editor — agent editing is gated to Editor and above. The org has a provider configured and at least one chat-tagged model on it; without that, the test reply at the end fails on the model call. You have a question in mind the agent should answer — pick something narrow enough that a paragraph of instructions can frame it, like "summarise an inbound customer message into one sentence plus a recommended next action".
+Confirm three things. Your role is at least Editor — agent editing is gated to Editor and above. The org has a provider configured and at least one chat-tagged model on it; without that, the test reply at the end fails on the model call. You have a question in mind the agent should answer — pick something narrow enough that a paragraph of instructions can frame it, like "summarise an inbound contact message into one sentence plus a recommended next action".
 
 ## Step 1 — Write the instructions
 
 Instructions are the system prompt — the prose that frames every reply. The first knob is the one most people overshoot. Open **Agents > New agent** and set:
 
 - **Name** — `Triage assistant`
-- **Instructions** — `You read a customer message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
+- **Instructions** — `You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
 
 Save as a draft for now; publishing comes after the other knobs. Short, opinionated, concrete instructions outperform long ones — keep the rules under a paragraph.
 
@@ -36,7 +36,7 @@ If the agent should write the recommended action back to a CRM, you would toggle
 
 Open the **Model** tab and pick the org default for the primary; set a smaller model as the fallback so the agent still runs when the primary is rate-limited. Save, then click **Publish**. The agent is now visible in chat to everyone with the right role.
 
-Open a chat with `Triage assistant` and paste in a real customer message. The reply should land in two lines per the instructions — a one-sentence summary and a recommended action. If the format drifts, tighten the instructions and republish; this is the loop you spend the most time in.
+Open a chat with `Triage assistant` and paste in a real contact message. The reply should land in two lines per the instructions — a one-sentence summary and a recommended action. If the format drifts, tighten the instructions and republish; this is the loop you spend the most time in.
 
 ## Where this fits
 

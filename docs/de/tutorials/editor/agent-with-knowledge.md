@@ -46,4 +46,4 @@ Erfindet der Agent trotzdem eine Antwort, sind die Instruktionen nicht streng ge
 
 Die vier Züge oben sind der kanonische „Agent, der aus deinen Docs antwortet"-Bau: hochladen, Agent mit aktivem RAG erstellen, binden, mit einem Zitat verifizieren. Dieselbe Form skaliert — bind zehn Dokumente statt drei, füg eine Website oder einen Kunden-Datensatz hinzu, wechsle das Modell. Die Bindungen, nicht das Modell, machen den Agent zu deinem.
 
-Für die konzeptuelle Seite, wie Retrieval mit den anderen Knöpfen des Agenten zusammenspielt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für die breitere Wissensdatenbank-Geschichte — Kunden, Produkte, Anbieter, Websites — siehe [Wissens-Überblick](/de/platform/knowledge/overview).
+Für die konzeptuelle Seite, wie Retrieval mit den anderen Knöpfen des Agenten zusammenspielt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für die breitere Wissensdatenbank-Geschichte — Kontakte, Produkte, Anbieter, Websites — siehe [Wissens-Überblick](/de/platform/knowledge/overview).

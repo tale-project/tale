@@ -3,7 +3,7 @@ title: Projets
 description: Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions, tâches et discussions autour d’un même travail. Cet aperçu cartographie les onglets du projet et pointe vers la page qui approfondit chacun.
 ---
 
-Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions, le tableau des tâches et les discussions — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un client, un lancement ou une enquête au long cours.
+Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions, le tableau des tâches et les discussions — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un contact, un lancement ou une enquête au long cours.
 
 Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deux minutes et demie — avec une tâche qu’un agent prend à l’écran.
 

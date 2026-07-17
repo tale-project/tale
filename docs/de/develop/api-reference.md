@@ -31,19 +31,19 @@ Cookies authentifizieren die Browser-Session; API-Aufrufe aus dem Browser innerh
 
 ## Endpoint-Gruppen
 
-| Gruppe                                           | Methode      | Pfad                         | Auth nötig | Hinweise                                                   |
-| ------------------------------------------------ | ------------ | ---------------------------- | ---------- | ---------------------------------------------------------- |
-| Agents                                           | verschiedene | `/api/v1/agents/...`         | API-Key    | List, get, run.                                            |
-| Chat                                             | verschiedene | `/api/v1/chat/...`           | API-Key    | Stream Chat-Completions gegen einen Agent oder ein Modell. |
-| OpenAI-kompatibel                                | POST         | `/api/v1/chat/completions`   | API-Key    | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
-| OpenAI-kompatibel                                | POST         | `/api/v1/images/generations` | API-Key    | Bilder generieren; OpenAI-Images-Form.                     |
-| OpenAI-kompatibel                                | GET          | `/api/v1/models`             | API-Key    | Verfügbare Modelle im OpenAI-Format auflisten.             |
-| Workflows                                        | verschiedene | `/api/v1/workflows/...`      | API-Key    | Run per Slug, Zeitpläne, Webhooks, Ausführungen.           |
-| Workflow-Webhooks                                | POST         | `/api/workflows/wh/<token>`  | URL-Token  | Einen webhook-getriggerten Workflow von außen auslösen.    |
-| Wissen — Dokumente                               | verschiedene | `/api/v1/documents/...`      | API-Key    | Upload, list, get, delete.                                 |
-| Wissen — Kunden, Produkte, Lieferanten, Websites | verschiedene | `/api/v1/<entity>/...`       | API-Key    | List, get, create, update.                                 |
-| Konversationen                                   | verschiedene | `/api/v1/conversations/...`  | API-Key    | List nach Status, get, write messages.                     |
-| Dateien                                          | verschiedene | `/api/v1/files/...`          | API-Key    | Upload, get, delete. Von Uploads genutzt.                  |
+| Gruppe                                             | Methode      | Pfad                         | Auth nötig | Hinweise                                                   |
+| -------------------------------------------------- | ------------ | ---------------------------- | ---------- | ---------------------------------------------------------- |
+| Agents                                             | verschiedene | `/api/v1/agents/...`         | API-Key    | List, get, run.                                            |
+| Chat                                               | verschiedene | `/api/v1/chat/...`           | API-Key    | Stream Chat-Completions gegen einen Agent oder ein Modell. |
+| OpenAI-kompatibel                                  | POST         | `/api/v1/chat/completions`   | API-Key    | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
+| OpenAI-kompatibel                                  | POST         | `/api/v1/images/generations` | API-Key    | Bilder generieren; OpenAI-Images-Form.                     |
+| OpenAI-kompatibel                                  | GET          | `/api/v1/models`             | API-Key    | Verfügbare Modelle im OpenAI-Format auflisten.             |
+| Workflows                                          | verschiedene | `/api/v1/workflows/...`      | API-Key    | Run per Slug, Zeitpläne, Webhooks, Ausführungen.           |
+| Workflow-Webhooks                                  | POST         | `/api/workflows/wh/<token>`  | URL-Token  | Einen webhook-getriggerten Workflow von außen auslösen.    |
+| Wissen — Dokumente                                 | verschiedene | `/api/v1/documents/...`      | API-Key    | Upload, list, get, delete.                                 |
+| Wissen — Kontakte, Produkte, Lieferanten, Websites | verschiedene | `/api/v1/<entity>/...`       | API-Key    | List, get, create, update.                                 |
+| Konversationen                                     | verschiedene | `/api/v1/conversations/...`  | API-Key    | List nach Status, get, write messages.                     |
+| Dateien                                            | verschiedene | `/api/v1/files/...`          | API-Key    | Upload, get, delete. Von Uploads genutzt.                  |
 
 Exakte Feld-Formen für jeden Endpoint leben im OpenAPI-Dokument, das die Plattform zur Build-Zeit emittiert; lad es in einem Swagger- oder Stoplight-Viewer, um Request- und Response-Schemas mit Beispielen zu sehen. Die Endpoint-Gruppen in der Tabelle oben sind die High-Level-Inventur; das OpenAPI-Dokument ist die Feldebenen-Referenz.
 

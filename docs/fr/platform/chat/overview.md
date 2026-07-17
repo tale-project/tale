@@ -77,4 +77,4 @@ Quand le Canevas s’ouvre, et ce qui obtient un Canevas plutôt qu’un rendu e
 
 ## Où ça s’inscrit
 
-Le chat est la surface que chaque autre fonctionnalité de Platform finit par servir. Les agents façonnent ses réponses, les Connaissances alimentent ses citations, les Approbations l’interrompent pour des vérifications humaines, Conversations est une boîte de réception sœur pour les canaux clients plutôt que pour tes propres chats. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin du chat à la réponse, chaque autre page de chat se lit comme une variation autour.
+Le chat est la surface que chaque autre fonctionnalité de Platform finit par servir. Les agents façonnent ses réponses, les Connaissances alimentent ses citations, les Approbations l’interrompent pour des vérifications humaines, Conversations est une boîte de réception sœur pour les canaux contacts plutôt que pour tes propres chats. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin du chat à la réponse, chaque autre page de chat se lit comme une variation autour.

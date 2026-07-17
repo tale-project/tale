@@ -52,7 +52,7 @@ Passe à l’onglet **Base de connaissances**. Choisis un **Mode de récupérati
 
 ## Étape 4 — Accorder les outils
 
-Passe à l’onglet **Outils**. Les outils sont des cases à cocher individuelles groupées par catégorie — clients, produits, fichiers, workflows et plus — plus un sélecteur de mode **Recherche web** en haut. Accorde ce dont l’agent a besoin et laisse le reste éteint ; chaque case cochée élargit la frontière de confiance.
+Passe à l’onglet **Outils**. Les outils sont des cases à cocher individuelles groupées par catégorie — contacts, produits, fichiers, workflows et plus — plus un sélecteur de mode **Recherche web** en haut. Accorde ce dont l’agent a besoin et laisse le reste éteint ; chaque case cochée élargit la frontière de confiance.
 
 <Frame caption="L’onglet Outils — une liste de cases par outil, groupée en cartes de catégorie, chacune comptant ce qu’elle a accordé.">
 

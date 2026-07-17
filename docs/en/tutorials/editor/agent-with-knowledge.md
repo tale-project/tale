@@ -44,6 +44,6 @@ If the agent invents an answer anyway, the instructions are not strict enough �
 
 ## Where this fits
 
-The four moves above are the canonical "agent that answers from your docs" build: upload, create the agent with RAG on, bind, verify with a citation. The same shape scales — bind ten documents instead of three, add a website or a customer record, swap the model. The bindings, not the model, are what makes the agent yours.
+The four moves above are the canonical "agent that answers from your docs" build: upload, create the agent with RAG on, bind, verify with a citation. The same shape scales — bind ten documents instead of three, add a website or a contact record, swap the model. The bindings, not the model, are what makes the agent yours.
 
-For the conceptual side of how retrieval composes with the agent's other knobs, see [Agent concepts](/platform/agents/concepts). For the wider knowledge-base story — Customers, Products, Vendors, Websites — see [Knowledge overview](/platform/knowledge/overview).
+For the conceptual side of how retrieval composes with the agent's other knobs, see [Agent concepts](/platform/agents/concepts). For the wider knowledge-base story — Contacts, Products, Vendors, Websites — see [Knowledge overview](/platform/knowledge/overview).

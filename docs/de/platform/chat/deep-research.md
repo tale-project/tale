@@ -15,7 +15,7 @@ Die Tiefenrecherche schlägt einen gewöhnlichen Chat bei Fragen, deren Wert nic
 - Du willst Zitate — ein Zitat ohne URL ist eine Vermutung.
 - Du nimmst zwei bis zehn Minuten Wartezeit für einen geschriebenen Bericht statt einer Chat-Antwort in Kauf.
 
-Für schmale Faktenfragen („was ist die Hauptstadt des Senegal") ist ein gewöhnlicher Chat schneller und genauso korrekt. Für Fragen zu deinen eigenen Daten („was hat der Kunde letzten Dienstag im Call gesagt") ist ein Agent mit [Wissens](/de/platform/agents/knowledge)-Bindungen die richtige Form — die Tiefenrecherche liest nur das offene Web, nicht deine Wissensdatenbank.
+Für schmale Faktenfragen („was ist die Hauptstadt des Senegal") ist ein gewöhnlicher Chat schneller und genauso korrekt. Für Fragen zu deinen eigenen Daten („was hat der Kontakt letzten Dienstag im Call gesagt") ist ein Agent mit [Wissens](/de/platform/agents/knowledge)-Bindungen die richtige Form — die Tiefenrecherche liest nur das offene Web, nicht deine Wissensdatenbank.
 
 ## Tiefenrecherche öffnen
 

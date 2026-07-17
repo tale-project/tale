@@ -52,7 +52,7 @@ Switch to the **Knowledge** tab. Pick a **Retrieval mode** — **Tool** lets the
 
 ## Step 4 — Grant the tools
 
-Switch to the **Tools** tab. Tools are individual checkboxes grouped by category — customers, products, files, workflows, and more — plus a **Web search** mode selector at the top. Grant what the agent needs and leave the rest off; every toggle widens the trust boundary.
+Switch to the **Tools** tab. Tools are individual checkboxes grouped by category — contacts, products, files, workflows, and more — plus a **Web search** mode selector at the top. Grant what the agent needs and leave the rest off; every toggle widens the trust boundary.
 
 <Frame caption="The Tools tab — a per-tool checklist grouped into category cards, each counting what it has granted.">
 

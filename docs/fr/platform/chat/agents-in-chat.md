@@ -43,7 +43,7 @@ Les instructions d’un agent peuvent inclure un outil sous-agent ; quand c’e
 | ------------------------------------------------------- | ---- | ------- | ------------- |
 | Tâche personnelle, question ponctuelle                  | ✓    |         |               |
 | Espace de travail partagé en équipe, threads récurrents |      | ✓       |               |
-| Entrée depuis un canal client (e-mail, webhook)         |      |         | ✓             |
+| Entrée depuis un canal contact (e-mail, webhook)        |      |         | ✓             |
 
 ## Où ça s’inscrit
 

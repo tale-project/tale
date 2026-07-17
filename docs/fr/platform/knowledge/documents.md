@@ -45,7 +45,7 @@ Cliquer sur un document ouvre l’aperçu, avec un panneau latéral qui montre l
 
 ## Documents ou données structurées
 
-Les documents sont la moitié non structurée de la base de connaissances. Quand le contenu est une liste d’éléments partageant les mêmes champs — clients, produits, fournisseurs — une fiche typée sert mieux les agents qu’un tableur téléversé : des valeurs exactes au lieu de passages récupérés. Les règles de décision vivent dans [Données structurées](/fr/platform/knowledge/structured-data).
+Les documents sont la moitié non structurée de la base de connaissances. Quand le contenu est une liste d’éléments partageant les mêmes champs — contacts, produits, fournisseurs — une fiche typée sert mieux les agents qu’un tableur téléversé : des valeurs exactes au lieu de passages récupérés. Les règles de décision vivent dans [Données structurées](/fr/platform/knowledge/structured-data).
 
 ## Où cela s’inscrit
 

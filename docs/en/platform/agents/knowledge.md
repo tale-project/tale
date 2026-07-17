@@ -31,12 +31,12 @@ When the agent retrieves, citations attach to the sentences they support — hov
 
 Structured records and live sources are tools, not knowledge — and files for a single conversation are attachments. The boundaries:
 
-| Use…                                                | When the agent needs…                                   |
-| --------------------------------------------------- | ------------------------------------------------------- |
-| Knowledge (this tab)                                | To search and cite uploaded documents on every chat     |
-| [Tools](/platform/agents/tools)                     | Customers, products, vendors, websites, or live systems |
-| [Attachments](/platform/chat/attachments)           | A file that matters for one chat only                   |
-| [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                         |
+| Use…                                                | When the agent needs…                                  |
+| --------------------------------------------------- | ------------------------------------------------------ |
+| Knowledge (this tab)                                | To search and cite uploaded documents on every chat    |
+| [Tools](/platform/agents/tools)                     | Contacts, products, vendors, websites, or live systems |
+| [Attachments](/platform/chat/attachments)           | A file that matters for one chat only                  |
+| [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                        |
 
 ## Where this fits
 

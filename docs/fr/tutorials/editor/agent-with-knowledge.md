@@ -46,4 +46,4 @@ Si l'agent invente quand même une réponse, les instructions ne sont pas assez 
 
 Les quatre gestes ci-dessus sont le build canonique de « l'agent qui répond depuis tes docs » : charger, créer l'agent avec RAG actif, lier, vérifier avec une citation. La même forme passe à l'échelle — lie dix documents au lieu de trois, ajoute un site web ou un dossier client, change de modèle. Ce sont les liaisons, pas le modèle, qui font que l'agent est le tien.
 
-Pour le côté conceptuel — comment le retrieval se compose avec les autres boutons de l'agent — voir [Concepts des agents](/fr/platform/agents/concepts). Pour l'histoire plus large de la base de connaissances — Clients, Produits, Fournisseurs, Sites web — voir [Aperçu du savoir](/fr/platform/knowledge/overview).
+Pour le côté conceptuel — comment le retrieval se compose avec les autres boutons de l'agent — voir [Concepts des agents](/fr/platform/agents/concepts). Pour l'histoire plus large de la base de connaissances — Contacts, Produits, Fournisseurs, Sites web — voir [Aperçu du savoir](/fr/platform/knowledge/overview).

@@ -1,6 +1,6 @@
 ---
 title: Données structurées
-description: La base de connaissances de Tale embarque quatre entités structurées intégrées — Clients, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document.
+description: La base de connaissances de Tale embarque quatre entités structurées intégrées — Contacts, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document.
 ---
 
 La base de connaissances de Tale embarque deux formes côte à côte. Les documents sont du texte dont l’agent récupère des fragments ; les fiches structurées sont des lignes typées dont l’agent lit les champs. La forme que tu choisis est la décision la plus lourde dans la façon dont un agent exploitera tes connaissances — trompe-toi et l’agent dilue une réponse claire, ou devine une valeur que tu as pourtant en stock.
@@ -11,13 +11,13 @@ Cette page te donne le modèle mental pour savoir quand chaque forme est la bonn
 
 Un document est libre : le pipeline d’indexation extrait le texte, le découpe, calcule les embeddings et sert des passages par récupération au moment de répondre. L’agent voit des passages et les cite par source. C’est la bonne forme quand le contenu est de la prose — contrats, manuels, articles de base de connaissances, comptes rendus de réunion.
 
-Une fiche structurée est typée : l’entité a des champs connus (un client a un nom, un e-mail, un secteur ; un produit a un SKU, un prix, un stock). L’agent lit les champs directement, croise les entités entre elles et répond avec la valeur. C’est la bonne forme quand la source est une ligne de base de données — comptes, commandes, pièces, fiches fournisseurs.
+Une fiche structurée est typée : l’entité a des champs connus (un contact a un nom, un e-mail, un secteur ; un produit a un SKU, un prix, un stock). L’agent lit les champs directement, croise les entités entre elles et répond avec la valeur. C’est la bonne forme quand la source est une ligne de base de données — comptes, commandes, pièces, fiches fournisseurs.
 
 ## Les quatre entités intégrées
 
 Quatre onglets structurés côtoient **Documents** et **Entrées de connaissances** dans la base de connaissances :
 
-- **Clients** — les personnes et organisations avec qui tu fais affaire.
+- **Contacts** — les personnes et organisations avec qui tu fais affaire.
 - **Produits** — ce que tu vends.
 - **Fournisseurs** — ceux auprès de qui tu achètes.
 - **Sites web** — des sites publics qu’un crawler va chercher selon un planning ; la fiche porte le domaine et les réglages d’analyse, les pages indexées portent le contenu ([Exploration de sites web](/fr/platform/knowledge/crawling)).
@@ -36,9 +36,9 @@ Les modèles de contenu coûtent de l’attention de gouvernance — l’accès 
 
 ## En pratique — un agent CRM
 
-Un agent CRM qui répond à « où en est-on avec Acme ? » utilise les deux formes. L’entité Clients tient la fiche canonique — nom, contact principal, secteur, statut. Les documents tiennent les notes d’appel et les contrats. L’agent lit directement les champs du client, récupère des passages dans les documents et répond avec les deux : le statut structuré depuis Clients, le contexte le plus frais depuis la dernière note d’appel.
+Un agent CRM qui répond à « où en est-on avec Acme ? » utilise les deux formes. L’entité Contacts tient la fiche canonique — nom, contact principal, secteur, statut. Les documents tiennent les notes d’appel et les contrats. L’agent lit directement les champs du contact, récupère des passages dans les documents et répond avec les deux : le statut structuré depuis Contacts, le contexte le plus frais depuis la dernière note d’appel.
 
-Sans fiches structurées, l’agent doit retrouver Acme par son nom à travers des PDF et risque de confondre deux clients aux noms proches. Sans documents, l’agent connaît le statut d’Acme mais ne peut pas te dire ce qui s’est passé pendant l’appel de mardi.
+Sans fiches structurées, l’agent doit retrouver Acme par son nom à travers des PDF et risque de confondre deux contacts aux noms proches. Sans documents, l’agent connaît le statut d’Acme mais ne peut pas te dire ce qui s’est passé pendant l’appel de mardi.
 
 ## Quand y recourir
 

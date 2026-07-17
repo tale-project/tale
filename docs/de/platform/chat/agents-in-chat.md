@@ -39,11 +39,11 @@ Die Instructions eines Agents können ein Sub-Agent-Tool enthalten; wenn ja, kan
 
 ## Wann welche Form passt
 
-| Nutz … wenn                                         | Chat | Projekte | Konversationen |
-| --------------------------------------------------- | ---- | -------- | -------------- |
-| Persönliche Aufgabe, einmalige Frage                | ✓    |          |                |
-| Geteilter Workspace für ein Team, laufende Threads  |      | ✓        |                |
-| Eingehendes aus einem Kundenkanal (E-Mail, Webhook) |      |          | ✓              |
+| Nutz … wenn                                          | Chat | Projekte | Konversationen |
+| ---------------------------------------------------- | ---- | -------- | -------------- |
+| Persönliche Aufgabe, einmalige Frage                 | ✓    |          |                |
+| Geteilter Workspace für ein Team, laufende Threads   |      | ✓        |                |
+| Eingehendes aus einem Kontaktkanal (E-Mail, Webhook) |      |          | ✓              |
 
 ## Wo das hineinpasst
 

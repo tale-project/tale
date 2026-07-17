@@ -47,7 +47,7 @@ L’historique des versions est l’endroit où regarder quand un coéquipier a 
 
 Le chat a un picker de prompts à sa base. Ouvre-le, cherche ou filtre pour trouver le prompt voulu, et clique-le pour coller le contenu dans le chat. Le prompt est maintenant ton message — édite-le, attache des fichiers, ajoute du contexte, envoie. Une fois envoyé, le prompt agit comme n’importe quelle entrée de chat ; Tale ne suit pas quels chats ont utilisé quels prompts.
 
-Certains prompts contiennent des variables de template — placeholders comme `{{customer_name}}` ou `{{topic}}`. Le picker te demande chaque variable avant de coller ; le contenu résultant est le prompt avec les placeholders remplis. Les variables sont déclarées dans le contenu du prompt avec la syntaxe `{{variable_name}}`.
+Certains prompts contiennent des variables de template — placeholders comme `{{contact_name}}` ou `{{topic}}`. Le picker te demande chaque variable avant de coller ; le contenu résultant est le prompt avec les placeholders remplis. Les variables sont déclarées dans le contenu du prompt avec la syntaxe `{{variable_name}}`.
 
 ## Limites et cycle de vie
 

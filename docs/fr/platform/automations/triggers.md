@@ -33,7 +33,7 @@ Sauvegarde l’URL du webhook au moment où elle s’affiche — le token dans l
 
 ## Événements
 
-Clique sur **Ajouter un déclencheur d'événement** et choisis un type d’événement dans la liste déroulante — des choses qui se produisent dans Tale, comme `task.created`, `conversation.message_received`, `customer.updated` ou `workflow.completed`. Des filtres optionnels resserrent quand le déclencheur se lance, et le payload de l’événement devient l’entrée de l’exécution. Va vers un déclencheur d’événement quand le travail du workflow est de réagir à quelque chose que Tale vient de faire.
+Clique sur **Ajouter un déclencheur d'événement** et choisis un type d’événement dans la liste déroulante — des choses qui se produisent dans Tale, comme `task.created`, `conversation.message_received`, `contact.updated` ou `workflow.completed`. Des filtres optionnels resserrent quand le déclencheur se lance, et le payload de l’événement devient l’entrée de l’exécution. Va vers un déclencheur d’événement quand le travail du workflow est de réagir à quelque chose que Tale vient de faire.
 
 <Note>
 

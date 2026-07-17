@@ -33,6 +33,8 @@ La définition de chaque intégration — son schéma de configuration, son conn
 
 Pour roter, ouvre la ligne de l’intégration et clique sur **Roter les identifiants**. Les intégrations OAuth refont la danse avec les mêmes périmètres ; les intégrations à clé API montrent un champ pour la nouvelle clé. L’ancien identifiant arrête de marcher dès que le nouveau est vérifié — il n’y a pas de fenêtre de chevauchement pour les identifiants au niveau de l’intégration. Va vers la rotation au rythme que ta politique de sécurité impose, ou chaque fois que le système amont rapporte un identifiant compromis.
 
+Quand une mise à jour de la plateforme ajoute des périmètres à une intégration OAuth déjà connectée, rote une fois pour que l’écran de consentement les accorde. **Outlook** est le cas actuel : après la mise à jour qui lit l’adresse du compte pour la rédaction, les connexions Outlook existantes doivent roter une fois avant que la rédaction affiche la vraie adresse plutôt que le seul nom du fournisseur — jusqu’alors l’envoi continue de marcher ; seule la capture d’adresse attend le nouveau périmètre `User.Read`.
+
 ## Restreindre une intégration
 
 Au-delà des identifiants, une intégration porte deux leviers de cadrage sous sa ligne :

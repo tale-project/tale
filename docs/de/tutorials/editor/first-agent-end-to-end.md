@@ -9,7 +9,7 @@ Du brauchst eine Editor-Rolle und ein konfiguriertes Chat-getaggtes Modell beim 
 
 ## Bevor du beginnst
 
-Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Die Org hat einen Anbieter konfiguriert und mindestens ein Chat-getaggtes Modell darauf; ohne das scheitert die Test-Antwort am Ende beim Modell-Call. Du hast eine Frage im Kopf, die der Agent beantworten soll — wähl etwas eng genug, dass ein Absatz Instruktionen sie rahmen kann, etwa „fass eine eingehende Kundennachricht in einen Satz plus eine empfohlene nächste Aktion zusammen".
+Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Die Org hat einen Anbieter konfiguriert und mindestens ein Chat-getaggtes Modell darauf; ohne das scheitert die Test-Antwort am Ende beim Modell-Call. Du hast eine Frage im Kopf, die der Agent beantworten soll — wähl etwas eng genug, dass ein Absatz Instruktionen sie rahmen kann, etwa „fass eine eingehende Kontaktnachricht in einen Satz plus eine empfohlene nächste Aktion zusammen".
 
 ## Schritt 1 — Die Instruktionen schreiben
 
@@ -36,7 +36,7 @@ Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du sp
 
 Öffne den Tab **Modell** und wähl als primäres den Org-Default; setz ein kleineres Modell als Fallback, damit der Agent läuft, wenn das primäre rate-limited ist. Speicher, dann klick **Veröffentlichen**. Der Agent ist nun für alle mit passender Rolle im Chat sichtbar.
 
-Öffne einen Chat mit `Triage assistant` und füg eine echte Kundennachricht ein. Die Antwort sollte gemäss Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
+Öffne einen Chat mit `Triage assistant` und füg eine echte Kontaktnachricht ein. Die Antwort sollte gemäss Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
 
 ## Wo das eingesetzt wird
 

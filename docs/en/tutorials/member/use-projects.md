@@ -3,7 +3,7 @@ title: Use projects to bundle files and chats
 description: Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together — and stops you from re-uploading the same documents every time.
 ---
 
-A project is what you reach for the second time you find yourself pasting the same context into a chat. It bundles files, instructions, and chats around one body of work — a customer, a launch, a long investigation — so every new conversation starts with the context already loaded. This walk takes a fresh project from "I keep re-uploading the same brief" to "every chat inside this project already knows the brief" on one instance.
+A project is what you reach for the second time you find yourself pasting the same context into a chat. It bundles files, instructions, and chats around one body of work — a contact, a launch, a long investigation — so every new conversation starts with the context already loaded. This walk takes a fresh project from "I keep re-uploading the same brief" to "every chat inside this project already knows the brief" on one instance.
 
 You need a Member role (the floor for creating projects) and three or four files you keep referencing. The conceptual side lives in [Project concepts](/platform/projects/concepts); this walk is the end-to-end mechanic.
 
@@ -31,7 +31,7 @@ Each file lands in the project's storage and indexes the same way a knowledge-ba
 
 Project instructions frame every chat in the project. They compose with the agent's own instructions: the project frames the work, the agent frames the reply. Open the **Instructions** tab and set:
 
-`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
+`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The contact's voice is conservative — drafts should not promise dates we have not confirmed.`
 
 Save. Every new chat in the project will now run with this preamble in addition to the agent's own instructions.
 

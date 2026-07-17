@@ -3,7 +3,7 @@ title: Projekte nutzen, um Dateien und Chats zu bündeln
 description: Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält — und hör auf, jedes Mal dieselben Dokumente erneut hochzuladen.
 ---
 
-Ein Projekt ist das, wozu du greifst, wenn du dich zum zweiten Mal beim Einkopieren desselben Kontexts in einen Chat ertappst. Es bündelt Dateien, Instruktionen und Chats rund um eine Arbeitssache — einen Kunden, einen Launch, eine lange Untersuchung — damit jede neue Konversation mit bereits geladenem Kontext beginnt. Dieser Spaziergang führt ein frisches Projekt von „ich lade immer dasselbe Briefing erneut hoch" zu „jeder Chat in diesem Projekt kennt das Briefing schon" auf einer Instanz.
+Ein Projekt ist das, wozu du greifst, wenn du dich zum zweiten Mal beim Einkopieren desselben Kontexts in einen Chat ertappst. Es bündelt Dateien, Instruktionen und Chats rund um eine Arbeitssache — einen Kontakt, einen Launch, eine lange Untersuchung — damit jede neue Konversation mit bereits geladenem Kontext beginnt. Dieser Spaziergang führt ein frisches Projekt von „ich lade immer dasselbe Briefing erneut hoch" zu „jeder Chat in diesem Projekt kennt das Briefing schon" auf einer Instanz.
 
 Du brauchst eine Member-Rolle (das Minimum, um Projekte zu erstellen) und drei oder vier Dateien, auf die du immer wieder verweist. Die konzeptuelle Seite lebt in [Projekt-Konzepte](/de/platform/projects/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
 

@@ -31,19 +31,19 @@ Les cookies authentifient la session navigateur ; les appels API depuis le navig
 
 ## Groupes d'endpoints
 
-| Groupe                                                     | Méthode  | Chemin                       | Auth requise | Notes                                                      |
-| ---------------------------------------------------------- | -------- | ---------------------------- | ------------ | ---------------------------------------------------------- |
-| Agents                                                     | diverses | `/api/v1/agents/...`         | Clé API      | List, get, run.                                            |
-| Chat                                                       | diverses | `/api/v1/chat/...`           | Clé API      | Stream de complétions chat contre un agent ou un modèle.   |
-| Compatible OpenAI                                          | POST     | `/api/v1/chat/completions`   | Clé API      | Forme Chat Completions OpenAI ; utilise les SDK existants. |
-| Compatible OpenAI                                          | POST     | `/api/v1/images/generations` | Clé API      | Génère des images ; forme Images OpenAI.                   |
-| Compatible OpenAI                                          | GET      | `/api/v1/models`             | Clé API      | Liste les modèles disponibles au format OpenAI.            |
-| Workflows                                                  | diverses | `/api/v1/workflows/...`      | Clé API      | Lancer par slug, plannings, webhooks, exécutions.          |
-| Webhooks de workflow                                       | POST     | `/api/workflows/wh/<token>`  | Jeton d'URL  | Déclencher un workflow par webhook depuis l'extérieur.     |
-| Connaissances — Documents                                  | diverses | `/api/v1/documents/...`      | Clé API      | Upload, list, get, delete.                                 |
-| Connaissances — Clients, Produits, Fournisseurs, Sites web | diverses | `/api/v1/<entity>/...`       | Clé API      | List, get, create, update.                                 |
-| Conversations                                              | diverses | `/api/v1/conversations/...`  | Clé API      | List par statut, get, écriture de messages.                |
-| Fichiers                                                   | diverses | `/api/v1/files/...`          | Clé API      | Upload, get, delete. Utilisé par les téléversements.       |
+| Groupe                                                      | Méthode  | Chemin                       | Auth requise | Notes                                                      |
+| ----------------------------------------------------------- | -------- | ---------------------------- | ------------ | ---------------------------------------------------------- |
+| Agents                                                      | diverses | `/api/v1/agents/...`         | Clé API      | List, get, run.                                            |
+| Chat                                                        | diverses | `/api/v1/chat/...`           | Clé API      | Stream de complétions chat contre un agent ou un modèle.   |
+| Compatible OpenAI                                           | POST     | `/api/v1/chat/completions`   | Clé API      | Forme Chat Completions OpenAI ; utilise les SDK existants. |
+| Compatible OpenAI                                           | POST     | `/api/v1/images/generations` | Clé API      | Génère des images ; forme Images OpenAI.                   |
+| Compatible OpenAI                                           | GET      | `/api/v1/models`             | Clé API      | Liste les modèles disponibles au format OpenAI.            |
+| Workflows                                                   | diverses | `/api/v1/workflows/...`      | Clé API      | Lancer par slug, plannings, webhooks, exécutions.          |
+| Webhooks de workflow                                        | POST     | `/api/workflows/wh/<token>`  | Jeton d'URL  | Déclencher un workflow par webhook depuis l'extérieur.     |
+| Connaissances — Documents                                   | diverses | `/api/v1/documents/...`      | Clé API      | Upload, list, get, delete.                                 |
+| Connaissances — Contacts, Produits, Fournisseurs, Sites web | diverses | `/api/v1/<entity>/...`       | Clé API      | List, get, create, update.                                 |
+| Conversations                                               | diverses | `/api/v1/conversations/...`  | Clé API      | List par statut, get, écriture de messages.                |
+| Fichiers                                                    | diverses | `/api/v1/files/...`          | Clé API      | Upload, get, delete. Utilisé par les téléversements.       |
 
 Les formes exactes de champs pour chaque endpoint vivent dans le document OpenAPI que la plateforme émet à la compilation ; charge-le dans une visionneuse Swagger ou Stoplight pour voir les schémas de requêtes et de réponses avec exemples. Les groupes d'endpoints du tableau ci-dessus sont l'inventaire de haut niveau ; le document OpenAPI est la référence au niveau des champs.
 

@@ -43,7 +43,7 @@ An agent's instructions can include a sub-agent tool; when it does, the primary 
 | ------------------------------------------------- | ---- | -------- | ------------- |
 | Personal task, one-off question                   | ✓    |          |               |
 | Shared workspace across a team, recurring threads |      | ✓        |               |
-| Inbound from a customer channel (email, webhook)  |      |          | ✓             |
+| Inbound from a contact channel (email, webhook)   |      |          | ✓             |
 
 ## Where this fits
 

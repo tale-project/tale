@@ -77,4 +77,4 @@ Wann der Canvas öffnet, und was einen Canvas statt einer Inline-Darstellung bek
 
 ## Wo das hineinpasst
 
-Chat ist die Oberfläche, der jedes andere Platform-Feature letztlich dient. Agents formen seine Antworten, Wissen füttert seine Zitate, Genehmigungen unterbrechen ihn für menschliche Prüfungen, Konversationen ist eine Schwester-Inbox für Kundenkanäle statt der eigenen Threads. Die Seite, die du dir als Erstes merken solltest, ist [Chat-Grundlagen](/de/platform/chat/basics) — sobald du den Pfad vom Chat zur Antwort verstanden hast, liest sich jede andere Chat-Seite als Variation davon.
+Chat ist die Oberfläche, der jedes andere Platform-Feature letztlich dient. Agents formen seine Antworten, Wissen füttert seine Zitate, Genehmigungen unterbrechen ihn für menschliche Prüfungen, Konversationen ist eine Schwester-Inbox für Kontaktkanäle statt der eigenen Threads. Die Seite, die du dir als Erstes merken solltest, ist [Chat-Grundlagen](/de/platform/chat/basics) — sobald du den Pfad vom Chat zur Antwort verstanden hast, liest sich jede andere Chat-Seite als Variation davon.

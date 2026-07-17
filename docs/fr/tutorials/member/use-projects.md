@@ -3,7 +3,7 @@ title: Utiliser les projets pour grouper fichiers et chats
 description: Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations — et arrête de re-charger les mêmes documents à chaque fois.
 ---
 
-Un projet est ce vers quoi tu te tournes la deuxième fois que tu te surprends à coller le même contexte dans un chat. Il regroupe fichiers, instructions et chats autour d'une seule chose à faire — un client, un lancement, une longue enquête — pour que chaque nouvelle conversation démarre avec le contexte déjà chargé. Ce parcours mène un projet neuf de « je recharge sans cesse le même brief » à « chaque chat dans ce projet connaît déjà le brief » sur une seule instance.
+Un projet est ce vers quoi tu te tournes la deuxième fois que tu te surprends à coller le même contexte dans un chat. Il regroupe fichiers, instructions et chats autour d'une seule chose à faire — un contact, un lancement, une longue enquête — pour que chaque nouvelle conversation démarre avec le contexte déjà chargé. Ce parcours mène un projet neuf de « je recharge sans cesse le même brief » à « chaque chat dans ce projet connaît déjà le brief » sur une seule instance.
 
 Il te faut un rôle Membre (le plancher pour créer un projet) et trois ou quatre fichiers que tu référence régulièrement. Le côté conceptuel vit dans [Concepts de projet](/fr/platform/projects/concepts) ; ce parcours est le mécanisme de bout en bout.
 

@@ -52,7 +52,7 @@ Wechsle zum Tab **Wissen**. Wähle einen **Abrufmodus** — **Tool** lässt den 
 
 ## Schritt 4 — Die Tools gewähren
 
-Wechsle zum Tab **Tools**. Tools sind einzelne Checkboxen, gruppiert nach Kategorie — Kunden, Produkte, Dateien, Workflows und mehr — plus einer Auswahl für den **Websuche**-Modus ganz oben. Gewähre, was der Agent braucht, und lass den Rest aus; jeder Schalter weitet die Vertrauensgrenze.
+Wechsle zum Tab **Tools**. Tools sind einzelne Checkboxen, gruppiert nach Kategorie — Kontakte, Produkte, Dateien, Workflows und mehr — plus einer Auswahl für den **Websuche**-Modus ganz oben. Gewähre, was der Agent braucht, und lass den Rest aus; jeder Schalter weitet die Vertrauensgrenze.
 
 <Frame caption="Der Tools-Tab — eine Checkliste pro Tool, gruppiert in Kategorie-Karten, von denen jede zählt, was sie gewährt hat.">
 

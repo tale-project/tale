@@ -51,7 +51,7 @@ Ein Agent mit dem Human-Input-Tool kann mitten in einer Aufgabe innehalten und d
 
 ## Konversationen versus Chats
 
-Innerhalb von Chat ist die Einheit ein **Chat** — das Wort, das jede Schaltfläche und jeder Toast verwendet. Das Datenmodell dahinter heißt `threads`, und der URL-Slug ist `threads/$threadId`; die Docs folgen der UI und sagen in der Prosa „Chat". Die Kundenkanal-Inbox, die eine installierte E-Mail-Automatisierung hinzufügt, ist eine andere Oberfläche — eine Konversation dort ist ein Kunden-Thread, kein Chat; die Inbox-Bedeutung steht unter [Mitgelieferte Automatisierungen](/de/platform/automations/builtin).
+Innerhalb von Chat ist die Einheit ein **Chat** — das Wort, das jede Schaltfläche und jeder Toast verwendet. Das Datenmodell dahinter heißt `threads`, und der URL-Slug ist `threads/$threadId`; die Docs folgen der UI und sagen in der Prosa „Chat". Die Kontaktkanal-Inbox, die eine installierte E-Mail-Automatisierung hinzufügt, ist eine andere Oberfläche — eine Konversation dort ist ein Kontakt-Thread, kein Chat; die Inbox-Bedeutung steht unter [Mitgelieferte Automatisierungen](/de/platform/automations/builtin).
 
 ## Verlauf und Suche
 

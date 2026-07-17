@@ -3,7 +3,7 @@ title: Prompt-Bibliothek
 description: Die Prompt-Bibliothek ist der Ort, an dem du Chat-Prompts zur Wiederverwendung speicherst — persönlich, Team oder organisationsweit. Mitglieder, Redakteure und Entwickler lesen das, wenn sie einen wiederkehrenden Chat-Starter griffbereit halten.
 ---
 
-Die Prompt-Bibliothek ist die Oberfläche gespeicherter Prompts von Tale. Dort hältst du die Chat-Starter, nach denen du mehr als einmal greifst — einen Schreib-Stimmen-Prompt, den du für jeden Kunden-Mail-Entwurf wiederverwendest, einen Debugging-Prompt, den dein Team weiterreicht, einen Recherche-Prompt, auf den sich die ganze Organisation einigen sollte. Jede Rolle über Deaktiviert kann Prompts speichern und nutzen; der **Sichtbarkeits**-Hebel jedes Prompts entscheidet, wer ihn sonst sieht.
+Die Prompt-Bibliothek ist die Oberfläche gespeicherter Prompts von Tale. Dort hältst du die Chat-Starter, nach denen du mehr als einmal greifst — einen Schreib-Stimmen-Prompt, den du für jeden Kontakt-Mail-Entwurf wiederverwendest, einen Debugging-Prompt, den dein Team weiterreicht, einen Recherche-Prompt, auf den sich die ganze Organisation einigen sollte. Jede Rolle über Deaktiviert kann Prompts speichern und nutzen; der **Sichtbarkeits**-Hebel jedes Prompts entscheidet, wer ihn sonst sieht.
 
 Diese Seite ist die Referenz dafür, was ein Prompt ist, wie sich die drei Sichtbarkeits-Stufen verhalten, wie der Versionsverlauf funktioniert und wie Prompts in einen Chat gelangen. Die Bibliothek liegt unter **Prompts** in der Sidebar; dieselbe Bibliothek erscheint inline im Chat.
 
@@ -47,7 +47,7 @@ Der Versionsverlauf ist der Ort, an den man schaut, wenn ein Kollege einen globa
 
 Der Chat hat unten einen Prompt-Picker. Öffne ihn, such oder filtere den gewünschten Prompt, und klick ihn an, um den Inhalt in den Chat zu fügen. Der Prompt ist jetzt deine Nachricht — bearbeite ihn, häng Dateien an, füg Kontext hinzu, sende. Einmal gesendet, verhält sich der Prompt wie jede Chat-Eingabe; Tale verfolgt nicht, welche Chats welche Prompts genutzt haben.
 
-Manche Prompts enthalten Template-Variablen — Platzhalter wie `{{customer_name}}` oder `{{topic}}`. Der Picker fragt dich vor dem Einfügen nach jeder Variable; der resultierende Inhalt ist der Prompt mit den befüllten Platzhaltern. Variablen werden im Inhalt des Prompts mit der `{{variable_name}}`-Syntax deklariert.
+Manche Prompts enthalten Template-Variablen — Platzhalter wie `{{contact_name}}` oder `{{topic}}`. Der Picker fragt dich vor dem Einfügen nach jeder Variable; der resultierende Inhalt ist der Prompt mit den befüllten Platzhaltern. Variablen werden im Inhalt des Prompts mit der `{{variable_name}}`-Syntax deklariert.
 
 ## Grenzen und Lebenszyklus
 

@@ -9,7 +9,7 @@ This page covers the operator surface. The admin-facing controls and the per-cat
 
 ## How the bounds work
 
-Each retention category — chat threads, documents, customers, vendors, prompt templates, ledger rows, audit logs, workflow executions, workflow trigger logs, login attempts — has a `min` and a `max`. An org admin sets a value inside that window. Tightening the floor across an existing instance is a multi-step flow: operator proposes the new bound, every affected admin sees a banner, the change applies once accepted.
+Each retention category — chat threads, documents, contacts, vendors, prompt templates, ledger rows, audit logs, workflow executions, workflow trigger logs, login attempts — has a `min` and a `max`. An org admin sets a value inside that window. Tightening the floor across an existing instance is a multi-step flow: operator proposes the new bound, every affected admin sees a banner, the change applies once accepted.
 
 | Category                | Typical floor | Why                                            |
 | ----------------------- | ------------- | ---------------------------------------------- |
@@ -47,7 +47,7 @@ Audit log entries are themselves subject to retention, but their floor is enforc
 
 ## Legal hold
 
-A legal hold freezes retention for a specific scope: a single thread, a customer record, or an entire organization. Held entities skip the sweep until the hold is released. The hold itself is audited; org-wide holds are loud enough that the UI surfaces a confirmation before they apply.
+A legal hold freezes retention for a specific scope: a single thread, a contact record, or an entire organization. Held entities skip the sweep until the hold is released. The hold itself is audited; org-wide holds are loud enough that the UI surfaces a confirmation before they apply.
 
 ## Where this fits
 

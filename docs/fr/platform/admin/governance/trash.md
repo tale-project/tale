@@ -24,7 +24,7 @@ La corbeille contient des lignes de nombreuses catégories. Le filtre de catégo
 - Fichiers temporaires
 - Modèles de prompt
 - Retours sur messages
-- Clients
+- Contacts
 - Fournisseurs
 - Conversations externes
 - Métadonnées de message

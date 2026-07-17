@@ -37,4 +37,4 @@ Each row shows the domain, its **Status** — **Idle** between scans, **Scanning
 
 ## Where this fits
 
-Crawling is the cheap way to bring a public site into agent context: a domain, a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an integration. For how the Website rows sit beside Customers, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).
+Crawling is the cheap way to bring a public site into agent context: a domain, a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an integration. For how the Website rows sit beside Contacts, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).

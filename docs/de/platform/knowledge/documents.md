@@ -45,7 +45,7 @@ Ein Klick auf ein Dokument öffnet die Vorschau, mit einer Seitenleiste für Gr�
 
 ## Dokumente gegenüber strukturierten Daten
 
-Dokumente sind die unstrukturierte Hälfte der Wissensdatenbank. Ist der Inhalt eine Liste gleichartiger Dinge mit denselben Feldern — Kunden, Produkte, Zulieferer —, dient ein typisierter Datensatz den Agenten besser als ein hochgeladenes Tabellenblatt: exakte Werte statt abgerufener Passagen. Die Entscheidungsregeln stehen in [Strukturierte Daten](/de/platform/knowledge/structured-data).
+Dokumente sind die unstrukturierte Hälfte der Wissensdatenbank. Ist der Inhalt eine Liste gleichartiger Dinge mit denselben Feldern — Kontakte, Produkte, Zulieferer —, dient ein typisierter Datensatz den Agenten besser als ein hochgeladenes Tabellenblatt: exakte Werte statt abgerufener Passagen. Die Entscheidungsregeln stehen in [Strukturierte Daten](/de/platform/knowledge/structured-data).
 
 ## Wo das hingehört
 
