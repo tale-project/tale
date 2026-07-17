@@ -635,7 +635,7 @@
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
       "notInstalledDescription": "Installiere diese Automatisierung, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
-      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben. Für einen kundenorientierten Desk benenne das Projekt nach dem Kundenunternehmen.",
+      "chooseProjectDescription": "Diese Automatisierung läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben. Für einen kontaktbezogenen Desk benenne das Projekt nach dem Kontaktunternehmen.",
       "projectLabel": "Projekt",
       "projectPlaceholder": "Projekt auswählen",
       "projectSearchPlaceholder": "Projekte suchen …",
@@ -3017,7 +3017,7 @@
       },
       "externalConversations": {
         "title": "Externe Konversationen",
-        "description": "Top-Level-Kundenkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
+        "description": "Top-Level-Kontaktkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
       },
       "messageMetadata": {
         "title": "Nachrichten-Metadaten",
@@ -4346,7 +4346,7 @@
     },
     "conversations": {
       "title": "Konversationen",
-      "description": "Kundenkonversationen anzeigen und verwalten."
+      "description": "Kontaktkonversationen anzeigen und verwalten."
     },
     "automations": {
       "title": "Automatisierungen",
@@ -4426,7 +4426,7 @@
     },
     "agents": {
       "title": "Agenten",
-      "description": "KI-Agents für den Kundenservice erstellen und verwalten."
+      "description": "KI-Agents für den Kontaktsupport erstellen und verwalten."
     },
     "skills": {
       "title": "Skills",
@@ -4661,7 +4661,7 @@
       },
       "conversationMessages": {
         "label": "Konversationsnachrichten",
-        "description": "Wenn eine Kundennachricht in Konversationen ankommt."
+        "description": "Wenn eine Kontaktnachricht in Konversationen ankommt."
       }
     }
   },
@@ -5780,7 +5780,7 @@
           "document_retrieve": "Den vollständigen Inhalt eines Dokuments abrufen",
           "document_write": "Dokumente erstellen oder aktualisieren",
           "request_user_location": "Den aktuellen Standort im Chat anfragen",
-          "conversation_read": "Kundenkonversationen lesen",
+          "conversation_read": "Kontaktkonversationen lesen",
           "conversation_write": "Antworten in Konversationen entwerfen und senden",
           "contact_write": "Kontaktdatensätze anlegen und aktualisieren",
           "product_write": "Produkte anlegen und aktualisieren",
@@ -6868,7 +6868,7 @@
           "chat_history.retention_deleted": "Chatverlauf per Aufbewahrung gelöscht",
           "chat_history.retention_expired": "Chatverlauf-Aufbewahrung abgelaufen",
           "document.retention_deleted": "Dokument per Aufbewahrung gelöscht",
-          "customer.retention_deleted": "Kunde per Aufbewahrung gelöscht",
+          "customer.retention_deleted": "Kontakt per Aufbewahrung gelöscht",
           "contact.retention_deleted": "Kontakt per Aufbewahrung gelöscht",
           "vendor.retention_deleted": "Lieferant per Aufbewahrung gelöscht",
           "prompt_template.retention_deleted": "Prompt-Vorlage per Aufbewahrung gelöscht",
@@ -6958,9 +6958,9 @@
           "message_feedback.retention_expired": "Nachrichten-Feedback per Aufbewahrung abgelaufen",
           "message_feedback.retention_override_restore": "Nachrichten-Feedback wiederhergestellt (Aufbewahrungs-Override)",
           "message_feedback.restored_by_admin": "Nachrichten-Feedback vom Admin wiederhergestellt",
-          "customer.retention_expired": "Kunde per Aufbewahrung abgelaufen",
-          "customer.retention_override_restore": "Kunde wiederhergestellt (Aufbewahrungs-Override)",
-          "customer.restored_by_admin": "Kunde vom Admin wiederhergestellt",
+          "customer.retention_expired": "Kontakt per Aufbewahrung abgelaufen",
+          "customer.retention_override_restore": "Kontakt wiederhergestellt (Aufbewahrungs-Override)",
+          "customer.restored_by_admin": "Kontakt vom Admin wiederhergestellt",
           "contact.retention_expired": "Kontakt per Aufbewahrung abgelaufen",
           "contact.retention_override_restore": "Kontakt wiederhergestellt (Aufbewahrungs-Override)",
           "contact.restored_by_admin": "Kontakt vom Admin wiederhergestellt",
@@ -6995,7 +6995,7 @@
           "workflow_run": "Workflow-Lauf",
           "workflow_creation": "Workflow-Erstellung",
           "workflow_update": "Workflow-Update",
-          "customer": "Kunde",
+          "customer": "Kontakt",
           "contact": "Kontakt",
           "vendor": "Lieferant",
           "product": "Produkt",
@@ -7939,7 +7939,7 @@
       "keyLabel": "Projektkürzel",
       "keyDescription": "Kurzes Präfix für Aufgaben-IDs — nur Buchstaben und Ziffern (z. B. wird aus TAL dann TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
       "descriptionLabel": "Beschreibung",
-      "descriptionPlaceholder": "Optional — bei einem Kundendesk den Firmennamen als Projektnamen verwenden.",
+      "descriptionPlaceholder": "Optional — bei einem Kontaktdesk den Firmennamen als Projektnamen verwenden.",
       "teamLabel": "Verantwortliches Team",
       "teamPlaceholder": "Team auswählen (optional, Standard: organisationsweit)",
       "iconLabel": "Symbol",
