@@ -78,11 +78,13 @@ const DEFAULT_CONFIG = {
   /** Characters to buffer before starting the reveal. This is the dominant
    *  PERCEIVED-TTFT lever: nothing is shown until this many characters have
    *  accumulated. The backend flushes deltas in ~250 ms throttled bursts (often
-   *  20-80 chars each), so a threshold of 30 could force a wait for the SECOND
-   *  burst (~+250 ms) whenever the first burst lands at 12-29 chars. 12 lets the
-   *  first burst start the reveal immediately; the EMA catch-up ramp below still
-   *  smooths the first second, so the lower reservoir doesn't read as choppy. */
-  initialBufferChars: 12,
+   *  20-80 chars each), so any threshold at or below the typical first burst
+   *  starts the reveal on the FIRST flush. 4 (was 12) also unblocks very short
+   *  answers ("4.", "Paris.") that previously sat below the gate until the
+   *  stream ENDED — the whole reply appeared only at drain time. The EMA
+   *  catch-up ramp below still smooths the first second, so the tiny reservoir
+   *  doesn't read as choppy. */
+  initialBufferChars: 4,
   /** Max chars scanned past a chunk while extending through an ambiguous
    *  markdown prefix (partial fences/rules) before giving up and holding.
    *  Bounds the per-tick line-buffer extension. */
