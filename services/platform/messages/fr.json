@@ -635,7 +635,7 @@
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
       "notInstalledDescription": "Installez cette automatisation pour ajouter ses agents et workflows à votre organisation.",
-      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisis où vivront ses tâches et ses pages. Pour un desk client, nomme le projet d'après l'entreprise cliente.",
+      "chooseProjectDescription": "Cette automatisation fonctionne au sein d'un projet. Choisis où vivront ses tâches et ses pages. Pour un desk contact, nomme le projet d'après l'entreprise du contact.",
       "projectLabel": "Projet",
       "projectPlaceholder": "Sélectionner un projet",
       "projectSearchPlaceholder": "Rechercher des projets…",
@@ -3017,7 +3017,7 @@
       },
       "externalConversations": {
         "title": "Conversations externes",
-        "description": "Boîte de réception de canal client de haut niveau (intégrations email/chat). Cascade vers les corps de messages."
+        "description": "Boîte de réception de canal contact de haut niveau (intégrations email/chat). Cascade vers les corps de messages."
       },
       "messageMetadata": {
         "title": "Métadonnées de messages",
@@ -4346,7 +4346,7 @@
     },
     "conversations": {
       "title": "Conversations",
-      "description": "Consulte et gère les conversations clients."
+      "description": "Consulte et gère les conversations avec les contacts."
     },
     "automations": {
       "title": "Automatisations",
@@ -4426,7 +4426,7 @@
     },
     "agents": {
       "title": "Agents",
-      "description": "Crée et gère des agents IA pour le service client."
+      "description": "Crée et gère des agents IA pour répondre aux contacts."
     },
     "skills": {
       "title": "Skills",
@@ -4605,7 +4605,8 @@
     "webdav": "WebDAV",
     "teamFilter": {
       "label": "Équipe",
-      "allTeams": "Toutes"
+      "allTeams": "Toutes",
+      "manageTeams": "Gérer les équipes"
     },
     "orgSwitcher": {
       "label": "Organisation"
@@ -4661,7 +4662,7 @@
       },
       "conversationMessages": {
         "label": "Messages de conversation",
-        "description": "Quand un message client arrive dans Conversations."
+        "description": "Quand un message d'un contact arrive dans Conversations."
       }
     }
   },
@@ -5780,7 +5781,7 @@
           "document_retrieve": "Récupérer le contenu complet d'un document",
           "document_write": "Créer ou mettre à jour des documents",
           "request_user_location": "Demander la localisation actuelle dans le chat",
-          "conversation_read": "Lire les conversations clients",
+          "conversation_read": "Lire les conversations avec les contacts",
           "conversation_write": "Rédiger et envoyer des réponses dans les conversations",
           "contact_write": "Créer et mettre à jour les fiches contacts",
           "product_write": "Créer et mettre à jour les produits",
@@ -6868,7 +6869,7 @@
           "chat_history.retention_deleted": "Historique de chat supprimé (rétention)",
           "chat_history.retention_expired": "Rétention de l'historique de chat expirée",
           "document.retention_deleted": "Document supprimé (rétention)",
-          "customer.retention_deleted": "Client supprimé (rétention)",
+          "customer.retention_deleted": "Contact supprimé (rétention)",
           "contact.retention_deleted": "Contact supprimé (rétention)",
           "vendor.retention_deleted": "Fournisseur supprimé (rétention)",
           "prompt_template.retention_deleted": "Modèle de prompt supprimé (rétention)",
@@ -6958,9 +6959,9 @@
           "message_feedback.retention_expired": "Retour sur message expiré par rétention",
           "message_feedback.retention_override_restore": "Retour sur message restauré (dérogation de rétention)",
           "message_feedback.restored_by_admin": "Retour sur message restauré par l'administrateur",
-          "customer.retention_expired": "Client expiré par rétention",
-          "customer.retention_override_restore": "Client restauré (dérogation de rétention)",
-          "customer.restored_by_admin": "Client restauré par l'administrateur",
+          "customer.retention_expired": "Contact expiré par rétention",
+          "customer.retention_override_restore": "Contact restauré (dérogation de rétention)",
+          "customer.restored_by_admin": "Contact restauré par l'administrateur",
           "contact.retention_expired": "Contact expiré par rétention",
           "contact.retention_override_restore": "Contact restauré (dérogation de rétention)",
           "contact.restored_by_admin": "Contact restauré par l'administrateur",
@@ -6995,7 +6996,7 @@
           "workflow_run": "Exécution de workflow",
           "workflow_creation": "Création de workflow",
           "workflow_update": "Mise à jour de workflow",
-          "customer": "Client",
+          "customer": "Contact",
           "contact": "Contact",
           "vendor": "Fournisseur",
           "product": "Produit",
@@ -7939,7 +7940,7 @@
       "keyLabel": "Clé du projet",
       "keyDescription": "Court préfixe pour les identifiants de tâches — lettres et chiffres uniquement (par ex. TAL devient TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optionnel — pour un bureau client, utilise le nom de l'entreprise comme nom de projet.",
+      "descriptionPlaceholder": "Optionnel — pour un bureau contact, utilise le nom de l'entreprise comme nom de projet.",
       "teamLabel": "Équipe propriétaire",
       "teamPlaceholder": "Choisir une équipe (optionnel, par défaut toute l'organisation)",
       "iconLabel": "Icône",

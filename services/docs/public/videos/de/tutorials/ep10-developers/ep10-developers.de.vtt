@@ -1,0 +1,170 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.752
+Eine Bonusrunde für die Bauenden.
+
+2
+00:00:03.752 --> 00:00:10.092
+Alles, was die Serie gezeigt hat, trägt
+eine API darunter — diese Episode geht die
+
+3
+00:00:10.092 --> 00:00:13.649
+Entwickler-Oberfläche
+ab: Schlüssel, Webhooks,
+
+4
+00:00:13.649 --> 00:00:17.360
+Coding-Agenten und die
+Sandbox, die sie einhegt.
+
+5
+00:00:18.560 --> 00:00:22.918
+Programmatischer Zugriff
+beginnt hier: benannte Schlüssel,
+
+6
+00:00:22.918 --> 00:00:26.750
+einer pro System — die
+Ingest-Pipeline, der CI-Job.
+
+7
+00:00:26.750 --> 00:00:30.356
+Jeder ist begrenzt, mit
+einem Klick widerrufbar,
+
+8
+00:00:30.356 --> 00:00:35.840
+und jeder seiner Aufrufe landet im
+selben Audit-Protokoll aus dem Finale.
+
+9
+00:00:37.040 --> 00:00:40.934
+Vier Türen für vier Stile:
+eine REST-API für alles,
+
+10
+00:00:40.934 --> 00:00:46.889
+was die Oberfläche kann, MCP, um Tales
+Werkzeuge anderen Agenten zu servieren,
+
+11
+00:00:46.889 --> 00:00:51.699
+WebDAV, um
+Arbeitsbereich-Dateien wie ein Laufwerk einzubinden,
+
+12
+00:00:51.699 --> 00:00:55.440
+und Sandbox-Runtimes,
+konfigurierbar pro Sprache.
+
+13
+00:00:56.640 --> 00:01:02.616
+Webhooks zeigen in die andere Richtung:
+Jedes System kann einen Agenten auslösen.
+
+14
+00:01:02.616 --> 00:01:06.452
+Ein signierter POST aus
+eurem CRM, eurem Monitoring,
+
+15
+00:01:06.452 --> 00:01:11.026
+eurem Build — und der Agent
+läuft mit der Payload als Kontext.
+
+16
+00:01:11.026 --> 00:01:15.600
+Die Automatisierungen aus
+Episode fünf, ausgelöst von überall.
+
+17
+00:01:16.800 --> 00:01:21.402
+Und das schwere Gerät: externe
+Coding-Agenten — Claude Code,
+
+18
+00:01:21.402 --> 00:01:26.388
+Cursor und ihre Kollegen —
+arbeiten in Tale in eigenen Sandboxes.
+
+19
+00:01:26.388 --> 00:01:31.374
+Sie planen, schreiben Dateien,
+führen Befehle aus … in einer Box,
+
+20
+00:01:31.374 --> 00:01:35.209
+die leer startet und
+getrennt bleibt, bis auf das,
+
+21
+00:01:35.209 --> 00:01:37.280
+was die Richtlinie erlaubt.
+
+22
+00:01:38.480 --> 00:01:41.837
+Diese Richtlinie ist
+explizit und gehört euch:
+
+23
+00:01:41.837 --> 00:01:47.238
+welche Pakete installiert werden
+dürfen, welche Hosts Code erreichen darf.
+
+24
+00:01:47.238 --> 00:01:51.836
+Cloud-Metadaten und private
+Netzbereiche sind immer verweigert,
+
+25
+00:01:51.836 --> 00:01:57.383
+und fällt der Egress-Proxy aus, kommt
+nichts hinaus — das System schließt im
+
+26
+00:01:57.383 --> 00:01:59.280
+Fehlerfall, es öffnet nie.
+
+27
+00:02:00.480 --> 00:02:06.260
+Starke Werkzeuge, eingehegter
+Wirkungsradius — die Entwickler-Fassung von allem,
+
+28
+00:02:06.260 --> 00:02:08.283
+was diese Serie gelehrt hat.
+
+29
+00:02:08.283 --> 00:02:11.534
+Begrenze den Schlüssel,
+signiere den Webhook,
+
+30
+00:02:11.534 --> 00:02:16.880
+sperre den Agenten in die Sandbox —
+und bau mutig innerhalb dieser Linien.
+
+31
+00:02:18.080 --> 00:02:21.182
+Das war die Serie — alle zehn Episoden.
+
+32
+00:02:21.182 --> 00:02:25.636
+Ab hier übernimmt der
+Develop-Bereich der Dokumentation:
+
+33
+00:02:25.636 --> 00:02:30.328
+API-Referenz,
+Webhook-Signaturen und der Contributor-Guide.
+
+34
+00:02:30.328 --> 00:02:31.600
+Bau etwas Gutes.
+
+35
+00:02:32.800 --> 00:02:34.800
+Danke, dass du mit Tale baust.
+

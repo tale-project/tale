@@ -635,7 +635,7 @@
       "setup": "Finish setup",
       "uninstall": "Uninstall",
       "notInstalledDescription": "Install this automation to add its agents and workflows to your organization.",
-      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live. For a client-facing desk, name the project after the client company.",
+      "chooseProjectDescription": "This automation runs inside a project. Choose where its tasks and pages live. For a contact-facing desk, name the project after the contact company.",
       "projectLabel": "Project",
       "projectPlaceholder": "Select a project",
       "projectSearchPlaceholder": "Search projects…",
@@ -3017,7 +3017,7 @@
       },
       "externalConversations": {
         "title": "External conversations",
-        "description": "Top-level customer-channel inbox (email/chat integrations). Cascades to message bodies."
+        "description": "Top-level contact-channel inbox (email/chat integrations). Cascades to message bodies."
       },
       "messageMetadata": {
         "title": "Message metadata",
@@ -4346,7 +4346,7 @@
     },
     "conversations": {
       "title": "Conversations",
-      "description": "View and manage customer conversations."
+      "description": "View and manage contact conversations."
     },
     "automations": {
       "title": "Automations",
@@ -4426,7 +4426,7 @@
     },
     "agents": {
       "title": "Agents",
-      "description": "Create and manage AI agents for customer service."
+      "description": "Create and manage AI agents for contact support."
     },
     "skills": {
       "title": "Skills",
@@ -4605,7 +4605,8 @@
     "webdav": "WebDAV",
     "teamFilter": {
       "label": "Team",
-      "allTeams": "All"
+      "allTeams": "All",
+      "manageTeams": "Manage teams"
     },
     "orgSwitcher": {
       "label": "Organization"
@@ -4661,7 +4662,7 @@
       },
       "conversationMessages": {
         "label": "Conversation messages",
-        "description": "When a customer message arrives in Conversations."
+        "description": "When a contact message arrives in Conversations."
       }
     }
   },
@@ -5227,7 +5228,7 @@
       "keyLabel": "Project key",
       "keyDescription": "Short prefix for task IDs — letters and digits only (e.g. TAL becomes TAL-1). Fixed — it can't be changed after the project is created.",
       "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optional — for a client desk, use the company name as the project name.",
+      "descriptionPlaceholder": "Optional — for a contact desk, use the company name as the project name.",
       "teamLabel": "Owning team",
       "teamPlaceholder": "Select a team (optional, defaults to org-wide)",
       "iconLabel": "Icon",
@@ -6071,7 +6072,7 @@
           "document_retrieve": "Fetch a document's full content",
           "document_write": "Create or update documents",
           "request_user_location": "Ask for the current location in the chat",
-          "conversation_read": "Read customer conversations",
+          "conversation_read": "Read contact conversations",
           "conversation_write": "Draft and send replies in conversations",
           "contact_write": "Create and update contact records",
           "product_write": "Create and update products",
@@ -7159,7 +7160,7 @@
           "chat_history.retention_deleted": "Chat history retention deleted",
           "chat_history.retention_expired": "Chat history retention expired",
           "document.retention_deleted": "Document retention deleted",
-          "customer.retention_deleted": "Customer retention deleted",
+          "customer.retention_deleted": "Contact retention deleted",
           "contact.retention_deleted": "Contact retention deleted",
           "vendor.retention_deleted": "Vendor retention deleted",
           "prompt_template.retention_deleted": "Prompt template retention deleted",
@@ -7249,9 +7250,9 @@
           "message_feedback.retention_expired": "Message feedback expired by retention",
           "message_feedback.retention_override_restore": "Message feedback restored (retention override)",
           "message_feedback.restored_by_admin": "Message feedback restored by admin",
-          "customer.retention_expired": "Customer expired by retention",
-          "customer.retention_override_restore": "Customer restored (retention override)",
-          "customer.restored_by_admin": "Customer restored by admin",
+          "customer.retention_expired": "Contact expired by retention",
+          "customer.retention_override_restore": "Contact restored (retention override)",
+          "customer.restored_by_admin": "Contact restored by admin",
           "contact.retention_expired": "Contact expired by retention",
           "contact.retention_override_restore": "Contact restored (retention override)",
           "contact.restored_by_admin": "Contact restored by admin",
@@ -7286,7 +7287,7 @@
           "workflow_run": "Workflow run",
           "workflow_creation": "Workflow creation",
           "workflow_update": "Workflow update",
-          "customer": "Customer",
+          "customer": "Contact",
           "contact": "Contact",
           "vendor": "Vendor",
           "product": "Product",

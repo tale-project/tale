@@ -1,0 +1,215 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.640
+Agenten antworten, wenn du fragst.
+
+2
+00:00:03.640 --> 00:00:07.443
+Automatisierungen handeln
+von selbst — nach Zeitplan,
+
+3
+00:00:07.443 --> 00:00:10.242
+auf Ereignisse, bei eingehender Arbeit.
+
+4
+00:00:10.242 --> 00:00:16.198
+In dieser Episode: wie sie laufen, wie sie
+ehrlich scheitern und welche Karte einen
+
+5
+00:00:16.198 --> 00:00:17.920
+Menschen am Steuer hält.
+
+6
+00:00:19.520 --> 00:00:23.188
+Der Katalog ist eine
+Bibliothek fertiger Pakete:
+
+7
+00:00:23.188 --> 00:00:27.009
+ein Postfach
+synchronisieren, GitHub-Issues lösen,
+
+8
+00:00:27.009 --> 00:00:29.072
+Dokumente indexiert halten.
+
+9
+00:00:29.072 --> 00:00:34.192
+Jedes bündelt Workflows, Agenten
+und Ansichten — eine Installation,
+
+10
+00:00:34.192 --> 00:00:36.560
+und es richtet sich selbst ein.
+
+11
+00:00:37.760 --> 00:00:42.225
+Dieser Arbeitsbereich betreibt
+schon eine: die Aufgaben-Triage.
+
+12
+00:00:42.225 --> 00:00:48.179
+Jede neue Aufgabe wird bewertet, und die
+Automatisierung entscheidet — einem Agenten
+
+13
+00:00:48.179 --> 00:00:52.573
+zuweisen oder einen Vorschlag
+für einen Menschen hinterlassen.
+
+14
+00:00:52.573 --> 00:00:53.920
+Schauen wir hinein.
+
+15
+00:00:55.120 --> 00:01:00.929
+Innen liest sich die Automatisierung wie
+ein Rezept: ein Auslöser, dann Schritte.
+
+16
+00:01:00.929 --> 00:01:04.586
+Ein Schritt bewertet die
+Aufgabe mit einem Agenten,
+
+17
+00:01:04.586 --> 00:01:07.526
+einer leitet sie weiter, einer berichtet.
+
+18
+00:01:07.526 --> 00:01:13.120
+Keine Blackbox — du kannst genau lesen,
+was passieren wird, bevor es je läuft.
+
+19
+00:01:14.320 --> 00:01:17.035
+Jeder Lauf hinterlässt ein Protokoll.
+
+20
+00:01:17.035 --> 00:01:20.264
+Grüne Zeilen sind
+abgeschlossen; jede zeigt,
+
+21
+00:01:20.264 --> 00:01:25.255
+was der Auslöser sah, was jeder
+Schritt tat und was er gekostet hat.
+
+22
+00:01:25.255 --> 00:01:31.200
+Automatisierung, die du prüfen kannst,
+ist Automatisierung, der du trauen kannst.
+
+23
+00:01:32.400 --> 00:01:35.375
+Und hier die wichtigste Zeile: eine rote.
+
+24
+00:01:35.375 --> 00:01:40.020
+Ein Schritt lieferte Daten, die
+die Validierung nicht bestanden,
+
+25
+00:01:40.020 --> 00:01:43.431
+der Lauf stoppte, und
+das Protokoll sagt genau,
+
+26
+00:01:43.431 --> 00:01:44.131
+wo.
+
+27
+00:01:44.131 --> 00:01:49.719
+Automatisierungen scheitern manchmal —
+der Unterschied zwischen Spielzeug und
+
+28
+00:01:49.719 --> 00:01:52.720
+Werkzeug ist, ob das
+Scheitern eine Adresse hat.
+
+29
+00:01:53.920 --> 00:01:55.574
+Jetzt das Herzstück.
+
+30
+00:01:55.574 --> 00:02:00.454
+Wir bitten um eine
+Kundenantwort — entworfen UND versendet.
+
+31
+00:02:00.454 --> 00:02:04.176
+Der Agent schreibt den
+Entwurf … und hält an.
+
+32
+00:02:04.176 --> 00:02:07.981
+Diese Karte ist die
+Grenze: Der Entwurf steht,
+
+33
+00:02:07.981 --> 00:02:12.364
+aber der Schritt nach
+draußen braucht einen Menschen.
+
+34
+00:02:12.364 --> 00:02:15.920
+Wir lesen, wir
+entscheiden, wir geben frei.
+
+35
+00:02:19.920 --> 00:02:24.986
+KI entwirft, Menschen entscheiden —
+Episode eins gab das Versprechen,
+
+36
+00:02:24.986 --> 00:02:26.822
+hier ist die Verdrahtung.
+
+37
+00:02:26.822 --> 00:02:32.035
+Und sieh, was Freigaben wirklich
+kaufen: nicht weniger Automatisierung,
+
+38
+00:02:32.035 --> 00:02:32.990
+sondern mehr.
+
+39
+00:02:32.990 --> 00:02:38.277
+Du kannst dir gerade deshalb
+leisten, riskante Arbeit zu automatisieren,
+
+40
+00:02:38.277 --> 00:02:41.360
+weil der riskante Schritt auf dich wartet.
+
+41
+00:02:42.560 --> 00:02:49.388
+Automatisierungen: lesbare Rezepte,
+ehrliche Protokolle und ein menschliches Tor vor
+
+42
+00:02:49.388 --> 00:02:51.502
+den Schritten, die zählen.
+
+43
+00:02:51.502 --> 00:02:57.680
+Nächste Episode: Projekte — wo dein
+Team und seine Agenten ein Board teilen.
+
+44
+00:02:58.880 --> 00:03:05.088
+Die Bereiche Automatisierungen und
+Freigaben der Dokumentation tragen die volle
+
+45
+00:03:05.088 --> 00:03:05.795
+Referenz.
+
+46
+00:03:05.795 --> 00:03:07.760
+Bis zur sechsten Episode.
+

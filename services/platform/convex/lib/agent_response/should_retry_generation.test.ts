@@ -95,8 +95,8 @@ describe('shouldRetryGeneration', () => {
       });
     });
 
-    it('retries for finishReason "unknown"', () => {
-      const result = shouldRetryGeneration('unknown', 'Some text', [], FRESH);
+    it('retries for finishReason "unknown" with no output', () => {
+      const result = shouldRetryGeneration('unknown', '', [], FRESH);
       expect(result).toEqual({
         retry: true,
         reason: 'finish-reason-unknown',
@@ -113,11 +113,117 @@ describe('shouldRetryGeneration', () => {
       });
     });
 
-    it('retries for undefined finishReason', () => {
-      const result = shouldRetryGeneration(undefined, 'Text', [], FRESH);
+    it('retries for undefined finishReason with no output', () => {
+      const result = shouldRetryGeneration(undefined, '', [], FRESH);
       expect(result).toEqual({
         retry: true,
         reason: 'finish-reason-undefined',
+        kind: 'anomaly',
+      });
+    });
+  });
+
+  describe('unlabelled finish with substantive text is accepted', () => {
+    // Regression: an OpenRouter upstream streamed a COMPLETE answer but never
+    // sent a `finish_reason`, so the openai-compatible adapter reported
+    // 'other' (its streaming default). That says nothing about the text being
+    // incomplete — retrying regenerated the whole answer behind a ⚠ retry
+    // badge, duplicating the content and re-burning the full prompt.
+    it('does not retry "other" when the final step has substantive text', () => {
+      // Mirror of the incident: tool-call step, then a text-only final step.
+      const steps = [
+        makeStep({ toolCalls: [{ toolName: 'document_retrieve' }], text: '' }),
+        makeStep({ text: 'A complete multi-paragraph interpretation.' }),
+      ];
+      const result = shouldRetryGeneration(
+        'other',
+        'A complete multi-paragraph interpretation.',
+        steps,
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: false,
+        reason: 'unlabelled-finish-with-substantive-text',
+      });
+    });
+
+    it('does not retry "other" with text and no steps', () => {
+      const result = shouldRetryGeneration(
+        'other',
+        'Direct answer.',
+        [],
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: false,
+        reason: 'unlabelled-finish-with-substantive-text',
+      });
+    });
+
+    it('does not retry "unknown" with text', () => {
+      const result = shouldRetryGeneration('unknown', 'Some text', [], FRESH);
+      expect(result).toEqual({
+        retry: false,
+        reason: 'unlabelled-finish-with-substantive-text',
+      });
+    });
+
+    it('does not retry undefined finishReason with text', () => {
+      const result = shouldRetryGeneration(undefined, 'Text', [], FRESH);
+      expect(result).toEqual({
+        retry: false,
+        reason: 'unlabelled-finish-with-substantive-text',
+      });
+    });
+
+    it('still retries "other" when text is only a pre-tool preamble', () => {
+      const steps = [
+        makeStep({
+          toolCalls: [{ toolName: 'search' }],
+          text: 'Let me check...',
+        }),
+      ];
+      const result = shouldRetryGeneration(
+        'other',
+        'Let me check...',
+        steps,
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-other',
+        kind: 'anomaly',
+      });
+    });
+
+    it('still retries "other" when the follow-up after tools is empty', () => {
+      const steps = [
+        makeStep({ toolCalls: [{ toolName: 'search' }], text: 'Checking...' }),
+        makeStep({ text: '' }),
+      ];
+      const result = shouldRetryGeneration(
+        'other',
+        'Checking...',
+        steps,
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-other',
+        kind: 'anomaly',
+      });
+    });
+
+    it('still retries "length" with substantive text (real truncation)', () => {
+      const result = shouldRetryGeneration(
+        'length',
+        'A long but cut-off answ',
+        [],
+        FRESH,
+      );
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-length',
         kind: 'anomaly',
       });
     });

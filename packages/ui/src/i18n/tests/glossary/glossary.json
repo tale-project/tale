@@ -670,19 +670,19 @@
       "fr": "Sites web"
     },
     {
-      "key": "entity_customer",
+      "key": "entity_contact",
       "category": "knowledgeEntity",
-      "en": "Customer",
-      "de": "Kunde",
-      "fr": "Client",
-      "_note": "Matches UI label `customers.title`."
+      "en": "Contact",
+      "de": "Kontakt",
+      "fr": "Contact",
+      "_note": "Matches UI label `contacts.title`."
     },
     {
-      "key": "entity_customers",
+      "key": "entity_contacts",
       "category": "knowledgeEntity",
-      "en": "Customers",
-      "de": "Kunden",
-      "fr": "Clients"
+      "en": "Contacts",
+      "de": "Kontakte",
+      "fr": "Contacts"
     },
     {
       "key": "entity_vendor",

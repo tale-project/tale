@@ -31,6 +31,7 @@ import {
 } from '@tale/ui/i18n/negotiate';
 
 import type { ArtifactsServer } from '../seo';
+import { parseByteRange } from './byte-range';
 import {
   applySecurityHeaders,
   defaultReactServerSecurityHeaders,
@@ -257,7 +258,10 @@ export function startReactServer(opts: ReactServerOptions): void {
     });
   }
 
-  async function serveStatic(pathname: string): Promise<Response> {
+  async function serveStatic(
+    pathname: string,
+    rangeHeader: string | null,
+  ): Promise<Response> {
     // Malformed percent-encodings (e.g. `/%E0%A4%A`) make decodeURIComponent
     // throw — treat them as not-found instead of crashing the request.
     let rel: string;
@@ -275,12 +279,34 @@ export function startReactServer(opts: ReactServerOptions): void {
       const candidate = Bun.file(resolved);
       if (await candidate.exists()) {
         const ct = contentTypeFor(pathname);
-        return new Response(candidate, {
-          headers: {
-            ...(ct ? { 'content-type': ct } : {}),
-            'cache-control': staticCacheControlFor(rel),
-          },
-        });
+        const headers: Record<string, string> = {
+          ...(ct ? { 'content-type': ct } : {}),
+          'cache-control': staticCacheControlFor(rel),
+          // Bun's `new Response(BunFile)` ignores `Range` (always a full 200),
+          // so slice here — WebKit refuses to play <video> without 206s, and
+          // seeking would otherwise re-download from byte zero.
+          'accept-ranges': 'bytes',
+        };
+        const range = parseByteRange(rangeHeader, candidate.size);
+        if (range === 'unsatisfiable') {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              ...headers,
+              'content-range': `bytes */${candidate.size}`,
+            },
+          });
+        }
+        if (range) {
+          return new Response(candidate.slice(range.start, range.end + 1), {
+            status: 206,
+            headers: {
+              ...headers,
+              'content-range': `bytes ${range.start}-${range.end}/${candidate.size}`,
+            },
+          });
+        }
+        return new Response(candidate, { headers });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
       const routeHtml = Bun.file(join(resolved, 'index.html'));
@@ -357,7 +383,11 @@ export function startReactServer(opts: ReactServerOptions): void {
         return finalize(new Response(null, { status: 302, headers }));
       }
 
-      const response = await serveStatic(url.pathname);
+      // Range applies to GET only (RFC 9110 §14.2); HEAD gets full-size headers.
+      const response = await serveStatic(
+        url.pathname,
+        request.method === 'GET' ? request.headers.get('range') : null,
+      );
       return finalize(
         applyLocaleResponseHeaders(response, negotiation, request),
       );

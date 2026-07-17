@@ -7,6 +7,12 @@ Les membres sont les personnes de ton organisation qui peuvent se connecter à T
 
 Six rôles couvrent presque chaque équipe à laquelle Tale est livré. Les Administrateurs et Propriétaires lisent cette page quand ils montent une équipe pour la première fois, quand un audit demande qui a quel accès, ou quand ils doivent décider entre Éditeur et Développeur pour un nouveau venu.
 
+Tu préfères regarder d’abord ? L’épisode 8 parcourt l’effectif, l’échelle des rôles et les murs d’équipe en deux minutes — sous-titres compris.
+
+<Video src="/videos/fr/tutorials/ep8-people/ep8-people.fr.mp4" poster="/videos/fr/tutorials/ep8-people/ep8-people.fr.webp" captions="/videos/fr/tutorials/ep8-people/ep8-people.fr.vtt" lang="fr" title="Épisode 8 — Personnes, rôles & équipes" caption="Épisode 8 — Personnes, rôles & équipes (2:06)">
+
+</Video>
+
 <Frame caption="La section Membres sous Paramètres > Organisation — chaque compte et le rôle qui le borne.">
 
 ![La page de paramètres Organisation avec sa section Membres listant le propriétaire de l’espace de travail et un bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)

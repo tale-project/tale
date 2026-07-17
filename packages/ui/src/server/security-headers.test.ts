@@ -30,6 +30,9 @@ describe('defaultReactServerSecurityHeaders (web + docs contract)', () => {
       "frame-ancestors 'none'",
     );
     expect(h.get('Content-Security-Policy')).toContain("object-src 'none'");
+    // Regression: `media-src 'none'` blocked the docs tutorial videos —
+    // same-origin media must stay allowed.
+    expect(h.get('Content-Security-Policy')).toContain("media-src 'self'");
     expect(h.get('Strict-Transport-Security')).toBe('max-age=15552000');
     expect(h.get('X-Content-Type-Options')).toBe('nosniff');
     expect(h.get('X-Frame-Options')).toBe('DENY');

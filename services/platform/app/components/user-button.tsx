@@ -212,6 +212,8 @@ export function UserButton({
     setOpen(next);
   }, []);
 
+  const closeMenu = useCallback(() => setOpen(false), []);
+
   const handleSignOut = useCallback(async () => {
     try {
       await signOut();
@@ -420,6 +422,7 @@ export function UserButton({
                           teams={teams}
                           selectedTeamId={selectedTeamId}
                           onSelectTeam={selectTeam}
+                          onManageTeams={closeMenu}
                         />
                       ),
                     },
@@ -600,6 +603,7 @@ export function UserButton({
     markChangelogSeen,
     hasUnseenVersion,
     onNavigate,
+    closeMenu,
   ]);
 
   const triggerContent = (

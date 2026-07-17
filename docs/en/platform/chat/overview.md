@@ -5,6 +5,12 @@ description: Chat is the everyday entry point — pick an agent, send a message,
 
 Chat is the everyday entry point to Tale. You open it, pick an agent (or none), type, and a reply streams back — citations, tool calls, and all. Most users spend more time here than in any other tab; everything else in Platform exists to feed Chat with something useful or to govern what it does.
 
+Prefer to watch first? Episode 2 walks this whole surface in three minutes — grounding, model choice, Arena Mode, and the canvas, captions included.
+
+<Video src="/videos/en/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/en/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/en/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08)">
+
+</Video>
+
 <Frame caption="A chat with a streamed reply — the surface every other feature serves.">
 
 ![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)

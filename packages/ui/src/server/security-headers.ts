@@ -63,7 +63,9 @@ export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
     baseUri: ["'self'"],
     formAction: ["'self'"],
     objectSrc: ["'none'"],
-    mediaSrc: ["'none'"],
+    // Same-origin only, like the platform CSP — the docs tutorial videos
+    // (`/videos/…` mp4 + vtt) are served from the site's own mount.
+    mediaSrc: ["'self'"],
   },
   // 180 days, no `includeSubDomains` / `preload` — self-deployed operators
   // run on varied domains and don't own preload submission.

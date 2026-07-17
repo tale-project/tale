@@ -169,7 +169,7 @@
         "reply1": "Yesterday logged 7 escalations — 5 resolved, 2 still open.",
         "reply2": "Both open cases are delayed cargo-bike deliveries in the EU region.",
         "reply3": "Ops has confirmed replacement units ship this week,",
-        "reply4": "so both customers can be promised a resolution by Friday.",
+        "reply4": "so both contacts can be promised a resolution by Friday.",
         "citation1": "q3-escalations.pdf",
         "citation2": "eu-delivery-runbook.pdf",
         "thought": "Thought for 1s",
@@ -253,7 +253,7 @@
       },
       "govern": {
         "label": "Animated demo: an in-chat approval card asks to send 42 refund emails; Approve is confirmed and the run continues.",
-        "approvalTitle": "Send 42 refund emails to affected customers?",
+        "approvalTitle": "Send 42 refund emails to affected contacts?",
         "requester": "Inbox triage · Draft reply",
         "approve": "Approve",
         "reject": "Reject",
@@ -267,16 +267,16 @@
       },
       "arena": {
         "label": "Animated demo: Chat Arena splits one prompt across two models so you can compare Claude Sonnet and GPT-5.5 side by side.",
-        "prompt": "Draft a customer reply for the delayed EU shipment.",
+        "prompt": "Draft a contact reply for the delayed EU shipment.",
         "agent": "Support Agent",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
         "vs": "vs",
         "replyA1": "Apologize for the delay and confirm replacement units ship this week.",
         "replyA2": "Offer a Friday resolution date and a tracking link once Ops posts it.",
-        "replyA3": "Close with the escalation policy link so the customer can share it internally.",
+        "replyA3": "Close with the escalation policy link so the contact can share it internally.",
         "replyB1": "Acknowledge the delay, cite the escalation policy, and set Friday as the commit.",
-        "replyB2": "Include a short next-step checklist the customer can forward internally.",
+        "replyB2": "Include a short next-step checklist the contact can forward internally.",
         "replyB3": "Offer a callback window if the tracking link is not posted by Thursday."
       },
       "projects": {
@@ -358,7 +358,7 @@
       "pool": {
         "eyebrow": "Knowledge",
         "title": "One knowledge base,\nevery answer grounded",
-        "description": "Documents, websites, product and customer data flow into a shared knowledge base. Agents answer from what your company actually knows — with citations you can check."
+        "description": "Documents, websites, product and contact data flow into a shared knowledge base. Agents answer from what your company actually knows — with citations you can check."
       },
       "delegate": {
         "eyebrow": "Automations",
@@ -1262,7 +1262,7 @@
     "demos": {
       "arena": {
         "label": "Animated demo: Chat Arena runs one announcement prompt through Claude Sonnet and GPT-5.5 side by side so the writer picks the stronger draft.",
-        "prompt": "Turn the 2.4 release notes into a customer announcement.",
+        "prompt": "Turn the 2.4 release notes into a release announcement.",
         "agent": "Comms Agent",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
@@ -1271,7 +1271,7 @@
         "replyA3": "Close with the upgrade path and a link to the changelog.",
         "replyB1": "Open with what pilots asked for: simpler air-gapped setup, delivered.",
         "replyB2": "List the three headline features as short bullets with doc links.",
-        "replyB3": "End with a thank-you to early customers and the upgrade command."
+        "replyB3": "End with a thank-you to early contacts and the upgrade command."
       },
       "govern": {
         "label": "Animated demo: an in-chat approval card asks to post the release announcement to the #customers Slack channel; approval is granted and journaled.",
@@ -1525,7 +1525,7 @@
         },
         {
           "title": "Typed records",
-          "body": "Products, Customers, and Vendors are exact field rows agents read as data, not prose.",
+          "body": "Products, Contacts, and Vendors are exact field rows agents read as data, not prose.",
           "docsLabel": "Structured data"
         },
         {
@@ -1548,7 +1548,7 @@
         },
         {
           "q": "What is the difference between documents and typed records?",
-          "a": "Documents and entries are indexed for retrieval. Products, Customers, and Vendors are structured rows agents read as exact values."
+          "a": "Documents and entries are indexed for retrieval. Products, Contacts, and Vendors are structured rows agents read as exact values."
         },
         {
           "q": "Can agents write to Knowledge, or only read?",
@@ -1683,7 +1683,7 @@
     "description": "Projects are shared workspaces that bundle the chats, files, instructions, and task board for one piece of work — so context follows the work and agents pick tasks up where your team leaves them.",
     "capabilities": {
       "heading": "One workspace per piece of work",
-      "description": "A project keeps everything a customer, a launch, or an investigation needs in one place — and puts agents to work inside it.",
+      "description": "A project keeps everything a contact, a launch, or an investigation needs in one place — and puts agents to work inside it.",
       "items": [
         {
           "title": "Context that follows the work",
@@ -1717,7 +1717,7 @@
       "items": [
         {
           "q": "What is a project in Tale?",
-          "a": "A shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work — a customer, a launch, an investigation — so the context stays with the work."
+          "a": "A shared workspace that bundles chats, files, instructions, tasks, and discussions around one piece of work — a contact, a launch, an investigation — so the context stays with the work."
         },
         {
           "q": "How do agents work on project tasks?",

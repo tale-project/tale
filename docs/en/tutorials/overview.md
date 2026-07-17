@@ -11,6 +11,12 @@ If you have not walked a [get-started journey](/get-started/quickstart) yet, sta
 
 <CardGroup cols="2">
 
+<Card title="Video series" icon="play" href="/tutorials/videos">
+
+Produced walkthroughs of the whole platform — grounding, agents, automations, governance — three minutes at a time, in three languages.
+
+</Card>
+
 <Card title="Member tutorials" icon="message-circle" href="/tutorials/member/chat-effectively">
 
 Chat effectively, work in projects, hold voice conversations.

@@ -39,7 +39,11 @@ import {
   CANNED_REPLY,
   MOCK_TRIGGERS,
 } from './canned';
-import { matchDocsReply, matchDocsTriageScore } from './docs-replies';
+import {
+  matchDocsReply,
+  matchDocsTriageScore,
+  type DocsReplyTool,
+} from './docs-replies';
 
 /** Canned content for structured-output requests (`response_format` json*). */
 const CANNED_JSON_REPLY = '{}';
@@ -168,6 +172,7 @@ function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
 type Scenario =
   | 'canned'
   | 'docs'
+  | 'docsTool'
   | 'taskTriage'
   | 'reasoning'
   | 'nextSteps'
@@ -185,10 +190,27 @@ function userTexts(messages: ParsedMessage[]): string[] {
     .map((message) => message.text.toLowerCase());
 }
 
-/** Last user message, lowercased — the docs-reply match key. */
-function lastUserText(body: ChatCompletionRequest): string {
-  const users = userTexts(body.messages ?? []);
-  return users[users.length - 1] ?? '';
+/**
+ * The docs entry for this conversation: every message text scanned
+ * NEWEST-FIRST — system messages included. A human-input RESUME arrives as a
+ * REBUILT conversation whose only user message is the
+ * `[HUMAN_INPUT_RESPONSE]` line; the on-camera prompt that owns the script
+ * survives only inside a system message's embedded history block. Docs
+ * phrases are distinctive full clauses, so scanning system text cannot
+ * shadow the e2e paths.
+ */
+function matchDocsReplyInConversation(
+  body: ChatCompletionRequest,
+): ReturnType<typeof matchDocsReply> {
+  const messages = body.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const matched = matchDocsReply(
+      messages[i]?.text.toLowerCase() ?? '',
+      body.model,
+    );
+    if (matched) return matched;
+  }
+  return null;
 }
 
 /**
@@ -204,7 +226,12 @@ function isToolResume(messages: ParsedMessage[]): boolean {
     (message) =>
       message.role === 'tool' ||
       message.hasToolCalls ||
-      message.text.includes('human_response'),
+      message.text.includes('human_response') ||
+      // The human-input RESUME rebuilds the conversation; its user line is
+      // "[HUMAN_INPUT_RESPONSE] <field>: <answer>" (note: NOT a substring of
+      // 'human_response'). Without this, a tool-scripted docs entry would
+      // re-emit its tool call and pause forever.
+      message.text.toLowerCase().includes('[human_input_response]'),
   );
 }
 
@@ -245,9 +272,42 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.nextSteps)) return 'nextSteps';
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
-  // unmatched stays on the spec-pinned canned path.
-  if (matchDocsReply(last)) return 'docs';
+  // unmatched stays on the spec-pinned canned path. A tool-scripted entry
+  // emits its tool call on the first turn and its `reply` on the resume turn
+  // (whose LAST user message is the human-response wrapper — hence the
+  // newest-first conversation scan).
+  const docsReply = matchDocsReplyInConversation(body);
+  if (docsReply) return docsReply.tool && !resume ? 'docsTool' : 'docs';
   return 'canned';
+}
+
+/** The streamed tool-call delta(s) for a docs entry's scripted tool. */
+function docsToolCallDeltas(tool: DocsReplyTool): ToolCallDelta[] {
+  if (tool.name === 'file_write') {
+    return tool.files.map((file, index) => ({
+      index,
+      id: `call_docs_fw_${index}`,
+      type: 'function' as const,
+      function: {
+        name: FILE_WRITE_TOOL_NAME,
+        arguments: JSON.stringify({ path: file.path, content: file.content }),
+      },
+    }));
+  }
+  return [
+    {
+      index: 0,
+      id: 'call_docs_hi_0',
+      type: 'function' as const,
+      function: {
+        name: HUMAN_INPUT_TOOL_NAME,
+        arguments: JSON.stringify({
+          question: tool.question,
+          fields: tool.fields,
+        }),
+      },
+    },
+  ];
 }
 
 /** The plain-text content a (non-tool) scenario streams as `delta.content`. */
@@ -257,9 +317,8 @@ function scenarioContent(
 ): string {
   switch (scenario) {
     case 'docs':
-      return (
-        matchDocsReply(lastUserText(body), body.model)?.reply ?? CANNED_REPLY
-      );
+    case 'docsTool':
+      return matchDocsReplyInConversation(body)?.reply ?? CANNED_REPLY;
     case 'taskTriage':
       return triageScore(body) ?? CANNED_JSON_REPLY;
     case 'reasoning':
@@ -304,7 +363,10 @@ function jsonCompletionContent(body: ChatCompletionRequest): string {
   if (scenario === 'taskTriage') return scenarioContent(scenario, body);
   if ((body.response_format?.type ?? '').startsWith('json'))
     return CANNED_JSON_REPLY;
-  if (scenario === 'docs') return scenarioContent(scenario, body);
+  // A tool-scripted docs entry still answers text-only here — thread-title
+  // generation must never see tool markup, only the entry's `reply`.
+  if (scenario === 'docs' || scenario === 'docsTool')
+    return scenarioContent(scenario, body);
   return CANNED_REPLY;
 }
 
@@ -389,7 +451,11 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
             ...(usage ? { usage } : {}),
           }),
         );
-      const pause = () => new Promise((resolve) => setTimeout(resolve, 10));
+      // Delta cadence. The docs VIDEO pipeline slows it via
+      // TALE_MOCK_STREAM_PACE_MS on the gateway process so a streamed answer
+      // reads naturally on camera; unset, streams stay fast for e2e/screenshots.
+      const paceMs = Number(process.env.TALE_MOCK_STREAM_PACE_MS ?? '') || 10;
+      const pause = () => new Promise((resolve) => setTimeout(resolve, paceMs));
 
       // Every stream opens with the assistant role delta.
       sendDelta({ role: 'assistant' }, null);
@@ -419,6 +485,37 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
           },
           null,
         );
+        sendDelta({}, 'tool_calls', USAGE);
+        send('data: [DONE]\n\n');
+        controller.close();
+        return;
+      }
+
+      // A docs entry's scripted tool turn: reasoning first (thinking before
+      // acting reads naturally on camera), then the tool call(s). The agent
+      // executes them and loops back; the resume turn streams the `reply`.
+      const docsTool =
+        scenario === 'docsTool' ? matchDocsReplyInConversation(body) : null;
+      if (docsTool?.tool) {
+        if (docsTool.reasoning) {
+          for (const delta of toDeltas(docsTool.reasoning)) {
+            sendDelta({ reasoning_content: delta }, null);
+            await pause();
+          }
+        }
+        // A short visible sentence before the call — the natural model
+        // shape, and what keeps a PAUSING tool turn from being judged an
+        // empty generation (see DocsReply.toolIntro).
+        if (docsTool.toolIntro) {
+          for (const delta of toDeltas(docsTool.toolIntro)) {
+            sendDelta({ content: delta }, null);
+            await pause();
+          }
+        }
+        for (const call of docsToolCallDeltas(docsTool.tool)) {
+          sendDelta({ tool_calls: [call] }, null);
+          await pause();
+        }
         sendDelta({}, 'tool_calls', USAGE);
         send('data: [DONE]\n\n');
         controller.close();
@@ -457,13 +554,16 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
 
       // Reasoning streams `reasoning_content` first; the SDK closes the
       // reasoning block automatically on the first `content` delta. Docs
-      // replies opt into the same path via their `reasoning` field.
+      // replies opt into the same path via their `reasoning` field — except
+      // on a tool entry's ack turn, whose thinking already ran on the tool
+      // turn; repeating it would render a second "Thinking" block.
+      const docsMatch =
+        scenario === 'docs' ? matchDocsReplyInConversation(body) : null;
       const reasoningText =
         scenario === 'reasoning'
           ? CANNED_REASONING
-          : scenario === 'docs'
-            ? (matchDocsReply(lastUserText(body), body.model)?.reasoning ??
-              null)
+          : docsMatch && !docsMatch.tool
+            ? (docsMatch.reasoning ?? null)
             : null;
       if (reasoningText !== null) {
         for (const delta of toDeltas(reasoningText)) {
@@ -521,6 +621,13 @@ export async function handleChatCompletions(
   console.log(
     `[mocks] chat/completions (stream=${body.stream === true}, model=${body.model ?? 'unknown'}, scenario=${scenario})`,
   );
+  if (process.env.TALE_MOCK_TRACE_MESSAGES === '1') {
+    for (const message of body.messages ?? []) {
+      console.log(
+        `    · ${message.role}${message.hasToolCalls ? '+tools' : ''}: ${message.text.slice(0, 90).replace(/\n/g, ' ')}`,
+      );
+    }
+  }
   // Error scenario: fail the generation call with a 500 so the chat surfaces
   // its provider-failure UI. JSON router/title calls never reach here as
   // 'error' (pickScenario short-circuits them to 'canned'), so only the

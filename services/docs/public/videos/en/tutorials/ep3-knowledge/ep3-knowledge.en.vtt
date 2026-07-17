@@ -1,0 +1,208 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:05.101
+Every grounded answer in this
+series comes from one place.
+
+2
+00:00:05.101 --> 00:00:08.532
+This episode: the
+knowledge library — what goes in,
+
+3
+00:00:08.532 --> 00:00:12.030
+how it becomes searchable,
+and who gets to see what.
+
+4
+00:00:13.630 --> 00:00:15.125
+Documents live here.
+
+5
+00:00:15.125 --> 00:00:18.861
+Reports, guidelines,
+meeting notes — drop them in,
+
+6
+00:00:18.861 --> 00:00:22.971
+and the indexing pipeline
+takes over: extract the text,
+
+7
+00:00:22.971 --> 00:00:26.857
+split it into passages,
+make every passage findable.
+
+8
+00:00:26.857 --> 00:00:30.070
+The Indexed badge
+means: ready to be cited.
+
+9
+00:00:31.270 --> 00:00:35.364
+One thing worth being precise
+about: indexing is not training.
+
+10
+00:00:35.364 --> 00:00:37.411
+Your documents change no model.
+
+11
+00:00:37.411 --> 00:00:42.627
+They stay in your workspace, and at
+answer time the agent retrieves exactly the
+
+12
+00:00:42.627 --> 00:00:45.598
+passages it needs —
+with the source attached.
+
+13
+00:00:45.598 --> 00:00:49.230
+That is why you could check
+every claim in episode two.
+
+14
+00:00:50.430 --> 00:00:56.429
+For facts that live in nobody’s
+document, there are knowledge entries — short,
+
+15
+00:00:56.429 --> 00:00:57.583
+curated truths.
+
+16
+00:00:57.583 --> 00:01:01.505
+We add one now: the
+returns pilot for annual plans.
+
+17
+00:01:01.505 --> 00:01:07.350
+Topic, content, save… and it is
+already part of what every agent here knows.
+
+18
+00:01:08.550 --> 00:01:11.218
+Some knowledge is not prose at all.
+
+19
+00:01:11.218 --> 00:01:15.943
+Products, customers, vendors —
+typed records with real fields.
+
+20
+00:01:15.943 --> 00:01:21.888
+An agent reads the price from the row
+instead of guessing it from a paragraph.
+
+21
+00:01:21.888 --> 00:01:24.860
+Documents for text, records for values.
+
+22
+00:01:26.060 --> 00:01:28.941
+Public websites join through the crawler.
+
+23
+00:01:28.941 --> 00:01:34.281
+Hand it a domain and a rhythm, and it
+keeps the index in step with the site.
+
+24
+00:01:34.281 --> 00:01:38.497
+One honest boundary: it sees
+what an anonymous visitor sees.
+
+25
+00:01:38.497 --> 00:01:42.220
+Anything behind a login
+belongs in documents instead.
+
+26
+00:01:43.420 --> 00:01:46.905
+And who sees what is a
+decision, not an accident.
+
+27
+00:01:46.905 --> 00:01:52.736
+An agent’s knowledge scope names exactly
+what it may read — team documents stay in
+
+28
+00:01:52.736 --> 00:01:55.936
+the team, workspace
+documents serve everyone,
+
+29
+00:01:55.936 --> 00:01:57.998
+uploads stay with their chat.
+
+30
+00:01:57.998 --> 00:02:01.910
+Give each agent the smallest
+library that does the job.
+
+31
+00:02:03.110 --> 00:02:06.612
+One habit keeps all of
+this trustworthy: curate.
+
+32
+00:02:06.612 --> 00:02:12.230
+The model believes what you give it — a
+stale price list or a duplicate draft
+
+33
+00:02:12.230 --> 00:02:14.638
+becomes a confident wrong answer.
+
+34
+00:02:14.638 --> 00:02:18.651
+Treat the library like a
+wiki the whole company quotes.
+
+35
+00:02:18.651 --> 00:02:20.620
+Because from now on, it is.
+
+36
+00:02:21.820 --> 00:02:22.581
+The proof.
+
+37
+00:02:22.581 --> 00:02:28.901
+We ask about the returns pilot we added
+two minutes ago… and there it is — answered
+
+38
+00:02:28.901 --> 00:02:31.109
+from the entry, source named.
+
+39
+00:02:31.109 --> 00:02:33.699
+Knowledge in, grounded answer out.
+
+40
+00:02:37.820 --> 00:02:43.088
+That is the library: documents
+indexed, facts pinned as entries,
+
+41
+00:02:43.088 --> 00:02:48.768
+records typed, websites crawled —
+and scopes deciding who reads what.
+
+42
+00:02:48.768 --> 00:02:52.061
+Next episode: building your first agent.
+
+43
+00:02:53.261 --> 00:02:58.337
+The knowledge section of the
+documentation covers every shape you saw here.
+
+44
+00:02:58.337 --> 00:02:59.961
+See you in episode four.
+

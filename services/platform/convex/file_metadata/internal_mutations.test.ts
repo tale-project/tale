@@ -42,7 +42,15 @@ vi.mock('./rag_dispatch', () => ({
 vi.mock('../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
-    file_metadata: { internal_actions: { uploadFileToRag: 'mock' } },
+    file_metadata: {
+      internal_actions: {
+        uploadFileToRag: 'mock',
+        extractFileMetadata: 'extract_mock',
+      },
+      transcribe_audio: {
+        transcribeAudio: 'transcribeAudio_mock',
+      },
+    },
   },
 }));
 
@@ -183,6 +191,43 @@ describe('saveFileMetadata (internal)', () => {
       0,
       'mock',
       expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  // Regression: video-link handoff stores audio/mpeg. `resolveFileType`
+  // intentionally returns '' for audio MIME, so classifying isAudio from
+  // that output skipped Whisper and stamped ragStatus=unsupported — chip
+  // stuck on Transcribing….
+  it('queues Whisper for audio/mpeg video-link handoff (not unsupported)', async () => {
+    const { ctx } = createMockCtx(null);
+    const handler = await getSaveHandler();
+
+    await handler(ctx, {
+      ...baseArgs,
+      fileName: 'This Chinese Luxury SUV has so much aura 😌.mp3',
+      contentType: 'audio/mpeg',
+      size: 3_049_437,
+      source: 'video_link',
+      uploadedBy: 'user_1',
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({
+        contentType: 'audio/mpeg',
+        source: 'video_link',
+        transcriptionStatus: 'queued',
+        ragStatus: undefined,
+      }),
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'transcribeAudio_mock',
+      expect.objectContaining({
+        storageId: 'storage_1',
+        contentType: 'audio/mpeg',
+        organizationId: 'org_1',
+      }),
     );
   });
 

@@ -235,6 +235,22 @@
       "pages": [
         "tutorials/overview",
         {
+          "label": "tutorialsVideos",
+          "pages": [
+            "tutorials/videos/index",
+            "tutorials/videos/welcome-to-tale",
+            "tutorials/videos/chat-in-depth",
+            "tutorials/videos/knowledge",
+            "tutorials/videos/your-first-agent",
+            "tutorials/videos/automations-and-approvals",
+            "tutorials/videos/projects-with-ai",
+            "tutorials/videos/integrations",
+            "tutorials/videos/people-roles-and-teams",
+            "tutorials/videos/governance-and-trust",
+            "tutorials/videos/tale-for-developers"
+          ]
+        },
+        {
           "label": "tutorialsMember",
           "pages": [
             "tutorials/member/chat-effectively",

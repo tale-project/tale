@@ -1,0 +1,191 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:04.052
+Dein Arbeitsbereich lebt nicht allein.
+
+2
+00:00:04.052 --> 00:00:10.282
+E-Mail, Repositories, Suche, eure internen
+Werkzeuge — diese Episode geht die Türen
+
+3
+00:00:10.282 --> 00:00:14.560
+zur Außenwelt ab, und die
+Disziplin, die in jeder steckt.
+
+4
+00:00:15.760 --> 00:00:21.303
+Integrationen verbinden sich einmal
+und dienen dem ganzen Arbeitsbereich:
+
+5
+00:00:21.303 --> 00:00:24.568
+Gmail, GitHub,
+Shopify, Slack — und Tavily,
+
+6
+00:00:24.568 --> 00:00:25.859
+hier schon aktiv.
+
+7
+00:00:25.859 --> 00:00:31.022
+Jeder Agent und jede
+Automatisierung leiht sich dieselbe Verbindung;
+
+8
+00:00:31.022 --> 00:00:33.680
+niemand klebt Schlüssel in Prompts.
+
+9
+00:00:34.880 --> 00:00:38.450
+Öffne einen Connector, und
+du kannst die Tür lesen,
+
+10
+00:00:38.450 --> 00:00:44.050
+bevor du sie öffnest: genau zwei
+Operationen — Suchen und Extrahieren — und eine
+
+11
+00:00:44.050 --> 00:00:48.110
+Liste erlaubter Hosts, die
+benennt, wohin Anfragen dürfen.
+
+12
+00:00:48.110 --> 00:00:51.680
+Keine versteckten Verben,
+keine Überraschungsziele.
+
+13
+00:00:52.880 --> 00:00:58.403
+Und das kauft dir eine Verbindung:
+Erinnerst du dich an die Tiefenrecherche aus
+
+14
+00:00:58.403 --> 00:00:59.312
+Episode zwei?
+
+15
+00:00:59.312 --> 00:01:03.856
+Es gibt sie in diesem
+Arbeitsbereich, weil Tavily angebunden ist.
+
+16
+00:01:03.856 --> 00:01:08.960
+Verbinde eine Tür einmal, und eine
+ganze Fähigkeit leuchtet für alle auf.
+
+17
+00:01:10.160 --> 00:01:16.259
+Für alles ohne fertigen Connector gibt es
+MCP — das offene Protokoll für Werkzeuge.
+
+18
+00:01:16.259 --> 00:01:20.227
+Richte Tale auf euer
+internes Wiki, euer Ticketsystem,
+
+19
+00:01:20.227 --> 00:01:25.591
+alles, was es spricht — und seine
+Werkzeuge erscheinen deinen Agenten wie
+
+20
+00:01:25.591 --> 00:01:26.400
+eingebaute.
+
+21
+00:01:27.600 --> 00:01:31.582
+Aber eingebaut aussehen
+heißt nicht eingebaut vertrauen.
+
+22
+00:01:31.582 --> 00:01:35.351
+Ein externes Werkzeug ist
+eine neue Vertrauensgrenze,
+
+23
+00:01:35.351 --> 00:01:39.262
+und jedes trägt sein eigenes
+Freigabe-Flag — leg es um,
+
+24
+00:01:39.262 --> 00:01:42.320
+und jeder Aufruf
+wartet auf einen Menschen,
+
+25
+00:01:42.320 --> 00:01:44.880
+genau wie die Karte in Episode fünf.
+
+26
+00:01:46.080 --> 00:01:48.239
+Die letzte Tür öffnet der Code.
+
+27
+00:01:48.239 --> 00:01:52.069
+Wenn Agenten Code ausführen,
+läuft er in einer Sandbox,
+
+28
+00:01:52.069 --> 00:01:56.386
+deren Netz standardmäßig zu ist
+— erlaubte Ziele sind benannt,
+
+29
+00:01:56.386 --> 00:02:01.191
+alles andere wird verweigert, und
+die Richtlinie schließt im Zweifel.
+
+30
+00:02:01.191 --> 00:02:05.508
+Ein Werkzeug, das nicht
+heimlich nach Hause telefonieren kann,
+
+31
+00:02:05.508 --> 00:02:07.040
+kannst du dir leisten.
+
+32
+00:02:08.240 --> 00:02:12.869
+Das ist das Muster an jeder
+Tür: Operationen zum Nachlesen,
+
+33
+00:02:12.869 --> 00:02:16.478
+Hosts mit Namen,
+Freigaben nach Bedarf, Netze,
+
+34
+00:02:16.478 --> 00:02:18.518
+die im Zweifel Nein sagen.
+
+35
+00:02:18.518 --> 00:02:24.480
+Verbinde mutig — denn jede Tür ist
+dafür gebaut, bewusst geöffnet zu werden.
+
+36
+00:02:25.680 --> 00:02:31.671
+Integrationen, MCP und die
+Grenzen, die sie sicher nutzbar machen.
+
+37
+00:02:31.671 --> 00:02:36.119
+Nächste Episode: die
+Menschen-Seite — Mitglieder,
+
+38
+00:02:36.119 --> 00:02:39.840
+Rollen und Teams, und wer was sehen darf.
+
+39
+00:02:41.040 --> 00:02:46.959
+Die Bereiche Integrationen und
+Richtlinien der Dokumentation tragen jedes Detail.
+
+40
+00:02:46.959 --> 00:02:48.640
+Bis zur achten Episode.
+
