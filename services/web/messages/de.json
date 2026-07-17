@@ -169,7 +169,7 @@
         "reply1": "Gestern gab es 7 Eskalationen — 5 gelöst, 2 noch offen.",
         "reply2": "Beide offenen Fälle sind verzögerte Cargo-Bike-Lieferungen in der EU.",
         "reply3": "Ops bestätigt, dass die Ersatzgeräte diese Woche rausgehen —",
-        "reply4": "beiden Kunden kann also eine Lösung bis Freitag zugesagt werden.",
+        "reply4": "beiden Kontakten kann also eine Lösung bis Freitag zugesagt werden.",
         "citation1": "q3-eskalationen.pdf",
         "citation2": "eu-liefer-runbook.pdf",
         "thought": "1 s überlegt",
@@ -253,7 +253,7 @@
       },
       "govern": {
         "label": "Animierte Demo: Eine Freigabe-Karte im Chat fragt, ob 42 Rückerstattungs-Emails gesendet werden dürfen; Freigeben wird bestätigt und der Lauf geht weiter.",
-        "approvalTitle": "42 Rückerstattungs-Emails an betroffene Kunden senden?",
+        "approvalTitle": "42 Rückerstattungs-Emails an betroffene Kontakte senden?",
         "requester": "Inbox-Triage · Antwort entwerfen",
         "approve": "Freigeben",
         "reject": "Ablehnen",
@@ -267,16 +267,16 @@
       },
       "arena": {
         "label": "Animierte Demo: Chat Arena stellt eine Anfrage zwei Modellen gegenüber — Claude Sonnet und GPT-5.5 nebeneinander.",
-        "prompt": "Entwirf eine Kundenantwort zur verzögerten EU-Lieferung.",
+        "prompt": "Entwirf eine Kontaktantwort zur verzögerten EU-Lieferung.",
         "agent": "Support-Agent",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
         "vs": "vs",
         "replyA1": "Entschuldige die Verzögerung und bestätige, dass Ersatzgeräte diese Woche rausgehen.",
         "replyA2": "Sage Freitag als Lösungstermin zu und sende den Tracking-Link, sobald Ops ihn postet.",
-        "replyA3": "Schließe mit dem Link zur Eskalations-Richtlinie, den der Kunde intern teilen kann.",
+        "replyA3": "Schließe mit dem Link zur Eskalations-Richtlinie, den der Kontakt intern teilen kann.",
         "replyB1": "Bestätige die Verzögerung, zitiere die Eskalations-Richtlinie und setze Freitag als Zusage.",
-        "replyB2": "Hänge eine kurze Next-Step-Checkliste an, die der Kunde intern weiterleiten kann.",
+        "replyB2": "Hänge eine kurze Next-Step-Checkliste an, die der Kontakt intern weiterleiten kann.",
         "replyB3": "Biete ein Rückruf-Fenster an, falls der Tracking-Link bis Donnerstag fehlt."
       },
       "projects": {
@@ -358,7 +358,7 @@
       "pool": {
         "eyebrow": "Wissen",
         "title": "Eine Wissensbasis,\njede Antwort belegt",
-        "description": "Dokumente, Websites, Produkt- und Kundendaten landen in einer gemeinsamen Wissensbasis. Agents antworten mit dem Wissen deines Unternehmens — belegt mit prüfbaren Quellen."
+        "description": "Dokumente, Websites, Produkt- und Kontaktdaten landen in einer gemeinsamen Wissensbasis. Agents antworten mit dem Wissen deines Unternehmens — belegt mit prüfbaren Quellen."
       },
       "delegate": {
         "eyebrow": "Automatisierungen",
@@ -1275,7 +1275,7 @@
     "demos": {
       "arena": {
         "label": "Animierte Demo: Chat Arena schickt denselben Ankündigungs-Prompt durch Claude Sonnet und GPT-5.5 — der stärkere Entwurf gewinnt.",
-        "prompt": "Mach aus den 2.4-Release-Notes eine Kunden-Ankündigung.",
+        "prompt": "Mach aus den 2.4-Release-Notes eine Release-Ankündigung.",
         "agent": "Comms-Agent",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
@@ -1284,7 +1284,7 @@
         "replyA3": "Schließe mit dem Upgrade-Pfad und dem Link zum Changelog.",
         "replyB1": "Beginn mit dem, was Piloten wollten: einfacheres Air-Gap-Setup, geliefert.",
         "replyB2": "Liste die drei Highlights als kurze Bullets mit Doku-Links.",
-        "replyB3": "Ende mit einem Dank an die frühen Kunden und dem Upgrade-Befehl."
+        "replyB3": "Ende mit einem Dank an die frühen Kontakte und dem Upgrade-Befehl."
       },
       "govern": {
         "label": "Animierte Demo: Eine Freigabe-Karte im Chat fragt, ob die Release-Ankündigung in den Slack-Kanal #customers gepostet werden darf; die Freigabe wird erteilt und journaliert.",
@@ -1709,7 +1709,7 @@
         },
         {
           "title": "Typisierte Datensätze",
-          "body": "Products, Customers und Vendors sind exakte Feldzeilen, die Agents als Daten lesen, nicht als Prosa.",
+          "body": "Products, Contacts und Vendors sind exakte Feldzeilen, die Agents als Daten lesen, nicht als Prosa.",
           "docsLabel": "Strukturierte Daten"
         },
         {
@@ -1732,7 +1732,7 @@
         },
         {
           "q": "Was ist der Unterschied zwischen Dokumenten und typisierten Datensätzen?",
-          "a": "Dokumente und Einträge werden für Retrieval indexiert. Products, Customers und Vendors sind strukturierte Zeilen, die Agents als exakte Werte lesen."
+          "a": "Dokumente und Einträge werden für Retrieval indexiert. Products, Contacts und Vendors sind strukturierte Zeilen, die Agents als exakte Werte lesen."
         },
         {
           "q": "Können Agents in Knowledge schreiben — oder nur lesen?",
@@ -1867,7 +1867,7 @@
     "description": "Projekte sind geteilte Arbeitsbereiche, die Chats, Dateien, Anweisungen und das Task-Board zu einem Vorhaben bündeln — der Kontext bleibt bei der Arbeit, und Agents übernehmen Aufgaben dort, wo dein Team sie liegen lässt.",
     "capabilities": {
       "heading": "Ein Arbeitsbereich pro Vorhaben",
-      "description": "Ein Projekt hält alles, was ein Kunde, ein Launch oder eine Recherche braucht, an einem Ort — und setzt Agents mitten darin an die Arbeit.",
+      "description": "Ein Projekt hält alles, was ein Kontakt, ein Launch oder eine Recherche braucht, an einem Ort — und setzt Agents mitten darin an die Arbeit.",
       "items": [
         {
           "title": "Kontext, der bei der Arbeit bleibt",
@@ -1901,7 +1901,7 @@
       "items": [
         {
           "q": "Was ist ein Projekt in Tale?",
-          "a": "Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen zu einem Vorhaben bündelt — ein Kunde, ein Launch, eine Recherche — damit der Kontext bei der Arbeit bleibt."
+          "a": "Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen, Aufgaben und Diskussionen zu einem Vorhaben bündelt — ein Kontakt, ein Launch, eine Recherche — damit der Kontext bei der Arbeit bleibt."
         },
         {
           "q": "Wie arbeiten Agents an Projektaufgaben?",
