@@ -206,7 +206,27 @@ async function cleanupWowThread(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  if (ids.length === 0) return;
+  // Knowledge entries a take creates ON CAMERA (Episode 3's `entries`
+  // scene), registered by topic — topics are per-locale DATA literals, so
+  // the en-locale cleanup context finds them regardless of the take locale.
+  const entryTopics = [
+    ...new Set(
+      (ctx.notes.get('cleanupEntryTopics')?.split(',') ?? [])
+        .map((topic) => topic.trim())
+        .filter(Boolean),
+    ),
+  ];
+  // Agents a take creates ON CAMERA (Episode 4's create scene), registered
+  // by display name — the agents list row carries it in every locale.
+  const agentNames = [
+    ...new Set(
+      (ctx.notes.get('cleanupAgentNames')?.split(',') ?? [])
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (ids.length === 0 && entryTopics.length === 0 && agentNames.length === 0)
+    return;
   const cleanupContext = await browser.newContext({
     baseURL: BASE_URL,
     storageState: path.join(SCREENSHOTS_STATE, 'auth.json'),
@@ -231,8 +251,14 @@ async function cleanupWowThread(
     for (const id of ids) {
       // The app deletes some registered threads itself (an Arena branch on
       // exit) — skip rows that are already gone instead of timing out.
+      // `isVisible()` never waits — use a bounded waitFor so a still-loading
+      // list cannot read as "already gone".
       const row = cleanupPage.locator(`[data-thread-id="${id}"]`).first();
-      if (!(await row.isVisible().catch(() => false))) {
+      const present = await row
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!present) {
         console.log(`  · thread ${id} already gone`);
         continue;
       }
@@ -242,6 +268,80 @@ async function cleanupWowThread(
       } catch (error) {
         console.warn(
           `  ! could not delete thread ${id} — remove it by hand:`,
+          error,
+        );
+      }
+    }
+    for (const topic of entryTopics) {
+      try {
+        await cleanupPage.goto(`/dashboard/${ctx.orgId}/knowledge-entries`, {
+          waitUntil: 'domcontentloaded',
+        });
+        // Wait for the list to resolve before judging the row's absence.
+        await cleanupPage
+          .getByRole('button', { name: 'Add entry' })
+          .waitFor({ state: 'visible', timeout: 15_000 });
+        const row = cleanupPage
+          .getByRole('row')
+          .filter({ hasText: topic })
+          .first();
+        const present = await row
+          .waitFor({ state: 'visible', timeout: 8_000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!present) {
+          console.log(`  · entry "${topic}" already gone`);
+          continue;
+        }
+        // Row menu → Delete → confirm (the dialog's button shares the label).
+        await row.getByRole('button', { name: 'Open menu' }).click();
+        await cleanupPage.getByRole('menuitem', { name: 'Delete' }).click();
+        const dialog = cleanupPage.getByRole('dialog', {
+          name: 'Delete knowledge entry',
+        });
+        await dialog.waitFor({ state: 'visible', timeout: 15_000 });
+        await dialog.getByRole('button', { name: 'Delete' }).click();
+        await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
+        console.log(`  ✓ cleaned up knowledge entry "${topic}"`);
+      } catch (error) {
+        console.warn(
+          `  ! could not delete entry "${topic}" — remove it by hand:`,
+          error,
+        );
+      }
+    }
+    for (const name of agentNames) {
+      try {
+        await cleanupPage.goto(`/dashboard/${ctx.orgId}/agents`, {
+          waitUntil: 'domcontentloaded',
+        });
+        await cleanupPage
+          .getByRole('button', { name: 'Create agent' })
+          .waitFor({ state: 'visible', timeout: 15_000 });
+        const row = cleanupPage
+          .getByRole('row')
+          .filter({ hasText: name })
+          .first();
+        const present = await row
+          .waitFor({ state: 'visible', timeout: 8_000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!present) {
+          console.log(`  · agent "${name}" already gone`);
+          continue;
+        }
+        await row.getByRole('button', { name: 'Open menu' }).click();
+        await cleanupPage
+          .getByRole('menuitem', { name: 'Delete', exact: true })
+          .click();
+        await cleanupPage
+          .getByRole('button', { name: 'Delete agent', exact: true })
+          .click();
+        await row.waitFor({ state: 'hidden', timeout: 15_000 });
+        console.log(`  ✓ cleaned up agent "${name}"`);
+      } catch (error) {
+        console.warn(
+          `  ! could not delete agent "${name}" — remove it by hand:`,
           error,
         );
       }

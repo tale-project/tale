@@ -24,6 +24,8 @@ import path from 'node:path';
 
 import { EP1_WELCOME } from './episodes/ep1-welcome/episode';
 import { EP2_CHAT } from './episodes/ep2-chat/episode';
+import { EP3_KNOWLEDGE } from './episodes/ep3-knowledge/episode';
+import { EP4_AGENT } from './episodes/ep4-agent/episode';
 import { SPIKE_SYNC } from './episodes/spike-sync/episode';
 import { audioPlanPath, type AudioPlan } from './lib/audio-plan';
 import { loadDevEnv } from './lib/dev-env';
@@ -46,7 +48,13 @@ import { toSpokenText } from './lib/tts-text';
 // own env files) — load them before anything reads process.env.
 loadDevEnv();
 
-const EPISODES: readonly EpisodeSpec[] = [EP1_WELCOME, EP2_CHAT, SPIKE_SYNC];
+const EPISODES: readonly EpisodeSpec[] = [
+  EP1_WELCOME,
+  EP2_CHAT,
+  EP3_KNOWLEDGE,
+  EP4_AGENT,
+  SPIKE_SYNC,
+];
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 export const STATE_DIR = path.join(HERE, '.state');

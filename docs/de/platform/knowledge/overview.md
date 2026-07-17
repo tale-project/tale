@@ -5,6 +5,12 @@ description: Wissen ist die geteilte Bibliothek der Organisation — Dokumente, 
 
 Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf sechs Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte**, **Kunden** und **Lieferanten**.
 
+Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten durch — Indexierung, Einträge, Datensätze, Crawler und Zugriff, mit Untertiteln.
+
+<Video src="/videos/tutorials/ep3-knowledge.de.mp4" poster="/videos/tutorials/ep3-knowledge.de.webp" captions="/videos/tutorials/ep3-knowledge.de.vtt" lang="de" title="Episode 3 — Wissen" caption="Episode 3 — Wissen (3:22)">
+
+</Video>
+
 <Frame caption="Der Dokumente-Tab — die meistgenutzte Ecke der Wissensdatenbank.">
 
 ![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)

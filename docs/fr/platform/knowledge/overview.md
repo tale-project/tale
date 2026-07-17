@@ -5,6 +5,12 @@ description: La base de connaissances est la bibliothèque partagée de l’orga
 
 La base de connaissances est l’espace où vivent les données de l’organisation pour que les agents puissent les lire et les citer. Les éditeurs la constituent une fois ; les agents y puisent au moment de répondre — c’est ce qui permet à un agent Tale de répondre avec ta réalité plutôt qu’avec les données d’entraînement du modèle. L’espace s’ouvre sur six onglets : **Documents**, **Entrées de connaissances**, **Sites web**, **Produits**, **Clients** et **Fournisseurs**.
 
+Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèque en trois minutes — indexation, entrées, fiches, crawler et périmètres, sous-titres compris.
+
+<Video src="/videos/tutorials/ep3-knowledge.fr.mp4" poster="/videos/tutorials/ep3-knowledge.fr.webp" captions="/videos/tutorials/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45)">
+
+</Video>
+
 <Frame caption="L’onglet Documents — le coin le plus utilisé de la base de connaissances.">
 
 ![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)

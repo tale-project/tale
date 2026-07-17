@@ -21,8 +21,14 @@ Dieselbe Frage ohne und mit Verankerung, Modellwahl mit Belegen im Arena-Modus, 
 
 </Card>
 
+<Card title="Episode 3 — Wissen" icon="play" href="/de/tutorials/videos/knowledge">
+
+Die Bibliothek hinter verankerten Antworten: Indexieren ohne Training, ein Eintrag live angelegt und Minuten später zitiert, typisierte Datensätze, der Crawler und Zugriff nach dem Minimalprinzip. Gut drei Minuten.
+
+</Card>
+
 </CardGroup>
 
 ## Die Serie danach
 
-Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: Wissen, dein erster Agent, Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.
+Episoden erscheinen hier, sobald sie produziert sind. Auf dem Plan: dein erster Agent, Automatisierungen und Freigaben, Projekte, Integrationen, Menschen und Teams, Richtlinien und Vertrauen sowie eine Bonus-Episode für Entwickler.

@@ -21,8 +21,14 @@ The same question ungrounded and grounded, model choice with evidence in Arena M
 
 </Card>
 
+<Card title="Episode 3 — Knowledge" icon="play" href="/tutorials/videos/knowledge">
+
+The library behind grounded answers: indexing without training, an entry added live and cited minutes later, typed records, the crawler, and least-privilege scopes. Three minutes.
+
+</Card>
+
 </CardGroup>
 
 ## The series ahead
 
-Episodes land here as they are produced. On the roadmap: knowledge, building your first agent, automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.
+Episodes land here as they are produced. On the roadmap: building your first agent, automations and approvals, projects, integrations, people and teams, governance & trust, and a bonus episode for developers.

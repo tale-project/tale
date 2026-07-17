@@ -218,6 +218,51 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       'Une seule modification — un exemple complet de webhook dans la check-list — traite le moteur de croissance et comble la lacune d’un coup.',
     ].join('\n'),
   },
+  // ——— Video pipeline: Episode 3 wow (one entry per locale) ———
+  // The take ADDS a knowledge entry on camera (the returns pilot,
+  // tests/docs-videos/episodes/ep3-knowledge — deleted off camera after the
+  // take), then asks about it; the reply answers from that entry and names
+  // it as the source.
+  {
+    match: 'returns window for annual plans',
+    reasoning:
+      'Checking the workspace knowledge for a returns policy. The "Returns policy pilot" entry covers annual plans directly.',
+    reply:
+      'For annual plans, the returns window is **60 days**, effective August — a pilot running until Q4. Monthly plans keep the standard 30 days. Source: the **Returns policy pilot** entry in your workspace knowledge.',
+  },
+  {
+    match: 'rückgabefenster für jahrestarife',
+    reasoning:
+      'Suche im Wissensbestand nach einer Rückgaberegel. Der Eintrag „Rückgabe-Pilot" deckt Jahrestarife direkt ab.',
+    reply:
+      'Für Jahrestarife gilt ein Rückgabefenster von **60 Tagen**, wirksam ab August — ein Pilot bis Q4. Monatstarife behalten die üblichen 30 Tage. Quelle: der Eintrag **Rückgabe-Pilot** im Wissensbestand deines Arbeitsbereichs.',
+  },
+  {
+    match: 'fenêtre de retour pour les forfaits annuels',
+    reasoning:
+      'Recherche d’une règle de retour dans la base de connaissances. L’entrée « Pilote politique de retour » couvre directement les forfaits annuels.',
+    reply:
+      'Pour les forfaits annuels, la fenêtre de retour est de **60 jours**, effective en août — un pilote jusqu’au T4. Les forfaits mensuels gardent les 30 jours habituels. Source : l’entrée **Pilote politique de retour** dans les connaissances de ton espace de travail.',
+  },
+  // ——— Video pipeline: Episode 4 test-run (one entry per locale) ———
+  // The freshly created Support Coach answers its first ask. The reply
+  // visibly obeys the instructions typed on camera (friendly, concrete,
+  // billing disputes go to a human) — instructions shaping behaviour.
+  {
+    match: 'asking for an invoice copy',
+    reply:
+      'Keep it short and warm: confirm which invoice they need, attach the copy from Billing → Invoices, and close with an offer to help further. If the request is actually a billing dispute, stop and hand the thread to a human — that one is outside my mandate.',
+  },
+  {
+    match: 'der eine rechnungskopie möchte',
+    reply:
+      'Halte es kurz und freundlich: kläre, welche Rechnung gemeint ist, häng die Kopie aus Abrechnung → Rechnungen an und schließe mit einem Angebot für weitere Hilfe. Steckt dahinter ein Rechnungsstreit, stopp — der geht an einen Menschen, so steht es in meinem Auftrag.',
+  },
+  {
+    match: 'demande une copie de facture',
+    reply:
+      'Reste bref et chaleureux : confirme la facture concernée, joins la copie depuis Facturation → Factures, et termine en proposant ton aide. Si c’est en réalité un litige de facturation, stop — il part chez un humain, c’est dans mon mandat.',
+  },
   // ——— Video pipeline: Episode 2 canvas scene (one entry per locale) ———
   // The on-camera prompt asks for a shareable one-pager; the scripted
   // `file_write` lands it in the thread workspace, the Canvas pane auto-opens

@@ -143,6 +143,78 @@
       "kind": "poster",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.de.mp4",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 202.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.de.vtt",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 202.6
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.de.webp",
+      "episode": "ep3-knowledge",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.en.mp4",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 183.6,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.en.vtt",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 183.6
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.en.webp",
+      "episode": "ep3-knowledge",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.fr.mp4",
+      "episode": "ep3-knowledge",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 165.1,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.fr.vtt",
+      "episode": "ep3-knowledge",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 165.1
+    },
+    {
+      "file": "videos/tutorials/ep3-knowledge.fr.webp",
+      "episode": "ep3-knowledge",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
     }
   ]
 }

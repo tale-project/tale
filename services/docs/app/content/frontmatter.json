@@ -843,6 +843,14 @@
       "description": "Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptions-Tool) mit der Wissensdatenbank eines Tale-Projekts, damit Transkripte als Dokumente von selbst landen, ohne dass jemand eine Datei hochlädt."
     }
   },
+  "de:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 3 — Wissen",
+      "description": "Die Bibliothek hinter jeder verankerten Antwort — Dokumente und Indexierung, gepflegte Einträge, typisierte Datensätze, der Website-Crawler und die Zugriffsbereiche, die entscheiden, wer was liest."
+    }
+  },
   "de:tutorials/videos/chat-in-depth": {
     "slug": "tutorials/videos/chat-in-depth",
     "locale": "de",
@@ -2043,6 +2051,14 @@
       "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
     }
   },
+  "fr:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 3 — Connaissances",
+      "description": "La bibliothèque derrière chaque réponse ancrée — documents et indexation, entrées entretenues, fiches typées, le crawler de sites web et les périmètres qui décident qui lit quoi."
+    }
+  },
   "fr:tutorials/videos/chat-in-depth": {
     "slug": "tutorials/videos/chat-in-depth",
     "locale": "fr",
@@ -3241,6 +3257,14 @@
     "frontmatter": {
       "title": "Pipe meeting transcripts into the Knowledge Base",
       "description": "Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file."
+    }
+  },
+  "en:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 3 — Knowledge",
+      "description": "The library behind every grounded answer — documents and indexing, curated entries, typed records, the website crawler, and the scopes that decide who reads what."
     }
   },
   "en:tutorials/videos/chat-in-depth": {

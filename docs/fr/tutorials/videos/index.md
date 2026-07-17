@@ -21,6 +21,12 @@ La même question sans puis avec ancrage, le choix du modèle sur preuves en mod
 
 </Card>
 
+<Card title="Épisode 3 — Connaissances" icon="play" href="/fr/tutorials/videos/knowledge">
+
+La bibliothèque derrière les réponses ancrées : indexer sans entraîner, une entrée ajoutée en direct et citée quelques minutes plus tard, des fiches typées, le crawler et des périmètres au plus juste. Trois minutes.
+
+</Card>
+
 </CardGroup>
 
 ## La suite de la série
