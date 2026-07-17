@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import {
+  isAudioOrVideo,
   isRagIndexableFile,
   resolveFileType,
 } from '../../lib/shared/file-types';
@@ -47,13 +48,17 @@ export const saveFileMetadata = internalMutation({
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
 
+    // Route Whisper from the caller-supplied MIME, not `resolveFileType`.
+    // That helper intentionally never returns audio/*|video/* (media is
+    // byte-classified elsewhere), so using its output here made every
+    // video-link handoff look non-audio: no transcriptionStatus, no
+    // transcribeAudio schedule, ragStatus=unsupported — chip stuck on
+    // Transcribing…. Align with the public `mutations.saveFileMetadata`.
+    const isAudio = isAudioOrVideo(args.contentType);
     const resolvedContentType = resolveFileType(
       args.fileName,
       args.contentType,
     );
-    const isAudio =
-      resolvedContentType.startsWith('audio/') ||
-      resolvedContentType.startsWith('video/');
     const shouldIndex =
       !isAudio && isRagIndexableFile(args.fileName, resolvedContentType);
     // No extractor exists for this format and it isn't routed through the
