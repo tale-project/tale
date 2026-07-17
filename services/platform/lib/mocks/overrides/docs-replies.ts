@@ -37,6 +37,32 @@ interface DocsReplyModelVariant extends DocsReplyContent {
   readonly model: string;
 }
 
+/**
+ * A scripted tool call a docs entry emits on its FIRST turn (the resume turn
+ * streams the entry's `reply` as the plain-text acknowledgement, exactly like
+ * the e2e `MOCK_TRIGGERS` tool scenarios — but from a clean, on-camera prompt
+ * with no visible trigger keyword). Args must satisfy the real tool's zod
+ * schema; both shapes below mirror the proven `canned.ts` payloads.
+ *
+ *  - `file_write` executes server-side (no sandbox), so the files land in the
+ *    thread workspace and the Canvas pane auto-opens on agent-produced content.
+ *  - `request_human_input` creates a real pending approval card in the chat.
+ */
+export type DocsReplyTool =
+  | {
+      readonly name: 'file_write';
+      readonly files: readonly { path: string; content: string }[];
+    }
+  | {
+      readonly name: 'request_human_input';
+      readonly question: string;
+      readonly fields: readonly {
+        type: 'text';
+        label: string;
+        required: boolean;
+      }[];
+    };
+
 interface DocsReply extends DocsReplyContent {
   /** Lowercase substring matched against the LAST user message. */
   readonly match: string;
@@ -48,6 +74,23 @@ interface DocsReply extends DocsReplyContent {
    * (a seeded chat thread, an auto-routed model) keeps the default.
    */
   readonly byModel?: readonly DocsReplyModelVariant[];
+  /**
+   * Optional tool call for the entry's first turn. With it, the entry becomes
+   * a two-turn script: `reasoning` streams before the tool call, the tool
+   * runs, and the follow-up turn (tool result in the conversation) streams
+   * `reply` as the acknowledgement — no reasoning the second time. Non-stream
+   * calls (thread-title generation) always get the plain `reply`, never tool
+   * markup.
+   */
+  readonly tool?: DocsReplyTool;
+  /**
+   * Optional short content sentence streamed BEFORE the tool call on the
+   * tool turn — the natural model shape (text, then the call). Without any
+   * content, a PAUSING tool turn (request_human_input) is judged an empty
+   * generation by the fallback layer and a model-switch banner lands in the
+   * chat.
+   */
+  readonly toolIntro?: string;
 }
 
 /**
@@ -65,6 +108,350 @@ const LAUNCH_CHECKLIST_OPENER =
   'Here is a launch checklist based on the Website Relaunch project tasks:';
 
 export const DOCS_REPLIES: readonly DocsReply[] = [
+  // ——— Video pipeline (tests/docs-videos/) wow-scene replies ———
+  // One entry per docs locale: Episode 1 types its hero prompt live on
+  // camera and this is the grounded answer that streams back. The prompts
+  // live in `tests/docs-videos/episodes/ep1-welcome/episode.ts`
+  // (`heroPromptByLocale`) and MUST contain these match clauses verbatim.
+  // No `[N]` citation markers — cite chips need real RAG metadata; the reply
+  // names its source documents in prose instead.
+  {
+    match: 'onboarding last quarter',
+    reasoning:
+      'Searching the workspace knowledge for onboarding feedback from the past quarter. The Q2 support review and the onboarding checklist both cover it — grouping what customers said into themes.',
+    reply: [
+      'Customers brought up onboarding more than any other topic last quarter. Three themes stand out:',
+      '',
+      '| Theme | Signal | What customers said |',
+      '| --- | --- | --- |',
+      '| Setup takes too long | every onboarding call | "Two days from invite to first useful answer." |',
+      '| Webhook setup is unclear | questions doubled after the April release | "The setup guide needs a worked example." |',
+      '| Shared projects drive adoption | praised twice | "The team space made adoption easy." |',
+      '',
+      'This reading is based on the **Q2 support review** and the **onboarding checklist** in your workspace knowledge. The support review flags webhook configuration as the fastest-growing driver, and the checklist has no webhook step yet — adding a worked example there would address both of the top complaints.',
+    ].join('\n'),
+  },
+  {
+    match: 'zum onboarding gesagt',
+    reasoning:
+      'Suche im Wissensbestand des Arbeitsbereichs nach Onboarding-Feedback aus dem letzten Quartal. Der Q2-Support-Bericht und die Onboarding-Checkliste sind die relevanten Quellen — die Rückmeldungen werden nach Themen gruppiert.',
+    reply: [
+      'Onboarding war im letzten Quartal das meistgenannte Thema. Drei Muster stechen heraus:',
+      '',
+      '| Thema | Signal | Kundenstimme |',
+      '| --- | --- | --- |',
+      '| Einrichtung dauert zu lange | in jedem Onboarding-Gespräch | „Zwei Tage von der Einladung bis zur ersten brauchbaren Antwort." |',
+      '| Webhook-Einrichtung unklar | Fragen nach dem April-Release verdoppelt | „Die Anleitung braucht ein durchgerechnetes Beispiel." |',
+      '| Gemeinsame Projekte überzeugen | zweimal ausdrücklich gelobt | „Der Team-Bereich hat die Einführung leicht gemacht." |',
+      '',
+      'Grundlage sind der **Q2-Support-Bericht** und die **Onboarding-Checkliste** im Wissensbestand. Der Support-Bericht weist Webhook-Fragen als am schnellsten wachsenden Treiber aus, und in der Checkliste fehlt bislang ein Webhook-Schritt — ein durchgerechnetes Beispiel dort würde beide Hauptprobleme zugleich angehen.',
+    ].join('\n'),
+  },
+  {
+    match: 'l’onboarding au dernier trimestre',
+    reasoning:
+      'Recherche dans la base de connaissances de l’espace de travail des retours sur l’onboarding du dernier trimestre. La revue support du T2 et la check-list d’onboarding couvrent le sujet — regroupement des retours par thème.',
+    reply: [
+      'L’onboarding est le sujet le plus mentionné par les clients au dernier trimestre. Trois thèmes ressortent :',
+      '',
+      '| Thème | Signal | Verbatim client |',
+      '| --- | --- | --- |',
+      '| La mise en place prend trop de temps | à chaque appel d’onboarding | « Deux jours entre l’invitation et la première réponse utile. » |',
+      '| La configuration des webhooks est floue | questions doublées depuis la version d’avril | « Le guide mérite un exemple complet. » |',
+      '| Les projets partagés convainquent | salués à deux reprises | « L’espace d’équipe a facilité l’adoption. » |',
+      '',
+      'Cette lecture s’appuie sur la **revue support du T2** et la **check-list d’onboarding** de votre base de connaissances. La revue support identifie les webhooks comme la question qui progresse le plus vite, et la check-list n’a pas encore d’étape webhook — y ajouter un exemple complet répondrait aux deux principales frictions.',
+    ].join('\n'),
+  },
+  // ——— Video pipeline: Episode 2 grounding contrast (two triplets) ———
+  // The same topic asked twice on camera. UNGROUNDED (no attachment): a
+  // confident, fluent, deliberately GENERIC answer with zero workspace facts
+  // and no reasoning — the "smooth talker" half of the AI-literacy beat.
+  // GROUNDED (Q2 review attached): reasoning first, specific numbers, named
+  // sources. Prompts live in `tests/docs-videos/episodes/ep2-chat/`.
+  {
+    match: 'how do customers feel about our onboarding',
+    reply:
+      'Customer sentiment around onboarding usually hinges on three things: time to first value, clarity of setup steps, and how quickly early questions get answered. Most teams see the strongest reactions in the first two weeks. Tightening the setup guide and setting expectations early tends to move satisfaction more than any single feature.',
+  },
+  {
+    match: 'zufrieden sind unsere kunden mit dem onboarding',
+    reply:
+      'Die Zufriedenheit mit dem Onboarding hängt meist an drei Dingen: Zeit bis zum ersten Nutzen, klare Einrichtungsschritte und schnelle Antworten auf frühe Fragen. Die stärksten Reaktionen zeigen sich in den ersten zwei Wochen. Eine gestraffte Anleitung und früh gesetzte Erwartungen bewegen die Zufriedenheit in der Regel mehr als jedes einzelne Feature.',
+  },
+  {
+    match: 'que pensent nos clients de notre onboarding',
+    reply:
+      'La satisfaction sur l’onboarding tient généralement à trois choses : le délai avant la première valeur, la clarté des étapes d’installation et la rapidité des premières réponses. Les réactions les plus fortes arrivent dans les deux premières semaines. Resserrer le guide et cadrer les attentes tôt fait plus bouger la satisfaction que n’importe quelle fonctionnalité isolée.',
+  },
+  {
+    match: 'fix first in onboarding',
+    reasoning:
+      'Reading the attached Q2 support review and cross-checking the onboarding checklist. Ranking the fixes by how often customers hit them and how cheap they are to ship.',
+    reply: [
+      'Based on the **Q2 support review**, fix the webhook setup first.',
+      '',
+      '- Webhook questions **doubled** after the April release — the fastest-growing driver in the review.',
+      '- The setup guide has no worked example, and the **onboarding checklist** has no webhook step at all.',
+      '- Password resets and CSV limits drive more tickets in total, but both are stable quarter over quarter.',
+      '',
+      'One change — a worked webhook example inside the onboarding checklist — addresses the growth driver and closes the checklist gap at once.',
+    ].join('\n'),
+  },
+  {
+    match: 'im onboarding zuerst beheben',
+    reasoning:
+      'Der angehängte Q2-Support-Bericht wird gelesen und mit der Onboarding-Checkliste abgeglichen. Sortiert wird nach Häufigkeit und Umsetzungsaufwand.',
+    reply: [
+      'Laut dem **Q2-Support-Bericht** zuerst: die Webhook-Einrichtung.',
+      '',
+      '- Webhook-Fragen haben sich nach dem April-Release **verdoppelt** — der am schnellsten wachsende Treiber im Bericht.',
+      '- In der Anleitung fehlt ein durchgerechnetes Beispiel, in der **Onboarding-Checkliste** fehlt der Webhook-Schritt ganz.',
+      '- Passwort-Resets und CSV-Limits erzeugen insgesamt mehr Tickets, sind aber im Quartalsvergleich stabil.',
+      '',
+      'Eine Änderung — ein durchgerechnetes Webhook-Beispiel in der Checkliste — trifft den Wachstumstreiber und schließt die Lücke zugleich.',
+    ].join('\n'),
+  },
+  {
+    match: 'corriger en priorité dans l’onboarding',
+    reasoning:
+      'Lecture de la revue support du T2 jointe, croisée avec la check-list d’onboarding. Classement des corrections par fréquence et coût de mise en œuvre.',
+    reply: [
+      'D’après la **revue support du T2**, corrige d’abord la configuration des webhooks.',
+      '',
+      '- Les questions webhooks ont **doublé** depuis la version d’avril — le motif qui progresse le plus vite dans la revue.',
+      '- Le guide n’a pas d’exemple complet, et la **check-list d’onboarding** n’a aucune étape webhook.',
+      '- Les réinitialisations de mot de passe et les limites CSV génèrent plus de tickets au total, mais restent stables d’un trimestre à l’autre.',
+      '',
+      'Une seule modification — un exemple complet de webhook dans la check-list — traite le moteur de croissance et comble la lacune d’un coup.',
+    ].join('\n'),
+  },
+  // ——— Video pipeline: Episode 3 wow (one entry per locale) ———
+  // The take ADDS a knowledge entry on camera (the returns pilot,
+  // tests/docs-videos/episodes/ep3-knowledge — deleted off camera after the
+  // take), then asks about it; the reply answers from that entry and names
+  // it as the source.
+  {
+    match: 'returns window for annual plans',
+    reasoning:
+      'Checking the workspace knowledge for a returns policy. The "Returns policy pilot" entry covers annual plans directly.',
+    reply:
+      'For annual plans, the returns window is **60 days**, effective August — a pilot running until Q4. Monthly plans keep the standard 30 days. Source: the **Returns policy pilot** entry in your workspace knowledge.',
+  },
+  {
+    match: 'rückgabefenster für jahrestarife',
+    reasoning:
+      'Suche im Wissensbestand nach einer Rückgaberegel. Der Eintrag „Rückgabe-Pilot" deckt Jahrestarife direkt ab.',
+    reply:
+      'Für Jahrestarife gilt ein Rückgabefenster von **60 Tagen**, wirksam ab August — ein Pilot bis Q4. Monatstarife behalten die üblichen 30 Tage. Quelle: der Eintrag **Rückgabe-Pilot** im Wissensbestand deines Arbeitsbereichs.',
+  },
+  {
+    match: 'fenêtre de retour pour les forfaits annuels',
+    reasoning:
+      'Recherche d’une règle de retour dans la base de connaissances. L’entrée « Pilote politique de retour » couvre directement les forfaits annuels.',
+    reply:
+      'Pour les forfaits annuels, la fenêtre de retour est de **60 jours**, effective en août — un pilote jusqu’au T4. Les forfaits mensuels gardent les 30 jours habituels. Source : l’entrée **Pilote politique de retour** dans les connaissances de ton espace de travail.',
+  },
+  // ——— Video pipeline: Episode 5 approval card (one entry per locale) ———
+  // The gated outbound reply: reasoning streams, then a `request_human_input`
+  // tool call pauses the turn as a REAL pending approval card carrying the
+  // draft. The resume turn (after the on-camera decision) streams the ack.
+  {
+    match: 'annual discount question and send it',
+    toolIntro:
+      'The draft is ready — sending mail leaves the workspace, so I need your sign-off first.',
+    reasoning:
+      'Drafting the reply from the pricing thread and the plan terms. Sending mail leaves the workspace — pausing for a human decision before anything goes out.',
+    reply:
+      'Sent to Bergmann Logistics with your adjustment noted. The approval — who decided, and when — is recorded in the audit log.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Draft ready for Bergmann Logistics: “Hello Ms. Bergmann — thank you for your patience. Yes: on the annual plan you save 12% against monthly billing, and we can apply it from your next cycle. Shall I set that up?” Send this reply?',
+      fields: [{ type: 'text', label: 'Final adjustments', required: true }],
+    },
+  },
+  {
+    match: 'jahresrabatt und schick sie',
+    toolIntro:
+      'Der Entwurf steht — Versand verlässt den Arbeitsbereich, also brauche ich zuerst deine Freigabe.',
+    reasoning:
+      'Der Antwortentwurf entsteht aus dem Preis-Thread und den Tarifbedingungen. E-Mail-Versand verlässt den Arbeitsbereich — vor dem Senden wird eine menschliche Entscheidung eingeholt.',
+    reply:
+      'An Bergmann Logistics gesendet, deine Anpassung ist vermerkt. Die Freigabe — wer entschieden hat, und wann — steht im Audit-Protokoll.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Entwurf für Bergmann Logistics: „Guten Tag Frau Bergmann — danke für Ihre Geduld. Ja: Im Jahrestarif sparen Sie 12 % gegenüber monatlicher Abrechnung, anwendbar ab Ihrem nächsten Zyklus. Soll ich das einrichten?" Diese Antwort senden?',
+      fields: [{ type: 'text', label: 'Letzte Anpassungen', required: true }],
+    },
+  },
+  {
+    match: 'remise annuelle et envoie',
+    toolIntro:
+      'Le brouillon est prêt — un envoi sort de l’espace de travail, il me faut d’abord ta validation.',
+    reasoning:
+      'Le brouillon se construit à partir du fil tarifaire et des conditions du forfait. Envoyer un e-mail sort de l’espace de travail — pause pour une décision humaine avant tout envoi.',
+    reply:
+      'Envoyé à Bergmann Logistics, ton ajustement noté. La validation — qui a décidé, et quand — est inscrite au journal d’audit.',
+    tool: {
+      name: 'request_human_input',
+      question:
+        'Brouillon prêt pour Bergmann Logistics : « Bonjour Madame Bergmann — merci pour votre patience. Oui : le forfait annuel vous fait économiser 12 % par rapport au mensuel, applicable dès votre prochain cycle. Je le mets en place ? » Envoyer cette réponse ?',
+      fields: [{ type: 'text', label: 'Derniers ajustements', required: true }],
+    },
+  },
+  // ——— Video pipeline: Episode 4 test-run (one entry per locale) ———
+  // The freshly created Support Coach answers its first ask. The reply
+  // visibly obeys the instructions typed on camera (friendly, concrete,
+  // billing disputes go to a human) — instructions shaping behaviour.
+  {
+    match: 'asking for an invoice copy',
+    reply:
+      'Keep it short and warm: confirm which invoice they need, attach the copy from Billing → Invoices, and close with an offer to help further. If the request is actually a billing dispute, stop and hand the thread to a human — that one is outside my mandate.',
+  },
+  {
+    match: 'der eine rechnungskopie möchte',
+    reply:
+      'Halte es kurz und freundlich: kläre, welche Rechnung gemeint ist, häng die Kopie aus Abrechnung → Rechnungen an und schließe mit einem Angebot für weitere Hilfe. Steckt dahinter ein Rechnungsstreit, stopp — der geht an einen Menschen, so steht es in meinem Auftrag.',
+  },
+  {
+    match: 'demande une copie de facture',
+    reply:
+      'Reste bref et chaleureux : confirme la facture concernée, joins la copie depuis Facturation → Factures, et termine en proposant ton aide. Si c’est en réalité un litige de facturation, stop — il part chez un humain, c’est dans mon mandat.',
+  },
+  // ——— Video pipeline: Episode 2 canvas scene (one entry per locale) ———
+  // The on-camera prompt asks for a shareable one-pager; the scripted
+  // `file_write` lands it in the thread workspace, the Canvas pane auto-opens
+  // on the agent-produced file, and the resume turn speaks the ack. Prompts
+  // live in `tests/docs-videos/episodes/ep2-chat/` and MUST contain these
+  // match clauses verbatim. The brief's content is data — native per locale,
+  // grounded in the same Q2 themes as the Episode 1 wow answer.
+  {
+    match: 'one-page brief for the leadership team',
+    reasoning:
+      'Pulling the three onboarding themes from the Q2 support review and shaping them into a one-page brief for leadership. Writing it to the canvas as a shareable document.',
+    reply:
+      'The brief is on the canvas — one page: the three themes, the evidence behind each, and one recommended next step. Edit it there directly, or ask me for a tighter cut.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-brief.md',
+          content: [
+            '# Onboarding — what customers told us in Q2',
+            '',
+            '**For the leadership team — one page, three themes.**',
+            '',
+            '## 1. Setup takes too long',
+            '',
+            'Raised in every onboarding call. "Two days from invite to first useful answer."',
+            'The slow step is workspace configuration, not the product itself.',
+            '',
+            '## 2. Webhook setup is unclear',
+            '',
+            'Questions doubled after the April release. The setup guide still has no worked',
+            'example, and the onboarding checklist has no webhook step at all.',
+            '',
+            '## 3. Shared projects drive adoption',
+            '',
+            'Praised in two of three calls: "The team space made adoption easy." Teams that',
+            'started inside a shared project reached daily use fastest.',
+            '',
+            '## Recommended next step',
+            '',
+            'Add a worked webhook example to the onboarding checklist — it addresses the two',
+            'loudest complaints at once. Owner: onboarding squad. Effort: one sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'einseitiges briefing für die geschäftsleitung',
+    reasoning:
+      'Die drei Onboarding-Themen aus dem Q2-Support-Bericht werden zu einem einseitigen Briefing für die Geschäftsleitung verdichtet. Das Dokument entsteht im Canvas.',
+    reply:
+      'Das Briefing liegt im Canvas — eine Seite: die drei Themen, die Belege dazu und ein empfohlener nächster Schritt. Du kannst dort direkt weiterarbeiten oder eine kürzere Fassung anfordern.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/onboarding-briefing.md',
+          content: [
+            '# Onboarding — das Kundenfeedback aus Q2',
+            '',
+            '**Für die Geschäftsleitung — eine Seite, drei Themen.**',
+            '',
+            '## 1. Die Einrichtung dauert zu lange',
+            '',
+            'In jedem Onboarding-Gespräch genannt. „Zwei Tage von der Einladung bis zur',
+            'ersten brauchbaren Antwort." Der langsame Schritt ist die Konfiguration, nicht',
+            'das Produkt.',
+            '',
+            '## 2. Die Webhook-Einrichtung ist unklar',
+            '',
+            'Die Fragen haben sich nach dem April-Release verdoppelt. In der Anleitung fehlt',
+            'ein durchgerechnetes Beispiel, in der Checkliste der Webhook-Schritt.',
+            '',
+            '## 3. Gemeinsame Projekte überzeugen',
+            '',
+            'In zwei von drei Gesprächen gelobt: „Der Team-Bereich hat die Einführung leicht',
+            'gemacht." Teams mit gemeinsamem Projekt erreichten die tägliche Nutzung am',
+            'schnellsten.',
+            '',
+            '## Empfohlener nächster Schritt',
+            '',
+            'Ein durchgerechnetes Webhook-Beispiel in die Onboarding-Checkliste aufnehmen —',
+            'das adressiert die zwei häufigsten Beschwerden zugleich. Aufwand: ein Sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
+  {
+    match: 'synthèse d’une page pour la direction',
+    reasoning:
+      'Les trois thèmes d’onboarding de la revue support du T2 sont condensés en une synthèse d’une page pour la direction. Le document s’écrit dans le canevas.',
+    reply:
+      'La synthèse est dans le canevas — une page : les trois thèmes, les éléments à l’appui et une prochaine étape recommandée. Tu peux la retoucher directement, ou me demander une version plus courte.',
+    tool: {
+      name: 'file_write',
+      files: [
+        {
+          path: '/user/output/synthese-onboarding.md',
+          content: [
+            '# Onboarding — ce que les clients nous ont dit au T2',
+            '',
+            '**Pour la direction — une page, trois thèmes.**',
+            '',
+            '## 1. La mise en place prend trop de temps',
+            '',
+            'Mentionné à chaque appel d’onboarding. « Deux jours entre l’invitation et la',
+            'première réponse utile. » L’étape lente est la configuration, pas le produit.',
+            '',
+            '## 2. La configuration des webhooks est floue',
+            '',
+            'Les questions ont doublé depuis la version d’avril. Le guide n’a toujours pas',
+            'd’exemple complet, et la check-list n’a pas d’étape webhook.',
+            '',
+            '## 3. Les projets partagés font adopter le produit',
+            '',
+            'Salués dans deux appels sur trois : « L’espace d’équipe a facilité l’adoption. »',
+            'Les équipes parties d’un projet partagé ont atteint l’usage quotidien le plus vite.',
+            '',
+            '## Prochaine étape recommandée',
+            '',
+            'Ajouter un exemple complet de webhook à la check-list d’onboarding — cela répond',
+            'aux deux frictions principales à la fois. Charge : un sprint.',
+            '',
+          ].join('\n'),
+        },
+      ],
+    },
+  },
   {
     match: 'summarize the onboarding feedback',
     reasoning:
@@ -143,6 +530,120 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       },
     ],
   },
+  // ——— Video pipeline: Episode 2 Arena scene, de/fr (native prompts) ———
+  // The en Arena take reuses the seeded launch-checklist entry above; the
+  // de/fr takes type a NATIVE prompt, so each needs its own entry with
+  // per-model variants. Every variant opens with its locale's shared opener
+  // (the contract test pins that), and carries its column-wait phrase —
+  // "blockieren den Launch" / "bloquantes pour le lancement" — exactly once.
+  {
+    match: 'launch-checkliste für den website-relaunch',
+    reply: [
+      'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+      '',
+      '1. **Content-Freeze** — die finalen Texte sind vom Marketing freigegeben.',
+      '2. **Redirect-Map** — jede alte URL ist gemappt und getestet.',
+      '3. **Performance-Check** — Core Web Vitals auf Staging im grünen Bereich.',
+      '4. **Accessibility-Durchgang** — Tastaturwege und Kontraste geprüft.',
+      '5. **Rollback-Plan** — der vorherige Build ist in einem Schritt zurückholbar.',
+      '',
+      'Die Punkte 2 und 5 blockieren den Launch; der Rest kann im Release-Fenster landen.',
+    ].join('\n'),
+    byModel: [
+      {
+        model: 'claude-haiku',
+        reply: [
+          'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+          '',
+          '1. **Texte einfrieren** — Marketing gibt die Startseite frei.',
+          '2. **Redirect-Map liefern** — alle 380 alten URLs gemappt und getestet.',
+          '3. **Performance prüfen** — Core Web Vitals auf Staging grün.',
+          '4. **Accessibility fegen** — Tastaturpfade und AA-Kontraste.',
+          '5. **Rollback proben** — der vorherige Build in einem Schritt zurück.',
+          '',
+          'Die Schritte 2 und 5 blockieren den Launch.',
+        ].join('\n'),
+      },
+      {
+        model: 'claude-sonnet',
+        reply: [
+          'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+          '',
+          '**Vor dem Content-Freeze**',
+          '',
+          '- Startseiten-Texte final und vom Marketing freigegeben.',
+          '- Redirect-Map vollständig: 340 der 380 alten URLs sind heute gemappt.',
+          '',
+          '**Go-live-Gates**',
+          '',
+          '- Core Web Vitals auf dem Staging-Build grün.',
+          '- Accessibility-Durchgang sauber — Tastaturnavigation, Fokusreihenfolge, AA-Kontrast.',
+          '- Rollback geprobt: der vorherige Build in einem Schritt, ohne Datenverlust.',
+          '',
+          '**Erwähnenswerte Risiken**',
+          '',
+          '- Für 40 alte Blog-URLs steht die Entscheidung Redirect-oder-behalten noch aus.',
+          '- Für den Accessibility-Durchgang fehlt eine vereinbarte Schweregrenze.',
+          '',
+          'Redirect-Map und Rollback-Probe blockieren den Launch; alles andere kann im Release-Fenster landen.',
+        ].join('\n'),
+      },
+    ],
+  },
+  {
+    match: 'check-list de lancement pour la refonte du site',
+    reply: [
+      'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+      '',
+      '1. **Gel du contenu** — les textes finaux sont validés par le marketing.',
+      '2. **Plan de redirections** — chaque ancienne URL est mappée et testée.',
+      '3. **Passe performance** — Core Web Vitals au vert sur le staging.',
+      '4. **Passe accessibilité** — navigation clavier et contrastes vérifiés.',
+      '5. **Plan de rollback** — le build précédent se redéploie en une étape.',
+      '',
+      'Les étapes 2 et 5 sont bloquantes pour le lancement ; le reste peut arriver dans la fenêtre de release.',
+    ].join('\n'),
+    byModel: [
+      {
+        model: 'claude-haiku',
+        reply: [
+          'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+          '',
+          '1. **Geler le contenu** — le marketing valide la page d’accueil.',
+          '2. **Livrer le plan de redirections** — les 380 anciennes URL mappées et testées.',
+          '3. **Vérifier la performance** — Core Web Vitals au vert sur le staging.',
+          '4. **Passer l’accessibilité** — parcours clavier et contrastes AA.',
+          '5. **Répéter le rollback** — le build précédent revient en une étape.',
+          '',
+          'Les étapes 2 et 5 sont bloquantes pour le lancement.',
+        ].join('\n'),
+      },
+      {
+        model: 'claude-sonnet',
+        reply: [
+          'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+          '',
+          '**Avant le gel du contenu**',
+          '',
+          '- Textes d’accueil finaux, validés par le marketing.',
+          '- Plan de redirections complet : 340 des 380 anciennes URL sont mappées aujourd’hui.',
+          '',
+          '**Portes de mise en ligne**',
+          '',
+          '- Core Web Vitals au vert sur le build de staging.',
+          '- Passe accessibilité propre — navigation clavier, ordre de focus, contraste AA.',
+          '- Rollback répété : le build précédent se redéploie en une étape, sans perte de données.',
+          '',
+          '**Risques à signaler**',
+          '',
+          '- Les 40 anciennes URL du blog attendent une décision : rediriger ou conserver.',
+          '- La passe accessibilité n’a pas de seuil de gravité convenu.',
+          '',
+          'Le plan de redirections et la répétition du rollback sont les étapes bloquantes pour le lancement ; tout le reste peut arriver dans la fenêtre de release.',
+        ].join('\n'),
+      },
+    ],
+  },
   {
     match: 'what changed in the brand guidelines',
     reply: [
@@ -214,21 +715,35 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
   },
 ] as const;
 
+/** What a matched prompt scripts: content (default or per-model) + any tool. */
+interface MatchedDocsReply extends DocsReplyContent {
+  readonly tool?: DocsReplyTool;
+  readonly toolIntro?: string;
+}
+
 /**
  * The scripted content for a chat body's last user message, or null when no
  * docs phrase matches (the caller falls through to the e2e scenarios). When
  * the matched entry scripts the requested `model`, that variant wins over its
- * default `reply`/`reasoning`.
+ * default `reply`/`reasoning`; the entry's `tool` (if any) always rides along.
  */
 export function matchDocsReply(
   lastUserText: string,
   model?: string,
-): DocsReplyContent | null {
+): MatchedDocsReply | null {
   const text = lastUserText.toLowerCase();
   const entry = DOCS_REPLIES.find((reply) => text.includes(reply.match));
   if (!entry) return null;
   const modelId = (model ?? '').toLowerCase();
-  return entry.byModel?.find((v) => modelId.includes(v.model)) ?? entry;
+  const content =
+    entry.byModel?.find((v) => modelId.includes(v.model)) ?? entry;
+  if (!entry.tool) return content;
+  return {
+    reply: content.reply,
+    reasoning: content.reasoning,
+    tool: entry.tool,
+    ...(entry.toolIntro !== undefined ? { toolIntro: entry.toolIntro } : {}),
+  };
 }
 
 /**
@@ -289,6 +804,36 @@ interface DocsTriageScore {
  * cannot start assigning agents inside the e2e suite.
  */
 const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
+  // ——— Video pipeline: Episode 6 on-camera task (one per locale) ———
+  // Created live on the relaunch board; scores above the auto-assign bar so
+  // the agent visibly takes the card. Archived off camera after the take.
+  {
+    task: 'draft the launch announcement post',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Announcement copy is drafting work, and the brand guidelines plus content inventory are indexed.',
+    },
+  },
+  {
+    task: 'launch-ankündigung entwerfen',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Ankündigungstexte sind Schreibarbeit; Markenrichtlinien und Content-Inventar sind indexiert.',
+    },
+  },
+  {
+    task: 'rédiger l’annonce de lancement',
+    score: {
+      slug: 'assistant',
+      confidence: 0.82,
+      reason:
+        'Le texte d’annonce est un travail de rédaction ; la charte et l’inventaire de contenu sont indexés.',
+    },
+  },
   // Project: Website relaunch.
   {
     task: 'finalize homepage copy with marketing',
@@ -315,6 +860,44 @@ const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
       confidence: 0.72,
       reason:
         'The assistant can walk the WCAG checklist over staging and report what it finds.',
+    },
+  },
+  // ——— Video pipeline locale orgs (tests/docs-videos) ———
+  // The de/fr demo orgs stage one green and one red triage run each
+  // (lib/locale-content.ts `stagedTasks`); same contract as the English
+  // titles above — the red ones omit `confidence` on purpose.
+  {
+    task: 'launch-checkliste freigeben',
+    score: {
+      slug: 'assistant',
+      confidence: 0.84,
+      reason:
+        'Die Checkliste liegt im Projektwissen; der Assistent kann den Freigabeentwurf vorbereiten.',
+    },
+  },
+  {
+    task: 'valider la check-list de lancement',
+    score: {
+      slug: 'assistant',
+      confidence: 0.84,
+      reason:
+        'La check-list est dans la base du projet ; l’assistant peut préparer la validation.',
+    },
+  },
+  {
+    task: 'rollback-plan vorbereiten',
+    score: {
+      slug: 'assistant',
+      reason:
+        'Ein Rollback-Plan braucht Deployment-Kontext, den nur das Team hat.',
+    },
+  },
+  {
+    task: 'préparer le plan de rollback',
+    score: {
+      slug: 'assistant',
+      reason:
+        'Un plan de rollback demande un contexte de déploiement que seule l’équipe possède.',
     },
   },
   {

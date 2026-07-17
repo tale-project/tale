@@ -221,7 +221,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben-Automatisierung",
-      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
+      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
     }
   },
   "de:platform/workspace/prompt-library": {
@@ -843,6 +843,94 @@
       "description": "Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptions-Tool) mit der Wissensdatenbank eines Tale-Projekts, damit Transkripte als Dokumente von selbst landen, ohne dass jemand eine Datei hochlädt."
     }
   },
+  "de:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 5 — Automatisierungen & Freigaben",
+      "description": "Die Triage-Automatisierung aufgeklappt wie ein Rezept — Editor, Auslöser, das Laufprotokoll mit seiner ehrlichen roten Zeile — und dann die Freigabekarte - eine echte offene Entscheidung, vor der Kamera getroffen."
+    }
+  },
+  "de:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 8 — Menschen, Rollen & Teams",
+      "description": "Die menschliche Hälfte der Vertrauensgeschichte — die Mitgliedertabelle und die Rollenleiter, Teams als Wissenswände und Identitäts-Hygiene, mit Minimalprinzip auf beiden Seiten des Tisches."
+    }
+  },
+  "de:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Bonus — Tale für Entwickler",
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, externe Coding-Agenten in Sandboxes und die Run-Code-Richtlinie, die alles einhegt."
+    }
+  },
+  "de:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 7 — Integrationen & die Außenwelt",
+      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Integration, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
+    }
+  },
+  "de:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 3 — Wissen",
+      "description": "Die Bibliothek hinter jeder verankerten Antwort — Dokumente und Indexierung, gepflegte Einträge, typisierte Datensätze, der Website-Crawler und die Zugriffsbereiche, die entscheiden, wer was liest."
+    }
+  },
+  "de:tutorials/videos/chat-in-depth": {
+    "slug": "tutorials/videos/chat-in-depth",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 2 — Chat, im Detail",
+      "description": "Die tägliche Oberfläche, gut genutzt — dieselbe Frage einmal ohne und einmal mit Verankerung, Modellwahl mit Belegen im Arena-Modus, große Ergebnisse im Canvas und der Ort der Tiefenrecherche."
+    }
+  },
+  "de:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 6 — Projekte mit KI",
+      "description": "Der gemeinsame Arbeitsraum im Detail — das Board mitten im Flug, Projektdateien als begrenzter Kontext, Diskussionen neben den Aufgaben, und eine vor der Kamera angelegte Aufgabe, die ein Agent sichtbar übernimmt."
+    }
+  },
+  "de:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 4 — Dein erster Agent",
+      "description": "Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — dann sichtbar gemacht und live getestet, mit klar benannter Vertrauensgrenze."
+    }
+  },
+  "de:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Video-Tutorials",
+      "description": "Kurze, produzierte Rundgänge durch die Plattform — was Tale kann, wo KI hilft und wo dein Urteil gefragt bleibt. Jede Episode erscheint auf Deutsch, Englisch und Französisch."
+    }
+  },
+  "de:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 9 — Richtlinien, Kosten & Vertrauen",
+      "description": "Das Serien-Finale - der Kontrollraum in einer Tour — Anbieter und Modell-Richtlinien, Leitplanken, das Audit-Protokoll, Nutzungs- und Feedback-Analysen, Datenresidenz — und die fünf Gewohnheiten, auf die die ganze Serie hinauslief."
+    }
+  },
+  "de:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 1 — Willkommen bei Tale",
+      "description": "Ein Rundgang in gut drei Minuten — Chat, verankert in deinen eigenen Dokumenten, Agenten mit Auftrag, Automatisierungen mit menschlicher Freigabe und die Kontrolle über deine Daten."
+    }
+  },
   "de:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "de",
@@ -1397,7 +1485,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisation des tâches",
-      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
+      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, la revue directement via le statut En revue, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
     }
   },
   "fr:platform/workspace/prompt-library": {
@@ -2019,6 +2107,94 @@
       "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
     }
   },
+  "fr:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 5 — Automatisations & validations",
+      "description": "L'automatisation de triage ouverte comme une recette — éditeur, déclencheurs, le journal d'exécution et sa ligne rouge honnête — puis la carte de validation - une vraie décision en attente, prise à l'écran."
+    }
+  },
+  "fr:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 8 — Personnes, rôles & équipes",
+      "description": "La moitié humaine de l'histoire de confiance — la table des membres et l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité, avec le moindre privilège des deux côtés de la table."
+    }
+  },
+  "fr:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Bonus — Tale pour les développeurs",
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, agents de code externes en bac à sable, et la politique d'exécution de code qui contient le tout."
+    }
+  },
+  "fr:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 7 — Intégrations & le monde extérieur",
+      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une intégration reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
+    }
+  },
+  "fr:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 3 — Connaissances",
+      "description": "La bibliothèque derrière chaque réponse ancrée — documents et indexation, entrées entretenues, fiches typées, le crawler de sites web et les périmètres qui décident qui lit quoi."
+    }
+  },
+  "fr:tutorials/videos/chat-in-depth": {
+    "slug": "tutorials/videos/chat-in-depth",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 2 — Le chat, en profondeur",
+      "description": "La surface quotidienne, bien utilisée — la même question sans puis avec ancrage, le choix du modèle sur preuves en mode Arène, les grands livrables dans le canevas, et où vit la recherche approfondie."
+    }
+  },
+  "fr:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 6 — Les projets avec l'IA",
+      "description": "L'espace partagé en profondeur — le tableau en plein vol, les fichiers du projet comme contexte borné, les discussions à côté des tâches, et une tâche créée à l'écran qu'un agent prend visiblement en charge."
+    }
+  },
+  "fr:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 4 — Ton premier agent",
+      "description": "Un agent construit de bout en bout à l'écran — nom, instructions, périmètre de connaissances, outils, modèle — puis rendu visible et testé en direct, la frontière de confiance nommée."
+    }
+  },
+  "fr:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Tutoriels vidéo",
+      "description": "Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire. Chaque épisode existe en français, en anglais et en allemand."
+    }
+  },
+  "fr:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 9 — Gouvernance, coûts & confiance",
+      "description": "Le final de la série - la salle de contrôle en une visite — fournisseurs et politique de modèles, garde-fous, journal d'audit, analyses d'usage et de feedback, résidence des données — et les cinq habitudes vers lesquelles toute la série avançait."
+    }
+  },
+  "fr:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 1 — Bienvenue dans Tale",
+      "description": "Une visite de trois minutes — le chat ancré dans tes propres documents, des agents avec un mandat, des automatisations avec validation humaine et la gouvernance qui garde tes données à toi."
+    }
+  },
   "fr:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "fr",
@@ -2573,7 +2749,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Task automation",
-      "description": "The default task-ops pack — how assigning a task to an agent runs it, the human review gate, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
+      "description": "The default task-ops pack — how assigning a task to an agent runs it, human review straight from the In review status, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
     }
   },
   "en:platform/workspace/prompt-library": {
@@ -3193,6 +3369,94 @@
     "frontmatter": {
       "title": "Pipe meeting transcripts into the Knowledge Base",
       "description": "Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file."
+    }
+  },
+  "en:tutorials/videos/automations-and-approvals": {
+    "slug": "tutorials/videos/automations-and-approvals",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 5 — Automations & approvals",
+      "description": "The triage automation opened like a recipe — editor, triggers, the run journal with its honest red row — then the approval card - a real pending decision, made on camera."
+    }
+  },
+  "en:tutorials/videos/people-roles-and-teams": {
+    "slug": "tutorials/videos/people-roles-and-teams",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 8 — People, roles & teams",
+      "description": "The human half of the trust story — the members table and the role ladder, teams as knowledge walls, and identity hygiene, with least privilege on both sides of the table."
+    }
+  },
+  "en:tutorials/videos/tale-for-developers": {
+    "slug": "tutorials/videos/tale-for-developers",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Bonus — Tale for developers",
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, external coding agents in sandboxes, and the run-code policy that keeps everything contained."
+    }
+  },
+  "en:tutorials/videos/integrations": {
+    "slug": "tutorials/videos/integrations",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 7 — Integrations & the outside world",
+      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound integration, MCP servers with per-tool approval flags, and fail-closed egress."
+    }
+  },
+  "en:tutorials/videos/knowledge": {
+    "slug": "tutorials/videos/knowledge",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 3 — Knowledge",
+      "description": "The library behind every grounded answer — documents and indexing, curated entries, typed records, the website crawler, and the scopes that decide who reads what."
+    }
+  },
+  "en:tutorials/videos/chat-in-depth": {
+    "slug": "tutorials/videos/chat-in-depth",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 2 — Chat, in depth",
+      "description": "The daily surface, used well — the same question asked ungrounded and grounded, model choice with evidence in Arena Mode, big deliverables in the canvas, and where deep research lives."
+    }
+  },
+  "en:tutorials/videos/projects-with-ai": {
+    "slug": "tutorials/videos/projects-with-ai",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 6 — Projects with AI",
+      "description": "The shared workspace deep dive — the board mid-flight, project files as scoped context, discussions beside the tasks, and a task created on camera that an agent visibly picks up."
+    }
+  },
+  "en:tutorials/videos/your-first-agent": {
+    "slug": "tutorials/videos/your-first-agent",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 4 — Your first agent",
+      "description": "An agent built end to end on camera — name, instructions, knowledge scope, tools, model — then made visible and tested live, with the trust boundary spelled out."
+    }
+  },
+  "en:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Video tutorials",
+      "description": "Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment. Every episode ships in English, German, and French."
+    }
+  },
+  "en:tutorials/videos/governance-and-trust": {
+    "slug": "tutorials/videos/governance-and-trust",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 9 — Governance, cost & trust",
+      "description": "The series finale - the control room in one tour — providers and model policy, guardrails, the audit log, usage and feedback analytics, data residency — and the five habits the whole series was building toward."
+    }
+  },
+  "en:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 1 — Welcome to Tale",
+      "description": "A three-minute tour — chat grounded in your own documents, agents with a mandate, automations with human approval, and the governance that keeps your data yours."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {

@@ -8,6 +8,10 @@
  * half-seeded org fills only the gaps. All literals live in demo-content.ts.
  */
 
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { matchDocsReply } from '../../lib/mocks/overrides/docs-replies';
@@ -40,8 +44,12 @@ import {
   DEMO_PROJECT_FILES,
   DEMO_PROJECT_MODELS,
   DEMO_PROJECTS,
+  DEMO_PRODUCTS,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
+  type DemoDocument,
+  type DemoKnowledgeEntry,
+  type DemoProduct,
   type DemoProject,
 } from './demo-content';
 
@@ -75,6 +83,23 @@ async function settleList(page: Page): Promise<void> {
   await expect(page.getByRole('status').first()).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
+}
+
+/**
+ * Like settleList, for pages that REPLACE the table (footer included) with an
+ * empty-state hero when they hold no rows — on a fresh org the documents page
+ * shows "No documents yet" and no role=status ever arrives. Settle on
+ * whichever renders first; when it is the empty state, grant the query one
+ * flash window to disprove it (the DataTable paints `data ?? []` while the
+ * query is still in flight, so a just-loading table can masquerade as empty).
+ */
+async function settleListOrEmpty(page: Page, empty: Locator): Promise<void> {
+  await expect(page.getByRole('status').first().or(empty.first())).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+  if (await isPresent(empty)) {
+    await page.waitForTimeout(750);
+  }
 }
 
 /**
@@ -147,18 +172,41 @@ async function ensureProject(
       }
     }
   } else {
-    await createButton.click();
-    const dialog = page.getByRole('dialog', {
-      name: t('projects.create.title'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await dialog
-      .getByRole('textbox', { name: t('projects.create.nameLabel') })
-      .fill(project.name);
-    await dialog
-      .getByRole('button', { name: t('projects.create.submit') })
-      .click();
-    await page.waitForURL(PROJECT_URL, { timeout: TIMEOUT.NAV });
+    // Same hydration discipline as the open path: on a freshly-created org
+    // the page can still be settling — a click can report "outside of the
+    // viewport" or the dialog's submit can be swallowed. Reload and retry.
+    const ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      try {
+        await createButton.click({ timeout: TIMEOUT.VISIBLE });
+        const dialog = page.getByRole('dialog', {
+          name: t('projects.create.title'),
+        });
+        await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+        await dialog
+          .getByRole('textbox', { name: t('projects.create.nameLabel') })
+          .fill(project.name);
+        await dialog
+          .getByRole('button', { name: t('projects.create.submit') })
+          .click();
+        await page.waitForURL(PROJECT_URL, { timeout: TIMEOUT.NAV });
+        break;
+      } catch (err) {
+        if (attempt === ATTEMPTS) {
+          throw new Error(
+            `Creating the project "${project.name}" never navigated.`,
+            { cause: err },
+          );
+        }
+        console.warn(
+          `Project create raced hydration — retrying "${project.name}"`,
+        );
+        await page.reload();
+        await expect(createButton).toBeVisible({
+          timeout: TIMEOUT.FIRST_PAINT,
+        });
+      }
+    }
   }
 
   const projectId = PROJECT_URL.exec(page.url())?.[1];
@@ -228,12 +276,13 @@ async function ensureProjectFiles(
   page: Page,
   orgId: string,
   projectId: string,
+  files: readonly DemoDocument[] = DEMO_PROJECT_FILES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/files`);
   await expect(
     page.getByText(t('projects.files.emptyDescription')).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const doc of DEMO_PROJECT_FILES) {
+  for (const doc of files) {
     if (
       await page
         .getByText(doc.fileName)
@@ -259,11 +308,12 @@ async function ensureDiscussions(
   page: Page,
   orgId: string,
   projectId: string,
+  discussions: readonly (typeof DEMO_DISCUSSIONS)[number][] = DEMO_DISCUSSIONS,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/discussions`);
   const newButton = page.getByRole('button', { name: t('discussions.new') });
   await expect(newButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const discussion of DEMO_DISCUSSIONS) {
+  for (const discussion of discussions) {
     if (
       await page
         .getByText(discussion.title)
@@ -308,14 +358,19 @@ async function ensureDiscussions(
 async function ensureKnowledgeEntries(
   page: Page,
   orgId: string,
+  entries: readonly DemoKnowledgeEntry[] = DEMO_KNOWLEDGE_ENTRIES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/knowledge-entries`);
   const addButton = page.getByRole('button', {
     name: t('knowledgeEntries.addButton'),
   });
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
-  for (const entry of DEMO_KNOWLEDGE_ENTRIES) {
+  // Same fresh-org shape as documents: empty page = hero, no footer.
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('emptyStates.knowledgeEntries.title')),
+  );
+  for (const entry of entries) {
     if (
       await page
         .getByText(entry.topic)
@@ -346,14 +401,22 @@ async function ensureKnowledgeEntries(
   }
 }
 
-async function ensureDocuments(page: Page, orgId: string): Promise<void> {
+async function ensureDocuments(
+  page: Page,
+  orgId: string,
+  documents: readonly DemoDocument[] = DEMO_DOCUMENTS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/documents`);
   const importButton = page.getByRole('button', {
     name: t('documents.upload.importDocuments'),
   });
   await expect(importButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
-  for (const doc of DEMO_DOCUMENTS) {
+  // A documentless org replaces the table with the upload hero — no footer.
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('documents.emptyState.title')),
+  );
+  for (const doc of documents) {
     if (
       await page
         .getByRole('row')
@@ -384,6 +447,176 @@ async function ensureDocuments(page: Page, orgId: string): Promise<void> {
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   }
+}
+
+/**
+ * Structured products (Knowledge > Products) — the typed-records surface
+ * Episode 3 shows. The create dialog is a three-step wizard (basics → pricing
+ * & inventory → review); every fill is scoped to the dialog, and the status
+ * Select follows the combobox-then-option pattern from `ensureMembers`.
+ */
+async function ensureProducts(
+  page: Page,
+  orgId: string,
+  products: readonly DemoProduct[] = DEMO_PRODUCTS,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/products`);
+  const addButton = page.getByRole('button', {
+    name: t('products.addButton'),
+  });
+  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The products table renders no row-count footer, so `settleListOrEmpty`
+  // cannot latch once rows exist: settled is the empty-state hero OR the
+  // first data row (header is row 0).
+  await expect(
+    page
+      .getByText(t('emptyStates.products.title'))
+      .first()
+      .or(page.getByRole('row').nth(1)),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  for (const product of products) {
+    if (
+      await isPresent(page.getByRole('row').filter({ hasText: product.name }))
+    )
+      continue;
+    // "Add product" is an action menu (import from device | manual entry).
+    await addButton.click();
+    await page
+      .getByRole('menuitem', { name: t('products.importMenu.manualEntry') })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: t('products.create.title'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Step 1 — basics.
+    await dialog.getByLabel(t('products.edit.labels.name')).fill(product.name);
+    await dialog
+      .getByLabel(t('products.edit.labels.description'))
+      .fill(product.description);
+    await dialog
+      .getByRole('button', { name: t('common.actions.next') })
+      .click();
+    // Step 2 — pricing & inventory.
+    await dialog
+      .getByLabel(t('products.edit.labels.price'))
+      .fill(product.price);
+    await dialog
+      .getByLabel(t('products.edit.labels.currency'))
+      .fill(product.currency);
+    if (product.stock) {
+      await dialog
+        .getByLabel(t('products.edit.labels.stock'))
+        .fill(product.stock);
+    }
+    await dialog
+      .getByLabel(t('products.edit.labels.category'))
+      .fill(product.category);
+    await dialog
+      .getByRole('combobox', { name: t('products.create.labels.status') })
+      .click();
+    await page
+      .getByRole('option', {
+        name: t(`common.status.${product.status}`),
+        exact: true,
+      })
+      .click();
+    await dialog
+      .getByRole('button', { name: t('common.actions.next') })
+      .click();
+    // Step 3 — review → create.
+    await dialog
+      .getByRole('button', { name: t('common.actions.create') })
+      .click();
+    await expect(dialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
+    await expect(
+      page.getByRole('row').filter({ hasText: product.name }).first(),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  }
+}
+
+const execFileAsync = promisify(execFile);
+const PLATFORM_DIR = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  '../..',
+);
+
+/**
+ * Install the builtin Researcher agent (an enabled `agentInstallations`
+ * row). `metadata.autoInstall` is false for it, and the agent-catalog
+ * installer UI is not mounted anywhere yet — the internal mutation is the
+ * only lever, the same row the provisioner writes. Replace with the
+ * UI-driven flow once the catalog installer ships. Idempotent (upsert).
+ */
+async function ensureResearcherInstalled(orgId: string): Promise<void> {
+  // The coding agents ride along for the developer episode — same rationale.
+  for (const agentSlug of ['researcher', 'claude-code', 'cursor']) {
+    await execFileAsync(
+      'bunx',
+      [
+        'convex',
+        'run',
+        'agents/installations:upsertInstallation',
+        JSON.stringify({
+          organizationId: orgId,
+          agentSlug,
+          installedBy: 'docs-demo-seed',
+          contentHash: 'docs-demo-seed',
+          enabled: true,
+        }),
+      ],
+      { cwd: PLATFORM_DIR },
+    );
+  }
+}
+
+/**
+ * Connect the Tavily integration so integration-bound builtin agents — the
+ * Researcher — offer themselves in the chat agent picker. Outbound Tavily
+ * HTTP is rewritten to the mock gateway (`TALE_MOCK_INTEGRATIONS_BASE`), so
+ * the key value is arbitrary and nothing ever leaves the machine.
+ */
+async function ensureTavilyIntegration(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/integrations`);
+  const allTab = page
+    .getByText(t('settings.integrations.tabs.all'), { exact: true })
+    .first();
+  await expect(allTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await allTab.click();
+  // The catalog card's accessible name grows a "Connected" badge once the
+  // integration is live — never match it exactly.
+  const card = page.getByRole('button', { name: /Tavily/ }).first();
+  await expect(card).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  if (
+    await isPresent(card.getByText(t('settings.integrations.badge.connected')))
+  ) {
+    return;
+  }
+  await card.click();
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // The connector's single auth field; role-scoped so the label's casing
+  // (connector data, not chrome) cannot break the fill.
+  await dialog.getByRole('textbox').first().fill('tvly-docs-demo-mock-key');
+  await dialog
+    .getByRole('button', {
+      name: t('settings.integrations.panel.connectName').replace(
+        '{name}',
+        'Tavily',
+      ),
+    })
+    .click();
+  // The catalog card does not live-update its badge; the details panel
+  // flips to "Active" — that is the persisted-connection signal.
+  await expect(dialog.getByText(t('common.status.active')).first()).toBeVisible(
+    { timeout: TIMEOUT.PERSIST },
+  );
+  const close = dialog.getByRole('button', {
+    name: t('common.actions.close'),
+  });
+  if (await isPresent(close)) await close.click();
 }
 
 async function ensureChats(
@@ -449,7 +682,11 @@ async function ensureChats(
  * accept — so the Members table shows a team instead of a lone owner, and the
  * governance surfaces get subjects to act on.
  */
-async function ensureMembers(page: Page, orgId: string): Promise<void> {
+async function ensureMembers(
+  page: Page,
+  orgId: string,
+  members: readonly (typeof DEMO_MEMBERS)[number][] = DEMO_MEMBERS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/organization`);
   const addButton = page.getByRole('button', {
     name: t('settings.organization.addMember'),
@@ -461,7 +698,7 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
   await expect(
     page.getByRole('row').filter({ hasText: DEMO_OWNER.email }).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const member of DEMO_MEMBERS) {
+  for (const member of members) {
     if (await isPresent(page.getByText(member.email))) continue;
     await addButton.click();
     // The dialog title AND its submit button both read "Add member" — scope
@@ -482,22 +719,32 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
       })
       .click();
     // type=password exposes no textbox role, and the show/hide toggle's label
-    // also contains "Password" — match the label exactly.
-    await dialog
-      .getByLabel(t('settings.form.password'), { exact: true })
-      .fill(E2E_PASSWORD);
+    // also contains "Password" — match the label exactly. The field only
+    // exists for NEW accounts: adding an email that already has an account
+    // (the video locale orgs re-add the shared-org people) skips credentials.
+    const password = dialog.getByLabel(t('settings.form.password'), {
+      exact: true,
+    });
+    const needsPassword = await password
+      .waitFor({ state: 'visible', timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (needsPassword) await password.fill(E2E_PASSWORD);
     await dialog
       .getByRole('button', { name: t('dialogs.addMember.title') })
       .click();
-    // A new credentialed member surfaces the shown-once credentials view; it
-    // stays open until acknowledged and would swallow the next iteration.
-    const credentials = page.getByRole('dialog', {
-      name: t('dialogs.memberAdded.title'),
-    });
-    await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    await credentials
-      .getByRole('button', { name: t('common.actions.done') })
-      .click();
+    if (needsPassword) {
+      // A new credentialed member surfaces the shown-once credentials view;
+      // it stays open until acknowledged and would swallow the next
+      // iteration. Existing-account adds close the dialog directly.
+      const credentials = page.getByRole('dialog', {
+        name: t('dialogs.memberAdded.title'),
+      });
+      await expect(credentials).toBeVisible({ timeout: TIMEOUT.PERSIST });
+      await credentials
+        .getByRole('button', { name: t('common.actions.done') })
+        .click();
+    }
     await expect(page.getByText(member.email).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
@@ -505,14 +752,18 @@ async function ensureMembers(page: Page, orgId: string): Promise<void> {
 }
 
 /** Teams (Settings > Teams) — otherwise the table screenshots as "No teams yet". */
-async function ensureTeams(page: Page, orgId: string): Promise<void> {
+async function ensureTeams(
+  page: Page,
+  orgId: string,
+  teams: readonly string[] = DEMO_TEAMS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/teams`);
   const createButton = page
     .getByRole('button', { name: t('settings.teams.createTeam') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await settleList(page);
-  for (const team of DEMO_TEAMS) {
+  for (const team of teams) {
     if (await isPresent(page.getByRole('row').filter({ hasText: team })))
       continue;
     await createButton.click();
@@ -567,10 +818,14 @@ async function ensureEnvVars(page: Page, orgId: string): Promise<void> {
   }
   if (!added) return;
   // The row editor runs in externalSave mode: its Save lives in the settings
-  // header, not in the form.
+  // header, not in the form. The saved-state signal is the success toast, not
+  // the button: saved SECRET rows re-render as masks, which can re-dirty the
+  // form and re-enable Save right after a successful persist.
   const save = page.getByRole('button', { name: t('common.actions.save') });
   await save.click();
-  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+  await expect(page.getByText(t('envEditor.saved')).first()).toBeVisible({
+    timeout: TIMEOUT.PERSIST,
+  });
 }
 
 /** REST API keys (Settings > API > REST). */
@@ -642,13 +897,22 @@ async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
 }
 
 /** One MCP server (Settings > API > MCP), so the list is not an empty state. */
-async function ensureMcpServer(page: Page, orgId: string): Promise<void> {
+async function ensureMcpServer(
+  page: Page,
+  orgId: string,
+  server: {
+    name: string;
+    displayName: string;
+    description: string;
+    url: string;
+  } = DEMO_MCP_SERVER,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/api/mcp`);
   const addButton = page
     .getByRole('button', { name: t('mcpServers.addServer') })
     .first();
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  if (await isPresent(page.getByText(DEMO_MCP_SERVER.displayName))) return;
+  if (await isPresent(page.getByText(server.displayName))) return;
 
   await addButton.click();
   // The add surface is a Sheet, but Radix gives it role=dialog.
@@ -658,20 +922,18 @@ async function ensureMcpServer(page: Page, orgId: string): Promise<void> {
   // a prefix of "Display name" — only an anchored label hits the right input.
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.name')))
-    .fill(DEMO_MCP_SERVER.name);
+    .fill(server.name);
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.displayName')))
-    .fill(DEMO_MCP_SERVER.displayName);
+    .fill(server.displayName);
   await sheet
     .getByLabel(labelStart(t('mcpServers.form.description')))
-    .fill(DEMO_MCP_SERVER.description);
-  await sheet
-    .getByLabel(labelStart(t('mcpServers.form.url')))
-    .fill(DEMO_MCP_SERVER.url);
+    .fill(server.description);
+  await sheet.getByLabel(labelStart(t('mcpServers.form.url'))).fill(server.url);
   await sheet.getByRole('button', { name: t('mcpServers.form.save') }).click();
-  await expect(page.getByText(DEMO_MCP_SERVER.displayName).first()).toBeVisible(
-    { timeout: TIMEOUT.PERSIST },
-  );
+  await expect(page.getByText(server.displayName).first()).toBeVisible({
+    timeout: TIMEOUT.PERSIST,
+  });
 }
 
 /** Per-user custom instructions (Settings > Preferences). */
@@ -957,6 +1219,11 @@ export async function seedDemoOrg(
   }
   await step('documents', () => ensureDocuments(page, orgId));
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
+  await step('products', () => ensureProducts(page, orgId));
+  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('researcher agent installed', () =>
+    ensureResearcherInstalled(orgId),
+  );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('environment variables', () => ensureEnvVars(page, orgId));
@@ -976,4 +1243,65 @@ export async function seedDemoOrg(
     }
   });
   return { threads, projects };
+}
+
+/**
+ * Seed a VIDEO locale org (tests/docs-videos): only the surfaces the series'
+ * cameras visit — projects with tasks, documents, knowledge entries, products
+ * — with locale-native content. Chats, members, governance fixtures and the
+ * rest of the full seed stay English-org-only (they are never on camera).
+ * Idempotent like everything above; returns project ids by (localized)
+ * project name.
+ */
+export async function seedVideoLocaleOrg(
+  page: Page,
+  orgId: string,
+  content: {
+    readonly projects: readonly DemoProject[];
+    readonly documents: readonly DemoDocument[];
+    readonly knowledgeEntries: readonly DemoKnowledgeEntry[];
+    readonly products: readonly DemoProduct[];
+    readonly teams: readonly string[];
+    readonly projectFiles: readonly DemoDocument[];
+    readonly mcpServer: {
+      name: string;
+      displayName: string;
+      description: string;
+      url: string;
+    };
+    readonly discussions: readonly (typeof DEMO_DISCUSSIONS)[number][];
+  },
+): Promise<Map<string, string>> {
+  const projects = new Map<string, string>();
+  for (const project of content.projects) {
+    await step(`project "${project.name}" + tasks`, async () => {
+      projects.set(project.name, await ensureProject(page, orgId, project));
+    });
+  }
+  await step('documents', () =>
+    ensureDocuments(page, orgId, content.documents),
+  );
+  await step('knowledge entries', () =>
+    ensureKnowledgeEntries(page, orgId, content.knowledgeEntries),
+  );
+  await step('products', () => ensureProducts(page, orgId, content.products));
+  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('researcher agent installed', () =>
+    ensureResearcherInstalled(orgId),
+  );
+  await step('members', () => ensureMembers(page, orgId));
+  await step('teams', () => ensureTeams(page, orgId, content.teams));
+  await step('mcp server', () =>
+    ensureMcpServer(page, orgId, content.mcpServer),
+  );
+  const relaunch = projects.get(content.projects[0]?.name ?? '');
+  if (relaunch) {
+    await step('project files', () =>
+      ensureProjectFiles(page, orgId, relaunch, content.projectFiles),
+    );
+    await step('discussions', () =>
+      ensureDiscussions(page, orgId, relaunch, content.discussions),
+    );
+  }
+  return projects;
 }

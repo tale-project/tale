@@ -1,0 +1,161 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.111
+A bonus lap for the builders.
+
+2
+00:00:03.111 --> 00:00:08.054
+Everything the series showed has an
+API underneath — this episode walks the
+
+3
+00:00:08.054 --> 00:00:11.283
+developer surface: keys,
+webhooks, coding agents,
+
+4
+00:00:11.283 --> 00:00:13.590
+and the sandbox that contains them.
+
+5
+00:00:14.790 --> 00:00:17.729
+Programmatic access
+starts here: named keys,
+
+6
+00:00:17.729 --> 00:00:21.002
+one per system — the
+ingest pipeline, the CI job.
+
+7
+00:00:21.002 --> 00:00:26.412
+Each is scoped, revocable in one click,
+and every call it makes lands in the same
+
+8
+00:00:26.412 --> 00:00:28.550
+audit log you saw in the finale.
+
+9
+00:00:29.750 --> 00:00:34.218
+Four doors for four styles: a
+REST API for everything the UI does,
+
+10
+00:00:34.218 --> 00:00:37.061
+MCP to serve Tale’s tools to other agents,
+
+11
+00:00:37.061 --> 00:00:40.107
+WebDAV to mount
+workspace files like a drive,
+
+12
+00:00:40.107 --> 00:00:43.628
+and sandbox runtimes you
+can configure per language.
+
+13
+00:00:44.828 --> 00:00:48.532
+Webhooks point the other way:
+any system can fire an agent.
+
+14
+00:00:48.532 --> 00:00:51.357
+A signed POST from your
+CRM, your monitoring,
+
+15
+00:00:51.357 --> 00:00:55.124
+your build — and the agent
+runs with the payload as context.
+
+16
+00:00:55.124 --> 00:00:58.828
+The automations from episode
+five, triggered from anywhere.
+
+17
+00:01:00.028 --> 00:01:04.250
+And the heavy machinery:
+external coding agents — Claude Code,
+
+18
+00:01:04.250 --> 00:01:08.745
+Cursor, and their peers — work
+inside Tale in their own sandboxes.
+
+19
+00:01:08.745 --> 00:01:14.057
+They plan, write files, run commands…
+inside a box that starts empty and stays
+
+20
+00:01:14.057 --> 00:01:17.258
+disconnected except for
+what the policy allows.
+
+21
+00:01:18.458 --> 00:01:22.730
+That policy is explicit and
+yours: which packages may install,
+
+22
+00:01:22.730 --> 00:01:24.591
+which hosts code may reach.
+
+23
+00:01:24.591 --> 00:01:28.243
+Cloud metadata and private
+ranges are always refused,
+
+24
+00:01:28.243 --> 00:01:33.618
+and when the egress proxy is down,
+nothing gets out — the system fails closed,
+
+25
+00:01:33.618 --> 00:01:34.376
+never open.
+
+26
+00:01:35.576 --> 00:01:41.084
+Power tools, contained blast radius —
+the developer version of everything this
+
+27
+00:01:41.084 --> 00:01:42.073
+series taught.
+
+28
+00:01:42.073 --> 00:01:45.674
+Scope the key, sign the
+webhook, sandbox the agent,
+
+29
+00:01:45.674 --> 00:01:48.216
+and build boldly inside those lines.
+
+30
+00:01:49.416 --> 00:01:52.004
+That was the series — all ten episodes.
+
+31
+00:01:52.004 --> 00:01:56.118
+The develop section of the
+documentation takes over from here:
+
+32
+00:01:56.118 --> 00:02:00.165
+API reference, webhook
+signatures, and the contributor guide.
+
+33
+00:02:00.165 --> 00:02:01.558
+Build something good.
+
+34
+00:02:02.758 --> 00:02:04.808
+Thanks for building with Tale.
+

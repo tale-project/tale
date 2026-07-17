@@ -5,6 +5,12 @@ description: Le chat est le point d’entrée quotidien — choisis un agent, en
 
 Le chat est le point d’entrée quotidien à Tale. Tu l’ouvres, tu choisis un agent (ou aucun), tu tapes, et une réponse arrive en streaming — citations, appels d’outils et tout le reste. La plupart des utilisateurs passent plus de temps ici que dans n’importe quel autre onglet ; tout le reste de Platform existe pour nourrir le chat de quelque chose d’utile ou pour gouverner ce qu’il fait.
 
+Tu préfères regarder d’abord ? L’épisode 2 parcourt toute cette surface en trois minutes — ancrage, choix du modèle, mode Arène et canevas, sous-titres compris.
+
+<Video src="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.mp4" poster="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.webp" captions="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53)">
+
+</Video>
+
 <Frame caption="Un chat avec une réponse en streaming — la surface que toutes les autres fonctionnalités servent.">
 
 ![Un fil de chat montrant une question d’utilisateur sur des retours d’onboarding et une réponse de l’assistant contenant un tableau markdown de trois thèmes.](/images/platform/chat-thread-reply.webp)

@@ -49,6 +49,7 @@
     "docker:test:vulnerability": "bun services/platform/tests/integration/container-vulnerability-scan.ts",
     "docker:e2e": "bun services/platform/tests/integration/master-e2e-test.ts",
     "docs:screenshots": "bun services/platform/tests/docs-screenshots/capture.ts",
+    "docs:videos": "bun services/platform/tests/docs-videos/produce.ts",
     "readme:assets": "bun services/platform/tests/docs-screenshots/readme-assets.ts",
     "commit": "bunx cz",
     "storybook": "bunx turbo run storybook",

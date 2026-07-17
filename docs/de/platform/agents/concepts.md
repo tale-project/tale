@@ -7,6 +7,12 @@ Ein Agent ist die Einheit, zu der Tale greift, wenn dieselbe Frage immer wiederk
 
 Diese Seite vermittelt dir das mentale Modell, das der Rest des Abschnitts voraussetzt. Lies sie einmal, bevor du deinen ersten Agent baust; komm zurück, wenn du nicht mehr weißt, ob ein Verhalten, das du ändern willst, in den Anweisungen, im Wissen, in den Tools oder im Modell sitzt.
 
+Lieber erst zusehen? Episode 4 baut einen Agenten in gut drei Minuten von Anfang bis Ende — alle vier Entscheidungen, dann der Live-Test, mit Untertiteln.
+
+<Video src="/videos/de/tutorials/ep4-agent/ep4-agent.de.mp4" poster="/videos/de/tutorials/ep4-agent/ep4-agent.de.webp" captions="/videos/de/tutorials/ep4-agent/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18)">
+
+</Video>
+
 ## Die vier Knöpfe
 
 **Anweisungen** sind das System-Prompt — die Prosa, die jede Antwort rahmt. Halte Anweisungen kurz, meinungsstark und konkret; lange Anweisungen verwässern in langen Konversationen. Benenne die Stimme, die Einschränkungen und die Ablehnungsfälle.

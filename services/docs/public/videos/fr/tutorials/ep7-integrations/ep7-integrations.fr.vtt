@@ -1,0 +1,180 @@
+WEBVTT
+
+1
+00:00:01.200 --> 00:00:03.345
+Ton espace de travail ne vit pas seul.
+
+2
+00:00:03.345 --> 00:00:07.917
+Le mail, les dépôts, la recherche, vos
+outils internes — cet épisode parcourt les
+
+3
+00:00:07.917 --> 00:00:11.360
+portes vers l’extérieur, et la
+discipline logée dans chacune.
+
+4
+00:00:12.560 --> 00:00:16.866
+Les intégrations se connectent
+une fois et servent tout l’espace :
+
+5
+00:00:16.866 --> 00:00:19.606
+Gmail, GitHub, Shopify, Slack — et Tavily,
+
+6
+00:00:19.606 --> 00:00:20.650
+déjà active ici.
+
+7
+00:00:20.650 --> 00:00:24.956
+Chaque agent et chaque
+automatisation emprunte la même connexion ;
+
+8
+00:00:24.956 --> 00:00:27.760
+personne ne colle de
+clés dans les prompts.
+
+9
+00:00:28.960 --> 00:00:32.660
+Ouvre un connecteur et tu peux
+lire la porte avant de l’ouvrir :
+
+10
+00:00:32.660 --> 00:00:37.401
+exactement deux opérations — chercher et
+extraire — et une liste d’hôtes autorisés
+
+11
+00:00:37.401 --> 00:00:39.714
+qui nomme où les requêtes peuvent aller.
+
+12
+00:00:39.714 --> 00:00:42.720
+Pas de verbes cachés, pas
+de destinations surprises.
+
+13
+00:00:43.920 --> 00:00:48.524
+Et voilà ce qu’une connexion apporte : tu
+te souviens de la recherche approfondie de
+
+14
+00:00:48.524 --> 00:00:49.401
+l’épisode deux ?
+
+15
+00:00:49.401 --> 00:00:52.470
+Elle existe dans cet espace
+parce que Tavily est reliée.
+
+16
+00:00:52.470 --> 00:00:56.800
+Connecte une porte une fois, et toute
+une capacité s’allume pour tout le monde.
+
+17
+00:00:58.000 --> 00:01:00.433
+Pour tout ce qui n’a
+pas de connecteur prêt,
+
+18
+00:01:00.433 --> 00:01:02.866
+il y a MCP — le
+protocole ouvert des outils.
+
+19
+00:01:02.866 --> 00:01:06.295
+Pointe Tale vers votre wiki
+interne, votre système de tickets,
+
+20
+00:01:06.295 --> 00:01:10.720
+tout ce qui le parle — et ses outils
+apparaissent à tes agents comme des natifs.
+
+21
+00:01:12.000 --> 00:01:15.480
+Mais avoir l’air natif n’est pas
+être digne de confiance native.
+
+22
+00:01:15.480 --> 00:01:18.579
+Un outil externe est une
+nouvelle frontière de confiance,
+
+23
+00:01:18.579 --> 00:01:21.515
+et chacun porte son drapeau
+de validation — active-le,
+
+24
+00:01:21.515 --> 00:01:25.920
+et chaque appel attend une personne,
+exactement comme la carte de l’épisode cinq.
+
+25
+00:01:27.120 --> 00:01:29.554
+La dernière porte,
+c’est le code qui l’ouvre.
+
+26
+00:01:29.554 --> 00:01:33.935
+Quand les agents exécutent du code, il
+tourne dans un bac à sable au réseau fermé
+
+27
+00:01:33.935 --> 00:01:36.856
+par défaut — les
+destinations autorisées sont nommées,
+
+28
+00:01:36.856 --> 00:01:39.885
+tout le reste est refusé, et
+la politique échoue fermée.
+
+29
+00:01:39.885 --> 00:01:44.320
+Un outil qui ne peut pas téléphoner en
+douce est un outil qu’on peut se permettre.
+
+30
+00:01:45.520 --> 00:01:48.673
+C’est le motif à chaque
+porte : des opérations lisibles,
+
+31
+00:01:48.673 --> 00:01:51.150
+des hôtes nommés, des
+validations exigibles,
+
+32
+00:01:51.150 --> 00:01:53.289
+des réseaux qui disent non par défaut.
+
+33
+00:01:53.289 --> 00:01:57.680
+Connecte sans crainte — chaque porte
+est faite pour être ouverte délibérément.
+
+34
+00:01:58.880 --> 00:02:02.686
+Les intégrations, MCP, et les
+frontières qui les rendent sûres.
+
+35
+00:02:02.686 --> 00:02:07.520
+Prochain épisode : le côté humain —
+membres, rôles et équipes, et qui voit quoi.
+
+36
+00:02:08.720 --> 00:02:13.127
+Les sections Intégrations et Gouvernance
+de la documentation portent chaque détail.
+
+37
+00:02:13.127 --> 00:02:14.720
+À bientôt pour l’épisode huit.
+
