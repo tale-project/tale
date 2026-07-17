@@ -128,7 +128,9 @@ export const MAX_STEP_CAP_CONTINUES = 3;
  *   rounds.
  * - 'anomaly': the provider ended the generation abnormally ('length',
  *   'unknown', `undefined`, or DeepSeek's 'stop' with empty text after tool
- *   calls) — retried ONCE with the [RESPONSE_INTERRUPTED] marker.
+ *   calls) — retried ONCE with the [RESPONSE_INTERRUPTED] marker. An
+ *   unlabelled finish ('other'/'unknown'/`undefined`) with substantive final
+ *   text is NOT an anomaly — see {@link UNLABELLED_FINISH_REASONS}.
  */
 export type ContinueKind = 'step-cap' | 'anomaly';
 
@@ -138,6 +140,17 @@ export interface ContinueAttempts {
   /** Step-cap continuation rounds already run this turn. */
   stepCapRounds: number;
 }
+
+/**
+ * Finish reasons that say the provider never labelled how the generation
+ * ended — they carry NO signal that the text is incomplete. The
+ * openai-compatible adapter reports 'other' for a stream where no chunk had a
+ * mappable `finish_reason` (its streaming initial value; some OpenRouter
+ * upstreams omit the field entirely) and for any nonstandard string;
+ * 'unknown' / `undefined` are the same situation on other adapters. Distinct
+ * from 'length', which is a positive truncation signal and stays retryable.
+ */
+const UNLABELLED_FINISH_REASONS = new Set(['other', 'unknown']);
 
 /**
  * Determine whether the generation result should be continued, and in which
@@ -151,6 +164,11 @@ export interface ContinueAttempts {
  *
  * Special case: `finishReason === "stop"` with empty text after tool calls
  * (known DeepSeek edge case) still triggers an anomaly retry.
+ *
+ * Mirror special case: an unlabelled finish (see
+ * {@link UNLABELLED_FINISH_REASONS}) with substantive final text is accepted
+ * as complete — retrying a finished answer regenerates it from scratch
+ * (duplicate content, doubled token spend) behind a spurious ⚠ retry marker.
  */
 export function shouldRetryGeneration(
   finishReason: string | undefined,
@@ -190,6 +208,12 @@ export function shouldRetryGeneration(
       };
     }
     return { retry: false, reason: 'non-retryable-finish-reason' };
+  }
+
+  const unlabelled =
+    !finishReason || UNLABELLED_FINISH_REASONS.has(finishReason);
+  if (unlabelled && !!text?.trim() && !needsToolResultRetry(text, steps)) {
+    return { retry: false, reason: 'unlabelled-finish-with-substantive-text' };
   }
 
   return {
