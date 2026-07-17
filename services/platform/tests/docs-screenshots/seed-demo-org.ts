@@ -40,10 +40,12 @@ import {
   DEMO_PROJECT_FILES,
   DEMO_PROJECT_MODELS,
   DEMO_PROJECTS,
+  DEMO_PRODUCTS,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
   type DemoDocument,
   type DemoKnowledgeEntry,
+  type DemoProduct,
   type DemoProject,
 } from './demo-content';
 
@@ -437,6 +439,83 @@ async function ensureDocuments(
       .click();
     await expect(
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  }
+}
+
+/**
+ * Structured products (Knowledge > Products) — the typed-records surface
+ * Episode 3 shows. The create dialog is a three-step wizard (basics → pricing
+ * & inventory → review); every fill is scoped to the dialog, and the status
+ * Select follows the combobox-then-option pattern from `ensureMembers`.
+ */
+async function ensureProducts(
+  page: Page,
+  orgId: string,
+  products: readonly DemoProduct[] = DEMO_PRODUCTS,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/products`);
+  const addButton = page.getByRole('button', {
+    name: t('products.addButton'),
+  });
+  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // A productless org replaces the table with an empty-state hero — no footer.
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('emptyStates.products.title')),
+  );
+  for (const product of products) {
+    if (
+      await isPresent(page.getByRole('row').filter({ hasText: product.name }))
+    )
+      continue;
+    await addButton.click();
+    const dialog = page.getByRole('dialog', {
+      name: t('products.create.title'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Step 1 — basics.
+    await dialog.getByLabel(t('products.edit.labels.name')).fill(product.name);
+    await dialog
+      .getByLabel(t('products.edit.labels.description'))
+      .fill(product.description);
+    await dialog
+      .getByRole('button', { name: t('common.actions.next') })
+      .click();
+    // Step 2 — pricing & inventory.
+    await dialog
+      .getByLabel(t('products.edit.labels.price'))
+      .fill(product.price);
+    await dialog
+      .getByLabel(t('products.edit.labels.currency'))
+      .fill(product.currency);
+    if (product.stock) {
+      await dialog
+        .getByLabel(t('products.edit.labels.stock'))
+        .fill(product.stock);
+    }
+    await dialog
+      .getByLabel(t('products.edit.labels.category'))
+      .fill(product.category);
+    await dialog
+      .getByRole('combobox', { name: t('products.create.labels.status') })
+      .click();
+    await page
+      .getByRole('option', {
+        name: t(`common.status.${product.status}`),
+        exact: true,
+      })
+      .click();
+    await dialog
+      .getByRole('button', { name: t('common.actions.next') })
+      .click();
+    // Step 3 — review → create.
+    await dialog
+      .getByRole('button', { name: t('common.actions.create') })
+      .click();
+    await expect(dialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
+    await expect(
+      page.getByRole('row').filter({ hasText: product.name }).first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   }
 }
@@ -1016,6 +1095,7 @@ export async function seedDemoOrg(
   }
   await step('documents', () => ensureDocuments(page, orgId));
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
+  await step('products', () => ensureProducts(page, orgId));
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('environment variables', () => ensureEnvVars(page, orgId));
@@ -1038,11 +1118,12 @@ export async function seedDemoOrg(
 }
 
 /**
- * Seed a VIDEO locale org (tests/docs-videos): only the surfaces Episode 1's
- * camera visits — projects with tasks, documents, knowledge entries — with
- * locale-native content. Chats, members, governance fixtures and the rest of
- * the full seed stay English-org-only (they are never on camera). Idempotent
- * like everything above; returns project ids by (localized) project name.
+ * Seed a VIDEO locale org (tests/docs-videos): only the surfaces the series'
+ * cameras visit — projects with tasks, documents, knowledge entries, products
+ * — with locale-native content. Chats, members, governance fixtures and the
+ * rest of the full seed stay English-org-only (they are never on camera).
+ * Idempotent like everything above; returns project ids by (localized)
+ * project name.
  */
 export async function seedVideoLocaleOrg(
   page: Page,
@@ -1051,6 +1132,7 @@ export async function seedVideoLocaleOrg(
     readonly projects: readonly DemoProject[];
     readonly documents: readonly DemoDocument[];
     readonly knowledgeEntries: readonly DemoKnowledgeEntry[];
+    readonly products: readonly DemoProduct[];
   },
 ): Promise<Map<string, string>> {
   const projects = new Map<string, string>();
@@ -1065,5 +1147,6 @@ export async function seedVideoLocaleOrg(
   await step('knowledge entries', () =>
     ensureKnowledgeEntries(page, orgId, content.knowledgeEntries),
   );
+  await step('products', () => ensureProducts(page, orgId, content.products));
   return projects;
 }

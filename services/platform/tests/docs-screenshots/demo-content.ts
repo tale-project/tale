@@ -204,6 +204,51 @@ export const DEMO_KNOWLEDGE_ENTRIES: readonly DemoKnowledgeEntry[] = [
   },
 ] as const;
 
+export interface DemoProduct {
+  readonly name: string;
+  readonly description: string;
+  readonly price: string;
+  readonly currency: string;
+  readonly stock?: string;
+  readonly category: string;
+  /** `common.status.*` key — active | inactive | draft | archived. */
+  readonly status: string;
+}
+
+/**
+ * Structured records (Knowledge > Products) — the typed rows agents read
+ * fields from, as opposed to documents they retrieve passages from. Three
+ * rows so the table teaches the shape (name, price, stock, category, status)
+ * without scrolling; Episode 3's structured-data scene shows this table.
+ */
+export const DEMO_PRODUCTS: readonly DemoProduct[] = [
+  {
+    name: 'Analytics Pro — annual license',
+    description: 'Full analytics suite for one workspace, billed yearly.',
+    price: '1188',
+    currency: 'USD',
+    category: 'Licenses',
+    status: 'active',
+  },
+  {
+    name: 'Onboarding accelerator',
+    description: 'Two-week guided rollout with a prepared shared project.',
+    price: '1900',
+    currency: 'USD',
+    category: 'Services',
+    status: 'active',
+  },
+  {
+    name: 'Team training workshop',
+    description: 'Half-day hands-on workshop for up to twelve seats.',
+    price: '950',
+    currency: 'USD',
+    stock: '12',
+    category: 'Services',
+    status: 'draft',
+  },
+] as const;
+
 /**
  * Seeded chats: each prompt contains its docs-reply match phrase (see the
  * module doc) so the assistant answer reads like a real workspace assistant.

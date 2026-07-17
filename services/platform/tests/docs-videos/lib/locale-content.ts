@@ -15,11 +15,13 @@
 import type {
   DemoDocument,
   DemoKnowledgeEntry,
+  DemoProduct,
   DemoProject,
 } from '../../docs-screenshots/demo-content';
 import {
   DEMO_DOCUMENTS,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_PRODUCTS,
   DEMO_PROJECTS,
 } from '../../docs-screenshots/demo-content';
 import type { Locale } from './episode';
@@ -28,6 +30,7 @@ interface VideoDemoContent {
   readonly projects: readonly DemoProject[];
   readonly documents: readonly DemoDocument[];
   readonly knowledgeEntries: readonly DemoKnowledgeEntry[];
+  readonly products: readonly DemoProduct[];
   /** The document the wow scene attaches — first in `documents` by contract. */
   readonly wowSourceDoc: string;
   /** Green-run + red-run trigger tasks staged for the executions log. */
@@ -127,6 +130,36 @@ const DE_KNOWLEDGE: readonly DemoKnowledgeEntry[] = [
     topic: 'Onboarding-Kickoff-Fenster',
     content:
       'Jeder neue Kunde bekommt innerhalb von 3 Werktagen nach Vertragsschluss einen Kickoff-Termin. Der Arbeitsbereich steht vorher, gebrandet.',
+  },
+];
+
+const DE_PRODUCTS: readonly DemoProduct[] = [
+  {
+    name: 'Analytics Pro — Jahreslizenz',
+    description:
+      'Komplette Analytics-Suite für einen Arbeitsbereich, jährlich abgerechnet.',
+    price: '1188',
+    currency: 'EUR',
+    category: 'Lizenzen',
+    status: 'active',
+  },
+  {
+    name: 'Onboarding-Beschleuniger',
+    description:
+      'Zweiwöchige begleitete Einführung mit vorbereitetem gemeinsamem Projekt.',
+    price: '1900',
+    currency: 'EUR',
+    category: 'Dienstleistungen',
+    status: 'active',
+  },
+  {
+    name: 'Team-Workshop',
+    description: 'Halbtägiger Praxis-Workshop für bis zu zwölf Plätze.',
+    price: '950',
+    currency: 'EUR',
+    stock: '12',
+    category: 'Dienstleistungen',
+    status: 'draft',
   },
 ];
 
@@ -230,11 +263,42 @@ const FR_KNOWLEDGE: readonly DemoKnowledgeEntry[] = [
   },
 ];
 
+const FR_PRODUCTS: readonly DemoProduct[] = [
+  {
+    name: 'Analytics Pro — licence annuelle',
+    description:
+      'Suite analytique complète pour un espace de travail, facturée à l’année.',
+    price: '1188',
+    currency: 'EUR',
+    category: 'Licences',
+    status: 'active',
+  },
+  {
+    name: 'Accélérateur d’onboarding',
+    description:
+      'Déploiement accompagné de deux semaines avec un projet partagé prêt à l’emploi.',
+    price: '1900',
+    currency: 'EUR',
+    category: 'Services',
+    status: 'active',
+  },
+  {
+    name: 'Atelier de formation d’équipe',
+    description: 'Atelier pratique d’une demi-journée, jusqu’à douze places.',
+    price: '950',
+    currency: 'EUR',
+    stock: '12',
+    category: 'Services',
+    status: 'draft',
+  },
+];
+
 const CONTENT: Record<Locale, VideoDemoContent> = {
   en: {
     projects: DEMO_PROJECTS,
     documents: DEMO_DOCUMENTS,
     knowledgeEntries: DEMO_KNOWLEDGE_ENTRIES,
+    products: DEMO_PRODUCTS,
     wowSourceDoc: 'q2-support-review.txt',
     stagedTasks: {
       green: 'Sign off the launch checklist',
@@ -247,6 +311,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     projects: DE_PROJECTS,
     documents: DE_DOCUMENTS,
     knowledgeEntries: DE_KNOWLEDGE,
+    products: DE_PRODUCTS,
     wowSourceDoc: 'q2-support-bericht.txt',
     stagedTasks: {
       green: 'Launch-Checkliste freigeben',
@@ -259,6 +324,7 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     projects: FR_PROJECTS,
     documents: FR_DOCUMENTS,
     knowledgeEntries: FR_KNOWLEDGE,
+    products: FR_PRODUCTS,
     wowSourceDoc: 'revue-support-t2.txt',
     stagedTasks: {
       green: 'Valider la check-list de lancement',
