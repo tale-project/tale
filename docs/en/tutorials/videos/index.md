@@ -45,15 +45,15 @@ The board mid-flight, files as scoped context, and a task created on camera that
 
 </Card>
 
-<Card title="Episode 8 — People, roles & teams" icon="play" href="/tutorials/videos/people-roles-and-teams">
-
-The human half of trust: the role ladder, teams as knowledge walls, and identity hygiene. Access is designed, not assumed. Two minutes.
-
-</Card>
-
 <Card title="Episode 7 — Integrations & the outside world" icon="play" href="/tutorials/videos/integrations">
 
 Connectors you can read before opening, MCP tools with approval flags, and egress that fails closed. Every door opened deliberately. Two and a half minutes.
+
+</Card>
+
+<Card title="Episode 8 — People, roles & teams" icon="play" href="/tutorials/videos/people-roles-and-teams">
+
+The human half of trust: the role ladder, teams as knowledge walls, and identity hygiene. Access is designed, not assumed. Two minutes.
 
 </Card>
 

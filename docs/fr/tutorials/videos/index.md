@@ -45,15 +45,15 @@ Le tableau en plein vol, les fichiers comme contexte borné, et une tâche cré�
 
 </Card>
 
-<Card title="Épisode 8 — Personnes, rôles & équipes" icon="play" href="/fr/tutorials/videos/people-roles-and-teams">
-
-La moitié humaine de la confiance : l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité. L'accès se conçoit, il ne se présume pas. Deux minutes.
-
-</Card>
-
 <Card title="Épisode 7 — Intégrations & le monde extérieur" icon="play" href="/fr/tutorials/videos/integrations">
 
 Des connecteurs qu'on lit avant d'ouvrir, des outils MCP avec drapeaux de validation, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
+
+</Card>
+
+<Card title="Épisode 8 — Personnes, rôles & équipes" icon="play" href="/fr/tutorials/videos/people-roles-and-teams">
+
+La moitié humaine de la confiance : l'échelle des rôles, les équipes comme murs de connaissances, et l'hygiène d'identité. L'accès se conçoit, il ne se présume pas. Deux minutes.
 
 </Card>
 
