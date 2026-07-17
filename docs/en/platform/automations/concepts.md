@@ -7,7 +7,7 @@ An automation is the unit Tale reaches for when a job needs more than one moving
 
 Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera — captions included.
 
-<Video src="/videos/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
+<Video src="/videos/en/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/en/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/en/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
 
 </Video>
 

@@ -15,7 +15,7 @@ import path from 'node:path';
 export type VideoAssetKind = 'video' | 'captions' | 'poster';
 
 export interface VideoManifestEntry {
-  /** Site-relative path, e.g. `videos/tutorials/ep1-welcome/ep1-welcome.en.mp4`. */
+  /** Site-relative path, e.g. `videos/en/tutorials/ep1-welcome/ep1-welcome.en.mp4`. */
   readonly file: string;
   readonly episode: string;
   readonly locale: string;

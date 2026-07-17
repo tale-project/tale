@@ -5,7 +5,7 @@ description: Un agent construit de bout en bout à l'écran — nom, instruction
 
 Le chat t'a appris à demander ; les connaissances, sur quoi reposent les réponses. Cet épisode construit ce qui met les deux au travail : un agent, créé de zéro à l'écran. Le fil rouge est la frontière de confiance — chaque outil accordé élargit ce que l'agent peut faire. Le plus petit agent qui fait le travail est le plus sûr.
 
-<Video src="/videos/tutorials/ep4-agent/ep4-agent.fr.mp4" poster="/videos/tutorials/ep4-agent/ep4-agent.fr.webp" captions="/videos/tutorials/ep4-agent/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.mp4" poster="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.webp" captions="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42, sous-titres disponibles)">
 
 </Video>
 

@@ -7,7 +7,7 @@ Chat is the everyday entry point to Tale. You open it, pick an agent (or none), 
 
 Prefer to watch first? Episode 2 walks this whole surface in three minutes — grounding, model choice, Arena Mode, and the canvas, captions included.
 
-<Video src="/videos/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08)">
+<Video src="/videos/en/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/en/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/en/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08)">
 
 </Video>
 

@@ -7,7 +7,7 @@ Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten 
 
 Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten durch — Indexierung, Einträge, Datensätze, Crawler und Zugriff, mit Untertiteln.
 
-<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.de.vtt" lang="de" title="Episode 3 — Wissen" caption="Episode 3 — Wissen (3:22)">
+<Video src="/videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.mp4" poster="/videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.webp" captions="/videos/de/tutorials/ep3-knowledge/ep3-knowledge.de.vtt" lang="de" title="Episode 3 — Wissen" caption="Episode 3 — Wissen (3:22)">
 
 </Video>
 

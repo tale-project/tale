@@ -5,7 +5,7 @@ description: L'espace partagé en profondeur — le tableau en plein vol, les fi
 
 Le chat, c'est là où tu demandes ; les projets, là où vit le travail. Cet épisode parcourt le projet de refonte que l'équipe fait réellement tourner — puis crée une tâche à l'écran, le plus normalement du monde, pour te laisser regarder le triage la noter et un agent la prendre. Le backlog boucle la boucle : les agents proposent, les humains promeuvent.
 
-<Video src="/videos/tutorials/ep6-projects/ep6-projects.fr.mp4" poster="/videos/tutorials/ep6-projects/ep6-projects.fr.webp" captions="/videos/tutorials/ep6-projects/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.mp4" poster="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.webp" captions="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21, sous-titres disponibles)">
 
 </Video>
 

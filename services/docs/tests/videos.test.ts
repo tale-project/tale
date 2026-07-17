@@ -15,7 +15,8 @@ import { BASE_LOCALES, walkDocs } from './lib/walk';
  * The production pipeline (`bun run docs:videos`, source
  * `services/platform/tests/docs-videos/`) emits, per episode and locale, an
  * `.mp4`, a WebVTT `.vtt` caption track, and a `.webp` poster under
- * `public/videos/<section>/`, plus `public/videos/manifest.json` declaring
+ * `public/videos/<locale>/<section>/<episode>/`, plus
+ * `public/videos/manifest.json` declaring
  * each file. This test locks the contract:
  *
  *   1. Every video asset on disk appears in the manifest, and every

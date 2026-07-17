@@ -5,7 +5,7 @@ description: Das Serien-Finale - der Kontrollraum in einer Tour — Anbieter und
 
 Das Finale gehört denen, die für KI in der Organisation geradestehen. Es durchquert den Kontrollraum von vorne bis hinten — welche Modelle für wen laufen, die Leitplanken, die in beide Richtungen prüfen, das Audit-Protokoll, in dem die Freigabe aus Episode fünf tatsächlich gelandet ist, die Kosten- und Qualitätsdiagramme mit den Arena-Urteilen aus Episode zwei und den Regions-Regler — und schließt die Serie mit ihren fünf Gewohnheiten: verankern, absichern, begrenzen, protokollieren, messen.
 
-<Video src="/videos/tutorials/ep9-governance/ep9-governance.de.mp4" poster="/videos/tutorials/ep9-governance/ep9-governance.de.webp" captions="/videos/tutorials/ep9-governance/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep9-governance/ep9-governance.de.mp4" poster="/videos/de/tutorials/ep9-governance/ep9-governance.de.webp" captions="/videos/de/tutorials/ep9-governance/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31, mit Untertiteln)">
 
 </Video>
 

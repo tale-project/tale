@@ -9,7 +9,7 @@ Six roles cover almost every team Tale ships to. Admins and Owners read this pag
 
 Prefer to watch first? Episode 8 walks the roster, the role ladder, and the team walls in two minutes — captions included.
 
-<Video src="/videos/tutorials/ep8-people/ep8-people.en.mp4" poster="/videos/tutorials/ep8-people/ep8-people.en.webp" captions="/videos/tutorials/ep8-people/ep8-people.en.vtt" lang="en" title="Episode 8 — People, roles & teams" caption="Episode 8 — People, roles & teams (2:15)">
+<Video src="/videos/en/tutorials/ep8-people/ep8-people.en.mp4" poster="/videos/en/tutorials/ep8-people/ep8-people.en.webp" captions="/videos/en/tutorials/ep8-people/ep8-people.en.vtt" lang="en" title="Episode 8 — People, roles & teams" caption="Episode 8 — People, roles & teams (2:15)">
 
 </Video>
 

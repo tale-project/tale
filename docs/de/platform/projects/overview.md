@@ -7,7 +7,7 @@ Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück
 
 Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Projekt — samt einer Aufgabe, die ein Agent vor der Kamera übernimmt.
 
-<Video src="/videos/tutorials/ep6-projects/ep6-projects.de.mp4" poster="/videos/tutorials/ep6-projects/ep6-projects.de.webp" captions="/videos/tutorials/ep6-projects/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47)">
+<Video src="/videos/de/tutorials/ep6-projects/ep6-projects.de.mp4" poster="/videos/de/tutorials/ep6-projects/ep6-projects.de.webp" captions="/videos/de/tutorials/ep6-projects/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47)">
 
 </Video>
 

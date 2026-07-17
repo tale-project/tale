@@ -5,7 +5,7 @@ description: Ein Rundgang in gut drei Minuten — Chat, verankert in deinen eige
 
 Die Auftaktepisode zeigt den ganzen Arbeitsbereich einmal von vorne bis hinten und benennt die drei Ideen, zu denen die Serie immer wieder zurückkehrt: Antworten, die du überprüfen kannst, Automatisierung mit menschlicher Aufsicht und Kontrolle darüber, wo deine Daten liegen und welche Modelle sie berühren. Sieh sie vor dem Schnellstart, und der Rest der Dokumentation wirkt beim Ankommen vertraut.
 
-<Video src="/videos/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:28, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:28, mit Untertiteln)">
 
 </Video>
 

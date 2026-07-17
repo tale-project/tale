@@ -5,7 +5,7 @@ description: L'automatisation de triage ouverte comme une recette — éditeur, 
 
 Les agents répondent quand on demande ; les automatisations agissent seules. Cet épisode ouvre l'automatisation de triage installée, de bout en bout — le workflow qu'on peut lire avant qu'il tourne, le journal que laisse chaque exécution, la ligne rouge qui montre l'échec avec une adresse — puis la pièce maîtresse de la série : un agent rédige une réponse client sortante et s'arrête sur une carte de validation jusqu'à ce qu'une personne décide. À l'écran.
 
-<Video src="/videos/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34, sous-titres disponibles)">
 
 </Video>
 

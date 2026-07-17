@@ -7,7 +7,7 @@ Chat ist der tägliche Einstiegspunkt zu Tale. Du öffnest ihn, wählst einen Ag
 
 Lieber erst zusehen? Episode 2 geht diese ganze Oberfläche in gut drei Minuten durch — Verankerung, Modellwahl, Arena-Modus und Canvas, mit Untertiteln.
 
-<Video src="/videos/tutorials/ep2-chat/ep2-chat.de.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.de.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.de.vtt" lang="de" title="Episode 2 — Chat, im Detail" caption="Episode 2 — Chat, im Detail (3:21)">
+<Video src="/videos/de/tutorials/ep2-chat/ep2-chat.de.mp4" poster="/videos/de/tutorials/ep2-chat/ep2-chat.de.webp" captions="/videos/de/tutorials/ep2-chat/ep2-chat.de.vtt" lang="de" title="Episode 2 — Chat, im Detail" caption="Episode 2 — Chat, im Detail (3:21)">
 
 </Video>
 

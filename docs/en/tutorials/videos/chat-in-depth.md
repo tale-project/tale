@@ -5,7 +5,7 @@ description: The daily surface, used well — the same question asked ungrounded
 
 Episode 1 toured the workspace; this episode moves into the room your team will actually live in. Its core beat is a controlled experiment: the same onboarding question asked twice — once with no context, once with the Q2 support review attached — so you can watch a fluent answer and a grounded answer stop being the same thing.
 
-<Video src="/videos/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08, captions available)">
+<Video src="/videos/en/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/en/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/en/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08, captions available)">
 
 </Video>
 

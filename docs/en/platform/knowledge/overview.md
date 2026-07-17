@@ -7,7 +7,7 @@ Knowledge is the area where the org's data lives so agents can read and cite it.
 
 Prefer to watch first? Episode 3 walks the whole library in three minutes — indexing, entries, records, the crawler, and scopes, captions included.
 
-<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03)">
+<Video src="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03)">
 
 </Video>
 

@@ -7,7 +7,7 @@ La base de connaissances est l’espace où vivent les données de l’organisat
 
 Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèque en trois minutes — indexation, entrées, fiches, crawler et périmètres, sous-titres compris.
 
-<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45)">
+<Video src="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45)">
 
 </Video>
 

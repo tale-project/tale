@@ -5,7 +5,7 @@ description: Die Türen aus dem Arbeitsbereich — Connectoren, deren Operatione
 
 Dein Arbeitsbereich lebt nicht allein. Diese Episode geht die Türen zur Außenwelt ab und die Disziplin in jeder einzelnen: ein Connector, den du lesen kannst, bevor du ihn öffnest, die Fähigkeit, die aufleuchtet, wenn eine Integration angebunden ist, MCP-Werkzeuge mit eigenen Freigabe-Flags und ein Sandbox-Netz, das standardmäßig Nein sagt.
 
-<Video src="/videos/tutorials/ep7-integrations/ep7-integrations.de.mp4" poster="/videos/tutorials/ep7-integrations/ep7-integrations.de.webp" captions="/videos/tutorials/ep7-integrations/ep7-integrations.de.vtt" lang="de" title="Episode 7 — Integrationen & die Außenwelt" caption="Episode 7 — Integrationen & die Außenwelt (2:52, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep7-integrations/ep7-integrations.de.mp4" poster="/videos/de/tutorials/ep7-integrations/ep7-integrations.de.webp" captions="/videos/de/tutorials/ep7-integrations/ep7-integrations.de.vtt" lang="de" title="Episode 7 — Integrationen & die Außenwelt" caption="Episode 7 — Integrationen & die Außenwelt (2:52, mit Untertiteln)">
 
 </Video>
 

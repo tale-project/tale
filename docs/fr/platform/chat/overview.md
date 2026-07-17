@@ -7,7 +7,7 @@ Le chat est le point d’entrée quotidien à Tale. Tu l’ouvres, tu choisis un
 
 Tu préfères regarder d’abord ? L’épisode 2 parcourt toute cette surface en trois minutes — ancrage, choix du modèle, mode Arène et canevas, sous-titres compris.
 
-<Video src="/videos/tutorials/ep2-chat/ep2-chat.fr.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.fr.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53)">
+<Video src="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.mp4" poster="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.webp" captions="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53)">
 
 </Video>
 

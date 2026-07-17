@@ -5,7 +5,7 @@ description: The builder's lap - scoped API keys, the four API doors, webhook tr
 
 Everything the series showed has an API underneath. The bonus episode walks the developer surface: named, revocable API keys; REST, MCP, WebDAV, and sandbox runtimes; webhooks that fire agents from any system; the external coding agents — Claude Code, Cursor — working in sandboxes; and the run-code policy that names what may install and where code may connect. Power tools, contained blast radius.
 
-<Video src="/videos/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08, captions available)">
+<Video src="/videos/en/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/en/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/en/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08, captions available)">
 
 </Video>
 

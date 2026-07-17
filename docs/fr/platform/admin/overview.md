@@ -9,7 +9,7 @@ Ces pages décrivent ce que fait chaque réglage et ce qu’il change au produit
 
 Tu préfères regarder d’abord ? L’épisode 9 traverse toute la salle de contrôle — fournisseurs, garde-fous, audit, coûts — en trois minutes, sous-titres compris.
 
-<Video src="/videos/tutorials/ep9-governance/ep9-governance.fr.mp4" poster="/videos/tutorials/ep9-governance/ep9-governance.fr.webp" captions="/videos/tutorials/ep9-governance/ep9-governance.fr.vtt" lang="fr" title="Épisode 9 — Gouvernance, coûts & confiance" caption="Épisode 9 — Gouvernance, coûts & confiance (2:48)">
+<Video src="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.mp4" poster="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.webp" captions="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.vtt" lang="fr" title="Épisode 9 — Gouvernance, coûts & confiance" caption="Épisode 9 — Gouvernance, coûts & confiance (2:48)">
 
 </Video>
 

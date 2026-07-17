@@ -9,7 +9,7 @@ If you are inside the product as a Developer-role user (building agents, workflo
 
 Prefer to watch first? The bonus episode walks the developer surface — keys, APIs, webhooks, sandboxed coding agents — in two minutes.
 
-<Video src="/videos/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08)">
+<Video src="/videos/en/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/en/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/en/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08)">
 
 </Video>
 

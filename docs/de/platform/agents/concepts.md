@@ -9,7 +9,7 @@ Diese Seite vermittelt dir das mentale Modell, das der Rest des Abschnitts vorau
 
 Lieber erst zusehen? Episode 4 baut einen Agenten in gut drei Minuten von Anfang bis Ende — alle vier Entscheidungen, dann der Live-Test, mit Untertiteln.
 
-<Video src="/videos/tutorials/ep4-agent/ep4-agent.de.mp4" poster="/videos/tutorials/ep4-agent/ep4-agent.de.webp" captions="/videos/tutorials/ep4-agent/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18)">
+<Video src="/videos/de/tutorials/ep4-agent/ep4-agent.de.mp4" poster="/videos/de/tutorials/ep4-agent/ep4-agent.de.webp" captions="/videos/de/tutorials/ep4-agent/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18)">
 
 </Video>
 

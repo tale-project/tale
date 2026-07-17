@@ -9,7 +9,7 @@ These pages describe what each setting does and what it changes about the runnin
 
 Prefer to watch first? Episode 9 tours the whole control room — providers, guardrails, audit, cost — in three minutes, captions included.
 
-<Video src="/videos/tutorials/ep9-governance/ep9-governance.en.mp4" poster="/videos/tutorials/ep9-governance/ep9-governance.en.webp" captions="/videos/tutorials/ep9-governance/ep9-governance.en.vtt" lang="en" title="Episode 9 — Governance, cost & trust" caption="Episode 9 — Governance, cost & trust (3:01)">
+<Video src="/videos/en/tutorials/ep9-governance/ep9-governance.en.mp4" poster="/videos/en/tutorials/ep9-governance/ep9-governance.en.webp" captions="/videos/en/tutorials/ep9-governance/ep9-governance.en.vtt" lang="en" title="Episode 9 — Governance, cost & trust" caption="Episode 9 — Governance, cost & trust (3:01)">
 
 </Video>
 

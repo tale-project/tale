@@ -5,7 +5,7 @@ description: La bibliothèque derrière chaque réponse ancrée — documents et
 
 Les réponses ancrées de l'épisode 2 venaient toutes d'un seul endroit. Cet épisode l'ouvre : ce que le badge « Indexé » veut vraiment dire (et pourquoi indexer n'est pas entraîner), une entrée de connaissances ajoutée à l'écran puis citée par un agent deux minutes plus tard, des fiches typées à côté des documents en prose, la limite honnête du crawler, et les périmètres qui font de la visibilité une décision plutôt qu'un accident.
 
-<Video src="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45, sous-titres disponibles)">
 
 </Video>
 

@@ -5,7 +5,7 @@ description: La moitié humaine de l'histoire de confiance — la table des memb
 
 L'épisode cinq a mis des portes aux machines ; celui-ci en met aux personnes. Il parcourt l'effectif de l'espace et l'échelle des quatre rôles, ouvre le dialogue d'ajout de membre juste assez longtemps pour l'apprendre, trace les frontières d'équipe qui décident qui lit quoi, et se termine sur les garde-fous ennuyeux qui comptent le plus : la double authentification et le SSO.
 
-<Video src="/videos/tutorials/ep8-people/ep8-people.fr.mp4" poster="/videos/tutorials/ep8-people/ep8-people.fr.webp" captions="/videos/tutorials/ep8-people/ep8-people.fr.vtt" lang="fr" title="Épisode 8 — Personnes, rôles & équipes" caption="Épisode 8 — Personnes, rôles & équipes (2:06, sous-titres disponibles)">
+<Video src="/videos/fr/tutorials/ep8-people/ep8-people.fr.mp4" poster="/videos/fr/tutorials/ep8-people/ep8-people.fr.webp" captions="/videos/fr/tutorials/ep8-people/ep8-people.fr.vtt" lang="fr" title="Épisode 8 — Personnes, rôles & équipes" caption="Épisode 8 — Personnes, rôles & équipes (2:06, sous-titres disponibles)">
 
 </Video>
 

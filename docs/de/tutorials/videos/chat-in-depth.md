@@ -5,7 +5,7 @@ description: Die tägliche Oberfläche, gut genutzt — dieselbe Frage einmal oh
 
 Episode 1 war der Rundgang; diese Episode zieht in den Raum ein, in dem dein Team wirklich arbeiten wird. Ihr Kernstück ist ein kontrolliertes Experiment: dieselbe Onboarding-Frage, zweimal gestellt — einmal ohne Kontext, einmal mit angehängtem Q2-Support-Bericht. So siehst du zu, wie eine flüssige Antwort und eine verankerte Antwort aufhören, dasselbe zu sein.
 
-<Video src="/videos/tutorials/ep2-chat/ep2-chat.de.mp4" poster="/videos/tutorials/ep2-chat/ep2-chat.de.webp" captions="/videos/tutorials/ep2-chat/ep2-chat.de.vtt" lang="de" title="Episode 2 — Chat, im Detail" caption="Episode 2 — Chat, im Detail (3:21, mit Untertiteln)">
+<Video src="/videos/de/tutorials/ep2-chat/ep2-chat.de.mp4" poster="/videos/de/tutorials/ep2-chat/ep2-chat.de.webp" captions="/videos/de/tutorials/ep2-chat/ep2-chat.de.vtt" lang="de" title="Episode 2 — Chat, im Detail" caption="Episode 2 — Chat, im Detail (3:21, mit Untertiteln)">
 
 </Video>
 

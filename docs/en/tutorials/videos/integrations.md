@@ -5,7 +5,7 @@ description: The doors out of the workspace — connectors whose operations and 
 
 Your workspace does not live alone. This episode walks the doors to the outside world and the discipline built into each one: a connector you can read before you open it, the capability that lights up when an integration is bound, MCP tools that arrive with their own approval flags, and a sandbox network that answers no by default.
 
-<Video src="/videos/tutorials/ep7-integrations/ep7-integrations.en.mp4" poster="/videos/tutorials/ep7-integrations/ep7-integrations.en.webp" captions="/videos/tutorials/ep7-integrations/ep7-integrations.en.vtt" lang="en" title="Episode 7 — Integrations & the outside world" caption="Episode 7 — Integrations & the outside world (2:30, captions available)">
+<Video src="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.mp4" poster="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.webp" captions="/videos/en/tutorials/ep7-integrations/ep7-integrations.en.vtt" lang="en" title="Episode 7 — Integrations & the outside world" caption="Episode 7 — Integrations & the outside world (2:30, captions available)">
 
 </Video>
 

@@ -5,7 +5,7 @@ description: The triage automation opened like a recipe — editor, triggers, th
 
 Agents answer when asked; automations act on their own. This episode opens the installed triage automation end to end — the workflow you can read before it runs, the journal every run leaves, the red row that shows failure with an address — and then the series' centerpiece: an agent drafts an outbound customer reply and stops at an approval card until a person decides. On camera.
 
-<Video src="/videos/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42, captions available)">
+<Video src="/videos/en/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/en/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/en/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42, captions available)">
 
 </Video>
 
