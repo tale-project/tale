@@ -169,7 +169,7 @@
         "reply1": "Hier, 7 escalades ont été enregistrées — 5 résolues, 2 encore ouvertes.",
         "reply2": "Les deux cas ouverts sont des livraisons de vélos cargo retardées dans l’UE.",
         "reply3": "Les opérations confirment que les unités de remplacement partent cette semaine —",
-        "reply4": "les deux clients peuvent donc compter sur une résolution d’ici vendredi.",
+        "reply4": "les deux contacts peuvent donc compter sur une résolution d’ici vendredi.",
         "citation1": "escalades-q3.pdf",
         "citation2": "runbook-livraison-ue.pdf",
         "thought": "Réflexion 1 s",
@@ -253,7 +253,7 @@
       },
       "govern": {
         "label": "Démo animée : une carte d’approbation dans le chat demande d’envoyer 42 emails de remboursement ; Approuver est confirmé et le run continue.",
-        "approvalTitle": "Envoyer 42 emails de remboursement aux clients concernés ?",
+        "approvalTitle": "Envoyer 42 emails de remboursement aux contacts concernés ?",
         "requester": "Triage inbox · Rédiger la réponse",
         "approve": "Approuver",
         "reject": "Rejeter",
@@ -267,7 +267,7 @@
       },
       "arena": {
         "label": "Démo animée : Chat Arena compare une même question sur deux modèles — Claude Sonnet et GPT-5.5 côte à côte.",
-        "prompt": "Rédige une réponse client pour la livraison UE retardée.",
+        "prompt": "Rédige une réponse contact pour la livraison UE retardée.",
         "agent": "Agent Support",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
@@ -276,7 +276,7 @@
         "replyA2": "Propose une résolution vendredi et un lien de suivi dès qu’Ops le publie.",
         "replyA3": "Termine avec le lien vers la politique d’escalade à partager en interne.",
         "replyB1": "Reconnais le retard, cite la politique d’escalade et engage vendredi comme échéance.",
-        "replyB2": "Ajoute une courte checklist que le client peut transmettre en interne.",
+        "replyB2": "Ajoute une courte checklist que le contact peut transmettre en interne.",
         "replyB3": "Propose un créneau de rappel si le lien de suivi manque jeudi."
       },
       "projects": {
@@ -358,7 +358,7 @@
       "pool": {
         "eyebrow": "Connaissances",
         "title": "Une base de connaissances,\nchaque réponse fondée",
-        "description": "Documents, sites web, données produits et clients convergent vers une base de connaissances partagée. Les agents répondent avec ce que ton entreprise sait vraiment — sources vérifiables à l’appui."
+        "description": "Documents, sites web, données produits et contacts convergent vers une base de connaissances partagée. Les agents répondent avec ce que ton entreprise sait vraiment — sources vérifiables à l’appui."
       },
       "delegate": {
         "eyebrow": "Automatisations",
@@ -1275,7 +1275,7 @@
     "demos": {
       "arena": {
         "label": "Démo animée : Chat Arena passe le même prompt d’annonce dans Claude Sonnet et GPT-5.5 côte à côte — le meilleur brouillon gagne.",
-        "prompt": "Transforme les notes de version 2.4 en annonce client.",
+        "prompt": "Transforme les notes de version 2.4 en annonce de release.",
         "agent": "Agent Comms",
         "modelA": "Claude Sonnet",
         "modelB": "GPT-5.5",
@@ -1284,7 +1284,7 @@
         "replyA3": "Termine par le chemin de mise à niveau et un lien vers le changelog.",
         "replyB1": "Commence par ce que les pilotes demandaient : une installation air-gapped plus simple, livrée.",
         "replyB2": "Liste les trois nouveautés en puces courtes avec liens vers la doc.",
-        "replyB3": "Finis par un merci aux premiers clients et la commande de mise à niveau."
+        "replyB3": "Finis par un merci aux premiers contacts et la commande de mise à niveau."
       },
       "govern": {
         "label": "Démo animée : une carte d’approbation dans le chat demande de poster l’annonce dans le canal Slack #customers ; l’approbation est accordée et journalisée.",
@@ -1709,7 +1709,7 @@
         },
         {
           "title": "Enregistrements typés",
-          "body": "Products, Customers et Vendors sont des lignes de champs exactes que les agents lisent comme données, pas comme prose.",
+          "body": "Products, Contacts et Vendors sont des lignes de champs exactes que les agents lisent comme données, pas comme prose.",
           "docsLabel": "Données structurées"
         },
         {
@@ -1732,7 +1732,7 @@
         },
         {
           "q": "Quelle différence entre documents et enregistrements typés ?",
-          "a": "Documents et entrées sont indexés pour récupération. Products, Customers et Vendors sont des lignes structurées que les agents lisent comme valeurs exactes."
+          "a": "Documents et entrées sont indexés pour récupération. Products, Contacts et Vendors sont des lignes structurées que les agents lisent comme valeurs exactes."
         },
         {
           "q": "Les agents peuvent-ils écrire dans Knowledge, ou seulement lire ?",
@@ -1867,7 +1867,7 @@
     "description": "Les projets sont des espaces de travail partagés qui réunissent les chats, les fichiers, les instructions et le tableau de tâches d’un même travail — le contexte suit le travail, et les agents reprennent les tâches là où ton équipe les laisse.",
     "capabilities": {
       "heading": "Un espace de travail par sujet",
-      "description": "Un projet garde tout ce qu’un client, un lancement ou une enquête demande au même endroit — et y met les agents au travail.",
+      "description": "Un projet garde tout ce qu’un contact, un lancement ou une enquête demande au même endroit — et y met les agents au travail.",
       "items": [
         {
           "title": "Un contexte qui suit le travail",
@@ -1901,7 +1901,7 @@
       "items": [
         {
           "q": "Qu’est-ce qu’un projet dans Tale ?",
-          "a": "Un espace de travail partagé qui réunit chats, fichiers, instructions, tâches et discussions autour d’un même travail — un client, un lancement, une enquête — pour que le contexte reste avec le travail."
+          "a": "Un espace de travail partagé qui réunit chats, fichiers, instructions, tâches et discussions autour d’un même travail — un contact, un lancement, une enquête — pour que le contexte reste avec le travail."
         },
         {
           "q": "Comment les agents traitent-ils les tâches d’un projet ?",
