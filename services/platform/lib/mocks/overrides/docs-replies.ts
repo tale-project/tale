@@ -65,6 +65,61 @@ const LAUNCH_CHECKLIST_OPENER =
   'Here is a launch checklist based on the Website Relaunch project tasks:';
 
 export const DOCS_REPLIES: readonly DocsReply[] = [
+  // ——— Video pipeline (tests/docs-videos/) wow-scene replies ———
+  // One entry per docs locale: Episode 1 types its hero prompt live on
+  // camera and this is the grounded answer that streams back. The prompts
+  // live in `tests/docs-videos/episodes/ep1-welcome/episode.ts`
+  // (`heroPromptByLocale`) and MUST contain these match clauses verbatim.
+  // No `[N]` citation markers — cite chips need real RAG metadata; the reply
+  // names its source documents in prose instead.
+  {
+    match: 'onboarding last quarter',
+    reasoning:
+      'Searching the workspace knowledge for onboarding feedback from the past quarter. The Q2 support review and the onboarding checklist both cover it — grouping what customers said into themes.',
+    reply: [
+      'Customers brought up onboarding more than any other topic last quarter. Three themes stand out:',
+      '',
+      '| Theme | Signal | What customers said |',
+      '| --- | --- | --- |',
+      '| Setup takes too long | every onboarding call | "Two days from invite to first useful answer." |',
+      '| Webhook setup is unclear | questions doubled after the April release | "The setup guide needs a worked example." |',
+      '| Shared projects drive adoption | praised twice | "The team space made adoption easy." |',
+      '',
+      'This reading is based on the **Q2 support review** and the **onboarding checklist** in your workspace knowledge. The support review flags webhook configuration as the fastest-growing driver, and the checklist has no webhook step yet — adding a worked example there would address both of the top complaints.',
+    ].join('\n'),
+  },
+  {
+    match: 'zum onboarding gesagt',
+    reasoning:
+      'Suche im Wissensbestand des Arbeitsbereichs nach Onboarding-Feedback aus dem letzten Quartal. Der Q2-Support-Bericht und die Onboarding-Checkliste sind die relevanten Quellen — die Rückmeldungen werden nach Themen gruppiert.',
+    reply: [
+      'Onboarding war im letzten Quartal das meistgenannte Thema. Drei Muster stechen heraus:',
+      '',
+      '| Thema | Signal | Kundenstimme |',
+      '| --- | --- | --- |',
+      '| Einrichtung dauert zu lange | in jedem Onboarding-Gespräch | „Zwei Tage von der Einladung bis zur ersten brauchbaren Antwort." |',
+      '| Webhook-Einrichtung unklar | Fragen nach dem April-Release verdoppelt | „Die Anleitung braucht ein durchgerechnetes Beispiel." |',
+      '| Gemeinsame Projekte überzeugen | zweimal ausdrücklich gelobt | „Der Team-Bereich hat die Einführung leicht gemacht." |',
+      '',
+      'Grundlage sind der **Q2-Support-Bericht** und die **Onboarding-Checkliste** im Wissensbestand. Der Support-Bericht weist Webhook-Fragen als am schnellsten wachsenden Treiber aus, und in der Checkliste fehlt bislang ein Webhook-Schritt — ein durchgerechnetes Beispiel dort würde beide Hauptprobleme zugleich angehen.',
+    ].join('\n'),
+  },
+  {
+    match: 'l’onboarding au dernier trimestre',
+    reasoning:
+      'Recherche dans la base de connaissances de l’espace de travail des retours sur l’onboarding du dernier trimestre. La revue support du T2 et la check-list d’onboarding couvrent le sujet — regroupement des retours par thème.',
+    reply: [
+      'L’onboarding est le sujet le plus mentionné par les clients au dernier trimestre. Trois thèmes ressortent :',
+      '',
+      '| Thème | Signal | Verbatim client |',
+      '| --- | --- | --- |',
+      '| La mise en place prend trop de temps | à chaque appel d’onboarding | « Deux jours entre l’invitation et la première réponse utile. » |',
+      '| La configuration des webhooks est floue | questions doublées depuis la version d’avril | « Le guide mérite un exemple complet. » |',
+      '| Les projets partagés convainquent | salués à deux reprises | « L’espace d’équipe a facilité l’adoption. » |',
+      '',
+      'Cette lecture s’appuie sur la **revue support du T2** et la **check-list d’onboarding** de votre base de connaissances. La revue support identifie les webhooks comme la question qui progresse le plus vite, et la check-list n’a pas encore d’étape webhook — y ajouter un exemple complet répondrait aux deux principales frictions.',
+    ].join('\n'),
+  },
   {
     match: 'summarize the onboarding feedback',
     reasoning:
@@ -315,6 +370,44 @@ const DOCS_TRIAGE_SCORES: readonly DocsTriageScore[] = [
       confidence: 0.72,
       reason:
         'The assistant can walk the WCAG checklist over staging and report what it finds.',
+    },
+  },
+  // ——— Video pipeline locale orgs (tests/docs-videos) ———
+  // The de/fr demo orgs stage one green and one red triage run each
+  // (lib/locale-content.ts `stagedTasks`); same contract as the English
+  // titles above — the red ones omit `confidence` on purpose.
+  {
+    task: 'launch-checkliste freigeben',
+    score: {
+      slug: 'assistant',
+      confidence: 0.84,
+      reason:
+        'Die Checkliste liegt im Projektwissen; der Assistent kann den Freigabeentwurf vorbereiten.',
+    },
+  },
+  {
+    task: 'valider la check-list de lancement',
+    score: {
+      slug: 'assistant',
+      confidence: 0.84,
+      reason:
+        'La check-list est dans la base du projet ; l’assistant peut préparer la validation.',
+    },
+  },
+  {
+    task: 'rollback-plan vorbereiten',
+    score: {
+      slug: 'assistant',
+      reason:
+        'Ein Rollback-Plan braucht Deployment-Kontext, den nur das Team hat.',
+    },
+  },
+  {
+    task: 'préparer le plan de rollback',
+    score: {
+      slug: 'assistant',
+      reason:
+        'Un plan de rollback demande un contexte de déploiement que seule l’équipe possède.',
     },
   },
   {

@@ -42,6 +42,8 @@ import {
   DEMO_PROJECTS,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
+  type DemoDocument,
+  type DemoKnowledgeEntry,
   type DemoProject,
 } from './demo-content';
 
@@ -75,6 +77,23 @@ async function settleList(page: Page): Promise<void> {
   await expect(page.getByRole('status').first()).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
+}
+
+/**
+ * Like settleList, for pages that REPLACE the table (footer included) with an
+ * empty-state hero when they hold no rows — on a fresh org the documents page
+ * shows "No documents yet" and no role=status ever arrives. Settle on
+ * whichever renders first; when it is the empty state, grant the query one
+ * flash window to disprove it (the DataTable paints `data ?? []` while the
+ * query is still in flight, so a just-loading table can masquerade as empty).
+ */
+async function settleListOrEmpty(page: Page, empty: Locator): Promise<void> {
+  await expect(page.getByRole('status').first().or(empty.first())).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+  if (await isPresent(empty)) {
+    await page.waitForTimeout(750);
+  }
 }
 
 /**
@@ -147,18 +166,41 @@ async function ensureProject(
       }
     }
   } else {
-    await createButton.click();
-    const dialog = page.getByRole('dialog', {
-      name: t('projects.create.title'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await dialog
-      .getByRole('textbox', { name: t('projects.create.nameLabel') })
-      .fill(project.name);
-    await dialog
-      .getByRole('button', { name: t('projects.create.submit') })
-      .click();
-    await page.waitForURL(PROJECT_URL, { timeout: TIMEOUT.NAV });
+    // Same hydration discipline as the open path: on a freshly-created org
+    // the page can still be settling — a click can report "outside of the
+    // viewport" or the dialog's submit can be swallowed. Reload and retry.
+    const ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      try {
+        await createButton.click({ timeout: TIMEOUT.VISIBLE });
+        const dialog = page.getByRole('dialog', {
+          name: t('projects.create.title'),
+        });
+        await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+        await dialog
+          .getByRole('textbox', { name: t('projects.create.nameLabel') })
+          .fill(project.name);
+        await dialog
+          .getByRole('button', { name: t('projects.create.submit') })
+          .click();
+        await page.waitForURL(PROJECT_URL, { timeout: TIMEOUT.NAV });
+        break;
+      } catch (err) {
+        if (attempt === ATTEMPTS) {
+          throw new Error(
+            `Creating the project "${project.name}" never navigated.`,
+            { cause: err },
+          );
+        }
+        console.warn(
+          `Project create raced hydration — retrying "${project.name}"`,
+        );
+        await page.reload();
+        await expect(createButton).toBeVisible({
+          timeout: TIMEOUT.FIRST_PAINT,
+        });
+      }
+    }
   }
 
   const projectId = PROJECT_URL.exec(page.url())?.[1];
@@ -308,14 +350,19 @@ async function ensureDiscussions(
 async function ensureKnowledgeEntries(
   page: Page,
   orgId: string,
+  entries: readonly DemoKnowledgeEntry[] = DEMO_KNOWLEDGE_ENTRIES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/knowledge-entries`);
   const addButton = page.getByRole('button', {
     name: t('knowledgeEntries.addButton'),
   });
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
-  for (const entry of DEMO_KNOWLEDGE_ENTRIES) {
+  // Same fresh-org shape as documents: empty page = hero, no footer.
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('emptyStates.knowledgeEntries.title')),
+  );
+  for (const entry of entries) {
     if (
       await page
         .getByText(entry.topic)
@@ -346,14 +393,22 @@ async function ensureKnowledgeEntries(
   }
 }
 
-async function ensureDocuments(page: Page, orgId: string): Promise<void> {
+async function ensureDocuments(
+  page: Page,
+  orgId: string,
+  documents: readonly DemoDocument[] = DEMO_DOCUMENTS,
+): Promise<void> {
   await page.goto(`/dashboard/${orgId}/documents`);
   const importButton = page.getByRole('button', {
     name: t('documents.upload.importDocuments'),
   });
   await expect(importButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
-  for (const doc of DEMO_DOCUMENTS) {
+  // A documentless org replaces the table with the upload hero — no footer.
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('documents.emptyState.title')),
+  );
+  for (const doc of documents) {
     if (
       await page
         .getByRole('row')
@@ -567,10 +622,14 @@ async function ensureEnvVars(page: Page, orgId: string): Promise<void> {
   }
   if (!added) return;
   // The row editor runs in externalSave mode: its Save lives in the settings
-  // header, not in the form.
+  // header, not in the form. The saved-state signal is the success toast, not
+  // the button: saved SECRET rows re-render as masks, which can re-dirty the
+  // form and re-enable Save right after a successful persist.
   const save = page.getByRole('button', { name: t('common.actions.save') });
   await save.click();
-  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+  await expect(page.getByText(t('envEditor.saved')).first()).toBeVisible({
+    timeout: TIMEOUT.PERSIST,
+  });
 }
 
 /** REST API keys (Settings > API > REST). */
@@ -976,4 +1035,35 @@ export async function seedDemoOrg(
     }
   });
   return { threads, projects };
+}
+
+/**
+ * Seed a VIDEO locale org (tests/docs-videos): only the surfaces Episode 1's
+ * camera visits — projects with tasks, documents, knowledge entries — with
+ * locale-native content. Chats, members, governance fixtures and the rest of
+ * the full seed stay English-org-only (they are never on camera). Idempotent
+ * like everything above; returns project ids by (localized) project name.
+ */
+export async function seedVideoLocaleOrg(
+  page: Page,
+  orgId: string,
+  content: {
+    readonly projects: readonly DemoProject[];
+    readonly documents: readonly DemoDocument[];
+    readonly knowledgeEntries: readonly DemoKnowledgeEntry[];
+  },
+): Promise<Map<string, string>> {
+  const projects = new Map<string, string>();
+  for (const project of content.projects) {
+    await step(`project "${project.name}" + tasks`, async () => {
+      projects.set(project.name, await ensureProject(page, orgId, project));
+    });
+  }
+  await step('documents', () =>
+    ensureDocuments(page, orgId, content.documents),
+  );
+  await step('knowledge entries', () =>
+    ensureKnowledgeEntries(page, orgId, content.knowledgeEntries),
+  );
+  return projects;
 }

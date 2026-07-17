@@ -79,7 +79,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   },
 ] as const;
 
-interface DemoDocument {
+export interface DemoDocument {
   readonly fileName: string;
   readonly mimeType: string;
   readonly content: string;
@@ -180,7 +180,7 @@ export const DEMO_DISCUSSIONS: readonly DemoDiscussion[] = [
   },
 ] as const;
 
-interface DemoKnowledgeEntry {
+export interface DemoKnowledgeEntry {
   readonly topic: string;
   readonly content: string;
 }

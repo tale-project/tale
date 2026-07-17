@@ -106,6 +106,7 @@
     "./markdown/components/callout": "./src/markdown/components/callout.tsx",
     "./markdown/components/code-group": "./src/markdown/components/code-group.tsx",
     "./markdown/components/tabs": "./src/markdown/components/tabs.tsx",
+    "./markdown/components/video": "./src/markdown/components/video.tsx",
     "./markdown/components/steps": "./src/markdown/components/steps.tsx",
     "./markdown/components/cards": "./src/markdown/components/cards.tsx",
     "./markdown/components/frame": "./src/markdown/components/frame.tsx",

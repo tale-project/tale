@@ -48,6 +48,7 @@ const COMPONENT_TAGS = [
   'Accordion',
   'AccordionGroup',
   'Frame',
+  'Video',
 ] as const;
 
 /** Alternation sorted longest-first so `CardGroup` never half-matches as

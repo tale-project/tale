@@ -389,7 +389,11 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
             ...(usage ? { usage } : {}),
           }),
         );
-      const pause = () => new Promise((resolve) => setTimeout(resolve, 10));
+      // Delta cadence. The docs VIDEO pipeline slows it via
+      // TALE_MOCK_STREAM_PACE_MS on the gateway process so a streamed answer
+      // reads naturally on camera; unset, streams stay fast for e2e/screenshots.
+      const paceMs = Number(process.env.TALE_MOCK_STREAM_PACE_MS ?? '') || 10;
+      const pause = () => new Promise((resolve) => setTimeout(resolve, paceMs));
 
       // Every stream opens with the assistant role delta.
       sendDelta({ role: 'assistant' }, null);

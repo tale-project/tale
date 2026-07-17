@@ -221,7 +221,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben-Automatisierung",
-      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, das menschliche Review-Gate, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
+      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
     }
   },
   "de:platform/workspace/prompt-library": {
@@ -843,6 +843,22 @@
       "description": "Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptions-Tool) mit der Wissensdatenbank eines Tale-Projekts, damit Transkripte als Dokumente von selbst landen, ohne dass jemand eine Datei hochlädt."
     }
   },
+  "de:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Video-Tutorials",
+      "description": "Kurze, produzierte Rundgänge durch die Plattform — was Tale kann, wo KI hilft und wo dein Urteil gefragt bleibt. Jede Episode erscheint auf Deutsch, Englisch und Französisch."
+    }
+  },
+  "de:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Episode 1 — Willkommen bei Tale",
+      "description": "Ein Rundgang in gut drei Minuten — Chat, verankert in deinen eigenen Dokumenten, Agenten mit Auftrag, Automatisierungen mit menschlicher Freigabe und die Kontrolle über deine Daten."
+    }
+  },
   "de:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "de",
@@ -1397,7 +1413,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisation des tâches",
-      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, le portail de revue humain, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
+      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, la revue directement via le statut En revue, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
     }
   },
   "fr:platform/workspace/prompt-library": {
@@ -2019,6 +2035,22 @@
       "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
     }
   },
+  "fr:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Tutoriels vidéo",
+      "description": "Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire. Chaque épisode existe en français, en anglais et en allemand."
+    }
+  },
+  "fr:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Épisode 1 — Bienvenue dans Tale",
+      "description": "Une visite de trois minutes — le chat ancré dans tes propres documents, des agents avec un mandat, des automatisations avec validation humaine et la gouvernance qui garde tes données à toi."
+    }
+  },
   "fr:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "fr",
@@ -2573,7 +2605,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Task automation",
-      "description": "The default task-ops pack — how assigning a task to an agent runs it, the human review gate, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
+      "description": "The default task-ops pack — how assigning a task to an agent runs it, human review straight from the In review status, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
     }
   },
   "en:platform/workspace/prompt-library": {
@@ -3193,6 +3225,22 @@
     "frontmatter": {
       "title": "Pipe meeting transcripts into the Knowledge Base",
       "description": "Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file."
+    }
+  },
+  "en:tutorials/videos/index": {
+    "slug": "tutorials/videos/index",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Video tutorials",
+      "description": "Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment. Every episode ships in English, German, and French."
+    }
+  },
+  "en:tutorials/videos/welcome-to-tale": {
+    "slug": "tutorials/videos/welcome-to-tale",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Episode 1 — Welcome to Tale",
+      "description": "A three-minute tour — chat grounded in your own documents, agents with a mandate, automations with human approval, and the governance that keeps your data yours."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {

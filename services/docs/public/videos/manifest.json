@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "file": "videos/tutorials/ep1-welcome.de.mp4",
+      "episode": "ep1-welcome",
+      "locale": "de",
+      "kind": "video",
+      "durationSec": 206.2,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.de.vtt",
+      "episode": "ep1-welcome",
+      "locale": "de",
+      "kind": "captions",
+      "durationSec": 206.2
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.de.webp",
+      "episode": "ep1-welcome",
+      "locale": "de",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.en.mp4",
+      "episode": "ep1-welcome",
+      "locale": "en",
+      "kind": "video",
+      "durationSec": 170.8,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.en.vtt",
+      "episode": "ep1-welcome",
+      "locale": "en",
+      "kind": "captions",
+      "durationSec": 170.8
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.en.webp",
+      "episode": "ep1-welcome",
+      "locale": "en",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.fr.mp4",
+      "episode": "ep1-welcome",
+      "locale": "fr",
+      "kind": "video",
+      "durationSec": 167.3,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.fr.vtt",
+      "episode": "ep1-welcome",
+      "locale": "fr",
+      "kind": "captions",
+      "durationSec": 167.3
+    },
+    {
+      "file": "videos/tutorials/ep1-welcome.fr.webp",
+      "episode": "ep1-welcome",
+      "locale": "fr",
+      "kind": "poster",
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}

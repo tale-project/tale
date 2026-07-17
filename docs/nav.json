@@ -235,6 +235,13 @@
       "pages": [
         "tutorials/overview",
         {
+          "label": "tutorialsVideos",
+          "pages": [
+            "tutorials/videos/index",
+            "tutorials/videos/welcome-to-tale"
+          ]
+        },
+        {
           "label": "tutorialsMember",
           "pages": [
             "tutorials/member/chat-effectively",
