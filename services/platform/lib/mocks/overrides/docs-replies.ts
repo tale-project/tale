@@ -155,6 +155,69 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       'Cette lecture s’appuie sur la **revue support du T2** et la **check-list d’onboarding** de votre base de connaissances. La revue support identifie les webhooks comme la question qui progresse le plus vite, et la check-list n’a pas encore d’étape webhook — y ajouter un exemple complet répondrait aux deux principales frictions.',
     ].join('\n'),
   },
+  // ——— Video pipeline: Episode 2 grounding contrast (two triplets) ———
+  // The same topic asked twice on camera. UNGROUNDED (no attachment): a
+  // confident, fluent, deliberately GENERIC answer with zero workspace facts
+  // and no reasoning — the "smooth talker" half of the AI-literacy beat.
+  // GROUNDED (Q2 review attached): reasoning first, specific numbers, named
+  // sources. Prompts live in `tests/docs-videos/episodes/ep2-chat/`.
+  {
+    match: 'how do customers feel about our onboarding',
+    reply:
+      'Customer sentiment around onboarding usually hinges on three things: time to first value, clarity of setup steps, and how quickly early questions get answered. Most teams see the strongest reactions in the first two weeks. Tightening the setup guide and setting expectations early tends to move satisfaction more than any single feature.',
+  },
+  {
+    match: 'zufrieden sind unsere kunden mit dem onboarding',
+    reply:
+      'Die Zufriedenheit mit dem Onboarding hängt meist an drei Dingen: Zeit bis zum ersten Nutzen, klare Einrichtungsschritte und schnelle Antworten auf frühe Fragen. Die stärksten Reaktionen zeigen sich in den ersten zwei Wochen. Eine gestraffte Anleitung und früh gesetzte Erwartungen bewegen die Zufriedenheit in der Regel mehr als jedes einzelne Feature.',
+  },
+  {
+    match: 'que pensent nos clients de notre onboarding',
+    reply:
+      'La satisfaction sur l’onboarding tient généralement à trois choses : le délai avant la première valeur, la clarté des étapes d’installation et la rapidité des premières réponses. Les réactions les plus fortes arrivent dans les deux premières semaines. Resserrer le guide et cadrer les attentes tôt fait plus bouger la satisfaction que n’importe quelle fonctionnalité isolée.',
+  },
+  {
+    match: 'fix first in onboarding',
+    reasoning:
+      'Reading the attached Q2 support review and cross-checking the onboarding checklist. Ranking the fixes by how often customers hit them and how cheap they are to ship.',
+    reply: [
+      'Based on the **Q2 support review**, fix the webhook setup first.',
+      '',
+      '- Webhook questions **doubled** after the April release — the fastest-growing driver in the review.',
+      '- The setup guide has no worked example, and the **onboarding checklist** has no webhook step at all.',
+      '- Password resets and CSV limits drive more tickets in total, but both are stable quarter over quarter.',
+      '',
+      'One change — a worked webhook example inside the onboarding checklist — addresses the growth driver and closes the checklist gap at once.',
+    ].join('\n'),
+  },
+  {
+    match: 'im onboarding zuerst beheben',
+    reasoning:
+      'Der angehängte Q2-Support-Bericht wird gelesen und mit der Onboarding-Checkliste abgeglichen. Sortiert wird nach Häufigkeit und Umsetzungsaufwand.',
+    reply: [
+      'Laut dem **Q2-Support-Bericht** zuerst: die Webhook-Einrichtung.',
+      '',
+      '- Webhook-Fragen haben sich nach dem April-Release **verdoppelt** — der am schnellsten wachsende Treiber im Bericht.',
+      '- In der Anleitung fehlt ein durchgerechnetes Beispiel, in der **Onboarding-Checkliste** fehlt der Webhook-Schritt ganz.',
+      '- Passwort-Resets und CSV-Limits erzeugen insgesamt mehr Tickets, sind aber im Quartalsvergleich stabil.',
+      '',
+      'Eine Änderung — ein durchgerechnetes Webhook-Beispiel in der Checkliste — trifft den Wachstumstreiber und schließt die Lücke zugleich.',
+    ].join('\n'),
+  },
+  {
+    match: 'corriger en priorité dans l’onboarding',
+    reasoning:
+      'Lecture de la revue support du T2 jointe, croisée avec la check-list d’onboarding. Classement des corrections par fréquence et coût de mise en œuvre.',
+    reply: [
+      'D’après la **revue support du T2**, corrige d’abord la configuration des webhooks.',
+      '',
+      '- Les questions webhooks ont **doublé** depuis la version d’avril — le motif qui progresse le plus vite dans la revue.',
+      '- Le guide n’a pas d’exemple complet, et la **check-list d’onboarding** n’a aucune étape webhook.',
+      '- Les réinitialisations de mot de passe et les limites CSV génèrent plus de tickets au total, mais restent stables d’un trimestre à l’autre.',
+      '',
+      'Une seule modification — un exemple complet de webhook dans la check-list — traite le moteur de croissance et comble la lacune d’un coup.',
+    ].join('\n'),
+  },
   // ——— Video pipeline: Episode 2 canvas scene (one entry per locale) ———
   // The on-camera prompt asks for a shareable one-pager; the scripted
   // `file_write` lands it in the thread workspace, the Canvas pane auto-opens
@@ -249,9 +312,9 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
   {
     match: 'synthèse d’une page pour la direction',
     reasoning:
-      'Les trois thèmes d’onboarding de la revue support du T2 sont condensés en une synthèse d’une page pour la direction. Le document s’écrit dans le canvas.',
+      'Les trois thèmes d’onboarding de la revue support du T2 sont condensés en une synthèse d’une page pour la direction. Le document s’écrit dans le canevas.',
     reply:
-      'La synthèse est dans le canvas — une page : les trois thèmes, les éléments à l’appui et une prochaine étape recommandée. Tu peux la retoucher directement, ou me demander une version plus courte.',
+      'La synthèse est dans le canevas — une page : les trois thèmes, les éléments à l’appui et une prochaine étape recommandée. Tu peux la retoucher directement, ou me demander une version plus courte.',
     tool: {
       name: 'file_write',
       files: [
@@ -361,6 +424,120 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
           '- The accessibility sweep has no agreed severity bar, so "done" is undefined today.',
           '',
           'The redirect map and the rollback rehearsal are the launch-blocking ones; everything else can land inside the release window.',
+        ].join('\n'),
+      },
+    ],
+  },
+  // ——— Video pipeline: Episode 2 Arena scene, de/fr (native prompts) ———
+  // The en Arena take reuses the seeded launch-checklist entry above; the
+  // de/fr takes type a NATIVE prompt, so each needs its own entry with
+  // per-model variants. Every variant opens with its locale's shared opener
+  // (the contract test pins that), and carries its column-wait phrase —
+  // "blockieren den Launch" / "bloquantes pour le lancement" — exactly once.
+  {
+    match: 'launch-checkliste für den website-relaunch',
+    reply: [
+      'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+      '',
+      '1. **Content-Freeze** — die finalen Texte sind vom Marketing freigegeben.',
+      '2. **Redirect-Map** — jede alte URL ist gemappt und getestet.',
+      '3. **Performance-Check** — Core Web Vitals auf Staging im grünen Bereich.',
+      '4. **Accessibility-Durchgang** — Tastaturwege und Kontraste geprüft.',
+      '5. **Rollback-Plan** — der vorherige Build ist in einem Schritt zurückholbar.',
+      '',
+      'Die Punkte 2 und 5 blockieren den Launch; der Rest kann im Release-Fenster landen.',
+    ].join('\n'),
+    byModel: [
+      {
+        model: 'claude-haiku',
+        reply: [
+          'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+          '',
+          '1. **Texte einfrieren** — Marketing gibt die Startseite frei.',
+          '2. **Redirect-Map liefern** — alle 380 alten URLs gemappt und getestet.',
+          '3. **Performance prüfen** — Core Web Vitals auf Staging grün.',
+          '4. **Accessibility fegen** — Tastaturpfade und AA-Kontraste.',
+          '5. **Rollback proben** — der vorherige Build in einem Schritt zurück.',
+          '',
+          'Die Schritte 2 und 5 blockieren den Launch.',
+        ].join('\n'),
+      },
+      {
+        model: 'claude-sonnet',
+        reply: [
+          'Hier ist eine Launch-Checkliste auf Basis der Website-Relaunch-Aufgaben:',
+          '',
+          '**Vor dem Content-Freeze**',
+          '',
+          '- Startseiten-Texte final und vom Marketing freigegeben.',
+          '- Redirect-Map vollständig: 340 der 380 alten URLs sind heute gemappt.',
+          '',
+          '**Go-live-Gates**',
+          '',
+          '- Core Web Vitals auf dem Staging-Build grün.',
+          '- Accessibility-Durchgang sauber — Tastaturnavigation, Fokusreihenfolge, AA-Kontrast.',
+          '- Rollback geprobt: der vorherige Build in einem Schritt, ohne Datenverlust.',
+          '',
+          '**Erwähnenswerte Risiken**',
+          '',
+          '- Für 40 alte Blog-URLs steht die Entscheidung Redirect-oder-behalten noch aus.',
+          '- Für den Accessibility-Durchgang fehlt eine vereinbarte Schweregrenze.',
+          '',
+          'Redirect-Map und Rollback-Probe blockieren den Launch; alles andere kann im Release-Fenster landen.',
+        ].join('\n'),
+      },
+    ],
+  },
+  {
+    match: 'check-list de lancement pour la refonte du site',
+    reply: [
+      'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+      '',
+      '1. **Gel du contenu** — les textes finaux sont validés par le marketing.',
+      '2. **Plan de redirections** — chaque ancienne URL est mappée et testée.',
+      '3. **Passe performance** — Core Web Vitals au vert sur le staging.',
+      '4. **Passe accessibilité** — navigation clavier et contrastes vérifiés.',
+      '5. **Plan de rollback** — le build précédent se redéploie en une étape.',
+      '',
+      'Les étapes 2 et 5 sont bloquantes pour le lancement ; le reste peut arriver dans la fenêtre de release.',
+    ].join('\n'),
+    byModel: [
+      {
+        model: 'claude-haiku',
+        reply: [
+          'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+          '',
+          '1. **Geler le contenu** — le marketing valide la page d’accueil.',
+          '2. **Livrer le plan de redirections** — les 380 anciennes URL mappées et testées.',
+          '3. **Vérifier la performance** — Core Web Vitals au vert sur le staging.',
+          '4. **Passer l’accessibilité** — parcours clavier et contrastes AA.',
+          '5. **Répéter le rollback** — le build précédent revient en une étape.',
+          '',
+          'Les étapes 2 et 5 sont bloquantes pour le lancement.',
+        ].join('\n'),
+      },
+      {
+        model: 'claude-sonnet',
+        reply: [
+          'Voici une check-list de lancement fondée sur les tâches de la refonte du site :',
+          '',
+          '**Avant le gel du contenu**',
+          '',
+          '- Textes d’accueil finaux, validés par le marketing.',
+          '- Plan de redirections complet : 340 des 380 anciennes URL sont mappées aujourd’hui.',
+          '',
+          '**Portes de mise en ligne**',
+          '',
+          '- Core Web Vitals au vert sur le build de staging.',
+          '- Passe accessibilité propre — navigation clavier, ordre de focus, contraste AA.',
+          '- Rollback répété : le build précédent se redéploie en une étape, sans perte de données.',
+          '',
+          '**Risques à signaler**',
+          '',
+          '- Les 40 anciennes URL du blog attendent une décision : rediriger ou conserver.',
+          '- La passe accessibilité n’a pas de seuil de gravité convenu.',
+          '',
+          'Le plan de redirections et la répétition du rollback sont les étapes bloquantes pour le lancement ; tout le reste peut arriver dans la fenêtre de release.',
         ].join('\n'),
       },
     ],
